@@ -16,3 +16,6 @@ for (const name of [
 ]) {
   Object.defineProperty(globalThis, name, { value: name === 'window' ? w : w[name], configurable: true, writable: true });
 }
+
+// jsdom has no layout and no pointer capture: the drag tests give the bars a geometry
+w.HTMLElement.prototype.setPointerCapture = function setPointerCapture() {};

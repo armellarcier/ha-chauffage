@@ -68,10 +68,13 @@ class ChauffageRuntime:
         self._listeners: set[Callable[[str], None]] = set()
         self._unsubs: list[Callable[[], None]] = []
         self._unsub_states: Callable[[], None] | None = None
+        self._last_tick: datetime | None = None
+        self._retry: set[str] = set()  # thermostats whose last command failed
 
     # ----- life cycle -----
 
     async def async_start(self) -> None:
+        self._last_tick = dt_util.now()  # the realignment below covers the time before
         self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
         self._track_thermostats()
         for entity_id in self.data["schedules"]:
@@ -274,7 +277,8 @@ class ChauffageRuntime:
 
     # ----- scheduling -----
 
-    async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None) -> None:
+    async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None,
+                    since: datetime | None = None, include: set[str] | None = None) -> None:
         async with self._lock:
             schedules = self.data["schedules"]
             todo = engine.targets(
@@ -284,18 +288,28 @@ class ChauffageRuntime:
                 force=force,
                 resumed=resumed,
                 ended=ended or (),
+                since=since,
+                include=frozenset(include or ()) | frozenset(self._retry),
             )
+            # A thermostat to retry that needs nothing anymore (already right, override, off…)
+            self._retry &= {entity_id for entity_id, _ in todo}
             for i, (entity_id, target) in enumerate(todo):
                 if i and self.pause:
                     await asyncio.sleep(self.pause)
                 if target.kind == "preset":
-                    await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
+                    done = await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
                 else:
-                    await self.call_climate("set_temperature", entity_id, {"temperature": target.value})
+                    done = await self.call_climate("set_temperature", entity_id, {"temperature": target.value})
+                # Not delivered (unreachable valve…): sent again at the next minutes
+                if done:
+                    self._retry.discard(entity_id)
+                else:
+                    self._retry.add(entity_id)
 
     async def _tick(self, now: datetime) -> None:
         ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
-        await self.apply(ended=ended)
+        since, self._last_tick = self._last_tick, dt_util.now()
+        await self.apply(ended=ended, since=since)
         if ended:
             for entity_id in ended:
                 self.data["overrides"].pop(entity_id, None)
@@ -331,6 +345,10 @@ class ChauffageRuntime:
         old, new = event.data["old_state"], event.data["new_state"]
         self._learn(new)
         if old is None or new is None:
+            return
+        if old.state in engine.IGNORED_STATES and new.state not in engine.IGNORED_STATES:
+            # Turned back on, or back online: the thermostat may have missed slot changes
+            self.entry.async_create_task(self.hass, self.apply(include={new.entity_id}), "chauffage catch up")
             return
         context = new.context
         # Changes made by the schedule, or by any automation / script, are not overrides

@@ -192,12 +192,16 @@ def targets(
     force: bool = False,
     resumed: str | None = None,
     ended: frozenset[str] | list[str] = (),
+    since: datetime | None = None,
+    include: frozenset[str] | set[str] = frozenset(),
 ) -> list[tuple[str, Target]]:
     """(thermostat, target) pairs to apply now, in schedule order.
 
     - force: realign every thermostat (mode changed, schedules saved, HA started);
-    - otherwise only thermostats whose slot starts now, whose override just ended, or whose
-      override was removed (resumed);
+    - otherwise only thermostats whose level changed since the previous check (`since`; a slot
+      starting during a missed minute, or in the hour skipped by the change to summer time, is
+      applied late rather than never), whose slot starts now, whose override just ended or was
+      removed (resumed), or that must be realigned (`include`: back online, failed command);
     - thermostats with an active override, turned off, unavailable or already as expected are
       left alone.
     """
@@ -209,7 +213,8 @@ def targets(
         thermostat = thermostats.get(entity_id)
         if level is None or thermostat is None:
             continue
-        if not (force or starts_now or entity_id == resumed or entity_id in ended):
+        changed = starts_now or (since is not None and plan.level_at(entity_id, since)[0] != level)
+        if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
         target = resolve(level, plan.levels, plan.mappings.get(entity_id), thermostat, plan.use_presets)
         if target is None or thermostat.state in IGNORED_STATES or satisfied(target, thermostat):

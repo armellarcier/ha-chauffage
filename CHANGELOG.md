@@ -31,6 +31,15 @@ existing schedules).
 - Manual changes on thermostats driven by temperature: any setpoint set by someone else becomes
   an override; the thermostat reaching the expected temperature does not.
 
+### Fixed
+
+- A thermostat turned back on, or back online after being unavailable, gets its level at once
+  (it waited for the next slot, sometimes hours).
+- A command a valve did not receive (Zigbee `NWK_NO_ROUTE`…) is sent again every minute until
+  delivered (it waited for the next slot).
+- A slot starting during a minute the scheduler missed (HA busy) or in the hour skipped by the
+  change to summer time is applied late instead of never.
+
 ### Changed
 
 - The **Schedule** sensor's state is a level id; its attributes are `level_name`, `target`,

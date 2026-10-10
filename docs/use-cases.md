@@ -1,0 +1,102 @@
+# Use cases and the tests that prove them
+
+The tests are the specification (see CONTRIBUTING.md, "Tests first"). This page lists what a
+user can do or expect, and the test that proves it. A use case without a test is a bug waiting
+to happen: add the test first.
+
+Files: `I/` = `tests/integration/`, `C/` = `tests/js/` (card). Behavior tests marked **×3** run on
+the three kinds of thermostats (Versatile Thermostat, standard presets, no presets).
+
+## Installing and upgrading
+
+| Use case | Test |
+|---|---|
+| Add the integration in one step; only one instance | `I/test_config_flow.py` |
+| A new installation gets modes and levels in HA's language | `I/test_entities.py::default_mode_names_follow_the_language`, `I/test_levels.py::a_new_installation_has_the_four_default_levels` |
+| Upgrade from the package: schedules, overrides, active mode imported; package automations turned off; repair until the package is removed | `I/test_import.py` |
+| Package data newer than the integration, unreadable parts, added during HA startup | `I/test_import.py`, `I/test_edge_cases.py::a_package_too_new_*`, `::unreadable_package_parts_are_skipped` |
+| Upgrade of the integration: stored data migrated (v1 → v2), nothing changes | `I/test_store.py`, `I/test_levels.py::storage_from_v0_2_is_migrated_without_changing_anything` |
+| Remove the integration: its data is deleted | `I/test_edge_cases.py::deleting_the_integration_deletes_its_data` |
+| The card is served by the integration and loaded on every page | `I/test_frontend.py` |
+
+## Schedules applied (scheduler) — ×3
+
+| Use case | Test |
+|---|---|
+| A level applied exactly at its slot start, nothing between slots | `I/test_schedules.py::the_preset_changes_exactly_at_the_slot_start`, `::between_two_slots_nothing_is_sent` |
+| Weekdays / weekend; Sunday night → Monday morning | `I/test_schedules.py::the_day_of_the_week_is_respected`, `I/test_use_cases.py::sunday_to_monday` |
+| A slot starting during a missed minute (HA busy) or in the hour skipped by summer time is applied late, not never | `I/test_use_cases.py::a_slot_starting_during_a_missed_minute_is_applied`, `::spring_forward_*` |
+| The repeated hour of winter time changes nothing | `I/test_use_cases.py::fall_back_the_repeated_hour_changes_nothing` |
+| Changing mode (card, select, automation) realigns every thermostat | `I/test_schedules.py::changing_mode_applies_that_mode_s_schedule`, `C/card.test.mjs` (mode bar), `C/card-integration.test.mjs::activating a mode sends its id` |
+| Saving schedules realigns; an already right thermostat gets nothing | `I/test_schedules.py::saving_schedules_realigns_every_thermostat`, `::a_preset_already_active_is_not_sent_again` |
+| HA restart: thermostats realigned once HA has started; schedules and overrides kept | `I/test_edge_cases.py::thermostats_are_realigned_once_home_assistant_has_started`, `I/test_schedules.py::the_schedules_survive_a_restart`, `I/test_use_cases.py::overrides_survive_a_restart` |
+| A thermostat turned off (summer) is left alone; turned back on, it gets its level at once | `I/test_schedules.py::a_thermostat_turned_off_is_ignored`, `I/test_use_cases.py::a_thermostat_turned_back_on_*` |
+| An unavailable valve catches up as soon as it is back online | `I/test_use_cases.py::a_thermostat_back_online_*` |
+| An unreachable valve does not block the others; its command is retried every minute until delivered | `I/test_schedules.py::an_unreachable_thermostat_does_not_block_the_others`, `I/test_use_cases.py::a_failed_command_is_retried_the_next_minutes` |
+| Commands are spaced out (Zigbee network) | `I/test_edge_cases.py::thermostats_are_sent_one_after_the_other` |
+| A thermostat without a schedule for the active mode is left alone | `I/test_schedules.py::a_thermostat_without_a_schedule_for_the_mode_is_left_alone` |
+| ZHA Enum presets | `I/test_schedules.py::an_enum_preset_is_compared_correctly`, `I/test_overrides.py::an_enum_preset_does_not_break_detection` |
+
+## Overrides — ×3
+
+| Use case | Test |
+|---|---|
+| A setpoint changed by hand, in HA or on the device itself, becomes a 2 h override (duration in the options) | `I/test_overrides.py::a_setpoint_changed_by_hand_*`, `::the_override_duration_is_an_option`, `I/test_use_cases.py::a_change_on_the_thermostat_itself_is_an_override` |
+| A preset picked by a user is an override (thermostats with presets) | `I/test_overrides.py::a_preset_picked_by_a_user_creates_an_override` |
+| Changes made by an automation, or by the integration itself (and the thermostat's answer), are not overrides | `I/test_overrides.py::a_change_made_by_an_automation_*`, `::a_change_made_by_the_integration_itself_*`, `::the_thermostat_answering_the_schedule_*` |
+| VTherm safety mode in and out is not an override; a user's choice during it is | `I/test_overrides.py::safety_mode_*`, `::slot_changes_are_still_sent_during_safety_mode`, `::a_preset_picked_by_a_user_during_safety_mode_*` |
+| Only scheduled thermostats are watched, added or removed without configuration | `I/test_overrides.py::a_thermostat_without_a_schedule_is_not_watched`, `::a_thermostat_added_*`, `I/test_use_cases.py::a_thermostat_removed_from_the_schedules_*` |
+| During an override: slot changes and realignments leave it alone; a new manual change restarts it | `I/test_overrides.py::a_slot_change_does_not_overwrite_an_override`, `::a_forced_realignment_*`, `::a_new_manual_change_restarts_the_2_hours` |
+| End of an override: the schedule resumes, without a new override; ended while HA was stopped | `I/test_overrides.py::when_the_override_ends_*`, `::resuming_the_schedule_*`, `I/test_use_cases.py::an_override_that_ended_while_home_assistant_was_stopped` |
+| Extend, shorten (not before now + 15 min), remove an override from the card (drag, buttons, time field) or the more-info dialog | `I/test_overrides.py::extending_*`, `::removing_the_override_*`, `C/card.test.mjs` (overrides), `C/interactions.test.mjs` (dragging the end, popover), `C/more-info.test.mjs` |
+| Services for automations: set (temperature / preset, duration / end), clear; errors | `I/test_api.py::set_override_*`, `I/test_edge_cases.py::set_override_*`, `::services_without_the_integration` |
+
+## Heating levels
+
+| Use case | Test |
+|---|---|
+| A level is the thermostat's preset with the same name, else the level's temperature (fitted to the thermostat) | `I/test_engine.py` (levels → targets) |
+| Option "use the thermostats' presets" off: everything driven by temperature | `I/test_options.py::without_presets_*`, `C/interactions.test.mjs` (option off) |
+| Per thermostat: automatic, one of its presets, or its own temperature; back to automatic | `I/test_levels.py::a_mapping_set_by_hand_is_applied`, `C/card-integration.test.mjs` (Levels view) |
+| Default temperature of a level, followed by the thermostats left in automatic | `I/test_levels.py::the_level_s_default_temperature_follows_its_changes`, `C/card-integration.test.mjs::a level's default temperature` |
+| Rename, recolor, add, remove a level (a used one is replaced) | `I/test_levels.py`, `I/test_options.py::the_card_edits_the_levels`, `C/card-integration.test.mjs::renaming, adding and removing levels` |
+| Preset temperatures shown: learned while active; read from VTherm attributes | `I/test_options.py::the_temperature_of_each_preset_is_learned_*`, `C/card-integration.test.mjs::Versatile Thermostat preset temperatures *` |
+| Only admins change levels; others see them | `I/test_options.py::level_and_mapping_changes_need_an_admin`, `C/card-integration.test.mjs::read only for non-admins *` |
+
+## Editing schedules in the card
+
+| Use case | Test |
+|---|---|
+| Show schedules per mode, one or several thermostats, selection kept for the next visit | `C/card.test.mjs` (configuration, choosing thermostats), `C/interactions.test.mjs` (thermostats shown) |
+| Add a cut (double click), insert, delete, change a slot's level, move times (drag or fields), close the editor | `C/card.test.mjs` (editing a day), `C/interactions.test.mjs` (slot editor buttons, double click, dragging, editing a slot) |
+| Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
+| Save, cancel; a save from an outdated copy is refused; edits in progress are not replaced by changes saved elsewhere | `C/card.test.mjs` (saving), `C/card-integration.test.mjs::a save refused *`, `C/interactions.test.mjs` (edits in progress), `I/test_api.py::saving_from_an_outdated_copy_is_refused` |
+| Open a thermostat's more-info dialog from the card | `C/card.test.mjs` (thermostat more-info dialog) |
+| Error messages (save, override, mode, levels) | `C/interactions.test.mjs` (error messages) |
+| English / French, 12 / 24 h, decimal separator, first day of the week | `C/i18n.test.mjs` |
+
+## More-info dialog of a thermostat
+
+| Use case | Test |
+|---|---|
+| Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
+| Current and next slot, override, +30 min, drag its end, end time field, resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end) |
+
+## Entities and API
+
+| Use case | Test |
+|---|---|
+| Heating mode select (stable id), schedule and override-end sensors (disabled by default, on the thermostat's device) | `I/test_entities.py` |
+| Websocket API for the card: subscribe, save with revision, overrides, mode, levels, mappings; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_edge_cases.py` |
+
+## The v0.1 package (until v0.2.0)
+
+`tests/ha/` (schedules, overrides, data versions) and `C/migrations.test.mjs`. The fixes found by
+this analysis (thermostats coming back, retries, missed minutes) are made in the integration only.
+
+## Not covered by automated tests
+
+- Exact placement of the popovers on screen (needs a real browser layout): checked in the test
+  harness (`dev/harness.html`) and the development HA.
+- Two copies of the card loaded at once (package loader and integration, during an upgrade): the
+  second one does not register again (guarded), checked on the development HA.
