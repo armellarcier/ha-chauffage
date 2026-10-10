@@ -29,7 +29,7 @@ describe('more-info block', () => {
 
   test('with an override: setpoint, end time and remaining time', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
-    assert.match(text(el), /21\.5 °C/);
+    assert.match(text(el), /21,5 °C/); // French decimal comma
     assert.match(text(el), /encore 1 h 30/);
     assert.equal(el.shadowRoot.querySelector('input[data-end]').value, '11:30');
   });

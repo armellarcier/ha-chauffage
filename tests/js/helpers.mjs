@@ -6,7 +6,10 @@ export const WEEKDAY = ['00:00 eco', '06:30 comfort', '08:30 eco', '17:30 comfor
 export const WEEKEND = ['00:00 eco', '08:00 comfort', '23:00 eco'];
 
 /** Minimal HA states: mode, two thermostats, schedules, overrides. */
-export function fakeHass({ schedules, overrides = {}, mode = 'Normal' } = {}) {
+// Default user: French, 24 h clock, formats following the language (most existing tests are in French)
+export const FRENCH = { language: 'fr', time_format: 'language', number_format: 'language', first_weekday: 'language' };
+
+export function fakeHass({ schedules, overrides = {}, mode = 'Normal', locale = FRENCH } = {}) {
   const events = [];
   const states = {
     'input_select.mode_chauffage': { state: mode, attributes: { options: ['Normal', 'Absent', 'Vacances'] }, last_updated: '1' },
@@ -23,6 +26,9 @@ export function fakeHass({ schedules, overrides = {}, mode = 'Normal' } = {}) {
     states,
     events,
     services,
+    locale,
+    language: locale.language,
+    config: { unit_system: { temperature: '°C' } },
     callWS: async (msg) => { events.push(msg); },
     callService: async (domain, service, data) => { services.push({ domain, service, data }); },
   };

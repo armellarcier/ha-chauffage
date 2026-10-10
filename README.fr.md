@@ -40,6 +40,9 @@ comme **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermosta
      - entity: climate.salon
        name: Salon
    ```
+   La carte suit la langue et les formats de l'utilisateur (12 / 24 h, séparateur décimal, premier
+   jour de la semaine) ; l'anglais et le français sont disponibles, et `language: en` ou
+   `language: fr` en force un.
 
 Le mode actif est `input_select.mode_chauffage` : il se change depuis la carte (ouvrir l'onglet
 du mode, puis « Activer ») ou depuis n'importe quelle automatisation (présence, calendrier…).

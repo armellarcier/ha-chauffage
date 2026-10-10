@@ -43,6 +43,8 @@ Weekly heating schedules for Home Assistant, for preset-based thermostats such a
      - entity: climate.living_room
        name: Living room
    ```
+   The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
+   the week); English and French are available, and `language: en` or `language: fr` forces one.
 
 The active mode is `input_select.mode_chauffage`: switch it from the card (open the mode tab,
 then "Activer") or from any automation (presence, calendar…).

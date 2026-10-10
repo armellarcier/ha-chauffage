@@ -153,6 +153,25 @@ git push prod main
 The card updates when the page is reloaded: `chauffage-loader.js` detects the new version
 (no `?v=` to change, no restart).
 
+## Translations
+
+The card speaks English and French. It follows the Home Assistant user's profile
+(`hass.locale`): **language** (French for any `fr*` language, English otherwise; the card's
+`language` option can force it), **time format** (12 / 24 h), **number format** (decimal
+separator), **first day of the week**, and the temperature unit of the HA configuration.
+
+- Texts live in the `I18N` object of `www/chauffage-programme-card.js`, one object per
+  language, with English keys and `{placeholder}` variables.
+- Every language has exactly the same keys and placeholders: `tests/js/i18n.test.mjs` checks it.
+- Formats are never written by hand: times, day names and numbers come from the browser's `Intl`
+  APIs, following `hass.locale` (see `makeLocale`).
+- Mode names (`Normal` / `Absent` / `Vacances`) are data (options of `input_select.mode_chauffage`),
+  not UI texts: they are not translated.
+- To add a language: add an object to `I18N` (same keys as `en`), extend `resolveLanguage`, and
+  run `scripts/test.sh js`.
+- With the integration (roadmap, phase 1), the card will be bundled: translations will move to one
+  JSON file per language with ICU MessageFormat (plurals), as in most Home Assistant cards.
+
 ## Conventions
 
 These conventions apply to every contributor, human or AI assistant

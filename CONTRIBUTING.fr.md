@@ -155,6 +155,27 @@ git push prod main
 La carte se met à jour au rechargement de la page : `chauffage-loader.js` détecte la
 nouvelle version (aucun `?v=` à changer, aucun redémarrage).
 
+## Traductions
+
+La carte parle anglais et français. Elle suit le profil de l'utilisateur Home Assistant
+(`hass.locale`) : **langue** (français pour toute langue `fr*`, anglais sinon ; l'option
+`language` de la carte permet de la forcer), **format de l'heure** (12 / 24 h), **format des
+nombres** (séparateur décimal), **premier jour de la semaine**, et l'unité de température de la
+configuration HA.
+
+- Les textes sont dans l'objet `I18N` de `www/chauffage-programme-card.js`, un objet par langue,
+  avec des clés en anglais et des variables `{placeholder}`.
+- Chaque langue a exactement les mêmes clés et variables : `tests/js/i18n.test.mjs` le vérifie.
+- Les formats ne sont jamais écrits à la main : heures, noms des jours et nombres viennent des API
+  `Intl` du navigateur, selon `hass.locale` (voir `makeLocale`).
+- Les noms des modes (`Normal` / `Absent` / `Vacances`) sont des données (options de
+  `input_select.mode_chauffage`), pas des textes d'interface : ils ne sont pas traduits.
+- Pour ajouter une langue : ajouter un objet à `I18N` (mêmes clés que `en`), étendre
+  `resolveLanguage`, puis lancer `scripts/test.sh js`.
+- Avec l'intégration (feuille de route, phase 1), la carte sera compilée : les traductions
+  passeront à un fichier JSON par langue avec ICU MessageFormat (pluriels), comme la plupart des
+  cartes Home Assistant.
+
 ## Conventions
 
 Ces conventions s'appliquent à tous les contributeurs, humains comme assistants IA

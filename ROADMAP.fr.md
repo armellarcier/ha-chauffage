@@ -159,21 +159,23 @@ YAML à modifier à la main. La prochaine version majeure est une **intégration
 
 ### 7. Internationalisation
 
-Tout ce que voit l'utilisateur est aujourd'hui en français : les textes de la carte (jours,
-presets, boutons, messages), les noms des modes (`Normal` / `Absent` / `Vacances`), les noms
-d'entités et d'événements (`input_select.mode_chauffage`, `sensor.derogations_chauffage`,
-`chauffage_derogation_set`) et même les clés des données (`valeur`, `debut`, `fin`). Pour servir
-des utilisateurs de toutes langues :
+**Fait — la carte** parle anglais et français et suit le profil de l'utilisateur Home Assistant
+(`hass.locale`) : langue, horloge 12 / 24 h, séparateur décimal, premier jour de la semaine, et
+l'unité de température. Les textes sont dans un dictionnaire par langue (mêmes clés, vérifiées par
+les tests) ; heures, noms des jours et nombres viennent des API `Intl` du navigateur. Voir
+CONTRIBUTING.fr.md, « Traductions ».
 
-- **Carte** : tous les textes passent dans des fichiers de traduction (`en` et `fr` pour commencer,
-  d'autres via des contributions), choisis selon la langue de l'utilisateur dans Home Assistant
-  (`hass.locale` / `hass.language`), avec l'anglais par défaut.
-- **Formats adaptés à la langue** : heures en 12 h ou 24 h selon le réglage HA de l'utilisateur,
-  noms des jours et **premier jour de la semaine** selon la langue (`Intl`), températures dans
-  l'unité de l'utilisateur.
+**Encore en français** : les noms des modes (`Normal` / `Absent` / `Vacances`, qui sont des
+données), les noms d'entités et d'événements (`input_select.mode_chauffage`,
+`sensor.derogations_chauffage`, `chauffage_derogation_set`) et les clés stockées (`valeur`,
+`debut`, `fin`). Prochaines étapes :
+
 - **Intégration** (phase 1) : le système de traduction de HA (`strings.json`,
   `translations/*.json`) pour les noms d'entités (`translation_key`), les états, les services, le
   formulaire de configuration et les messages d'erreur.
+- **Traductions de la carte en fichiers** : une fois la carte compilée par l'intégration, un
+  fichier JSON par langue et ICU MessageFormat (pluriels), comme la plupart des cartes Home
+  Assistant ; d'autres langues via des contributions.
 - **Identifiants neutres** : des clés anglaises et stables pour les entités, événements, services
   et données stockées (`value`, `start`, `end`…) ; seul ce que voit l'utilisateur est traduit. Les
   modes et niveaux de chauffe par défaut sont créés avec des noms dans la langue de l'utilisateur,
@@ -181,9 +183,8 @@ des utilisateurs de toutes langues :
 - **Documentation** : déjà en anglais (version de référence) et en français ; d'autres langues
   sont les bienvenues.
 
-La traduction de la carte peut se faire à tout moment ; les identifiants neutres arrivent avec le
-passage à l'intégration (phase 1), dont la migration depuis la version package renomme les
-clés stockées.
+Les identifiants neutres arrivent avec le passage à l'intégration (phase 1), dont la migration
+depuis la version package renomme les clés stockées.
 
 ## Ordre des travaux
 
@@ -196,6 +197,5 @@ clés stockées.
 | 4 | Groupes et modes définis par l'utilisateur (modèle de données, puis carte) | deux groupes dans des modes différents fonctionnent en parallèle |
 | 5 | Environnement de dev générique, matrice de tests, versions figées, CI de bout en bout | la CI couvre chaque type de thermostat |
 
-Les phases 2 à 4 sont développées directement dans l'intégration. La traduction de la carte
-(section 7) peut commencer à tout moment : faite dans le package, elle est reprise telle quelle par
-l'intégration.
+Les phases 2 à 4 sont développées directement dans l'intégration. La carte parle déjà anglais et
+français (section 7) ; ses traductions sont reprises telles quelles par l'intégration.

@@ -7,15 +7,234 @@
  * and loaded on every page by chauffage-loader.js — see README.md.
  */
 
+// Preset colors (labels are translated, see I18N)
 const PRESETS = {
-  comfort: { label: 'Confort', color: '#f57c00' },
-  eco: { label: 'Éco', color: '#43a047' },
-  boost: { label: 'Boost', color: '#e53935' },
-  frost: { label: 'Hors-gel', color: '#29b6f6' },
+  comfort: { color: '#f57c00' },
+  eco: { color: '#43a047' },
+  boost: { color: '#e53935' },
+  frost: { color: '#29b6f6' },
 };
-const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const DAY_MIN = 1440;
+
+// ---------- i18n ----------
+// UI texts in English and French. The language follows the user's Home Assistant language
+// (French for any "fr*" language, English otherwise) unless the card sets `language`.
+// Mode names (Normal / Absent / Vacances) are data (input_select options): not translated here.
+const I18N = {
+  en: {
+    presets: { comfort: 'Comfort', eco: 'Eco', boost: 'Boost', frost: 'Frost protection' },
+    thermostatsRequired: 'The "thermostats" option is required (list of climate.* entities)',
+    error: 'Error: {message}',
+    saved: 'Saved ✓',
+    off: 'off',
+    manual: 'manual',
+    hint: 'Drag a handle to move a time · Click a slot to edit it · Double-click to add a cut',
+    open: 'Open {name}',
+    openThermostat: 'Open the thermostat',
+    copyPaste: 'Copy / paste…',
+    copyDay: 'Copy the day',
+    paste: 'Paste',
+    copyToWeekdays: 'Copy to Mon–Fri',
+    copyToWeekend: 'Copy to Sat–Sun',
+    copyToAll: 'Copy to every day',
+    copyToOthers: 'Copy to the other thermostats',
+    from: 'from',
+    to: 'to',
+    close: 'Close (Esc)',
+    insertSlot: '+ Insert a slot',
+    delete: 'Delete',
+    temporarySetpoint: 'temporary setpoint',
+    temporarySetpointTitle: 'Temporary setpoint: {label}',
+    dragToChangeEnd: 'Drag to change the end',
+    until: 'until',
+    today: 'today',
+    remaining: '{duration} left',
+    duration: '{h}h {mm}',
+    deleteAndResume: 'Delete · resume the schedule',
+    resume: 'Resume the schedule',
+    activeMode: 'Active mode',
+    activeModeBar: 'Active mode: <strong>{mode}</strong>',
+    noActiveMode: 'No active mode',
+    activate: 'Activate “{mode}”',
+    modeActivated: '“{mode}” mode activated',
+    multiple: 'Multiple',
+    multipleTitle: 'Turn on to show several thermostats (shortcut: Ctrl+click a thermostat)',
+    all: 'All',
+    allTitle: 'Show every thermostat',
+    copyWeekTo: 'Copy {name}’s week to…',
+    cancel: 'Cancel',
+    save: 'Save',
+    unsaved: 'Unsaved changes',
+    destinations: { weekdays: 'Mon–Fri', weekend: 'Sat–Sun', all: 'every day', others: 'the other thermostats' },
+    dayCopiedTo: '{name} · {day} copied to {destination}',
+    weekCopiedTo: '{source}’s week copied to {target} · {mode}',
+    copied: 'Copied: {label}',
+    pastedOn: 'Pasted on {name} · {day}',
+    schedule: 'Schedule',
+    followsSchedule: 'Follows the schedule:',
+    untilThen: '{current} until {time}, then {next}',
+    untilMidnight: '{current} until midnight',
+    todayTitle: 'Today',
+    week: 'Week',
+  },
+  fr: {
+    presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
+    thermostatsRequired: 'Le paramètre "thermostats" est requis (liste d\'entités climate.*)',
+    error: 'Erreur : {message}',
+    saved: 'Enregistré ✓',
+    off: 'arrêt',
+    manual: 'manuel',
+    hint: 'Glisser une poignée pour déplacer un horaire · Clic sur une plage pour la modifier · Double-clic pour ajouter une coupure',
+    open: 'Ouvrir {name}',
+    openThermostat: 'Ouvrir le thermostat',
+    copyPaste: 'Copier / coller…',
+    copyDay: 'Copier la journée',
+    paste: 'Coller',
+    copyToWeekdays: 'Copier vers Lun–Ven',
+    copyToWeekend: 'Copier vers Sam–Dim',
+    copyToAll: 'Copier vers tous les jours',
+    copyToOthers: 'Copier vers les autres vannes',
+    from: 'de',
+    to: 'à',
+    close: 'Fermer (Échap)',
+    insertSlot: '+ Insérer une plage',
+    delete: 'Supprimer',
+    temporarySetpoint: 'consigne temporaire',
+    temporarySetpointTitle: 'Consigne temporaire : {label}',
+    dragToChangeEnd: 'Glisser pour changer la fin',
+    until: 'jusqu\'à',
+    today: 'aujourd\'hui',
+    remaining: 'encore {duration}',
+    duration: '{h} h {mm}',
+    deleteAndResume: 'Supprimer · reprendre le programme',
+    resume: 'Reprendre le programme',
+    activeMode: 'Mode actif',
+    activeModeBar: 'Mode actif : <strong>{mode}</strong>',
+    noActiveMode: 'Aucun mode actif',
+    activate: 'Activer « {mode} »',
+    modeActivated: 'Mode « {mode} » activé',
+    multiple: 'Plusieurs',
+    multipleTitle: 'Activer pour afficher plusieurs vannes (raccourci : Ctrl+clic sur une vanne)',
+    all: 'Toutes',
+    allTitle: 'Afficher toutes les vannes',
+    copyWeekTo: 'Copier la semaine de {name} vers…',
+    cancel: 'Annuler',
+    save: 'Enregistrer',
+    unsaved: 'Modifications non enregistrées',
+    destinations: { weekdays: 'Lun–Ven', weekend: 'Sam–Dim', all: 'tous les jours', others: 'les autres vannes' },
+    dayCopiedTo: '{name} · {day} copié vers {destination}',
+    weekCopiedTo: 'Semaine de {source} copiée vers {target} · {mode}',
+    copied: 'Copié : {label}',
+    pastedOn: 'Collé sur {name} · {day}',
+    schedule: 'Programme',
+    followsSchedule: 'Suit le programme :',
+    untilThen: '{current} jusqu\'à {time}, puis {next}',
+    untilMidnight: '{current} jusqu\'à minuit',
+    todayTitle: 'Aujourd\'hui',
+    week: 'Semaine',
+  },
+};
+
+// UI language: "fr*" → French, anything else → English (the only two translations so far)
+function resolveLanguage(hass, configured) {
+  const lang = String(configured || (hass && ((hass.locale && hass.locale.language) || hass.language)) || 'en').toLowerCase();
+  return lang.startsWith('fr') ? 'fr' : 'en';
+}
+
+// Locale used by Intl for formats: the user's own (e.g. "en-GB", "fr-CA"), unless the card forces
+// a language. Falls back to the UI language when Intl does not know it.
+function resolveIntlLocale(hass, configured, lang) {
+  const candidate = configured || (hass && ((hass.locale && hass.locale.language) || hass.language)) || lang;
+  try {
+    return Intl.getCanonicalLocales(candidate)[0] || lang;
+  } catch (e) {
+    return lang;
+  }
+}
+
+// HA profile "Number format" → locale whose decimal separator matches (as HA's frontend does)
+function numberLocale(setting, intlLocale) {
+  switch (setting) {
+    case 'comma_decimal': return 'en-US'; // 1,234.5
+    case 'decimal_comma': return 'de'; // 1.234,5
+    case 'space_comma': return 'fr'; // 1 234,5
+    case 'quote_decimal': return 'de-CH'; // 1'234.5
+    case 'system': return undefined; // browser default
+    default: return intlLocale; // "language"
+  }
+}
+
+// HA profile "Time format" → Intl hourCycle (undefined = the locale's default)
+function hourCycle(setting) {
+  if (setting === '12') return 'h12';
+  if (setting === '24') return 'h23';
+  return undefined;
+}
+
+const WEEKDAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+// HA profile "First day of the week" → 0 (Monday) … 6 (Sunday)
+function firstWeekday(setting, intlLocale) {
+  const i = WEEKDAY_KEYS.indexOf(setting);
+  if (i >= 0) return i;
+  try {
+    const loc = new Intl.Locale(setting === 'system' ? Intl.DateTimeFormat().resolvedOptions().locale : intlLocale);
+    const info = typeof loc.getWeekInfo === 'function' ? loc.getWeekInfo() : loc.weekInfo;
+    if (info && info.firstDay) return (info.firstDay + 6) % 7; // Intl: 1 = Monday … 7 = Sunday
+  } catch (e) { /* older browsers */ }
+  return 0;
+}
+
+const capitalize = (s) => s.charAt(0).toLocaleUpperCase() + s.slice(1);
+const REFERENCE_MONDAY = new Date(2024, 0, 1); // Monday, January 1, 2024
+
+// Everything the UI needs to speak the user's language, following hass.locale
+function makeLocale(hass, configured) {
+  const prefs = (hass && hass.locale) || {};
+  const lang = resolveLanguage(hass, configured);
+  const strings = I18N[lang];
+  const intlLocale = resolveIntlLocale(hass, configured, lang);
+  const cycle = configured ? undefined : hourCycle(prefs.time_format);
+  const hour12 = new Intl.DateTimeFormat(intlLocale, { hour: 'numeric', hourCycle: cycle }).resolvedOptions().hour12 === true;
+  // Like HA's frontend: "06:30" on a 24 h clock, "6:30 AM" on a 12 h clock
+  const timeFormat = new Intl.DateTimeFormat(intlLocale, { hour: hour12 ? 'numeric' : '2-digit', minute: '2-digit', hourCycle: cycle });
+  const hourFormat = new Intl.DateTimeFormat(intlLocale, { hour: 'numeric', hourCycle: cycle });
+  const numberFormat = prefs.number_format === 'none' ? null
+    : new Intl.NumberFormat(numberLocale(configured ? 'language' : prefs.number_format, intlLocale), { maximumFractionDigits: 2 });
+  // Day names in the UI language (so that they match the rest of the card)
+  const dayName = (style) => [0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const d = new Date(REFERENCE_MONDAY);
+    d.setDate(d.getDate() + i);
+    return capitalize(new Intl.DateTimeFormat(lang, { weekday: style }).format(d).replace(/\.$/, ''));
+  });
+  const first = firstWeekday(configured ? 'language' : prefs.first_weekday, intlLocale);
+  const unit = (hass && hass.config && hass.config.unit_system && hass.config.unit_system.temperature) || '°C';
+  const t = (key, vars = {}) => String(strings[key] ?? I18N.en[key] ?? key)
+    .replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
+  const at = (minutes) => {
+    const d = new Date(REFERENCE_MONDAY);
+    d.setMinutes(minutes % DAY_MIN);
+    return d;
+  };
+  return {
+    lang, intlLocale, hour12, unit, t,
+    // Changes when any language / format preference changes (triggers a redraw)
+    signature: JSON.stringify([lang, intlLocale, unit, configured || null, prefs]),
+    days: dayName('long'),
+    daysShort: dayName('short'),
+    // Display order of the days (indexes in the Monday-based schedule data)
+    dayOrder: [0, 1, 2, 3, 4, 5, 6].map((i) => (first + i) % 7),
+    preset: (key) => strings.presets[key] || key,
+    destination: (key) => strings.destinations[key] || key,
+    // Minutes since midnight → "06:30" / "6:30 AM"; 1440 (end of day) → "24:00" in 24 h clocks
+    time: (minutes) => (minutes === DAY_MIN && !hour12 ? '24:00' : timeFormat.format(at(minutes))),
+    tick: (hour) => (hour12 ? hourFormat.format(at(hour * 60)) : `${hour}h`),
+    number: (value) => {
+      const n = Number(value);
+      return numberFormat && Number.isFinite(n) ? numberFormat.format(n) : String(value);
+    },
+  };
+}
 const LS_KEY = 'chauffage-programme-card:shown';
 const LS_CLIP = 'chauffage-programme-card:clip';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
@@ -97,16 +316,21 @@ function overridePieces(d) {
   return pieces;
 }
 
-function overrideLabel(d) {
+const DEFAULT_LOCALE = makeLocale(null, 'en');
+
+function overrideLabel(d, locale = DEFAULT_LOCALE) {
   if (!d) return '';
-  if (d.type === 'temp') return `${d.valeur} °C`;
-  return (PRESETS[d.valeur] && PRESETS[d.valeur].label) || d.valeur;
+  if (d.type === 'temp') return `${locale.number(d.valeur)} ${locale.unit}`;
+  return locale.preset(d.valeur);
 }
 
 const hmOf = (date) => toHM(date.getHours() * 60 + date.getMinutes());
+const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 
-function durationText(min) {
-  return min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
+function durationText(min, locale = DEFAULT_LOCALE) {
+  return min >= 60
+    ? locale.t('duration', { h: Math.floor(min / 60), mm: String(min % 60).padStart(2, '0') })
+    : `${min} min`;
 }
 
 // Active (not ended) overrides read from the sensor
@@ -158,7 +382,8 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   setConfig(config) {
     if (!config.thermostats || !config.thermostats.length) {
-      throw new Error('Le paramètre "thermostats" est requis (liste d\'entités climate.*)');
+      const lang = config.language || (typeof navigator !== 'undefined' && navigator.language);
+      throw new Error(makeLocale(null, lang).t('thermostatsRequired'));
     }
     this._config = {
       sensor: 'sensor.programmes_chauffage',
@@ -187,6 +412,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._hass = hass;
     if (!this._config) return;
     let need = first;
+    // Language / time format / unit may change in the user's profile
+    const loc = makeLocale(hass, this._config.language);
+    if (!this._loc || loc.signature !== this._loc.signature) {
+      this._loc = loc;
+      need = true;
+    }
     const st = hass.states[this._config.sensor];
     const stamp = st ? st.last_updated : null;
     if (stamp !== this._stamp && !this._dirty && !this._drag) {
@@ -338,7 +569,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _overrideLabel(d) {
-    return overrideLabel(d);
+    return overrideLabel(d, this._loc);
   }
 
   async _sendOverride(climate, override) {
@@ -353,7 +584,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       });
     } catch (e) {
       delete this._overridePending[climate];
-      this._msg = `Erreur : ${e.message || e.code || e}`;
+      this._msg = this._loc.t('error', { message: e.message || e.code || e });
       this._render();
     }
   }
@@ -376,9 +607,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     try {
       await this._hass.callWS({ type: 'fire_event', event_type: this._config.event, event_data: { programmes: out } });
       this._dirty = false;
-      this._msg = 'Enregistré ✓';
+      this._msg = this._loc.t('saved');
     } catch (e) {
-      this._msg = `Erreur : ${e.message || e.code || e}`;
+      this._msg = this._loc.t('error', { message: e.message || e.code || e });
     }
     this._render();
   }
@@ -389,13 +620,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     const st = this._hass.states[climate];
     if (!st) return '?';
     const a = st.attributes;
-    if (st.state === 'off') return 'arrêt';
+    if (st.state === 'off') return this._loc.t('off');
     const parts = [];
-    if (a.current_temperature != null) parts.push(`${a.current_temperature}°`);
+    if (a.current_temperature != null) parts.push(`${this._loc.number(a.current_temperature)}°`);
     const d = this._overrides()[climate];
-    if (d) parts.push(`⏱ ${this._overrideLabel(d)} → ${toHM(parseDate(d.fin).getHours() * 60 + parseDate(d.fin).getMinutes())}`);
-    else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) parts.push('manuel');
-    else if (a.preset_mode) parts.push((PRESETS[a.preset_mode] && PRESETS[a.preset_mode].label) || a.preset_mode);
+    if (d) parts.push(`⏱ ${this._overrideLabel(d)} → ${this._loc.time(minutesOf(parseDate(d.fin)))}`);
+    else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) parts.push(this._loc.t('manual'));
+    else if (a.preset_mode) parts.push(this._loc.preset(a.preset_mode));
     return parts.join(' · ');
   }
 
@@ -408,11 +639,11 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _segInner(start, end, preset) {
-    const p = PRESETS[preset] || { label: preset };
     const dur = end - start;
     const compact = this._shown.length > 1;
-    const t = dur >= (compact ? 60 : 75) ? toHM(start) : '';
-    const l = dur >= (compact ? 180 : 150) ? esc(p.label) : '';
+    const wide = this._loc.hour12 ? 25 : 0; // "6:30 AM" needs more room than "06:30"
+    const t = dur >= (compact ? 60 : 75) + wide ? this._loc.time(start) : '';
+    const l = dur >= (compact ? 180 : 150) + wide ? esc(this._loc.preset(preset)) : '';
     return `<span class="t">${t}</span><span class="l">${l}</span>`;
   }
 
@@ -420,15 +651,15 @@ class ChauffageProgrammeCard extends HTMLElement {
     const segHtml = segs
       .map((s, i) => {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
-        const p = PRESETS[s.preset] || { label: s.preset, color: '#9e9e9e' };
+        const p = PRESETS[s.preset] || { color: '#9e9e9e' };
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : ''].join(' ');
-        return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${toHM(s.start)} → ${toHM(end)} · ${esc(p.label)}">${this._segInner(s.start, end, s.preset)}</div>`;
+        return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(this._loc.preset(s.preset))}">${this._segInner(s.start, end, s.preset)}</div>`;
       })
       .join('');
     const handles = segs
       .slice(1)
-      .map((s, j) => `<div class="handle" data-idx="${j + 1}" style="left:${pct(s.start)}%"><span class="tip">${toHM(s.start)}</span></div>`)
+      .map((s, j) => `<div class="handle" data-idx="${j + 1}" style="left:${pct(s.start)}%"><span class="tip">${this._loc.time(s.start)}</span></div>`)
       .join('');
     const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
     const cs = this._clipSrc;
@@ -442,13 +673,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     const d = this._overrides()[climate];
     const piece = this._overridePieces(climate).find((p) => p.day === day);
     if (!d || !piece) return '';
-    const endHM = toHM(parseDate(d.fin).getHours() * 60 + parseDate(d.fin).getMinutes());
+    const endHM = this._loc.time(minutesOf(parseDate(d.fin)));
     const label = `${this._overrideLabel(d)} → ${endHM}`;
     const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === day;
     return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${day}"
-        style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%" title="Consigne temporaire : ${esc(label)}">
+        style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%" title="${esc(this._loc.t('temporarySetpointTitle', { label }))}">
       <span class="override-label">${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120) ? `⏱ ${esc(label)}` : '⏱'}</span>
-      ${piece.isLast ? `<div class="override-handle" title="Glisser pour changer la fin"><span class="tip">${endHM}</span></div>` : ''}
+      ${piece.isLast ? `<div class="override-handle" title="${esc(this._loc.t('dragToChangeEnd'))}"><span class="tip">${endHM}</span></div>` : ''}
     </div>`;
   }
 
@@ -460,14 +691,14 @@ class ChauffageProgrammeCard extends HTMLElement {
         const m = this._menu;
         const open = m && m.climate === climate && m.day === d;
         return `<div class="sub">
-          ${multi ? `<div class="name" title="Ouvrir ${esc(this._name(climate))}">${this._moreInfoLink(climate)}</div>` : ''}
+          ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}</div>` : ''}
           ${this._barHtml(climate, segs, d, showNow)}
-          <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="Copier / coller…">${ICON_MORE}</button>
+          <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
         </div>`;
       })
       .join('');
     return `<div class="dgroup${d === todayIdx() ? ' today' : ''}">
-      <div class="day">${DAYS_SHORT[d]}</div>
+      <div class="day">${this._loc.daysShort[d]}</div>
       <div class="subs">${subs}</div>
     </div>`;
   }
@@ -478,16 +709,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     const ref = `data-climate="${esc(m.climate)}" data-day="${m.day}"`;
     const item = (act, label, icon = '', disabled = false) =>
       `<button class="mi" data-act="${act}" ${ref} ${disabled ? 'disabled' : ''}>${icon}<span>${label}</span></button>`;
-    const paste = this._clip ? `Coller <small>${esc(this._clip.label)}</small>` : 'Coller';
+    const t = this._loc.t;
+    const paste = this._clip ? `${esc(t('paste'))} <small>${esc(this._clip.label)}</small>` : esc(t('paste'));
     return `<div class="menu" style="top:${m.top}px;right:${m.right}px">
-      <div class="mh">${esc(this._name(m.climate))} · ${DAYS[m.day]}</div>
-      ${item('copy-day', 'Copier la journée', ICON_COPY)}
+      <div class="mh">${esc(this._name(m.climate))} · ${this._loc.days[m.day]}</div>
+      ${item('copy-day', esc(t('copyDay')), ICON_COPY)}
       ${item('paste-day', paste, ICON_PASTE, !this._clip)}
       <div class="sep"></div>
-      ${item('fill-weekdays', 'Copier vers Lun–Ven')}
-      ${item('fill-weekend', 'Copier vers Sam–Dim')}
-      ${item('fill-all', 'Copier vers tous les jours')}
-      ${this._shown.length > 1 ? item('fill-others', 'Copier vers les autres vannes') : ''}
+      ${item('fill-weekdays', esc(t('copyToWeekdays')))}
+      ${item('fill-weekend', esc(t('copyToWeekend')))}
+      ${item('fill-all', esc(t('copyToAll')))}
+      ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
     </div>`;
   }
 
@@ -498,7 +730,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _editorHtml() {
-    const hint = `<div class="hint">Glisser une poignée pour déplacer un horaire · Clic sur une plage pour la modifier · Double-clic pour ajouter une coupure</div>`;
+    const t = this._loc.t;
+    const hint = `<div class="hint">${esc(t('hint'))}</div>`;
     if (this._overrideSel) return hint + this._overrideEditorHtml();
     if (!this._sel || !this._shown.includes(this._sel.climate)) { this._sel = null; return hint; }
     const { climate, day, idx } = this._sel;
@@ -509,21 +742,21 @@ class ChauffageProgrammeCard extends HTMLElement {
     const last = idx === segs.length - 1;
     const end = last ? DAY_MIN : segs[idx + 1].start;
     const stepSec = this._config.step * 60;
-    const from = idx === 0 ? '<span class="fixed">00:00</span>' : `<input type="time" data-edge="start" step="${stepSec}" value="${toHM(s.start)}">`;
-    const to = last ? '<span class="fixed">24:00</span>' : `<input type="time" data-edge="end" step="${stepSec}" value="${toHM(end)}">`;
+    const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>` : `<input type="time" data-edge="start" step="${stepSec}" value="${toHM(s.start)}">`;
+    const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>` : `<input type="time" data-edge="end" step="${stepSec}" value="${toHM(end)}">`;
     const presets = Object.entries(PRESETS)
-      .map(([k, p]) => `<button data-act="preset" data-preset="${k}" class="${s.preset === k ? 'on' : ''}" style="background:${p.color}">${p.label}</button>`)
+      .map(([k, p]) => `<button data-act="preset" data-preset="${k}" class="${s.preset === k ? 'on' : ''}" style="background:${p.color}">${esc(this._loc.preset(k))}</button>`)
       .join('');
     return `${hint}<div class="editor">
       <div class="ed-head">
-        <strong>${this._moreInfoLink(climate)} · ${DAYS[day]}</strong>
-        <label>de ${from}</label><label>à ${to}</label>
-        <button class="btn icon close" data-act="close" title="Fermer (Échap)">✕</button>
+        <strong>${this._moreInfoLink(climate)} · ${this._loc.days[day]}</strong>
+        <label>${esc(t('from'))} ${from}</label><label>${esc(t('to'))} ${to}</label>
+        <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
       </div>
       <div class="presets">${presets}</div>
       <div class="ed-actions">
-        <button class="btn" data-act="insert" ${end - s.start < 3 * this._config.step ? 'disabled' : ''}>+ Insérer une plage</button>
-        <button class="btn" data-act="delete" ${segs.length === 1 ? 'disabled' : ''}>Supprimer</button>
+        <button class="btn" data-act="insert" ${end - s.start < 3 * this._config.step ? 'disabled' : ''}>${esc(t('insertSlot'))}</button>
+        <button class="btn" data-act="delete" ${segs.length === 1 ? 'disabled' : ''}>${esc(t('delete'))}</button>
       </div>
     </div>`;
   }
@@ -532,29 +765,28 @@ class ChauffageProgrammeCard extends HTMLElement {
     const { climate } = this._overrideSel;
     const d = this._overrides()[climate];
     if (!d || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
+    const t = this._loc.t;
     const endsAt = parseDate(d.fin);
-    const endHM = toHM(endsAt.getHours() * 60 + endsAt.getMinutes());
     const today = new Date();
-    const dayLabel = endsAt.toDateString() === today.toDateString() ? "aujourd'hui"
-      : DAYS[(endsAt.getDay() + 6) % 7].toLowerCase();
+    const dayLabel = endsAt.toDateString() === today.toDateString() ? t('today')
+      : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
     const remaining = Math.max(0, Math.round((endsAt - today) / 60000));
-    const remainingText = remaining >= 60 ? `${Math.floor(remaining / 60)} h ${String(remaining % 60).padStart(2, '0')}` : `${remaining} min`;
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
     return `<div class="editor override-ed">
       <div class="ed-head">
-        <strong>${this._moreInfoLink(climate)} · consigne temporaire</strong>
+        <strong>${this._moreInfoLink(climate)} · ${esc(t('temporarySetpoint'))}</strong>
         <span class="override-value">${esc(this._overrideLabel(d))}</span>
-        <button class="btn icon close" data-act="override-close" title="Fermer (Échap)">✕</button>
+        <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>
       <div class="ed-head">
-        <label>jusqu'à <input type="time" data-override-end step="${this._config.step * 60}" value="${endHM}"></label>
-        <span class="muted">${dayLabel} · encore ${remainingText}</span>
+        <label>${esc(t('until'))} <input type="time" data-override-end step="${this._config.step * 60}" value="${hmOf(endsAt)}"></label>
+        <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}</span>
       </div>
       <div class="ed-actions start">
         ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
       </div>
       <div class="ed-actions">
-        <button class="btn danger" data-act="override-del">Supprimer · reprendre le programme</button>
+        <button class="btn danger" data-act="override-del">${esc(t('deleteAndResume'))}</button>
       </div>
     </div>`;
   }
@@ -608,6 +840,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _render() {
     if (!this._hass || !this._config) return;
+    const tr = this._loc.t;
     const modes = this._modes();
     const active = this._activeMode();
     const today = todayIdx();
@@ -618,21 +851,22 @@ class ChauffageProgrammeCard extends HTMLElement {
     const chips = this._thermostats
       .map((t) => {
         const on = this._shown.includes(t.entity);
-        return `<button class="chip${on ? ' on' : ''}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="Ouvrir le thermostat">${ICON_OPEN}</span></button>`;
+        return `<button class="chip${on ? ' on' : ''}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="${esc(tr('openThermostat'))}">${ICON_OPEN}</span></button>`;
       })
       .join('');
     const tabs = modes
-      .map((m) => `<button class="tab${m === this._mode ? ' on' : ''}" data-mode="${esc(m)}">${m === active ? '<span class="dot" title="Mode actif"></span>' : ''}${esc(m)}</button>`)
+      .map((m) => `<button class="tab${m === this._mode ? ' on' : ''}" data-mode="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeMode'))}"></span>` : ''}${esc(m)}</button>`)
       .join('');
-    const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${h}h</span>`).join('');
-    const days = [0, 1, 2, 3, 4, 5, 6].map((d) => this._dayHtml(d, d === today && this._mode === active)).join('');
+    const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
+    // Days in the order of the user's first weekday (data stays Monday-based)
+    const days = this._loc.dayOrder.map((d) => this._dayHtml(d, d === today && this._mode === active)).join('');
 
     const focus = this._focusClimate();
     const st = this._hass.states[focus];
     const legend = Object.entries(PRESETS)
       .map(([k, p]) => {
         const t = !multi && st && st.attributes[`${k}_temp`];
-        return `<span><i style="background:${p.color}"></i>${p.label}${t != null && t !== false ? ` ${t}°` : ''}</span>`;
+        return `<span><i style="background:${p.color}"></i>${esc(this._loc.preset(k))}${t != null && t !== false ? ` ${this._loc.number(t)}°` : ''}</span>`;
       })
       .join('');
     const copyWeek = this._thermostats
@@ -651,8 +885,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         <div class="chips">
           ${chips}
           <span class="chip-sep"></span>
-          <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="Activer pour afficher plusieurs vannes (raccourci : Ctrl+clic sur une vanne)">Plusieurs</button>
-          <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="Afficher toutes les vannes">Toutes</button>
+          <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
+          <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
         </div>
         <div class="tabs">${tabs}</div>
         ${this._modeBarHtml(active)}
@@ -663,14 +897,14 @@ class ChauffageProgrammeCard extends HTMLElement {
         <div class="foot">
           <div class="legend">${legend}</div>
           <div class="actions">
-            <select class="copyweek" title="Copier toute la semaine de ${esc(this._name(focus))} vers…">
-              <option value="">Copier la semaine de ${esc(this._name(focus))} vers…</option>${copyWeek}
+            <select class="copyweek" title="${esc(tr('copyWeekTo', { name: this._name(focus) }))}">
+              <option value="">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</option>${copyWeek}
             </select>
-            <button class="btn" data-act="cancel" ${this._dirty ? '' : 'disabled'}>Annuler</button>
-            <button class="btn primary" data-act="save" ${this._dirty ? '' : 'disabled'}>Enregistrer</button>
+            <button class="btn" data-act="cancel" ${this._dirty ? '' : 'disabled'}>${esc(tr('cancel'))}</button>
+            <button class="btn primary" data-act="save" ${this._dirty ? '' : 'disabled'}>${esc(tr('save'))}</button>
           </div>
         </div>
-        <div class="msg">${esc(this._msg)}${this._msg && this._dirty ? ' · ' : ''}${this._dirty ? '<span class="dirty">Modifications non enregistrées</span>' : ''}</div>
+        <div class="msg">${esc(this._msg)}${this._msg && this._dirty ? ' · ' : ''}${this._dirty ? `<span class="dirty">${esc(tr('unsaved'))}</span>` : ''}</div>
       </ha-card>`;
     this._schedulePlaceEditor();
   }
@@ -687,7 +921,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     bar.querySelectorAll('.handle').forEach((el) => {
       const s = segs[Number(el.dataset.idx)];
       el.style.left = `${pct(s.start)}%`;
-      el.querySelector('.tip').textContent = toHM(s.start);
+      el.querySelector('.tip').textContent = this._loc.time(s.start);
     });
   }
 
@@ -741,7 +975,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           dd.end = m;
           dd.moved = true;
           dd.el.style.width = `${pct(m - p.start)}%`;
-          dd.handle.querySelector('.tip').textContent = m === DAY_MIN ? '24:00' : toHM(m);
+          dd.handle.querySelector('.tip').textContent = this._loc.time(m);
           const label = dd.el.querySelector('.override-label');
           if (label) label.textContent = '⏱';
         }
@@ -881,10 +1115,11 @@ class ChauffageProgrammeCard extends HTMLElement {
   // without a separate input_select card.
   _modeBarHtml(active) {
     if (!this._mode || this._mode === active) return '';
-    const current = active ? `Mode actif : <strong>${esc(active)}</strong>` : 'Aucun mode actif';
+    const t = this._loc.t;
+    const current = active ? t('activeModeBar', { mode: esc(active) }) : esc(t('noActiveMode'));
     return `<div class="mode-bar">
       <span>${current}</span>
-      <button class="btn small" data-act="activate-mode">Activer « ${esc(this._mode)} »</button>
+      <button class="btn small" data-act="activate-mode">${esc(t('activate', { mode: this._mode }))}</button>
     </div>`;
   }
 
@@ -893,9 +1128,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       await this._hass.callService('input_select', 'select_option', {
         entity_id: this._config.mode_entity, option: mode,
       });
-      this._msg = `Mode « ${mode} » activé`;
+      this._msg = this._loc.t('modeActivated', { mode });
     } catch (e) {
-      this._msg = `Erreur : ${e.message || e.code || e}`;
+      this._msg = this._loc.t('error', { message: e.message || e.code || e });
     }
     this._render();
   }
@@ -906,7 +1141,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _moreInfoLink(climate) {
-    return `<span class="mi-link" data-more-info="${esc(climate)}" title="Ouvrir le thermostat">${esc(this._name(climate))}</span>`;
+    return `<span class="mi-link" data-more-info="${esc(climate)}" title="${esc(this._loc.t('openThermostat'))}">${esc(this._name(climate))}</span>`;
   }
 
   // Plain click: shows only this thermostat. "Plusieurs" mode or Ctrl/Shift+click: adds / removes it.
@@ -965,10 +1200,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       const week = this._week(climate);
       targets.filter((t) => t !== day).forEach((t) => { week[t] = clone(src); });
     }
-    const dest = { weekdays: 'Lun–Ven', weekend: 'Sam–Dim', all: 'tous les jours', others: 'les autres vannes' }[target];
+    const destination = this._loc.destination(target);
     this._focus = climate;
     this._dirty = true;
-    this._msg = `${this._name(climate)} · ${DAYS[day]} copié vers ${dest}`;
+    this._msg = this._loc.t('dayCopiedTo', { name: this._name(climate), day: this._loc.days[day], destination });
     this._render();
   }
 
@@ -980,13 +1215,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!this._data[climate]) this._data[climate] = {};
     this._data[climate][mode] = week;
     this._dirty = true;
-    this._msg = `Semaine de ${this._name(source)} copiée vers ${this._name(climate)} · ${mode}`;
+    this._msg = this._loc.t('weekCopiedTo', { source: this._name(source), target: this._name(climate), mode });
     this._render();
   }
 
   _copyToClipboard(climate, day) {
     const segs = clone(this._week(climate)[day]);
-    const label = `${this._name(climate)} · ${DAYS[day]} (${this._mode})`;
+    const label = `${this._name(climate)} · ${this._loc.days[day]} (${this._mode})`;
     this._clip = { segs, label };
     this._clipSrc = { climate, mode: this._mode, day };
     try { localStorage.setItem(LS_CLIP, JSON.stringify(this._clip)); } catch (e) { /* ignore */ }
@@ -994,7 +1229,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     try {
       if (navigator.clipboard) navigator.clipboard.writeText(`${label} : ${serializeDay(segs).join(', ')}`).catch(() => {});
     } catch (e) { /* ignore */ }
-    this._msg = `Copié : ${label}`;
+    this._msg = this._loc.t('copied', { label });
     this._render();
   }
 
@@ -1004,7 +1239,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (this._sel && this._sel.climate === climate && this._sel.day === day) this._sel = null;
     this._focus = climate;
     this._dirty = true;
-    this._msg = `Collé sur ${this._name(climate)} · ${DAYS[day]}`;
+    this._msg = this._loc.t('pastedOn', { name: this._name(climate), day: this._loc.days[day] });
     this._render();
   }
 
@@ -1233,6 +1468,7 @@ if (!customElements.get('chauffage-programme-card')) customElements.define('chau
 
 // Entities used by the block (updated by the last configured card)
 const MORE_INFO_CFG = {
+  language: undefined, // card option: forces the UI language
   sensor: 'sensor.programmes_chauffage',
   mode_entity: 'input_select.mode_chauffage',
   derog_sensor: 'sensor.derogations_chauffage',
@@ -1265,9 +1501,10 @@ class ChauffageMoreInfo extends HTMLElement {
     this._hass = hass;
     const c = MORE_INFO_CFG;
     const s = hass.states;
+    this._loc = makeLocale(hass, c.language);
     if (this._key && s[c.derog_sensor] !== this._key[2]) this._pending = undefined;
     // Redraw only when relevant data changed (or every new minute)
-    const key = [s[this._entity], s[c.sensor], s[c.derog_sensor], s[c.mode_entity], Math.floor(Date.now() / 60000)];
+    const key = [s[this._entity], s[c.sensor], s[c.derog_sensor], s[c.mode_entity], Math.floor(Date.now() / 60000), this._loc.signature];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
     this._key = key;
@@ -1307,15 +1544,15 @@ class ChauffageMoreInfo extends HTMLElement {
   _bar(segs, piece, showNow, big) {
     const segHtml = segs.map((s, i) => {
       const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
-      const p = PRESETS[s.preset] || { label: s.preset, color: '#9e9e9e' };
-      const txt = big && end - s.start >= 90 ? `<span>${toHM(s.start)}</span>` : '';
-      return `<div class="seg" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${toHM(s.start)} → ${toHM(end)} · ${esc(p.label)}">${txt}</div>`;
+      const p = PRESETS[s.preset] || { color: '#9e9e9e' };
+      const txt = big && end - s.start >= (this._loc.hour12 ? 120 : 90) ? `<span>${this._loc.time(s.start)}</span>` : '';
+      return `<div class="seg" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(this._loc.preset(s.preset))}">${txt}</div>`;
     }).join('');
     let override = '';
     if (piece) {
       // End handle only on the large bar of the day the override ends
       const handle = big && piece.isLast
-        ? `<div class="override-handle" data-day="${piece.day}" title="Glisser pour changer la fin"><span class="tip">${toHM(piece.end % DAY_MIN)}</span></div>`
+        ? `<div class="override-handle" data-day="${piece.day}" title="${esc(this._loc.t('dragToChangeEnd'))}"><span class="tip">${this._loc.time(piece.end)}</span></div>`
         : '';
       override = `<div class="override" style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%">${handle}</div>`;
     }
@@ -1324,6 +1561,7 @@ class ChauffageMoreInfo extends HTMLElement {
   }
 
   _render() {
+    const t = this._loc.t;
     const { mode, week } = this._week();
     if (!week) { this.shadowRoot.innerHTML = ''; this.style.display = 'none'; return; }
     this.style.display = '';
@@ -1338,11 +1576,11 @@ class ChauffageMoreInfo extends HTMLElement {
     const now = nowMin();
     let idx = 0;
     segs.forEach((s, i) => { if (s.start <= now) idx = i; });
-    const currentPreset = PRESETS[segs[idx].preset] || { label: segs[idx].preset };
+    const current = this._loc.preset(segs[idx].preset);
     const next = segs[idx + 1];
     const followText = next
-      ? `${currentPreset.label} jusqu'à ${toHM(next.start)}, puis ${(PRESETS[next.preset] || { label: next.preset }).label}`
-      : `${currentPreset.label} jusqu'à minuit`;
+      ? t('untilThen', { current, time: this._loc.time(next.start), next: this._loc.preset(next.preset) })
+      : t('untilMidnight', { current });
 
     let status;
     let endDay = '';
@@ -1350,42 +1588,44 @@ class ChauffageMoreInfo extends HTMLElement {
       const endsAt = parseDate(d.fin);
       const remaining = Math.max(0, Math.round((endsAt - new Date()) / 60000));
       const lastPiece = pieces.find((p) => p.isLast);
-      const dayLabel = endsAt.toDateString() === new Date().toDateString() ? "aujourd'hui" : DAYS[(endsAt.getDay() + 6) % 7].toLowerCase();
+      const dayLabel = endsAt.toDateString() === new Date().toDateString()
+        ? t('today') : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
       const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
       status = `<div class="status derogation">
         <div class="line">
-          <span class="override-value">⏱ ${esc(overrideLabel(d))}</span>
-          <label>jusqu'à <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
-          <span class="muted">${dayLabel} · encore ${durationText(remaining)}</span>
+          <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc))}</span>
+          <label>${esc(t('until'))} <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
+          <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}</span>
         </div>
         <div class="btns">
           ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
-          <button class="danger" data-del>Reprendre le programme</button>
+          <button class="danger" data-del>${esc(t('resume'))}</button>
         </div>
       </div>`;
       // Ends on another day: also show that day's large bar (with the handle)
       if (lastPiece && lastPiece.day !== today) {
-        endDay = `<div class="today-lbl">${DAYS[lastPiece.day]}</div>
+        endDay = `<div class="today-lbl">${this._loc.days[lastPiece.day]}</div>
           ${this._bar(week[lastPiece.day], lastPiece, false, true)}`;
       }
     } else {
-      status = `<div class="status"><span class="muted">Suit le programme :</span> ${esc(followText)}</div>`;
+      status = `<div class="status"><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}</div>`;
     }
 
-    const rows = week.map((s, day) => `<div class="row${day === today ? ' today' : ''}">
-        <span>${DAYS_SHORT[day]}</span>${this._bar(s, pieceFor(day), false, false)}</div>`).join('');
+    const rows = this._loc.dayOrder.map((day) => `<div class="row${day === today ? ' today' : ''}">
+        <span>${this._loc.daysShort[day]}</span>${this._bar(week[day], pieceFor(day), false, false)}</div>`).join('');
+    const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
 
     this.shadowRoot.innerHTML = `<style>${MORE_INFO_STYLE}</style>
       <div class="wrap">
-        <div class="title">Programme <span class="muted">· ${esc(mode)}</span></div>
+        <div class="title">${esc(t('schedule'))} <span class="muted">· ${esc(mode)}</span></div>
         ${status}
-        <div class="today-lbl">Aujourd'hui</div>
+        <div class="today-lbl">${esc(t('todayTitle'))}</div>
         ${this._bar(segs, pieceFor(today), true, true)}
         ${endDay}
-        <div class="ticks"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span></div>
-        <details><summary>Semaine</summary><div class="week">${rows}</div></details>
+        <div class="ticks">${ticks}</div>
+        <details><summary>${esc(t('week'))}</summary><div class="week">${rows}</div></details>
       </div>`;
-    // Keeps "Semaine" open / closed across redraws
+    // Keeps the "week" section open / closed across redraws
     const det = this.shadowRoot.querySelector('details');
     det.open = !!this._weekOpen;
     det.addEventListener('toggle', () => { this._weekOpen = det.open; });
@@ -1403,7 +1643,7 @@ class ChauffageMoreInfo extends HTMLElement {
   _onChange(e) {
     const el = e.target;
     if (!el.hasAttribute('data-end') || !el.value) return;
-    // Prochaine occurrence de cette heure (aujourd'hui, sinon demain)
+    // Next occurrence of this time (today, otherwise tomorrow)
     const endsAt = new Date();
     endsAt.setHours(0, 0, 0, 0);
     endsAt.setMinutes(Math.round(toMin(el.value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step);
@@ -1438,7 +1678,7 @@ class ChauffageMoreInfo extends HTMLElement {
     dr.end = m;
     dr.moved = true;
     dr.el.style.width = `${pct(m - p.start)}%`;
-    dr.handle.querySelector('.tip').textContent = m === DAY_MIN ? '24:00' : toHM(m);
+    dr.handle.querySelector('.tip').textContent = this._loc.time(m);
   }
 
   _onUp() {
@@ -1566,13 +1806,15 @@ if (!window.__chauffageMoreInfoListener) {
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === 'chauffage-programme-card')) window.customCards.push({
   type: 'chauffage-programme-card',
-  name: 'Programme de chauffe',
-  description: 'Programme hebdomadaire Versatile Thermostat, plusieurs vannes par journée',
+  name: resolveLanguage(null, typeof navigator !== 'undefined' && navigator.language) === 'fr' ? 'Programme de chauffe' : 'Heating schedule',
+  description: resolveLanguage(null, typeof navigator !== 'undefined' && navigator.language) === 'fr'
+    ? 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée'
+    : 'Weekly heating schedules, several thermostats per day',
 });
 
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
-  PRESETS, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
+  PRESETS, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
   overridePieces, overrideLabel, activeOverrides, MORE_INFO_CFG,
   ChauffageProgrammeCard, ChauffageMoreInfo,
 };

@@ -150,25 +150,27 @@ integration** (`custom_components/chauffage`):
 
 ### 7. Internationalization
 
-Everything user-facing is in French today: the card's texts (days, presets, buttons, messages),
-the mode names (`Normal` / `Absent` / `Vacances`), entity and event names
-(`input_select.mode_chauffage`, `sensor.derogations_chauffage`, `chauffage_derogation_set`) and even
-the data keys (`valeur`, `debut`, `fin`). To serve users in any language:
+**Done — the card** speaks English and French and follows the user's Home Assistant profile
+(`hass.locale`): language, 12 / 24 h clock, decimal separator, first day of the week, and the
+temperature unit. Texts are in one dictionary per language (same keys, checked by tests); times,
+day names and numbers come from the browser's `Intl` APIs. See CONTRIBUTING.md, "Translations".
 
-- **Card**: all texts move to translation files (`en` and `fr` to start, more through
-  contributions), selected from the user's Home Assistant language (`hass.locale` /
-  `hass.language`), with English as the fallback.
-- **Locale-aware formatting**: times in 12 h or 24 h following the user's HA setting, day names and
-  **first day of the week** from the locale (`Intl`), temperatures in the user's unit.
+**Still in French**: the mode names (`Normal` / `Absent` / `Vacances`, which are data), entity and
+event names (`input_select.mode_chauffage`, `sensor.derogations_chauffage`,
+`chauffage_derogation_set`) and the stored keys (`valeur`, `debut`, `fin`). Next steps:
+
 - **Integration** (phase 1): HA's own translation system (`strings.json`, `translations/*.json`)
   for entity names (`translation_key`), states, services, the config flow and error messages.
+- **Card translations as files**: once the integration bundles the card, one JSON file per language
+  and ICU MessageFormat (plurals), as most Home Assistant cards do; more languages through
+  contributions.
 - **Language-neutral identifiers**: English, stable keys for entities, events, services and stored
   data (`value`, `start`, `end`…); only what the user sees is translated. Default modes and heating
   levels are created with names in the user's language, then freely renamed.
 - **Documentation**: already in English (canonical) and French; other languages welcome.
 
-The card's translation can be done at any time; the neutral identifiers come with the move to the
-integration (phase 1), where the migration from the package release renames the stored keys.
+The neutral identifiers come with the move to the integration (phase 1), where the migration from
+the package release renames the stored keys.
 
 ## Order of work
 
@@ -181,5 +183,5 @@ integration (phase 1), where the migration from the package release renames the 
 | 4 | Groups and user-defined modes (data model, then card) | two groups with different modes run side by side |
 | 5 | Generic dev environment, test matrix, pinned versions, end-to-end CI | CI covers every thermostat type |
 
-Phases 2–4 are built directly in the integration. The card's translation (section 7) can start at
-any time: done in the package, it is reused as is by the integration.
+Phases 2–4 are built directly in the integration. The card already speaks English and French
+(section 7); its translations are reused as is by the integration.
