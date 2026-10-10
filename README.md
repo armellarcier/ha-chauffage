@@ -1,19 +1,26 @@
 # ha-chauffage
 
-Programmes de chauffe hebdomadaires pour **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)** dans Home Assistant :
+**English** · [Français](README.fr.md)
 
-- 3 modes (Normal / Absent / Vacances), un programme sur 7 jours par thermostat et par mode ;
-- carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : glisser les horaires,
-  copier / coller des journées, plusieurs thermostats par journée ;
-- **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
-  visible et ajustable sur la carte et dans la fenêtre de détail du thermostat,
-  puis le thermostat reprend son programme.
+Weekly heating schedules for Home Assistant, for preset-based thermostats such as
+**[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
+(independent project, not affiliated with Versatile Thermostat):
+
+- 3 modes (Normal / Away / Holiday — `Normal` / `Absent` / `Vacances`), a 7-day schedule per
+  thermostat and per mode;
+- visual Lovelace editor card (`custom:chauffage-programme-card`): drag time slots, copy / paste
+  days, several thermostats per day, open a thermostat's more-info dialog from the schedule;
+- **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
+  shown and adjustable on the card and in the thermostat's more-info dialog, then the
+  thermostat falls back to its schedule.
+
+> The project's name, entities and UI are in French (*chauffage* = heating).
 
 ## Installation
 
-1. Copier `www/*` dans `<config>/www/chauffage/` et `packages/chauffage/*` dans
-   `<config>/packages/chauffage/` (ou `scripts/deploy.sh <config>`).
-2. Dans `configuration.yaml` :
+1. Copy `www/*` to `<config>/www/chauffage/` and `packages/chauffage/*` to
+   `<config>/packages/chauffage/` (or run `scripts/deploy.sh <config>`).
+2. In `configuration.yaml`:
    ```yaml
    homeassistant:
      packages: !include_dir_named packages
@@ -27,46 +34,52 @@ Programmes de chauffe hebdomadaires pour **[Versatile Thermostat](https://github
          - sensor.derogations_chauffage
          - sensor.suivi_vannes_chauffage
    ```
-3. Redémarrer HA, puis ajouter la carte :
+3. Restart Home Assistant, then add the card:
    ```yaml
    type: custom:chauffage-programme-card
    thermostats:
-     - entity: climate.salon
-       name: Salon
+     - entity: climate.living_room
+       name: Living room
    ```
 
-Les thermostats sont des entités **Versatile Thermostat** (presets `comfort`, `eco`, `boost`, `frost`).
-Le mode actif se choisit avec `input_select.mode_chauffage`.
+The active mode is selected with `input_select.mode_chauffage`.
 
-## Structure
+### Supported thermostats
+
+The schedule applies **presets** (`comfort`, `eco`, `boost`, `frost`), and manual changes are
+detected because the thermostat switches to preset `none` when its setpoint is changed by hand.
+This is how **Versatile Thermostat** behaves, and it is the tested setup. Thermostats without
+these presets are not supported yet (planned: setpoint-based slots and configurable preset names).
+
+## Repository layout
 
 ```
-packages/chauffage/chauffage.yaml   capteurs template + automatisations (package HA)
-www/chauffage-loader.js             chargeur stable (charge toujours la dernière version de la carte)
-www/chauffage-programme-card.js     carte Lovelace + bloc injecté dans la fenêtre de détail
-dev/harness.html, dev/*.js          banc de test hors HA (faux hass, faux ha-card, faux dialogue)
-dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
+packages/chauffage/chauffage.yaml   template sensors + automations (HA package)
+www/chauffage-loader.js             stable loader (always loads the latest card version)
+www/chauffage-programme-card.js     Lovelace card + block injected into the more-info dialog
+dev/harness.html, dev/*.js          test bench without HA (fake hass, ha-card and dialog)
+dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
 scripts/                            reload.sh, logs.sh, deploy.sh
-deploy/pre-receive                  hook pour déployer par git push
+deploy/pre-receive                  git hook to deploy with git push
 ```
 
-Développement et déploiement : voir [CONTRIBUTING.md](CONTRIBUTING.md).
+Development and deployment: see [CONTRIBUTING.md](CONTRIBUTING.md) (in French).
 
-## Architecture
+## How it works
 
-- `sensor.programmes_chauffage` (template, déclenché par l'événement `chauffage_programmes_set`
-  envoyé par la carte) : `{climate: {mode: [7 × ["HH:MM preset", …]]}}`.
-- `sensor.derogations_chauffage` (événement `chauffage_derogation_set`, envoyé par la carte
-  ou par la détection) : `{climate: {type, valeur, debut, fin}}` ; `derogation: null` = suppression.
-- `sensor.suivi_vannes_chauffage` : consigne / preset des thermostats présents dans les programmes ;
-  déclencheur de la détection des changements manuels (aucune liste d'entités à maintenir).
-- Automatisation **programmes hebdomadaires** : applique le preset du créneau (chaque minute,
-  au changement de mode, à l'enregistrement d'un programme, au démarrage), ignore les thermostats
-  en dérogation, rétablit le programme à l'échéance.
-- Automatisation **dérogation manuelle** : un changement de consigne / preset qui ne vient pas
-  d'une automatisation (`context.parent_id` vide) crée une dérogation.
+- `sensor.programmes_chauffage` (template sensor, triggered by the `chauffage_programmes_set`
+  event sent by the card): `{climate: {mode: [7 × ["HH:MM preset", …]]}}`.
+- `sensor.derogations_chauffage` (event `chauffage_derogation_set`, sent by the card or by the
+  manual-change detection): `{climate: {type, valeur, debut, fin}}`; `derogation: null` removes it.
+- `sensor.suivi_vannes_chauffage`: setpoint / preset of the thermostats used in the schedules;
+  it triggers the manual-change detection (no entity list to maintain).
+- **Weekly schedules** automation: applies the slot's preset (every minute, on mode change, when
+  a schedule is saved, at startup), skips thermostats with an active override, and restores the
+  schedule when the override ends.
+- **Manual override** automation: a setpoint / preset change that does not come from an
+  automation (`context.parent_id` is empty) creates an override.
 
-Pièges connus (déjà gérés) : templates multi-lignes → `{%- -%}` sinon HA ne relit pas le
-dictionnaire ; presets ZHA sous forme d'Enum → convertis en texte ; dates avec microsecondes
-refusées par Safari ; `ha-card` rendu en différé (positionnement des fenêtres flottantes) ;
-une vanne Zigbee injoignable n'interrompt pas l'application du programme aux autres.
+Known pitfalls (already handled): multi-line templates need `{%- -%}` or HA cannot parse the
+resulting dictionary; ZHA presets are Enums and are converted to text; dates with microseconds
+are rejected by Safari; `ha-card` renders asynchronously (popover positioning); an unreachable
+Zigbee valve does not stop the schedule from being applied to the others.
