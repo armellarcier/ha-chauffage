@@ -54,6 +54,10 @@ manual step and no data loss:
   relies on). Release checklist: tests green, migrations tested, demo re-recorded if the UI
   changed, changelog updated.
 
+**Done in v0.1.0** for the schedules (schema version, card-side migrations with backup,
+fixtures, changelog, release workflow): see CONTRIBUTING.md, "Data versions and migrations" and
+"Releasing". Overrides are short-lived and not migrated.
+
 ### Then, quickly: no more YAML
 
 The first release still asks users to copy files and edit `configuration.yaml` (package,

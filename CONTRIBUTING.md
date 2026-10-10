@@ -153,6 +153,52 @@ git push prod main
 The card updates when the page is reloaded: `chauffage-loader.js` detects the new version
 (no `?v=` to change, no restart).
 
+## Data versions and migrations
+
+Installations must upgrade with no manual step and no data loss. The schedules stored in
+`sensor.programmes_chauffage` carry a **schema version** (`version` attribute; missing = 1, the
+format used before v0.1.0). The current version is `DATA_VERSION` in
+`www/chauffage-programme-card.js`.
+
+- The card migrates older data when it reads it, and saves it back once (from the card, or from
+  any Home Assistant page opened by an administrator: the card's file is loaded on every page).
+  The data before the migration is kept in the sensor's `previous` attribute until the next one.
+- Data from a **newer** version is never modified: the card shows an error instead (downgrades
+  are not supported).
+- Overrides last a few hours: a release that changes their format may drop the existing ones
+  (the thermostats resume their schedule) instead of migrating them; say so in the changelog.
+
+**Changing the schedule format:**
+
+1. Bump `DATA_VERSION` and add `MIGRATIONS[n]`, a pure function upgrading version n to n + 1
+   (it receives a copy of the data and returns the new data).
+2. Add `tests/fixtures/schedules-v<n+1>.json`: the same schedules as the previous fixtures, in
+   the new format. `tests/js/migrations.test.mjs` checks that every fixture migrates to the
+   latest one and that migrating twice changes nothing. Never edit an old fixture.
+3. Update the package so the automation reads the new format, and make it ignore data whose
+   `version` it does not know (until an administrator opens HA, the data is not migrated yet).
+4. Describe the migration in `CHANGELOG.md` ("Upgrading").
+
+## Releasing
+
+Versions follow [semantic versioning](https://semver.org/); before 1.0, a minor version may
+change the installation or the data (always migrated automatically). Checklist:
+
+1. `scripts/test.sh`: everything green, migrations tested with fixtures.
+2. Re-record the demo (`scripts/demo.sh`) if the card's look changed.
+3. Set the version in `www/chauffage-programme-card.js` (`VERSION`), `package.json` and the
+   header of `packages/chauffage/chauffage.yaml`; move the "Unreleased" entries of
+   `CHANGELOG.md` under the new version, with the date and the upgrade steps.
+   `tests/js/release.test.mjs` checks that these versions match.
+4. Commit, then tag and push:
+   ```bash
+   git tag -a v0.2.0 -m v0.2.0
+   git push origin main v0.2.0
+   ```
+   The `Release` workflow (`.github/workflows/release.yml`) runs the tests, checks the version,
+   and publishes the GitHub release with the changelog entry and `ha-chauffage-v0.2.0.zip` (to
+   unzip into the HA configuration folder).
+
 ## Translations
 
 The card speaks English and French. It follows the Home Assistant user's profile

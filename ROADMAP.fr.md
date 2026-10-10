@@ -57,6 +57,11 @@ automatiquement, sans action manuelle ni perte de données :
   « releases » GitHub (sur lesquelles s'appuie HACS). Liste de contrôle avant publication : tests au
   vert, migrations testées, démo réenregistrée si l'interface a changé, changelog à jour.
 
+**Fait en v0.1.0** pour les plannings (version de schéma, migrations par la carte avec
+sauvegarde, fixtures, changelog, workflow de publication) : voir CONTRIBUTING.fr.md, « Versions
+des données et migrations » et « Publier une version ». Les dérogations, de courte durée, ne
+sont pas migrées.
+
 ### Puis, rapidement : plus de YAML
 
 La première version demande encore de copier des fichiers et de modifier `configuration.yaml`

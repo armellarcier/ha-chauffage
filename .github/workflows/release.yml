@@ -1,0 +1,49 @@
+name: Release
+
+# Pushing a tag vX.Y.Z publishes the GitHub release (see CONTRIBUTING.md, "Releasing"):
+# tests, version check, ZIP to unzip into the HA configuration, notes from CHANGELOG.md.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  release:
+    name: Publish
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          grep -q "^const VERSION = '$version';" www/chauffage-programme-card.js \
+            || { echo "::error::Tag $GITHUB_REF_NAME does not match VERSION in the card"; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md \
+            || { echo "::error::No CHANGELOG.md entry for $version"; exit 1; }
+
+      - name: Build the ZIP
+        run: |
+          mkdir -p dist/www/chauffage dist/packages/chauffage
+          cp www/*.js dist/www/chauffage/
+          cp packages/chauffage/* dist/packages/chauffage/
+          cp LICENSE CHANGELOG.md dist/
+          (cd dist && zip -r "../ha-chauffage-$GITHUB_REF_NAME.zip" .)
+
+      - name: Release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '/^## \[/ { on = index($0, "[" v "]") > 0; next } on && !/^\[[^]]+\]: /' CHANGELOG.md > notes.md
+          cat notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "ha-chauffage-$GITHUB_REF_NAME.zip" \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md

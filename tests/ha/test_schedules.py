@@ -110,3 +110,34 @@ async def test_an_enum_preset_is_compared_correctly(bench: Bench):
     bench.thermostat("climate.bureau", "comfort")
     await bench.save_schedules(SCHEDULES)
     assert bench.applied_presets() == {}
+
+
+# ----- stored data version (see CONTRIBUTING.md, "Data versions and migrations") -----
+
+def schedules_sensor(bench: Bench):
+    return bench.hass.states.get("sensor.programmes_chauffage")
+
+
+async def test_the_schema_version_sent_by_the_card_is_stored(bench: Bench):
+    bench.hass.bus.async_fire("chauffage_programmes_set", {"programmes": SCHEDULES, "version": 1})
+    await bench.hass.async_block_till_done()
+    assert schedules_sensor(bench).attributes["version"] == 1
+
+
+async def test_data_saved_without_a_version_is_version_1(bench: Bench):
+    await bench.save_schedules(SCHEDULES)  # card older than v0.1.0
+    assert schedules_sensor(bench).attributes["version"] == 1
+    assert schedules_sensor(bench).attributes["programmes"] == SCHEDULES
+
+
+async def test_the_data_before_a_migration_is_kept_until_the_next_one(bench: Bench):
+    previous = {"version": 1, "programmes": SCHEDULES}
+    bench.hass.bus.async_fire("chauffage_programmes_set",
+                              {"programmes": SCHEDULES, "version": 2, "previous": previous})
+    await bench.hass.async_block_till_done()
+    assert schedules_sensor(bench).attributes["previous"] == previous
+    # A later save from the card keeps the backup
+    bench.hass.bus.async_fire("chauffage_programmes_set", {"programmes": {}, "version": 2})
+    await bench.hass.async_block_till_done()
+    assert schedules_sensor(bench).attributes["previous"] == previous
+    assert schedules_sensor(bench).attributes["programmes"] == {}

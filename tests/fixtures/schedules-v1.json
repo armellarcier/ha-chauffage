@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "Format used before and in v0.1.0: per thermostat, per mode, 7 days (Monday first) of 'HH:MM preset' slots",
+  "programmes": {
+    "climate.salon": {
+      "Normal": [
+        ["00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco"],
+        ["00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco"],
+        ["00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco"],
+        ["00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco"],
+        ["00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco"],
+        ["00:00 eco", "08:00 comfort", "23:00 eco"],
+        ["00:00 eco", "08:00 comfort", "23:00 eco"]
+      ],
+      "Absent": [["00:00 eco"], ["00:00 eco"], ["00:00 eco"], ["00:00 eco"], ["00:00 eco"], ["00:00 eco"], ["00:00 eco"]],
+      "Vacances": [["00:00 frost"], ["00:00 frost"], ["00:00 frost"], ["00:00 frost"], ["00:00 frost"], ["00:00 frost"], ["00:00 frost"]]
+    },
+    "climate.bureau": {
+      "Normal": [
+        ["00:00 eco", "09:00 comfort", "12:00 boost", "13:00 comfort", "18:00 eco"],
+        ["00:00 eco", "09:00 comfort", "18:00 eco"],
+        ["00:00 eco", "09:00 comfort", "18:00 eco"],
+        ["00:00 eco", "09:00 comfort", "18:00 eco"],
+        ["00:00 eco", "09:00 comfort", "18:00 eco"],
+        ["00:00 frost"],
+        ["00:00 frost"]
+      ]
+    }
+  }
+}

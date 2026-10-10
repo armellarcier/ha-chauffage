@@ -155,6 +155,57 @@ git push prod main
 La carte se met à jour au rechargement de la page : `chauffage-loader.js` détecte la
 nouvelle version (aucun `?v=` à changer, aucun redémarrage).
 
+## Versions des données et migrations
+
+Les installations doivent se mettre à jour sans action manuelle ni perte de données. Les
+plannings stockés dans `sensor.programmes_chauffage` portent une **version de schéma** (attribut
+`version` ; absent = 1, le format d'avant la v0.1.0). La version actuelle est `DATA_VERSION` dans
+`www/chauffage-programme-card.js`.
+
+- La carte migre les données plus anciennes à la lecture et les réenregistre une fois (depuis la
+  carte, ou depuis n'importe quelle page de Home Assistant ouverte par un administrateur : le
+  fichier de la carte est chargé sur toutes les pages). Les données d'avant la migration sont
+  gardées dans l'attribut `previous` du capteur jusqu'à la suivante.
+- Des données d'une version **plus récente** ne sont jamais modifiées : la carte affiche une
+  erreur à la place (le retour à une version antérieure n'est pas pris en charge).
+- Les dérogations durent quelques heures : une version qui change leur format peut supprimer
+  celles en cours (les thermostats reprennent leur programme) plutôt que de les migrer ; le
+  préciser dans le changelog.
+
+**Changer le format des plannings :**
+
+1. Incrémenter `DATA_VERSION` et ajouter `MIGRATIONS[n]`, une fonction pure qui passe de la
+   version n à n + 1 (elle reçoit une copie des données et renvoie les nouvelles).
+2. Ajouter `tests/fixtures/schedules-v<n+1>.json` : les mêmes plannings que les fixtures
+   précédentes, au nouveau format. `tests/js/migrations.test.mjs` vérifie que chaque fixture
+   migre vers la plus récente et que migrer deux fois ne change rien. Ne jamais modifier une
+   ancienne fixture.
+3. Adapter le package pour que l'automatisation lise le nouveau format, et lui faire ignorer les
+   données dont elle ne connaît pas la `version` (tant qu'aucun administrateur n'a ouvert HA, les
+   données ne sont pas encore migrées).
+4. Décrire la migration dans `CHANGELOG.md` (« Upgrading »).
+
+## Publier une version
+
+Les versions suivent la [numérotation sémantique](https://semver.org/lang/fr/) ; avant la 1.0,
+une version mineure peut changer l'installation ou les données (toujours migrées
+automatiquement). Liste de contrôle :
+
+1. `scripts/test.sh` : tout au vert, migrations testées avec des fixtures.
+2. Réenregistrer la démo (`scripts/demo.sh`) si l'apparence de la carte a changé.
+3. Mettre la version dans `www/chauffage-programme-card.js` (`VERSION`), `package.json` et
+   l'en-tête de `packages/chauffage/chauffage.yaml` ; déplacer les entrées « Unreleased » de
+   `CHANGELOG.md` sous la nouvelle version, avec la date et les étapes de mise à jour.
+   `tests/js/release.test.mjs` vérifie que ces versions concordent.
+4. Commiter, puis taguer et pousser :
+   ```bash
+   git tag -a v0.2.0 -m v0.2.0
+   git push origin main v0.2.0
+   ```
+   Le workflow `Release` (`.github/workflows/release.yml`) lance les tests, vérifie la version
+   et publie la « release » GitHub avec l'entrée du changelog et `ha-chauffage-v0.2.0.zip` (à
+   décompresser dans le dossier de configuration de HA).
+
 ## Traductions
 
 La carte parle anglais et français. Elle suit le profil de l'utilisateur Home Assistant

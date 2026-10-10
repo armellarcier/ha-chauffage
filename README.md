@@ -16,12 +16,16 @@ Weekly heating schedules for Home Assistant, for preset-based thermostats such a
   shown and adjustable on the card and in the thermostat's more-info dialog, then the
   thermostat falls back to its schedule.
 
-> The project's name, entities and UI are in French (*chauffage* = heating).
+> The project's name and entities are in French (*chauffage* = heating); the card speaks
+> English and French.
 
 ## Installation
 
-1. Copy `www/*` to `<config>/www/chauffage/` and `packages/chauffage/*` to
-   `<config>/packages/chauffage/` (or run `scripts/deploy.sh <config>`).
+1. Download `ha-chauffage-vX.Y.Z.zip` from the [latest release](https://github.com/armellarcier/ha-chauffage/releases/latest)
+   and unzip it into the Home Assistant configuration folder (`<config>`): it contains
+   `www/chauffage/` and `packages/chauffage/`. From a clone of the repository, copy `www/*` to
+   `<config>/www/chauffage/` and `packages/chauffage/*` to `<config>/packages/chauffage/`
+   (or run `scripts/deploy.sh <config>`).
 2. In `configuration.yaml`:
    ```yaml
    homeassistant:
@@ -46,6 +50,11 @@ Weekly heating schedules for Home Assistant, for preset-based thermostats such a
    The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
    the week); English and French are available, and `language: en` or `language: fr` forces one.
 
+**Upgrading**: read the [changelog](CHANGELOG.md), replace the files, then reload the
+automations and template entities (or restart). Stored schedules are migrated automatically when
+an administrator opens Home Assistant; the data before the migration is kept in the `previous`
+attribute of `sensor.programmes_chauffage`. Going back to an older version is not supported.
+
 The active mode is `input_select.mode_chauffage`: switch it from the card (open the mode tab,
 then "Activer") or from any automation (presence, calendar…).
 
@@ -69,8 +78,10 @@ www/chauffage-programme-card.js     Lovelace card + block injected into the more
 dev/harness.html, dev/*.js          test bench without HA (fake hass, ha-card and dialog)
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
 tests/ha/, tests/js/                 automated tests (pytest + in-memory HA, node --test + jsdom)
+tests/fixtures/                     stored data in each past format (migration tests)
 scripts/                            test.sh, reload.sh, logs.sh, deploy.sh
 deploy/pre-receive                  git hook to deploy with git push
+.github/workflows/                  tests (CI) and releases
 ```
 
 Development and deployment: see [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -17,8 +17,11 @@ comme **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermosta
 
 ## Installation
 
-1. Copier `www/*` dans `<config>/www/chauffage/` et `packages/chauffage/*` dans
-   `<config>/packages/chauffage/` (ou `scripts/deploy.sh <config>`).
+1. Télécharger `ha-chauffage-vX.Y.Z.zip` depuis la [dernière version](https://github.com/armellarcier/ha-chauffage/releases/latest)
+   et le décompresser dans le dossier de configuration de Home Assistant (`<config>`) : il
+   contient `www/chauffage/` et `packages/chauffage/`. Depuis un clone du dépôt, copier `www/*`
+   dans `<config>/www/chauffage/` et `packages/chauffage/*` dans `<config>/packages/chauffage/`
+   (ou `scripts/deploy.sh <config>`).
 2. Dans `configuration.yaml` :
    ```yaml
    homeassistant:
@@ -44,6 +47,12 @@ comme **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermosta
    jour de la semaine) ; l'anglais et le français sont disponibles, et `language: en` ou
    `language: fr` en force un.
 
+**Mise à jour** : lire le [journal des modifications](CHANGELOG.md) (en anglais), remplacer les
+fichiers, puis recharger les automatisations et les entités template (ou redémarrer). Les
+plannings enregistrés sont migrés automatiquement dès qu'un administrateur ouvre Home Assistant ;
+les données d'avant la migration sont gardées dans l'attribut `previous` de
+`sensor.programmes_chauffage`. Revenir à une version antérieure n'est pas pris en charge.
+
 Le mode actif est `input_select.mode_chauffage` : il se change depuis la carte (ouvrir l'onglet
 du mode, puis « Activer ») ou depuis n'importe quelle automatisation (présence, calendrier…).
 
@@ -68,8 +77,10 @@ www/chauffage-programme-card.js     carte Lovelace + bloc injecté dans la fenê
 dev/harness.html, dev/*.js          banc de test hors HA (faux hass, faux ha-card, faux dialogue)
 dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
 tests/ha/, tests/js/                 tests automatisés (pytest + HA en mémoire, node --test + jsdom)
+tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
 scripts/                            test.sh, reload.sh, logs.sh, deploy.sh
 deploy/pre-receive                  hook pour déployer par git push
+.github/workflows/                  tests (CI) et publication des versions
 ```
 
 Développement et déploiement : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).

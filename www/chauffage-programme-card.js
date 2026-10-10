@@ -7,6 +7,9 @@
  * and loaded on every page by chauffage-loader.js — see README.md.
  */
 
+// Release version (same as package.json and CHANGELOG.md)
+const VERSION = '0.1.0';
+
 // Preset colors (labels are translated, see I18N)
 const PRESETS = {
   comfort: { color: '#f57c00' },
@@ -76,6 +79,7 @@ const I18N = {
     untilMidnight: '{current} until midnight',
     todayTitle: 'Today',
     week: 'Week',
+    newerData: 'These schedules were saved by a newer version of ha-chauffage (data version {version}). Update the card to view and edit them.',
   },
   fr: {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
@@ -132,6 +136,7 @@ const I18N = {
     untilMidnight: '{current} jusqu\'à minuit',
     todayTitle: 'Aujourd\'hui',
     week: 'Semaine',
+    newerData: 'Ces plannings ont été enregistrés par une version plus récente de ha-chauffage (données en version {version}). Mettez la carte à jour pour les afficher et les modifier.',
   },
 };
 
@@ -285,6 +290,71 @@ function parseDay(list) {
 }
 
 const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
+
+// ---------- stored data versions ----------
+// The schedules carry a schema version (attribute "version" of sensor.programmes_chauffage;
+// missing = 1, the format used before the first release). A release that changes the format
+// bumps DATA_VERSION and adds MIGRATIONS[n], which upgrades version n to n + 1 (see
+// CONTRIBUTING.md, "Data versions and migrations").
+const DATA_VERSION = 1;
+const MIGRATIONS = {};
+
+class DataVersionError extends Error {
+  constructor(version) {
+    super(`Schedules saved by a newer version of ha-chauffage (data version ${version})`);
+    this.version = version;
+  }
+}
+
+const storedVersion = (st) => {
+  const v = Number(st && st.attributes.version);
+  return Number.isInteger(v) && v >= 1 ? v : 1;
+};
+
+// Upgrades schedules from `version` to `target`, one step at a time, without modifying
+// the input. Throws DataVersionError for data newer than `target` (downgrades not supported).
+function migrateSchedules(programmes, version, { target = DATA_VERSION, migrations = MIGRATIONS } = {}) {
+  if (version > target) throw new DataVersionError(version);
+  let data = clone(programmes && typeof programmes === 'object' ? programmes : {});
+  for (let v = version; v < target; v++) {
+    if (typeof migrations[v] !== 'function') throw new Error(`No migration from data version ${v}`);
+    data = migrations[v](data);
+  }
+  return data;
+}
+
+// Stored schedules, migrated to the current version (throws DataVersionError, see above)
+const readSchedules = (st) => migrateSchedules(st && st.attributes.programmes, storedVersion(st));
+
+// Saves migrated schedules back to HA, keeping the data as it was before the migration in the
+// sensor's "previous" attribute, so that the automation reads the current format even if
+// nobody edits the schedules. Admins only (firing events requires it). Returns true if saved.
+async function saveMigratedSchedules(hass, { sensor, event }, options = {}) {
+  const st = hass && hass.states[sensor];
+  const version = storedVersion(st);
+  const target = options.target || DATA_VERSION;
+  if (!st || version >= target || (hass.user && !hass.user.is_admin)) return false;
+  const programmes = migrateSchedules(st.attributes.programmes, version, { ...options, target });
+  await hass.callWS({
+    type: 'fire_event',
+    event_type: event,
+    event_data: { programmes, version: target, previous: { version, programmes: st.attributes.programmes } },
+  });
+  return true;
+}
+
+// Runs the migration at most once per page: from the card, or from any Home Assistant page
+// (this file is loaded on every page by chauffage-loader.js)
+let migrationRun = null;
+function migrateOnce(hass, cfg) {
+  if (!migrationRun) {
+    migrationRun = saveMigratedSchedules(hass, cfg).catch((e) => {
+      console.error('ha-chauffage: schedule migration failed', e);
+      return false;
+    });
+  }
+  return migrationRun;
+}
 
 // ---------- overrides (shared by the card and the more-info block) ----------
 
@@ -497,9 +567,17 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _load() {
     const st = this._hass.states[this._config.sensor];
-    const raw = (st && st.attributes.programmes) || {};
     this._data = {};
-    if (typeof raw !== 'object') return;
+    this._newerData = null;
+    let raw;
+    try {
+      raw = readSchedules(st);
+    } catch (e) {
+      if (!(e instanceof DataVersionError)) throw e;
+      this._newerData = e.version; // read-only: saving would lose data
+      return;
+    }
+    if (st && storedVersion(st) < DATA_VERSION) migrateOnce(this._hass, this._config);
     for (const [climate, modes] of Object.entries(raw)) {
       if (!modes || typeof modes !== 'object') continue;
       this._data[climate] = {};
@@ -599,13 +677,14 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   async _save() {
+    if (this._newerData) return;
     const out = {};
     for (const [climate, modes] of Object.entries(this._data)) {
       out[climate] = {};
       for (const [mode, week] of Object.entries(modes)) out[climate][mode] = week.map(serializeDay);
     }
     try {
-      await this._hass.callWS({ type: 'fire_event', event_type: this._config.event, event_data: { programmes: out } });
+      await this._hass.callWS({ type: 'fire_event', event_type: this._config.event, event_data: { programmes: out, version: DATA_VERSION } });
       this._dirty = false;
       this._msg = this._loc.t('saved');
     } catch (e) {
@@ -841,6 +920,11 @@ class ChauffageProgrammeCard extends HTMLElement {
   _render() {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
+    if (this._newerData) {
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
+        <ha-card><div class="newer-data">${esc(tr('newerData', { version: this._newerData }))}</div></ha-card>`;
+      return;
+    }
     const modes = this._modes();
     const active = this._activeMode();
     const today = todayIdx();
@@ -1445,6 +1529,7 @@ const STYLE = `
     background:var(--card-background-color); max-width:260px; }
   .msg { min-height:1.2em; margin-top:6px; font-size:.85em; color:var(--secondary-text-color); text-align:right; }
   .msg .dirty { color:var(--warning-color,#ff9800); }
+  .newer-data { color:var(--error-color,#db4437); }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:30px 60px 1fr 28px; }
     .dgroup { grid-template-columns:30px 1fr; }
@@ -1470,6 +1555,7 @@ if (!customElements.get('chauffage-programme-card')) customElements.define('chau
 const MORE_INFO_CFG = {
   language: undefined, // card option: forces the UI language
   sensor: 'sensor.programmes_chauffage',
+  event: 'chauffage_programmes_set',
   mode_entity: 'input_select.mode_chauffage',
   derog_sensor: 'sensor.derogations_chauffage',
   derog_event: 'chauffage_derogation_set',
@@ -1534,9 +1620,13 @@ class ChauffageMoreInfo extends HTMLElement {
 
   _week() {
     const c = MORE_INFO_CFG;
-    const st = this._hass.states[c.sensor];
-    const progs = (st && st.attributes.programmes) || {};
-    const mode = this._hass.states[c.mode_entity] ? this._hass.states[c.mode_entity].state : null;
+    let progs;
+    try {
+      progs = readSchedules(this._hass.states[c.sensor]);
+    } catch (e) {
+      progs = {}; // saved by a newer version: block hidden
+    }
+    const mode =this._hass.states[c.mode_entity] ? this._hass.states[c.mode_entity].state : null;
     const week = progs[this._entity] && progs[this._entity][mode];
     return { mode, week: Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null };
   }
@@ -1795,6 +1885,21 @@ function watchMoreInfo(entityId) {
   window.__chauffageMoreInfoTimer = setInterval(tick, 400);
 }
 
+// Migrates the stored schedules as soon as an admin opens any Home Assistant page, so that the
+// automation never waits for someone to open the card
+if (!window.__chauffageMigrationWatch && document.querySelector('home-assistant')) {
+  window.__chauffageMigrationWatch = true;
+  let tries = 0;
+  const timer = setInterval(() => {
+    const ha = document.querySelector('home-assistant');
+    const hass = ha && ha.hass;
+    if (hass && hass.states && hass.states[MORE_INFO_CFG.sensor]) {
+      clearInterval(timer);
+      migrateOnce(hass, MORE_INFO_CFG);
+    } else if (++tries > 60) clearInterval(timer);
+  }, 1000);
+}
+
 if (!window.__chauffageMoreInfoListener) {
   window.__chauffageMoreInfoListener = true;
   window.addEventListener('hass-more-info', (e) => {
@@ -1812,8 +1917,11 @@ if (!window.customCards.some((c) => c.type === 'chauffage-programme-card')) wind
     : 'Weekly heating schedules, several thermostats per day',
 });
 
+console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;border-radius:3px 0 0 3px', 'background:#555;color:#fff;border-radius:0 3px 3px 0');
+
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
+  VERSION, DATA_VERSION, MIGRATIONS, DataVersionError, migrateSchedules, readSchedules, saveMigratedSchedules,
   PRESETS, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
   overridePieces, overrideLabel, activeOverrides, MORE_INFO_CFG,
   ChauffageProgrammeCard, ChauffageMoreInfo,

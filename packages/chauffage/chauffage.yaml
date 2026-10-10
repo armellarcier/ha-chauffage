@@ -1,11 +1,14 @@
 # =====================================================================
 #  Home Assistant package: weekly heating schedules (Versatile Thermostat)
+#  ha-chauffage 0.1.0 — https://github.com/armellarcier/ha-chauffage
 #  Installed in <config>/packages/chauffage/ (see README.md)
 #
 #  Schedules are edited with the custom:chauffage-programme-card card and stored in the
 #  "programmes" attribute of sensor.programmes_chauffage:
 #    { climate.salon: { Normal: [ [mon], [tue], ... [sun] ], Absent: ..., Vacances: ... }, ... }
-#  each day being a list of "HH:MM preset" slots (the first one at 00:00).
+#  each day being a list of "HH:MM preset" slots (the first one at 00:00). The "version"
+#  attribute is the schema version of that data: the card migrates older data (see
+#  CONTRIBUTING.md, "Data versions and migrations").
 #
 #  Overrides: a manual setpoint or preset change (not made by the schedule) creates a
 #  temporary override, stored in sensor.derogations_chauffage:
@@ -36,6 +39,12 @@ template:
         state: "{{ now().isoformat() }}"
         attributes:
           programmes: "{{ trigger.event.data.programmes }}"
+          # Schema version of "programmes" (missing in data saved before v0.1.0: version 1)
+          version: "{{ trigger.event.data.version | default(1) }}"
+          # Data as it was before the last migration, kept until the next one
+          previous: >
+            {{ trigger.event.data.previous if 'previous' in trigger.event.data
+               else (this.attributes.previous | default(none)) }}
 
   # Override storage: each event creates / updates (derogation = {...}) or removes
   # (derogation = null) one thermostat's override.
