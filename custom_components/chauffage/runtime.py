@@ -164,6 +164,7 @@ class ChauffageRuntime:
             "schedules": self.data["schedules"],
             "overrides": self.data["overrides"],
             "preset_temperatures": self.data["preset_temperatures"],
+            "use_presets": self.use_presets,
             "revision": self.data["revision"],
             "override_duration": self.override_duration,
         }

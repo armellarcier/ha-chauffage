@@ -48,13 +48,16 @@ Nécessite Home Assistant 2026.9 ou plus récent.
   *Éco* 17 °C, *Boost* 21 °C, *Hors-gel* 7 °C), pas les presets d'un thermostat. Pour chaque
   thermostat, un niveau correspond à son preset du même nom s'il en a un, sinon à la température
   du niveau ; c'est modifiable par thermostat (un de ses presets, ou une température). **Tout se
-  règle dans la carte** : un clic sur un niveau de la légende permet de choisir ce qu'il
-  signifie pour le thermostat affiché ; *⚙ Niveaux* renomme, recolore, ajoute ou supprime des
-  niveaux et règle leur température par défaut (administrateurs).
-- La légende affiche la température de chaque niveau pour le thermostat affiché. Pour un preset,
+  règle dans la carte**, vue *Niveaux* (bouton en haut de la carte, administrateurs) : un tableau
+  avec une colonne par niveau et une ligne par thermostat. L'en-tête de colonne est le niveau
+  (nom, couleur ; ajout, suppression) et sa température par défaut ; chaque case indique ce que
+  fait ce thermostat à ce niveau : automatique, un de ses presets (⟲), ou sa propre
+  température (●).
+- Le tableau et la légende affichent la température de chaque niveau. Pour un preset,
   aucun attribut standard ne la donne : l'intégration retient la consigne vue quand ce preset
   était actif. **Petit plus pour Versatile Thermostat** : les températures de ses presets sont
-  lues directement dans ses attributs (`comfort_temp`, `eco_temp`…), un parti pris pour les
+  lues directement dans ses attributs (`preset_temperatures` depuis VTherm 10, `comfort_temp`…
+  avant), un parti pris pour les
   utilisateurs de VTherm.
 - Pour chaque thermostat programmé, deux capteurs **désactivés par défaut** (à activer depuis la
   page de l'appareil du thermostat) : **Programme** (niveau prévu maintenant, plage suivante en

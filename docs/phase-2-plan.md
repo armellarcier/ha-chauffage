@@ -72,9 +72,12 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
 
 Changed after a first version (see "Changes from the plan"):
 
-- **In the card** (admins): a click on a level in the legend sets what it means for the
-  displayed thermostat (one of its presets or a temperature, or back to the default);
-  *⚙ Levels* renames, recolors, adds or removes levels and sets their default temperature.
+- **In the card** (admins), *Levels* view (Schedule | Levels switch at the top of the card): a
+  table with one column per level and one row per thermostat. Column headers edit the level
+  (name, color, delete with a replacement, add) and the *Default* row its default temperature;
+  each cell says what that thermostat does at that level — automatic (grey: the level's default,
+  or ⟲ its preset named like the level), one of its presets (⟲ ●), or its own temperature (●) —
+  and a click edits it.
 - **Options**: a single form with the default settings, the override duration and *Use the
   thermostats' presets* (on by default; off, every thermostat is driven by temperatures).
 - Preset temperatures are shown in the legend: learned while each preset is active (no standard
@@ -130,3 +133,6 @@ Changed after a first version (see "Changes from the plan"):
 - **Levels and mappings are set in the card**, not in the options flow: HA's option forms (no
   layout, generated fields, no preview) proved impractical for setting temperatures room by
   room. The options keep a single form of default settings.
+  A first version edited them from the legend (one thermostat at a time, next to the global
+  settings): confusing. The table separates the levels (columns) from what each thermostat does
+  (cells), for every thermostat at once.
