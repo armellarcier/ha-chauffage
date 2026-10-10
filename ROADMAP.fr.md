@@ -32,6 +32,40 @@ leur fin, tests.
   (voir « Environnement de développement » plus bas), la blinder maintenant serait du travail
   perdu. Si elle casse, `docker compose logs setup` indique l'étape en échec.
 
+## Première version, migrations, puis un système sans YAML
+
+Le package actuel fonctionne et sert au quotidien : il mérite une **première version publiée**
+rapidement, pour que chacun puisse installer une version connue. C'est une étape : le chantier
+suivant le remplace par une **intégration entièrement configurable, sans aucun YAML**.
+
+### Données versionnées et migrations, dès la première version
+
+Chaque version qui change les données stockées doit mettre à jour les installations existantes
+automatiquement, sans action manuelle ni perte de données :
+
+- une **version de schéma** est stockée avec les données (plannings, dérogations, réglages) ; les
+  données créées avant la première version comptent comme version 1 ;
+- les **migrations** sont de petites étapes ordonnées (version N → N+1), exécutées
+  automatiquement au chargement des données ; chacune est idempotente et **testée avec des données
+  d'exemple de l'ancien format** (`tests/fixtures/`) ;
+- une **sauvegarde** des données précédentes est conservée avant de migrer ; le retour à une
+  version antérieure n'est pas pris en charge, et les notes de version le disent ;
+- tant que le package est la version distribuée, la carte migre les données qu'elle charge et les
+  réenregistre ; dans l'intégration, les migrations utilisent les mécanismes de HA (versions du
+  `Store`, `async_migrate_entry` pour les entrées de configuration) ;
+- **versions publiées** : numérotation sémantique, un `CHANGELOG.md`, des tags Git et des
+  « releases » GitHub (sur lesquelles s'appuie HACS). Liste de contrôle avant publication : tests au
+  vert, migrations testées, démo réenregistrée si l'interface a changé, changelog à jour.
+
+### Puis, rapidement : plus de YAML
+
+La première version demande encore de copier des fichiers et de modifier `configuration.yaml`
+(package, `extra_module_url`, exclusions du recorder). L'intégration (section 5 plus bas) supprime
+tout cela : installation depuis HACS, puis **tout se configure depuis l'interface** — thermostats,
+modes, niveaux de chauffe, durée des dérogations, règles de détection. Sa première version inclut
+la **migration automatique depuis la version package** (plannings, dérogations et mode actif
+importés, puis instructions pour retirer le package).
+
 ## Devenir générique
 
 ### 1. Des niveaux de chauffe plutôt que des presets
@@ -88,22 +122,26 @@ Aujourd'hui les modes sont fixes (`Normal` / `Absent` / `Vacances`, dans `input_
   la présence, un calendrier (vacances) ou n'importe quelle automatisation.
 - Un mode peut être **limité dans le temps** (« Absent jusqu'à dimanche 18:00 »), comme les dérogations.
 
-### 5. D'un package YAML à une intégration
+### 5. D'un package YAML à une intégration sans YAML
 
 Le package (capteurs template stockant les données dans des attributs, événements envoyés par la
 carte) atteint ses limites : taille des attributs (le recorder ignore les attributs de plus de
-16 Ko), pas de vrais services, pas d'interface de configuration, pas de distribution HACS. La
-version générique doit être une **intégration** (`custom_components/chauffage`) :
+16 Ko), pas de vrais services, pas d'interface de configuration, pas de distribution HACS, et du
+YAML à modifier à la main. La prochaine version majeure est une **intégration**
+(`custom_components/chauffage`) :
 
-- stockage via le `Store` de HA (plannings, groupes, modes, niveaux, dérogations), avec migrations ;
+- **aucun YAML** : un formulaire de configuration et un formulaire d'options couvrent tous les
+  réglages (thermostats, modes, niveaux de chauffe, groupes, durée des dérogations, règles de
+  détection) ;
+- stockage via le `Store` de HA (plannings, groupes, modes, niveaux, dérogations), avec migrations
+  versionnées (voir plus haut) ;
 - des **services** (`chauffage.set_schedule`, `chauffage.set_override`, `chauffage.set_mode`…)
   utilisés par la carte et utilisables depuis les automatisations ;
 - des **entités** : un `select` par groupe pour le mode, des capteurs pour le créneau en cours /
   suivant et la dérogation active ;
-- un **formulaire de configuration** pour créer groupes et niveaux ;
 - la carte servie par l'intégration elle-même (plus besoin d'`extra_module_url`), installable
   avec **HACS** ;
-- une migration depuis le package actuel (plannings et dérogations importés une fois).
+- une **migration automatique depuis la version package** (plannings, dérogations et mode importés).
 
 ### 6. Environnement de développement et tests
 
@@ -133,7 +171,7 @@ des utilisateurs de toutes langues :
 - **Formats adaptés à la langue** : heures en 12 h ou 24 h selon le réglage HA de l'utilisateur,
   noms des jours et **premier jour de la semaine** selon la langue (`Intl`), températures dans
   l'unité de l'utilisateur.
-- **Intégration** (phase 4) : le système de traduction de HA (`strings.json`,
+- **Intégration** (phase 1) : le système de traduction de HA (`strings.json`,
   `translations/*.json`) pour les noms d'entités (`translation_key`), les états, les services, le
   formulaire de configuration et les messages d'erreur.
 - **Identifiants neutres** : des clés anglaises et stables pour les entités, événements, services
@@ -144,19 +182,20 @@ des utilisateurs de toutes langues :
   sont les bienvenues.
 
 La traduction de la carte peut se faire à tout moment ; les identifiants neutres arrivent avec le
-passage à l'intégration (phase 4), dont la migration depuis le package actuel renomme les clés
-stockées.
+passage à l'intégration (phase 1), dont la migration depuis la version package renomme les
+clés stockées.
 
 ## Ordre des travaux
 
 | Phase | Contenu | Terminée quand |
 |---|---|---|
-| 1 | Niveaux de chauffe, association à preset / consigne / arrêt, détection des capacités | un `generic_thermostat` suit un planning |
-| 2 | Détection générique des changements manuels | les dérogations fonctionnent sur un thermostat sans presets |
-| 3 | Groupes et modes définis par l'utilisateur (modèle de données, puis carte) | deux groupes dans des modes différents fonctionnent en parallèle |
-| 4 | Intégration, services, stockage, HACS, traductions, identifiants neutres, migration depuis le package | installation depuis HACS, données existantes migrées, interface en anglais et en français |
+| 0 | **Première version** du package actuel : `CHANGELOG.md`, données versionnées, système de migration testé | v0.1.0 taguée et publiée sur GitHub ; les données stockées portent une version de schéma |
+| 1 | **Intégration sans YAML** : formulaires de configuration et d'options, stockage, services, entités, carte servie par l'intégration, HACS, traductions, identifiants neutres, migration automatique depuis la version package | installation depuis HACS sans YAML ; une installation package est migrée automatiquement ; interface en anglais et en français |
+| 2 | Niveaux de chauffe, association à preset / consigne / arrêt, détection des capacités | un `generic_thermostat` suit un planning |
+| 3 | Détection générique des changements manuels | les dérogations fonctionnent sur un thermostat sans presets |
+| 4 | Groupes et modes définis par l'utilisateur (modèle de données, puis carte) | deux groupes dans des modes différents fonctionnent en parallèle |
 | 5 | Environnement de dev générique, matrice de tests, versions figées, CI de bout en bout | la CI couvre chaque type de thermostat |
 
-Les phases 1 à 3 peuvent être prototypées dans le package actuel pour valider le comportement
-(avec tests), avant le passage à l'intégration en phase 4. La traduction de la carte (section 7)
-est indépendante et peut se faire à tout moment.
+Les phases 2 à 4 sont développées directement dans l'intégration. La traduction de la carte
+(section 7) peut commencer à tout moment : faite dans le package, elle est reprise telle quelle par
+l'intégration.

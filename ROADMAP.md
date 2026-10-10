@@ -30,6 +30,39 @@ schedules, modes, the editor card, temporary overrides and their end, and tests.
   this part will be replaced (see "Development environment" below), so hardening it now would be
   wasted effort. If it breaks, `docker compose logs setup` shows which step failed.
 
+## First release, migrations, then a YAML-free system
+
+The current package works and is used daily: it deserves a **first release** soon, so users can
+install a known version. It is a stepping stone: the next major step replaces it with a **fully
+configurable integration, without any YAML**.
+
+### Versioned data and migrations, from the first release
+
+Every release that changes stored data must upgrade existing installations automatically, with no
+manual step and no data loss:
+
+- a **schema version** is stored with the data (schedules, overrides, settings); data created
+  before the first release counts as version 1;
+- **migrations** are small ordered steps (version N → N+1), run automatically when the data is
+  loaded; each one is idempotent and **tested with fixtures of the old format** (`tests/fixtures/`);
+- a **backup** of the previous data is kept before migrating; downgrades are not supported, and the
+  release notes say so;
+- while the package is the distributed version, the card migrates the data it loads and saves it
+  back; in the integration, migrations use HA's own mechanisms (`Store` versions,
+  `async_migrate_entry` for config entries);
+- **releases**: semantic versioning, a `CHANGELOG.md`, Git tags and GitHub releases (which HACS
+  relies on). Release checklist: tests green, migrations tested, demo re-recorded if the UI
+  changed, changelog updated.
+
+### Then, quickly: no more YAML
+
+The first release still asks users to copy files and edit `configuration.yaml` (package,
+`extra_module_url`, recorder exclusions). The integration (section 5 below) removes all of it:
+installation from HACS, then **everything configured from the UI** — thermostats, modes, heating
+levels, override duration, detection rules. Its first version includes the **automatic migration
+from the package release** (schedules, overrides and active mode imported, then instructions to
+remove the package).
+
 ## Becoming generic
 
 ### 1. Heating levels instead of presets
@@ -84,22 +117,24 @@ Today the modes are fixed (`Normal` / `Absent` / `Vacances`, in `input_select.mo
   a calendar (holidays) or any automation.
 - A mode can be **time-limited** ("Away until Sunday 18:00"), like overrides.
 
-### 5. From a YAML package to an integration
+### 5. From a YAML package to a YAML-free integration
 
 The package (template sensors storing data in attributes, events sent by the card) has reached
 its limits: attribute size (the recorder ignores attributes over 16 KB), no real services, no
-config UI, no HACS distribution. The generic version should be a **custom integration**
-(`custom_components/chauffage`):
+config UI, no HACS distribution, and YAML to edit by hand. The next major version is a **custom
+integration** (`custom_components/chauffage`):
 
-- storage with HA's `Store` (schedules, groups, modes, levels, overrides), with migrations;
+- **no YAML at all**: a config flow and an options flow cover every setting (thermostats, modes,
+  heating levels, groups, override duration, detection rules);
+- storage with HA's `Store` (schedules, groups, modes, levels, overrides), with versioned
+  migrations (see above);
 - **services** (`chauffage.set_schedule`, `chauffage.set_override`, `chauffage.set_mode`…)
   used by the card and usable from automations;
 - **entities**: a `select` per group for the mode, sensors for the current / next slot and the
   active override;
-- a **config flow** to create groups and levels;
 - the card served by the integration itself (no `extra_module_url` needed), installable with
   **HACS**;
-- a migration from the current package (schedules and overrides imported once).
+- an **automatic migration from the package release** (schedules, overrides and mode imported).
 
 ### 6. Development environment and tests
 
@@ -125,7 +160,7 @@ the data keys (`valeur`, `debut`, `fin`). To serve users in any language:
   `hass.language`), with English as the fallback.
 - **Locale-aware formatting**: times in 12 h or 24 h following the user's HA setting, day names and
   **first day of the week** from the locale (`Intl`), temperatures in the user's unit.
-- **Integration** (phase 4): HA's own translation system (`strings.json`, `translations/*.json`)
+- **Integration** (phase 1): HA's own translation system (`strings.json`, `translations/*.json`)
   for entity names (`translation_key`), states, services, the config flow and error messages.
 - **Language-neutral identifiers**: English, stable keys for entities, events, services and stored
   data (`value`, `start`, `end`…); only what the user sees is translated. Default modes and heating
@@ -133,18 +168,18 @@ the data keys (`valeur`, `debut`, `fin`). To serve users in any language:
 - **Documentation**: already in English (canonical) and French; other languages welcome.
 
 The card's translation can be done at any time; the neutral identifiers come with the move to the
-integration (phase 4), where the migration from the current package renames the stored keys.
+integration (phase 1), where the migration from the package release renames the stored keys.
 
 ## Order of work
 
 | Phase | Content | Done when |
 |---|---|---|
-| 1 | Heating levels, mapping to preset / setpoint / off, capability detection | a `generic_thermostat` follows a schedule |
-| 2 | Generic manual-change detection | overrides work on a thermostat without presets |
-| 3 | Groups and user-defined modes (data model, then card) | two groups with different modes run side by side |
-| 4 | Integration, services, storage, HACS, translations, language-neutral identifiers, migration from the package | installed from HACS, existing data migrated, UI in English and French |
+| 0 | **First release** of the current package: `CHANGELOG.md`, versioned data, migration framework with tests | v0.1.0 tagged and published on GitHub; stored data carries a schema version |
+| 1 | **YAML-free integration**: config / options flow, storage, services, entities, card served by the integration, HACS, translations, language-neutral identifiers, automatic migration from the package release | installed from HACS with no YAML; a package installation is migrated automatically; UI in English and French |
+| 2 | Heating levels, mapping to preset / setpoint / off, capability detection | a `generic_thermostat` follows a schedule |
+| 3 | Generic manual-change detection | overrides work on a thermostat without presets |
+| 4 | Groups and user-defined modes (data model, then card) | two groups with different modes run side by side |
 | 5 | Generic dev environment, test matrix, pinned versions, end-to-end CI | CI covers every thermostat type |
 
-Phases 1–3 can be prototyped in the current package to validate the behavior (with tests),
-before moving to the integration in phase 4. The card's translation (section 7) is independent
-and can be done at any time.
+Phases 2–4 are built directly in the integration. The card's translation (section 7) can start at
+any time: done in the package, it is reused as is by the integration.
