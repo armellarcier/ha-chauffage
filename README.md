@@ -2,6 +2,8 @@
 
 **English** · [Français](README.fr.md)
 
+![Editing schedules, an override and the heating mode, then the thermostat's more-info dialog](docs/demo.gif)
+
 Weekly heating schedules for Home Assistant, for preset-based thermostats such as
 **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
 (independent project, not affiliated with Versatile Thermostat):

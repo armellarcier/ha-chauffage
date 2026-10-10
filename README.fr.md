@@ -2,6 +2,8 @@
 
 [English](README.md) · **Français**
 
+![Édition des plannings, une dérogation et le mode de chauffe, puis la fenêtre de détail du thermostat](docs/demo.gif)
+
 Plannings de chauffe hebdomadaires pour Home Assistant, pour les thermostats à presets
 comme **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
 (projet indépendant, sans lien avec Versatile Thermostat) :

@@ -78,6 +78,19 @@ manual change or the thermostat's response, and saves schedules like the card do
 The tests also run on GitHub Actions for every push and pull request
 (`.github/workflows/tests.yml`). **Run `scripts/test.sh` before deploying.**
 
+## Demo animation
+
+`docs/demo.gif` (shown at the top of the README) is recorded from the development HA:
+
+```bash
+scripts/demo.sh      # needs the dev HA running; Playwright + ffmpeg in Docker
+```
+
+The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs): it sets the browser clock
+to a Tuesday morning, adds a demo override, plays the actions with a visible cursor, then
+restores everything (override removed, mode back to Normal, schedule edits discarded).
+Re-record it when the card's look changes.
+
 ## 4. Deploying to a real Home Assistant
 
 The project is installed by **copying files** into the HA configuration:

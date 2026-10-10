@@ -6,3 +6,5 @@ node_modules/
 .claude/launch.json
 __pycache__/
 .pytest_cache/
+dev/demo/out/
+dev/demo/node_modules/

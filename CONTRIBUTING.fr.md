@@ -80,6 +80,19 @@ programmes comme le fait la carte.
 Les tests tournent aussi sur GitHub Actions à chaque push et pull request
 (`.github/workflows/tests.yml`). **Lancer `scripts/test.sh` avant de déployer.**
 
+## Animation de démo
+
+`docs/demo.gif` (affichée en tête du README) est enregistrée depuis le HA de développement :
+
+```bash
+scripts/demo.sh      # nécessite le HA de dev démarré ; Playwright + ffmpeg dans Docker
+```
+
+Le scénario est dans [`dev/demo/record.mjs`](dev/demo/record.mjs) : il règle l'horloge du
+navigateur sur un mardi matin, ajoute une dérogation de démo, joue les actions avec un curseur
+visible, puis remet tout en état (dérogation supprimée, mode Normal, modifications du planning
+abandonnées). À réenregistrer quand l'apparence de la carte change.
+
 ## 4. Déployer sur un vrai Home Assistant
 
 Le projet s'installe en **copiant des fichiers** dans la configuration HA :
