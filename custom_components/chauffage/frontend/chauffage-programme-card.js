@@ -80,6 +80,18 @@ const I18N = {
     todayTitle: 'Today',
     week: 'Week',
     stale: 'These schedules were changed elsewhere in the meantime: cancel to reload them, then redo your changes.',
+    presetHint: '(preset)',
+    levelFor: '{level} · {name}',
+    levelPreset: 'Thermostat preset',
+    levelTemperature: 'Temperature',
+    levelDefault: 'Default',
+    apply: 'OK',
+    levels: 'Levels',
+    levelsTitle: 'Heating levels',
+    addLevel: 'Add a level',
+    replaceWith: 'replaced by',
+    removeLevel: 'Remove',
+    undo: 'Undo',
     newerData: 'These schedules were saved by a newer version of ha-chauffage (data version {version}). Update the card to view and edit them.',
   },
   fr: {
@@ -138,6 +150,18 @@ const I18N = {
     todayTitle: 'Aujourd\'hui',
     week: 'Semaine',
     stale: 'Ces plannings ont été modifiés ailleurs entre-temps : annulez pour les recharger, puis refaites vos modifications.',
+    presetHint: '(preset)',
+    levelFor: '{level} · {name}',
+    levelPreset: 'Preset du thermostat',
+    levelTemperature: 'Température',
+    levelDefault: 'Par défaut',
+    apply: 'OK',
+    levels: 'Niveaux',
+    levelsTitle: 'Niveaux de chauffe',
+    addLevel: 'Ajouter un niveau',
+    replaceWith: 'remplacé par',
+    removeLevel: 'Supprimer',
+    undo: 'Annuler la suppression',
     newerData: 'Ces plannings ont été enregistrés par une version plus récente de ha-chauffage (données en version {version}). Mettez la carte à jour pour les afficher et les modifier.',
   },
 };
@@ -496,6 +520,19 @@ function integrationSource(hass) {
     activateMode: (name) => hass.callWS({ type: 'chauffage/mode/set', mode: idOf(name) }),
     levels: () => (d && d.levels) || [],
     targets: (climate) => (d && d.targets && d.targets[climate]) || {},
+    // Levels and mappings are set from the card by admins (the integration refuses the others)
+    editable: !!d && (!hass.user || !!hass.user.is_admin),
+    mapping: (climate) => (d && d.mappings && d.mappings[climate]) || {},
+    learned: (climate, preset) => ((d && d.preset_temperatures && d.preset_temperatures[climate]) || {})[preset],
+    usedLevels: () => {
+      const used = new Set();
+      for (const byMode of Object.values(d ? d.schedules : {})) {
+        for (const week of Object.values(byMode)) for (const day of week) for (const [, level] of day) used.add(level);
+      }
+      return [...used];
+    },
+    setMapping: (climate, mapping) => hass.callWS({ type: 'chauffage/mapping/set', entity_id: climate, mapping }),
+    setLevels: (levels, replacements) => hass.callWS({ type: 'chauffage/levels/set', levels, replacements }),
   };
 }
 
@@ -519,6 +556,10 @@ function packageSource(hass, cfg) {
     activateMode: (name) => hass.callService('input_select', 'select_option', { entity_id: cfg.mode_entity, option: name }),
     levels: () => [], // the package's fixed presets (PRESETS)
     targets: () => ({}),
+    editable: false,
+    mapping: () => ({}),
+    learned: () => undefined,
+    usedLevels: () => [],
   };
 }
 
@@ -528,7 +569,7 @@ const dataSource = (hass, cfg) => (integrationAvailable(hass) ? integrationSourc
 function levelsOf(src, loc) {
   const list = src.levels();
   const levels = list.length ? list : Object.entries(PRESETS).map(([id, p]) => ({ id, color: p.color }));
-  return levels.map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id) }));
+  return levels.map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature }));
 }
 const levelOf = (levels, id, loc) => levels.find((l) => l.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
 // Another level for a new slot: comfort ↔ eco when they exist, otherwise the next level
@@ -1088,16 +1129,22 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     const focus = this._focusClimate();
     const st = this._hass.states[focus];
-    // What each level means for the focused thermostat: its temperature, or its preset's
-    // temperature when the thermostat shows it (VTherm: comfort_temp…)
-    const targets = this._source().targets(focus);
+    // What each level means for the focused thermostat (see _levelTemperature); with the
+    // integration, an admin clicks a level to change it for that thermostat
+    const src = this._source();
+    const targets = src.targets(focus);
+    const editable = src.editable && !multi;
     const legend = this._levels()
       .map((l) => {
         const target = targets[l.id] || { preset: l.id };
-        const t = multi || !st ? null : 'temperature' in target ? target.temperature : st.attributes[`${target.preset}_temp`];
-        return `<span><i style="background:${l.color}"></i>${esc(l.name)}${t != null && t !== false ? ` ${this._loc.number(t)}°` : ''}</span>`;
+        const t = multi || !st ? null : this._levelTemperature(focus, target);
+        const hint = !multi && src.kind === 'integration' && 'preset' in target ? ` ${tr('presetHint')}` : '';
+        const inner = `<i style="background:${l.color}"></i>${esc(l.name)}${t != null ? ` ${this._loc.number(t)}°` : esc(hint)}`;
+        const on = this._levelEdit && this._levelEdit.level === l.id ? ' on' : '';
+        return editable ? `<button class="lv${on}" data-act="level-edit" data-level="${esc(l.id)}">${inner}</button>` : `<span>${inner}</span>`;
       })
-      .join('');
+      .join('')
+      + (src.editable ? `<button class="lv tool" data-act="levels-open" ${this._dirty ? 'disabled' : ''} title="${esc(tr('levelsTitle'))}">⚙ ${esc(tr('levels'))}</button>` : '');
     const copyWeek = this._thermostats
       .map((t) => {
         const opts = modes
@@ -1133,6 +1180,7 @@ class ChauffageProgrammeCard extends HTMLElement {
             <button class="btn primary" data-act="save" ${this._dirty ? '' : 'disabled'}>${esc(tr('save'))}</button>
           </div>
         </div>
+        ${this._levelPanelHtml()}${this._levelsPanelHtml()}
         <div class="msg">${esc(this._msg)}${this._msg && this._dirty ? ' · ' : ''}${this._dirty ? `<span class="dirty">${esc(tr('unsaved'))}</span>` : ''}</div>
       </ha-card>`;
     this._schedulePlaceEditor();
@@ -1323,6 +1371,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
     });
 
+    // Typing a temperature for a level means "use a temperature"
+    root.addEventListener('input', (e) => {
+      if (!e.target.hasAttribute('data-lv-temp')) return;
+      const radio = root.querySelector('input[name="lv-kind"][value="temperature"]');
+      if (radio) radio.checked = true;
+    });
+
     root.addEventListener('change', (e) => {
       const el = e.target;
       if (el.classList.contains('copyweek')) {
@@ -1360,6 +1415,162 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._msg = this._loc.t('error', { message: e.message || e.code || e });
     }
     this._render();
+  }
+
+  // Temperature a level gives a thermostat: its own for a temperature; for a preset, the one
+  // Versatile Thermostat shows (comfort_temp… attributes: a deliberate extra for VTherm users),
+  // otherwise the one last seen while that preset was active (learned by the integration)
+  _levelTemperature(climate, target) {
+    if ('temperature' in target) return target.temperature;
+    const st = this._hass.states[climate];
+    const vtherm = st && st.attributes[`${target.preset}_temp`];
+    if (typeof vtherm === 'number') return vtherm;
+    const learned = this._source().learned(climate, target.preset);
+    return typeof learned === 'number' ? learned : null;
+  }
+
+  // What a level means for the displayed thermostat: one of its presets, or a temperature
+  _levelPanelHtml() {
+    const e = this._levelEdit;
+    if (!e) return '';
+    const t = this._loc.t;
+    const src = this._source();
+    const level = this._level(e.level);
+    const target = src.targets(e.climate)[e.level] || {};
+    const st = this._hass.states[e.climate];
+    const presets = ((st && st.attributes.preset_modes) || []).map(String)
+      .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()));
+    const kind = 'preset' in target && presets.length ? 'preset' : 'temperature';
+    const temperature = this._levelTemperature(e.climate, target) ?? level.temperature ?? 19;
+    const kinds = presets.length ? `
+      <label class="lv-kind"><input type="radio" name="lv-kind" value="preset" ${kind === 'preset' ? 'checked' : ''}>
+        ${esc(t('levelPreset'))}
+        <select data-lv-preset>${presets.map((p) => `<option value="${esc(p)}" ${(target.preset || e.level) === p ? 'selected' : ''}>${esc(this._loc.preset(p))}</option>`).join('')}</select></label>
+      <label class="lv-kind"><input type="radio" name="lv-kind" value="temperature" ${kind === 'temperature' ? 'checked' : ''}> ${esc(t('levelTemperature'))}</label>` : '';
+    const explicit = e.level in src.mapping(e.climate);
+    return `<div class="panel" data-panel="level">
+      <div class="panel-head"><strong>${esc(t('levelFor', { level: level.name, name: this._name(e.climate) }))}</strong>
+        <button class="btn icon" data-act="level-close" title="${esc(t('close'))}">✕</button></div>
+      ${kinds}
+      <div class="lv-temp">
+        <button class="btn icon" data-act="level-step" data-delta="-0.5">−</button>
+        <input type="number" data-lv-temp step="0.5" min="5" max="30" value="${temperature}"> °C
+        <button class="btn icon" data-act="level-step" data-delta="0.5">+</button>
+      </div>
+      <div class="ed-actions start">
+        ${explicit ? `<button class="btn" data-act="level-default">${esc(t('levelDefault'))}</button>` : ''}
+        <button class="btn primary" data-act="level-apply">${esc(t('apply'))}</button>
+      </div>
+    </div>`;
+  }
+
+  async _levelAction(act, ds) {
+    const e = this._levelEdit;
+    const root = this.shadowRoot;
+    if (act === 'level-close' || !e) { this._levelEdit = null; return this._render(); }
+    const input = root.querySelector('[data-lv-temp]');
+    if (act === 'level-step') {
+      input.value = String(Math.round((Number(input.value) + Number(ds.delta)) * 10) / 10);
+      const radio = root.querySelector('input[name="lv-kind"][value="temperature"]');
+      if (radio) radio.checked = true;
+      return undefined;
+    }
+    const src = this._source();
+    const mapping = { ...src.mapping(e.climate) };
+    if (act === 'level-default') {
+      delete mapping[e.level];
+    } else {
+      const checked = root.querySelector('input[name="lv-kind"]:checked');
+      mapping[e.level] = checked && checked.value === 'preset'
+        ? { preset: root.querySelector('[data-lv-preset]').value }
+        : { temperature: Number(input.value) };
+    }
+    try {
+      await src.setMapping(e.climate, mapping);
+      this._levelEdit = null;
+      this._msg = this._loc.t('saved');
+    } catch (err) {
+      this._msg = this._loc.t('error', { message: err.message || err.code || err });
+    }
+    return this._render();
+  }
+
+  // Heating levels: name, color, default temperature; add, remove (a level used in the schedules
+  // is replaced by another one)
+  _levelsPanelHtml() {
+    const edit = this._levelsEdit;
+    if (!edit) return '';
+    const t = this._loc.t;
+    const used = this._source().usedLevels();
+    const kept = edit.rows.filter((r) => !r.removed && r.id);
+    const rows = edit.rows.map((r, i) => {
+      if (r.removed) {
+        const replace = used.includes(r.id)
+          ? ` ${esc(t('replaceWith'))} <select data-lv-repl="${i}">${kept.map((k) => `<option value="${esc(k.id)}" ${r.replacement === k.id ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}</select>`
+          : '';
+        return `<div class="lv-row removed"><s>${esc(r.name)}</s>${replace}
+          <button class="btn icon" data-act="levels-undo" data-i="${i}" title="${esc(t('undo'))}">↺</button></div>`;
+      }
+      return `<div class="lv-row">
+        <input type="color" data-lv-color="${i}" value="${esc(r.color)}">
+        <input type="text" data-lv-name="${i}" value="${esc(r.name)}">
+        <input type="number" data-lv-temperature="${i}" step="0.5" min="5" max="30" value="${r.temperature}"> °C
+        <button class="btn icon" data-act="levels-del" data-i="${i}" title="${esc(t('removeLevel'))}">✕</button></div>`;
+    }).join('');
+    return `<div class="panel" data-panel="levels">
+      <div class="panel-head"><strong>${esc(t('levelsTitle'))}</strong>
+        <button class="btn icon" data-act="levels-close" title="${esc(t('close'))}">✕</button></div>
+      ${rows}
+      <div class="ed-actions start">
+        <button class="btn" data-act="levels-add">+ ${esc(t('addLevel'))}</button>
+        <button class="btn primary" data-act="levels-save">${esc(t('save'))}</button>
+      </div>
+    </div>`;
+  }
+
+  // Copies what was typed in the levels panel into its state (before a redraw)
+  _syncLevelsForm() {
+    const edit = this._levelsEdit;
+    if (!edit) return;
+    const value = (attr, i) => { const el = this.shadowRoot.querySelector(`[${attr}="${i}"]`); return el ? el.value : undefined; };
+    edit.rows.forEach((r, i) => {
+      if (r.removed) { r.replacement = value('data-lv-repl', i) ?? r.replacement; return; }
+      r.color = value('data-lv-color', i) ?? r.color;
+      r.name = value('data-lv-name', i) ?? r.name;
+      const temperature = value('data-lv-temperature', i);
+      if (temperature !== undefined) r.temperature = Number(temperature);
+    });
+  }
+
+  async _levelsAction(act, ds) {
+    if (act === 'levels-open') {
+      this._levelEdit = null;
+      this._levelsEdit = { rows: this._levels().map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19 })) };
+      return this._render();
+    }
+    if (act === 'levels-close' || !this._levelsEdit) { this._levelsEdit = null; return this._render(); }
+    this._syncLevelsForm();
+    const rows = this._levelsEdit.rows;
+    const i = Number(ds.i);
+    if (act === 'levels-add') rows.push({ name: '', color: '#9e9e9e', temperature: 19 });
+    if (act === 'levels-del') { if (rows[i].id) rows[i].removed = true; else rows.splice(i, 1); }
+    if (act === 'levels-undo') rows[i].removed = false;
+    if (act !== 'levels-save') return this._render();
+    const kept = rows.filter((r) => !r.removed);
+    const used = this._source().usedLevels();
+    const replacements = {};
+    for (const r of rows.filter((x) => x.removed && used.includes(x.id))) {
+      replacements[r.id] = r.replacement || (kept.find((k) => k.id) || {}).id;
+    }
+    const levels = kept.map((r) => ({ ...(r.id ? { id: r.id } : {}), name: r.name.trim(), color: r.color, temperature: r.temperature }));
+    try {
+      await this._source().setLevels(levels, replacements);
+      this._levelsEdit = null;
+      this._msg = this._loc.t('saved');
+    } catch (err) {
+      this._msg = this._loc.t('error', { message: err.message || err.code || err });
+    }
+    return this._render();
   }
 
   // Opens HA's standard more-info dialog (same mechanism as the built-in tiles)
@@ -1484,6 +1695,15 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
       if (act === 'override-del') return this._sendOverride(c, null);
       if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.fin).getTime() + Number(ds.min) * 60000));
+    }
+    if (act.startsWith('levels-')) return this._levelsAction(act, ds);
+    if (act.startsWith('level-')) {
+      if (act === 'level-edit') {
+        this._levelsEdit = null;
+        this._levelEdit = this._levelEdit && this._levelEdit.level === ds.level ? null : { level: ds.level, climate: this._focusClimate() };
+        return this._render();
+      }
+      return this._levelAction(act, ds);
     }
     if (act === 'save') return this._save();
     if (act === 'cancel') {
@@ -1673,6 +1893,23 @@ const STYLE = `
   .msg { min-height:1.2em; margin-top:6px; font-size:.85em; color:var(--secondary-text-color); text-align:right; }
   .msg .dirty { color:var(--warning-color,#ff9800); }
   .loading { color:var(--secondary-text-color); }
+  button.lv { border:1px solid transparent; background:transparent; padding:2px 6px; border-radius:6px; cursor:pointer;
+    font:inherit; font-size:inherit; color:inherit; }
+  button.lv:hover:not(:disabled), button.lv.on { border-color:var(--divider-color); background:var(--secondary-background-color); }
+  button.lv.tool { border-style:dashed; border-color:var(--divider-color); }
+  button.lv:disabled { opacity:.4; cursor:default; }
+  .panel { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--divider-color);
+    background:var(--card-background-color); display:flex; flex-direction:column; gap:8px; }
+  .panel-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .panel input, .panel select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
+    background:var(--secondary-background-color); }
+  .panel input[type=number] { width:70px; }
+  .panel input[type=color] { width:36px; height:28px; padding:0 2px; }
+  .lv-kind { display:flex; align-items:center; gap:6px; }
+  .lv-temp { display:flex; align-items:center; gap:6px; }
+  .lv-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .lv-row input[type=text] { flex:1; min-width:100px; }
+  .lv-row.removed { color:var(--secondary-text-color); }
   .newer-data { color:var(--error-color,#db4437); }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:30px 60px 1fr 28px; }

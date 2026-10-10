@@ -18,9 +18,14 @@ existing schedules).
 - Heating levels (name, color, default temperature): by default *Comfort* 20 °C, *Eco* 17 °C,
   *Boost* 21 °C, *Frost protection* 7 °C. For each thermostat, a level is its preset with the
   same name, otherwise the level's temperature (within the thermostat's limits and step).
-- Options menu: general settings, heating levels (edit, add, remove; a level used in schedules is
-  replaced by another one), what each level means per thermostat (automatic, one of its presets,
-  or a temperature).
+- Levels are set in the card: click a level in the legend to choose what it means for the
+  displayed thermostat (one of its presets or a temperature, or back to the default); *⚙ Levels*
+  to rename, recolor, add or remove levels (a level used in schedules is replaced by another one)
+  and set their default temperature. Admins only.
+- Options: a single form with the override duration and *Use the thermostats' presets* (on by
+  default; off, every thermostat is driven by temperatures).
+- Preset temperatures in the legend: learned while each preset is active (no standard attribute
+  gives them); read directly from Versatile Thermostat's attributes (`comfort_temp`…).
 - The card shows the levels, their colors, and what they mean for the displayed thermostat.
 - Manual changes on thermostats driven by temperature: any setpoint set by someone else becomes
   an override; the thermostat reaching the expected temperature does not.

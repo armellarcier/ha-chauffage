@@ -70,11 +70,16 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
 
 ## Configuration UI
 
-- **Options flow** (Settings → Devices & services → Chauffage → Configure), as a menu:
-  *Levels* (rename, color, default temperature, add, remove), *Thermostats* (pick one, then for
-  each level: default, one of its presets, or a temperature), *Override duration*.
-- The card does not edit levels or mappings (rarely changed; the options flow is HA's standard
-  place for configuration). It reads them through the websocket API.
+Changed after a first version (see "Changes from the plan"):
+
+- **In the card** (admins): a click on a level in the legend sets what it means for the
+  displayed thermostat (one of its presets or a temperature, or back to the default);
+  *⚙ Levels* renames, recolors, adds or removes levels and sets their default temperature.
+- **Options**: a single form with the default settings, the override duration and *Use the
+  thermostats' presets* (on by default; off, every thermostat is driven by temperatures).
+- Preset temperatures are shown in the legend: learned while each preset is active (no standard
+  attribute gives them), read from Versatile Thermostat's attributes (`comfort_temp`…), a
+  deliberate extra for VTherm users.
 
 ## Card
 
@@ -119,3 +124,9 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
 3. **Default temperature per level** (in the *Levels* form), used by every thermostat mapped to
    temperatures unless set per thermostat.
 4. **Version**: v0.3.0, published as pre-releases first.
+
+## Changes from the plan
+
+- **Levels and mappings are set in the card**, not in the options flow: HA's option forms (no
+  layout, generated fields, no preview) proved impractical for setting temperatures room by
+  room. The options keep a single form of default settings.

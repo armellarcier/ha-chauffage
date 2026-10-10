@@ -47,15 +47,24 @@ Nécessite Home Assistant 2026.9 ou plus récent.
 - Des **niveaux de chauffe** : les plannings utilisent des niveaux (par défaut *Confort* 20 °C,
   *Éco* 17 °C, *Boost* 21 °C, *Hors-gel* 7 °C), pas les presets d'un thermostat. Pour chaque
   thermostat, un niveau correspond à son preset du même nom s'il en a un, sinon à la température
-  du niveau ; c'est modifiable par thermostat (un de ses presets, ou une température).
+  du niveau ; c'est modifiable par thermostat (un de ses presets, ou une température). **Tout se
+  règle dans la carte** : un clic sur un niveau de la légende permet de choisir ce qu'il
+  signifie pour le thermostat affiché ; *⚙ Niveaux* renomme, recolore, ajoute ou supprime des
+  niveaux et règle leur température par défaut (administrateurs).
+- La légende affiche la température de chaque niveau pour le thermostat affiché. Pour un preset,
+  aucun attribut standard ne la donne : l'intégration retient la consigne vue quand ce preset
+  était actif. **Petit plus pour Versatile Thermostat** : les températures de ses presets sont
+  lues directement dans ses attributs (`comfort_temp`, `eco_temp`…), un parti pris pour les
+  utilisateurs de VTherm.
 - Pour chaque thermostat programmé, deux capteurs **désactivés par défaut** (à activer depuis la
   page de l'appareil du thermostat) : **Programme** (niveau prévu maintenant, plage suivante en
   attributs) et **Fin de dérogation** (horodatage, utilisable comme déclencheur horaire).
 - Les services `chauffage.set_override` (température ou preset pour une durée ou jusqu'à une
   heure) et `chauffage.clear_override`.
-- Les options (Paramètres → Appareils et services → Chauffage → *Configurer*) : durée des
-  dérogations (2 h par défaut), niveaux de chauffe (nom, couleur, température par défaut ; ajout,
-  suppression), signification de chaque niveau par thermostat.
+- Les options (Paramètres → Appareils et services → Chauffage → *Configurer*), un seul
+  formulaire : durée des dérogations (2 h par défaut), et *Utiliser les presets des thermostats*
+  (activé par défaut ; désactivé, tous les thermostats sont pilotés en température, entièrement
+  réglée dans la carte).
 
 ### Mise à jour depuis le package (v0.1)
 

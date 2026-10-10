@@ -48,15 +48,21 @@ Requires Home Assistant 2026.9 or later.
 - **Heating levels**: schedules use levels (by default *Comfort* 20 °C, *Eco* 17 °C, *Boost*
   21 °C, *Frost protection* 7 °C), not a thermostat's presets. For each thermostat, a level is
   its preset with the same name when it has one, otherwise the level's temperature; this can
-  be changed per thermostat (a preset of its own, or a temperature).
+  be changed per thermostat (a preset of its own, or a temperature). **Set in the card**:
+  click a level in the legend to choose what it means for the displayed thermostat; *⚙ Levels*
+  renames, recolors, adds or removes levels and sets their default temperature (admins).
+- The legend shows each level's temperature for the displayed thermostat. For a preset, no
+  standard attribute gives it: the integration remembers the setpoint seen while that preset was
+  active. **Versatile Thermostat bonus**: its preset temperatures are read directly from its
+  attributes (`comfort_temp`, `eco_temp`…), a deliberate extra for VTherm users.
 - Per scheduled thermostat, two sensors **disabled by default** (enable them on the
   thermostat's device page): **Schedule** (level planned now, next slot in attributes) and
   **Override end** (timestamp, usable as a time trigger).
 - Services `chauffage.set_override` (temperature or preset for a duration or until a time) and
   `chauffage.clear_override`.
-- Options (Settings → Devices & services → Chauffage → *Configure*): override duration
-  (2 h by default), heating levels (name, color, default temperature; add, remove), what each
-  level means per thermostat.
+- Options (Settings → Devices & services → Chauffage → *Configure*), a single form: override
+  duration (2 h by default), and *Use the thermostats' presets* (on by default; off, every
+  thermostat is driven by temperatures, all set in the card).
 
 ### Upgrading from the package (v0.1)
 

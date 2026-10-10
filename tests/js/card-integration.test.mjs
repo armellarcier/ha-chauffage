@@ -154,3 +154,91 @@ describe('heating levels from the integration (v0.3)', () => {
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 nuit', '12:00 comfort']);
   });
 });
+
+describe('setting levels from the card (v0.3)', () => {
+  const data = () => ({
+    ...INTEGRATION_DATA(),
+    levels: [
+      { id: 'comfort', name: 'Confort', color: '#f57c00', temperature: 20 },
+      { id: 'eco', name: 'Éco', color: '#43a047', temperature: 17 },
+      { id: 'frost', name: 'Hors-gel', color: '#29b6f6', temperature: 7 },
+    ],
+    mappings: { 'climate.salon': { frost: { temperature: 8 } } },
+    targets: { 'climate.salon': { comfort: { preset: 'comfort' }, eco: { preset: 'eco' }, frost: { temperature: 8 } } },
+    preset_temperatures: { 'climate.salon': { comfort: 20.5 } },
+  });
+  const salon = (hass) => {
+    hass.states['climate.salon'].attributes.preset_modes = ['eco', 'comfort', 'away', 'boost'];
+    return createCard(hass, { show: ['climate.salon'] });
+  };
+  const click = (card, selector) => card.shadowRoot.querySelector(selector).click();
+
+  test('the legend shows learned preset temperatures, or "(preset)" while unknown', () => {
+    const card = salon(fakeIntegrationHass({ data: data() }));
+    const legend = card.shadowRoot.querySelector('.legend').textContent.replace(/\s+/g, ' ');
+    assert.match(legend, /Confort 20,5°/); // learned
+    assert.match(legend, /Éco \(preset\)/); // never seen yet
+    assert.match(legend, /Hors-gel 8°/); // temperature
+  });
+
+  test('a level set to a temperature for the displayed thermostat', async () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    const card = salon(hass);
+    click(card, '[data-act="level-edit"][data-level="comfort"]');
+    const panel = card.shadowRoot.querySelector('[data-panel="level"]');
+    assert.match(panel.textContent, /Confort · Salon/);
+    click(card, '[data-act="level-step"][data-delta="0.5"]'); // 20.5 → 21, and "Temperature" is chosen
+    await card._action('level-apply', {});
+    assert.deepEqual(lastCall(hass), {
+      type: 'chauffage/mapping/set', entity_id: 'climate.salon',
+      mapping: { frost: { temperature: 8 }, comfort: { temperature: 21 } },
+    });
+    assert.equal(card.shadowRoot.querySelector('[data-panel="level"]'), null);
+  });
+
+  test('a level set to another preset of the thermostat', async () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    const card = salon(hass);
+    click(card, '[data-act="level-edit"][data-level="eco"]');
+    card.shadowRoot.querySelector('[data-lv-preset]').value = 'away';
+    await card._action('level-apply', {});
+    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset: 'away' } });
+  });
+
+  test('back to the default for a level set by hand', async () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    const card = salon(hass);
+    click(card, '[data-act="level-edit"][data-level="frost"]');
+    await card._action('level-default', {});
+    assert.deepEqual(lastCall(hass).mapping, {});
+  });
+
+  test('the levels panel: rename, add, remove a used level with its replacement', async () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    const card = salon(hass);
+    click(card, '[data-act="levels-open"]');
+    card.shadowRoot.querySelector('[data-lv-name="1"]').value = 'Économique';
+    await card._action('levels-add', {});
+    card.shadowRoot.querySelector('[data-lv-name="3"]').value = 'Nuit';
+    await card._action('levels-del', { i: '0' }); // comfort is used in the schedules
+    card.shadowRoot.querySelector('[data-lv-repl="0"]').value = 'eco';
+    await card._action('levels-save', {});
+    assert.deepEqual(lastCall(hass), {
+      type: 'chauffage/levels/set',
+      levels: [
+        { id: 'eco', name: 'Économique', color: '#43a047', temperature: 17 },
+        { id: 'frost', name: 'Hors-gel', color: '#29b6f6', temperature: 7 },
+        { name: 'Nuit', color: '#9e9e9e', temperature: 19 },
+      ],
+      replacements: { comfort: 'eco' },
+    });
+  });
+
+  test('only admins can change levels', () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    hass.user = { is_admin: false };
+    const card = salon(hass);
+    assert.equal(card.shadowRoot.querySelector('[data-act="level-edit"]'), null);
+    assert.equal(card.shadowRoot.querySelector('[data-act="levels-open"]'), null);
+  });
+});
