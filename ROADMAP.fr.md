@@ -207,3 +207,9 @@ depuis la version package renomme les clés stockées.
 
 Les phases 2 à 4 sont développées directement dans l'intégration. La carte parle déjà anglais et
 français (section 7) ; ses traductions sont reprises telles quelles par l'intégration.
+
+**Liste officielle de HACS** : d'ici là, ha-chauffage s'installe comme *dépôt personnalisé*
+HACS (HACS n'affiche pas d'icône pour ceux-ci ; Home Assistant l'affiche une fois l'intégration
+installée). Il sera proposé à la liste officielle de HACS (`hacs/default`) quand il fonctionnera
+avec n'importe quelle entité `climate`, c'est-à-dire après les phases 2 et 3, avec une version
+stable.

@@ -192,3 +192,8 @@ the package release renames the stored keys.
 
 Phases 2–4 are built directly in the integration. The card already speaks English and French
 (section 7); its translations are reused as is by the integration.
+
+**HACS default list**: until then, ha-chauffage is installed as a HACS *custom repository*
+(HACS shows no icon for those; Home Assistant does, once installed). It will be submitted to the
+HACS default list (`hacs/default`) once it works with any `climate` entity, i.e. after phases 2
+and 3, with a stable release.
