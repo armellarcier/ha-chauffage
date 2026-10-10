@@ -4,8 +4,8 @@
 
 ![Editing schedules, an override and the heating mode, then the thermostat's more-info dialog](docs/demo.gif)
 
-Weekly heating schedules for Home Assistant, for preset-based thermostats such as
-**[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
+Weekly heating schedules for Home Assistant thermostats: thermostats without presets, with
+presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
 (independent project, not affiliated with Versatile Thermostat):
 
 - 3 modes (Normal / Away / Holiday — `Normal` / `Absent` / `Vacances`), a 7-day schedule per
@@ -45,13 +45,18 @@ Requires Home Assistant 2026.9 or later.
 
 - **Heating mode** select (`select.chauffage_mode`): switch it from the card (open the
   mode tab, then "Activate") or from any automation (presence, calendar…).
+- **Heating levels**: schedules use levels (by default *Comfort* 20 °C, *Eco* 17 °C, *Boost*
+  21 °C, *Frost protection* 7 °C), not a thermostat's presets. For each thermostat, a level is
+  its preset with the same name when it has one, otherwise the level's temperature; this can
+  be changed per thermostat (a preset of its own, or a temperature).
 - Per scheduled thermostat, two sensors **disabled by default** (enable them on the
-  thermostat's device page): **Schedule** (preset planned now, next slot in attributes) and
+  thermostat's device page): **Schedule** (level planned now, next slot in attributes) and
   **Override end** (timestamp, usable as a time trigger).
 - Services `chauffage.set_override` (temperature or preset for a duration or until a time) and
   `chauffage.clear_override`.
 - Options (Settings → Devices & services → Chauffage → *Configure*): override duration
-  (2 h by default).
+  (2 h by default), heating levels (name, color, default temperature; add, remove), what each
+  level means per thermostat.
 
 ### Upgrading from the package (v0.1)
 
@@ -75,14 +80,20 @@ package: unzip its ZIP into the configuration folder and follow the README of th
 
 ### Supported thermostats
 
-The schedule applies **presets** (`comfort`, `eco`, `boost`, `frost`), and manual changes are
-detected because the thermostat switches to preset `none` when its setpoint is changed by hand.
-This is how **Versatile Thermostat** behaves, and it is the tested setup. Thermostats without
-these presets are not supported yet.
+Any `climate` entity with a target temperature, tested with three kinds:
 
-The Versatile Thermostat dependency is **temporary**: the goal is to support any `climate` entity,
-with groups of thermostats, user-defined heating modes, and a UI in your language. See the
-[roadmap](ROADMAP.md).
+- **Versatile Thermostat**: levels use its presets (`comfort`, `eco`, `boost`, `frost`), whose
+  temperatures are set in VTherm; a setpoint changed by hand switches it to preset `none` and
+  becomes an override;
+- **thermostats with standard presets** (`eco`, `comfort`, `away`, `boost`…): levels use the
+  presets with the same name, temperatures for the others (frost protection, for example);
+- **thermostats without presets** (such as `generic_thermostat`): levels are temperatures; any
+  setpoint changed by someone else becomes an override.
+
+Not supported yet: heat / cool thermostats with a temperature range (`heat_cool`), and devices
+that change their setpoint by themselves (they can look like manual changes). A device that keeps
+its preset when its setpoint is changed by hand is better mapped to temperatures (options). See
+the [roadmap](ROADMAP.md) for groups of thermostats and user-defined heating modes.
 
 ## Repository layout
 

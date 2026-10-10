@@ -78,6 +78,12 @@ importés, puis instructions pour retirer le package).
 
 ### 1. Des niveaux de chauffe plutôt que des presets
 
+**Fait en v0.3** (préversion ; [docs/phase-2-plan.md](docs/phase-2-plan.md), en anglais) : des
+niveaux avec une température par défaut, associés par thermostat à un preset ou à une
+température, réglés dans les options. Pas de niveau *Arrêt* pour l'instant : les thermostats
+éteints ne sont pas touchés. Testé avec Versatile Thermostat, des presets standard et des
+thermostats sans presets.
+
 Les plannings doivent référencer des **niveaux de chauffe** définis par l'utilisateur (par ex.
 *Confort*, *Éco*, *Nuit*, *Hors-gel*, *Arrêt*), pas les noms de presets d'un thermostat. Chaque
 niveau est ensuite **associé, par thermostat** (ou par groupe, voir plus bas), à ce que le
@@ -95,6 +101,11 @@ Un créneau peut aussi porter directement une température (« 21 °C à partir 
 ceux qui ne veulent pas de niveaux nommés.
 
 ### 2. Détecter les changements manuels sans le preset `none`
+
+**En partie fait en v0.3** : l'intégration reconnaît ses propres changements à leur contexte, et
+juge un changement par rapport à ce que le programme attend (thermostat piloté en température :
+toute autre consigne est une dérogation). Reste à faire : les thermostats qui changent leur
+consigne d'eux-mêmes.
 
 Au lieu de dépendre d'un signal propre à un type de thermostat :
 

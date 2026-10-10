@@ -8,7 +8,9 @@ already done.
   2. long-lived access token written to /config/.dev-token (read by scripts/_ha.sh)
   3. three Versatile Thermostat "over a switch" thermostats on the simulated rooms
   4. a dashboard with the card, and sample schedules
-  5. the Chauffage integration's config entry (work in progress, see docs/integration-plan.md)
+  5. the Chauffage integration's config entry (it imports the sample schedules from the package)
+  6. sample schedules for the two other kinds of thermostats (kitchen: generic_thermostat without
+     presets; guest room: standard presets, dev/sim_climate), declared in simulation.yaml
 """
 
 from __future__ import annotations
@@ -232,10 +234,14 @@ async def thermostats(api: Api) -> None:
 
 # ----- dashboard and sample schedules -----
 
+# Thermostats of the other kinds (simulation.yaml): no presets, standard presets
+OTHER_THERMOSTATS = {"climate.cuisine": "Cuisine", "climate.chambre_d_amis": "Chambre d'amis"}
+
 CARD = {
     "type": "custom:chauffage-programme-card",
     "show": "all",
-    "thermostats": [{"entity": f"climate.{room}", "name": name} for room, name in ROOMS.items()],
+    "thermostats": [{"entity": f"climate.{room}", "name": name} for room, name in ROOMS.items()]
+    + [{"entity": entity, "name": name} for entity, name in OTHER_THERMOSTATS.items()],
 }
 
 WEEKDAY = ["00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco"]
@@ -257,6 +263,14 @@ async def dashboard(ws: WS) -> None:
     the legacy default dashboard)."""
     dashboards = await ws.call(type="lovelace/dashboards/list")
     if any(d["url_path"] == DASHBOARD_URL for d in dashboards):
+        # Existing dashboard: add the thermostats it does not list yet
+        config = await ws.call(type="lovelace/config", url_path=DASHBOARD_URL)
+        card = config["views"][0]["cards"][0]
+        missing = [t for t in CARD["thermostats"] if t not in card.get("thermostats", [])]
+        if missing:
+            log(f"dashboard: adding {', '.join(t['entity'] for t in missing)} to the card")
+            card["thermostats"] = card.get("thermostats", []) + missing
+            await ws.call(type="lovelace/config/save", url_path=DASHBOARD_URL, config=config)
         return
     log(f"dashboard: creating /{DASHBOARD_URL} with the card")
     await ws.call(type="lovelace/dashboards/create", url_path=DASHBOARD_URL, title="Chauffage",
@@ -282,6 +296,26 @@ async def integration(api: Api) -> None:
     await api.post(f"config/config_entries/flow/{flow['flow_id']}", {})
 
 
+async def other_schedules(ws: WS) -> None:
+    """Sample schedules for the kitchen and the guest room, saved through the integration."""
+    store = Path("/config/.storage/chauffage")
+    if not store.exists():
+        return
+    data = json.loads(store.read_text())["data"]
+    schedules = data["schedules"]
+    if all(entity in schedules for entity in OTHER_THERMOSTATS):
+        return
+    first, *others = [m["id"] for m in data["modes"]]
+    week = {
+        "climate.cuisine": [[["00:00", "eco"], ["07:00", "comfort"], ["09:00", "eco"], ["18:30", "comfort"], ["21:00", "eco"]]] * 7,
+        "climate.chambre_d_amis": [[["00:00", "frost"]]] * 5 + [[["00:00", "eco"], ["08:00", "comfort"], ["22:00", "eco"]]] * 2,
+    }
+    for entity, days in week.items():
+        schedules.setdefault(entity, {first: days, **{m: [[["00:00", "frost"]]] * 7 for m in others}})
+    log("schedules: sample schedules for the kitchen and the guest room")
+    await ws.call(type="chauffage/schedules/save", schedules=schedules)
+
+
 async def main() -> None:
     async with aiohttp.ClientSession() as session:
         await wait_for_ha(session)
@@ -293,6 +327,7 @@ async def main() -> None:
         await dashboard(ws)
         await sample_schedules(api)
         await integration(api)
+        await other_schedules(ws)
         log(f"done — http://localhost:8124/{DASHBOARD_URL} (dev / dev)")
 
 

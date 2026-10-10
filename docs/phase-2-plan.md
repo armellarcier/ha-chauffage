@@ -1,6 +1,7 @@
 # Phase 2: heating levels instead of presets — design and plan
 
-Status: **agreed** (see "Decisions" at the end). Target: v0.3.0, published as pre-releases first.
+Status: **steps 1–5 done** (see "Decisions" at the end); remaining: the v0.3.0 pre-release on
+the author's production. Target: v0.3.0, published as pre-releases first.
 Roadmap context: [ROADMAP.md](../ROADMAP.md), "Becoming generic", sections 1 and 2.
 
 Goal: schedules reference **heating levels** defined by the user instead of Versatile

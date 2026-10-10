@@ -13,6 +13,12 @@ input_boolean:
   radiateur_chambre:
     name: Radiateur chambre (simulé)
     icon: mdi:radiator
+  radiateur_cuisine:
+    name: Radiateur cuisine (simulé)
+    icon: mdi:radiator
+  radiateur_amis:
+    name: Radiateur chambre d'amis (simulé)
+    icon: mdi:radiator
 
 input_number:
   temperature_salon:
@@ -37,6 +43,22 @@ input_number:
     max: 30
     step: 0.1
     initial: 17
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_cuisine:
+    name: Température cuisine (simulée)
+    min: 5
+    max: 30
+    step: 0.1
+    initial: 18
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_amis:
+    name: Température chambre d'amis (simulée)
+    min: 5
+    max: 30
+    step: 0.1
+    initial: 16
     unit_of_measurement: "°C"
     mode: box
   temperature_exterieure:
@@ -80,6 +102,22 @@ template:
         # Versatile Thermostat goes into safety mode after an hour (no temperature received)
         attributes:
           measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
+      - name: Température cuisine
+        unique_id: sim_temperature_cuisine
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_cuisine') }}"
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
+      - name: Température chambre d'amis
+        unique_id: sim_temperature_amis
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_amis') }}"
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température extérieure
         unique_id: sim_temperature_exterieure
         device_class: temperature
@@ -100,7 +138,7 @@ automation:
         seconds: "/30"
     actions:
       - repeat:
-          for_each: [salon, bureau, chambre]
+          for_each: [salon, bureau, chambre, cuisine, amis]
           sequence:
             - action: input_number.set_value
               target:
@@ -114,3 +152,23 @@ automation:
                   {%- else -%}
                     {{ [t - (t - ext) * 0.02, ext] | max | round(1) }}
                   {%- endif -%}
+
+# The two other kinds of thermostats (see docs/phase-2-plan.md):
+# - no presets: Home Assistant's generic_thermostat (YAML: its UI flow only accepts a switch or a fan);
+# - standard presets (eco, comfort, away, boost; no frost): dev/sim_climate.
+climate:
+  - platform: generic_thermostat
+    name: Cuisine
+    unique_id: sim_generic_cuisine
+    heater: input_boolean.radiateur_cuisine
+    target_sensor: sensor.temperature_cuisine
+    min_temp: 7
+    max_temp: 25
+    target_temp: 17
+    initial_hvac_mode: heat
+    precision: 0.5
+  - platform: sim_climate
+    name: Chambre d'amis
+    unique_id: sim_climate_amis
+    heater: input_boolean.radiateur_amis
+    sensor: sensor.temperature_amis

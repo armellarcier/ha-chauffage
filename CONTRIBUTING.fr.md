@@ -38,9 +38,16 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 - Le dépôt est **monté en direct** : `custom_components/chauffage/` → l'intégration et sa carte ;
   `packages/chauffage/` → le package v0.1, gardé jusqu'à la v0.2.0 pour tester son import (ses
   automatisations sont désactivées par l'import).
-- `dev/hass/packages/simulation.yaml` crée trois pièces virtuelles (salon, bureau, chambre) :
-  un radiateur `input_boolean.radiateur_*` et une température `sensor.temperature_*` qui monte
-  quand le radiateur chauffe.
+- `dev/hass/packages/simulation.yaml` crée cinq pièces virtuelles : un radiateur
+  `input_boolean.radiateur_*` et une température `sensor.temperature_*` qui monte quand le
+  radiateur chauffe (les capteurs envoient une mesure chaque minute, comme de vrais capteurs).
+  Elles couvrent **tous les types de thermostats** :
+  - salon, bureau, chambre : **Versatile Thermostat** (presets, `none` après une consigne
+    manuelle) ;
+  - cuisine : le **`generic_thermostat`** de HA, sans presets (déclaré en YAML) ;
+  - chambre d'amis : **presets standard** (`eco`, `comfort`, `away`, `boost`, pas de `frost` ;
+    preset effacé après une consigne manuelle), fournis par la plateforme de dev
+    [`dev/sim_climate/`](dev/sim_climate/climate.py).
 
 **Tout est configuré automatiquement au premier démarrage** par le service `setup`
 ([`dev/setup/setup.py`](dev/setup/setup.py), via les API publiques de HA) : se connecter sur
@@ -88,7 +95,9 @@ prise en charge (CI et `HA=min`). Dans `tests/ha/` et `tests/integration/`, les 
 de simples états `climate.*` simulés et
 `climate.set_preset_mode` est remplacé par un enregistreur ; l'objet `Bench` (`conftest.py`)
 avance le temps, simule un changement manuel ou la réponse du thermostat, et enregistre des
-programmes comme le fait la carte.
+programmes comme le fait la carte. Dans `tests/integration/`, les tests de comportement tournent
+sur **les trois types de thermostats** (fixture `thermostat_kind` : `vtherm`, `standard`,
+`plain`) ; un test qui n'a de sens que pour certains types appelle `bench.needs(...)`.
 
 Les tests tournent aussi sur GitHub Actions à chaque push et pull request
 (`.github/workflows/tests.yml`). **Lancer `scripts/test.sh` avant de déployer.**

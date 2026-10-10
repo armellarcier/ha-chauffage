@@ -9,6 +9,33 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+**Heating levels**: ha-chauffage works with any thermostat that has a target temperature, not
+only Versatile Thermostat. **Stored data: migrated automatically** (nothing changes for
+existing schedules).
+
+### Added
+
+- Heating levels (name, color, default temperature): by default *Comfort* 20 °C, *Eco* 17 °C,
+  *Boost* 21 °C, *Frost protection* 7 °C. For each thermostat, a level is its preset with the
+  same name, otherwise the level's temperature (within the thermostat's limits and step).
+- Options menu: general settings, heating levels (edit, add, remove; a level used in schedules is
+  replaced by another one), what each level means per thermostat (automatic, one of its presets,
+  or a temperature).
+- The card shows the levels, their colors, and what they mean for the displayed thermostat.
+- Manual changes on thermostats driven by temperature: any setpoint set by someone else becomes
+  an override; the thermostat reaching the expected temperature does not.
+
+### Changed
+
+- The **Schedule** sensor's state is a level id; its attributes are `level_name`, `target`,
+  `next_level`, `next_level_name` and `next_start` (instead of `next_preset`).
+
+### Upgrading
+
+- Update from HACS and restart: the stored data is migrated (levels created with the ids of
+  the former presets), schedules and thermostats behave as before. Automations reading the
+  Schedule sensor's `next_preset` attribute must use `next_level`.
+
 ## [0.2.0-beta.3] - 2026-10-10
 
 ### Changed

@@ -4,8 +4,8 @@
 
 ![Édition des plannings, une dérogation et le mode de chauffe, puis la fenêtre de détail du thermostat](docs/demo.gif)
 
-Plannings de chauffe hebdomadaires pour Home Assistant, pour les thermostats à presets
-comme **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
+Plannings de chauffe hebdomadaires pour les thermostats de Home Assistant : sans presets, avec
+presets, ou **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
 (projet indépendant, sans lien avec Versatile Thermostat) :
 
 - 3 modes (Normal / Absent / Vacances), un programme sur 7 jours par thermostat et par mode ;
@@ -44,13 +44,18 @@ Nécessite Home Assistant 2026.9 ou plus récent.
 - Un sélecteur **Mode de chauffage** (`select.chauffage_mode`) : il se change depuis la
   carte (ouvrir l'onglet du mode, puis « Activer ») ou depuis n'importe quelle automatisation
   (présence, calendrier…).
+- Des **niveaux de chauffe** : les plannings utilisent des niveaux (par défaut *Confort* 20 °C,
+  *Éco* 17 °C, *Boost* 21 °C, *Hors-gel* 7 °C), pas les presets d'un thermostat. Pour chaque
+  thermostat, un niveau correspond à son preset du même nom s'il en a un, sinon à la température
+  du niveau ; c'est modifiable par thermostat (un de ses presets, ou une température).
 - Pour chaque thermostat programmé, deux capteurs **désactivés par défaut** (à activer depuis la
-  page de l'appareil du thermostat) : **Programme** (preset prévu maintenant, plage suivante en
+  page de l'appareil du thermostat) : **Programme** (niveau prévu maintenant, plage suivante en
   attributs) et **Fin de dérogation** (horodatage, utilisable comme déclencheur horaire).
 - Les services `chauffage.set_override` (température ou preset pour une durée ou jusqu'à une
   heure) et `chauffage.clear_override`.
 - Les options (Paramètres → Appareils et services → Chauffage → *Configurer*) : durée des
-  dérogations (2 h par défaut).
+  dérogations (2 h par défaut), niveaux de chauffe (nom, couleur, température par défaut ; ajout,
+  suppression), signification de chaque niveau par thermostat.
 
 ### Mise à jour depuis le package (v0.1)
 
@@ -78,14 +83,21 @@ version.
 
 ### Thermostats compatibles
 
-Le programme applique des **presets** (`comfort`, `eco`, `boost`, `frost`), et les changements
-manuels sont détectés parce que le thermostat passe en preset `none` quand on change sa consigne
-à la main. C'est le comportement de **Versatile Thermostat**, et c'est la configuration testée.
-Les thermostats sans ces presets ne sont pas encore pris en charge.
+Toute entité `climate` avec une température de consigne, testée avec trois types :
 
-La dépendance à Versatile Thermostat est **temporaire** : l'objectif est de prendre en charge
-n'importe quelle entité `climate`, avec des groupes de thermostats, des modes de chauffage définis
-par l'utilisateur et une interface dans votre langue. Voir la [feuille de route](ROADMAP.fr.md).
+- **Versatile Thermostat** : les niveaux utilisent ses presets (`comfort`, `eco`, `boost`,
+  `frost`), dont les températures se règlent dans VTherm ; une consigne changée à la main le fait
+  passer en preset `none` et devient une dérogation ;
+- **thermostats à presets standard** (`eco`, `comfort`, `away`, `boost`…) : les niveaux utilisent
+  les presets du même nom, des températures pour les autres (le hors-gel, par exemple) ;
+- **thermostats sans presets** (comme `generic_thermostat`) : les niveaux sont des températures ;
+  toute consigne changée par quelqu'un d'autre devient une dérogation.
+
+Pas encore pris en charge : les thermostats chaud / froid à plage de températures
+(`heat_cool`), et les appareils qui changent leur consigne d'eux-mêmes (ça peut ressembler à des
+changements manuels). Un appareil qui garde son preset quand on change sa consigne à la main est
+mieux réglé en températures (options). Voir la [feuille de route](ROADMAP.fr.md) pour les groupes
+de thermostats et les modes de chauffage définis par l'utilisateur.
 
 ## Structure
 

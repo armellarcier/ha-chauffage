@@ -37,9 +37,15 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 - The repository is **mounted live**: `custom_components/chauffage/` → the integration and its
   card; `packages/chauffage/` → the v0.1 package, kept until v0.2.0 to test its import (its
   automations are turned off by the import).
-- `dev/hass/packages/simulation.yaml` creates three virtual rooms (salon, bureau, chambre):
-  a heater `input_boolean.radiateur_*` and a temperature `sensor.temperature_*` that rises
-  while the heater is on.
+- `dev/hass/packages/simulation.yaml` creates five virtual rooms: a heater
+  `input_boolean.radiateur_*` and a temperature `sensor.temperature_*` that rises while the
+  heater is on (sensors report every minute, like real ones). They cover **every kind of
+  thermostat**:
+  - salon, bureau, chambre: **Versatile Thermostat** (presets, `none` on a manual setpoint);
+  - cuisine: HA's **`generic_thermostat`**, without presets (declared in YAML);
+  - chambre d'amis: **standard presets** (`eco`, `comfort`, `away`, `boost`, no `frost`;
+    preset cleared on a manual setpoint), from the dev-only platform
+    [`dev/sim_climate/`](dev/sim_climate/climate.py).
 
 **Everything is set up automatically on first start** by the `setup` service
 ([`dev/setup/setup.py`](dev/setup/setup.py), through HA's public APIs): log in at
@@ -85,7 +91,10 @@ HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.j
 The Python suites run on the latest Home Assistant and on the minimum supported one (CI and
 `HA=min`). In `tests/ha/` and `tests/integration/`, thermostats are plain simulated `climate.*` states and `climate.set_preset_mode`
 is replaced by a recorder; the `Bench` object (`conftest.py`) moves time forward, simulates a
-manual change or the thermostat's response, and saves schedules like the card does.
+manual change or the thermostat's response, and saves schedules like the card does. In
+`tests/integration/`, the behavior tests run on **the three kinds of thermostats** (fixture
+`thermostat_kind`: `vtherm`, `standard`, `plain`); a test that only makes sense for some kinds
+calls `bench.needs(...)`.
 
 The tests also run on GitHub Actions for every push and pull request
 (`.github/workflows/tests.yml`). **Run `scripts/test.sh` before deploying.**

@@ -74,6 +74,11 @@ remove the package).
 
 ### 1. Heating levels instead of presets
 
+**Done in v0.3** (pre-release; [docs/phase-2-plan.md](docs/phase-2-plan.md)): levels with a
+default temperature, mapped per thermostat to a preset or a temperature, edited in the options.
+No *Off* level for now: thermostats turned off are left alone. Tested on Versatile Thermostat,
+standard presets and thermostats without presets.
+
 Schedules should reference **heating levels** defined by the user (e.g. *Comfort*, *Eco*,
 *Night*, *Frost protection*, *Off*), not a thermostat's preset names. Each level is then
 **mapped per thermostat** (or per group, see below) to what that thermostat understands:
@@ -90,6 +95,11 @@ Slots may also carry a temperature directly ("21 °C from 06:30"), for users who
 named levels.
 
 ### 2. Manual-change detection without preset `none`
+
+**Partly done in v0.3**: the integration recognizes its own changes by their context, and
+judges a change against what the schedule expects (a thermostat driven by temperature: any
+other setpoint is an override). Still to do: thermostats that change their setpoint by
+themselves.
 
 Instead of relying on a thermostat-specific signal:
 
