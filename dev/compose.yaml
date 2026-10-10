@@ -2,8 +2,9 @@
 #   docker compose -f dev/compose.yaml up -d      → http://localhost:8124
 #   docker compose -f dev/compose.yaml restart homeassistant   (a few seconds)
 #   docker compose -f dev/compose.yaml down
-# The repository is mounted live: www/, packages/chauffage/ and custom_components/chauffage/
-# are seen immediately (Python changes need a restart).
+# The repository is mounted live: custom_components/chauffage/ (integration + card) and
+# packages/chauffage/ (the v0.1 package, imported by the integration) are seen immediately
+# (Python changes need a restart).
 name: ha-chauffage-dev
 
 services:
@@ -40,7 +41,6 @@ services:
       TZ: Europe/Paris
     volumes:
       - ./hass:/config
-      - ../www:/config/www/chauffage:ro
       - ../packages/chauffage:/config/packages/chauffage:ro
       - ../custom_components/chauffage:/config/custom_components/chauffage:ro
     restart: unless-stopped

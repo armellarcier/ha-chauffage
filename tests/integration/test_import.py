@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 
 from homeassistant import config_entries
-from homeassistant.core import ServiceCall
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import CoreState, ServiceCall
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from conftest import Bench
 
@@ -100,3 +102,20 @@ async def test_package_data_from_a_newer_version_is_not_imported(bench: Bench):
 async def test_without_the_package_the_flow_has_a_single_step(bench: Bench):
     result = await add_integration(bench)
     assert result["step_id"] == "user"
+
+
+async def test_a_first_setup_during_startup_waits_for_home_assistant_to_be_running(bench: Bench):
+    """At startup the package's restored states and automations may not exist yet."""
+    calls = install_package(bench)
+    bench.hass.set_state(CoreState.starting)
+    entry = MockConfigEntry(domain="chauffage")
+    entry.add_to_hass(bench.hass)
+    await bench.hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+    bench.hass.set_state(CoreState.running)
+    await bench.hass.config_entries.async_reload(entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert "climate.salon" in entry.runtime_data.data["schedules"]
+    assert calls  # package automations turned off

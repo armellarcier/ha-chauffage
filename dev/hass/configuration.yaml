@@ -4,12 +4,9 @@ default_config:
 homeassistant:
   name: Chauffage (dev)
   time_zone: Europe/Paris
-  # packages/chauffage = the project (mounted from the repository); packages/simulation.yaml = virtual rooms
+  # packages/chauffage = the package (v0.1, kept to test its import by the integration);
+  # packages/simulation.yaml = virtual rooms. The card is served by the integration.
   packages: !include_dir_named packages
-
-frontend:
-  extra_module_url:
-    - /local/chauffage/chauffage-loader.js
 
 recorder:
   purge_keep_days: 2

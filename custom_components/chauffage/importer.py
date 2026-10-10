@@ -109,7 +109,9 @@ async def async_turn_off_package(hass: HomeAssistant) -> list[str]:
         for unique_id in PACKAGE_AUTOMATIONS
         if (entity_id := registry.async_get_entity_id("automation", "automation", unique_id))
     ]
-    if entity_ids and hass.services.has_service("automation", "turn_off"):
+    if entity_ids and not hass.services.has_service("automation", "turn_off"):
+        _LOGGER.warning("Could not turn off the package automations %s: turn them off by hand", entity_ids)
+    elif entity_ids:
         await hass.services.async_call(
             "automation", "turn_off", {"entity_id": entity_ids, "stop_actions": True}, blocking=True
         )

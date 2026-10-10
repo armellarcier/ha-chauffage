@@ -79,6 +79,7 @@ const I18N = {
     untilMidnight: '{current} until midnight',
     todayTitle: 'Today',
     week: 'Week',
+    stale: 'These schedules were changed elsewhere in the meantime: cancel to reload them, then redo your changes.',
     newerData: 'These schedules were saved by a newer version of ha-chauffage (data version {version}). Update the card to view and edit them.',
   },
   fr: {
@@ -136,6 +137,7 @@ const I18N = {
     untilMidnight: '{current} jusqu\'à minuit',
     todayTitle: 'Aujourd\'hui',
     week: 'Semaine',
+    stale: 'Ces plannings ont été modifiés ailleurs entre-temps : annulez pour les recharger, puis refaites vos modifications.',
     newerData: 'Ces plannings ont été enregistrés par une version plus récente de ha-chauffage (données en version {version}). Mettez la carte à jour pour les afficher et les modifier.',
   },
 };
@@ -403,18 +405,121 @@ function durationText(min, locale = DEFAULT_LOCALE) {
     : `${min} min`;
 }
 
-// Active (not ended) overrides read from the sensor
+// Active (not ended) overrides read from the package's sensor
 function activeOverrides(hass, sensor) {
   const st = hass && hass.states[sensor];
-  const raw = st && st.attributes.derogations;
+  return filterActive(st && st.attributes.derogations);
+}
+
+// ---------- data sources ----------
+// The card reads and writes through the Chauffage integration (websocket API, v0.2+) when it is
+// set up, otherwise through the package's sensors and events (v0.1). Both give the same view,
+// in the format the card works with: mode names, "HH:MM preset" slots, package override keys
+// ({ type: temp|preset, valeur, debut, fin }).
+
+const integrationAvailable = (hass) => !!(hass && hass.services && hass.services.chauffage);
+const filterActive = (raw) => {
   const out = {};
-  if (!raw || typeof raw !== 'object') return out;
   const now = new Date();
-  for (const [c, d] of Object.entries(raw)) {
+  for (const [c, d] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
     if (d && parseDate(d.fin) > now) out[c] = d;
   }
   return out;
+};
+const toPackageOverride = (o) => o && ({ type: o.kind === 'temperature' ? 'temp' : o.kind, valeur: o.value, debut: o.start, fin: o.end });
+const toIntegrationOverride = (d) => d && ({ kind: d.type === 'temp' ? 'temperature' : d.type, value: d.valeur, start: d.debut, end: d.fin });
+
+// One subscription per page, shared by every card and more-info block
+const INTEGRATION = {
+  data: null,
+  seq: 0,
+  listeners: new Set(),
+  connection: null,
+  connect(hass) {
+    if (!hass.connection || this.connection === hass.connection) return;
+    this.connection = hass.connection;
+    hass.connection.subscribeMessage((data) => {
+      this.data = data;
+      this.seq += 1;
+      for (const listener of [...this.listeners]) listener();
+    }, { type: 'chauffage/subscribe' }).catch((e) => {
+      console.error('ha-chauffage: cannot subscribe to the integration', e);
+      this.connection = null;
+    });
+  },
+  listen(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  },
+};
+
+function integrationSource(hass) {
+  INTEGRATION.connect(hass);
+  const d = INTEGRATION.data;
+  const modes = d ? d.modes : [];
+  const idOf = (name) => (modes.find((m) => m.name === name) || {}).id;
+  const nameOf = (id) => (modes.find((m) => m.id === id) || {}).name;
+  return {
+    kind: 'integration',
+    ready: !!d,
+    revision: d ? d.revision : null,
+    stamps: d ? { schedules: `r${d.revision}`, overrides: JSON.stringify(d.overrides), mode: d.active_mode } : {},
+    modes: () => modes.map((m) => m.name),
+    activeMode: () => (d ? nameOf(d.active_mode) || null : null),
+    schedules: () => {
+      const out = {};
+      for (const [climate, byMode] of Object.entries(d ? d.schedules : {})) {
+        out[climate] = {};
+        for (const [id, week] of Object.entries(byMode)) {
+          const name = nameOf(id);
+          if (name) out[climate][name] = week.map((day) => day.map(([start, preset]) => `${start} ${preset}`));
+        }
+      }
+      return out;
+    },
+    overrides: () => {
+      const out = {};
+      for (const [c, o] of Object.entries(d ? d.overrides : {})) out[c] = toPackageOverride(o);
+      return out;
+    },
+    save: (programmes, revision) => {
+      const schedules = {};
+      for (const [climate, byName] of Object.entries(programmes)) {
+        schedules[climate] = {};
+        for (const [name, week] of Object.entries(byName)) {
+          const id = idOf(name);
+          if (id) schedules[climate][id] = week.map((day) => day.map((s) => s.split(' ')));
+        }
+      }
+      return hass.callWS({ type: 'chauffage/schedules/save', schedules, ...(revision != null ? { revision } : {}) });
+    },
+    setOverride: (climate, d2) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override: toIntegrationOverride(d2) }),
+    activateMode: (name) => hass.callWS({ type: 'chauffage/mode/set', mode: idOf(name) }),
+  };
 }
+
+function packageSource(hass, cfg) {
+  const s = (hass && hass.states) || {};
+  const st = s[cfg.sensor];
+  const dst = s[cfg.derog_sensor];
+  const mode = s[cfg.mode_entity];
+  return {
+    kind: 'package',
+    ready: true,
+    revision: null,
+    stamps: { schedules: st ? st.last_updated : null, overrides: dst ? dst.last_updated : null, mode },
+    modes: () => (mode && mode.attributes.options) || ['Normal', 'Absent', 'Vacances'],
+    activeMode: () => (mode ? mode.state : null),
+    schedules: () => readSchedules(st), // throws DataVersionError for data from a newer version
+    sensorState: st,
+    overrides: () => ((dst && dst.attributes.derogations) || {}),
+    save: (programmes) => hass.callWS({ type: 'fire_event', event_type: cfg.event, event_data: { programmes, version: DATA_VERSION } }),
+    setOverride: (climate, d) => hass.callWS({ type: 'fire_event', event_type: cfg.derog_event, event_data: { climate, derogation: d } }),
+    activateMode: (name) => hass.callService('input_select', 'select_option', { entity_id: cfg.mode_entity, option: name }),
+  };
+}
+
+const dataSource = (hass, cfg) => (integrationAvailable(hass) ? integrationSource(hass) : packageSource(hass, cfg));
 
 class ChauffageProgrammeCard extends HTMLElement {
   constructor() {
@@ -488,15 +593,18 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._loc = loc;
       need = true;
     }
-    const st = hass.states[this._config.sensor];
-    const stamp = st ? st.last_updated : null;
-    if (stamp !== this._stamp && !this._dirty && !this._drag) {
+    const src = this._source();
+    if (src.kind === 'integration' && !this._unlisten) {
+      // Data pushed by the integration: same checks as a hass update
+      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+    }
+    const stamp = src.stamps.schedules;
+    if ((stamp !== this._stamp || !this._data) && !this._dirty && !this._drag) {
       this._load();
       this._stamp = stamp;
       need = true;
     }
-    const dst = hass.states[this._config.derog_sensor];
-    const dstamp = dst ? dst.last_updated : null;
+    const dstamp = src.stamps.overrides;
     if (dstamp !== this._overrideStamp && !this._overrideDrag && !this._drag) {
       this._overrideStamp = dstamp;
       this._overridePending = {};
@@ -504,12 +612,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     // Active mode changed (from the card, another dashboard or an automation): redraw the
     // active-mode marker and the "activate" bar
-    const modeState = hass.states[this._config.mode_entity];
-    if (modeState !== this._modeState && !this._drag && !this._overrideDrag) {
-      this._modeState = modeState;
+    const modeStamp = src.stamps.mode;
+    if (modeStamp !== this._modeState && !this._drag && !this._overrideDrag) {
+      this._modeState = modeStamp;
       need = true;
     }
-    if (!this._mode) {
+    if (src.ready && (!this._mode || !this._modes().includes(this._mode))) {
       const active = this._activeMode();
       this._mode = this._modes().includes(active) ? active : this._modes()[0];
       need = true;
@@ -545,6 +653,8 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   disconnectedCallback() {
     clearInterval(this._timer);
+    if (this._unlisten) this._unlisten();
+    this._unlisten = null;
     document.removeEventListener('pointerdown', this._onDocDown, true);
     document.removeEventListener('keydown', this._onKey);
   }
@@ -555,28 +665,32 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   // ---------- data ----------
 
+  _source() {
+    return dataSource(this._hass, this._config);
+  }
+
   _modes() {
-    const s = this._hass && this._hass.states[this._config.mode_entity];
-    return (s && s.attributes.options) || ['Normal', 'Absent', 'Vacances'];
+    return this._source().modes();
   }
 
   _activeMode() {
-    const s = this._hass && this._hass.states[this._config.mode_entity];
-    return s ? s.state : null;
+    return this._source().activeMode();
   }
 
   _load() {
-    const st = this._hass.states[this._config.sensor];
+    const src = this._source();
     this._data = {};
     this._newerData = null;
+    this._revision = src.revision;
     let raw;
     try {
-      raw = readSchedules(st);
+      raw = src.schedules();
     } catch (e) {
       if (!(e instanceof DataVersionError)) throw e;
       this._newerData = e.version; // read-only: saving would lose data
       return;
     }
+    const st = src.sensorState;
     if (st && storedVersion(st) < DATA_VERSION) migrateOnce(this._hass, this._config);
     for (const [climate, modes] of Object.entries(raw)) {
       if (!modes || typeof modes !== 'object') continue;
@@ -628,9 +742,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   // ---------- overrides ----------
 
   _overrides() {
-    const st = this._hass && this._hass.states[this._config.derog_sensor];
-    const raw = (st && st.attributes.derogations) || {};
-    const out = typeof raw === 'object' ? { ...raw } : {};
+    const raw = this._hass ? this._source().overrides() : {};
+    const out = raw && typeof raw === 'object' ? { ...raw } : {};
     for (const [c, d] of Object.entries(this._overridePending)) {
       if (d) out[c] = d;
       else delete out[c];
@@ -655,11 +768,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!override) this._overrideSel = null;
     this._render();
     try {
-      await this._hass.callWS({
-        type: 'fire_event',
-        event_type: this._config.derog_event,
-        event_data: { climate, derogation: override },
-      });
+      await this._source().setOverride(climate, override);
     } catch (e) {
       delete this._overridePending[climate];
       this._msg = this._loc.t('error', { message: e.message || e.code || e });
@@ -684,11 +793,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       for (const [mode, week] of Object.entries(modes)) out[climate][mode] = week.map(serializeDay);
     }
     try {
-      await this._hass.callWS({ type: 'fire_event', event_type: this._config.event, event_data: { programmes: out, version: DATA_VERSION } });
+      const result = await this._source().save(out, this._revision);
+      if (result && result.revision != null) this._revision = result.revision;
       this._dirty = false;
       this._msg = this._loc.t('saved');
     } catch (e) {
-      this._msg = this._loc.t('error', { message: e.message || e.code || e });
+      // Integration: edited elsewhere since this copy was loaded
+      this._msg = e && e.code === 'stale' ? this._loc.t('stale') : this._loc.t('error', { message: e.message || e.code || e });
     }
     this._render();
   }
@@ -920,6 +1031,10 @@ class ChauffageProgrammeCard extends HTMLElement {
   _render() {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
+    if (!this._source().ready) {
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="loading">…</div></ha-card>`;
+      return;
+    }
     if (this._newerData) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
         <ha-card><div class="newer-data">${esc(tr('newerData', { version: this._newerData }))}</div></ha-card>`;
@@ -1209,9 +1324,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   async _activateMode(mode) {
     try {
-      await this._hass.callService('input_select', 'select_option', {
-        entity_id: this._config.mode_entity, option: mode,
-      });
+      await this._source().activateMode(mode);
       this._msg = this._loc.t('modeActivated', { mode });
     } catch (e) {
       this._msg = this._loc.t('error', { message: e.message || e.code || e });
@@ -1529,6 +1642,7 @@ const STYLE = `
     background:var(--card-background-color); max-width:260px; }
   .msg { min-height:1.2em; margin-top:6px; font-size:.85em; color:var(--secondary-text-color); text-align:right; }
   .msg .dirty { color:var(--warning-color,#ff9800); }
+  .loading { color:var(--secondary-text-color); }
   .newer-data { color:var(--error-color,#db4437); }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:30px 60px 1fr 28px; }
@@ -1588,9 +1702,14 @@ class ChauffageMoreInfo extends HTMLElement {
     const c = MORE_INFO_CFG;
     const s = hass.states;
     this._loc = makeLocale(hass, c.language);
-    if (this._key && s[c.derog_sensor] !== this._key[2]) this._pending = undefined;
+    const src = dataSource(hass, c);
+    if (src.kind === 'integration' && !this._unlisten) {
+      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+    }
+    const { schedules, overrides, mode } = src.stamps;
+    if (this._key && overrides !== this._key[2]) this._pending = undefined;
     // Redraw only when relevant data changed (or every new minute)
-    const key = [s[this._entity], s[c.sensor], s[c.derog_sensor], s[c.mode_entity], Math.floor(Date.now() / 60000), this._loc.signature];
+    const key = [s[this._entity], schedules, overrides, mode, Math.floor(Date.now() / 60000), this._loc.signature];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
     this._key = key;
@@ -1599,14 +1718,18 @@ class ChauffageMoreInfo extends HTMLElement {
 
   _currentOverride() {
     if (this._pending !== undefined) return this._pending;
-    return activeOverrides(this._hass, MORE_INFO_CFG.derog_sensor)[this._entity] || null;
+    return filterActive(dataSource(this._hass, MORE_INFO_CFG).overrides())[this._entity] || null;
+  }
+
+  disconnectedCallback() {
+    if (this._unlisten) this._unlisten();
+    this._unlisten = null;
   }
 
   _send(override) {
-    const c = MORE_INFO_CFG;
     this._pending = override;
     this._render();
-    this._hass.callWS({ type: 'fire_event', event_type: c.derog_event, event_data: { climate: this._entity, derogation: override } })
+    dataSource(this._hass, MORE_INFO_CFG).setOverride(this._entity, override)
       .catch(() => { this._pending = undefined; this._render(); });
   }
 
@@ -1619,14 +1742,14 @@ class ChauffageMoreInfo extends HTMLElement {
   }
 
   _week() {
-    const c = MORE_INFO_CFG;
+    const src = dataSource(this._hass, MORE_INFO_CFG);
     let progs;
     try {
-      progs = readSchedules(this._hass.states[c.sensor]);
+      progs = src.schedules();
     } catch (e) {
       progs = {}; // saved by a newer version: block hidden
     }
-    const mode =this._hass.states[c.mode_entity] ? this._hass.states[c.mode_entity].state : null;
+    const mode = src.activeMode();
     const week = progs[this._entity] && progs[this._entity][mode];
     return { mode, week: Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null };
   }
@@ -1858,7 +1981,10 @@ function watchMoreInfo(entityId) {
       if (injected || tries > 25) clearInterval(window.__chauffageMoreInfoTimer);
       return;
     }
-    const progs = hass.states[MORE_INFO_CFG.sensor] && hass.states[MORE_INFO_CFG.sensor].attributes.programmes;
+    let progs = null;
+    try {
+      progs = dataSource(hass, MORE_INFO_CFG).schedules();
+    } catch (e) { /* newer data: no block */ }
     // Location: end of the dialog's "info" view; otherwise right after the thermostat controls
     const info = deepQuery(dialog.shadowRoot, 'ha-more-info-info');
     const content = info ? null : deepQuery(dialog.shadowRoot, 'more-info-content');
@@ -1893,7 +2019,9 @@ if (!window.__chauffageMigrationWatch && document.querySelector('home-assistant'
   const timer = setInterval(() => {
     const ha = document.querySelector('home-assistant');
     const hass = ha && ha.hass;
-    if (hass && hass.states && hass.states[MORE_INFO_CFG.sensor]) {
+    if (hass && integrationAvailable(hass)) {
+      clearInterval(timer); // the integration keeps its own data up to date
+    } else if (hass && hass.states && hass.states[MORE_INFO_CFG.sensor]) {
       clearInterval(timer);
       migrateOnce(hass, MORE_INFO_CFG);
     } else if (++tries > 60) clearInterval(timer);
@@ -1923,6 +2051,6 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 export {
   VERSION, DATA_VERSION, MIGRATIONS, DataVersionError, migrateSchedules, readSchedules, saveMigratedSchedules,
   PRESETS, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
-  overridePieces, overrideLabel, activeOverrides, MORE_INFO_CFG,
+  overridePieces, overrideLabel, activeOverrides, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo,
 };

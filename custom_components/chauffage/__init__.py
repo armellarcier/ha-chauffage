@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
@@ -35,10 +36,16 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) -> bool:
     store = ChauffageStore(hass)
     data = await store.async_load()
-    first_setup = data is None
-    if first_setup:
+    if data is None:
+        if hass.state is not CoreState.running:
+            # First setup during startup: the package's restored states and its automations
+            # may not be there yet, so the import decision waits (retried automatically)
+            raise ConfigEntryNotReady("waiting for Home Assistant to finish starting")
         if importer.package_installed(hass):
-            data = importer.from_package(hass)
+            try:
+                data = importer.from_package(hass)
+            except importer.PackageTooNew as err:
+                raise ConfigEntryError("the package data is newer than this integration") from err
         else:
             language = (hass.config.language or "en").split("-")[0]
             data = model.default_data(DEFAULT_MODES.get(language, DEFAULT_MODES["en"]))
