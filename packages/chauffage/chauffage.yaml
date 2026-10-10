@@ -49,8 +49,7 @@ template:
         icon: mdi:timer-cog-outline
         state: "{{ now().isoformat() }}"
         attributes:
-          # NB : les "{%-" / "-%}" suppriment les espaces produits par les balises ;
-          # sans eux, HA ne reconnaît pas le résultat comme un dictionnaire.
+          # "{%-" / "-%}" trim the whitespace produced by the tags (keeps the rendered value clean).
           derogations: >
             {%- set c = trigger.event.data.climate -%}
             {%- set cur = this.attributes.derogations | default({}) -%}

@@ -59,11 +59,12 @@ www/chauffage-loader.js             stable loader (always loads the latest card 
 www/chauffage-programme-card.js     Lovelace card + block injected into the more-info dialog
 dev/harness.html, dev/*.js          test bench without HA (fake hass, ha-card and dialog)
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
-scripts/                            reload.sh, logs.sh, deploy.sh
+tests/ha/, tests/js/                 automated tests (pytest + in-memory HA, node --test + jsdom)
+scripts/                            test.sh, reload.sh, logs.sh, deploy.sh
 deploy/pre-receive                  git hook to deploy with git push
 ```
 
-Development and deployment: see [CONTRIBUTING.md](CONTRIBUTING.md) (in French).
+Development and deployment: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
@@ -79,7 +80,7 @@ Development and deployment: see [CONTRIBUTING.md](CONTRIBUTING.md) (in French).
 - **Manual override** automation: a setpoint / preset change that does not come from an
   automation (`context.parent_id` is empty) creates an override.
 
-Known pitfalls (already handled): multi-line templates need `{%- -%}` or HA cannot parse the
-resulting dictionary; ZHA presets are Enums and are converted to text; dates with microseconds
+Known pitfalls (already handled, covered by tests): ZHA presets are Enums, converted to text
+(otherwise HA stores the whole sensor attribute as unreadable text); dates with microseconds
 are rejected by Safari; `ha-card` renders asynchronously (popover positioning); an unreachable
 Zigbee valve does not stop the schedule from being applied to the others.

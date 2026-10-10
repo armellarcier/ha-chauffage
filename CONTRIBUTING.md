@@ -1,73 +1,95 @@
-# Contribuer à ha-chauffage
+# Contributing to ha-chauffage
 
-Règle d'or, comme dans la plupart des projets Home Assistant : **on ne développe pas sur
-son HA de production.** On travaille avec un banc de test et un HA de développement
-jetable, puis on déploie.
+**English** · [Français](CONTRIBUTING.fr.md)
 
-## Prérequis
+Golden rule, as in most Home Assistant projects: **don't develop on your production HA.**
+Work with the test harness and a disposable development HA, then deploy.
 
-- Git, Bash (Linux, macOS, ou Git Bash / WSL sous Windows), `curl`.
-- [Docker](https://docs.docker.com/get-docker/) (Docker Desktop sous Windows / macOS) pour le HA de dev.
-- Python 3 (facultatif) pour servir le banc de test.
+## Prerequisites
 
-Pas de Node, pas de compilation : la carte est un fichier JavaScript servi tel quel.
+- Git, Bash (Linux, macOS, or Git Bash / WSL on Windows), `curl`.
+- [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on Windows / macOS) for the dev HA.
+- Python 3 (optional) to serve the test harness.
 
-## 1. Interface de la carte : le banc de test (le plus rapide)
+No build step: the card is a JavaScript file served as is. Node and Python are only used by
+the automated tests, and Docker stands in for them if they are not installed.
+
+## 1. Card UI: the test harness (fastest)
 
 ```bash
-python3 -m http.server 8000      # à la racine du dépôt
+python3 -m http.server 8000      # at the repository root
 ```
 
-Ouvrir <http://localhost:8000/dev/harness.html>. Le banc simule Home Assistant : états,
-capteurs du projet, événements, rendu différé de `ha-card` et fenêtre de détail d'un thermostat
-(boutons en haut de page). Modifier `www/chauffage-programme-card.js`, recharger la page.
+Open <http://localhost:8000/dev/harness.html>. The harness simulates Home Assistant: states,
+the project's sensors, events, deferred rendering of `ha-card`, and a thermostat's more-info
+dialog (buttons at the top of the page). Edit `www/chauffage-programme-card.js`, reload the page.
 
-## 2. Logique HA : le HA de développement
+## 2. HA logic: the development HA
 
 ```bash
 docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 ```
 
-- Versatile Thermostat est installé automatiquement (`VTHERM_VERSION=… docker compose … up -d`
-  pour une autre version ; `HA_VERSION=beta` pour tester la prochaine version de HA).
-- Le dépôt est **monté en direct** : `www/` → `/local/chauffage/`, `packages/chauffage/` → package HA.
-- `dev/hass/packages/simulation.yaml` crée trois pièces virtuelles (salon, bureau, chambre) :
-  un radiateur `input_boolean.radiateur_*` et une température `sensor.temperature_*` qui monte
-  quand le radiateur chauffe.
+- Versatile Thermostat is installed automatically (`VTHERM_VERSION=… docker compose … up -d`
+  for another version; `HA_VERSION=beta` to test the next HA release).
+- The repository is **mounted live**: `www/` → `/local/chauffage/`, `packages/chauffage/` → HA package.
+- `dev/hass/packages/simulation.yaml` creates three virtual rooms (salon, bureau, chambre):
+  a heater `input_boolean.radiateur_*` and a temperature `sensor.temperature_*` that rises
+  while the heater is on.
 
-**Première fois seulement** (l'état est conservé dans `dev/hass/`, non versionné) :
+**First time only** (state is kept in `dev/hass/`, not versioned):
 
-1. Ouvrir <http://localhost:8124>, créer le compte (ex. `dev` / `dev`).
-2. Paramètres → Appareils et services → Ajouter → **Versatile Thermostat**, pour chaque pièce :
-   type « sur un interrupteur », capteur `sensor.temperature_<pièce>`, capteur extérieur
-   `sensor.temperature_exterieure`, interrupteur `input_boolean.radiateur_<pièce>`,
-   et des températures de presets (confort, éco, boost, hors-gel).
-3. Profil → Sécurité → créer un jeton longue durée, puis `cp .env.example .env` et le coller
-   dans `DEV_HA_TOKEN`.
-4. Ajouter la carte `custom:chauffage-programme-card` à un tableau de bord.
+1. Open <http://localhost:8124>, create the account (e.g. `dev` / `dev`).
+2. Settings → Devices & services → Add → **Versatile Thermostat**, for each room:
+   type "over a switch", sensor `sensor.temperature_<room>`, outdoor sensor
+   `sensor.temperature_exterieure`, switch `input_boolean.radiateur_<room>`,
+   and preset temperatures (comfort, eco, boost, frost protection).
+3. Profile → Security → create a long-lived access token, then `cp .env.example .env` and paste
+   it into `DEV_HA_TOKEN`.
+4. Add the `custom:chauffage-programme-card` card to a dashboard.
 
-**Boucle de travail :**
+**Work loop:**
 
-| Je modifie… | Pour l'appliquer |
+| I edit… | To apply it |
 |---|---|
-| `www/*.js` | recharger la page du navigateur |
-| `packages/chauffage/chauffage.yaml` | `scripts/reload.sh` (vérifie la config puis recharge) |
+| `www/*.js` | reload the browser page |
+| `packages/chauffage/chauffage.yaml` | `scripts/reload.sh` (checks the config, then reloads) |
 | `dev/hass/configuration.yaml` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
-`scripts/logs.sh` affiche la fin du journal (filtrée sur le projet ; `scripts/logs.sh dev 200 all`
-pour tout voir). Pour accélérer les tests de la logique temporelle, changer les températures
-avec les curseurs `input_number.temperature_*` et la durée de dérogation (`duree_defaut`).
+`scripts/logs.sh` shows the end of the log (filtered on the project; `scripts/logs.sh dev 200 all`
+to see everything). To speed up testing of time-based logic, change temperatures with the
+`input_number.temperature_*` sliders and the override duration (`duree_defaut`).
 
-## 3. Déployer sur un vrai Home Assistant
+## 3. Automated tests
 
-Le projet s'installe en **copiant des fichiers** dans la configuration HA :
+```bash
+scripts/test.sh          # everything (uses Node / Python if installed, Docker otherwise)
+scripts/test.sh js       # card only
+scripts/test.sh ha       # HA logic only (extra arguments go to pytest: scripts/test.sh ha -k ends)
+```
 
-| Dépôt | Configuration HA |
+| Suite | Tool | What it covers |
+|---|---|---|
+| `tests/ha/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock | the package: slots applied at the right time, modes, thermostats turned off or unreachable, manual-change detection, overrides and their end |
+| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser) | the card: calculations, schedule editing, copy / paste, saving, overrides, more-info |
+
+In `tests/ha/`, thermostats are plain simulated `climate.*` states and `climate.set_preset_mode`
+is replaced by a recorder; the `Bench` object (`conftest.py`) moves time forward, simulates a
+manual change or the thermostat's response, and saves schedules like the card does.
+
+The tests also run on GitHub Actions for every push and pull request
+(`.github/workflows/tests.yml`). **Run `scripts/test.sh` before deploying.**
+
+## 4. Deploying to a real Home Assistant
+
+The project is installed by **copying files** into the HA configuration:
+
+| Repository | HA configuration |
 |---|---|
 | `www/*` | `<config>/www/chauffage/` |
 | `packages/chauffage/*` | `<config>/packages/chauffage/` |
 
-et une seule fois dans `configuration.yaml` :
+and once in `configuration.yaml`:
 
 ```yaml
 homeassistant:
@@ -83,47 +105,59 @@ recorder:
       - sensor.suivi_vannes_chauffage
 ```
 
-Que HA tourne sous Docker, en VM (HA OS) ou en venv, seul compte le chemin de son dossier
-de configuration. Trois façons de copier :
+Whether HA runs in Docker, in a VM (HA OS) or in a venv, only the path of its configuration
+folder matters. Three ways to copy:
 
-### a. À la main
-Copier les fichiers (Samba, add-on File editor, scp…), puis recharger les automatisations et
-les entités template (Outils de développement → YAML), ou redémarrer HA.
+### a. By hand
+Copy the files (Samba, File editor add-on, scp…), then reload automations and template
+entities (Developer tools → YAML), or restart HA.
 
 ### b. `scripts/deploy.sh`
 ```bash
-scripts/deploy.sh /chemin/vers/config              # HA sur la même machine
-scripts/deploy.sh monserveur:/chemin/vers/config   # via SSH
+scripts/deploy.sh /path/to/config              # HA on the same machine
+scripts/deploy.sh myserver:/path/to/config     # over SSH
 ```
-Avec `PROD_HA_URL` / `PROD_HA_TOKEN` dans `.env`, le script vérifie la configuration après
-la copie, **restaure la version précédente si elle est invalide**, sinon recharge HA.
+With `PROD_HA_URL` / `PROD_HA_TOKEN` in `.env`, the script checks the configuration after
+copying, **restores the previous version if it is invalid**, otherwise reloads HA.
 
-### c. `git push` (pour son propre serveur)
-Un dépôt nu sur la machine de HA, avec le hook [`deploy/pre-receive`](deploy/pre-receive) :
-`git push prod` déploie via `deploy.sh`, et **le push est refusé** si la configuration est
-invalide (production inchangée).
+### c. `git push` (for your own server)
+A bare repository on the HA machine, with the [`deploy/pre-receive`](deploy/pre-receive) hook:
+`git push prod` deploys through `deploy.sh`, and **the push is rejected** if the configuration
+is invalid (production unchanged).
 
 ```bash
-# Sur le serveur HA (utilisateur ayant le droit d'écrire dans la config HA)
+# On the HA server (as a user allowed to write to the HA config)
 git init --bare /srv/ha-chauffage.git
 cd /srv/ha-chauffage.git
-git config deploy.haconfig /chemin/vers/config
-curl -fsSL -o hooks/pre-receive https://raw.githubusercontent.com/<compte>/ha-chauffage/main/deploy/pre-receive
+git config deploy.haconfig /path/to/config
+curl -fsSL -o hooks/pre-receive https://raw.githubusercontent.com/<account>/ha-chauffage/main/deploy/pre-receive
 chmod +x hooks/pre-receive
 printf 'PROD_HA_URL=http://localhost:8123\nPROD_HA_TOKEN=…\n' > deploy.env && chmod 600 deploy.env
 
-# Sur le poste de dev
-git remote add prod monserveur:/srv/ha-chauffage.git
+# On the dev machine
+git remote add prod myserver:/srv/ha-chauffage.git
 git push prod main
 ```
 
-La carte se met à jour au rechargement de la page : `chauffage-loader.js` détecte la
-nouvelle version (aucun `?v=` à changer, aucun redémarrage).
+The card updates when the page is reloaded: `chauffage-loader.js` detects the new version
+(no `?v=` to change, no restart).
 
 ## Conventions
 
-- Code, commentaires et documentation en français ; noms d'entités HA en français.
-- Templates Jinja multi-lignes : `{%- … -%}` (sinon HA ne relit pas les dictionnaires).
-- Toute nouvelle fonctionnalité de la carte se teste d'abord dans le banc
-  (`dev/fake-ha.js` simule HA : l'enrichir si besoin).
-- Commits courts et descriptifs, en français.
+These conventions apply to every contributor, human or AI assistant
+(`AGENTS.md` and `CLAUDE.md` point here).
+
+- **Code in English**, even though the project is called `ha-chauffage`: variable, function
+  and file names, comments, specs and tests. Some existing code still has French comments or
+  identifiers: translate them when you modify the surrounding code.
+- HA entity names in French.
+- **Commits in English**, short and descriptive.
+- **Documentation** (`README`, `CONTRIBUTING`): the English version (`*.md`) is canonical.
+  The French version (`*.fr.md`) is always maintained and updated in the same commit.
+- **Every behavior change comes with a test** (`tests/ha/` for the package, `tests/js/` for the
+  card); a fixed bug gets a regression test.
+- Template sensor attributes must only contain plain values (text, numbers, lists,
+  dictionaries): a single Enum (e.g. a ZHA `preset_mode`) makes HA store the whole attribute
+  as text. Convert with `.value`.
+- New card features are tried in the harness first
+  (`dev/fake-ha.js` simulates HA: extend it if needed).

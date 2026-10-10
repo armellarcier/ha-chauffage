@@ -1532,3 +1532,10 @@ if (!window.customCards.some((c) => c.type === 'chauffage-programme-card')) wind
   name: 'Programme de chauffe',
   description: 'Programme hebdomadaire Versatile Thermostat, plusieurs vannes par journée',
 });
+
+// Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
+export {
+  PRESETS, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
+  derogPieces, derogLabel, activeDerogs, MORE_INFO_CFG,
+  ChauffageProgrammeCard, ChauffageMoreInfo,
+};

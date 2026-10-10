@@ -4,3 +4,5 @@
 .DS_Store
 node_modules/
 .claude/launch.json
+__pycache__/
+.pytest_cache/

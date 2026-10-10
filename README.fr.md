@@ -57,11 +57,12 @@ www/chauffage-loader.js             chargeur stable (charge toujours la dernièr
 www/chauffage-programme-card.js     carte Lovelace + bloc injecté dans la fenêtre de détail
 dev/harness.html, dev/*.js          banc de test hors HA (faux hass, faux ha-card, faux dialogue)
 dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
-scripts/                            reload.sh, logs.sh, deploy.sh
+tests/ha/, tests/js/                 tests automatisés (pytest + HA en mémoire, node --test + jsdom)
+scripts/                            test.sh, reload.sh, logs.sh, deploy.sh
 deploy/pre-receive                  hook pour déployer par git push
 ```
 
-Développement et déploiement : voir [CONTRIBUTING.md](CONTRIBUTING.md).
+Développement et déploiement : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 
 ## Architecture
 
@@ -77,7 +78,7 @@ Développement et déploiement : voir [CONTRIBUTING.md](CONTRIBUTING.md).
 - Automatisation **dérogation manuelle** : un changement de consigne / preset qui ne vient pas
   d'une automatisation (`context.parent_id` vide) crée une dérogation.
 
-Pièges connus (déjà gérés) : templates multi-lignes → `{%- -%}` sinon HA ne relit pas le
-dictionnaire ; presets ZHA sous forme d'Enum → convertis en texte ; dates avec microsecondes
+Pièges connus (déjà gérés, couverts par les tests) : presets ZHA sous forme d'Enum → convertis
+en texte (sinon HA stocke tout l'attribut du capteur sous forme de texte illisible) ; dates avec microsecondes
 refusées par Safari ; `ha-card` rendu en différé (positionnement des fenêtres flottantes) ;
 une vanne Zigbee injoignable n'interrompt pas l'application du programme aux autres.

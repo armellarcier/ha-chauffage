@@ -1,0 +1,12 @@
+{
+  "name": "ha-chauffage",
+  "private": true,
+  "type": "module",
+  "description": "Lovelace card tests (no build step: www/ is served as is)",
+  "scripts": {
+    "test": "node --test \"tests/js/**/*.test.mjs\""
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.2"
+  }
+}
