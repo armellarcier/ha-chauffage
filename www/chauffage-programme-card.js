@@ -19,6 +19,7 @@ const DAY_MIN = 1440;
 const LS_KEY = 'chauffage-programme-card:shown';
 const LS_CLIP = 'chauffage-programme-card:clip';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
+const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
 const ICON_PASTE ='<svg viewBox="0 0 24 24"><path d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"/></svg>';
 
@@ -452,7 +453,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const m = this._menu;
         const open = m && m.climate === climate && m.day === d;
         return `<div class="sub">
-          ${multi ? `<div class="name" title="${esc(this._name(climate))}">${esc(this._name(climate))}</div>` : ''}
+          ${multi ? `<div class="name" title="Ouvrir ${esc(this._name(climate))}">${this._moreInfoLink(climate)}</div>` : ''}
           ${this._barHtml(climate, segs, d, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="Copier / coller…">${ICON_MORE}</button>
         </div>`;
@@ -508,7 +509,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
     return `${hint}<div class="editor">
       <div class="ed-head">
-        <strong>${esc(this._name(climate))} · ${DAYS[day]}</strong>
+        <strong>${this._moreInfoLink(climate)} · ${DAYS[day]}</strong>
         <label>de ${from}</label><label>à ${to}</label>
         <button class="btn icon close" data-act="close" title="Fermer (Échap)">✕</button>
       </div>
@@ -534,7 +535,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const plus = (m, label) => `<button class="btn" data-act="derog-add" data-min="${m}">${label}</button>`;
     return `<div class="editor derog-ed">
       <div class="ed-head">
-        <strong>${esc(this._name(climate))} · consigne temporaire</strong>
+        <strong>${this._moreInfoLink(climate)} · consigne temporaire</strong>
         <span class="dval">${esc(this._derogLabel(d))}</span>
         <button class="btn icon close" data-act="derog-close" title="Fermer (Échap)">✕</button>
       </div>
@@ -610,7 +611,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const chips = this._thermostats
       .map((t) => {
         const on = this._shown.includes(t.entity);
-        return `<button class="chip${on ? ' on' : ''}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span></button>`;
+        return `<button class="chip${on ? ' on' : ''}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="Ouvrir le thermostat">${ICON_OPEN}</span></button>`;
       })
       .join('');
     const tabs = modes
@@ -787,6 +788,16 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._render();
         return;
       }
+      // Lien vers la fenêtre de détail du thermostat (pastille, nom de ligne, en-tête d'édition)
+      const mi = e.target.closest('[data-more-info]');
+      if (mi) {
+        e.stopPropagation();
+        this._sel = null;
+        this._derogSel = null;
+        this._render();
+        this._openMoreInfo(mi.dataset.moreInfo);
+        return;
+      }
       // Fenêtre d'édition ouverte : un clic hors fenêtre / plage la ferme
       if ((this._sel || this._derogSel) && !e.target.closest('.editor, .seg, .handle, .derog')) {
         this._sel = null;
@@ -859,6 +870,15 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // Clic simple : n'affiche que cette vanne. Mode "Plusieurs" ou Ctrl/Maj+clic : ajoute/retire.
+  // Ouvre la fenêtre de détail standard de HA (même mécanisme que les tuiles natives)
+  _openMoreInfo(entityId) {
+    this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
+  }
+
+  _moreInfoLink(climate) {
+    return `<span class="mi-link" data-more-info="${esc(climate)}" title="Ouvrir le thermostat">${esc(this._name(climate))}</span>`;
+  }
+
   _toggleShown(climate, additive) {
     const order = this._thermostats.map((t) => t.entity);
     if (!additive) {
@@ -1048,6 +1068,11 @@ const STYLE = `
   .sub { display:grid; grid-template-columns:1fr 28px; gap:8px; align-items:center; }
   .multi .sub { grid-template-columns:100px 1fr 28px; }
   .name { font-size:.78em; color:var(--secondary-text-color); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mi-link { cursor:pointer; }
+  .mi-link:hover { color:var(--primary-color); text-decoration:underline; }
+  .chip-open { display:inline-flex; vertical-align:-2px; margin-left:4px; padding:1px; border-radius:4px; opacity:.6; cursor:pointer; }
+  .chip-open:hover { opacity:1; background:rgba(127,127,127,.25); }
+  .chip-open svg { width:13px; height:13px; fill:currentColor; }
 
   .ticks { position:relative; height:16px; font-size:11px; color:var(--secondary-text-color); }
   .ticks span { position:absolute; transform:translateX(-50%); }
@@ -1455,7 +1480,7 @@ function watchMoreInfo(entityId) {
   clearInterval(window.__chauffageMoreInfoTimer);
   let tries = 0;
   let injected = false;
-  window.__chauffageMoreInfoTimer = setInterval(() => {
+  const tick = () => {
     tries += 1;
     const ha = document.querySelector('home-assistant');
     const hass = ha && ha.hass;
@@ -1485,7 +1510,12 @@ function watchMoreInfo(entityId) {
     injected = true;
     block.entity = current;
     block.hass = hass;
-  }, 400);
+  };
+  // Mise à jour immédiate (évite d'afficher un instant le bloc du thermostat précédent),
+  // puis à l'image suivante (rendu du dialogue), puis en continu tant que le dialogue est ouvert
+  tick();
+  requestAnimationFrame(tick);
+  window.__chauffageMoreInfoTimer = setInterval(tick, 400);
 }
 
 if (!window.__chauffageMoreInfoListener) {

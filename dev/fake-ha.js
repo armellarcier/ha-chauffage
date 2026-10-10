@@ -82,10 +82,16 @@ dlg.shadowRoot.querySelector('.c').appendChild(info);
 ha.shadowRoot.appendChild(dlg);
 document.addEventListener('DOMContentLoaded', () => document.body.prepend(ha));
 
-window.openMoreInfo = (id) => {
+// Comme le vrai HA : tout événement hass-more-info (tuile, carte…) ouvre la fenêtre de détail
+window.addEventListener('hass-more-info', (e) => {
+  const id = e.detail && e.detail.entityId;
+  if (!id) return;
   dlg._entityId = id;
   dlg.shadowRoot.querySelector('.d').style.display = '';
   dlg.shadowRoot.querySelector('.t').textContent = `${states[id]?.attributes.friendly_name || id} (détail simulé)`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+window.openMoreInfo = (id) => {
   document.body.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: id } }));
 };
 window.closeMoreInfo = () => {
