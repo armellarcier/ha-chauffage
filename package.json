@@ -1,6 +1,7 @@
 {
   "name": "ha-chauffage",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Lovelace card tests (no build step: www/ is served as is)",
   "scripts": {

@@ -89,3 +89,7 @@ Pièges connus (déjà gérés, couverts par les tests) : presets ZHA sous forme
 en texte (sinon HA stocke tout l'attribut du capteur sous forme de texte illisible) ; dates avec microsecondes
 refusées par Safari ; `ha-card` rendu en différé (positionnement des fenêtres flottantes) ;
 une vanne Zigbee injoignable n'interrompt pas l'application du programme aux autres.
+
+## Licence
+
+[MIT](LICENSE) © 2026 Armel Larcier

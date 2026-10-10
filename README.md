@@ -91,3 +91,7 @@ Known pitfalls (already handled, covered by tests): ZHA presets are Enums, conve
 (otherwise HA stores the whole sensor attribute as unreadable text); dates with microseconds
 are rejected by Safari; `ha-card` renders asynchronously (popover positioning); an unreachable
 Zigbee valve does not stop the schedule from being applied to the others.
+
+## License
+
+[MIT](LICENSE) © 2026 Armel Larcier
