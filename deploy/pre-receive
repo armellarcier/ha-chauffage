@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Hook git « pre-receive » pour un dépôt nu placé sur la machine de Home Assistant :
+# un `git push` de la branche main y déploie le projet (scripts/deploy.sh).
+# Si le déploiement échoue (configuration HA invalide…), la version précédente est
+# restaurée et le push est REFUSÉ.
+#
+# Installation : voir CONTRIBUTING.md, « Déployer par git push ».
+# Réglages du dépôt nu :
+#   git config deploy.haconfig /chemin/vers/config/ha
+#   deploy.env (à la racine du dépôt nu, facultatif) : PROD_HA_URL, PROD_HA_TOKEN
+set -euo pipefail
+
+cfg=$(git config deploy.haconfig || true)
+[ -n "$cfg" ] || { echo "deploy.haconfig non défini : git config deploy.haconfig /chemin/config/ha" >&2; exit 1; }
+
+zero=0000000000000000000000000000000000000000
+while read -r _old new ref; do
+  [ "$ref" = "refs/heads/main" ] || continue
+  [ "$new" = "$zero" ] && continue
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  git archive "$new" | tar -x -C "$tmp"
+  echo "→ Déploiement de ${new:0:7} vers $cfg"
+  if ! ENV_FILE="$PWD/deploy.env" bash "$tmp/scripts/deploy.sh" "$cfg"; then
+    echo "✋ Push refusé : le déploiement a échoué (production inchangée)." >&2
+    exit 1
+  fi
+done

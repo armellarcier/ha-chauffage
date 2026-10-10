@@ -1,0 +1,44 @@
+# HA de développement, jetable et isolé de toute installation réelle.
+#   docker compose -f dev/compose.yaml up -d      → http://localhost:8124
+#   docker compose -f dev/compose.yaml restart homeassistant   (quelques secondes)
+#   docker compose -f dev/compose.yaml down
+# Le dépôt est monté en direct : www/ et packages/chauffage/ sont vus immédiatement.
+name: ha-chauffage-dev
+
+services:
+  # Installe Versatile Thermostat dans dev/hass/custom_components (une fois par version)
+  vtherm:
+    image: alpine:3.20
+    volumes:
+      - ./hass:/config
+    environment:
+      VTHERM_VERSION: ${VTHERM_VERSION:-10.5.0}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        d=/config/custom_components/versatile_thermostat
+        if [ "$$(cat $$d/.version 2>/dev/null)" = "$$VTHERM_VERSION" ]; then
+          echo "Versatile Thermostat $$VTHERM_VERSION déjà installé"; exit 0
+        fi
+        rm -rf "$$d" && mkdir -p "$$d"
+        wget -qO /tmp/vt.zip "https://github.com/jmcollin78/versatile_thermostat/releases/download/$$VTHERM_VERSION/versatile_thermostat.zip"
+        unzip -q /tmp/vt.zip -d "$$d"
+        echo "$$VTHERM_VERSION" > "$$d/.version"
+        echo "Versatile Thermostat $$VTHERM_VERSION installé"
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:${HA_VERSION:-stable}
+    depends_on:
+      vtherm:
+        condition: service_completed_successfully
+    ports:
+      - "8124:8123"
+    environment:
+      TZ: Europe/Paris
+    volumes:
+      - ./hass:/config
+      - ../www:/config/www/chauffage:ro
+      - ../packages/chauffage:/config/packages/chauffage:ro
+    restart: unless-stopped

@@ -1,0 +1,89 @@
+# Pièces virtuelles pour le HA de dev : chaque pièce a un radiateur (input_boolean,
+# utilisable comme interrupteur sous-jacent par un VTherm "sur interrupteur") et une
+# température qui monte quand le radiateur chauffe et redescend vers l'extérieur sinon.
+# Les curseurs input_number permettent aussi de forcer une température à la main.
+
+input_boolean:
+  radiateur_salon:
+    name: Radiateur salon (simulé)
+    icon: mdi:radiator
+  radiateur_bureau:
+    name: Radiateur bureau (simulé)
+    icon: mdi:radiator
+  radiateur_chambre:
+    name: Radiateur chambre (simulé)
+    icon: mdi:radiator
+
+input_number:
+  temperature_salon: &piece
+    name: Température salon (simulée)
+    min: 5
+    max: 30
+    step: 0.1
+    initial: 19
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_bureau:
+    <<: *piece
+    name: Température bureau (simulée)
+    initial: 18
+  temperature_chambre:
+    <<: *piece
+    name: Température chambre (simulée)
+    initial: 17
+  temperature_exterieure:
+    <<: *piece
+    name: Température extérieure (simulée)
+    min: -10
+    initial: 8
+
+template:
+  - sensor:
+      - name: Température salon
+        unique_id: sim_temperature_salon
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_salon') }}"
+      - name: Température bureau
+        unique_id: sim_temperature_bureau
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_bureau') }}"
+      - name: Température chambre
+        unique_id: sim_temperature_chambre
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_chambre') }}"
+      - name: Température extérieure
+        unique_id: sim_temperature_exterieure
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_exterieure') }}"
+
+automation:
+  - id: sim_evolution_temperatures
+    alias: "Simulation - évolution des températures"
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        seconds: "/30"
+    actions:
+      - repeat:
+          for_each: [salon, bureau, chambre]
+          sequence:
+            - action: input_number.set_value
+              target:
+                entity_id: "input_number.temperature_{{ repeat.item }}"
+              data:
+                value: >-
+                  {%- set t = states('input_number.temperature_' ~ repeat.item) | float(18) -%}
+                  {%- set ext = states('input_number.temperature_exterieure') | float(8) -%}
+                  {%- if is_state('input_boolean.radiateur_' ~ repeat.item, 'on') -%}
+                    {{ [t + 0.2, 30] | min | round(1) }}
+                  {%- else -%}
+                    {{ [t - (t - ext) * 0.02, ext] | max | round(1) }}
+                  {%- endif -%}

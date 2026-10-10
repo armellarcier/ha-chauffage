@@ -1,0 +1,27 @@
+# Configuration du HA de développement (dev/compose.yaml).
+default_config:
+
+homeassistant:
+  name: Chauffage (dev)
+  time_zone: Europe/Paris
+  # packages/chauffage = le projet (monté depuis le dépôt) ; packages/simulation.yaml = pièces virtuelles
+  packages: !include_dir_named packages
+
+frontend:
+  extra_module_url:
+    - /local/chauffage/chauffage-loader.js
+
+recorder:
+  purge_keep_days: 2
+  exclude:
+    entities:
+      - sensor.programmes_chauffage
+      - sensor.derogations_chauffage
+      - sensor.suivi_vannes_chauffage
+
+logger:
+  default: warning
+  logs:
+    custom_components.versatile_thermostat: info
+    homeassistant.components.automation: info
+    homeassistant.components.template: info

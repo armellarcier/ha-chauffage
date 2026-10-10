@@ -1,0 +1,7 @@
+# État d'exécution du HA de dev : seuls la configuration et la simulation sont versionnées
+*
+!.gitignore
+!configuration.yaml
+!packages/
+packages/*
+!packages/simulation.yaml
