@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Banc de test chauffage</title>
+  <title>Chauffage test harness</title>
   <!--
-    Banc de test hors HA : faux hass (états, capteurs, événements), faux ha-card
-    (rendu différé comme le vrai composant Lit) et maquette de la fenêtre de détail.
-    Lancer depuis la racine du dépôt :  python3 -m http.server 8000 (voir CONTRIBUTING.md)
-    puis ouvrir http://<hôte>:8000/dev/harness.html
+    Test harness without HA: fake hass (states, sensors, events), fake ha-card
+    (asynchronous rendering like the real Lit component) and a more-info dialog mock-up.
+    Run from the repository root:  python3 -m http.server 8000 (see CONTRIBUTING.md)
+    then open http://<host>:8000/dev/harness.html
   -->
   <style>
     body { font-family: Roboto, system-ui, sans-serif; background:#fafafa; padding:20px; max-width:780px; margin:auto;
@@ -20,12 +20,12 @@
 </head>
 <body>
   <div class="tools">
-    <button onclick="openMoreInfo('climate.salon')">Détail : Salon</button>
-    <button onclick="openMoreInfo('climate.bureau')">Détail : Bureau</button>
-    <button onclick="openMoreInfo('climate.chambre')">Détail : Chambre (sans programme)</button>
-    <button onclick="closeMoreInfo()">Fermer le détail</button>
-    <button onclick="setMode('Absent')">Mode Absent</button>
-    <button onclick="setMode('Normal')">Mode Normal</button>
+    <button onclick="openMoreInfo('climate.salon')">More-info: Salon</button>
+    <button onclick="openMoreInfo('climate.bureau')">More-info: Bureau</button>
+    <button onclick="openMoreInfo('climate.chambre')">More-info: Chambre (no schedule)</button>
+    <button onclick="closeMoreInfo()">Close more-info</button>
+    <button onclick="setMode('Absent')">Mode: Absent</button>
+    <button onclick="setMode('Normal')">Mode: Normal</button>
   </div>
   <script type="module" src="./fake-ha.js"></script>
   <script type="module" src="../www/chauffage-programme-card.js"></script>

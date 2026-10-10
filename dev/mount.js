@@ -1,4 +1,4 @@
-// Monte la carte dans le banc de test (chargé APRÈS la carte).
+// Mounts the card in the test harness (loaded AFTER the card).
 const card = document.createElement('chauffage-programme-card');
 card.setConfig({
   show: 'all',

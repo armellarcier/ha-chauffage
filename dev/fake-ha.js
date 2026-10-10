@@ -1,7 +1,7 @@
-// Faux Home Assistant pour le banc de test (chargé AVANT la carte).
-// Expose sur window : states, events, hass, pushHass(), openMoreInfo(), closeMoreInfo(), setMode().
+// Fake Home Assistant for the test harness (loaded BEFORE the card).
+// Exposes on window: states, events, hass, pushHass(), openMoreInfo(), closeMoreInfo(), setMode().
 
-// --- Faux ha-card : comme le vrai (Lit), il rend son <slot> en différé ---
+// --- Fake ha-card: like the real one (Lit), it renders its <slot> asynchronously ---
 customElements.define('ha-card', class extends HTMLElement {
   constructor() {
     super();
@@ -37,7 +37,7 @@ const states = {
 let stamp = 1;
 const events = [];
 
-// Diffuse un nouvel objet hass (nouvelles références = changement détecté par la carte)
+// Pushes a new hass object (new references = change detected by the card)
 function pushHass() {
   window.hass = { ...window.hass, states: { ...states } };
   if (window.card) window.card.hass = window.hass;
@@ -45,7 +45,7 @@ function pushHass() {
   if (ha) ha.hass = window.hass;
 }
 
-// Simule HA : les événements de la carte mettent à jour les capteurs template
+// Simulates HA: the card's events update the template sensors
 async function callWS(msg) {
   events.push(msg);
   if (msg.type !== 'fire_event') return;
@@ -78,7 +78,7 @@ window.hass = { states, callWS, callService };
 window.pushHass = pushHass;
 window.setMode = (m) => { states['input_select.mode_chauffage'] = { ...states['input_select.mode_chauffage'], state: m, last_updated: String(stamp++) }; pushHass(); };
 
-// --- Maquette de la fenêtre de détail : <home-assistant> > ha-more-info-dialog > ha-more-info-info ---
+// --- More-info dialog mock-up: <home-assistant> > ha-more-info-dialog > ha-more-info-info ---
 const ha = document.createElement('home-assistant');
 ha.attachShadow({ mode: 'open' });
 ha.hass = window.hass;
@@ -87,18 +87,18 @@ dlg.attachShadow({ mode: 'open' });
 dlg.shadowRoot.innerHTML = '<div class="d" style="display:none;width:420px;padding:16px;border:1px solid #ccc;border-radius:16px;background:#fff;margin-bottom:20px"><h3 class="t"></h3><div class="c"></div></div>';
 const info = document.createElement('ha-more-info-info');
 info.attachShadow({ mode: 'open' });
-info.shadowRoot.innerHTML = '<div style="height:60px;background:#eee;border-radius:8px;display:flex;align-items:center;justify-content:center">[commandes du thermostat]</div>';
+info.shadowRoot.innerHTML = '<div style="height:60px;background:#eee;border-radius:8px;display:flex;align-items:center;justify-content:center">[thermostat controls]</div>';
 dlg.shadowRoot.querySelector('.c').appendChild(info);
 ha.shadowRoot.appendChild(dlg);
 document.addEventListener('DOMContentLoaded', () => document.body.prepend(ha));
 
-// Comme le vrai HA : tout événement hass-more-info (tuile, carte…) ouvre la fenêtre de détail
+// Like the real HA: any hass-more-info event (tile, card…) opens the more-info dialog
 window.addEventListener('hass-more-info', (e) => {
   const id = e.detail && e.detail.entityId;
   if (!id) return;
   dlg._entityId = id;
   dlg.shadowRoot.querySelector('.d').style.display = '';
-  dlg.shadowRoot.querySelector('.t').textContent = `${states[id]?.attributes.friendly_name || id} (détail simulé)`;
+  dlg.shadowRoot.querySelector('.t').textContent = `${states[id]?.attributes.friendly_name || id} (simulated more-info)`;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 window.openMoreInfo = (id) => {

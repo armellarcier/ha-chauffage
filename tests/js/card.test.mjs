@@ -209,7 +209,7 @@ describe('overrides from the card', () => {
 
   test('the override is shown on today’s row, in the active mode tab', () => {
     const card = createCard(fakeHass({ overrides: { 'climate.salon': override } }));
-    const zone = card.shadowRoot.querySelector('.derog[data-climate="climate.salon"]');
+    const zone = card.shadowRoot.querySelector('.override[data-climate="climate.salon"]');
     assert.ok(zone);
     assert.equal(zone.dataset.day, '0');
   });
@@ -217,7 +217,7 @@ describe('overrides from the card', () => {
   test('shortening before now is clamped to now + 15 min', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass);
-    card._setDerogEnd('climate.salon', new Date('2026-10-12T09:00:00+02:00'));
+    card._setOverrideEnd('climate.salon', new Date('2026-10-12T09:00:00+02:00'));
     const { derogation } = hass.events.at(-1).event_data;
     assert.equal(new Date(derogation.fin).toISOString(), '2026-10-12T08:15:00.000Z');
   });
@@ -225,8 +225,8 @@ describe('overrides from the card', () => {
   test('"Reprendre le programme" removes the override', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass);
-    card._derogSel = { climate: 'climate.salon', day: 0 };
-    card._action('derog-del', {});
+    card._overrideSel = { climate: 'climate.salon', day: 0 };
+    card._action('override-del', {});
     assert.deepEqual(hass.events.at(-1), {
       type: 'fire_event', event_type: 'chauffage_derogation_set',
       event_data: { climate: 'climate.salon', derogation: null },

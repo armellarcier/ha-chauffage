@@ -3,7 +3,7 @@ import './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  toMin, toHM, parseDate, parseDay, serializeDay, derogPieces, derogLabel, activeDerogs,
+  toMin, toHM, parseDate, parseDay, serializeDay, overridePieces, overrideLabel, activeOverrides,
 } from '../../www/chauffage-programme-card.js';
 
 describe('times', () => {
@@ -56,7 +56,7 @@ describe('overrides', () => {
   const override = (debut, fin, extra = {}) => ({ type: 'temp', valeur: 21, debut, fin, ...extra });
 
   test('an override past midnight is split over two days', () => {
-    const pieces = derogPieces(override('2026-10-12T20:00:00+02:00', '2026-10-13T02:00:00+02:00'));
+    const pieces = overridePieces(override('2026-10-12T20:00:00+02:00', '2026-10-13T02:00:00+02:00'));
     assert.deepEqual(pieces.map(({ day, start, end, isLast }) => ({ day, start, end, isLast })), [
       { day: 0, start: 20 * 60, end: 24 * 60, isLast: false }, // Monday
       { day: 1, start: 0, end: 2 * 60, isLast: true }, // Tuesday
@@ -64,21 +64,21 @@ describe('overrides', () => {
   });
 
   test('label: temperature or preset name', () => {
-    assert.equal(derogLabel(override('', '', { valeur: 21.5 })), '21.5 °C');
-    assert.equal(derogLabel({ type: 'preset', valeur: 'boost' }), 'Boost');
-    assert.equal(derogLabel({ type: 'preset', valeur: 'unknown' }), 'unknown');
+    assert.equal(overrideLabel(override('', '', { valeur: 21.5 })), '21.5 °C');
+    assert.equal(overrideLabel({ type: 'preset', valeur: 'boost' }), 'Boost');
+    assert.equal(overrideLabel({ type: 'preset', valeur: 'unknown' }), 'unknown');
   });
 
-  test('activeDerogs ignores ended overrides', () => {
+  test('activeOverrides ignores ended overrides', () => {
     const hass = { states: { s: { attributes: { derogations: {
       'climate.a': override('2026-10-12T18:00:00+02:00', '2026-10-12T20:59:00+02:00'),
       'climate.b': override('2026-10-12T20:00:00+02:00', '2026-10-12T22:00:00+02:00'),
     } } } } };
-    assert.deepEqual(Object.keys(activeDerogs(hass, 's')), ['climate.b']);
+    assert.deepEqual(Object.keys(activeOverrides(hass, 's')), ['climate.b']);
   });
 
-  test('activeDerogs tolerates an unreadable (text) attribute', () => {
+  test('activeOverrides tolerates an unreadable (text) attribute', () => {
     const hass = { states: { s: { attributes: { derogations: "{'climate.a': …}" } } } };
-    assert.deepEqual(activeDerogs(hass, 's'), {});
+    assert.deepEqual(activeOverrides(hass, 's'), {});
   });
 });

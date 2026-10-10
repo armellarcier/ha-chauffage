@@ -1,10 +1,10 @@
-# Configuration du HA de développement (dev/compose.yaml).
+# Configuration of the development HA (dev/compose.yaml).
 default_config:
 
 homeassistant:
   name: Chauffage (dev)
   time_zone: Europe/Paris
-  # packages/chauffage = le projet (monté depuis le dépôt) ; packages/simulation.yaml = pièces virtuelles
+  # packages/chauffage = the project (mounted from the repository); packages/simulation.yaml = virtual rooms
   packages: !include_dir_named packages
 
 frontend:

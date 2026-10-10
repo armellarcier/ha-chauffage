@@ -1,10 +1,10 @@
 /*
  * chauffage-programme-card
- * Carte Lovelace : édition visuelle des programmes hebdomadaires
- * Versatile Thermostat. 7 journées, chacune avec une ligne par vanne affichée.
+ * Lovelace card: visual editor for the weekly heating schedules
+ * (Versatile Thermostat). 7 days, each with one row per displayed thermostat.
  *
- * Installé dans <config>/www/chauffage/ (servi sous /local/chauffage/)
- * et chargé sur toutes les pages par chauffage-loader.js — voir README.md.
+ * Installed in <config>/www/chauffage/ (served under /local/chauffage/)
+ * and loaded on every page by chauffage-loader.js — see README.md.
  */
 
 const PRESETS = {
@@ -31,13 +31,13 @@ const toHM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m %
 const pct = (m) => ((m / DAY_MIN) * 100).toFixed(3);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = (x) => JSON.parse(JSON.stringify(x));
-// Dates HA : microsecondes ramenées à des millisecondes (Safari refuse plus de 3 décimales)
+// HA dates: microseconds truncated to milliseconds (Safari rejects more than 3 decimals)
 const parseDate = (s) => new Date(String(s).replace(/(\.\d{3})\d+/, '$1'));
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const todayIdx = () => (new Date().getDay() + 6) % 7;
 const altPreset = (p) => (p === 'comfort' ? 'eco' : 'comfort');
 
-// Fusionne les créneaux consécutifs identiques, supprime les doublons d'horaire
+// Merges consecutive identical slots and removes duplicate start times
 function normalize(segs) {
   const sorted = segs.slice().sort((a, b) => a.start - b.start);
   const dedup = [];
@@ -67,13 +67,13 @@ function parseDay(list) {
 
 const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
 
-// ---------- dérogations (partagé carte / fenêtre de détail) ----------
+// ---------- overrides (shared by the card and the more-info block) ----------
 
-// Découpe une dérogation en morceaux par jour (aujourd'hui + 6 jours)
-function derogPieces(d) {
+// Splits an override into one piece per day (today + 6 days)
+function overridePieces(d) {
   if (!d) return [];
-  const deb = parseDate(d.debut);
-  const fin = parseDate(d.fin);
+  const startsAt = parseDate(d.debut);
+  const endsAt = parseDate(d.fin);
   const day0 = new Date();
   day0.setHours(0, 0, 0, 0);
   const pieces = [];
@@ -82,22 +82,22 @@ function derogPieces(d) {
     d0.setDate(d0.getDate() + i);
     const d1 = new Date(d0);
     d1.setDate(d1.getDate() + 1);
-    const s = deb > d0 ? deb : d0;
-    const e = fin < d1 ? fin : d1;
+    const s = startsAt > d0 ? startsAt : d0;
+    const e = endsAt < d1 ? endsAt : d1;
     if (e > s) {
       pieces.push({
         day: (d0.getDay() + 6) % 7,
         start: Math.round((s - d0) / 60000),
         end: Math.min(DAY_MIN, Math.round((e - d0) / 60000)),
         d0,
-        isLast: fin <= d1,
+        isLast: endsAt <= d1,
       });
     }
   }
   return pieces;
 }
 
-function derogLabel(d) {
+function overrideLabel(d) {
   if (!d) return '';
   if (d.type === 'temp') return `${d.valeur} °C`;
   return (PRESETS[d.valeur] && PRESETS[d.valeur].label) || d.valeur;
@@ -105,12 +105,12 @@ function derogLabel(d) {
 
 const hmOf = (date) => toHM(date.getHours() * 60 + date.getMinutes());
 
-function dureeTxt(min) {
+function durationText(min) {
   return min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
 }
 
-// Dérogations actives (non échues) lues dans le capteur
-function activeDerogs(hass, sensor) {
+// Active (not ended) overrides read from the sensor
+function activeOverrides(hass, sensor) {
   const st = hass && hass.states[sensor];
   const raw = st && st.attributes.derogations;
   const out = {};
@@ -129,22 +129,22 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._data = {};
     this._dirty = false;
     this._sel = null; // { climate, day, idx }
-    this._focus = null; // dernière vanne manipulée (source de "Copier la semaine")
+    this._focus = null; // last thermostat used (source of "Copier la semaine")
     this._drag = null;
     this._stamp = undefined;
     this._msg = '';
     this._lastClick = null;
     this._renderedDay = null;
-    // Presse-papier interne : { segs, label }, partagé entre cartes via localStorage
+    // Internal clipboard: { segs, label }, shared between cards through localStorage
     this._clip = null;
-    this._clipSrc = null; // { climate, mode, day } de la ligne copiée (surlignage)
-    this._menu = null; // { climate, day, top, right } menu de ligne ouvert
-    this._multiSel = false; // mode "Plusieurs" : un clic sur une vanne l'ajoute/la retire
-    // Dérogations (consignes temporaires) : envoyées tout de suite à HA, sans "Enregistrer"
-    this._derogSel = null; // { climate, day } dérogation dont la fenêtre est ouverte
-    this._derogDrag = null;
-    this._derogPending = {}; // modifs envoyées, en attente de la mise à jour du capteur
-    this._derogStamp = undefined;
+    this._clipSrc = null; // { climate, mode, day } of the copied row (highlight)
+    this._menu = null; // { climate, day, top, right } open row menu
+    this._multiSel = false; // "Plusieurs" mode: clicking a thermostat adds / removes it
+    // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
+    this._overrideSel = null; // { climate, day } override whose popover is open
+    this._overrideDrag = null;
+    this._overridePending = {}; // changes sent, waiting for the sensor update
+    this._overrideStamp = undefined;
     try {
       const c = JSON.parse(localStorage.getItem(LS_CLIP));
       if (c && Array.isArray(c.segs) && c.segs.length) this._clip = c;
@@ -170,7 +170,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       ...config,
     };
     this._thermostats = config.thermostats.map((t) => (typeof t === 'string' ? { entity: t } : t));
-    // Le bloc de la fenêtre de détail utilise les mêmes entités que la carte
+    // The more-info block uses the same entities as the card
     for (const k of Object.keys(MORE_INFO_CFG)) MORE_INFO_CFG[k] = this._config[k];
     const all = this._thermostats.map((t) => t.entity);
     let saved = null;
@@ -196,15 +196,15 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     const dst = hass.states[this._config.derog_sensor];
     const dstamp = dst ? dst.last_updated : null;
-    if (dstamp !== this._derogStamp && !this._derogDrag && !this._drag) {
-      this._derogStamp = dstamp;
-      this._derogPending = {};
+    if (dstamp !== this._overrideStamp && !this._overrideDrag && !this._drag) {
+      this._overrideStamp = dstamp;
+      this._overridePending = {};
       need = true;
     }
     // Active mode changed (from the card, another dashboard or an automation): redraw the
     // active-mode marker and the "activate" bar
     const modeState = hass.states[this._config.mode_entity];
-    if (modeState !== this._modeState && !this._drag && !this._derogDrag) {
+    if (modeState !== this._modeState && !this._drag && !this._overrideDrag) {
       this._modeState = modeState;
       need = true;
     }
@@ -219,17 +219,17 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   connectedCallback() {
     this._timer = setInterval(() => {
-      if (this._drag || this._derogDrag) return;
-      // Re-rendu complet si changement de jour ou dérogation en cours (elle avance avec l'heure)
-      if (this._renderedDay !== todayIdx() || Object.keys(this._derogs()).length) this._render();
+      if (this._drag || this._overrideDrag) return;
+      // Full redraw on a new day or during an override (it moves with the time)
+      if (this._renderedDay !== todayIdx() || Object.keys(this._overrides()).length) this._render();
       else this._updateLive();
     }, 30000);
-    // Ferme le menu de ligne / les fenêtres d'édition sur clic hors de la carte ou touche Échap
+    // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._derogSel) return;
+      if (!this._menu && !this._sel && !this._overrideSel) return;
       this._menu = null;
       this._sel = null;
-      this._derogSel = null;
+      this._overrideSel = null;
       this._render();
     };
     this._onDocDown = (e) => {
@@ -252,7 +252,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return 4 + 7 * this._shown.length;
   }
 
-  // ---------- données ----------
+  // ---------- data ----------
 
   _modes() {
     const s = this._hass && this._hass.states[this._config.mode_entity];
@@ -316,13 +316,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._render();
   }
 
-  // ---------- dérogations ----------
+  // ---------- overrides ----------
 
-  _derogs() {
+  _overrides() {
     const st = this._hass && this._hass.states[this._config.derog_sensor];
     const raw = (st && st.attributes.derogations) || {};
     const out = typeof raw === 'object' ? { ...raw } : {};
-    for (const [c, d] of Object.entries(this._derogPending)) {
+    for (const [c, d] of Object.entries(this._overridePending)) {
       if (d) out[c] = d;
       else delete out[c];
     }
@@ -333,38 +333,38 @@ class ChauffageProgrammeCard extends HTMLElement {
     return out;
   }
 
-  _derogPieces(climate) {
-    return derogPieces(this._derogs()[climate]);
+  _overridePieces(climate) {
+    return overridePieces(this._overrides()[climate]);
   }
 
-  _derogLabel(d) {
-    return derogLabel(d);
+  _overrideLabel(d) {
+    return overrideLabel(d);
   }
 
-  async _sendDerog(climate, derog) {
-    this._derogPending[climate] = derog;
-    if (!derog) this._derogSel = null;
+  async _sendOverride(climate, override) {
+    this._overridePending[climate] = override;
+    if (!override) this._overrideSel = null;
     this._render();
     try {
       await this._hass.callWS({
         type: 'fire_event',
         event_type: this._config.derog_event,
-        event_data: { climate, derogation: derog },
+        event_data: { climate, derogation: override },
       });
     } catch (e) {
-      delete this._derogPending[climate];
+      delete this._overridePending[climate];
       this._msg = `Erreur : ${e.message || e.code || e}`;
       this._render();
     }
   }
 
-  // Nouvelle échéance (Date) : au moins un pas après maintenant
-  _setDerogEnd(climate, fin) {
-    const d = this._derogs()[climate];
+  // New end (Date): at least one step after now
+  _setOverrideEnd(climate, endsAt) {
+    const d = this._overrides()[climate];
     if (!d) return;
     const min = new Date(Date.now() + this._config.step * 60000);
-    const f = fin < min ? min : fin;
-    this._sendDerog(climate, { ...d, fin: f.toISOString() });
+    const f = endsAt < min ? min : endsAt;
+    this._sendOverride(climate, { ...d, fin: f.toISOString() });
   }
 
   async _save() {
@@ -383,7 +383,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._render();
   }
 
-  // ---------- rendu ----------
+  // ---------- rendering ----------
 
   _liveText(climate) {
     const st = this._hass.states[climate];
@@ -392,8 +392,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (st.state === 'off') return 'arrêt';
     const parts = [];
     if (a.current_temperature != null) parts.push(`${a.current_temperature}°`);
-    const d = this._derogs()[climate];
-    if (d) parts.push(`⏱ ${this._derogLabel(d)} → ${toHM(parseDate(d.fin).getHours() * 60 + parseDate(d.fin).getMinutes())}`);
+    const d = this._overrides()[climate];
+    if (d) parts.push(`⏱ ${this._overrideLabel(d)} → ${toHM(parseDate(d.fin).getHours() * 60 + parseDate(d.fin).getMinutes())}`);
     else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) parts.push('manuel');
     else if (a.preset_mode) parts.push((PRESETS[a.preset_mode] && PRESETS[a.preset_mode].label) || a.preset_mode);
     return parts.join(' · ');
@@ -433,22 +433,22 @@ class ChauffageProgrammeCard extends HTMLElement {
     const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
     const cs = this._clipSrc;
     const isSrc = cs && cs.climate === climate && cs.mode === this._mode && cs.day === d;
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${this._derogHtml(climate, d)}${now}</div>`;
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${this._overrideHtml(climate, d)}${now}</div>`;
   }
 
-  // Dérogation affichée par-dessus le planning (uniquement sur l'onglet du mode actif)
-  _derogHtml(climate, day) {
+  // Override drawn over the schedule (only in the active mode's tab)
+  _overrideHtml(climate, day) {
     if (this._mode !== this._activeMode()) return '';
-    const d = this._derogs()[climate];
-    const piece = this._derogPieces(climate).find((p) => p.day === day);
+    const d = this._overrides()[climate];
+    const piece = this._overridePieces(climate).find((p) => p.day === day);
     if (!d || !piece) return '';
-    const finHM = toHM(parseDate(d.fin).getHours() * 60 + parseDate(d.fin).getMinutes());
-    const label = `${this._derogLabel(d)} → ${finHM}`;
-    const sel = this._derogSel && this._derogSel.climate === climate && this._derogSel.day === day;
-    return `<div class="derog${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${day}"
+    const endHM = toHM(parseDate(d.fin).getHours() * 60 + parseDate(d.fin).getMinutes());
+    const label = `${this._overrideLabel(d)} → ${endHM}`;
+    const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === day;
+    return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${day}"
         style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%" title="Consigne temporaire : ${esc(label)}">
-      <span class="dl">${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120) ? `⏱ ${esc(label)}` : '⏱'}</span>
-      ${piece.isLast ? `<div class="dhandle" title="Glisser pour changer la fin"><span class="tip">${finHM}</span></div>` : ''}
+      <span class="override-label">${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120) ? `⏱ ${esc(label)}` : '⏱'}</span>
+      ${piece.isLast ? `<div class="override-handle" title="Glisser pour changer la fin"><span class="tip">${endHM}</span></div>` : ''}
     </div>`;
   }
 
@@ -499,13 +499,13 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _editorHtml() {
     const hint = `<div class="hint">Glisser une poignée pour déplacer un horaire · Clic sur une plage pour la modifier · Double-clic pour ajouter une coupure</div>`;
-    if (this._derogSel) return hint + this._derogEditorHtml();
+    if (this._overrideSel) return hint + this._overrideEditorHtml();
     if (!this._sel || !this._shown.includes(this._sel.climate)) { this._sel = null; return hint; }
     const { climate, day, idx } = this._sel;
     const segs = this._week(climate)[day];
     const s = segs && segs[idx];
     if (!s) { this._sel = null; return hint; }
-    // Fenêtre flottante, positionnée sous la plage par _placeEditor() après le rendu
+    // Popover, placed under the slot by _placeEditor() after rendering
     const last = idx === segs.length - 1;
     const end = last ? DAY_MIN : segs[idx + 1].start;
     const stepSec = this._config.step * 60;
@@ -528,39 +528,39 @@ class ChauffageProgrammeCard extends HTMLElement {
     </div>`;
   }
 
-  _derogEditorHtml() {
-    const { climate } = this._derogSel;
-    const d = this._derogs()[climate];
-    if (!d || !this._shown.includes(climate)) { this._derogSel = null; return ''; }
-    const fin = parseDate(d.fin);
-    const finHM = toHM(fin.getHours() * 60 + fin.getMinutes());
+  _overrideEditorHtml() {
+    const { climate } = this._overrideSel;
+    const d = this._overrides()[climate];
+    if (!d || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
+    const endsAt = parseDate(d.fin);
+    const endHM = toHM(endsAt.getHours() * 60 + endsAt.getMinutes());
     const today = new Date();
-    const jour = fin.toDateString() === today.toDateString() ? "aujourd'hui"
-      : DAYS[(fin.getDay() + 6) % 7].toLowerCase();
-    const reste = Math.max(0, Math.round((fin - today) / 60000));
-    const resteTxt = reste >= 60 ? `${Math.floor(reste / 60)} h ${String(reste % 60).padStart(2, '0')}` : `${reste} min`;
-    const plus = (m, label) => `<button class="btn" data-act="derog-add" data-min="${m}">${label}</button>`;
-    return `<div class="editor derog-ed">
+    const dayLabel = endsAt.toDateString() === today.toDateString() ? "aujourd'hui"
+      : DAYS[(endsAt.getDay() + 6) % 7].toLowerCase();
+    const remaining = Math.max(0, Math.round((endsAt - today) / 60000));
+    const remainingText = remaining >= 60 ? `${Math.floor(remaining / 60)} h ${String(remaining % 60).padStart(2, '0')}` : `${remaining} min`;
+    const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
+    return `<div class="editor override-ed">
       <div class="ed-head">
         <strong>${this._moreInfoLink(climate)} · consigne temporaire</strong>
-        <span class="dval">${esc(this._derogLabel(d))}</span>
-        <button class="btn icon close" data-act="derog-close" title="Fermer (Échap)">✕</button>
+        <span class="override-value">${esc(this._overrideLabel(d))}</span>
+        <button class="btn icon close" data-act="override-close" title="Fermer (Échap)">✕</button>
       </div>
       <div class="ed-head">
-        <label>jusqu'à <input type="time" data-derog-end step="${this._config.step * 60}" value="${finHM}"></label>
-        <span class="muted">${jour} · encore ${resteTxt}</span>
+        <label>jusqu'à <input type="time" data-override-end step="${this._config.step * 60}" value="${endHM}"></label>
+        <span class="muted">${dayLabel} · encore ${remainingText}</span>
       </div>
       <div class="ed-actions start">
-        ${plus(-30, '−30 min')}${plus(30, '+30 min')}${plus(60, '+1 h')}${plus(120, '+2 h')}
+        ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
       </div>
       <div class="ed-actions">
-        <button class="btn danger" data-act="derog-del">Supprimer · reprendre le programme</button>
+        <button class="btn danger" data-act="override-del">Supprimer · reprendre le programme</button>
       </div>
     </div>`;
   }
 
-  // ha-card (composant Lit) s'affiche en différé : tant qu'il n'a pas rendu son <slot>,
-  // son contenu n'a pas de position. On attend donc la fin de son rendu avant de mesurer.
+  // ha-card (a Lit component) renders asynchronously: until its <slot> is rendered, its
+  // content has no position. Wait for its rendering to complete before measuring.
   _schedulePlaceEditor() {
     const card = this.shadowRoot.querySelector('ha-card');
     if (!card || !this.shadowRoot.querySelector('.editor')) return;
@@ -569,7 +569,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     ready.then(() => {
       let tries = 0;
       const attempt = () => {
-        if (token !== this._placeToken) return; // un rendu plus récent a pris le relais
+        if (token !== this._placeToken) return; // a more recent render took over
         if (this._placeEditor() || ++tries > 10) return;
         requestAnimationFrame(attempt);
       };
@@ -577,12 +577,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
   }
 
-  // Place la fenêtre d'édition sous la plage / dérogation sélectionnée (ou au-dessus si pas la place).
-  // Renvoie false si la mise en page n'est pas encore prête.
+  // Places the popover under the selected slot / override (or above it when there is no room).
+  // Returns false if the layout is not ready yet.
   _placeEditor() {
     const root = this.shadowRoot;
     const ed = root.querySelector('.editor');
-    const seg = root.querySelector('.derog.sel, .seg.sel');
+    const seg = root.querySelector('.override.sel, .seg.sel');
     if (!ed || !seg) return true;
     const card = root.querySelector('ha-card').getBoundingClientRect();
     const bar = seg.parentElement.getBoundingClientRect();
@@ -675,7 +675,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._schedulePlaceEditor();
   }
 
-  // Mise à jour visuelle d'une barre pendant un glisser (sans recréer la poignée capturée)
+  // Visual update of a row while dragging (without recreating the captured handle)
   _layoutBar(bar, segs) {
     bar.querySelectorAll('.seg').forEach((el, i) => {
       const s = segs[i];
@@ -700,14 +700,14 @@ class ChauffageProgrammeCard extends HTMLElement {
     try { localStorage.setItem(LS_KEY, JSON.stringify(this._shown)); } catch (e) { /* ignore */ }
   }
 
-  // ---------- événements ----------
+  // ---------- events ----------
 
   _bindEvents() {
     const root = this.shadowRoot;
 
     root.addEventListener('pointerdown', (e) => {
-      // Poignée de fin d'une dérogation
-      const dh = e.target.closest('.dhandle');
+      // End handle of an override
+      const dh = e.target.closest('.override-handle');
       if (dh) {
         e.preventDefault();
         e.stopPropagation();
@@ -715,9 +715,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         dh.classList.add('drag');
         const el = dh.parentElement;
         const climate = el.dataset.climate;
-        const piece = this._derogPieces(climate).find((p) => p.isLast);
+        const piece = this._overridePieces(climate).find((p) => p.isLast);
         if (!piece) return;
-        this._derogDrag = { climate, piece, el, handle: dh, bar: el.parentElement, end: piece.end, moved: false };
+        this._overrideDrag = { climate, piece, el, handle: dh, bar: el.parentElement, end: piece.end, moved: false };
         return;
       }
       const h = e.target.closest('.handle');
@@ -730,7 +730,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
 
     root.addEventListener('pointermove', (e) => {
-      const dd = this._derogDrag;
+      const dd = this._overrideDrag;
       if (dd) {
         const step = this._config.step;
         const p = dd.piece;
@@ -742,8 +742,8 @@ class ChauffageProgrammeCard extends HTMLElement {
           dd.moved = true;
           dd.el.style.width = `${pct(m - p.start)}%`;
           dd.handle.querySelector('.tip').textContent = m === DAY_MIN ? '24:00' : toHM(m);
-          const dl = dd.el.querySelector('.dl');
-          if (dl) dl.textContent = '⏱';
+          const label = dd.el.querySelector('.override-label');
+          if (label) label.textContent = '⏱';
         }
         return;
       }
@@ -762,11 +762,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
 
     const endDrag = () => {
-      const dd = this._derogDrag;
+      const dd = this._overrideDrag;
       if (dd) {
-        this._derogDrag = null;
-        this._derogDragEnded = Date.now(); // évite que le "click" qui suit ouvre la fenêtre
-        if (dd.moved) this._setDerogEnd(dd.climate, new Date(dd.piece.d0.getTime() + dd.end * 60000));
+        this._overrideDrag = null;
+        this._overrideDragEnded = Date.now(); // prevents the following "click" from opening the popover
+        if (dd.moved) this._setOverrideEnd(dd.climate, new Date(dd.piece.d0.getTime() + dd.end * 60000));
         else dd.handle.classList.remove('drag');
         return;
       }
@@ -779,7 +779,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     root.addEventListener('pointerup', endDrag);
     root.addEventListener('pointercancel', endDrag);
 
-    // Clic droit (ou appui long sur Android) sur une ligne : ouvre le menu à l'endroit du pointeur
+    // Right click (or long press on Android) on a row: opens the menu at the pointer
     root.addEventListener('contextmenu', (e) => {
       const bar = e.target.closest('.bar');
       if (!bar) return;
@@ -790,42 +790,42 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
 
     root.addEventListener('click', (e) => {
-      // Menu ouvert : un clic ailleurs ne fait que le fermer
+      // Menu open: a click elsewhere only closes it
       if (this._menu && !e.target.closest('.menu, [data-act="menu"]')) {
         this._menu = null;
         this._render();
         return;
       }
-      // Lien vers la fenêtre de détail du thermostat (pastille, nom de ligne, en-tête d'édition)
+      // Link to the thermostat's more-info dialog (chip, row name, popover header)
       const mi = e.target.closest('[data-more-info]');
       if (mi) {
         e.stopPropagation();
         this._sel = null;
-        this._derogSel = null;
+        this._overrideSel = null;
         this._render();
         this._openMoreInfo(mi.dataset.moreInfo);
         return;
       }
-      // Fenêtre d'édition ouverte : un clic hors fenêtre / plage la ferme
-      if ((this._sel || this._derogSel) && !e.target.closest('.editor, .seg, .handle, .derog')) {
+      // Popover open: a click outside the popover / slot closes it
+      if ((this._sel || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override')) {
         this._sel = null;
-        this._derogSel = null;
+        this._overrideSel = null;
         if (!e.target.closest('[data-act], .tab, .chip')) { this._render(); return; }
       }
       const tab = e.target.closest('.tab');
       if (tab) {
         this._mode = tab.dataset.mode;
         this._sel = null;
-        this._derogSel = null;
+        this._overrideSel = null;
         this._render();
         return;
       }
-      // Clic sur une dérogation : ouvre sa fenêtre
-      const derog = e.target.closest('.derog');
-      if (derog) {
-        if (e.target.closest('.dhandle') || Date.now() - (this._derogDragEnded || 0) < 300) return;
+      // Click on an override: opens its popover
+      const override = e.target.closest('.override');
+      if (override) {
+        if (e.target.closest('.override-handle') || Date.now() - (this._overrideDragEnded || 0) < 300) return;
         this._sel = null;
-        this._derogSel = { climate: derog.dataset.climate, day: Number(derog.dataset.day) };
+        this._overrideSel = { climate: override.dataset.climate, day: Number(override.dataset.day) };
         this._render();
         return;
       }
@@ -853,7 +853,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
       const sel = this._sel;
       if (!sel || sel.climate !== climate || sel.day !== day || sel.idx !== idx) {
-        this._derogSel = null;
+        this._overrideSel = null;
         this._sel = { climate, day, idx };
         this._focus = climate;
         this._render();
@@ -866,18 +866,17 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._copyWeek(el.value);
       } else if (el.dataset.edge) {
         this._setEdge(el.dataset.edge, el.value);
-      } else if (el.hasAttribute('data-derog-end') && el.value && this._derogSel) {
-        // Prochaine occurrence de cette heure (aujourd'hui, sinon demain)
-        const fin = new Date();
-        fin.setHours(0, 0, 0, 0);
-        fin.setMinutes(this._snap(toMin(el.value)));
-        if (fin <= new Date()) fin.setDate(fin.getDate() + 1);
-        this._setDerogEnd(this._derogSel.climate, fin);
+      } else if (el.hasAttribute('data-override-end') && el.value && this._overrideSel) {
+        // Next occurrence of this time (today, otherwise tomorrow)
+        const endsAt = new Date();
+        endsAt.setHours(0, 0, 0, 0);
+        endsAt.setMinutes(this._snap(toMin(el.value)));
+        if (endsAt <= new Date()) endsAt.setDate(endsAt.getDate() + 1);
+        this._setOverrideEnd(this._overrideSel.climate, endsAt);
       }
     });
   }
 
-  // Clic simple : n'affiche que cette vanne. Mode "Plusieurs" ou Ctrl/Maj+clic : ajoute/retire.
   // Shown when the viewed tab is not the active mode: switch the heating mode from the card,
   // without a separate input_select card.
   _modeBarHtml(active) {
@@ -901,7 +900,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._render();
   }
 
-  // Ouvre la fenêtre de détail standard de HA (même mécanisme que les tuiles natives)
+  // Opens HA's standard more-info dialog (same mechanism as the built-in tiles)
   _openMoreInfo(entityId) {
     this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
   }
@@ -910,6 +909,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<span class="mi-link" data-more-info="${esc(climate)}" title="Ouvrir le thermostat">${esc(this._name(climate))}</span>`;
   }
 
+  // Plain click: shows only this thermostat. "Plusieurs" mode or Ctrl/Shift+click: adds / removes it.
   _toggleShown(climate, additive) {
     const order = this._thermostats.map((t) => t.entity);
     if (!additive) {
@@ -990,7 +990,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._clip = { segs, label };
     this._clipSrc = { climate, mode: this._mode, day };
     try { localStorage.setItem(LS_CLIP, JSON.stringify(this._clip)); } catch (e) { /* ignore */ }
-    // Copie aussi en texte dans le presse-papier système (si le navigateur l'autorise)
+    // Also copies as text to the system clipboard (when the browser allows it)
     try {
       if (navigator.clipboard) navigator.clipboard.writeText(`${label} : ${serializeDay(segs).join(', ')}`).catch(() => {});
     } catch (e) { /* ignore */ }
@@ -1016,12 +1016,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     this._menu = null;
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
-    if (act.startsWith('derog-')) {
-      const c = this._derogSel && this._derogSel.climate;
-      const d = c && this._derogs()[c];
-      if (act === 'derog-close' || !d) { this._derogSel = null; return this._render(); }
-      if (act === 'derog-del') return this._sendDerog(c, null);
-      if (act === 'derog-add') return this._setDerogEnd(c, new Date(parseDate(d.fin).getTime() + Number(ds.min) * 60000));
+    if (act.startsWith('override-')) {
+      const c = this._overrideSel && this._overrideSel.climate;
+      const d = c && this._overrides()[c];
+      if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
+      if (act === 'override-del') return this._sendOverride(c, null);
+      if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.fin).getTime() + Number(ds.min) * 60000));
     }
     if (act === 'save') return this._save();
     if (act === 'cancel') {
@@ -1096,7 +1096,7 @@ const STYLE = `
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;
     background:var(--success-color,#43a047); vertical-align:middle; }
 
-  /* Grille : jour | (nom) | barre | outils */
+  /* Grid: day | (name) | bar | tools */
   .scale { display:grid; grid-template-columns:36px 1fr 28px; gap:8px; align-items:center; }
   .multi .scale { grid-template-columns:36px 100px 1fr 28px; }
   .dgroup { display:grid; grid-template-columns:36px 1fr; gap:8px; align-items:center; margin:7px 0; }
@@ -1171,19 +1171,19 @@ const STYLE = `
     border-left:1px solid var(--divider-color); border-top:1px solid var(--divider-color); }
   .editor.above::before { top:auto; bottom:-7px; border:0;
     border-right:1px solid var(--divider-color); border-bottom:1px solid var(--divider-color); }
-  /* Dérogation (consigne temporaire) par-dessus le planning */
-  .derog { position:absolute; top:3px; bottom:3px; z-index:3; box-sizing:border-box; overflow:visible;
+  /* Override (temporary setpoint) drawn over the schedule */
+  .override { position:absolute; top:3px; bottom:3px; z-index:3; box-sizing:border-box; overflow:visible;
     border-radius:4px; cursor:pointer; color:#fff; font-size:10.5px; font-weight:600; white-space:nowrap;
     display:flex; align-items:center; padding:0 6px; border:2px solid #fff;
     background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px);
     box-shadow:0 1px 4px rgba(0,0,0,.35); text-shadow:0 1px 1px rgba(0,0,0,.4); }
-  .derog .dl { overflow:hidden; text-overflow:ellipsis; }
-  .derog.sel { outline:2px solid var(--primary-text-color); outline-offset:1px; }
-  .dhandle { position:absolute; top:-6px; bottom:-6px; right:-10px; width:18px; cursor:ew-resize; touch-action:none; }
-  .dhandle::after { content:''; position:absolute; left:6px; top:3px; bottom:3px; width:6px; border-radius:3px;
+  .override .override-label { overflow:hidden; text-overflow:ellipsis; }
+  .override.sel { outline:2px solid var(--primary-text-color); outline-offset:1px; }
+  .override-handle { position:absolute; top:-6px; bottom:-6px; right:-10px; width:18px; cursor:ew-resize; touch-action:none; }
+  .override-handle::after { content:''; position:absolute; left:6px; top:3px; bottom:3px; width:6px; border-radius:3px;
     background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.45); }
-  .dhandle:hover .tip, .dhandle.drag .tip { display:block; }
-  .dval { padding:2px 8px; border-radius:6px; color:#fff; font-weight:600;
+  .override-handle:hover .tip, .override-handle.drag .tip { display:block; }
+  .override-value { padding:2px 8px; border-radius:6px; color:#fff; font-weight:600;
     background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
   .muted { font-size:.85em; color:var(--secondary-text-color); }
   .ed-actions.start { margin-left:0; flex-wrap:wrap; }
@@ -1219,19 +1219,19 @@ const STYLE = `
   }
 `;
 
-// Garde-fous : le fichier peut être chargé deux fois (ressource du tableau de bord
-// + frontend.extra_module_url avec une URL différente) ; on ne déclare qu'une fois.
+// Guards: the file may be loaded twice (dashboard resource + frontend.extra_module_url
+// with a different URL); define things only once.
 if (!customElements.get('chauffage-programme-card')) customElements.define('chauffage-programme-card', ChauffageProgrammeCard);
 
 // =====================================================================
-//  Bloc ajouté à la fenêtre de détail (more-info) d'un thermostat programmé :
-//  journée en cours, semaine du mode actif, consigne temporaire modifiable.
-//  HA n'offre pas de point d'extension officiel : on s'insère dans sa structure
-//  interne. Si une mise à jour de HA la change, le bloc n'apparaît plus, sans
-//  autre conséquence.
+//  Block added to the more-info dialog of a scheduled thermostat: current day,
+//  week of the active mode, editable temporary override.
+//  HA offers no official extension point: the block is inserted into its internal
+//  structure. If an HA update changes it, the block no longer shows up, with no
+//  other consequence.
 // =====================================================================
 
-// Entités utilisées par le bloc (mises à jour par la dernière carte configurée)
+// Entities used by the block (updated by the last configured card)
 const MORE_INFO_CFG = {
   sensor: 'sensor.programmes_chauffage',
   mode_entity: 'input_select.mode_chauffage',
@@ -1244,7 +1244,7 @@ class ChauffageMoreInfo extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._pending = undefined; // dérogation envoyée, en attente de la mise à jour du capteur
+    this._pending = undefined; // override sent, waiting for the sensor update
     this._drag = null;
     const root = this.shadowRoot;
     root.addEventListener('click', (e) => this._onClick(e));
@@ -1266,33 +1266,33 @@ class ChauffageMoreInfo extends HTMLElement {
     const c = MORE_INFO_CFG;
     const s = hass.states;
     if (this._key && s[c.derog_sensor] !== this._key[2]) this._pending = undefined;
-    // Re-rendu seulement si une donnée utile a changé (ou à chaque nouvelle minute)
+    // Redraw only when relevant data changed (or every new minute)
     const key = [s[this._entity], s[c.sensor], s[c.derog_sensor], s[c.mode_entity], Math.floor(Date.now() / 60000)];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
-    if (this._drag) return; // pas de re-rendu pendant un glisser
+    if (this._drag) return; // no redraw while dragging
     this._key = key;
     this._render();
   }
 
-  _derog() {
+  _currentOverride() {
     if (this._pending !== undefined) return this._pending;
-    return activeDerogs(this._hass, MORE_INFO_CFG.derog_sensor)[this._entity] || null;
+    return activeOverrides(this._hass, MORE_INFO_CFG.derog_sensor)[this._entity] || null;
   }
 
-  _send(derog) {
+  _send(override) {
     const c = MORE_INFO_CFG;
-    this._pending = derog;
+    this._pending = override;
     this._render();
-    this._hass.callWS({ type: 'fire_event', event_type: c.derog_event, event_data: { climate: this._entity, derogation: derog } })
+    this._hass.callWS({ type: 'fire_event', event_type: c.derog_event, event_data: { climate: this._entity, derogation: override } })
       .catch(() => { this._pending = undefined; this._render(); });
   }
 
-  // Nouvelle échéance : au moins un pas après maintenant
-  _setEnd(fin) {
-    const d = this._derog();
+  // New end: at least one step after now
+  _setEnd(endsAt) {
+    const d = this._currentOverride();
     if (!d) return;
     const min = new Date(Date.now() + MORE_INFO_CFG.step * 60000);
-    this._send({ ...d, fin: (fin < min ? min : fin).toISOString() });
+    this._send({ ...d, fin: (endsAt < min ? min : endsAt).toISOString() });
   }
 
   _week() {
@@ -1311,16 +1311,16 @@ class ChauffageMoreInfo extends HTMLElement {
       const txt = big && end - s.start >= 90 ? `<span>${toHM(s.start)}</span>` : '';
       return `<div class="seg" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${toHM(s.start)} → ${toHM(end)} · ${esc(p.label)}">${txt}</div>`;
     }).join('');
-    let derog = '';
+    let override = '';
     if (piece) {
-      // Poignée de fin uniquement sur la grande barre du jour où la dérogation se termine
+      // End handle only on the large bar of the day the override ends
       const handle = big && piece.isLast
-        ? `<div class="dhandle" data-day="${piece.day}" title="Glisser pour changer la fin"><span class="tip">${toHM(piece.end % DAY_MIN)}</span></div>`
+        ? `<div class="override-handle" data-day="${piece.day}" title="Glisser pour changer la fin"><span class="tip">${toHM(piece.end % DAY_MIN)}</span></div>`
         : '';
-      derog = `<div class="derog" style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%">${handle}</div>`;
+      override = `<div class="override" style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%">${handle}</div>`;
     }
     const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
-    return `<div class="bar${big ? ' big' : ''}">${segHtml}${derog}${now}</div>`;
+    return `<div class="bar${big ? ' big' : ''}">${segHtml}${override}${now}</div>`;
   }
 
   _render() {
@@ -1328,48 +1328,48 @@ class ChauffageMoreInfo extends HTMLElement {
     if (!week) { this.shadowRoot.innerHTML = ''; this.style.display = 'none'; return; }
     this.style.display = '';
     const today = todayIdx();
-    const d = this._derog();
-    const pieces = derogPieces(d);
+    const d = this._currentOverride();
+    const pieces = overridePieces(d);
     this._pieces = pieces;
     const pieceFor = (day) => pieces.find((p) => p.day === day);
 
-    // Créneau en cours / suivant
+    // Current / next slot
     const segs = week[today];
     const now = nowMin();
     let idx = 0;
     segs.forEach((s, i) => { if (s.start <= now) idx = i; });
-    const cur = PRESETS[segs[idx].preset] || { label: segs[idx].preset };
+    const currentPreset = PRESETS[segs[idx].preset] || { label: segs[idx].preset };
     const next = segs[idx + 1];
-    const suit = next
-      ? `${cur.label} jusqu'à ${toHM(next.start)}, puis ${(PRESETS[next.preset] || { label: next.preset }).label}`
-      : `${cur.label} jusqu'à minuit`;
+    const followText = next
+      ? `${currentPreset.label} jusqu'à ${toHM(next.start)}, puis ${(PRESETS[next.preset] || { label: next.preset }).label}`
+      : `${currentPreset.label} jusqu'à minuit`;
 
     let status;
     let endDay = '';
     if (d) {
-      const fin = parseDate(d.fin);
-      const reste = Math.max(0, Math.round((fin - new Date()) / 60000));
+      const endsAt = parseDate(d.fin);
+      const remaining = Math.max(0, Math.round((endsAt - new Date()) / 60000));
       const lastPiece = pieces.find((p) => p.isLast);
-      const jour = fin.toDateString() === new Date().toDateString() ? "aujourd'hui" : DAYS[(fin.getDay() + 6) % 7].toLowerCase();
-      const plus = (m, label) => `<button data-min="${m}">${label}</button>`;
+      const dayLabel = endsAt.toDateString() === new Date().toDateString() ? "aujourd'hui" : DAYS[(endsAt.getDay() + 6) % 7].toLowerCase();
+      const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
       status = `<div class="status derogation">
         <div class="line">
-          <span class="dval">⏱ ${esc(derogLabel(d))}</span>
-          <label>jusqu'à <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(fin)}"></label>
-          <span class="muted">${jour} · encore ${dureeTxt(reste)}</span>
+          <span class="override-value">⏱ ${esc(overrideLabel(d))}</span>
+          <label>jusqu'à <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
+          <span class="muted">${dayLabel} · encore ${durationText(remaining)}</span>
         </div>
         <div class="btns">
-          ${plus(-30, '−30 min')}${plus(30, '+30 min')}${plus(60, '+1 h')}${plus(120, '+2 h')}
+          ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
           <button class="danger" data-del>Reprendre le programme</button>
         </div>
       </div>`;
-      // Fin un autre jour : on affiche aussi la grande barre de ce jour-là (avec la poignée)
+      // Ends on another day: also show that day's large bar (with the handle)
       if (lastPiece && lastPiece.day !== today) {
         endDay = `<div class="today-lbl">${DAYS[lastPiece.day]}</div>
           ${this._bar(week[lastPiece.day], lastPiece, false, true)}`;
       }
     } else {
-      status = `<div class="status"><span class="muted">Suit le programme :</span> ${esc(suit)}</div>`;
+      status = `<div class="status"><span class="muted">Suit le programme :</span> ${esc(followText)}</div>`;
     }
 
     const rows = week.map((s, day) => `<div class="row${day === today ? ' today' : ''}">
@@ -1385,7 +1385,7 @@ class ChauffageMoreInfo extends HTMLElement {
         <div class="ticks"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span></div>
         <details><summary>Semaine</summary><div class="week">${rows}</div></details>
       </div>`;
-    // Conserve l'état ouvert/fermé de "Semaine" entre deux rendus
+    // Keeps "Semaine" open / closed across redraws
     const det = this.shadowRoot.querySelector('details');
     det.open = !!this._weekOpen;
     det.addEventListener('toggle', () => { this._weekOpen = det.open; });
@@ -1394,7 +1394,7 @@ class ChauffageMoreInfo extends HTMLElement {
   _onClick(e) {
     const b = e.target.closest('button');
     if (!b || !this._hass) return;
-    const d = this._derog();
+    const d = this._currentOverride();
     if (!d) return;
     if (b.hasAttribute('data-del')) return this._send(null);
     this._setEnd(new Date(parseDate(d.fin).getTime() + Number(b.dataset.min) * 60000));
@@ -1404,17 +1404,17 @@ class ChauffageMoreInfo extends HTMLElement {
     const el = e.target;
     if (!el.hasAttribute('data-end') || !el.value) return;
     // Prochaine occurrence de cette heure (aujourd'hui, sinon demain)
-    const fin = new Date();
-    fin.setHours(0, 0, 0, 0);
-    fin.setMinutes(Math.round(toMin(el.value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step);
-    if (fin <= new Date()) fin.setDate(fin.getDate() + 1);
-    this._setEnd(fin);
+    const endsAt = new Date();
+    endsAt.setHours(0, 0, 0, 0);
+    endsAt.setMinutes(Math.round(toMin(el.value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step);
+    if (endsAt <= new Date()) endsAt.setDate(endsAt.getDate() + 1);
+    this._setEnd(endsAt);
   }
 
-  // ----- glisser la fin de la dérogation -----
+  // ----- dragging the override's end -----
 
   _onDown(e) {
-    const h = e.target.closest('.dhandle');
+    const h = e.target.closest('.override-handle');
     if (!h) return;
     const piece = (this._pieces || []).find((p) => p.isLast);
     if (!piece) return;
@@ -1457,7 +1457,7 @@ const MORE_INFO_STYLE = `
   .muted { color:var(--secondary-text-color); font-weight:normal; font-size:.9em; }
   .status { font-size:.92em; margin-bottom:10px; }
   .status.derogation { display:flex; flex-direction:column; gap:8px; }
-  .dval { padding:2px 8px; border-radius:6px; color:#fff; font-weight:600;
+  .override-value { padding:2px 8px; border-radius:6px; color:#fff; font-weight:600;
     background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
   .btns { display:flex; flex-wrap:wrap; gap:6px; }
   button { font:inherit; font-size:.85em; padding:5px 10px; border-radius:8px; cursor:pointer;
@@ -1470,17 +1470,17 @@ const MORE_INFO_STYLE = `
     display:flex; align-items:center; padding-left:4px; box-sizing:border-box; white-space:nowrap; }
   .bar.big .seg:first-child { border-radius:6px 0 0 6px; }
   .bar.big .seg:nth-last-child(1 of .seg) { border-radius:0 6px 6px 0; }
-  .derog { position:absolute; top:2px; bottom:2px; border:2px solid #fff; border-radius:3px; box-sizing:border-box;
+  .override { position:absolute; top:2px; bottom:2px; border:2px solid #fff; border-radius:3px; box-sizing:border-box;
     background:repeating-linear-gradient(135deg, #7b1fa2 0 5px, #9c4dcc 5px 10px); }
-  .bar:not(.big) .derog { top:0; bottom:0; border-width:1px; }
-  .bar.big .derog { z-index:2; box-shadow:0 1px 4px rgba(0,0,0,.35); }
-  .dhandle { position:absolute; top:-6px; bottom:-6px; right:-10px; width:18px; cursor:ew-resize; touch-action:none; }
-  .dhandle::after { content:''; position:absolute; left:6px; top:3px; bottom:3px; width:6px; border-radius:3px;
+  .bar:not(.big) .override { top:0; bottom:0; border-width:1px; }
+  .bar.big .override { z-index:2; box-shadow:0 1px 4px rgba(0,0,0,.35); }
+  .override-handle { position:absolute; top:-6px; bottom:-6px; right:-10px; width:18px; cursor:ew-resize; touch-action:none; }
+  .override-handle::after { content:''; position:absolute; left:6px; top:3px; bottom:3px; width:6px; border-radius:3px;
     background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.45); }
   .tip { display:none; position:absolute; bottom:100%; left:50%; transform:translate(-50%,-2px); z-index:4;
     padding:2px 6px; border-radius:4px; font-size:11px; white-space:nowrap;
     background:var(--primary-text-color); color:var(--card-background-color); }
-  .dhandle:hover .tip, .dhandle.drag .tip { display:block; }
+  .override-handle:hover .tip, .override-handle.drag .tip { display:block; }
   .line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
   input[type=time] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--card-background-color); color:var(--primary-text-color); }
@@ -1498,7 +1498,7 @@ const MORE_INFO_STYLE = `
 
 if (!customElements.get('chauffage-moreinfo')) customElements.define('chauffage-moreinfo', ChauffageMoreInfo);
 
-// Recherche dans le DOM en traversant les shadow roots
+// DOM search through shadow roots
 function deepQuery(root, selector, depth = 0) {
   if (!root || depth > 12) return null;
   const found = root.querySelector(selector);
@@ -1512,7 +1512,7 @@ function deepQuery(root, selector, depth = 0) {
   return null;
 }
 
-// Surveille la fenêtre de détail tant qu'elle est ouverte et y (ré)insère le bloc
+// Watches the more-info dialog while it is open and (re)inserts the block
 function watchMoreInfo(entityId) {
   clearInterval(window.__chauffageMoreInfoTimer);
   let tries = 0;
@@ -1522,18 +1522,18 @@ function watchMoreInfo(entityId) {
     const ha = document.querySelector('home-assistant');
     const hass = ha && ha.hass;
     const dialog = ha && ha.shadowRoot && ha.shadowRoot.querySelector('ha-more-info-dialog');
-    // Entité affichée : propriété interne du dialogue si disponible, sinon celle de l'événement
+    // Displayed entity: the dialog's internal property when available, otherwise the event's
     const current = dialog && ('_entityId' in dialog ? dialog._entityId : entityId);
     if (!hass || !dialog || !current) {
       if (injected || tries > 25) clearInterval(window.__chauffageMoreInfoTimer);
       return;
     }
     const progs = hass.states[MORE_INFO_CFG.sensor] && hass.states[MORE_INFO_CFG.sensor].attributes.programmes;
-    // Emplacement : fin de la vue "info" du dialogue ; à défaut, juste après les commandes du thermostat
+    // Location: end of the dialog's "info" view; otherwise right after the thermostat controls
     const info = deepQuery(dialog.shadowRoot, 'ha-more-info-info');
     const content = info ? null : deepQuery(dialog.shadowRoot, 'more-info-content');
     const host = info ? info.shadowRoot || info : content && content.parentNode;
-    if (!host) return; // autre onglet du dialogue (historique, paramètres…)
+    if (!host) return; // another dialog tab (history, settings…)
     let block = host.querySelector('chauffage-moreinfo');
     if (!current.startsWith('climate.') || !progs || typeof progs !== 'object' || !progs[current]) {
       if (block) block.remove();
@@ -1548,8 +1548,8 @@ function watchMoreInfo(entityId) {
     block.entity = current;
     block.hass = hass;
   };
-  // Mise à jour immédiate (évite d'afficher un instant le bloc du thermostat précédent),
-  // puis à l'image suivante (rendu du dialogue), puis en continu tant que le dialogue est ouvert
+  // Immediate update (avoids briefly showing the previous thermostat's block), then on the
+  // next frame (dialog rendering), then continuously while the dialog is open
   tick();
   requestAnimationFrame(tick);
   window.__chauffageMoreInfoTimer = setInterval(tick, 400);
@@ -1573,6 +1573,6 @@ if (!window.customCards.some((c) => c.type === 'chauffage-programme-card')) wind
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
   PRESETS, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
-  derogPieces, derogLabel, activeDerogs, MORE_INFO_CFG,
+  overridePieces, overrideLabel, activeOverrides, MORE_INFO_CFG,
   ChauffageProgrammeCard, ChauffageMoreInfo,
 };
