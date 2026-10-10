@@ -1,6 +1,6 @@
 # Phase 2: heating levels instead of presets — design and plan
 
-Status: **draft for discussion** (see "Open decisions" at the end). Target: v0.3.0.
+Status: **agreed** (see "Decisions" at the end). Target: v0.3.0, published as pre-releases first.
 Roadmap context: [ROADMAP.md](../ROADMAP.md), "Becoming generic", sections 1 and 2.
 
 Goal: schedules reference **heating levels** defined by the user instead of Versatile
@@ -10,15 +10,15 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
 
 ## What the user gets
 
-- Levels with a name and a color, in the user's language: by default *Comfort*, *Eco*,
-  *Boost*, *Frost protection* (today's four presets, same colors), and optionally *Off*.
+- Levels with a name, a color and a default temperature, in the user's language: by default
+  *Comfort* 20 °C, *Eco* 17 °C, *Boost* 21 °C, *Frost protection* 7 °C (today's four presets,
+  same colors). No *Off* level in phase 2: thermostats turned off are left alone, as today.
 - Each thermostat added to a schedule gets a **default mapping** from its capabilities:
-  - it has a preset with the level's id (`comfort`, `eco`, `boost`; `frost` for VTherm, `away`
-    as a fallback for frost protection) → that preset;
-  - otherwise → a temperature (20 / 17 / 21 / 7 °C by default, within its min / max, rounded
-    to its step);
-  - *Off* → `hvac_mode: off`.
-- The mapping can be changed per thermostat (preset, temperature or off for each level).
+  - it has a preset with the level's id (`comfort`, `eco`, `boost`, `frost`) → that preset;
+  - otherwise → the level's default temperature, within its min / max, rounded to its step.
+- The mapping can be changed per thermostat (preset or temperature for each level). A
+  thermostat that keeps the default follows later changes of the level's default temperature;
+  one set by hand keeps its own value.
 - The card shows levels (legend, editor buttons) and, for a temperature mapping, the
   temperature of the level for the focused thermostat (as it shows VTherm preset temperatures
   today).
@@ -35,7 +35,7 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
   ],
   "mappings": {
     "climate.salon": {"comfort": {"preset": "comfort"}, "eco": {"preset": "eco"}, "…": "…"},
-    "climate.cuisine": {"comfort": {"temperature": 20.0}, "eco": {"temperature": 17.0}, "off": {"off": true}}
+    "climate.cuisine": {"comfort": {"temperature": 20.5}}
   },
   "schedules": {"climate.salon": {"normal": [[["00:00", "eco"], ["06:30", "comfort"]], "…"]}}
 }
@@ -46,27 +46,32 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
   preset mapping for every scheduled thermostat (exactly today's behavior).
 - Level ids are stable; names and colors can change. Removing a level used in a schedule is
   refused (or replaces it, see decisions).
-- Mappings are created when a thermostat first appears in a schedule (default mapping from
-  its capabilities) and removed with it.
+- `mappings` only holds what was set by hand; everything else is the default mapping, computed
+  from the thermostat's current capabilities (so a thermostat that was unavailable when it was
+  added gets the right mapping once it is back).
+- Levels also carry their default temperature (`"temperature": 20.0`).
 
 ## Engine
 
-- `expected(level, mapping)` → what the thermostat should be: a preset, a target temperature,
-  or off.
+- `expected(level, mapping)` → what the thermostat should be: a preset or a target temperature.
 - `targets(...)` compares the thermostat's state with that expectation (preset equal; target
-  temperature equal within half a step; state off) and returns **actions**:
-  `set_preset_mode`, `set_temperature`, `set_hvac_mode off`, and turning a thermostat back on
-  when the level is not *Off* (see decision 1).
-- Manual changes: today's rules plus the integration's own context already cover a thermostat
-  without presets (any setpoint change that is not ours becomes a temperature override). The
-  remaining part of phase 3 (thermostats that change their setpoint by themselves) stays in
+  temperature equal within half a step) and returns **actions**: `set_preset_mode` or
+  `set_temperature`.
+- Manual changes are judged against what the schedule expects:
+  - temperature mapping: a setpoint change that is not the integration's (nor an automation's)
+    becomes a temperature override; a preset picked by a user becomes a preset override;
+  - preset mapping: today's rules (manual preset such as `none` + setpoint → temperature
+    override; preset picked by a user → preset override). A setpoint change that keeps the
+    preset is the preset's own temperature (VTherm preset temperatures): not an override.
+    Devices that keep their preset on a manual setpoint can be mapped to temperatures.
+  The remaining part of phase 3 (thermostats that change their setpoint by themselves) stays in
   phase 3.
 
 ## Configuration UI
 
 - **Options flow** (Settings → Devices & services → Chauffage → Configure), as a menu:
-  *Levels* (rename, color, add, remove), *Thermostats* (pick one, then for each level: preset /
-  temperature / off, with the thermostat's presets and limits offered), *Override duration*.
+  *Levels* (rename, color, default temperature, add, remove), *Thermostats* (pick one, then for
+  each level: default, one of its presets, or a temperature), *Override duration*.
 - The card does not edit levels or mappings (rarely changed; the options flow is HA's standard
   place for configuration). It reads them through the websocket API.
 
@@ -79,12 +84,18 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
 
 ## Development environment and tests
 
-- The dev HA gets a **`generic_thermostat`** room (created through its config flow by
-  `setup.py`, on a simulated heater and temperature), next to the three VTherm rooms.
+- Every kind of thermostat, in the dev HA and in the tests:
+  - **Versatile Thermostat** (presets `comfort` / `eco` / `boost` / `frost`, `none` on a manual
+    setpoint, safety mode): the three existing rooms;
+  - **standard HA presets** (`eco`, `comfort`, `away`, `boost`, no `frost`; preset cleared on a
+    manual setpoint): a small dev-only climate (`dev/sim_climate/`), so its behavior is
+    controlled; frost protection is then a temperature mapping;
+  - **no presets**: HA's `generic_thermostat`, declared in YAML on a simulated heater (its UI
+    flow only accepts a `switch` or a `fan`).
 - Engine: expectation and actions for each mapping kind; tests of the default mapping from
   capabilities (presets, min / max / step).
-- Integration: the ported behavior tests run on a VTherm-like thermostat **and** on a
-  temperature-only thermostat (parametrized bench); Store migration 1 → 2 with fixtures.
+- Integration: the behavior tests run on the three kinds (parametrized bench); Store
+  migration 1 → 2 with fixtures.
 - Card: levels and mapped values in the legend, on the integration.
 
 ## Steps
@@ -95,21 +106,15 @@ overrides, next to Versatile Thermostats that keep working exactly as today.
    tests on both thermostat kinds.
 3. Options flow: levels, per-thermostat mapping.
 4. Websocket API and card: levels, colors, mapped values.
-5. Dev HA with a `generic_thermostat`; docs (README, CONTRIBUTING, changelog, roadmap);
-   beta on the author's production.
+5. Dev HA with the three kinds of thermostats; docs (README, CONTRIBUTING, changelog,
+   roadmap); v0.3.0 pre-release on the author's production.
 
-## Open decisions
+## Decisions
 
-1. **The *Off* level and thermostats turned off by hand.** Today a thermostat turned off by hand
-   (summer) is left alone. With an *Off* level the scheduler turns thermostats off and must
-   turn them back on for the next level, but must not turn back on a thermostat the user turned
-   off. Recommendation: the integration remembers which thermostats **it** turned off and only
-   turns those back on; a thermostat turned off by someone else stays off (as today).
-   Alternative: no *Off* level in phase 2.
-2. **Removing a level used in schedules**: refuse, or replace it by another level chosen in the
-   form. Recommendation: replace (the form asks which level takes its place).
-3. **Default temperatures** of temperature mappings (20 / 17 / 22 / 7 °C) and where they are
-   set: per thermostat only, or a default per level that new thermostats copy.
-   Recommendation: a default temperature per level (in the *Levels* form), copied into each new
-   thermostat's mapping and editable per thermostat.
-4. **Version**: v0.3.0 (new stored format, migrated), with its own beta.
+1. **No *Off* level** in phase 2: thermostats turned off (by hand, for the summer) are left
+   alone, as today.
+2. **Removing a level used in schedules** replaces it: the form asks which level takes its
+   place.
+3. **Default temperature per level** (in the *Levels* form), used by every thermostat mapped to
+   temperatures unless set per thermostat.
+4. **Version**: v0.3.0, published as pre-releases first.
