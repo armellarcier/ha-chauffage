@@ -3,11 +3,96 @@
     "step": {
       "user": {
         "title": "Chauffage",
-        "description": "Weekly heating schedules for your thermostats."
+        "description": "Weekly heating schedules for your thermostats. Edit them with the Chauffage card, change the heating mode with the mode entity."
+      },
+      "import_package": {
+        "title": "Import from the package",
+        "description": "The ha-chauffage package (v0.1) is installed. Its schedules ({thermostats} thermostats, {modes} modes), its current overrides and the active mode will be imported, and its two automations turned off so that only one scheduler drives your thermostats. You will then be told how to remove the package."
       }
     },
     "abort": {
-      "single_instance_allowed": "Already configured. Only a single configuration possible."
+      "single_instance_allowed": "Already configured. Only a single configuration possible.",
+      "package_too_new": "The installed package saved its schedules in a newer format than this version of the integration understands. Update the integration first."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Chauffage options",
+        "data": {
+          "override_duration": "Override duration"
+        },
+        "data_description": {
+          "override_duration": "How long a manual change lasts before the thermostat resumes its schedule."
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "mode": { "name": "Heating mode" }
+    },
+    "sensor": {
+      "schedule": {
+        "name": "Schedule",
+        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
+        "state_attributes": {
+          "next_preset": { "name": "Next preset" },
+          "next_start": { "name": "Next slot start" }
+        }
+      },
+      "schedule_of": {
+        "name": "{thermostat} schedule",
+        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
+        "state_attributes": {
+          "next_preset": { "name": "Next preset" },
+          "next_start": { "name": "Next slot start" }
+        }
+      },
+      "override_end": {
+        "name": "Override end",
+        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" } }
+      },
+      "override_end_of": {
+        "name": "{thermostat} override end",
+        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" } }
+      }
+    }
+  },
+  "issues": {
+    "package_installed": {
+      "title": "Remove the ha-chauffage package",
+      "description": "The Chauffage integration now schedules your thermostats; the package's automations have been turned off. To finish: delete `packages/chauffage/` and `www/chauffage/` from your configuration folder, remove the `/local/chauffage/chauffage-loader.js` line from `frontend: extra_module_url` and the three `sensor.*_chauffage` lines from `recorder: exclude` in `configuration.yaml`, then restart Home Assistant. In your own automations, replace `input_select.mode_chauffage` with `{mode_entity}`."
+    }
+  },
+  "selector": {
+    "preset": {
+      "options": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" }
+    }
+  },
+  "services": {
+    "set_override": {
+      "name": "Set an override",
+      "description": "Sets a scheduled thermostat's temperature or preset for a while, then it resumes its schedule (like a manual change).",
+      "fields": {
+        "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." },
+        "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
+        "preset": { "name": "Preset", "description": "Preset to use (or give a temperature)." },
+        "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
+        "end": { "name": "End", "description": "When the override ends (instead of a duration)." }
+      }
+    },
+    "clear_override": {
+      "name": "Clear an override",
+      "description": "Ends a thermostat's override now: it resumes its schedule.",
+      "fields": {
+        "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." }
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": { "message": "The Chauffage integration is not set up." },
+    "not_scheduled": { "message": "{entity_id} has no schedule." },
+    "thermostat_failed": { "message": "{entity_id} did not accept the change." }
   }
 }

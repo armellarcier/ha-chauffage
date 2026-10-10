@@ -3,7 +3,7 @@ import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { VERSION } from '../../www/chauffage-programme-card.js';
+import { VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 

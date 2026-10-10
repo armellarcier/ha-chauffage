@@ -1,5 +1,5 @@
 // Simulated browser (jsdom) so the card can be loaded in Node.
-// Must be imported BEFORE www/chauffage-programme-card.js.
+// Must be imported BEFORE the card (custom_components/chauffage/frontend/).
 import { JSDOM } from 'jsdom';
 
 process.env.TZ = 'Europe/Paris';

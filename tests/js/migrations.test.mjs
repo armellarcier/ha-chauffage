@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import {
   DATA_VERSION, MIGRATIONS, DataVersionError, migrateSchedules, readSchedules, saveMigratedSchedules,
-} from '../../www/chauffage-programme-card.js';
+} from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const fixture = (v) => new URL(`../fixtures/schedules-v${v}.json`, import.meta.url);
 const load = (v) => JSON.parse(readFileSync(fixture(v), 'utf8'));

@@ -1,6 +1,6 @@
 // Fake hass and card factory for the tests.
 import './setup.mjs';
-import { ChauffageProgrammeCard, ChauffageMoreInfo } from '../../www/chauffage-programme-card.js';
+import { ChauffageProgrammeCard, ChauffageMoreInfo } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 export const WEEKDAY = ['00:00 eco', '06:30 comfort', '08:30 eco', '17:30 comfort', '22:30 eco'];
 export const WEEKEND = ['00:00 eco', '08:00 comfort', '23:00 eco'];

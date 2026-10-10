@@ -2,7 +2,7 @@
 import { fakeHass, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { I18N, makeLocale } from '../../www/chauffage-programme-card.js';
+import { I18N, makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const user = (locale, extra = {}) => ({ locale: { time_format: 'language', number_format: 'language', first_weekday: 'language', ...locale }, ...extra });
 

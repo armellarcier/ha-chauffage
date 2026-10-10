@@ -2,7 +2,7 @@
 import { fakeHass, createCard, cleanup, ChauffageProgrammeCard, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay } from '../../www/chauffage-programme-card.js';
+import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const day = (card, climate, d, mode) => serializeDay(card._week(climate, mode)[d]);
 

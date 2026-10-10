@@ -1,0 +1,236 @@
+"""The scheduler: replaces the package's two automations.
+
+- every minute: slots starting now, overrides ending now;
+- full realignment when HA starts, the mode changes or the schedules are saved;
+- a manual change on a scheduled thermostat becomes a temporary override.
+
+The integration calls services with its own contexts: state changes carrying one of them are
+its own (not manual changes).
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections import deque
+from collections.abc import Callable
+from datetime import datetime, timedelta
+import logging
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import CoreState, Context, Event, EventStateChangedData, HomeAssistant, State, callback
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
+from homeassistant.util import dt as dt_util
+
+from . import engine, model
+from .const import CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION
+from .store import SAVE_DELAY, ChauffageStore
+
+_LOGGER = logging.getLogger(__name__)
+
+# Listener reasons: "data" (schedules, overrides, mode changed) or "tick" (every minute)
+DATA, TICK = "data", "tick"
+
+
+class StaleRevision(Exception):
+    """Schedules saved from an outdated copy (edited elsewhere in the meantime)."""
+
+
+def thermostat(state: State | None) -> engine.Thermostat | None:
+    if state is None:
+        return None
+    return engine.Thermostat(
+        state.state,
+        engine.preset_value(state.attributes.get("preset_mode")),
+        engine.temperature_value(state.attributes.get("temperature")),
+    )
+
+
+class ChauffageRuntime:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: ChauffageStore, data: dict[str, Any]) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.store = store
+        self.data = data
+        self.pause = 0.3  # seconds between two thermostats (Zigbee network)
+        self._own_contexts: deque[str] = deque(maxlen=500)
+        self._lock = asyncio.Lock()
+        self._listeners: set[Callable[[str], None]] = set()
+        self._unsubs: list[Callable[[], None]] = []
+        self._unsub_states: Callable[[], None] | None = None
+
+    # ----- life cycle -----
+
+    async def async_start(self) -> None:
+        self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
+        self._track_thermostats()
+        if self.hass.state is CoreState.running:
+            self.entry.async_create_task(self.hass, self.apply(force=True), "chauffage realign")
+        else:
+            @callback
+            def started(_event: Event) -> None:
+                self.entry.async_create_task(self.hass, self.apply(force=True), "chauffage realign")
+
+            self._unsubs.append(self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started))
+
+    @callback
+    def async_stop(self) -> None:
+        for unsub in self._unsubs:
+            unsub()
+        self._unsubs.clear()
+        if self._unsub_states:
+            self._unsub_states()
+            self._unsub_states = None
+
+    # ----- listeners (entities, websocket) -----
+
+    @callback
+    def async_add_listener(self, listener: Callable[[str], None]) -> Callable[[], None]:
+        self._listeners.add(listener)
+        return lambda: self._listeners.discard(listener)
+
+    @callback
+    def _notify(self, reason: str = DATA) -> None:
+        for listener in list(self._listeners):
+            listener(reason)
+
+    @callback
+    def _changed(self) -> None:
+        self.store.async_delay_save(lambda: self.data, SAVE_DELAY)
+        self._notify(DATA)
+
+    # ----- reading -----
+
+    @property
+    def override_duration(self) -> int:
+        return int(self.entry.options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION))
+
+    @property
+    def mode_ids(self) -> set[str]:
+        return {m["id"] for m in self.data["modes"]}
+
+    def mode_name(self, mode_id: str) -> str | None:
+        return next((m["name"] for m in self.data["modes"] if m["id"] == mode_id), None)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Everything the card needs."""
+        return {
+            "modes": self.data["modes"],
+            "active_mode": self.data["active_mode"],
+            "schedules": self.data["schedules"],
+            "overrides": self.data["overrides"],
+            "revision": self.data["revision"],
+            "override_duration": self.override_duration,
+        }
+
+    def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
+        """(preset now, next preset, its start) for a thermostat in the active mode."""
+        week = self.data["schedules"].get(entity_id, {}).get(self.data["active_mode"])
+        if not week:
+            return None, None, None
+        return engine.current_and_next(week, now or dt_util.now())
+
+    # ----- writing -----
+
+    async def save_schedules(self, schedules: Any, revision: int | None = None) -> None:
+        if revision is not None and revision != self.data["revision"]:
+            raise StaleRevision
+        self.data["schedules"] = model.normalize_schedules(schedules, self.mode_ids)
+        self.data["revision"] += 1
+        self._track_thermostats()
+        self._changed()
+        await self.apply(force=True)
+
+    async def set_mode(self, mode_id: str) -> None:
+        if mode_id not in self.mode_ids:
+            raise model.InvalidData(f"unknown mode: {mode_id}")
+        if mode_id == self.data["active_mode"]:
+            return
+        self.data["active_mode"] = mode_id
+        self._changed()
+        await self.apply(force=True)
+
+    async def set_override(self, entity_id: str, override: dict[str, Any] | None) -> None:
+        """Create / extend (override) or remove (None) a thermostat's override."""
+        if override is None:
+            if self.data["overrides"].pop(entity_id, None) is None:
+                return
+            self._changed()
+            await self.apply(resumed=entity_id)
+            return
+        self.data["overrides"][entity_id] = model.normalize_override(override)
+        self._changed()
+
+    def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
+        start = dt_util.now().replace(microsecond=0)
+        end = end or start + timedelta(minutes=minutes or self.override_duration)
+        return {"kind": kind, "value": value, "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
+
+    async def call_climate(self, service: str, entity_id: str, data: dict[str, Any]) -> bool:
+        """Calls a climate service with the integration's own context; False if it failed."""
+        context = Context()
+        self._own_contexts.append(context.id)
+        try:
+            await self.hass.services.async_call(
+                "climate", service, {"entity_id": entity_id, **data}, blocking=True, context=context
+            )
+        except Exception as err:  # noqa: BLE001 — one unreachable valve must not stop the others
+            _LOGGER.warning("%s: climate.%s failed: %s", entity_id, service, err)
+            return False
+        return True
+
+    # ----- scheduling -----
+
+    async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None) -> None:
+        async with self._lock:
+            schedules = self.data["schedules"]
+            todo = engine.targets(
+                schedules,
+                self.data["active_mode"],
+                dt_util.now(),
+                self.data["overrides"],
+                {e: t for e in schedules if (t := thermostat(self.hass.states.get(e)))},
+                force=force,
+                resumed=resumed,
+                ended=ended or (),
+            )
+            for i, (entity_id, preset) in enumerate(todo):
+                if i and self.pause:
+                    await asyncio.sleep(self.pause)
+                await self.call_climate("set_preset_mode", entity_id, {"preset_mode": preset})
+
+    async def _tick(self, now: datetime) -> None:
+        ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
+        await self.apply(ended=ended)
+        if ended:
+            for entity_id in ended:
+                self.data["overrides"].pop(entity_id, None)
+            self._changed()
+        self._notify(TICK)
+
+    # ----- manual changes -----
+
+    @callback
+    def _track_thermostats(self) -> None:
+        if self._unsub_states:
+            self._unsub_states()
+        entities = list(self.data["schedules"])
+        self._unsub_states = (
+            async_track_state_change_event(self.hass, entities, self._state_changed) if entities else None
+        )
+
+    @callback
+    def _state_changed(self, event: Event[EventStateChangedData]) -> None:
+        old, new = event.data["old_state"], event.data["new_state"]
+        if old is None or new is None:
+            return
+        context = new.context
+        # Changes made by the schedule, or by any automation / script, are not overrides
+        if context.id in self._own_contexts or context.parent_id is not None:
+            return
+        change = engine.manual_change(thermostat(old), thermostat(new), by_user=context.user_id is not None)
+        if change is None:
+            return
+        override = self.new_override(*change)
+        self.entry.async_create_task(self.hass, self.set_override(new.entity_id, override), "chauffage override")

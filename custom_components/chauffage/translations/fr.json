@@ -3,11 +3,96 @@
     "step": {
       "user": {
         "title": "Chauffage",
-        "description": "Plannings de chauffe hebdomadaires pour vos thermostats."
+        "description": "Plannings de chauffe hebdomadaires pour vos thermostats. Modifiez-les avec la carte Chauffage, changez de mode de chauffage avec l'entité de mode."
+      },
+      "import_package": {
+        "title": "Import depuis le package",
+        "description": "Le package ha-chauffage (v0.1) est installé. Ses plannings ({thermostats} thermostats, {modes} modes), ses dérogations en cours et le mode actif seront importés, et ses deux automatisations désactivées pour qu'un seul programmateur pilote vos thermostats. On vous expliquera ensuite comment retirer le package."
       }
     },
     "abort": {
-      "single_instance_allowed": "Déjà configuré. Une seule configuration possible."
+      "single_instance_allowed": "Déjà configuré. Une seule configuration possible.",
+      "package_too_new": "Le package installé a enregistré ses plannings dans un format plus récent que celui que cette version de l'intégration comprend. Mettez d'abord l'intégration à jour."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options de Chauffage",
+        "data": {
+          "override_duration": "Durée des dérogations"
+        },
+        "data_description": {
+          "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son programme."
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "mode": { "name": "Mode de chauffage" }
+    },
+    "sensor": {
+      "schedule": {
+        "name": "Programme",
+        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
+        "state_attributes": {
+          "next_preset": { "name": "Preset suivant" },
+          "next_start": { "name": "Début de la plage suivante" }
+        }
+      },
+      "schedule_of": {
+        "name": "Programme {thermostat}",
+        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
+        "state_attributes": {
+          "next_preset": { "name": "Preset suivant" },
+          "next_start": { "name": "Début de la plage suivante" }
+        }
+      },
+      "override_end": {
+        "name": "Fin de dérogation",
+        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" } }
+      },
+      "override_end_of": {
+        "name": "Fin de dérogation {thermostat}",
+        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" } }
+      }
+    }
+  },
+  "issues": {
+    "package_installed": {
+      "title": "Retirer le package ha-chauffage",
+      "description": "L'intégration Chauffage programme désormais vos thermostats ; les automatisations du package ont été désactivées. Pour terminer : supprimez `packages/chauffage/` et `www/chauffage/` de votre dossier de configuration, retirez la ligne `/local/chauffage/chauffage-loader.js` de `frontend: extra_module_url` et les trois lignes `sensor.*_chauffage` de `recorder: exclude` dans `configuration.yaml`, puis redémarrez Home Assistant. Dans vos propres automatisations, remplacez `input_select.mode_chauffage` par `{mode_entity}`."
+    }
+  },
+  "selector": {
+    "preset": {
+      "options": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" }
+    }
+  },
+  "services": {
+    "set_override": {
+      "name": "Créer une dérogation",
+      "description": "Règle la température ou le preset d'un thermostat programmé pour un temps donné, puis il reprend son programme (comme un changement manuel).",
+      "fields": {
+        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un programme." },
+        "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un preset)." },
+        "preset": { "name": "Preset", "description": "Preset à utiliser (ou indiquer une température)." },
+        "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },
+        "end": { "name": "Fin", "description": "Quand la dérogation se termine (au lieu d'une durée)." }
+      }
+    },
+    "clear_override": {
+      "name": "Terminer une dérogation",
+      "description": "Termine la dérogation d'un thermostat : il reprend son programme.",
+      "fields": {
+        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un programme." }
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": { "message": "L'intégration Chauffage n'est pas configurée." },
+    "not_scheduled": { "message": "{entity_id} n'a pas de programme." },
+    "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." }
   }
 }

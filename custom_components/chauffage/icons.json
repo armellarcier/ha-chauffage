@@ -1,0 +1,17 @@
+{
+  "entity": {
+    "select": {
+      "mode": { "default": "mdi:home-thermometer" }
+    },
+    "sensor": {
+      "schedule": { "default": "mdi:calendar-clock" },
+      "schedule_of": { "default": "mdi:calendar-clock" },
+      "override_end": { "default": "mdi:timer-cog-outline" },
+      "override_end_of": { "default": "mdi:timer-cog-outline" }
+    }
+  },
+  "services": {
+    "set_override": { "service": "mdi:timer-plus-outline" },
+    "clear_override": { "service": "mdi:calendar-sync" }
+  }
+}

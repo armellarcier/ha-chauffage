@@ -6,7 +6,7 @@
 #   <target> = HA configuration folder, local       e.g. /config, /docker/homeassistant/config
 #            = or host:folder, over SSH             e.g. nas:/docker/homeassistant/config
 #
-# Copies:  www/                 → <target>/www/chauffage/
+# Copies:  www/ + the card       → <target>/www/chauffage/
 #          packages/chauffage/  → <target>/packages/chauffage/
 # Then, if PROD_HA_URL / PROD_HA_TOKEN are set (.env): checks the HA configuration, restores the
 # previous version if it is invalid, otherwise reloads template sensors + automations.
@@ -56,6 +56,7 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/www/chauffage" "$stage/packages/chauffage"
 cp -R www/. "$stage/www/chauffage/"
+cp custom_components/chauffage/frontend/chauffage-programme-card.js "$stage/www/chauffage/"
 cp -R packages/chauffage/. "$stage/packages/chauffage/"
 tar -C "$stage" -cf - www packages | run "bash -c $(printf '%q' "$remote") _ install"
 echo "  files copied"

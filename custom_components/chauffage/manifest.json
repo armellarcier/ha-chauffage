@@ -1,8 +1,10 @@
 {
   "domain": "chauffage",
   "name": "Chauffage",
+  "after_dependencies": ["frontend"],
   "codeowners": ["@armellarcier"],
   "config_flow": true,
+  "dependencies": ["http", "websocket_api"],
   "documentation": "https://github.com/armellarcier/ha-chauffage",
   "integration_type": "service",
   "iot_class": "calculated",

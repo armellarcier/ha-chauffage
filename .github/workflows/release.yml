@@ -22,7 +22,7 @@ jobs:
       - name: Check the version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          grep -q "^const VERSION = '$version';" www/chauffage-programme-card.js \
+          grep -q "^const VERSION = '$version';" custom_components/chauffage/frontend/chauffage-programme-card.js \
             || { echo "::error::Tag $GITHUB_REF_NAME does not match VERSION in the card"; exit 1; }
           grep -q "^## \[$version\]" CHANGELOG.md \
             || { echo "::error::No CHANGELOG.md entry for $version"; exit 1; }
@@ -30,7 +30,7 @@ jobs:
       - name: Build the ZIP
         run: |
           mkdir -p dist/www/chauffage dist/packages/chauffage
-          cp www/*.js dist/www/chauffage/
+          cp www/*.js custom_components/chauffage/frontend/chauffage-programme-card.js dist/www/chauffage/
           cp packages/chauffage/* dist/packages/chauffage/
           cp LICENSE CHANGELOG.md dist/
           (cd dist && zip -r "../ha-chauffage-$GITHUB_REF_NAME.zip" .)
