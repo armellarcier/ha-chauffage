@@ -19,14 +19,42 @@
     "step": {
       "init": {
         "title": "Chauffage options",
-        "data": {
-          "override_duration": "Override duration"
-        },
+        "menu_options": { "general": "General", "levels": "Heating levels", "thermostats": "Thermostats" }
+      },
+      "general": {
+        "title": "General",
+        "data": { "override_duration": "Override duration" },
         "data_description": {
           "override_duration": "How long a manual change lasts before the thermostat resumes its schedule."
         }
+      },
+      "levels": {
+        "title": "Heating levels",
+        "description": "Choose a level to change, or add one.",
+        "data": { "level": "Level" }
+      },
+      "level": {
+        "title": "Heating level",
+        "description": "The default temperature is used by thermostats that have no preset named like this level, or that are set to a temperature.",
+        "data": { "name": "Name", "color": "Color", "temperature": "Default temperature", "delete": "Delete this level" }
+      },
+      "replace": {
+        "title": "Replace the level",
+        "description": "This level is used in schedules. Which level takes its place?",
+        "data": { "replacement": "Replacement" }
+      },
+      "thermostats": {
+        "title": "Thermostats",
+        "description": "Choose a thermostat to set what each level means for it.",
+        "data": { "thermostat": "Thermostat" }
+      },
+      "mapping": {
+        "title": "Levels of {thermostat}",
+        "description": "For each level: automatic (the thermostat's preset named like the level, otherwise the level's default temperature), one of its presets, or a temperature (set in the field under it)."
       }
-    }
+    },
+    "error": { "invalid_level": "Invalid level: check the name, the color and the temperature." },
+    "abort": { "no_thermostats": "No thermostat has a schedule yet: add one in the Chauffage card first." }
   },
   "entity": {
     "select": {

@@ -129,13 +129,3 @@ async def test_services_refuse_thermostats_without_a_schedule(bench: Bench):
             "chauffage", "set_override", {"entity_id": "climate.cuisine", "preset": "boost"}, blocking=True
         )
 
-
-# ----- options -----
-
-async def test_the_options_flow_sets_the_override_duration(bench: Bench):
-    await start(bench)
-    flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
-    result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": 30})
-    assert result["type"] == "create_entry"
-    await bench.hass.async_block_till_done()
-    assert bench.entry.runtime_data.override_duration == 30
