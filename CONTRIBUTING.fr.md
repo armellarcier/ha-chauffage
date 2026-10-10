@@ -132,7 +132,7 @@ invalide (production inchangée).
 git init --bare /srv/ha-chauffage.git
 cd /srv/ha-chauffage.git
 git config deploy.haconfig /chemin/vers/config
-curl -fsSL -o hooks/pre-receive https://raw.githubusercontent.com/<compte>/ha-chauffage/main/deploy/pre-receive
+curl -fsSL -o hooks/pre-receive https://raw.githubusercontent.com/armellarcier/ha-chauffage/main/deploy/pre-receive
 chmod +x hooks/pre-receive
 printf 'PROD_HA_URL=http://localhost:8123\nPROD_HA_TOKEN=…\n' > deploy.env && chmod 600 deploy.env
 
