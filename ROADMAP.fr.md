@@ -119,6 +119,34 @@ version générique doit être une **intégration** (`custom_components/chauffag
   en CI** qui démarre le HA de dev, lance le setup et vérifie que le planning est appliqué — le
   blindage volontairement reporté plus haut.
 
+### 7. Internationalisation
+
+Tout ce que voit l'utilisateur est aujourd'hui en français : les textes de la carte (jours,
+presets, boutons, messages), les noms des modes (`Normal` / `Absent` / `Vacances`), les noms
+d'entités et d'événements (`input_select.mode_chauffage`, `sensor.derogations_chauffage`,
+`chauffage_derogation_set`) et même les clés des données (`valeur`, `debut`, `fin`). Pour servir
+des utilisateurs de toutes langues :
+
+- **Carte** : tous les textes passent dans des fichiers de traduction (`en` et `fr` pour commencer,
+  d'autres via des contributions), choisis selon la langue de l'utilisateur dans Home Assistant
+  (`hass.locale` / `hass.language`), avec l'anglais par défaut.
+- **Formats adaptés à la langue** : heures en 12 h ou 24 h selon le réglage HA de l'utilisateur,
+  noms des jours et **premier jour de la semaine** selon la langue (`Intl`), températures dans
+  l'unité de l'utilisateur.
+- **Intégration** (phase 4) : le système de traduction de HA (`strings.json`,
+  `translations/*.json`) pour les noms d'entités (`translation_key`), les états, les services, le
+  formulaire de configuration et les messages d'erreur.
+- **Identifiants neutres** : des clés anglaises et stables pour les entités, événements, services
+  et données stockées (`value`, `start`, `end`…) ; seul ce que voit l'utilisateur est traduit. Les
+  modes et niveaux de chauffe par défaut sont créés avec des noms dans la langue de l'utilisateur,
+  puis librement renommables.
+- **Documentation** : déjà en anglais (version de référence) et en français ; d'autres langues
+  sont les bienvenues.
+
+La traduction de la carte peut se faire à tout moment ; les identifiants neutres arrivent avec le
+passage à l'intégration (phase 4), dont la migration depuis le package actuel renomme les clés
+stockées.
+
 ## Ordre des travaux
 
 | Phase | Contenu | Terminée quand |
@@ -126,8 +154,9 @@ version générique doit être une **intégration** (`custom_components/chauffag
 | 1 | Niveaux de chauffe, association à preset / consigne / arrêt, détection des capacités | un `generic_thermostat` suit un planning |
 | 2 | Détection générique des changements manuels | les dérogations fonctionnent sur un thermostat sans presets |
 | 3 | Groupes et modes définis par l'utilisateur (modèle de données, puis carte) | deux groupes dans des modes différents fonctionnent en parallèle |
-| 4 | Intégration, services, stockage, HACS, migration depuis le package | installation depuis HACS, données existantes migrées |
+| 4 | Intégration, services, stockage, HACS, traductions, identifiants neutres, migration depuis le package | installation depuis HACS, données existantes migrées, interface en anglais et en français |
 | 5 | Environnement de dev générique, matrice de tests, versions figées, CI de bout en bout | la CI couvre chaque type de thermostat |
 
 Les phases 1 à 3 peuvent être prototypées dans le package actuel pour valider le comportement
-(avec tests), avant le passage à l'intégration en phase 4.
+(avec tests), avant le passage à l'intégration en phase 4. La traduction de la carte (section 7)
+est indépendante et peut se faire à tout moment.

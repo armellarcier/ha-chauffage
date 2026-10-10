@@ -113,6 +113,28 @@ config UI, no HACS distribution. The generic version should be a **custom integr
   proposing upgrades) and add an **end-to-end CI check** that boots the dev HA, runs the setup and
   verifies that the schedule is applied — the hardening deliberately postponed above.
 
+### 7. Internationalization
+
+Everything user-facing is in French today: the card's texts (days, presets, buttons, messages),
+the mode names (`Normal` / `Absent` / `Vacances`), entity and event names
+(`input_select.mode_chauffage`, `sensor.derogations_chauffage`, `chauffage_derogation_set`) and even
+the data keys (`valeur`, `debut`, `fin`). To serve users in any language:
+
+- **Card**: all texts move to translation files (`en` and `fr` to start, more through
+  contributions), selected from the user's Home Assistant language (`hass.locale` /
+  `hass.language`), with English as the fallback.
+- **Locale-aware formatting**: times in 12 h or 24 h following the user's HA setting, day names and
+  **first day of the week** from the locale (`Intl`), temperatures in the user's unit.
+- **Integration** (phase 4): HA's own translation system (`strings.json`, `translations/*.json`)
+  for entity names (`translation_key`), states, services, the config flow and error messages.
+- **Language-neutral identifiers**: English, stable keys for entities, events, services and stored
+  data (`value`, `start`, `end`…); only what the user sees is translated. Default modes and heating
+  levels are created with names in the user's language, then freely renamed.
+- **Documentation**: already in English (canonical) and French; other languages welcome.
+
+The card's translation can be done at any time; the neutral identifiers come with the move to the
+integration (phase 4), where the migration from the current package renames the stored keys.
+
 ## Order of work
 
 | Phase | Content | Done when |
@@ -120,8 +142,9 @@ config UI, no HACS distribution. The generic version should be a **custom integr
 | 1 | Heating levels, mapping to preset / setpoint / off, capability detection | a `generic_thermostat` follows a schedule |
 | 2 | Generic manual-change detection | overrides work on a thermostat without presets |
 | 3 | Groups and user-defined modes (data model, then card) | two groups with different modes run side by side |
-| 4 | Integration, services, storage, HACS, migration from the package | installed from HACS, existing data migrated |
+| 4 | Integration, services, storage, HACS, translations, language-neutral identifiers, migration from the package | installed from HACS, existing data migrated, UI in English and French |
 | 5 | Generic dev environment, test matrix, pinned versions, end-to-end CI | CI covers every thermostat type |
 
 Phases 1–3 can be prototyped in the current package to validate the behavior (with tests),
-before moving to the integration in phase 4.
+before moving to the integration in phase 4. The card's translation (section 7) is independent
+and can be done at any time.

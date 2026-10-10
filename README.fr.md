@@ -50,7 +50,8 @@ Un thermostat qui n'a pas ces presets n'est pas encore pris en charge.
 
 La dépendance à Versatile Thermostat est **temporaire** : l'objectif est de prendre en charge
 n'importe quelle entité `climate`, avec des groupes de thermostats et des modes de chauffage
-définis par l'utilisateur. Voir la [feuille de route](ROADMAP.fr.md).
+définis par l'utilisateur, et une interface dans la langue de chacun. Voir la
+[feuille de route](ROADMAP.fr.md).
 
 ## Structure
 

@@ -52,7 +52,8 @@ This is how **Versatile Thermostat** behaves, and it is the tested setup. Thermo
 these presets are not supported yet.
 
 The Versatile Thermostat dependency is **temporary**: the goal is to support any `climate` entity,
-with groups of thermostats and user-defined heating modes. See the [roadmap](ROADMAP.md).
+with groups of thermostats, user-defined heating modes, and a UI in your language. See the
+[roadmap](ROADMAP.md).
 
 ## Repository layout
 
