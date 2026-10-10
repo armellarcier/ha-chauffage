@@ -237,16 +237,20 @@ SAMPLE_SCHEDULES = {
 }
 
 
+DASHBOARD_URL = "chauffage-dev"  # HA requires a hyphen in dashboard URLs
+
+
 async def dashboard(ws: WS) -> None:
-    try:
-        await ws.call(type="lovelace/config")
-        return  # a dashboard was already saved: leave it alone
-    except RuntimeError:
-        pass  # auto-generated dashboard: replace it
-    log("dashboard: adding the card")
-    await ws.call(type="lovelace/config/save", config={
-        "title": "Chauffage (dev)",
-        "views": [{"title": "Chauffage", "path": "chauffage", "type": "panel", "cards": [CARD]}],
+    """Dedicated "Chauffage" dashboard in the sidebar (recent HA versions no longer show
+    the legacy default dashboard)."""
+    dashboards = await ws.call(type="lovelace/dashboards/list")
+    if any(d["url_path"] == DASHBOARD_URL for d in dashboards):
+        return
+    log(f"dashboard: creating /{DASHBOARD_URL} with the card")
+    await ws.call(type="lovelace/dashboards/create", url_path=DASHBOARD_URL, title="Chauffage",
+                  icon="mdi:radiator", show_in_sidebar=True, require_admin=False, mode="storage")
+    await ws.call(type="lovelace/config/save", url_path=DASHBOARD_URL, config={
+        "views": [{"title": "Chauffage", "path": "planning", "type": "panel", "cards": [CARD]}],
     })
 
 
@@ -267,7 +271,7 @@ async def main() -> None:
         await thermostats(api)
         await dashboard(ws)
         await sample_schedules(api)
-        log("done — http://localhost:8124 (dev / dev)")
+        log(f"done — http://localhost:8124/{DASHBOARD_URL} (dev / dev)")
 
 
 if __name__ == "__main__":

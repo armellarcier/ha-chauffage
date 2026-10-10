@@ -39,7 +39,7 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 
 **Everything is set up automatically on first start** by the `setup` service
 ([`dev/setup/setup.py`](dev/setup/setup.py), through HA's public APIs): log in at
-<http://localhost:8124> with **`dev` / `dev`** and the "Chauffage" dashboard shows the card,
+<http://localhost:8124/chauffage-dev> with **`dev` / `dev`**: the "Chauffage" dashboard (sidebar) shows the card,
 with three Versatile Thermostat thermostats (salon, bureau, chambre: "over a switch", preset
 temperatures 7 / 17 / 20 / 22 °C) and sample schedules. A long-lived token is written to
 `dev/hass/.dev-token` and used by `scripts/reload.sh` and `scripts/logs.sh` (no `.env` needed
