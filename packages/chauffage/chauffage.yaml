@@ -1,0 +1,250 @@
+# =====================================================================
+#  Package Home Assistant : programmes de chauffe Versatile Thermostat
+#  À placer dans /config/packages/chauffage.yaml
+#  (configuration.yaml :  homeassistant:
+#                           packages: !include_dir_named packages )
+#
+#  Les programmes sont édités avec la carte custom:chauffage-programme-card
+#  et stockés dans l'attribut "programmes" de sensor.programmes_chauffage :
+#    { climate.salon: { Normal: [ [lun], [mar], ... [dim] ], Absent: ..., Vacances: ... }, ... }
+#  chaque jour étant une liste de "HH:MM preset" (premier créneau à 00:00).
+#
+#  Dérogations : un changement manuel de consigne ou de preset (hors planning)
+#  crée une dérogation temporaire, stockée dans sensor.derogations_chauffage :
+#    { climate.salon: { type: temp|preset, valeur: 21|boost, debut: ISO, fin: ISO }, ... }
+#  À l'échéance (ou si elle est supprimée depuis la carte), la vanne reprend le programme.
+# =====================================================================
+
+input_select:
+  mode_chauffage:
+    name: Mode de chauffage
+    icon: mdi:home-thermometer
+    options:
+      - Normal
+      - Absent
+      - Vacances
+
+template:
+  # Stockage des programmes : mis à jour par la carte (événement),
+  # restauré automatiquement au redémarrage de HA.
+  - triggers:
+      - trigger: event
+        event_type: chauffage_programmes_set
+    sensor:
+      - name: Programmes chauffage
+        unique_id: programmes_chauffage
+        icon: mdi:calendar-clock
+        state: "{{ now().isoformat() }}"
+        attributes:
+          programmes: "{{ trigger.event.data.programmes }}"
+
+  # Stockage des dérogations : chaque événement crée / modifie (derogation = {...})
+  # ou supprime (derogation = null) la dérogation d'une vanne.
+  - triggers:
+      - trigger: event
+        event_type: chauffage_derogation_set
+    sensor:
+      - name: Dérogations chauffage
+        unique_id: derogations_chauffage
+        icon: mdi:timer-cog-outline
+        state: "{{ now().isoformat() }}"
+        attributes:
+          # NB : les "{%-" / "-%}" suppriment les espaces produits par les balises ;
+          # sans eux, HA ne reconnaît pas le résultat comme un dictionnaire.
+          derogations: >
+            {%- set c = trigger.event.data.climate -%}
+            {%- set cur = this.attributes.derogations | default({}) -%}
+            {%- set ns = namespace(d={}) -%}
+            {%- for k, v in (cur if cur is mapping else {}).items() if k != c -%}
+              {%- set ns.d = dict(ns.d, **{k: v}) -%}
+            {%- endfor -%}
+            {%- if trigger.event.data.derogation -%}
+              {%- set ns.d = dict(ns.d, **{c: trigger.event.data.derogation}) -%}
+            {%- endif -%}
+            {{- ns.d -}}
+
+  # Suivi des vannes, sans liste à maintenir : les vannes présentes dans les programmes.
+  # Se met à jour dès qu'une consigne ou un preset change (HA suit automatiquement
+  # les entités lues dans le template).
+  - sensor:
+      - name: Suivi vannes chauffage
+        unique_id: suivi_vannes_chauffage
+        icon: mdi:radiator
+        state: "{{ (state_attr('sensor.programmes_chauffage', 'programmes') or {}) | count }}"
+        attributes:
+          vannes: >
+            {%- set ns = namespace(d={}) -%}
+            {%- for ent in (state_attr('sensor.programmes_chauffage', 'programmes') or {}).keys() | sort -%}
+              {%- if states(ent) not in ['unknown', 'unavailable'] -%}
+                {#- Certaines intégrations (ZHA…) donnent un objet Enum (<Preset.NONE: 'none'>)
+                    au lieu d'un texte : on prend sa valeur, sinon le dictionnaire devient illisible -#}
+                {%- set p = state_attr(ent, 'preset_mode') -%}
+                {%- set p = p.value if p.value is defined else p -%}
+                {%- set t = state_attr(ent, 'temperature') -%}
+                {%- set ns.d = dict(ns.d, **{ent: {
+                     't': t | float(none),
+                     'p': p | string if p is not none else none,
+                     'off': is_state(ent, 'off')}}) -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{- ns.d -}}
+
+automation:
+  - id: chauffage_programmes_hebdo
+    alias: "Chauffage - programmes hebdomadaires"
+    description: >
+      Applique le preset VTherm de chaque vanne selon le mode choisi
+      (Normal / Absent / Vacances), le jour et l'heure. Les vannes en dérogation
+      sont laissées tranquilles jusqu'à l'échéance.
+    mode: queued
+    triggers:
+      # Vérifie chaque minute s'il y a un changement de créneau ou une dérogation échue
+      - trigger: time_pattern
+        minutes: "*"
+        id: minute
+      # Changement de mode, programme enregistré ou redémarrage : on réapplique tout
+      - trigger: state
+        entity_id: input_select.mode_chauffage
+        id: force
+      - trigger: state
+        entity_id: sensor.programmes_chauffage
+        id: force
+      - trigger: homeassistant
+        event: start
+        id: force
+      # Dérogation supprimée depuis la carte : la vanne reprend le programme
+      - trigger: event
+        event_type: chauffage_derogation_set
+        id: derogation
+
+    variables:
+      # - trigger "minute" : n'agit que sur les vannes dont un créneau commence
+      #   maintenant, ou dont la dérogation vient d'échoir.
+      # - trigger "force" : réaligne toutes les vannes (hors dérogation en cours).
+      # - Une vanne VTherm en "off" (été) est ignorée.
+      derogations: >
+        {%- set d = state_attr('sensor.derogations_chauffage', 'derogations') -%}
+        {{- d if d is mapping else {} -}}
+      expirees: >
+        {%- set ns = namespace(l=[]) -%}
+        {%- for ent, d in derogations.items() -%}
+          {%- if d is not mapping or not d.fin or as_datetime(d.fin) is none or as_datetime(d.fin) <= now() -%}{%- set ns.l = ns.l + [ent] -%}{%- endif -%}
+        {%- endfor -%}
+        {{- ns.l -}}
+      cibles: >
+        {%- set tout = state_attr('sensor.programmes_chauffage', 'programmes') or {} -%}
+        {%- set mode = states('input_select.mode_chauffage') -%}
+        {%- set jour = now().weekday() -%}
+        {%- set hm = now().strftime('%H:%M') -%}
+        {%- set force = trigger.id == 'force' -%}
+        {%- set reprise = trigger.event.data.climate
+             if trigger.id == 'derogation' and not trigger.event.data.derogation else none -%}
+        {%- set ns = namespace(l=[]) -%}
+        {%- for ent, modes in tout.items() -%}
+          {%- set semaine = modes.get(mode) -%}
+          {# ent == reprise : le capteur n'est peut-être pas encore à jour de la suppression #}
+          {%- set en_derogation = ent in derogations and ent not in expirees and ent != reprise -%}
+          {%- if semaine and semaine | count == 7 and not en_derogation -%}
+            {%- set c = namespace(preset=none, debut=false) -%}
+            {%- for creneau in semaine[jour] -%}
+              {%- set h = creneau.split(' ')[0] -%}
+              {%- if h <= hm -%}
+                {%- set c.preset = creneau.split(' ')[1] -%}
+                {%- set c.debut = (h == hm) -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- set actuel = state_attr(ent, 'preset_mode') -%}
+            {%- set actuel = (actuel.value if actuel.value is defined else actuel) | string -%}
+            {%- if c.preset is not none
+                  and (force or c.debut or ent == reprise or ent in expirees)
+                  and states(ent) not in ['off', 'unavailable', 'unknown']
+                  and actuel != c.preset -%}
+              {%- set ns.l = ns.l + [{'entity': ent, 'preset': c.preset}] -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{- ns.l -}}
+
+    conditions:
+      - condition: template
+        value_template: "{{ cibles | count > 0 or expirees | count > 0 }}"
+
+    actions:
+      - repeat:
+          for_each: "{{ cibles }}"
+          sequence:
+            # continue_on_error : une vanne injoignable (ex. Zigbee NWK_NO_ROUTE)
+            # ne doit pas empêcher la mise à jour des autres
+            - action: climate.set_preset_mode
+              continue_on_error: true
+              target:
+                entity_id: "{{ repeat.item.entity }}"
+              data:
+                preset_mode: "{{ repeat.item.preset }}"
+            # Petit délai pour ne pas saturer le réseau Zigbee
+            - delay:
+                milliseconds: 300
+      # Nettoie les dérogations échues
+      - repeat:
+          for_each: "{{ expirees }}"
+          sequence:
+            - event: chauffage_derogation_set
+              event_data:
+                climate: "{{ repeat.item }}"
+                derogation: null
+
+  - id: chauffage_derogation_manuelle
+    alias: "Chauffage - dérogation manuelle"
+    description: >
+      Un changement de consigne ou de preset fait à la main (pas par le planning)
+      devient une dérogation temporaire. À l'échéance, la vanne reprend le programme.
+    mode: queued
+    triggers:
+      # Le capteur de suivi change dès qu'une consigne ou un preset de vanne change
+      - trigger: state
+        entity_id: sensor.suivi_vannes_chauffage
+
+    variables:
+      # Durée par défaut d'une dérogation, en minutes
+      duree_defaut: 120
+      # Valeurs de preset_mode signifiant "consigne manuelle" (affichée "Manuel" en français)
+      presets_manuels: ['', 'none', 'manual', 'manuel']
+      # Vannes dont la consigne / le preset vient d'être changé à la main
+      changements: >
+        {%- set avant = trigger.from_state.attributes.vannes if trigger.from_state else none -%}
+        {%- set apres = trigger.to_state.attributes.vannes if trigger.to_state else none -%}
+        {%- set avant = avant if avant is mapping else {} -%}
+        {%- set apres = apres if apres is mapping else {} -%}
+        {%- set ns = namespace(l=[]) -%}
+        {%- for ent, a in apres.items() if ent in avant and not a.off -%}
+          {%- set b = avant[ent] -%}
+          {%- set ctx = states[ent].context if states[ent] else none -%}
+          {# Changement qui ne vient pas d'une automatisation (donc pas du planning) #}
+          {%- if ctx and ctx.parent_id is none -%}
+            {%- set manuel = a.p is none or (a.p | string | lower) in presets_manuels -%}
+            {%- if manuel and a.t is not none and (a.t != b.t or a.p != b.p) -%}
+              {# Consigne réglée à la main : VTherm passe en preset manuel #}
+              {%- set ns.l = ns.l + [{'climate': ent, 'type': 'temp', 'valeur': a.t}] -%}
+            {%- elif not manuel and a.p != b.p and ctx.user_id is not none -%}
+              {# Preset choisi à la main par un utilisateur #}
+              {%- set ns.l = ns.l + [{'climate': ent, 'type': 'preset', 'valeur': a.p}] -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{- ns.l -}}
+
+    conditions:
+      - "{{ changements | count > 0 }}"
+
+    actions:
+      - repeat:
+          for_each: "{{ changements }}"
+          sequence:
+            - event: chauffage_derogation_set
+              event_data:
+                climate: "{{ repeat.item.climate }}"
+                derogation:
+                  type: "{{ repeat.item.type }}"
+                  valeur: "{{ repeat.item.valeur }}"
+                  debut: "{{ now().replace(microsecond=0).isoformat() }}"
+                  fin: "{{ (now() + timedelta(minutes=duree_defaut)).replace(microsecond=0).isoformat() }}"
