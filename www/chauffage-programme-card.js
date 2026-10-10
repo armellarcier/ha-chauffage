@@ -3,7 +3,7 @@
  * Carte Lovelace : édition visuelle des programmes hebdomadaires
  * Versatile Thermostat. 7 journées, chacune avec une ligne par vanne affichée.
  *
- * Servi par HA sous /local/chauffage/ (dossier www/ du dépôt monté dans le conteneur)
+ * Installé dans <config>/www/chauffage/ (servi sous /local/chauffage/)
  * et chargé sur toutes les pages par chauffage-loader.js — voir README.md.
  */
 
