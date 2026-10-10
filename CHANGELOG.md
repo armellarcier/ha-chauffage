@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.2.0-beta.1] - 2026-10-10
+
 ha-chauffage becomes a Home Assistant integration, installed from HACS and configured from the
 UI: no YAML to edit. **Stored data: imported from the package** (the package's own data is not
 modified).
@@ -68,5 +70,6 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.2.0-beta.1...HEAD
+[0.2.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.1
 [0.1.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0
