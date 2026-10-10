@@ -197,13 +197,33 @@ async def test_a_change_made_by_the_integration_itself_is_not_an_override(bench:
     assert bench.overrides() == {}
 
 
-async def test_leaving_safety_mode_resumes_the_schedule_without_an_override(bench: Bench):
-    """Regression (dev HA): Versatile Thermostat enters safety mode (no temperature received),
-    then leaves it to preset "none" with a setpoint; that is not a manual change."""
+# ----- Versatile Thermostat's safety mode (no temperature received) -----
+# VTherm keeps the requested preset aside while in safety mode and returns to it afterwards:
+# nothing special to handle, as long as the usual rules give the right result.
+
+async def test_safety_mode_and_back_to_the_scheduled_preset_is_not_an_override(bench: Bench):
     await start(bench)
     bench.thermostat("climate.salon", "safety", 7)  # no context: the thermostat itself
     await bench.hass.async_block_till_done()
-    bench.thermostat("climate.salon", "none", 18)
+    bench.thermostat("climate.salon", "eco", 17)
     await bench.hass.async_block_till_done()
     assert bench.overrides() == {}
-    assert bench.applied_presets() == {"climate.salon": "eco"}
+
+
+async def test_slot_changes_are_still_sent_during_safety_mode(bench: Bench):
+    """VTherm records the requested preset and applies it when safety mode ends."""
+    await start(bench)
+    await bench.go_to("17:00")
+    bench.thermostat("climate.salon", "safety", 7)
+    await bench.go_to("17:30")
+    assert bench.applied_presets() == {"climate.salon": "comfort"}
+
+
+async def test_a_preset_picked_by_a_user_during_safety_mode_is_an_override(bench: Bench):
+    await start(bench)
+    bench.thermostat("climate.salon", "safety", 7)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "comfort", 20, context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    o = bench.overrides()["climate.salon"]
+    assert (o["kind"], o["value"]) == ("preset", "comfort")

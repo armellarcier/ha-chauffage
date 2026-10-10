@@ -179,12 +179,22 @@ async def test_an_enum_preset_does_not_break_detection(bench: Bench):
     assert "climate.salon" in bench.overrides()
 
 
-async def test_leaving_safety_mode_is_not_an_override(bench: Bench):
-    """Versatile Thermostat enters safety mode (no temperature received), then leaves it to
-    preset "none" with a setpoint: not a manual change."""
+# ----- Versatile Thermostat's safety mode (no temperature received) -----
+# VTherm keeps the requested preset aside while in safety mode and returns to it afterwards.
+
+async def test_safety_mode_and_back_to_the_scheduled_preset_is_not_an_override(bench: Bench):
     await start(bench)
     bench.thermostat("climate.salon", "safety", 7)
     await bench.hass.async_block_till_done()
-    bench.thermostat("climate.salon", "none", 18)
+    bench.thermostat("climate.salon", "eco", 17)
     await bench.hass.async_block_till_done()
     assert bench.overrides() == {}
+
+
+async def test_a_preset_picked_by_a_user_during_safety_mode_is_an_override(bench: Bench):
+    await start(bench)
+    bench.thermostat("climate.salon", "safety", 7)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "comfort", 20, context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    assert bench.overrides()["climate.salon"]["valeur"] == "comfort"

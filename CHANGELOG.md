@@ -9,6 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- The safety-mode handling added in 0.2.0-beta.2 is removed: Versatile Thermostat keeps the
+  requested preset during safety mode and returns to it by itself, so the usual rules are right
+  (no override when it returns to the scheduled preset). With 0.2.0-beta.2, a preset or setpoint
+  chosen by a user during safety mode was overwritten by the schedule; it is an override again.
+
 ## [0.2.0-beta.2] - 2026-10-10
 
 ### Fixed

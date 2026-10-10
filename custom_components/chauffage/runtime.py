@@ -229,12 +229,7 @@ class ChauffageRuntime:
         # Changes made by the schedule, or by any automation / script, are not overrides
         if context.id in self._own_contexts or context.parent_id is not None:
             return
-        before, after = thermostat(old), thermostat(new)
-        if engine.left_own_preset(before, after) and new.entity_id not in self.data["overrides"]:
-            # Back from safety mode (or power shedding…): the schedule applies again
-            self.entry.async_create_task(self.hass, self.apply(resumed=new.entity_id), "chauffage resume")
-            return
-        change = engine.manual_change(before, after, by_user=context.user_id is not None)
+        change = engine.manual_change(thermostat(old), thermostat(new), by_user=context.user_id is not None)
         if change is None:
             return
         override = self.new_override(*change)

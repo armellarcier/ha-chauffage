@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
-from .const import MANUAL_PRESETS, PRESETS
+from .const import MANUAL_PRESETS
 
 IGNORED_STATES = frozenset({"off", "unavailable", "unknown"})
 
@@ -125,17 +125,6 @@ def targets(
     return out
 
 
-def own_preset(preset: str | None) -> bool:
-    """A preset the thermostat sets by itself (Versatile Thermostat: safety, power shedding…),
-    neither a schedule preset nor a manual one."""
-    return preset is not None and preset not in PRESETS and preset.lower() not in MANUAL_PRESETS
-
-
-def left_own_preset(before: Thermostat, after: Thermostat) -> bool:
-    """The thermostat leaves a preset it had set by itself: its schedule must be applied again."""
-    return own_preset(before.preset) and after.preset != before.preset and after.state not in IGNORED_STATES
-
-
 def manual_change(before: Thermostat, after: Thermostat, *, by_user: bool) -> tuple[str, Any] | None:
     """Override created by a manual change, as (kind, value), or None.
 
@@ -145,8 +134,6 @@ def manual_change(before: Thermostat, after: Thermostat, *, by_user: bool) -> tu
     """
     if after.state in IGNORED_STATES or before.state in ("unavailable", "unknown"):
         return None
-    if own_preset(before.preset) or own_preset(after.preset):
-        return None  # the thermostat entering or leaving its own mode (safety…)
     manual = after.preset is None or after.preset.lower() in MANUAL_PRESETS
     if manual and after.temperature is not None and (
         after.temperature != before.temperature or after.preset != before.preset
