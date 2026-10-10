@@ -22,6 +22,8 @@ class ModeSelect(ChauffageEntity, SelectEntity):
     def __init__(self, runtime) -> None:
         super().__init__(runtime)
         self._attr_unique_id = f"{runtime.entry.entry_id}_mode"
+        # Same id whatever the system language (automations and docs refer to it)
+        self.entity_id = "select.chauffage_mode"
         self._attr_device_info = service_device(runtime)
 
     @property

@@ -73,7 +73,7 @@ async def test_schedules_overrides_and_mode_are_imported(bench: Bench):
     assert sorted(calls[0]["entity_id"]) == ["automation.chauffage_derogation_manuelle", "automation.chauffage_programmes_hebdo"]
     issue = ir.async_get(bench.hass).async_get_issue("chauffage", "package_installed")
     assert issue is not None
-    assert issue.translation_placeholders == {"mode_entity": "select.chauffage_heating_mode"}
+    assert issue.translation_placeholders == {"mode_entity": "select.chauffage_mode"}
 
 
 async def test_the_issue_disappears_once_the_package_is_removed(bench: Bench):

@@ -64,6 +64,9 @@ sont pas migrées.
 
 ### Puis, rapidement : plus de YAML
 
+**En cours (v0.2.0)** : l'intégration est écrite et testée, la bêta est la prochaine étape ; voir
+[docs/integration-plan.md](docs/integration-plan.md) (en anglais).
+
 La première version demande encore de copier des fichiers et de modifier `configuration.yaml`
 (package, `extra_module_url`, exclusions du recorder). L'intégration (section 5 plus bas) supprime
 tout cela : installation depuis HACS, puis **tout se configure depuis l'interface** — thermostats,

@@ -1,6 +1,8 @@
 # Phase 1: a YAML-free integration — design and plan
 
-Status: **agreed** (see "Decisions" at the end). Target: v0.2.0.
+Status: **steps 1–7 done** (docs included); remaining: validation of the import with a copy of
+the author's real schedules, the v0.2.0-beta.1 pre-release on the author's production, then
+v0.2.0. See "Changes from the plan" at the end. Target: v0.2.0.
 Roadmap context: [ROADMAP.md](../ROADMAP.md), phase 1 ("YAML-free integration").
 
 Goal: replace the package (`packages/chauffage/`) and the `configuration.yaml` lines with a
@@ -190,3 +192,18 @@ v0.1.0 upgrade through the import).
    dictionaries stay in phase 1.
 4. **Version**: v0.2.0 (breaking change, allowed before 1.0); 1.0 once groups and generic
    thermostats are in.
+
+## Changes from the plan
+
+- **The card lives in the integration** (`custom_components/chauffage/frontend/`), the single
+  source: HACS installs it with the integration, and the v0.1 package deploy copies it next to
+  its loader. Until v0.2.0 the card works with both: it uses the integration's websocket API when
+  the integration is set up, the package's sensors and events otherwise.
+- **Mode ids are slugs of the names** (`Normal` → `normal`, `Absent` → `absent`…), for the
+  import and for new installations alike.
+- **The mode entity is `select.chauffage_mode`** whatever the system language (its name is
+  translated, its id is not).
+- **A first setup waits for Home Assistant to be running** (retried automatically): during
+  startup the package's restored states and automations may not exist yet.
+- **The integration recognizes its own changes by their context**, not only by "not made by an
+  automation": a thermostat's answer to the scheduler can never become an override.

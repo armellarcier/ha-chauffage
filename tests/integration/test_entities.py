@@ -18,11 +18,11 @@ async def start(bench: Bench) -> None:
 
 async def test_the_mode_select_lists_the_modes_and_shows_the_active_one(bench: Bench):
     await start(bench)
-    state = bench.hass.states.get("select.chauffage_heating_mode")
+    state = bench.hass.states.get("select.chauffage_mode")
     assert state.attributes["options"] == ["Normal", "Away", "Holiday"]
     assert state.state == "Normal"
     await bench.set_mode("Away")
-    assert bench.hass.states.get("select.chauffage_heating_mode").state == "Away"
+    assert bench.hass.states.get("select.chauffage_mode").state == "Away"
     assert bench.runtime.data["active_mode"] == "away"
 
 
@@ -30,6 +30,8 @@ async def test_default_mode_names_follow_the_language(bench: Bench):
     await bench.hass.config.async_update(language="fr")
     await bench.setup()
     assert [m["name"] for m in bench.runtime.data["modes"]] == ["Normal", "Absent", "Vacances"]
+    # The mode entity keeps a language-neutral id
+    assert bench.hass.states.get("select.chauffage_mode").attributes["options"][1] == "Absent"
 
 
 async def test_thermostat_sensors_are_disabled_by_default(bench: Bench):

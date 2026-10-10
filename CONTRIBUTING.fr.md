@@ -23,7 +23,9 @@ python3 -m http.server 8000      # à la racine du dépôt
 
 Ouvrir <http://localhost:8000/dev/harness.html>. Le banc simule Home Assistant : états,
 capteurs du projet, événements, rendu différé de `ha-card` et fenêtre de détail d'un thermostat
-(boutons en haut de page). Modifier `www/chauffage-programme-card.js`, recharger la page.
+(boutons en haut de page). Modifier `custom_components/chauffage/frontend/chauffage-programme-card.js`,
+recharger la page. Le banc simule les capteurs du package v0.1 ; le mode intégration de la carte
+est couvert par `tests/js/card-integration.test.mjs` et par le HA de développement.
 
 ## 2. Logique HA : le HA de développement
 
@@ -33,9 +35,9 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 
 - Versatile Thermostat est installé automatiquement (`VTHERM_VERSION=… docker compose … up -d`
   pour une autre version ; `HA_VERSION=beta` pour tester la prochaine version de HA).
-- Le dépôt est **monté en direct** : `www/` → `/local/chauffage/`, `packages/chauffage/` → package HA,
-  `custom_components/chauffage/` → l'intégration en cours (phase 1 de la feuille de route, voir
-  [docs/integration-plan.md](docs/integration-plan.md) ; redémarrer HA après un changement Python).
+- Le dépôt est **monté en direct** : `custom_components/chauffage/` → l'intégration et sa carte ;
+  `packages/chauffage/` → le package v0.1, gardé jusqu'à la v0.2.0 pour tester son import (ses
+  automatisations sont désactivées par l'import).
 - `dev/hass/packages/simulation.yaml` crée trois pièces virtuelles (salon, bureau, chambre) :
   un radiateur `input_boolean.radiateur_*` et une température `sensor.temperature_*` qui monte
   quand le radiateur chauffe.
@@ -44,7 +46,8 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 ([`dev/setup/setup.py`](dev/setup/setup.py), via les API publiques de HA) : se connecter sur
 <http://localhost:8124/chauffage-dev> avec **`dev` / `dev`** : le tableau de bord « Chauffage » (barre latérale) affiche la carte,
 avec trois thermostats Versatile Thermostat (salon, bureau, chambre : « sur un interrupteur »,
-températures de presets 7 / 17 / 20 / 22 °C) et des programmes d'exemple. Un jeton longue durée
+températures de presets 7 / 17 / 20 / 22 °C) et des programmes d'exemple, enregistrés via le
+package puis importés par l'intégration **Chauffage** (comme lors d'une mise à jour). Un jeton longue durée
 est écrit dans `dev/hass/.dev-token` et utilisé par `scripts/reload.sh` et `scripts/logs.sh`
 (pas besoin de `.env` pour le HA de dev). L'état est conservé dans `dev/hass/` (non versionné) ;
 pour repartir de zéro : `docker compose -f dev/compose.yaml down && git clean -fdX dev/hass`.
@@ -53,13 +56,16 @@ pour repartir de zéro : `docker compose -f dev/compose.yaml down && git clean -
 
 | Je modifie… | Pour l'appliquer |
 |---|---|
-| `www/*.js` | recharger la page du navigateur |
+| `custom_components/chauffage/frontend/*.js` (carte) | recharger la page du navigateur |
+| `custom_components/chauffage/*.py`, `*.json` | `docker compose -f dev/compose.yaml restart homeassistant` |
 | `packages/chauffage/chauffage.yaml` | `scripts/reload.sh` (vérifie la config puis recharge) |
 | `dev/hass/configuration.yaml` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
 `scripts/logs.sh` affiche la fin du journal (filtrée sur le projet ; `scripts/logs.sh dev 200 all`
 pour tout voir). Pour accélérer les tests de la logique temporelle, changer les températures
-avec les curseurs `input_number.temperature_*` et la durée de dérogation (`default_duration`).
+avec les curseurs `input_number.temperature_*` et la durée de dérogation (options de
+l'intégration). Pour rejouer l'import depuis le package : supprimer l'intégration Chauffage,
+réactiver les automatisations `automation.chauffage_*`, puis ajouter de nouveau l'intégration.
 
 ## 3. Tests automatisés
 
@@ -67,16 +73,19 @@ avec les curseurs `input_number.temperature_*` et la durée de dérogation (`def
 scripts/test.sh          # tout (utilise Node / Python s'ils sont installés, sinon Docker)
 scripts/test.sh js       # la carte seulement
 scripts/test.sh ha       # le package HA seulement (arguments passés à pytest : scripts/test.sh ha -k ends)
-scripts/test.sh integration   # l'intégration en cours (custom_components/chauffage)
+scripts/test.sh integration   # l'intégration (custom_components/chauffage)
+HA=min scripts/test.sh integration   # idem, sur le HA minimal pris en charge (hacs.json, 2026.9)
 ```
 
 | Suite | Outil | Ce qui est couvert |
 |---|---|---|
 | `tests/ha/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée | le package : créneaux appliqués au bon moment, modes, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin |
-| `tests/integration/` | idem, avec `custom_components/` chargé | l'intégration en cours : le flux de configuration pour l'instant |
-| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé) | la carte : calculs, édition du planning, copier / coller, enregistrement, dérogations, fenêtre de détail |
+| `tests/integration/` | idem, avec `custom_components/` chargé | l'intégration : les mêmes comportements que le package (tests repris), la logique pure (`engine.py`), le stockage et ses migrations, les entités, les services, l'API websocket, les flux de configuration et d'options, l'import depuis le package |
+| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé) | la carte : calculs, édition du planning, copier / coller, enregistrement, dérogations, fenêtre de détail, sur le package et sur l'intégration |
 
-Dans `tests/ha/`, les thermostats sont de simples états `climate.*` simulés et
+Les suites Python tournent sur la dernière version de Home Assistant et sur la version minimale
+prise en charge (CI et `HA=min`). Dans `tests/ha/` et `tests/integration/`, les thermostats sont
+de simples états `climate.*` simulés et
 `climate.set_preset_mode` est remplacé par un enregistreur ; l'objet `Bench` (`conftest.py`)
 avance le temps, simule un changement manuel ou la réponse du thermostat, et enregistre des
 programmes comme le fait la carte.
@@ -99,7 +108,13 @@ abandonnées). À réenregistrer quand l'apparence de la carte change.
 
 ## 4. Déployer sur un vrai Home Assistant
 
-Le projet s'installe en **copiant des fichiers** dans la configuration HA :
+**L'intégration** (v0.2+) s'installe avec HACS (voir le README), ou en copiant
+`custom_components/chauffage/` dans `<config>/custom_components/chauffage/` puis en redémarrant
+HA. Pour essayer une version de développement sur son propre HA, publier une préversion (voir
+« Publier une version ») et l'installer depuis HACS avec les versions bêta activées.
+
+**Le package v0.1** (ci-dessous, jusqu'à la v0.2.0) s'installe en **copiant des fichiers** dans
+la configuration HA :
 
 | Dépôt | Configuration HA |
 |---|---|
@@ -161,10 +176,18 @@ nouvelle version (aucun `?v=` à changer, aucun redémarrage).
 
 ## Versions des données et migrations
 
-Les installations doivent se mettre à jour sans action manuelle ni perte de données. Les
-plannings stockés dans `sensor.programmes_chauffage` portent une **version de schéma** (attribut
+Les installations doivent se mettre à jour sans action manuelle ni perte de données.
+
+**Intégration** : `.storage/chauffage` est un `Store` Home Assistant versionné
+(`STORAGE_VERSION` dans `custom_components/chauffage/store.py`). Un changement de format
+l'incrémente et ajoute `MIGRATIONS[n]` (version n → n + 1), avec
+`tests/fixtures/store-v<n+1>.json` ; `tests/integration/test_store.py` vérifie que chaque fixture
+migre vers la plus récente. La carte ne voit que l'API websocket, dont le format évolue avec
+l'intégration.
+
+**Package (v0.1)** : les plannings stockés dans `sensor.programmes_chauffage` portent une **version de schéma** (attribut
 `version` ; absent = 1, le format d'avant la v0.1.0). La version actuelle est `DATA_VERSION` dans
-`www/chauffage-programme-card.js`.
+`custom_components/chauffage/frontend/chauffage-programme-card.js`.
 
 - La carte migre les données plus anciennes à la lecture et les réenregistre une fois (depuis la
   carte, ou depuis n'importe quelle page de Home Assistant ouverte par un administrateur : le
@@ -197,7 +220,7 @@ automatiquement). Liste de contrôle :
 
 1. `scripts/test.sh` : tout au vert, migrations testées avec des fixtures.
 2. Réenregistrer la démo (`scripts/demo.sh`) si l'apparence de la carte a changé.
-3. Mettre la version dans `www/chauffage-programme-card.js` (`VERSION`), `package.json`,
+3. Mettre la version dans `custom_components/chauffage/frontend/chauffage-programme-card.js` (`VERSION`), `package.json`,
    l'en-tête de `packages/chauffage/chauffage.yaml` et `custom_components/chauffage/manifest.json` ; déplacer les entrées « Unreleased » de
    `CHANGELOG.md` sous la nouvelle version, avec la date et les étapes de mise à jour.
    `tests/js/release.test.mjs` vérifie que ces versions concordent.
@@ -223,13 +246,17 @@ La carte parle anglais et français. Elle suit le profil de l'utilisateur Home A
 nombres** (séparateur décimal), **premier jour de la semaine**, et l'unité de température de la
 configuration HA.
 
-- Les textes sont dans l'objet `I18N` de `www/chauffage-programme-card.js`, un objet par langue,
+- Les textes sont dans l'objet `I18N` de `custom_components/chauffage/frontend/chauffage-programme-card.js`, un objet par langue,
   avec des clés en anglais et des variables `{placeholder}`.
 - Chaque langue a exactement les mêmes clés et variables : `tests/js/i18n.test.mjs` le vérifie.
 - Les formats ne sont jamais écrits à la main : heures, noms des jours et nombres viennent des API
   `Intl` du navigateur, selon `hass.locale` (voir `makeLocale`).
-- Les noms des modes (`Normal` / `Absent` / `Vacances`) sont des données (options de
-  `input_select.mode_chauffage`), pas des textes d'interface : ils ne sont pas traduits.
+- Les noms des modes (`Normal` / `Absent` / `Vacances`) sont des données, pas des textes
+  d'interface : ils ne sont pas traduits (l'intégration crée les modes par défaut dans la langue
+  de HA).
+- Les textes de l'intégration (flux de configuration, entités, services, réparations, erreurs)
+  utilisent les fichiers de traduction de Home Assistant : `strings.json` (anglais, source) et
+  `translations/en.json`, `translations/fr.json`, avec les mêmes clés.
 - Pour ajouter une langue : ajouter un objet à `I18N` (mêmes clés que `en`), étendre
   `resolveLanguage`, puis lancer `scripts/test.sh js`.
 - Avec l'intégration (feuille de route, phase 1), la carte sera compilée : les traductions

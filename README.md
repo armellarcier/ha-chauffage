@@ -16,31 +16,20 @@ Weekly heating schedules for Home Assistant, for preset-based thermostats such a
   shown and adjustable on the card and in the thermostat's more-info dialog, then the
   thermostat falls back to its schedule.
 
-> The project's name and entities are in French (*chauffage* = heating); the card speaks
+> The project's name is French (*chauffage* = heating); the integration and the card speak
 > English and French.
 
 ## Installation
 
-1. Download `ha-chauffage-vX.Y.Z.zip` from the [latest release](https://github.com/armellarcier/ha-chauffage/releases/latest)
-   and unzip it into the Home Assistant configuration folder (`<config>`): it contains
-   `www/chauffage/` and `packages/chauffage/`. From a clone of the repository, copy `www/*` to
-   `<config>/www/chauffage/` and `packages/chauffage/*` to `<config>/packages/chauffage/`
-   (or run `scripts/deploy.sh <config>`).
-2. In `configuration.yaml`:
-   ```yaml
-   homeassistant:
-     packages: !include_dir_named packages
-   frontend:
-     extra_module_url:
-       - /local/chauffage/chauffage-loader.js
-   recorder:
-     exclude:
-       entities:
-         - sensor.programmes_chauffage
-         - sensor.derogations_chauffage
-         - sensor.suivi_vannes_chauffage
-   ```
-3. Restart Home Assistant, then add the card:
+From v0.2, ha-chauffage is a **Home Assistant integration** configured from the UI: no YAML to
+edit. Version 0.1 was a YAML package; [upgrading](#upgrading-from-the-package-v01) imports its
+data automatically.
+
+1. In HACS: ⋮ → *Custom repositories* → `https://github.com/armellarcier/ha-chauffage`, type
+   *Integration*; then install **ha-chauffage** and restart Home Assistant. (While v0.2 is in
+   beta, enable *Show beta versions* on the repository in HACS.)
+2. Settings → Devices & services → *Add integration* → **Chauffage**.
+3. Add the card to a dashboard (it is served by the integration: no resource to add):
    ```yaml
    type: custom:chauffage-programme-card
    thermostats:
@@ -50,13 +39,39 @@ Weekly heating schedules for Home Assistant, for preset-based thermostats such a
    The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
    the week); English and French are available, and `language: en` or `language: fr` forces one.
 
-**Upgrading**: read the [changelog](CHANGELOG.md), replace the files, then reload the
-automations and template entities (or restart). Stored schedules are migrated automatically when
-an administrator opens Home Assistant; the data before the migration is kept in the `previous`
-attribute of `sensor.programmes_chauffage`. Going back to an older version is not supported.
+Requires Home Assistant 2026.9 or later.
 
-The active mode is `input_select.mode_chauffage`: switch it from the card (open the mode tab,
-then "Activer") or from any automation (presence, calendar…).
+### What the integration provides
+
+- **Heating mode** select (`select.chauffage_mode`): switch it from the card (open the
+  mode tab, then "Activate") or from any automation (presence, calendar…).
+- Per scheduled thermostat, two sensors **disabled by default** (enable them on the
+  thermostat's device page): **Schedule** (preset planned now, next slot in attributes) and
+  **Override end** (timestamp, usable as a time trigger).
+- Services `chauffage.set_override` (temperature or preset for a duration or until a time) and
+  `chauffage.clear_override`.
+- Options (Settings → Devices & services → Chauffage → *Configure*): override duration
+  (2 h by default).
+
+### Upgrading from the package (v0.1)
+
+1. Install the integration (steps 1–2 above) **without removing the package**: the setup
+   offers to import its schedules, current overrides and active mode, then turns off the
+   package's two automations so that only one scheduler drives the thermostats.
+2. Check the card and the thermostats. To go back, delete the integration and turn the two
+   `automation.chauffage_*` automations back on: the package's data is untouched.
+3. Follow the repair shown in Settings: delete `packages/chauffage/` and `www/chauffage/`,
+   remove the `extra_module_url` line and the `recorder` exclusions from `configuration.yaml`,
+   restart. In your automations, replace `input_select.mode_chauffage` with
+   `select.chauffage_mode`.
+
+Upgrading the integration itself: read the [changelog](CHANGELOG.md) and update from HACS;
+stored data is migrated automatically. Going back to an older version is not supported.
+
+### Package installation (v0.1)
+
+The [v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) is a YAML
+package: unzip its ZIP into the configuration folder and follow the README of that version.
 
 ### Supported thermostats
 
@@ -72,39 +87,37 @@ with groups of thermostats, user-defined heating modes, and a UI in your languag
 ## Repository layout
 
 ```
-packages/chauffage/chauffage.yaml   template sensors + automations (HA package)
-custom_components/chauffage/        integration replacing the package (in progress, docs/integration-plan.md)
-www/chauffage-loader.js             stable loader (always loads the latest card version)
-www/chauffage-programme-card.js     Lovelace card + block injected into the more-info dialog
+custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
+custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
+packages/chauffage/, www/           the v0.1 package and its card loader (until v0.2.0)
 dev/harness.html, dev/*.js          test bench without HA (fake hass, ha-card and dialog)
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
-tests/ha/, tests/js/                 automated tests (pytest + in-memory HA, node --test + jsdom)
+tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
+tests/ha/                           tests of the v0.1 package
 tests/fixtures/                     stored data in each past format (migration tests)
-scripts/                            test.sh, reload.sh, logs.sh, deploy.sh
-deploy/pre-receive                  git hook to deploy with git push
-.github/workflows/                  tests (CI) and releases
+scripts/                            test.sh, reload.sh, logs.sh, deploy.sh, demo.sh
+.github/workflows/                  tests (CI), hassfest, HACS checks and releases
 ```
 
-Development and deployment: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
-- `sensor.programmes_chauffage` (template sensor, triggered by the `chauffage_programmes_set`
-  event sent by the card): `{climate: {mode: [7 × ["HH:MM preset", …]]}}`.
-- `sensor.derogations_chauffage` (event `chauffage_derogation_set`, sent by the card or by the
-  manual-change detection): `{climate: {type, valeur, debut, fin}}`; `derogation: null` removes it.
-- `sensor.suivi_vannes_chauffage`: setpoint / preset of the thermostats used in the schedules;
-  it triggers the manual-change detection (no entity list to maintain).
-- **Weekly schedules** automation: applies the slot's preset (every minute, on mode change, when
-  a schedule is saved, at startup), skips thermostats with an active override, and restores the
-  schedule when the override ends.
-- **Manual override** automation: a setpoint / preset change that does not come from an
-  automation (`context.parent_id` is empty) creates an override.
+- Data is stored in `.storage/chauffage` (versioned, migrated automatically): modes, schedules
+  (`{climate: {mode id: [7 days × [[start, preset], …]]}}`), current overrides.
+- **Scheduler**: every minute, applies the preset of the slots starting now and resumes the
+  schedule of thermostats whose override ends; it realigns every thermostat at startup, when
+  the mode changes and when schedules are saved. Thermostats with an active override, turned
+  off or unavailable are left alone; an unreachable valve does not stop the others.
+- **Manual changes**: a setpoint changed by hand (the thermostat switches to preset `none`) or
+  a preset picked by a user becomes a temporary override. Changes made by the integration itself
+  (its own context) or by an automation are ignored.
+- **Card**: served by the integration and loaded on every page (card + more-info block); it
+  talks to the integration over websocket (`chauffage/subscribe`, `chauffage/schedules/save`…);
+  a save made from an outdated copy is refused instead of overwriting someone else's changes.
 
-Known pitfalls (already handled, covered by tests): ZHA presets are Enums, converted to text
-(otherwise HA stores the whole sensor attribute as unreadable text); dates with microseconds
-are rejected by Safari; `ha-card` renders asynchronously (popover positioning); an unreachable
-Zigbee valve does not stop the schedule from being applied to the others.
+Known pitfalls (already handled, covered by tests): ZHA presets are Enums; dates with
+microseconds are rejected by Safari; `ha-card` renders asynchronously (popover positioning).
 
 ## License
 

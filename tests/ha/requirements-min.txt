@@ -1,0 +1,2 @@
+# Minimum supported Home Assistant (hacs.json): the integration tests also run on it
+pytest-homeassistant-custom-component==0.13.363  # Home Assistant 2026.9.0

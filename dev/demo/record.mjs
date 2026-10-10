@@ -20,8 +20,8 @@ function nextTuesday(hh, mm) {
 }
 const NOW = nextTuesday(10, 5);
 const OVERRIDE = {
-  type: 'temp', valeur: 21.5,
-  debut: nextTuesday(8, 45).toISOString(), fin: nextTuesday(11, 30).toISOString(),
+  kind: 'temperature', value: 21.5,
+  start: nextTuesday(8, 45).toISOString(), end: nextTuesday(11, 30).toISOString(),
 };
 
 const card = 'chauffage-programme-card';
@@ -41,11 +41,11 @@ const CURSOR = () => {
   document.addEventListener('mouseup', () => { dot.style.transform = ''; }, true);
 };
 
-// Sends an event to HA through the frontend's own connection (same path as the card)
-const fireEvent = (page, eventType, eventData) => page.evaluate(([type, data]) => {
+// Sets (or removes, null) an override through the integration's API, like the card does
+const setOverride = (page, climate, override) => page.evaluate(([entityId, data]) => {
   const ha = document.querySelector('home-assistant');
-  return ha.hass.callWS({ type: 'fire_event', event_type: type, event_data: data });
-}, [eventType, eventData]);
+  return ha.hass.callWS({ type: 'chauffage/override/set', entity_id: entityId, override: data });
+}, [climate, override]);
 
 // Full Chromium (the default headless shell only ships English resources: 12 h time inputs)
 const browser = await chromium.launch({ channel: 'chromium', args: ['--lang=fr-FR'] });
@@ -64,9 +64,9 @@ await lp.evaluate(() => {
   localStorage.removeItem('chauffage-programme-card:shown'); // start with every thermostat shown
 });
 // The override shows the thermostat's actual setpoint, so the card and the dialog agree
-OVERRIDE.valeur = await lp.evaluate(() =>
+OVERRIDE.value = await lp.evaluate(() =>
   document.querySelector('home-assistant').hass.states['climate.salon'].attributes.temperature);
-await fireEvent(lp, 'chauffage_derogation_set', { climate: 'climate.salon', derogation: OVERRIDE });
+await setOverride(lp, 'climate.salon', OVERRIDE);
 const session = await login.storageState();
 await login.close();
 
@@ -166,7 +166,7 @@ const restore = await browser.newContext({ viewport: VIEWPORT, ...LOCALE, storag
 const rp = await restore.newPage();
 await rp.goto(DASHBOARD);
 await rp.locator(`${card} .bar`).first().waitFor();
-await fireEvent(rp, 'chauffage_derogation_set', { climate: 'climate.salon', derogation: null });
+await setOverride(rp, 'climate.salon', null);
 await rp.locator(`${card} .tab[data-mode="Normal"]`).click();
 await rp.locator(`${card} [data-act="activate-mode"]`).click();
 await rp.waitForTimeout(1000);

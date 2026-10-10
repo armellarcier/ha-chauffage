@@ -9,6 +9,39 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+ha-chauffage becomes a Home Assistant integration, installed from HACS and configured from the
+UI: no YAML to edit. **Stored data: imported from the package** (the package's own data is not
+modified).
+
+### Added
+
+- `Chauffage` integration (`custom_components/chauffage`): the scheduler, data in
+  `.storage/chauffage` (versioned), config flow and options flow (override duration).
+- `select.chauffage_mode` to change the heating mode (replaces
+  `input_select.mode_chauffage`).
+- Per scheduled thermostat, **Schedule** and **Override end** sensors, disabled by default and
+  attached to the thermostat's device.
+- Services `chauffage.set_override` and `chauffage.clear_override`.
+- The card is served by the integration and loaded on every page: no Lovelace resource and no
+  `extra_module_url`. Two editors can no longer overwrite each other: a save made from an
+  outdated copy is refused.
+- Integration texts in English and French; tested on Home Assistant 2026.9 (minimum) and the
+  latest version.
+
+### Changed
+
+- Changes made by the scheduler are recognized by its own context (instead of "not made by an
+  automation"), which avoids mistaking a thermostat's answer for a manual change.
+
+### Upgrading
+
+- From the package (v0.1): install the integration from HACS **without removing the
+  package**, then add it in Settings → Devices & services. Schedules, current overrides and the
+  active mode are imported and the package's two automations are turned off; a repair then
+  lists the files and lines to remove. Replace `input_select.mode_chauffage` with
+  `select.chauffage_mode` in your automations. To go back: delete the integration and
+  turn the two automations back on.
+
 ## [0.1.0] - 2026-10-10
 
 First release. Installation: unzip `ha-chauffage-v0.1.0.zip` into the Home Assistant

@@ -6,6 +6,7 @@
 #   scripts/test.sh ha            → HA package (pytest + in-memory Home Assistant)
 #   scripts/test.sh integration   → Chauffage integration (custom_components/chauffage)
 #   scripts/test.sh ha -k ends    → extra arguments are passed to pytest
+#   HA=min scripts/test.sh integration → on the minimum supported Home Assistant (hacs.json)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 what="${1:-all}"; shift || true
@@ -27,11 +28,13 @@ js_tests() {
 # pytest in an in-memory Home Assistant; $1 = suite directory (tests/ha or tests/integration)
 pytest_suite() {
   local suite="$1"; shift
-  if python3 -c 'import pytest_homeassistant_custom_component' 2>/dev/null; then
+  if [ "${HA:-}" != min ] && python3 -c 'import pytest_homeassistant_custom_component' 2>/dev/null; then
     python3 -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   else
-    docker build -q -t ha-chauffage-tests -f tests/ha/Dockerfile . >/dev/null
-    docker run --rm -v "$root:/app" -w /app ha-chauffage-tests python -m pytest -c "$suite/pytest.ini" "$suite" "$@"
+    local req=tests/ha/requirements.txt image=ha-chauffage-tests
+    if [ "${HA:-}" = min ]; then req=tests/ha/requirements-min.txt; image=ha-chauffage-tests-min; fi
+    docker build -q -t "$image" --build-arg REQUIREMENTS="$req" -f tests/ha/Dockerfile . >/dev/null
+    docker run --rm -v "$root:/app" -w /app "$image" python -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   fi
 }
 

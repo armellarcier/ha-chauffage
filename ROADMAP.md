@@ -60,6 +60,9 @@ fixtures, changelog, release workflow): see CONTRIBUTING.md, "Data versions and 
 
 ### Then, quickly: no more YAML
 
+**In progress (v0.2.0)**: the integration is written and tested, the beta comes next; see
+[docs/integration-plan.md](docs/integration-plan.md).
+
 The first release still asks users to copy files and edit `configuration.yaml` (package,
 `extra_module_url`, recorder exclusions). The integration (section 5 below) removes all of it:
 installation from HACS, then **everything configured from the UI** — thermostats, modes, heating
