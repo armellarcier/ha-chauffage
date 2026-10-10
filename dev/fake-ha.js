@@ -62,9 +62,19 @@ async function callWS(msg) {
   }, 100);
 }
 
+// Simulates the HA services used by the card
+async function callService(domain, service, data) {
+  events.push({ type: 'call_service', domain, service, data });
+  if (domain === 'input_select' && service === 'select_option') {
+    const id = data.entity_id;
+    states[id] = { ...states[id], state: data.option, last_updated: String(stamp++) };
+    setTimeout(pushHass, 100);
+  }
+}
+
 window.states = states;
 window.events = events;
-window.hass = { states, callWS };
+window.hass = { states, callWS, callService };
 window.pushHass = pushHass;
 window.setMode = (m) => { states['input_select.mode_chauffage'] = { ...states['input_select.mode_chauffage'], state: m, last_updated: String(stamp++) }; pushHass(); };
 

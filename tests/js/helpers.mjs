@@ -18,10 +18,13 @@ export function fakeHass({ schedules, overrides = {}, mode = 'Normal' } = {}) {
     },
     'sensor.derogations_chauffage': { state: 'x', last_updated: '1', attributes: { derogations: overrides } },
   };
+  const services = [];
   return {
     states,
     events,
+    services,
     callWS: async (msg) => { events.push(msg); },
+    callService: async (domain, service, data) => { services.push({ domain, service, data }); },
   };
 }
 

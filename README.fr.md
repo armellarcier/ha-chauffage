@@ -39,7 +39,8 @@ comme **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermosta
        name: Salon
    ```
 
-Le mode actif se choisit avec `input_select.mode_chauffage`.
+Le mode actif est `input_select.mode_chauffage` : il se change depuis la carte (ouvrir l'onglet
+du mode, puis « Activer ») ou depuis n'importe quelle automatisation (présence, calendrier…).
 
 ### Thermostats compatibles
 

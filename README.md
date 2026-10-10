@@ -42,7 +42,8 @@ Weekly heating schedules for Home Assistant, for preset-based thermostats such a
        name: Living room
    ```
 
-The active mode is selected with `input_select.mode_chauffage`.
+The active mode is `input_select.mode_chauffage`: switch it from the card (open the mode tab,
+then "Activer") or from any automation (presence, calendar…).
 
 ### Supported thermostats
 

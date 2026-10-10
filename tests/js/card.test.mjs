@@ -30,6 +30,52 @@ describe('configuration and loading', () => {
   });
 });
 
+describe('switching the active heating mode', () => {
+  const bar = (card) => card.shadowRoot.querySelector('.mode-bar');
+  const tab = (card, mode) => card.shadowRoot.querySelector(`.tab[data-mode="${mode}"]`);
+
+  test('no switch button while viewing the active mode', () => {
+    const card = createCard(fakeHass({ mode: 'Normal' }));
+    assert.equal(bar(card), null);
+  });
+
+  test('viewing another mode offers to activate it', () => {
+    const card = createCard(fakeHass({ mode: 'Normal' }));
+    tab(card, 'Absent').click();
+    assert.match(bar(card).textContent, /Mode actif : Normal/);
+    assert.match(bar(card).textContent, /Activer « Absent »/);
+  });
+
+  test('the button selects the mode in the input_select', async () => {
+    const hass = fakeHass({ mode: 'Normal' });
+    const card = createCard(hass);
+    tab(card, 'Vacances').click();
+    await card._action('activate-mode', {});
+    assert.deepEqual(hass.services, [{
+      domain: 'input_select', service: 'select_option',
+      data: { entity_id: 'input_select.mode_chauffage', option: 'Vacances' },
+    }]);
+  });
+
+  test('once HA reports the new mode, the button disappears', () => {
+    const hass = fakeHass({ mode: 'Normal' });
+    const card = createCard(hass);
+    tab(card, 'Absent').click();
+    hass.states['input_select.mode_chauffage'] = { ...hass.states['input_select.mode_chauffage'], state: 'Absent' };
+    card.hass = { ...hass, states: { ...hass.states } }; // HA pushes a new hass object
+    assert.equal(bar(card), null);
+  });
+
+  test('the active-mode marker follows a mode change made elsewhere (automation…)', () => {
+    const hass = fakeHass({ mode: 'Normal' });
+    const card = createCard(hass);
+    hass.states['input_select.mode_chauffage'] = { ...hass.states['input_select.mode_chauffage'], state: 'Vacances' };
+    card.hass = { ...hass, states: { ...hass.states } };
+    assert.ok(tab(card, 'Vacances').querySelector('.dot'));
+    assert.equal(tab(card, 'Normal').querySelector('.dot'), null);
+  });
+});
+
 describe('editing a day', () => {
   test('adding a cut creates a slot with the other preset', () => {
     const card = createCard(fakeHass());

@@ -201,6 +201,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._derogPending = {};
       need = true;
     }
+    // Active mode changed (from the card, another dashboard or an automation): redraw the
+    // active-mode marker and the "activate" bar
+    const modeState = hass.states[this._config.mode_entity];
+    if (modeState !== this._modeState && !this._drag && !this._derogDrag) {
+      this._modeState = modeState;
+      need = true;
+    }
     if (!this._mode) {
       const active = this._activeMode();
       this._mode = this._modes().includes(active) ? active : this._modes()[0];
@@ -648,6 +655,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="Afficher toutes les vannes">Toutes</button>
         </div>
         <div class="tabs">${tabs}</div>
+        ${this._modeBarHtml(active)}
         <div class="scale"><div></div>${multi ? '<div></div>' : ''}<div class="ticks">${ticks}</div><div></div></div>
         ${days}
         ${this._menuHtml()}
@@ -870,6 +878,29 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // Clic simple : n'affiche que cette vanne. Mode "Plusieurs" ou Ctrl/Maj+clic : ajoute/retire.
+  // Shown when the viewed tab is not the active mode: switch the heating mode from the card,
+  // without a separate input_select card.
+  _modeBarHtml(active) {
+    if (!this._mode || this._mode === active) return '';
+    const current = active ? `Mode actif : <strong>${esc(active)}</strong>` : 'Aucun mode actif';
+    return `<div class="mode-bar">
+      <span>${current}</span>
+      <button class="btn small" data-act="activate-mode">Activer « ${esc(this._mode)} »</button>
+    </div>`;
+  }
+
+  async _activateMode(mode) {
+    try {
+      await this._hass.callService('input_select', 'select_option', {
+        entity_id: this._config.mode_entity, option: mode,
+      });
+      this._msg = `Mode « ${mode} » activé`;
+    } catch (e) {
+      this._msg = `Erreur : ${e.message || e.code || e}`;
+    }
+    this._render();
+  }
+
   // Ouvre la fenêtre de détail standard de HA (même mécanisme que les tuiles natives)
   _openMoreInfo(entityId) {
     this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
@@ -1002,6 +1033,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
     if (act === 'paste-day') return this._pasteFromClipboard(ds.climate, Number(ds.day));
+    if (act === 'activate-mode') return this._activateMode(this._mode);
     if (act === 'multi-sel') {
       this._multiSel = !this._multiSel;
       return this._render();
@@ -1056,6 +1088,11 @@ const STYLE = `
     background:var(--secondary-background-color); }
   .tab { flex:1; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
+  .mode-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px;
+    margin:-4px 0 10px; padding:6px 10px; border-radius:8px; font-size:.88em;
+    background:var(--secondary-background-color); color:var(--secondary-text-color); }
+  .mode-bar strong { color:var(--primary-text-color); }
+  .btn.small { padding:4px 10px; font-size:.95em; }
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;
     background:var(--success-color,#43a047); vertical-align:middle; }
 
