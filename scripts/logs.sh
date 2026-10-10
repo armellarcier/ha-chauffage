@@ -10,7 +10,7 @@ ha_target "${1:-dev}"
 ha_configured || { echo "Jeton manquant pour '${1:-dev}' : voir .env.example" >&2; exit 1; }
 
 lignes="${2:-50}"
-log=$(curl -sS -H "Authorization: Bearer ${HA_TOKEN}" "${HA_URL}/api/error_log")
+log=$(curl -sS ${CURL_OPTS:-} -H "Authorization: Bearer ${HA_TOKEN}" "${HA_URL}/api/error_log")
 if [ "${3:-}" = "all" ]; then
   echo "$log" | tail -n "$lignes"
 else
