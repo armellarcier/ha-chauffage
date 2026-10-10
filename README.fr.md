@@ -46,8 +46,11 @@ Le mode actif se choisit avec `input_select.mode_chauffage`.
 Le planning applique des **presets** (`comfort`, `eco`, `boost`, `frost`) et la détection des
 réglages manuels s'appuie sur le passage du thermostat en preset `none` quand on change sa
 consigne à la main. C'est le comportement de **Versatile Thermostat**, la configuration testée.
-Un thermostat qui n'a pas ces presets n'est pas encore pris en charge (prévu : créneaux en
-température et noms de presets configurables).
+Un thermostat qui n'a pas ces presets n'est pas encore pris en charge.
+
+La dépendance à Versatile Thermostat est **temporaire** : l'objectif est de prendre en charge
+n'importe quelle entité `climate`, avec des groupes de thermostats et des modes de chauffage
+définis par l'utilisateur. Voir la [feuille de route](ROADMAP.fr.md).
 
 ## Structure
 

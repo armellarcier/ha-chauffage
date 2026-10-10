@@ -49,7 +49,10 @@ The active mode is selected with `input_select.mode_chauffage`.
 The schedule applies **presets** (`comfort`, `eco`, `boost`, `frost`), and manual changes are
 detected because the thermostat switches to preset `none` when its setpoint is changed by hand.
 This is how **Versatile Thermostat** behaves, and it is the tested setup. Thermostats without
-these presets are not supported yet (planned: setpoint-based slots and configurable preset names).
+these presets are not supported yet.
+
+The Versatile Thermostat dependency is **temporary**: the goal is to support any `climate` entity,
+with groups of thermostats and user-defined heating modes. See the [roadmap](ROADMAP.md).
 
 ## Repository layout
 
