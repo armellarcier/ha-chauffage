@@ -9,7 +9,10 @@ ha_load_env() {
 # ha_target dev|prod → définit HA_URL et HA_TOKEN (vides si non configurés)
 ha_target() {
   case "${1:-dev}" in
-    dev)  HA_URL="${DEV_HA_URL:-http://localhost:8124}"; HA_TOKEN="${DEV_HA_TOKEN:-}" ;;
+    dev)  HA_URL="${DEV_HA_URL:-http://localhost:8124}"; HA_TOKEN="${DEV_HA_TOKEN:-}"
+          # Token created by the dev HA's first-run setup (dev/setup/setup.py)
+          local dev_token_file; dev_token_file="$(dirname "${BASH_SOURCE[0]}")/../dev/hass/.dev-token"
+          [ -z "$HA_TOKEN" ] && [ -f "$dev_token_file" ] && HA_TOKEN="$(tr -d '\r\n' < "$dev_token_file")" ;;
     prod) HA_URL="${PROD_HA_URL:-}"; HA_TOKEN="${PROD_HA_TOKEN:-}" ;;
     *) echo "Cible inconnue : $1 (dev ou prod)" >&2; return 2 ;;
   esac

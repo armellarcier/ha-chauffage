@@ -37,16 +37,14 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
   a heater `input_boolean.radiateur_*` and a temperature `sensor.temperature_*` that rises
   while the heater is on.
 
-**First time only** (state is kept in `dev/hass/`, not versioned):
-
-1. Open <http://localhost:8124>, create the account (e.g. `dev` / `dev`).
-2. Settings → Devices & services → Add → **Versatile Thermostat**, for each room:
-   type "over a switch", sensor `sensor.temperature_<room>`, outdoor sensor
-   `sensor.temperature_exterieure`, switch `input_boolean.radiateur_<room>`,
-   and preset temperatures (comfort, eco, boost, frost protection).
-3. Profile → Security → create a long-lived access token, then `cp .env.example .env` and paste
-   it into `DEV_HA_TOKEN`.
-4. Add the `custom:chauffage-programme-card` card to a dashboard.
+**Everything is set up automatically on first start** by the `setup` service
+([`dev/setup/setup.py`](dev/setup/setup.py), through HA's public APIs): log in at
+<http://localhost:8124> with **`dev` / `dev`** and the "Chauffage" dashboard shows the card,
+with three Versatile Thermostat thermostats (salon, bureau, chambre: "over a switch", preset
+temperatures 7 / 17 / 20 / 22 °C) and sample schedules. A long-lived token is written to
+`dev/hass/.dev-token` and used by `scripts/reload.sh` and `scripts/logs.sh` (no `.env` needed
+for the dev HA). State is kept in `dev/hass/` (not versioned); to start over:
+`docker compose -f dev/compose.yaml down && git clean -fdX dev/hass`.
 
 **Work loop:**
 

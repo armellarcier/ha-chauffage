@@ -38,16 +38,14 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
   un radiateur `input_boolean.radiateur_*` et une température `sensor.temperature_*` qui monte
   quand le radiateur chauffe.
 
-**Première fois seulement** (l'état est conservé dans `dev/hass/`, non versionné) :
-
-1. Ouvrir <http://localhost:8124>, créer le compte (ex. `dev` / `dev`).
-2. Paramètres → Appareils et services → Ajouter → **Versatile Thermostat**, pour chaque pièce :
-   type « sur un interrupteur », capteur `sensor.temperature_<pièce>`, capteur extérieur
-   `sensor.temperature_exterieure`, interrupteur `input_boolean.radiateur_<pièce>`,
-   et des températures de presets (confort, éco, boost, hors-gel).
-3. Profil → Sécurité → créer un jeton longue durée, puis `cp .env.example .env` et le coller
-   dans `DEV_HA_TOKEN`.
-4. Ajouter la carte `custom:chauffage-programme-card` à un tableau de bord.
+**Tout est configuré automatiquement au premier démarrage** par le service `setup`
+([`dev/setup/setup.py`](dev/setup/setup.py), via les API publiques de HA) : se connecter sur
+<http://localhost:8124> avec **`dev` / `dev`**, le tableau de bord « Chauffage » affiche la carte,
+avec trois thermostats Versatile Thermostat (salon, bureau, chambre : « sur un interrupteur »,
+températures de presets 7 / 17 / 20 / 22 °C) et des programmes d'exemple. Un jeton longue durée
+est écrit dans `dev/hass/.dev-token` et utilisé par `scripts/reload.sh` et `scripts/logs.sh`
+(pas besoin de `.env` pour le HA de dev). L'état est conservé dans `dev/hass/` (non versionné) ;
+pour repartir de zéro : `docker compose -f dev/compose.yaml down && git clean -fdX dev/hass`.
 
 **Boucle de travail :**
 

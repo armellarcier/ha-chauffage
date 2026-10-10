@@ -42,3 +42,16 @@ services:
       - ../www:/config/www/chauffage:ro
       - ../packages/chauffage:/config/packages/chauffage:ro
     restart: unless-stopped
+
+  # First-run setup through HA's APIs (user dev / dev, token, thermostats, dashboard,
+  # sample schedules). Idempotent: skips what is already done, then exits.
+  setup:
+    image: ghcr.io/home-assistant/home-assistant:${HA_VERSION:-stable}
+    depends_on:
+      homeassistant:
+        condition: service_started
+    entrypoint: ["python3", "/setup/setup.py"]
+    volumes:
+      - ./setup:/setup:ro
+      - ./hass:/config
+    restart: "no"
