@@ -261,7 +261,6 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 const parseDate = (s) => new Date(String(s).replace(/(\.\d{3})\d+/, '$1'));
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const todayIdx = () => (new Date().getDay() + 6) % 7;
-const altPreset = (p) => (p === 'comfort' ? 'eco' : 'comfort');
 
 // Merges consecutive identical slots and removes duplicate start times
 function normalize(segs) {
@@ -495,6 +494,8 @@ function integrationSource(hass) {
     },
     setOverride: (climate, d2) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override: toIntegrationOverride(d2) }),
     activateMode: (name) => hass.callWS({ type: 'chauffage/mode/set', mode: idOf(name) }),
+    levels: () => (d && d.levels) || [],
+    targets: (climate) => (d && d.targets && d.targets[climate]) || {},
   };
 }
 
@@ -516,10 +517,27 @@ function packageSource(hass, cfg) {
     save: (programmes) => hass.callWS({ type: 'fire_event', event_type: cfg.event, event_data: { programmes, version: DATA_VERSION } }),
     setOverride: (climate, d) => hass.callWS({ type: 'fire_event', event_type: cfg.derog_event, event_data: { climate, derogation: d } }),
     activateMode: (name) => hass.callService('input_select', 'select_option', { entity_id: cfg.mode_entity, option: name }),
+    levels: () => [], // the package's fixed presets (PRESETS)
+    targets: () => ({}),
   };
 }
 
 const dataSource = (hass, cfg) => (integrationAvailable(hass) ? integrationSource(hass) : packageSource(hass, cfg));
+
+// Heating levels [{ id, name, color }]: the integration's (v0.3+), otherwise the fixed presets
+function levelsOf(src, loc) {
+  const list = src.levels();
+  const levels = list.length ? list : Object.entries(PRESETS).map(([id, p]) => ({ id, color: p.color }));
+  return levels.map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id) }));
+}
+const levelOf = (levels, id, loc) => levels.find((l) => l.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
+// Another level for a new slot: comfort ↔ eco when they exist, otherwise the next level
+function otherLevel(levels, id) {
+  const ids = levels.map((l) => l.id);
+  if (id === 'comfort' && ids.includes('eco')) return 'eco';
+  if (id !== 'comfort' && ids.includes('comfort')) return 'comfort';
+  return ids[(ids.indexOf(id) + 1) % ids.length] || id;
+}
 
 class ChauffageProgrammeCard extends HTMLElement {
   constructor() {
@@ -667,6 +685,14 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _source() {
     return dataSource(this._hass, this._config);
+  }
+
+  _levels() {
+    return levelsOf(this._source(), this._loc);
+  }
+
+  _level(id) {
+    return levelOf(this._levels(), id, this._loc);
   }
 
   _modes() {
@@ -833,7 +859,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const compact = this._shown.length > 1;
     const wide = this._loc.hour12 ? 25 : 0; // "6:30 AM" needs more room than "06:30"
     const t = dur >= (compact ? 60 : 75) + wide ? this._loc.time(start) : '';
-    const l = dur >= (compact ? 180 : 150) + wide ? esc(this._loc.preset(preset)) : '';
+    const l = dur >= (compact ? 180 : 150) + wide ? esc(this._level(preset).name) : '';
     return `<span class="t">${t}</span><span class="l">${l}</span>`;
   }
 
@@ -841,10 +867,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     const segHtml = segs
       .map((s, i) => {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
-        const p = PRESETS[s.preset] || { color: '#9e9e9e' };
+        const p = this._level(s.preset);
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : ''].join(' ');
-        return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(this._loc.preset(s.preset))}">${this._segInner(s.start, end, s.preset)}</div>`;
+        return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}">${this._segInner(s.start, end, s.preset)}</div>`;
       })
       .join('');
     const handles = segs
@@ -934,8 +960,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const stepSec = this._config.step * 60;
     const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>` : `<input type="time" data-edge="start" step="${stepSec}" value="${toHM(s.start)}">`;
     const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>` : `<input type="time" data-edge="end" step="${stepSec}" value="${toHM(end)}">`;
-    const presets = Object.entries(PRESETS)
-      .map(([k, p]) => `<button data-act="preset" data-preset="${k}" class="${s.preset === k ? 'on' : ''}" style="background:${p.color}">${esc(this._loc.preset(k))}</button>`)
+    const presets = this._levels()
+      .map((l) => `<button data-act="preset" data-preset="${esc(l.id)}" class="${s.preset === l.id ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`)
       .join('');
     return `${hint}<div class="editor">
       <div class="ed-head">
@@ -1062,10 +1088,14 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     const focus = this._focusClimate();
     const st = this._hass.states[focus];
-    const legend = Object.entries(PRESETS)
-      .map(([k, p]) => {
-        const t = !multi && st && st.attributes[`${k}_temp`];
-        return `<span><i style="background:${p.color}"></i>${esc(this._loc.preset(k))}${t != null && t !== false ? ` ${this._loc.number(t)}°` : ''}</span>`;
+    // What each level means for the focused thermostat: its temperature, or its preset's
+    // temperature when the thermostat shows it (VTherm: comfort_temp…)
+    const targets = this._source().targets(focus);
+    const legend = this._levels()
+      .map((l) => {
+        const target = targets[l.id] || { preset: l.id };
+        const t = multi || !st ? null : 'temperature' in target ? target.temperature : st.attributes[`${target.preset}_temp`];
+        return `<span><i style="background:${l.color}"></i>${esc(l.name)}${t != null && t !== false ? ` ${this._loc.number(t)}°` : ''}</span>`;
       })
       .join('');
     const copyWeek = this._thermostats
@@ -1366,7 +1396,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const s = segs[idx];
     const end = idx < segs.length - 1 ? segs[idx + 1].start : DAY_MIN;
     if (m < s.start + step || m > end - step) return;
-    segs.splice(idx + 1, 0, { start: m, preset: altPreset(s.preset) });
+    segs.splice(idx + 1, 0, { start: m, preset: otherLevel(this._levels(), s.preset) });
     this._commit(climate, day, m);
   }
 
@@ -1491,7 +1521,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const m1 = this._snap(s.start + (end - s.start) / 3);
       const m2 = this._snap(s.start + (2 * (end - s.start)) / 3);
       if (m1 <= s.start || m2 >= end || m2 <= m1 || m1 - s.start < step) return;
-      segs.splice(idx + 1, 0, { start: m1, preset: altPreset(s.preset) }, { start: m2, preset: s.preset });
+      segs.splice(idx + 1, 0, { start: m1, preset: otherLevel(this._levels(), s.preset) }, { start: m2, preset: s.preset });
       this._commit(climate, day, m1);
     } else if (act === 'delete') {
       if (segs.length === 1) return;
@@ -1716,6 +1746,10 @@ class ChauffageMoreInfo extends HTMLElement {
     this._render();
   }
 
+  _level(id) {
+    return levelOf(levelsOf(dataSource(this._hass, MORE_INFO_CFG), this._loc), id, this._loc);
+  }
+
   _currentOverride() {
     if (this._pending !== undefined) return this._pending;
     return filterActive(dataSource(this._hass, MORE_INFO_CFG).overrides())[this._entity] || null;
@@ -1757,9 +1791,9 @@ class ChauffageMoreInfo extends HTMLElement {
   _bar(segs, piece, showNow, big) {
     const segHtml = segs.map((s, i) => {
       const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
-      const p = PRESETS[s.preset] || { color: '#9e9e9e' };
+      const p = this._level(s.preset);
       const txt = big && end - s.start >= (this._loc.hour12 ? 120 : 90) ? `<span>${this._loc.time(s.start)}</span>` : '';
-      return `<div class="seg" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(this._loc.preset(s.preset))}">${txt}</div>`;
+      return `<div class="seg" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}">${txt}</div>`;
     }).join('');
     let override = '';
     if (piece) {
@@ -1789,10 +1823,10 @@ class ChauffageMoreInfo extends HTMLElement {
     const now = nowMin();
     let idx = 0;
     segs.forEach((s, i) => { if (s.start <= now) idx = i; });
-    const current = this._loc.preset(segs[idx].preset);
+    const current = this._level(segs[idx].preset).name;
     const next = segs[idx + 1];
     const followText = next
-      ? t('untilThen', { current, time: this._loc.time(next.start), next: this._loc.preset(next.preset) })
+      ? t('untilThen', { current, time: this._loc.time(next.start), next: this._level(next.preset).name })
       : t('untilMidnight', { current });
 
     let status;

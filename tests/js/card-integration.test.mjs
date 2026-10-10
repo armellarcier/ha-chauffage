@@ -115,3 +115,42 @@ describe('overrides with the integration', () => {
     assert.deepEqual(lastCall(hass), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 });
+
+describe('heating levels from the integration (v0.3)', () => {
+  const withLevels = () => ({
+    ...INTEGRATION_DATA(),
+    levels: [
+      { id: 'comfort', name: 'Confort', color: '#f57c00', temperature: 20 },
+      { id: 'eco', name: 'Éco', color: '#43a047', temperature: 17 },
+      { id: 'nuit', name: 'Nuit', color: '#3f51b5', temperature: 18 },
+    ],
+    targets: { 'climate.salon': { comfort: { temperature: 20.5 }, eco: { preset: 'eco' }, nuit: { temperature: 18 } } },
+  });
+
+  test('the legend shows the levels and what they mean for the thermostat', () => {
+    const hass = fakeIntegrationHass({ data: withLevels() });
+    hass.states['climate.salon'].attributes.eco_temp = 16; // VTherm preset temperature
+    const card = createCard(hass, { show: ['climate.salon'] });
+    const legend = card.shadowRoot.querySelector('.legend').textContent.replace(/\s+/g, ' ');
+    assert.match(legend, /Confort 20,5°/);
+    assert.match(legend, /Éco 16°/);
+    assert.match(legend, /Nuit 18°/);
+  });
+
+  test('the slot editor offers the levels, with their colors', () => {
+    const card = createCard(fakeIntegrationHass({ data: withLevels() }), { show: ['climate.salon'] });
+    card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
+    card._render();
+    const buttons = [...card.shadowRoot.querySelectorAll('.editor [data-act="preset"]')];
+    assert.deepEqual(buttons.map((b) => b.textContent), ['Confort', 'Éco', 'Nuit']);
+    assert.equal(buttons[2].style.background, 'rgb(63, 81, 181)');
+  });
+
+  test('a new slot in a custom level gets another level', () => {
+    const data = withLevels();
+    data.schedules['climate.salon'].normal[0] = [['00:00', 'nuit']];
+    const card = createCard(fakeIntegrationHass({ data }), { show: ['climate.salon'] });
+    card._split('climate.salon', 0, 12 * 60);
+    assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 nuit', '12:00 comfort']);
+  });
+});
