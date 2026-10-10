@@ -1,5 +1,9 @@
 # ha-chauffage
 
+[![Tests](https://github.com/armellarcier/ha-chauffage/actions/workflows/tests.yml/badge.svg)](https://github.com/armellarcier/ha-chauffage/actions/workflows/tests.yml)
+![Coverage (integration)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/armellarcier/ha-chauffage/badges/coverage-integration.json)
+![Coverage (card)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/armellarcier/ha-chauffage/badges/coverage-card.json)
+
 **English** · [Français](README.fr.md)
 
 ![Editing schedules, an override and the heating mode, then the thermostat's more-info dialog](docs/demo.gif)

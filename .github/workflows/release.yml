@@ -9,6 +9,9 @@ on:
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
+    # The reused workflow declares a job that can write (coverage badges, main branch only)
+    permissions:
+      contents: write
 
   release:
     name: Publish

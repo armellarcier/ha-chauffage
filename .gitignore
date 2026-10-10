@@ -8,3 +8,7 @@ __pycache__/
 .pytest_cache/
 dev/demo/out/
 dev/demo/node_modules/
+lcov.info
+coverage.json
+.coverage
+coverage-*.txt

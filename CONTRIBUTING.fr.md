@@ -81,6 +81,7 @@ scripts/test.sh          # tout (utilise Node / Python s'ils sont installés, si
 scripts/test.sh js       # la carte seulement
 scripts/test.sh ha       # le package HA seulement (arguments passés à pytest : scripts/test.sh ha -k ends)
 scripts/test.sh integration   # l'intégration (custom_components/chauffage)
+scripts/test.sh coverage      # carte et intégration avec la couverture (échoue sous le minimum)
 HA=min scripts/test.sh integration   # idem, sur le HA minimal pris en charge (hacs.json, 2026.9)
 ```
 
@@ -272,6 +273,31 @@ configuration HA.
   passeront à un fichier JSON par langue avec ICU MessageFormat (pluriels), comme la plupart des
   cartes Home Assistant.
 
+## Les tests d'abord
+
+**Les tests sont la documentation** : ils disent ce que fait ha-chauffage, en phrases
+(`a_thermostat_back_online_is_set_to_its_schedule`), et le prouvent à chaque exécution. Donc
+tout est testé, et les tests viennent en premier (TDD) :
+
+1. **Écrire le test d'abord**, pour un nouveau comportement ou un bug : un test qui porte le nom
+   du cas d'usage, dans les mots de l'utilisateur. Le lancer et **le voir échouer**, pour la
+   raison attendue (un test qui passe tout de suite ne prouve rien : vérifier qu'il échoue
+   quand on casse le code exprès).
+2. **Écrire le code** qui le fait passer, sans plus ; puis nettoyer, tests au vert.
+3. **Chaque cas d'usage a son test**, répertorié dans [docs/use-cases.md](docs/use-cases.md) :
+   ajouter une ligne quand on ajoute un cas d'usage. Tester ce que font et attendent les
+   utilisateurs, pas des lignes de code : cas d'erreur, limites (minuit, dimanche → lundi,
+   heure d'été), redémarrages, appareils injoignables, autres langues.
+4. **Tous les types de thermostats** : les tests de comportement de l'intégration tournent sur
+   Versatile Thermostat, des presets standard et des thermostats sans presets
+   (`thermostat_kind`) ; `bench.needs(...)` seulement pour un comportement qui ne peut pas
+   exister sur un type.
+5. **Un bug corrigé reçoit un test de non-régression** qui échoue sans le correctif.
+
+La couverture est un plancher, pas un objectif (100 % des lignes ne veut pas dire que tous les
+cas d'usage sont couverts) : la CI échoue sous **97 %** pour l'intégration et **95 %** pour la
+carte (`scripts/test.sh coverage`), et le README affiche les valeurs actuelles.
+
 ## Conventions
 
 Ces conventions s'appliquent à tous les contributeurs, humains comme assistants IA
@@ -284,8 +310,8 @@ Ces conventions s'appliquent à tous les contributeurs, humains comme assistants
 - **Commits en anglais**, courts et descriptifs.
 - **Documentation** (`README`, `CONTRIBUTING`) : la version anglaise (`*.md`) est la référence.
   La version française (`*.fr.md`) est toujours maintenue et mise à jour dans le même commit.
-- **Tout changement de comportement s'accompagne d'un test** (`tests/ha/` pour le package,
-  `tests/js/` pour la carte) ; un bug corrigé reçoit un test de non-régression.
+- **Les tests d'abord** (voir plus haut) : `tests/integration/` pour l'intégration,
+  `tests/js/` pour la carte, `tests/ha/` pour le package v0.1.
 - Les attributs des capteurs template ne doivent contenir que des valeurs simples (texte,
   nombres, listes, dictionnaires) : une seule valeur Enum (par ex. un `preset_mode` ZHA) fait
   stocker tout l'attribut sous forme de texte. Convertir avec `.value`.

@@ -7,6 +7,7 @@
 #   scripts/test.sh integration   → Chauffage integration (custom_components/chauffage)
 #   scripts/test.sh ha -k ends    → extra arguments are passed to pytest
 #   HA=min scripts/test.sh integration → on the minimum supported Home Assistant (hacs.json)
+#   scripts/test.sh coverage      → card and integration with coverage (fails below the minimum)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 what="${1:-all}"; shift || true
@@ -14,6 +15,19 @@ what="${1:-all}"; shift || true
 # Repository path for Docker (Git Bash on Windows: Windows path, no MSYS conversion)
 root="$(pwd -W 2>/dev/null || pwd)"
 export MSYS_NO_PATHCONV=1
+
+coverage() {
+  echo "=== Card coverage (JavaScript, minimum 95 % of the lines) ==="
+  if command -v node >/dev/null && command -v npm >/dev/null; then
+    npm install --no-audit --no-fund --silent && npm run coverage
+  else
+    docker run --rm -v "$root:/app" -v ha-chauffage-node-modules:/app/node_modules -w /app node:22-alpine \
+      sh -c 'npm install --no-audit --no-fund --silent && npm run coverage'
+  fi
+  rm -f lcov.info
+  echo "=== Integration coverage (Python, minimum 97 % of the lines) ==="
+  pytest_suite tests/integration --cov=custom_components/chauffage --cov-report=term-missing --cov-fail-under=97 "$@"
+}
 
 js_tests() {
   echo "=== Card tests (JavaScript) ==="
@@ -52,6 +66,7 @@ case "$what" in
   js) js_tests ;;
   ha) ha_tests "$@" ;;
   integration) integration_tests "$@" ;;
+  coverage) coverage "$@" ;;
   all) js_tests && ha_tests "$@" && integration_tests "$@" ;;
-  *) echo "Usage: scripts/test.sh [js|ha|integration|all] [pytest arguments]" >&2; exit 2 ;;
+  *) echo "Usage: scripts/test.sh [js|ha|integration|coverage|all] [pytest arguments]" >&2; exit 2 ;;
 esac

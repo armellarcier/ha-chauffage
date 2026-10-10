@@ -1,5 +1,9 @@
 # ha-chauffage
 
+[![Tests](https://github.com/armellarcier/ha-chauffage/actions/workflows/tests.yml/badge.svg)](https://github.com/armellarcier/ha-chauffage/actions/workflows/tests.yml)
+![Couverture (intégration)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/armellarcier/ha-chauffage/badges/coverage-integration.json)
+![Couverture (carte)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/armellarcier/ha-chauffage/badges/coverage-card.json)
+
 [English](README.md) · **Français**
 
 ![Édition des plannings, une dérogation et le mode de chauffe, puis la fenêtre de détail du thermostat](docs/demo.gif)

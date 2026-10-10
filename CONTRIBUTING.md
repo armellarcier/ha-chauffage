@@ -79,6 +79,7 @@ scripts/test.sh          # everything (uses Node / Python if installed, Docker o
 scripts/test.sh js       # card only
 scripts/test.sh ha       # HA package only (extra arguments go to pytest: scripts/test.sh ha -k ends)
 scripts/test.sh integration   # the integration (custom_components/chauffage)
+scripts/test.sh coverage      # card and integration with coverage (fails below the minimum)
 HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.json, 2026.9)
 ```
 
@@ -260,6 +261,29 @@ separator), **first day of the week**, and the temperature unit of the HA config
 - With the integration (roadmap, phase 1), the card will be bundled: translations will move to one
   JSON file per language with ICU MessageFormat (plurals), as in most Home Assistant cards.
 
+## Tests first
+
+**The tests are the documentation**: they say what ha-chauffage does, in sentences
+(`a_thermostat_back_online_is_set_to_its_schedule`), and prove it on every run. So everything is
+tested, and tests come first (TDD):
+
+1. **Write the test first**, for a new behavior or a bug: a test named after the use case, in
+   the user's words. Run it and **see it fail**, for the expected reason (a test that passes at
+   once proves nothing: check that it fails when the code is broken on purpose).
+2. **Write the code** that makes it pass, nothing more; then clean up with the tests green.
+3. **Every use case has a test**, listed in [docs/use-cases.md](docs/use-cases.md): add a row
+   when you add a use case. Test what users do and expect, not lines of code: error paths,
+   limits (midnight, Sunday → Monday, summer time), restarts, unreachable devices, other
+   languages.
+4. **Every kind of thermostat**: the behavior tests of the integration run on Versatile
+   Thermostat, standard presets and thermostats without presets (`thermostat_kind`); use
+   `bench.needs(...)` only for a behavior that cannot exist on a kind.
+5. **A fixed bug gets a regression test** that fails without the fix.
+
+Coverage is a floor, not the goal (100 % of the lines does not mean every use case is
+covered): the CI fails below **97 %** for the integration and **95 %** for the card
+(`scripts/test.sh coverage`), and the README shows the current values.
+
 ## Conventions
 
 These conventions apply to every contributor, human or AI assistant
@@ -272,8 +296,8 @@ These conventions apply to every contributor, human or AI assistant
 - **Commits in English**, short and descriptive.
 - **Documentation** (`README`, `CONTRIBUTING`): the English version (`*.md`) is canonical.
   The French version (`*.fr.md`) is always maintained and updated in the same commit.
-- **Every behavior change comes with a test** (`tests/ha/` for the package, `tests/js/` for the
-  card); a fixed bug gets a regression test.
+- **Tests first** (see above): `tests/integration/` for the integration, `tests/js/` for the
+  card, `tests/ha/` for the v0.1 package.
 - Template sensor attributes must only contain plain values (text, numbers, lists,
   dictionaries): a single Enum (e.g. a ZHA `preset_mode`) makes HA store the whole attribute
   as text. Convert with `.value`.

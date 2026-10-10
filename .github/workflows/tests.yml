@@ -16,7 +16,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
+      # Tests with coverage; fails below 95 % of the lines (package.json, "coverage")
+      - run: npm run coverage
+      - name: Coverage percentage
+        run: |
+          node -e '
+            const lines = require("fs").readFileSync("lcov.info", "utf8").split("\n");
+            const sum = (k) => lines.filter((l) => l.startsWith(k + ":")).reduce((s, l) => s + Number(l.slice(k.length + 1)), 0);
+            const pct = Math.floor((1000 * sum("LH")) / sum("LF")) / 10;
+            require("fs").writeFileSync("coverage-card.txt", String(pct));
+            console.log(`card coverage: ${pct} %`);'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-card
+          path: coverage-card.txt
 
   python:
     name: ${{ matrix.name }} (Python)
@@ -31,6 +44,8 @@ jobs:
           - name: Integration
             suite: tests/integration
             requirements: tests/ha/requirements.txt
+            # Fails below 97 % of the lines
+            coverage: --cov=custom_components/chauffage --cov-report=term --cov-report=json:coverage.json --cov-fail-under=97
           # Minimum supported Home Assistant (hacs.json)
           - name: HA package, HA 2026.9
             suite: tests/ha
@@ -46,7 +61,15 @@ jobs:
           cache: pip
           cache-dependency-path: ${{ matrix.requirements }}
       - run: pip install -r ${{ matrix.requirements }}
-      - run: python -m pytest -c ${{ matrix.suite }}/pytest.ini ${{ matrix.suite }}
+      - run: python -m pytest -c ${{ matrix.suite }}/pytest.ini ${{ matrix.suite }} ${{ matrix.coverage }}
+      - name: Coverage percentage
+        if: matrix.coverage
+        run: python -c "import json; print(int(json.load(open('coverage.json'))['totals']['percent_covered']))" > coverage-integration.txt
+      - uses: actions/upload-artifact@v7
+        if: matrix.coverage
+        with:
+          name: coverage-integration
+          path: coverage-integration.txt
 
   # Home Assistant's and HACS's checks of the integration (manifest, translations, layout)
   hassfest:
@@ -63,3 +86,34 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+
+  # Coverage badges of the README: shields.io endpoint files on the "badges" branch (no
+  # external service). Updated by pushes to main only.
+  badges:
+    name: Coverage badges
+    needs: [card, python]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+      - name: Publish the badges
+        run: |
+          badge() {
+            pct=$(cat "coverage-$1.txt")
+            color=$(awk -v p="$pct" 'BEGIN { print (p >= 95 ? "brightgreen" : p >= 85 ? "yellow" : "red") }')
+            printf '{"schemaVersion":1,"label":"%s","message":"%s%%","color":"%s"}\n' "$2" "$pct" "$color" > "out/coverage-$1.json"
+          }
+          mkdir out
+          badge integration "coverage (integration)"
+          badge card "coverage (card)"
+          cd out
+          git init -q -b badges
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git add .
+          git commit -q -m "Coverage badges for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" badges
