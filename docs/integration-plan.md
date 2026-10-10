@@ -148,7 +148,9 @@ Admin-only commands for writes (`@require_admin`), like firing events today.
   integration instead of the package — they are the specification of the behavior to keep.
 - Config flow, options flow, import (fixtures), Store migrations, websocket commands, services.
 - Card: the jsdom tests get a fake websocket backend instead of fake sensors.
-- CI: add `hassfest` and the HACS validation action to the workflows.
+- CI: `hassfest` and the HACS validation action (done in step 1), and the Python suites run on
+  two HA versions: the minimum supported one (2026.9, the author's production) and the latest;
+  `hacs.json` then declares that minimum.
 
 ## Development environment
 
