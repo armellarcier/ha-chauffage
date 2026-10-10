@@ -1,6 +1,6 @@
 # =====================================================================
 #  Home Assistant package: weekly heating schedules (Versatile Thermostat)
-#  ha-chauffage 0.2.0-beta.1 — https://github.com/armellarcier/ha-chauffage
+#  ha-chauffage 0.2.0-beta.2 — https://github.com/armellarcier/ha-chauffage
 #  Installed in <config>/packages/chauffage/ (see README.md)
 #
 #  Schedules are edited with the custom:chauffage-programme-card card and stored in the
