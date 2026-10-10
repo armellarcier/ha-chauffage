@@ -1,7 +1,7 @@
-# Pièces virtuelles pour le HA de dev : chaque pièce a un radiateur (input_boolean,
-# utilisable comme interrupteur sous-jacent par un VTherm "sur interrupteur") et une
-# température qui monte quand le radiateur chauffe et redescend vers l'extérieur sinon.
-# Les curseurs input_number permettent aussi de forcer une température à la main.
+# Virtual rooms for the dev HA: each room has a heater (input_boolean, usable as the
+# underlying switch of a Versatile Thermostat "over a switch") and a temperature that rises
+# while the heater is on and drifts back towards the outdoor temperature otherwise.
+# The input_number sliders can also force a temperature by hand.
 
 input_boolean:
   radiateur_salon:
@@ -15,7 +15,7 @@ input_boolean:
     icon: mdi:radiator
 
 input_number:
-  temperature_salon: &piece
+  temperature_salon:
     name: Température salon (simulée)
     min: 5
     max: 30
@@ -24,18 +24,29 @@ input_number:
     unit_of_measurement: "°C"
     mode: box
   temperature_bureau:
-    <<: *piece
     name: Température bureau (simulée)
+    min: 5
+    max: 30
+    step: 0.1
     initial: 18
+    unit_of_measurement: "°C"
+    mode: box
   temperature_chambre:
-    <<: *piece
     name: Température chambre (simulée)
+    min: 5
+    max: 30
+    step: 0.1
     initial: 17
+    unit_of_measurement: "°C"
+    mode: box
   temperature_exterieure:
-    <<: *piece
     name: Température extérieure (simulée)
     min: -10
+    max: 30
+    step: 0.1
     initial: 8
+    unit_of_measurement: "°C"
+    mode: box
 
 template:
   - sensor:
