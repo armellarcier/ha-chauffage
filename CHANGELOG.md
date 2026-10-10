@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.2.0-beta.3] - 2026-10-10
+
 ### Changed
 
 - The safety-mode handling added in 0.2.0-beta.2 is removed: Versatile Thermostat keeps the
@@ -86,7 +88,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.2.0-beta.2...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.2.0-beta.3...HEAD
+[0.2.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.3
 [0.2.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.1
 [0.1.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0
