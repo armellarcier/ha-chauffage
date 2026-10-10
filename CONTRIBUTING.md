@@ -203,6 +203,10 @@ change the installation or the data (always migrated automatically). Checklist:
    and publishes the GitHub release with the changelog entry and `ha-chauffage-v0.2.0.zip` (to
    unzip into the HA configuration folder).
 
+**Pre-releases** (`0.2.0-beta.1`): same steps; a tag containing `-` is published as a GitHub
+pre-release (offered by HACS only to users who enable beta versions). A change to the stored data
+or the installation goes through a beta installed on a real installation before the release.
+
 ## Translations
 
 The card speaks English and French. It follows the Home Assistant user's profile

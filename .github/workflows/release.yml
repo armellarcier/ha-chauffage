@@ -46,4 +46,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" "ha-chauffage-$GITHUB_REF_NAME.zip" \
-            --title "$GITHUB_REF_NAME" --notes-file notes.md
+            --title "$GITHUB_REF_NAME" --notes-file notes.md \
+            $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)

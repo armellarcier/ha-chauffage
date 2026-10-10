@@ -172,8 +172,11 @@ Admin-only commands for writes (`@require_admin`), like firing events today.
    integration; loader removed.
 6. **Import from the package**: config flow step, package automations turned off, repair
    issue; tested with fixtures.
-7. **Docs, demo, release v0.2.0**: README (HACS install, upgrade from 0.1), CONTRIBUTING,
-   changelog with the upgrade steps.
+7. **Docs, demo, beta**: README (HACS install, upgrade from 0.1), CONTRIBUTING, changelog with
+   the upgrade steps. The import is first validated on the dev HA with a copy of the author's
+   real schedules, then **v0.2.0-beta.1** is published as a GitHub pre-release and installed on
+   the author's production (the reference installation).
+8. **Release v0.2.0** after a few days of the beta without problems.
 
 The package stays in the repository until v0.2.0 is released, then is removed (users of
 v0.1.0 upgrade through the import).

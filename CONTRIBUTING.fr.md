@@ -210,6 +210,11 @@ automatiquement). Liste de contrôle :
    et publie la « release » GitHub avec l'entrée du changelog et `ha-chauffage-v0.2.0.zip` (à
    décompresser dans le dossier de configuration de HA).
 
+**Préversions** (`0.2.0-beta.1`) : mêmes étapes ; un tag contenant `-` est publié comme
+préversion GitHub (proposée par HACS seulement à ceux qui activent les versions bêta). Un
+changement des données stockées ou de l'installation passe par une bêta installée sur une vraie
+installation avant la version finale.
+
 ## Traductions
 
 La carte parle anglais et français. Elle suit le profil de l'utilisateur Home Assistant
