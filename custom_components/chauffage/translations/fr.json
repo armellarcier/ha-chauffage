@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Chauffage",
+        "description": "Plannings de chauffe hebdomadaires pour vos thermostats."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Déjà configuré. Une seule configuration possible."
+    }
+  }
+}

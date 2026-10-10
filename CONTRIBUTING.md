@@ -32,7 +32,9 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 
 - Versatile Thermostat is installed automatically (`VTHERM_VERSION=… docker compose … up -d`
   for another version; `HA_VERSION=beta` to test the next HA release).
-- The repository is **mounted live**: `www/` → `/local/chauffage/`, `packages/chauffage/` → HA package.
+- The repository is **mounted live**: `www/` → `/local/chauffage/`, `packages/chauffage/` → HA package,
+  `custom_components/chauffage/` → the integration in progress (phase 1 of the roadmap, see
+  [docs/integration-plan.md](docs/integration-plan.md); restart HA after a Python change).
 - `dev/hass/packages/simulation.yaml` creates three virtual rooms (salon, bureau, chambre):
   a heater `input_boolean.radiateur_*` and a temperature `sensor.temperature_*` that rises
   while the heater is on.
@@ -63,12 +65,14 @@ to see everything). To speed up testing of time-based logic, change temperatures
 ```bash
 scripts/test.sh          # everything (uses Node / Python if installed, Docker otherwise)
 scripts/test.sh js       # card only
-scripts/test.sh ha       # HA logic only (extra arguments go to pytest: scripts/test.sh ha -k ends)
+scripts/test.sh ha       # HA package only (extra arguments go to pytest: scripts/test.sh ha -k ends)
+scripts/test.sh integration   # the integration in progress (custom_components/chauffage)
 ```
 
 | Suite | Tool | What it covers |
 |---|---|---|
 | `tests/ha/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock | the package: slots applied at the right time, modes, thermostats turned off or unreachable, manual-change detection, overrides and their end |
+| `tests/integration/` | same, with `custom_components/` loaded | the integration in progress: config flow so far |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser) | the card: calculations, schedule editing, copy / paste, saving, overrides, more-info |
 
 In `tests/ha/`, thermostats are plain simulated `climate.*` states and `climate.set_preset_mode`
@@ -186,8 +190,8 @@ change the installation or the data (always migrated automatically). Checklist:
 
 1. `scripts/test.sh`: everything green, migrations tested with fixtures.
 2. Re-record the demo (`scripts/demo.sh`) if the card's look changed.
-3. Set the version in `www/chauffage-programme-card.js` (`VERSION`), `package.json` and the
-   header of `packages/chauffage/chauffage.yaml`; move the "Unreleased" entries of
+3. Set the version in `www/chauffage-programme-card.js` (`VERSION`), `package.json`, the
+   header of `packages/chauffage/chauffage.yaml` and `custom_components/chauffage/manifest.json`; move the "Unreleased" entries of
    `CHANGELOG.md` under the new version, with the date and the upgrade steps.
    `tests/js/release.test.mjs` checks that these versions match.
 4. Commit, then tag and push:

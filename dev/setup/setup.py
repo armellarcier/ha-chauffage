@@ -8,6 +8,7 @@ already done.
   2. long-lived access token written to /config/.dev-token (read by scripts/_ha.sh)
   3. three Versatile Thermostat "over a switch" thermostats on the simulated rooms
   4. a dashboard with the card, and sample schedules
+  5. the Chauffage integration's config entry (work in progress, see docs/integration-plan.md)
 """
 
 from __future__ import annotations
@@ -203,6 +204,17 @@ async def wait_for_entity(api: Api, entity_id: str) -> None:
     raise RuntimeError(f"{entity_id} did not appear")
 
 
+async def wait_until_running(api: Api) -> None:
+    """Waits for the end of HA's startup: before that, restored states (such as the stored
+    schedules) may not be there yet, and the sample schedules would overwrite them."""
+    for _ in range(120):
+        config = await api.get("config")
+        if config and config.get("state") == "RUNNING":
+            return
+        await asyncio.sleep(2)
+    raise RuntimeError("Home Assistant did not finish starting")
+
+
 async def thermostats(api: Api) -> None:
     entries = await api.get("config/config_entries/entry?domain=versatile_thermostat") or []
     existing = {e["title"] for e in entries}
@@ -262,15 +274,25 @@ async def sample_schedules(api: Api) -> None:
     await api.post("events/chauffage_programmes_set", {"programmes": SAMPLE_SCHEDULES})
 
 
+async def integration(api: Api) -> None:
+    if await api.get("config/config_entries/entry?domain=chauffage"):
+        return
+    log("integration: creating the Chauffage entry")
+    flow = await api.post("config/config_entries/flow", {"handler": "chauffage"})
+    await api.post(f"config/config_entries/flow/{flow['flow_id']}", {})
+
+
 async def main() -> None:
     async with aiohttp.ClientSession() as session:
         await wait_for_ha(session)
         token = await onboarding(session) or await login(session)
         ws = await open_ws(session, token)
         api = Api(session, await long_lived_token(ws))
+        await wait_until_running(api)
         await thermostats(api)
         await dashboard(ws)
         await sample_schedules(api)
+        await integration(api)
         log(f"done — http://localhost:8124/{DASHBOARD_URL} (dev / dev)")
 
 

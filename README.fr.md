@@ -72,6 +72,7 @@ définis par l'utilisateur, et une interface dans la langue de chacun. Voir la
 
 ```
 packages/chauffage/chauffage.yaml   capteurs template + automatisations (package HA)
+custom_components/chauffage/        intégration qui remplacera le package (en cours, docs/integration-plan.md)
 www/chauffage-loader.js             chargeur stable (charge toujours la dernière version de la carte)
 www/chauffage-programme-card.js     carte Lovelace + bloc injecté dans la fenêtre de détail
 dev/harness.html, dev/*.js          banc de test hors HA (faux hass, faux ha-card, faux dialogue)

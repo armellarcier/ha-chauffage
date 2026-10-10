@@ -73,6 +73,7 @@ with groups of thermostats, user-defined heating modes, and a UI in your languag
 
 ```
 packages/chauffage/chauffage.yaml   template sensors + automations (HA package)
+custom_components/chauffage/        integration replacing the package (in progress, docs/integration-plan.md)
 www/chauffage-loader.js             stable loader (always loads the latest card version)
 www/chauffage-programme-card.js     Lovelace card + block injected into the more-info dialog
 dev/harness.html, dev/*.js          test bench without HA (fake hass, ha-card and dialog)

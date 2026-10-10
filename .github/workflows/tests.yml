@@ -6,8 +6,8 @@ on:
   workflow_call:
 
 jobs:
-  carte:
-    name: Carte (JavaScript)
+  card:
+    name: Card (JavaScript)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -18,9 +18,17 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  logique-ha:
-    name: Logique HA (Python)
+  python:
+    name: ${{ matrix.name }} (Python)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: HA package
+            suite: tests/ha
+          - name: Integration
+            suite: tests/integration
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -29,4 +37,22 @@ jobs:
           cache: pip
           cache-dependency-path: tests/ha/requirements.txt
       - run: pip install -r tests/ha/requirements.txt
-      - run: python -m pytest -c tests/ha/pytest.ini
+      - run: python -m pytest -c ${{ matrix.suite }}/pytest.ini ${{ matrix.suite }}
+
+  # Home Assistant's and HACS's checks of the integration (manifest, translations, layout)
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # Brand images are not submitted yet (home-assistant/brands)
+          ignore: brands

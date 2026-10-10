@@ -3,7 +3,8 @@
 # otherwise Docker (nothing to install apart from Docker).
 #   scripts/test.sh               → all tests
 #   scripts/test.sh js            → card (node --test + jsdom)
-#   scripts/test.sh ha            → HA logic (pytest + in-memory Home Assistant)
+#   scripts/test.sh ha            → HA package (pytest + in-memory Home Assistant)
+#   scripts/test.sh integration   → Chauffage integration (custom_components/chauffage)
 #   scripts/test.sh ha -k ends    → extra arguments are passed to pytest
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -23,19 +24,31 @@ js_tests() {
   fi
 }
 
-ha_tests() {
-  echo "=== HA logic tests (Python) ==="
+# pytest in an in-memory Home Assistant; $1 = suite directory (tests/ha or tests/integration)
+pytest_suite() {
+  local suite="$1"; shift
   if python3 -c 'import pytest_homeassistant_custom_component' 2>/dev/null; then
-    python3 -m pytest -c tests/ha/pytest.ini "$@"
+    python3 -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   else
     docker build -q -t ha-chauffage-tests -f tests/ha/Dockerfile . >/dev/null
-    docker run --rm -v "$root:/app" -w /app ha-chauffage-tests python -m pytest -c tests/ha/pytest.ini "$@"
+    docker run --rm -v "$root:/app" -w /app ha-chauffage-tests python -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   fi
+}
+
+ha_tests() {
+  echo "=== HA package tests (Python) ==="
+  pytest_suite tests/ha "$@"
+}
+
+integration_tests() {
+  echo "=== Integration tests (Python) ==="
+  pytest_suite tests/integration "$@"
 }
 
 case "$what" in
   js) js_tests ;;
   ha) ha_tests "$@" ;;
-  all) js_tests && ha_tests "$@" ;;
-  *) echo "Usage: scripts/test.sh [js|ha|all] [pytest arguments]" >&2; exit 2 ;;
+  integration) integration_tests "$@" ;;
+  all) js_tests && ha_tests "$@" && integration_tests "$@" ;;
+  *) echo "Usage: scripts/test.sh [js|ha|integration|all] [pytest arguments]" >&2; exit 2 ;;
 esac

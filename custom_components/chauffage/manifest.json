@@ -1,0 +1,13 @@
+{
+  "domain": "chauffage",
+  "name": "Chauffage",
+  "codeowners": ["@armellarcier"],
+  "config_flow": true,
+  "documentation": "https://github.com/armellarcier/ha-chauffage",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/armellarcier/ha-chauffage/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

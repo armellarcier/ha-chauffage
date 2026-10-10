@@ -33,7 +33,9 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 
 - Versatile Thermostat est installé automatiquement (`VTHERM_VERSION=… docker compose … up -d`
   pour une autre version ; `HA_VERSION=beta` pour tester la prochaine version de HA).
-- Le dépôt est **monté en direct** : `www/` → `/local/chauffage/`, `packages/chauffage/` → package HA.
+- Le dépôt est **monté en direct** : `www/` → `/local/chauffage/`, `packages/chauffage/` → package HA,
+  `custom_components/chauffage/` → l'intégration en cours (phase 1 de la feuille de route, voir
+  [docs/integration-plan.md](docs/integration-plan.md) ; redémarrer HA après un changement Python).
 - `dev/hass/packages/simulation.yaml` crée trois pièces virtuelles (salon, bureau, chambre) :
   un radiateur `input_boolean.radiateur_*` et une température `sensor.temperature_*` qui monte
   quand le radiateur chauffe.
@@ -64,12 +66,14 @@ avec les curseurs `input_number.temperature_*` et la durée de dérogation (`def
 ```bash
 scripts/test.sh          # tout (utilise Node / Python s'ils sont installés, sinon Docker)
 scripts/test.sh js       # la carte seulement
-scripts/test.sh ha       # la logique HA seulement (arguments passés à pytest : scripts/test.sh ha -k ends)
+scripts/test.sh ha       # le package HA seulement (arguments passés à pytest : scripts/test.sh ha -k ends)
+scripts/test.sh integration   # l'intégration en cours (custom_components/chauffage)
 ```
 
 | Suite | Outil | Ce qui est couvert |
 |---|---|---|
 | `tests/ha/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée | le package : créneaux appliqués au bon moment, modes, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin |
+| `tests/integration/` | idem, avec `custom_components/` chargé | l'intégration en cours : le flux de configuration pour l'instant |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé) | la carte : calculs, édition du planning, copier / coller, enregistrement, dérogations, fenêtre de détail |
 
 Dans `tests/ha/`, les thermostats sont de simples états `climate.*` simulés et
@@ -193,8 +197,8 @@ automatiquement). Liste de contrôle :
 
 1. `scripts/test.sh` : tout au vert, migrations testées avec des fixtures.
 2. Réenregistrer la démo (`scripts/demo.sh`) si l'apparence de la carte a changé.
-3. Mettre la version dans `www/chauffage-programme-card.js` (`VERSION`), `package.json` et
-   l'en-tête de `packages/chauffage/chauffage.yaml` ; déplacer les entrées « Unreleased » de
+3. Mettre la version dans `www/chauffage-programme-card.js` (`VERSION`), `package.json`,
+   l'en-tête de `packages/chauffage/chauffage.yaml` et `custom_components/chauffage/manifest.json` ; déplacer les entrées « Unreleased » de
    `CHANGELOG.md` sous la nouvelle version, avec la date et les étapes de mise à jour.
    `tests/js/release.test.mjs` vérifie que ces versions concordent.
 4. Commiter, puis taguer et pousser :
