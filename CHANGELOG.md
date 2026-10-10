@@ -9,6 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- A thermostat leaving its own mode (Versatile Thermostat safety mode, after its temperature
+  sensor stopped reporting) was taken for a manual change: an override was created and the
+  schedule was not applied again. It now resumes its schedule (integration); the package no
+  longer creates the override.
+
 ## [0.2.0-beta.1] - 2026-10-10
 
 ha-chauffage becomes a Home Assistant integration, installed from HACS and configured from the

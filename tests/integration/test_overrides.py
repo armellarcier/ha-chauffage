@@ -195,3 +195,15 @@ async def test_a_change_made_by_the_integration_itself_is_not_an_override(bench:
     await bench.hass.async_block_till_done()
     assert bench.hass.states.get("climate.salon").attributes["temperature"] == 23
     assert bench.overrides() == {}
+
+
+async def test_leaving_safety_mode_resumes_the_schedule_without_an_override(bench: Bench):
+    """Regression (dev HA): Versatile Thermostat enters safety mode (no temperature received),
+    then leaves it to preset "none" with a setpoint; that is not a manual change."""
+    await start(bench)
+    bench.thermostat("climate.salon", "safety", 7)  # no context: the thermostat itself
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "none", 18)
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+    assert bench.applied_presets() == {"climate.salon": "eco"}

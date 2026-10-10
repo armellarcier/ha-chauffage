@@ -214,6 +214,8 @@ automation:
       default_duration: 120
       # preset_mode values meaning "manual setpoint" (shown as "Manuel" in French)
       manual_presets: ['', 'none', 'manual', 'manuel']
+      # Presets applied by the schedule; any other one (safety…) is set by the thermostat itself
+      schedule_presets: ['comfort', 'eco', 'boost', 'frost']
       # Thermostats whose setpoint / preset has just been changed by hand
       changes: >
         {%- set before = trigger.from_state.attributes.vannes if trigger.from_state else none -%}
@@ -225,7 +227,12 @@ automation:
           {%- set b = before[ent] -%}
           {%- set ctx = states[ent].context if states[ent] else none -%}
           {# Change that does not come from an automation (hence not from the schedule) #}
-          {%- if ctx and ctx.parent_id is none -%}
+          {#- Entering or leaving the thermostat's own mode (VTherm safety…) is not manual -#}
+          {%- set own = namespace(v=false) -%}
+          {%- for p in [a.p, b.p] if p is not none and p not in schedule_presets and (p | string | lower) not in manual_presets -%}
+            {%- set own.v = true -%}
+          {%- endfor -%}
+          {%- if ctx and ctx.parent_id is none and not own.v -%}
             {%- set manual = a.p is none or (a.p | string | lower) in manual_presets -%}
             {%- if manual and a.t is not none and (a.t != b.t or a.p != b.p) -%}
               {# Setpoint changed by hand: Versatile Thermostat switches to its manual preset #}

@@ -153,3 +153,11 @@ def test_overrides_are_validated():
     assert o["value"] == 21.5
     with pytest.raises(model.InvalidData):
         model.normalize_override({"kind": "temp", "value": 21, "start": "a", "end": "b"})
+
+
+def test_the_thermostat_s_own_modes_are_not_manual_changes():
+    """Versatile Thermostat's safety mode: entering it, then leaving it to preset "none"."""
+    assert engine.manual_change(heat("eco", 17), heat("safety", 7), by_user=False) is None
+    assert engine.manual_change(heat("safety", 7), heat("none", 18), by_user=False) is None
+    assert engine.left_own_preset(heat("safety", 7), heat("none", 18))
+    assert not engine.left_own_preset(heat("eco", 17), heat("none", 18))

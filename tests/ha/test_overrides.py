@@ -177,3 +177,14 @@ async def test_an_enum_preset_does_not_break_detection(bench: Bench):
     assert isinstance(tracked, dict)
     assert tracked["climate.bureau"]["p"] == "eco"
     assert "climate.salon" in bench.overrides()
+
+
+async def test_leaving_safety_mode_is_not_an_override(bench: Bench):
+    """Versatile Thermostat enters safety mode (no temperature received), then leaves it to
+    preset "none" with a setpoint: not a manual change."""
+    await start(bench)
+    bench.thermostat("climate.salon", "safety", 7)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "none", 18)
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}

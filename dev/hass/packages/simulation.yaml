@@ -56,24 +56,40 @@ template:
         state_class: measurement
         unit_of_measurement: "°C"
         state: "{{ states('input_number.temperature_salon') }}"
+        # Real sensors report regularly even when the value does not change: without it,
+        # Versatile Thermostat goes into safety mode after an hour (no temperature received)
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température bureau
         unique_id: sim_temperature_bureau
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
         state: "{{ states('input_number.temperature_bureau') }}"
+        # Real sensors report regularly even when the value does not change: without it,
+        # Versatile Thermostat goes into safety mode after an hour (no temperature received)
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température chambre
         unique_id: sim_temperature_chambre
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
         state: "{{ states('input_number.temperature_chambre') }}"
+        # Real sensors report regularly even when the value does not change: without it,
+        # Versatile Thermostat goes into safety mode after an hour (no temperature received)
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température extérieure
         unique_id: sim_temperature_exterieure
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
         state: "{{ states('input_number.temperature_exterieure') }}"
+        # Real sensors report regularly even when the value does not change: without it,
+        # Versatile Thermostat goes into safety mode after an hour (no temperature received)
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
 
 automation:
   - id: sim_evolution_temperatures
