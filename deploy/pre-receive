@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Hook git « pre-receive » pour un dépôt nu placé sur la machine de Home Assistant :
-# un `git push` de la branche main y déploie le projet (scripts/deploy.sh).
-# Si le déploiement échoue (configuration HA invalide…), la version précédente est
-# restaurée et le push est REFUSÉ.
+# Git "pre-receive" hook for a bare repository on the Home Assistant machine:
+# a `git push` of the main branch deploys the project there (scripts/deploy.sh).
+# If the deployment fails (invalid HA configuration…), the previous version is restored
+# and the push is REJECTED.
 #
-# Installation : voir CONTRIBUTING.md, « Déployer par git push ».
-# Réglages du dépôt nu :
-#   git config deploy.haconfig /chemin/vers/config/ha
-#   deploy.env (à la racine du dépôt nu, facultatif) : PROD_HA_URL, PROD_HA_TOKEN
+# Installation: see CONTRIBUTING.md, "git push (for your own server)".
+# Bare repository settings:
+#   git config deploy.haconfig /path/to/ha/config
+#   deploy.env (at the root of the bare repository, optional): PROD_HA_URL, PROD_HA_TOKEN
 set -euo pipefail
 
 cfg=$(git config deploy.haconfig || true)
-[ -n "$cfg" ] || { echo "deploy.haconfig non défini : git config deploy.haconfig /chemin/config/ha" >&2; exit 1; }
+[ -n "$cfg" ] || { echo "deploy.haconfig is not set: git config deploy.haconfig /path/to/ha/config" >&2; exit 1; }
 
 zero=0000000000000000000000000000000000000000
 while read -r _old new ref; do
@@ -20,9 +20,9 @@ while read -r _old new ref; do
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
   git archive "$new" | tar -x -C "$tmp"
-  echo "→ Déploiement de ${new:0:7} vers $cfg"
+  echo "→ Deploying ${new:0:7} to $cfg"
   if ! ENV_FILE="$PWD/deploy.env" bash "$tmp/scripts/deploy.sh" "$cfg"; then
-    echo "✋ Push refusé : le déploiement a échoué (production inchangée)." >&2
+    echo "✋ Push rejected: deployment failed (production unchanged)." >&2
     exit 1
   fi
 done

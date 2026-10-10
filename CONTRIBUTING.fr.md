@@ -57,7 +57,7 @@ pour repartir de zéro : `docker compose -f dev/compose.yaml down && git clean -
 
 `scripts/logs.sh` affiche la fin du journal (filtrée sur le projet ; `scripts/logs.sh dev 200 all`
 pour tout voir). Pour accélérer les tests de la logique temporelle, changer les températures
-avec les curseurs `input_number.temperature_*` et la durée de dérogation (`duree_defaut`).
+avec les curseurs `input_number.temperature_*` et la durée de dérogation (`default_duration`).
 
 ## 3. Tests automatisés
 

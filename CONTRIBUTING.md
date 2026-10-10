@@ -56,7 +56,7 @@ for the dev HA). State is kept in `dev/hass/` (not versioned); to start over:
 
 `scripts/logs.sh` shows the end of the log (filtered on the project; `scripts/logs.sh dev 200 all`
 to see everything). To speed up testing of time-based logic, change temperatures with the
-`input_number.temperature_*` sliders and the override duration (`duree_defaut`).
+`input_number.temperature_*` sliders and the override duration (`default_duration`).
 
 ## 3. Automated tests
 
