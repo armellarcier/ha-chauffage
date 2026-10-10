@@ -6,6 +6,8 @@ TITLE = "Chauffage"
 # Options (options flow)
 CONF_OVERRIDE_DURATION = "override_duration"
 DEFAULT_OVERRIDE_DURATION = 120  # minutes
+CONF_USE_PRESETS = "use_presets"  # a level uses the thermostat's preset with the same name
+DEFAULT_USE_PRESETS = True
 
 # preset_mode values meaning "manual setpoint" (Versatile Thermostat: "none")
 MANUAL_PRESETS = frozenset({"", "none", "manual", "manuel"})

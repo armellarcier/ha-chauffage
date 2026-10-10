@@ -24,7 +24,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.util import dt as dt_util
 
 from . import engine, model
-from .const import CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION
+from .const import CONF_OVERRIDE_DURATION, CONF_USE_PRESETS, DEFAULT_OVERRIDE_DURATION, DEFAULT_USE_PRESETS
 from .store import SAVE_DELAY, ChauffageStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,6 +59,9 @@ class ChauffageRuntime:
         self.entry = entry
         self.store = store
         self.data = data
+        # Temperature last seen for each preset of each thermostat (no standard attribute gives
+        # it): shown by the card. Not in older stored data.
+        data.setdefault("preset_temperatures", {})
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
         self._own_contexts: deque[str] = deque(maxlen=500)
         self._lock = asyncio.Lock()
@@ -71,6 +74,8 @@ class ChauffageRuntime:
     async def async_start(self) -> None:
         self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
         self._track_thermostats()
+        for entity_id in self.data["schedules"]:
+            self._learn(self.hass.states.get(entity_id))
         if self.hass.state is CoreState.running:
             self.entry.async_create_task(self.hass, self.apply(force=True), "chauffage realign")
         else:
@@ -130,7 +135,12 @@ class ChauffageRuntime:
             {level["id"]: level for level in self.data["levels"]},
             self.data["mappings"],
             self.data["overrides"],
+            self.use_presets,
         )
+
+    @property
+    def use_presets(self) -> bool:
+        return bool(self.entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
         """What each level means for a thermostat (mapping set by hand, else the default)."""
@@ -138,7 +148,7 @@ class ChauffageRuntime:
         current = thermostat(self.hass.states.get(entity_id))
         out = {}
         for level_id in plan.levels:
-            target = engine.resolve(level_id, plan.levels, plan.mappings.get(entity_id), current)
+            target = engine.resolve(level_id, plan.levels, plan.mappings.get(entity_id), current, plan.use_presets)
             if target:
                 out[level_id] = target.as_dict()
         return out
@@ -153,6 +163,7 @@ class ChauffageRuntime:
             "targets": {e: self.targets_of(e) for e in self.data["schedules"]},
             "schedules": self.data["schedules"],
             "overrides": self.data["overrides"],
+            "preset_temperatures": self.data["preset_temperatures"],
             "revision": self.data["revision"],
             "override_duration": self.override_duration,
         }
@@ -170,8 +181,12 @@ class ChauffageRuntime:
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
         self.data["schedules"] = model.normalize_schedules(schedules, self.mode_ids, self.level_ids)
+        for entity_id in set(self.data["preset_temperatures"]) - set(self.data["schedules"]):
+            del self.data["preset_temperatures"][entity_id]
         self.data["revision"] += 1
         self._track_thermostats()
+        for entity_id in self.data["schedules"]:
+            self._learn(self.hass.states.get(entity_id))
         self._changed()
         await self.apply(force=True)
 
@@ -298,8 +313,22 @@ class ChauffageRuntime:
         )
 
     @callback
+    def _learn(self, state: State | None) -> None:
+        """While a thermostat is on a preset, its setpoint is that preset's temperature."""
+        current = thermostat(state)
+        if current is None or current.state in engine.IGNORED_STATES or current.temperature is None:
+            return
+        if engine.is_manual_preset(current.preset):
+            return
+        known = self.data["preset_temperatures"].setdefault(state.entity_id, {})
+        if known.get(current.preset) != current.temperature:
+            known[current.preset] = current.temperature
+            self._changed()
+
+    @callback
     def _state_changed(self, event: Event[EventStateChangedData]) -> None:
         old, new = event.data["old_state"], event.data["new_state"]
+        self._learn(new)
         if old is None or new is None:
             return
         context = new.context

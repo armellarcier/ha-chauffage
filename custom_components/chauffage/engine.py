@@ -83,9 +83,10 @@ def fit_temperature(value: float, thermostat: Thermostat | None) -> float:
     return value
 
 
-def default_target(level: dict[str, Any], thermostat: Thermostat | None) -> Target:
-    """The thermostat's preset named like the level if it has one, else the level's temperature."""
-    if thermostat and level["id"] in thermostat.presets:
+def default_target(level: dict[str, Any], thermostat: Thermostat | None, use_presets: bool = True) -> Target:
+    """The thermostat's preset named like the level if it has one (and presets are used), else
+    the level's temperature."""
+    if use_presets and thermostat and level["id"] in thermostat.presets:
         return Target("preset", level["id"])
     return Target("temperature", fit_temperature(level["temperature"], thermostat))
 
@@ -95,6 +96,7 @@ def resolve(
     levels: dict[str, dict[str, Any]],
     mapping: dict[str, Any] | None,
     thermostat: Thermostat | None,
+    use_presets: bool = True,
 ) -> Target | None:
     """Target of a level for one thermostat: its mapping set by hand, else the default."""
     level = levels.get(level_id) if level_id else None
@@ -105,7 +107,7 @@ def resolve(
         return Target("preset", explicit["preset"])
     if explicit and "temperature" in explicit:
         return Target("temperature", fit_temperature(explicit["temperature"], thermostat))
-    return default_target(level, thermostat)
+    return default_target(level, thermostat, use_presets)
 
 
 def same_temperature(a: float | None, b: float | None, thermostat: Thermostat | None = None) -> bool:
@@ -169,6 +171,7 @@ class Plan:
     levels: dict[str, dict[str, Any]]
     mappings: dict[str, dict[str, Any]]
     overrides: dict[str, Any]
+    use_presets: bool = True
 
     def level_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
         week = self.schedules.get(entity_id, {}).get(self.mode)
@@ -178,7 +181,7 @@ class Plan:
 
     def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
         level, _ = self.level_at(entity_id, now)
-        return resolve(level, self.levels, self.mappings.get(entity_id), thermostat)
+        return resolve(level, self.levels, self.mappings.get(entity_id), thermostat, self.use_presets)
 
 
 def targets(
@@ -208,7 +211,7 @@ def targets(
             continue
         if not (force or starts_now or entity_id == resumed or entity_id in ended):
             continue
-        target = resolve(level, plan.levels, plan.mappings.get(entity_id), thermostat)
+        target = resolve(level, plan.levels, plan.mappings.get(entity_id), thermostat, plan.use_presets)
         if target is None or thermostat.state in IGNORED_STATES or satisfied(target, thermostat):
             continue
         out.append((entity_id, target))

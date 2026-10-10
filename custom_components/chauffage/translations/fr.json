@@ -19,42 +19,17 @@
     "step": {
       "init": {
         "title": "Options de Chauffage",
-        "menu_options": { "general": "Général", "levels": "Niveaux de chauffe", "thermostats": "Thermostats" }
-      },
-      "general": {
-        "title": "Général",
-        "data": { "override_duration": "Durée des dérogations" },
+        "description": "Réglages par défaut. Les niveaux de chauffe et ce qu'ils signifient pour chaque thermostat se règlent dans la carte Chauffage (légende et ⚙ Niveaux).",
+        "data": {
+          "override_duration": "Durée des dérogations",
+          "use_presets": "Utiliser les presets des thermostats"
+        },
         "data_description": {
-          "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son programme."
+          "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son programme.",
+          "use_presets": "Un niveau utilise le preset du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte."
         }
-      },
-      "levels": {
-        "title": "Niveaux de chauffe",
-        "description": "Choisissez un niveau à modifier, ou ajoutez-en un.",
-        "data": { "level": "Niveau" }
-      },
-      "level": {
-        "title": "Niveau de chauffe",
-        "description": "La température par défaut est utilisée par les thermostats qui n'ont pas de preset du même nom que ce niveau, ou qui sont réglés sur une température.",
-        "data": { "name": "Nom", "color": "Couleur", "temperature": "Température par défaut", "delete": "Supprimer ce niveau" }
-      },
-      "replace": {
-        "title": "Remplacer le niveau",
-        "description": "Ce niveau est utilisé dans des plannings. Quel niveau prend sa place ?",
-        "data": { "replacement": "Remplaçant" }
-      },
-      "thermostats": {
-        "title": "Thermostats",
-        "description": "Choisissez un thermostat pour régler ce que signifie chaque niveau pour lui.",
-        "data": { "thermostat": "Thermostat" }
-      },
-      "mapping": {
-        "title": "Niveaux de {thermostat}",
-        "description": "Pour chaque niveau : automatique (le preset du thermostat qui porte le nom du niveau, sinon la température par défaut du niveau), un de ses presets, ou une température (réglée dans le champ en dessous)."
       }
-    },
-    "error": { "invalid_level": "Niveau invalide : vérifiez le nom, la couleur et la température." },
-    "abort": { "no_thermostats": "Aucun thermostat n'a encore de programme : ajoutez-en un dans la carte Chauffage." }
+    }
   },
   "entity": {
     "select": {

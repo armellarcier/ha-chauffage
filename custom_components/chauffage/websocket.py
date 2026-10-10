@@ -4,6 +4,10 @@ chauffage/subscribe       everything the card needs, then again after every chan
 chauffage/schedules/save  {schedules, revision}: refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set    {entity_id, override | null}: extend or remove an override
 chauffage/mode/set        {mode}: activate a mode (same as the select entity)
+chauffage/levels/set      {levels, replacements}: heating levels (a removed level used in the
+                          schedules is replaced by the level given in replacements)
+chauffage/mapping/set     {entity_id, mapping}: what the levels mean for one thermostat
+                          ({level id: {"preset": …} | {"temperature": …}}; {} = defaults)
 """
 
 from __future__ import annotations
@@ -26,6 +30,8 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_save_schedules)
     websocket_api.async_register_command(hass, ws_set_override)
     websocket_api.async_register_command(hass, ws_set_mode)
+    websocket_api.async_register_command(hass, ws_set_levels)
+    websocket_api.async_register_command(hass, ws_set_mapping)
 
 
 def _runtime(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg_id: int) -> ChauffageRuntime | None:
@@ -98,6 +104,42 @@ async def ws_set_mode(hass: HomeAssistant, connection: websocket_api.ActiveConne
         return
     try:
         await runtime.set_mode(msg["mode"])
+    except model.InvalidData as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/levels/set",
+    vol.Required("levels"): list,
+    vol.Optional("replacements", default={}): dict,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_levels(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if (runtime := _runtime(hass, connection, msg["id"])) is None:
+        return
+    try:
+        await runtime.set_levels(msg["levels"], msg["replacements"])
+    except model.InvalidData as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/mapping/set",
+    vol.Required("entity_id"): str,
+    vol.Required("mapping"): dict,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if (runtime := _runtime(hass, connection, msg["id"])) is None:
+        return
+    try:
+        await runtime.set_mapping(msg["entity_id"], msg["mapping"])
     except model.InvalidData as err:
         connection.send_error(msg["id"], "invalid_format", str(err))
         return
