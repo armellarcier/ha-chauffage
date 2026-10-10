@@ -8,6 +8,7 @@ The bench mirrors tests/ha/conftest.py: simulated `climate.*` states, a recorder
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from unittest.mock import PropertyMock, patch
@@ -25,6 +26,16 @@ PARIS = ZoneInfo("Europe/Paris")
 MONDAY = datetime(2026, 10, 12, tzinfo=PARIS)  # Monday, October 12, 2026
 CTX_AUTOMATION = Context(parent_id="01AUTOMATION")  # change made by an automation
 CTX_USER = Context(user_id="test-user")  # change made by a user in the UI
+
+# The three kinds of thermostats the integration supports (see docs/phase-2-plan.md)
+KINDS = ("vtherm", "standard", "plain")
+PRESETS_OF = {
+    "vtherm": ["none", "frost", "eco", "comfort", "boost"],  # Versatile Thermostat
+    "standard": ["eco", "comfort", "away", "boost"],  # standard HA presets, no frost
+    "plain": [],  # no presets (generic_thermostat)
+}
+MANUAL_PRESET = {"vtherm": "none", "standard": None, "plain": None}  # after a manual setpoint
+LEVEL_TEMPERATURES = {"comfort": 20.0, "eco": 17.0, "boost": 21.0, "frost": 7.0}  # defaults
 
 WEEKDAY = [["00:00", "eco"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco"]]
 WEEKEND = [["00:00", "eco"], ["08:00", "comfort"], ["23:00", "eco"]]
@@ -61,6 +72,12 @@ def ws_client(hass_ws_client, hass_admin_user, hass_read_only_user):
 
 
 @pytest.fixture
+def thermostat_kind() -> str:
+    """Kind of the simulated thermostats; modules testing every kind override this fixture."""
+    return "vtherm"
+
+
+@pytest.fixture
 def expected_lingering_timers() -> bool:
     """The scheduler's "every minute" timer is still armed at the end of a test."""
     return True
@@ -69,8 +86,9 @@ def expected_lingering_timers() -> bool:
 class Bench:
     """Drives the bench: time, simulated thermostats, schedules, overrides."""
 
-    def __init__(self, hass: HomeAssistant, freezer) -> None:
+    def __init__(self, hass: HomeAssistant, freezer, kind: str = "vtherm") -> None:
         self.hass = hass
+        self.kind = kind
         self.freezer = freezer
         self.calls: list[tuple[str, str]] = []
         self.temperature_calls: list[tuple[str, float]] = []
@@ -106,23 +124,34 @@ class Bench:
 
     # ----- simulated thermostats -----
 
-    def thermostat(self, entity_id: str, preset="eco", temperature: float | None = 17.0,
+    def needs(self, *kinds: str) -> None:
+        """Skip the test for the other kinds of thermostats."""
+        if self.kind not in kinds:
+            pytest.skip(f"not relevant for {self.kind} thermostats")
+
+    def thermostat(self, entity_id: str, level: Any = "eco", temperature: float | None = None,
                    state: str = "heat", context: Context | None = None, **attributes) -> None:
-        self.hass.states.async_set(
-            entity_id, state,
-            {"preset_mode": preset, "temperature": temperature,
-             "preset_modes": ["none", "frost", "eco", "comfort", "boost"], **attributes},
-            context=context,
-        )
+        """A thermostat at a level, as this kind shows it (its preset, or the level's default
+        temperature); any other value is a raw preset ("none", "safety", an Enum…)."""
+        presets = PRESETS_OF[self.kind]
+        if isinstance(level, str) and level in LEVEL_TEMPERATURES:
+            preset = level if level in presets else MANUAL_PRESET[self.kind]
+            temperature = LEVEL_TEMPERATURES[level] if temperature is None else temperature
+        else:
+            preset, temperature = level, 17.0 if temperature is None else temperature
+        values = {"temperature": temperature, "min_temp": 5, "max_temp": 30, "target_temp_step": 0.5}
+        if presets:
+            values |= {"preset_mode": preset, "preset_modes": presets}
+        self.hass.states.async_set(entity_id, state, values | attributes, context=context)
 
     async def manual_setpoint(self, entity_id: str, temperature: float) -> None:
-        """Setpoint changed by hand: Versatile Thermostat switches to preset "none"."""
-        self.thermostat(entity_id, "none", temperature, context=CTX_USER)
+        """Setpoint changed by hand (VTherm switches to preset "none", standard ones clear it)."""
+        self.thermostat(entity_id, MANUAL_PRESET[self.kind], temperature, context=CTX_USER)
         await self.hass.async_block_till_done()
 
-    async def thermostat_applies(self, entity_id: str, preset: str) -> None:
+    async def thermostat_applies(self, entity_id: str, level: str) -> None:
         """Thermostat reacting to a call from an automation."""
-        self.thermostat(entity_id, preset, context=CTX_AUTOMATION)
+        self.thermostat(entity_id, level, context=CTX_AUTOMATION)
         await self.hass.async_block_till_done()
 
     # ----- schedules / mode / overrides -----
@@ -150,17 +179,18 @@ class Bench:
     def overrides(self) -> dict:
         return self.runtime.data["overrides"]
 
-    def applied_presets(self) -> dict[str, str]:
-        """Last preset requested per thermostat, then reset the call log."""
+    def applied(self) -> dict[str, str]:
+        """Last level requested per thermostat (a preset, or a level's default temperature),
+        then reset the call log."""
         result = {entity_id: preset for entity_id, preset in self.calls}
         self.calls.clear()
         return result
 
 
 @pytest.fixture
-async def bench(hass: HomeAssistant, freezer) -> Bench:
+async def bench(hass: HomeAssistant, freezer, thermostat_kind) -> Bench:
     await hass.config.async_set_time_zone("Europe/Paris")
-    b = Bench(hass, freezer)
+    b = Bench(hass, freezer, thermostat_kind)
     # Start on Monday 00:00 so tests only move forward in time
     freezer.move_to(dt_util.as_utc(MONDAY))
 
@@ -172,9 +202,15 @@ async def bench(hass: HomeAssistant, freezer) -> Bench:
                 raise HomeAssistantError("Failed to send request: NWK_NO_ROUTE (simulated)")
 
     async def set_temperature(call: ServiceCall) -> None:
-        """Versatile Thermostat: a setpoint switches to preset "none" (written with the call's context)."""
-        b.temperature_calls.append((call.data["entity_id"], call.data["temperature"]))
-        b.thermostat(call.data["entity_id"], "none", call.data["temperature"], context=call.context)
+        """The thermostat takes the setpoint (VTherm switches to preset "none"), written with the
+        call's context."""
+        entity_id, temperature = call.data["entity_id"], call.data["temperature"]
+        b.temperature_calls.append((entity_id, temperature))
+        level = next((lv for lv, t in LEVEL_TEMPERATURES.items() if t == temperature), str(temperature))
+        b.calls.append((entity_id, level))
+        if entity_id in b.unreachable:
+            raise HomeAssistantError("Failed to send request: NWK_NO_ROUTE (simulated)")
+        b.thermostat(entity_id, MANUAL_PRESET[b.kind], temperature, context=call.context)
 
     hass.services.async_register("climate", "set_preset_mode", set_preset_mode)
     hass.services.async_register("climate", "set_temperature", set_temperature)

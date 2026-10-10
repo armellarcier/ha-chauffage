@@ -2,8 +2,12 @@
 
     modes:       [{"id": "normal", "name": "Normal"}, …]      renaming a mode keeps its id
     active_mode: "normal"
+    levels:      [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
+                 heating levels; "temperature" is the default for thermostats mapped to temperatures
+    mappings:    {climate entity id: {level id: {"preset": "comfort"} | {"temperature": 20.5}}}
+                 only what was set by hand: the rest is engine.default_target
     schedules:   {climate entity id: {mode id: [7 days, Monday first]}}
-                 a day is a list of [start "HH:MM", preset] slots, the first one at "00:00"
+                 a day is a list of [start "HH:MM", level id] slots, the first one at "00:00"
     overrides:   {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
                                       "start": ISO datetime, "end": ISO datetime}}
     revision:    increases on every schedule change; the card saves against a revision so
@@ -15,6 +19,8 @@ from __future__ import annotations
 import re
 import unicodedata
 from typing import Any
+
+from .const import DEFAULT_LEVEL_COLOR, DEFAULT_LEVEL_TEMPERATURE, DEFAULT_LEVELS, LEVEL_NAMES
 
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 DEFAULT_DAY = [["00:00", "eco"]]
@@ -46,9 +52,81 @@ def make_modes(names: list[str]) -> list[dict[str, str]]:
     return modes
 
 
-def default_data(mode_names: list[str]) -> dict[str, Any]:
+COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def default_levels(language: str, extra: list[str] | None = None) -> list[dict[str, Any]]:
+    """The four default levels named in `language`, then `extra` level ids (presets found in
+    existing schedules, kept so that nothing changes for those thermostats)."""
+    names = LEVEL_NAMES.get((language or "en").split("-")[0], LEVEL_NAMES["en"])
+    levels = [{"id": i, "name": names[i], "color": c, "temperature": t} for i, c, t in DEFAULT_LEVELS]
+    for level_id in extra or []:
+        if not any(level["id"] == level_id for level in levels):
+            levels.append({"id": level_id, "name": level_id, "color": DEFAULT_LEVEL_COLOR,
+                           "temperature": DEFAULT_LEVEL_TEMPERATURE})
+    return levels
+
+
+def used_levels(schedules: dict[str, Any]) -> list[str]:
+    """Level ids used in schedules, in order of appearance."""
+    seen: list[str] = []
+    for modes in schedules.values():
+        for week in modes.values():
+            for day in week:
+                for _, level in day:
+                    if level not in seen:
+                        seen.append(level)
+    return seen
+
+
+def default_data(mode_names: list[str], language: str = "en") -> dict[str, Any]:
     modes = make_modes(mode_names)
-    return {"modes": modes, "active_mode": modes[0]["id"], "schedules": {}, "overrides": {}, "revision": 0}
+    return {"modes": modes, "active_mode": modes[0]["id"], "levels": default_levels(language),
+            "mappings": {}, "schedules": {}, "overrides": {}, "revision": 0}
+
+
+def normalize_level(level: Any, taken_ids: set[str]) -> dict[str, Any]:
+    """Validated level; a new level (no id) gets a unique id from its name."""
+    if not isinstance(level, dict):
+        raise InvalidData("a level must be a dictionary")
+    name = str(level.get("name", "")).strip()
+    if not name:
+        raise InvalidData("a level needs a name")
+    color = str(level.get("color", DEFAULT_LEVEL_COLOR))
+    if not COLOR.match(color):
+        raise InvalidData(f"invalid color: {color}")
+    try:
+        temperature = float(level.get("temperature", DEFAULT_LEVEL_TEMPERATURE))
+    except (TypeError, ValueError) as err:
+        raise InvalidData("invalid temperature") from err
+    level_id = level.get("id")
+    if not level_id:
+        base = level_id = slug(name)
+        n = 2
+        while level_id in taken_ids:
+            level_id = f"{base}_{n}"
+            n += 1
+    return {"id": str(level_id), "name": name, "color": color.lower(), "temperature": temperature}
+
+
+def normalize_mapping(mapping: Any, level_ids: set[str]) -> dict[str, dict[str, Any]]:
+    """{level id: {"preset": …} | {"temperature": …}} set by hand for one thermostat."""
+    if not isinstance(mapping, dict):
+        raise InvalidData("a mapping must be a dictionary")
+    out: dict[str, dict[str, Any]] = {}
+    for level_id, target in mapping.items():
+        if level_id not in level_ids:
+            raise InvalidData(f"unknown level: {level_id}")
+        if isinstance(target, dict) and isinstance(target.get("preset"), str) and target["preset"]:
+            out[level_id] = {"preset": target["preset"]}
+        elif isinstance(target, dict) and "temperature" in target:
+            try:
+                out[level_id] = {"temperature": float(target["temperature"])}
+            except (TypeError, ValueError) as err:
+                raise InvalidData("invalid temperature") from err
+        else:
+            raise InvalidData(f"{level_id}: a preset or a temperature is needed")
+    return out
 
 
 def normalize_day(slots: Any) -> list[list[str]]:
@@ -83,7 +161,7 @@ def normalize_week(week: Any) -> list[list[list[str]]]:
     return [normalize_day(day) for day in week]
 
 
-def normalize_schedules(schedules: Any, mode_ids: set[str]) -> dict[str, dict[str, Any]]:
+def normalize_schedules(schedules: Any, mode_ids: set[str], level_ids: set[str] | None = None) -> dict[str, dict[str, Any]]:
     """Validated copy of schedules sent by the card or an import."""
     if not isinstance(schedules, dict):
         raise InvalidData("schedules must be a dictionary")
@@ -97,6 +175,10 @@ def normalize_schedules(schedules: Any, mode_ids: set[str]) -> dict[str, dict[st
         if unknown:
             raise InvalidData(f"{entity_id}: unknown modes {sorted(unknown)}")
         out[entity_id] = {mode: normalize_week(week) for mode, week in modes.items()}
+    if level_ids is not None:
+        unknown_levels = set(used_levels(out)) - level_ids
+        if unknown_levels:
+            raise InvalidData(f"unknown levels {sorted(unknown_levels)}")
     return out
 
 

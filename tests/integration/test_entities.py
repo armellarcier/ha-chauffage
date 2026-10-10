@@ -47,7 +47,7 @@ async def test_the_schedule_sensor_shows_the_planned_preset_and_the_next_slot(be
     await start(bench)
     state = bench.hass.states.get("sensor.salon_schedule")
     assert state.state == "eco"
-    assert state.attributes["next_preset"] == "comfort"
+    assert state.attributes["next_level"] == "comfort"
     assert state.attributes["next_start"].startswith("2026-10-12T17:30")
     await bench.go_to("17:30")
     assert bench.hass.states.get("sensor.salon_schedule").state == "comfort"

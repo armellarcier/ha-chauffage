@@ -48,7 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
                 raise ConfigEntryError("the package data is newer than this integration") from err
         else:
             language = (hass.config.language or "en").split("-")[0]
-            data = model.default_data(DEFAULT_MODES.get(language, DEFAULT_MODES["en"]))
+            data = model.default_data(DEFAULT_MODES.get(language, DEFAULT_MODES["en"]), language)
         await store.async_save(data)
         if importer.package_installed(hass):
             # Two schedulers must never drive the valves: the package's automations stop here

@@ -25,12 +25,22 @@ def at(hhmm: str, day: int = 0) -> datetime:
     return MONDAY + timedelta(days=day, hours=h, minutes=m)
 
 
-def heat(preset="eco", temperature=17.0, state="heat") -> Thermostat:
-    return Thermostat(state, preset, temperature)
+VTHERM = ("none", "frost", "eco", "comfort", "boost")
+LEVELS = {level["id"]: level for level in model.default_levels("en")}
 
 
-def targets(now, thermostats, mode="normal", overrides=None, **kw):
-    return engine.targets(SCHEDULES, mode, now, overrides or {}, thermostats, **kw)
+def heat(preset="eco", temperature=17.0, state="heat", presets=VTHERM) -> Thermostat:
+    return Thermostat(state, preset, temperature, presets, 5.0, 30.0, 0.5)
+
+
+def plain(temperature=17.0, state="heat", **kw) -> Thermostat:
+    """A thermostat without presets (generic_thermostat)."""
+    return Thermostat(state, None, temperature, (), kw.get("min_temp", 5.0), kw.get("max_temp", 30.0), kw.get("step", 0.5))
+
+
+def targets(now, thermostats, mode="normal", overrides=None, mappings=None, **kw):
+    plan = engine.Plan(SCHEDULES, mode, LEVELS, mappings or {}, overrides or {})
+    return [(entity_id, target.value) for entity_id, target in engine.targets(plan, now, thermostats, **kw)]
 
 
 # ----- slots -----
@@ -153,3 +163,81 @@ def test_overrides_are_validated():
     assert o["value"] == 21.5
     with pytest.raises(model.InvalidData):
         model.normalize_override({"kind": "temp", "value": 21, "start": "a", "end": "b"})
+
+
+# ----- heating levels → presets or temperatures -----
+
+def test_a_level_uses_the_thermostat_s_preset_with_the_same_name():
+    assert engine.default_target(LEVELS["comfort"], heat()) == engine.Target("preset", "comfort")
+
+
+def test_without_that_preset_the_level_s_temperature_is_used():
+    standard = heat(presets=("eco", "comfort", "away", "boost"))  # no "frost"
+    assert engine.default_target(LEVELS["frost"], standard) == engine.Target("temperature", 7.0)
+    assert engine.default_target(LEVELS["comfort"], plain()) == engine.Target("temperature", 20.0)
+
+
+def test_temperatures_are_fitted_to_the_thermostat():
+    assert engine.default_target(LEVELS["frost"], plain(min_temp=10.0)).value == 10.0
+    assert engine.default_target(LEVELS["comfort"], plain(max_temp=18.0)).value == 18.0
+    assert engine.fit_temperature(20.3, plain(step=0.5)) == 20.5
+    assert engine.fit_temperature(20.26, plain(step=0.1)) == 20.3
+
+
+def test_a_mapping_set_by_hand_wins_over_the_default():
+    mapping = {"comfort": {"temperature": 19.5}, "eco": {"preset": "away"}}
+    assert engine.resolve("comfort", LEVELS, mapping, heat()) == engine.Target("temperature", 19.5)
+    assert engine.resolve("eco", LEVELS, mapping, heat()) == engine.Target("preset", "away")
+    assert engine.resolve("boost", LEVELS, mapping, heat()) == engine.Target("preset", "boost")
+    assert engine.resolve("unknown", LEVELS, mapping, heat()) is None
+
+
+def test_a_thermostat_without_presets_gets_temperatures():
+    thermostats = {"climate.salon": plain(17.0), "climate.bureau": plain(17.0)}
+    assert targets(at("10:00"), thermostats, force=True) == [("climate.bureau", 20.0)]
+    # Already at the level's temperature (within half a step): nothing to send
+    thermostats = {"climate.salon": plain(17.0), "climate.bureau": plain(20.2)}
+    assert targets(at("10:00"), thermostats, force=True) == []
+
+
+def test_temperature_expected_manual_changes():
+    expected = engine.Target("temperature", 20.0)
+    # A new setpoint, by a user or on the device itself
+    assert engine.manual_change(plain(20.0), plain(22.0), by_user=False, expected=expected) == ("temperature", 22.0)
+    # The thermostat reaching what the schedule expects is not an override
+    assert engine.manual_change(plain(17.0), plain(20.0), by_user=False, expected=expected) is None
+    # VTherm mapped to temperatures: safety mode in and out
+    assert engine.manual_change(heat("none", 20.0), heat("safety", 7.0), by_user=False, expected=expected) is None
+    assert engine.manual_change(heat("safety", 7.0), heat("none", 20.0), by_user=False, expected=expected) is None
+    # A preset picked by a user
+    assert engine.manual_change(heat("none", 20.0), heat("boost", 22.0), by_user=True, expected=expected) == ("preset", "boost")
+
+
+def test_a_setpoint_change_keeping_the_preset_is_the_preset_s_temperature():
+    """VTherm preset temperatures: editing the comfort temperature is not an override."""
+    expected = engine.Target("preset", "comfort")
+    assert engine.manual_change(heat("comfort", 20.0), heat("comfort", 21.0), by_user=True, expected=expected) is None
+
+
+# ----- level data -----
+
+def test_default_levels_are_named_in_the_language_and_keep_unknown_presets():
+    levels = model.default_levels("fr", ["eco", "sleep"])
+    assert [lv["name"] for lv in levels] == ["Confort", "Éco", "Boost", "Hors-gel", "sleep"]
+    assert levels[-1]["id"] == "sleep"
+
+
+def test_levels_and_mappings_are_validated():
+    level = model.normalize_level({"name": "Nuit", "color": "#123ABC", "temperature": "18.5"}, {"eco"})
+    assert level == {"id": "nuit", "name": "Nuit", "color": "#123abc", "temperature": 18.5}
+    for bad in ({"name": ""}, {"name": "x", "color": "red"}, {"name": "x", "temperature": "hot"}):
+        with pytest.raises(model.InvalidData):
+            model.normalize_level(bad, set())
+    assert model.normalize_mapping({"eco": {"temperature": "17"}}, {"eco"}) == {"eco": {"temperature": 17.0}}
+    with pytest.raises(model.InvalidData):
+        model.normalize_mapping({"night": {"preset": "sleep"}}, {"eco"})
+
+
+def test_schedules_with_an_unknown_level_are_refused():
+    with pytest.raises(model.InvalidData):
+        model.normalize_schedules({"climate.salon": {"normal": [[["00:00", "sleep"]]] * 7}}, {"normal"}, {"eco"})

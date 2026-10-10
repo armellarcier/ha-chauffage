@@ -30,7 +30,7 @@ def test_every_fixture_migrates_to_the_current_one():
 
 
 def test_steps_run_in_order_and_a_missing_step_is_an_error():
-    steps = {1: lambda d: {**d, "a": 1}, 2: lambda d: {**d, "b": d["a"] + 1}}
+    steps = {1: lambda d, lang: {**d, "a": 1}, 2: lambda d, lang: {**d, "b": d["a"] + 1}}
     assert migrate({}, 1, target=3, migrations=steps) == {"a": 1, "b": 2}
     with pytest.raises(ValueError):
         migrate({}, 1, target=4, migrations=steps)

@@ -18,7 +18,6 @@ from homeassistant.helpers.device import async_entity_id_to_device
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ChauffageConfigEntry, engine
-from .const import PRESETS
 from .entity import ChauffageEntity
 from .runtime import DATA, ChauffageRuntime
 
@@ -73,17 +72,29 @@ class ScheduleSensor(ThermostatSensor):
     key = "schedule"
     update_on_tick = True
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = list(PRESETS)
+
+    @property
+    def options(self) -> list[str]:
+        return [level["id"] for level in self.runtime.data["levels"]]
+
+    def _name(self, level_id: str | None) -> str | None:
+        return next((lv["name"] for lv in self.runtime.data["levels"] if lv["id"] == level_id), None)
 
     @property
     def native_value(self) -> str | None:
         current, _, _ = self.runtime.planned(self.climate)
-        return current if current in PRESETS else None
+        return current if current in self.options else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        _, next_preset, next_start = self.runtime.planned(self.climate)
-        return {"next_preset": next_preset, "next_start": next_start.isoformat() if next_start else None}
+        current, next_level, next_start = self.runtime.planned(self.climate)
+        return {
+            "level_name": self._name(current),
+            "target": self.runtime.targets_of(self.climate).get(current) if current else None,
+            "next_level": next_level,
+            "next_level_name": self._name(next_level),
+            "next_start": next_start.isoformat() if next_start else None,
+        }
 
 
 class OverrideEndSensor(ThermostatSensor):

@@ -10,8 +10,20 @@ DEFAULT_OVERRIDE_DURATION = 120  # minutes
 # preset_mode values meaning "manual setpoint" (Versatile Thermostat: "none")
 MANUAL_PRESETS = frozenset({"", "none", "manual", "manuel"})
 
-# Presets a schedule can apply (Versatile Thermostat); heating levels replace them in phase 2
-PRESETS = ("comfort", "eco", "boost", "frost")
+# Default heating levels: (id, color, default temperature). Their ids are Versatile Thermostat's
+# preset names, so a thermostat with those presets uses them (see engine.default_target).
+DEFAULT_LEVELS = (
+    ("comfort", "#f57c00", 20.0),
+    ("eco", "#43a047", 17.0),
+    ("boost", "#e53935", 21.0),
+    ("frost", "#29b6f6", 7.0),
+)
+LEVEL_NAMES = {
+    "en": {"comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection"},
+    "fr": {"comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel"},
+}
+DEFAULT_LEVEL_COLOR = "#9e9e9e"
+DEFAULT_LEVEL_TEMPERATURE = 19.0
 
 # Default modes of a new installation, by language (names can be anything)
 DEFAULT_MODES = {

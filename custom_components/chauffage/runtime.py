@@ -40,10 +40,16 @@ class StaleRevision(Exception):
 def thermostat(state: State | None) -> engine.Thermostat | None:
     if state is None:
         return None
+    attributes = state.attributes
+    presets = attributes.get("preset_modes") or ()
     return engine.Thermostat(
         state.state,
-        engine.preset_value(state.attributes.get("preset_mode")),
-        engine.temperature_value(state.attributes.get("temperature")),
+        engine.preset_value(attributes.get("preset_mode")),
+        engine.temperature_value(attributes.get("temperature")),
+        tuple(p for p in (engine.preset_value(p) for p in presets) if p),
+        engine.temperature_value(attributes.get("min_temp")),
+        engine.temperature_value(attributes.get("max_temp")),
+        engine.temperature_value(attributes.get("target_temp_step")),
     )
 
 
@@ -113,11 +119,38 @@ class ChauffageRuntime:
     def mode_name(self, mode_id: str) -> str | None:
         return next((m["name"] for m in self.data["modes"] if m["id"] == mode_id), None)
 
+    @property
+    def level_ids(self) -> set[str]:
+        return {level["id"] for level in self.data["levels"]}
+
+    def plan(self) -> engine.Plan:
+        return engine.Plan(
+            self.data["schedules"],
+            self.data["active_mode"],
+            {level["id"]: level for level in self.data["levels"]},
+            self.data["mappings"],
+            self.data["overrides"],
+        )
+
+    def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
+        """What each level means for a thermostat (mapping set by hand, else the default)."""
+        plan = self.plan()
+        current = thermostat(self.hass.states.get(entity_id))
+        out = {}
+        for level_id in plan.levels:
+            target = engine.resolve(level_id, plan.levels, plan.mappings.get(entity_id), current)
+            if target:
+                out[level_id] = target.as_dict()
+        return out
+
     def snapshot(self) -> dict[str, Any]:
         """Everything the card needs."""
         return {
             "modes": self.data["modes"],
             "active_mode": self.data["active_mode"],
+            "levels": self.data["levels"],
+            "mappings": self.data["mappings"],
+            "targets": {e: self.targets_of(e) for e in self.data["schedules"]},
             "schedules": self.data["schedules"],
             "overrides": self.data["overrides"],
             "revision": self.data["revision"],
@@ -125,7 +158,7 @@ class ChauffageRuntime:
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
-        """(preset now, next preset, its start) for a thermostat in the active mode."""
+        """(level now, next level, its start) for a thermostat in the active mode."""
         week = self.data["schedules"].get(entity_id, {}).get(self.data["active_mode"])
         if not week:
             return None, None, None
@@ -136,9 +169,52 @@ class ChauffageRuntime:
     async def save_schedules(self, schedules: Any, revision: int | None = None) -> None:
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
-        self.data["schedules"] = model.normalize_schedules(schedules, self.mode_ids)
+        self.data["schedules"] = model.normalize_schedules(schedules, self.mode_ids, self.level_ids)
         self.data["revision"] += 1
         self._track_thermostats()
+        self._changed()
+        await self.apply(force=True)
+
+    async def set_levels(self, levels: list[Any], replacements: dict[str, str] | None = None) -> None:
+        """New list of levels; a removed level is replaced in the schedules by the level given
+        in `replacements` (it must exist), and its mappings are dropped."""
+        taken: set[str] = set()
+        new_levels = []
+        for level in levels:
+            normalized = model.normalize_level(level, taken | self.level_ids)
+            if normalized["id"] in taken:
+                raise model.InvalidData(f"duplicate level: {normalized['id']}")
+            taken.add(normalized["id"])
+            new_levels.append(normalized)
+        if not new_levels:
+            raise model.InvalidData("at least one level is needed")
+        removed = self.level_ids - taken
+        replacements = replacements or {}
+        used = set(model.used_levels(self.data["schedules"]))
+        for level_id in removed & used:
+            if replacements.get(level_id) not in taken:
+                raise model.InvalidData(f"{level_id} is used in schedules: choose a replacement")
+        if removed & used:
+            for modes in self.data["schedules"].values():
+                for mode, week in modes.items():
+                    modes[mode] = model.normalize_week(
+                        [[[start, replacements.get(level, level)] for start, level in day] for day in week]
+                    )
+            self.data["revision"] += 1
+        for mapping in self.data["mappings"].values():
+            for level_id in removed:
+                mapping.pop(level_id, None)
+        self.data["levels"] = new_levels
+        self._changed()
+        await self.apply(force=True)
+
+    async def set_mapping(self, entity_id: str, mapping: Any) -> None:
+        """Mapping set by hand for one thermostat ({} = defaults only)."""
+        normalized = model.normalize_mapping(mapping, self.level_ids)
+        if normalized:
+            self.data["mappings"][entity_id] = normalized
+        else:
+            self.data["mappings"].pop(entity_id, None)
         self._changed()
         await self.apply(force=True)
 
@@ -186,19 +262,20 @@ class ChauffageRuntime:
         async with self._lock:
             schedules = self.data["schedules"]
             todo = engine.targets(
-                schedules,
-                self.data["active_mode"],
+                self.plan(),
                 dt_util.now(),
-                self.data["overrides"],
                 {e: t for e in schedules if (t := thermostat(self.hass.states.get(e)))},
                 force=force,
                 resumed=resumed,
                 ended=ended or (),
             )
-            for i, (entity_id, preset) in enumerate(todo):
+            for i, (entity_id, target) in enumerate(todo):
                 if i and self.pause:
                     await asyncio.sleep(self.pause)
-                await self.call_climate("set_preset_mode", entity_id, {"preset_mode": preset})
+                if target.kind == "preset":
+                    await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
+                else:
+                    await self.call_climate("set_temperature", entity_id, {"temperature": target.value})
 
     async def _tick(self, now: datetime) -> None:
         ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
@@ -229,7 +306,9 @@ class ChauffageRuntime:
         # Changes made by the schedule, or by any automation / script, are not overrides
         if context.id in self._own_contexts or context.parent_id is not None:
             return
-        change = engine.manual_change(thermostat(old), thermostat(new), by_user=context.user_id is not None)
+        after = thermostat(new)
+        expected = self.plan().expected(new.entity_id, dt_util.now(), after)
+        change = engine.manual_change(thermostat(old), after, by_user=context.user_id is not None, expected=expected)
         if change is None:
             return
         override = self.new_override(*change)

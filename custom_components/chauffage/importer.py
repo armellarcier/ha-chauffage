@@ -95,6 +95,9 @@ def from_package(hass: HomeAssistant) -> dict[str, Any]:
     return {
         "modes": modes,
         "active_mode": ids.get(active, modes[0]["id"]),
+        # The package's presets become levels with the same ids (see store._v1_to_v2)
+        "levels": model.default_levels(hass.config.language or "en", model.used_levels(schedules)),
+        "mappings": {},
         "schedules": schedules,
         "overrides": overrides,
         "revision": 0,

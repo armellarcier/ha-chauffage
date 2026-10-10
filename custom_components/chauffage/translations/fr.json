@@ -37,7 +37,10 @@
         "name": "Programme",
         "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
         "state_attributes": {
-          "next_preset": { "name": "Preset suivant" },
+          "level_name": { "name": "Nom du niveau" },
+          "target": { "name": "Consigne" },
+          "next_level": { "name": "Niveau suivant" },
+          "next_level_name": { "name": "Nom du niveau suivant" },
           "next_start": { "name": "Début de la plage suivante" }
         }
       },
@@ -45,7 +48,10 @@
         "name": "Programme {thermostat}",
         "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
         "state_attributes": {
-          "next_preset": { "name": "Preset suivant" },
+          "level_name": { "name": "Nom du niveau" },
+          "target": { "name": "Consigne" },
+          "next_level": { "name": "Niveau suivant" },
+          "next_level_name": { "name": "Nom du niveau suivant" },
           "next_start": { "name": "Début de la plage suivante" }
         }
       },

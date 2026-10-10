@@ -16,7 +16,7 @@ async def start(bench: Bench) -> None:
     bench.thermostat("climate.salon", "eco")
     await bench.setup()
     await bench.save_schedules(SCHEDULES)
-    bench.applied_presets()
+    bench.applied()
 
 
 # ----- websocket -----
@@ -43,7 +43,7 @@ async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_clien
     reply = await client.receive_json()
     assert reply["success"] and reply["result"] == {"revision": 2}
     await bench.hass.async_block_till_done()
-    assert bench.applied_presets() == {"climate.salon": "comfort"}
+    assert bench.applied() == {"climate.salon": "comfort"}
 
 
 async def test_saving_from_an_outdated_copy_is_refused(bench: Bench, ws_client):
@@ -77,7 +77,7 @@ async def test_overrides_and_mode_from_the_card(bench: Bench, ws_client):
     assert (await client.receive_json())["success"]
     await bench.hass.async_block_till_done()
     assert bench.overrides() == {}
-    assert bench.applied_presets() == {"climate.salon": "eco"}
+    assert bench.applied() == {"climate.salon": "eco"}
 
     await client.send_json_auto_id({"type": "chauffage/mode/set", "mode": "away"})
     assert (await client.receive_json())["success"]
@@ -105,7 +105,7 @@ async def test_set_override_drives_the_thermostat_and_records_the_override(bench
     assert dt_util.parse_datetime(o["end"]) - dt_util.parse_datetime(o["start"]) == timedelta(hours=1)
     # The thermostat's answer (same context) is not a second, manual override
     await bench.go_to("11:00")
-    assert bench.applied_presets() == {"climate.salon": "eco"}
+    assert bench.applied() == {"climate.salon": "eco"}
     assert bench.overrides() == {}
 
 
@@ -114,12 +114,12 @@ async def test_set_override_with_a_preset_and_clear_override(bench: Bench):
     await bench.hass.services.async_call(
         "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True
     )
-    assert bench.applied_presets() == {"climate.salon": "boost"}
+    assert bench.applied() == {"climate.salon": "boost"}
     assert bench.overrides()["climate.salon"]["value"] == "boost"
     bench.thermostat("climate.salon", "boost")  # the thermostat applied it
     await bench.hass.services.async_call("chauffage", "clear_override", {"entity_id": "climate.salon"}, blocking=True)
     assert bench.overrides() == {}
-    assert bench.applied_presets() == {"climate.salon": "eco"}
+    assert bench.applied() == {"climate.salon": "eco"}
 
 
 async def test_services_refuse_thermostats_without_a_schedule(bench: Bench):

@@ -37,7 +37,10 @@
         "name": "Schedule",
         "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
         "state_attributes": {
-          "next_preset": { "name": "Next preset" },
+          "level_name": { "name": "Level name" },
+          "target": { "name": "Target" },
+          "next_level": { "name": "Next level" },
+          "next_level_name": { "name": "Next level name" },
           "next_start": { "name": "Next slot start" }
         }
       },
@@ -45,7 +48,10 @@
         "name": "{thermostat} schedule",
         "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
         "state_attributes": {
-          "next_preset": { "name": "Next preset" },
+          "level_name": { "name": "Level name" },
+          "target": { "name": "Target" },
+          "next_level": { "name": "Next level" },
+          "next_level_name": { "name": "Next level name" },
           "next_start": { "name": "Next slot start" }
         }
       },
