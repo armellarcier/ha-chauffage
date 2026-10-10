@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.2.0-beta.3';
+const VERSION = '0.3.0-beta.1';
 
 // Preset colors (labels are translated, see I18N)
 const PRESETS = {

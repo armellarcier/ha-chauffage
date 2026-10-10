@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] - 2026-10-11
+
 **Heating levels**: ha-chauffage works with any thermostat that has a target temperature, not
 only Versatile Thermostat. **Stored data: migrated automatically** (nothing changes for
 existing schedules).
@@ -130,7 +132,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.2.0-beta.3...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.3.0-beta.1...HEAD
+[0.3.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0-beta.1
 [0.2.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.3
 [0.2.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.1
