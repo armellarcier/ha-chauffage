@@ -13,7 +13,7 @@ Work with the automated tests and a disposable development HA, then publish a pr
 No build step: the card is a JavaScript file served as is. Node and Python are only used by
 the automated tests, and Docker stands in for them if they are not installed.
 
-## 1. The development HA
+## The development HA
 
 ```bash
 docker compose -f dev/compose.yaml up -d          # http://localhost:8124
@@ -54,7 +54,7 @@ versioned); to start over: `docker compose -f dev/compose.yaml down && git clean
 to see everything). To speed up testing of time-based logic, change temperatures with the
 `input_number.temperature_*` sliders and the override duration (integration options).
 
-## 2. Automated tests
+## Automated tests
 
 ```bash
 scripts/test.sh          # everything (uses Node / Python if installed, Docker otherwise)
@@ -67,7 +67,7 @@ HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.j
 | Suite | Tool | What it covers |
 |---|---|---|
 | `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, modes, thermostats turned off or unreachable, manual-change detection, overrides and their end, the pure logic (`engine.py`), storage and migrations, entities, services, websocket API, config / options flows, import from the v0.1 package |
-| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser), with a fake HA and integration (`tests/js/helpers.mjs`) | the card: calculations, schedule editing, copy / paste, saving, overrides, levels, more-info |
+| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser), with a fake HA and integration (`tests/js/helpers.mjs`) | the card: calculations, editing the weeks, copy / paste, saving, schedules, presets, overrides, more-info |
 
 The Python suite runs on the latest Home Assistant and on the minimum supported one (CI and
 `HA=min`). Thermostats are plain simulated `climate.*` states and the `climate` services are
@@ -92,7 +92,7 @@ to a Tuesday morning, adds a demo override, plays the actions with a visible cur
 restores everything (override removed, Normal active again, edits of the weeks discarded).
 Re-record it when the card's look changes.
 
-## 3. Trying a version on a real Home Assistant
+## Trying a version on a real Home Assistant
 
 The integration is installed with HACS (see the README), or by copying
 `custom_components/chauffage/` into `<config>/custom_components/chauffage/` and restarting HA.
@@ -160,8 +160,8 @@ separator), **first day of the week**, and the temperature unit of the HA config
   `translations/fr.json`, with the same keys.
 - To add a language: add an object to `I18N` (same keys as `en`), extend `resolveLanguage`, and
   run `scripts/test.sh js`.
-- With the integration (roadmap, phase 1), the card will be bundled: translations will move to one
-  JSON file per language with ICU MessageFormat (plurals), as in most Home Assistant cards.
+- Once the card is bundled (roadmap), translations will move to one JSON file per language with
+  ICU MessageFormat (plurals), as in most Home Assistant cards.
 
 ## Tests first
 
@@ -203,6 +203,8 @@ These conventions apply to every contributor, human or AI assistant
   The French version (`*.fr.md`) is always maintained and updated in the same commit.
 - **Tests first** (see above): `tests/integration/` for the integration, `tests/js/` for the
   card.
+- **Decisions**: a choice a future contributor might question (and why it was made) goes to
+  [docs/decisions.md](docs/decisions.md); ideas and next steps go to [ROADMAP.md](ROADMAP.md).
 - Data read from thermostats may hold Enums (e.g. a ZHA `preset_mode`): convert them to plain
   values (`.value`) before storing them or putting them in an attribute.
 - Card changes are tried in the development HA, on every kind of thermostat.

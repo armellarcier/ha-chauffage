@@ -142,6 +142,7 @@ custom_components/chauffage/        the integration (scheduler, entities, servic
 custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
 tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
+docs/                               glossary, design decisions, use cases and their tests
 tests/fixtures/                     stored data in each past format (migration tests)
 scripts/                            test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, HACS checks and releases

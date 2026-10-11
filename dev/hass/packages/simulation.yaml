@@ -153,7 +153,7 @@ automation:
                     {{ [t - (t - ext) * 0.02, ext] | max | round(1) }}
                   {%- endif -%}
 
-# The two other kinds of thermostats (see docs/phase-2-plan.md):
+# The two other kinds of thermostats (see docs/decisions.md, "Presets"):
 # - no presets: Home Assistant's generic_thermostat (YAML: its UI flow only accepts a switch or a fan);
 # - standard presets (eco, comfort, away, boost; no frost): dev/sim_climate.
 climate:

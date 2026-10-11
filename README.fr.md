@@ -147,6 +147,7 @@ custom_components/chauffage/        l'intégration (programmateur, entités, ser
 custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
 dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
 tests/integration/, tests/js/       tests automatisés (pytest + HA en mémoire, node --test + jsdom)
+docs/                               glossaire, décisions de conception, cas d'usage et leurs tests (en anglais)
 tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
 scripts/                            test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, vérifications HACS et publication

@@ -14,7 +14,7 @@ jetable, puis on publie une préversion.
 Pas de compilation : la carte est un fichier JavaScript servi tel quel. Node et Python ne
 servent qu'aux tests automatisés, et Docker les remplace s'ils ne sont pas installés.
 
-## 1. Le HA de développement
+## Le HA de développement
 
 ```bash
 docker compose -f dev/compose.yaml up -d          # http://localhost:8124
@@ -57,7 +57,7 @@ pour tout voir). Pour accélérer les tests de la logique temporelle, changer le
 avec les curseurs `input_number.temperature_*` et la durée de dérogation (options de
 l'intégration).
 
-## 2. Tests automatisés
+## Tests automatisés
 
 ```bash
 scripts/test.sh          # tout (utilise Node / Python s'ils sont installés, sinon Docker)
@@ -70,7 +70,7 @@ HA=min scripts/test.sh integration   # idem, sur le HA minimal pris en charge (h
 | Suite | Outil | Ce qui est couvert |
 |---|---|---|
 | `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée, `custom_components/` chargé | créneaux appliqués au bon moment, modes, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin, la logique pure (`engine.py`), le stockage et ses migrations, les entités, les services, l'API websocket, les flux de configuration et d'options, l'import depuis le package v0.1 |
-| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé), avec un faux HA et une fausse intégration (`tests/js/helpers.mjs`) | la carte : calculs, édition du planning, copier / coller, enregistrement, dérogations, niveaux, fenêtre de détail |
+| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé), avec un faux HA et une fausse intégration (`tests/js/helpers.mjs`) | la carte : calculs, édition des semaines, copier / coller, enregistrement, plannings, préréglages, dérogations, fenêtre de détail |
 
 La suite Python tourne sur la dernière version de Home Assistant et sur la version minimale
 prise en charge (CI et `HA=min`). Les thermostats sont de simples états `climate.*` simulés et
@@ -96,7 +96,7 @@ navigateur sur un mardi matin, ajoute une dérogation de démo, joue les actions
 visible, puis remet tout en état (dérogation supprimée, Normal de nouveau actif, modifications des
 semaines abandonnées). À réenregistrer quand l'apparence de la carte change.
 
-## 3. Essayer une version sur un vrai Home Assistant
+## Essayer une version sur un vrai Home Assistant
 
 L'intégration s'installe avec HACS (voir le README), ou en copiant `custom_components/chauffage/`
 dans `<config>/custom_components/chauffage/` puis en redémarrant HA. Pour essayer une version de
@@ -170,9 +170,8 @@ configuration HA.
   `translations/en.json`, `translations/fr.json`, avec les mêmes clés.
 - Pour ajouter une langue : ajouter un objet à `I18N` (mêmes clés que `en`), étendre
   `resolveLanguage`, puis lancer `scripts/test.sh js`.
-- Avec l'intégration (feuille de route, phase 1), la carte sera compilée : les traductions
-  passeront à un fichier JSON par langue avec ICU MessageFormat (pluriels), comme la plupart des
-  cartes Home Assistant.
+- Une fois la carte compilée (feuille de route), les traductions passeront à un fichier JSON par
+  langue avec ICU MessageFormat (pluriels), comme la plupart des cartes Home Assistant.
 
 ## Les tests d'abord
 
@@ -216,6 +215,9 @@ Ces conventions s'appliquent à tous les contributeurs, humains comme assistants
   La version française (`*.fr.md`) est toujours maintenue et mise à jour dans le même commit.
 - **Les tests d'abord** (voir plus haut) : `tests/integration/` pour l'intégration,
   `tests/js/` pour la carte.
+- **Décisions** : un choix qu'un futur contributeur pourrait remettre en question (et sa raison)
+  va dans [docs/decisions.md](docs/decisions.md) ; les idées et prochaines étapes vont dans
+  [ROADMAP.fr.md](ROADMAP.fr.md).
 - Les données lues sur les thermostats peuvent contenir des Enum (par ex. un `preset_mode`
   ZHA) : les convertir en valeurs simples (`.value`) avant de les stocker ou de les mettre dans
   un attribut.

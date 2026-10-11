@@ -1,5 +1,5 @@
 """Schedules defined by the user: created empty or as a copy, renamed, moved, deleted; stable ids
-for automations (docs/schedules-plan.md)."""
+for automations (docs/decisions.md, "Schedules")."""
 
 import pytest
 from homeassistant.exceptions import ServiceValidationError

@@ -1,6 +1,6 @@
 // Managing schedules from the card, with the drop-down menus of the schedule tabs: "+" creates
 // a schedule (empty or a copy, then its name), "⋮" on the open tab renames it (showing its stable
-// id), moves it, deletes it (docs/schedules-plan.md).
+// id), moves it, deletes it (docs/decisions.md, "Schedules").
 import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

@@ -28,7 +28,7 @@ MONDAY = datetime(2026, 10, 12, tzinfo=PARIS)  # Monday, October 12, 2026
 CTX_AUTOMATION = Context(parent_id="01AUTOMATION")  # change made by an automation
 CTX_USER = Context(user_id="test-user")  # change made by a user in the UI
 
-# The three kinds of thermostats the integration supports (see docs/phase-2-plan.md)
+# The three kinds of thermostats the integration supports (CONTRIBUTING.md, "Tests first")
 KINDS = ("vtherm", "standard", "plain")
 PRESETS_OF = {
     "vtherm": ["none", "frost", "eco", "comfort", "boost"],  # Versatile Thermostat
