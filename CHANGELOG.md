@@ -9,10 +9,22 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-11
+
+**Schedules defined by the user, one vocabulary**: it gathers 0.4.0-beta.1 (below) and this
+fix. **Stored data: migrated automatically.** **Breaking** for automations: an entity id and
+sensor attributes are renamed (see "Upgrading" in 0.4.0-beta.1).
+
 ### Fixed
 
 - A schedule name being typed in the card's "+" or "⋮" menu was erased when the card redrew
   itself (every 30 s during an override), and the name field did not get the focus.
+
+### Upgrading
+
+- From 0.3.0: update from HACS and restart, then follow "Upgrading" in 0.4.0-beta.1
+  (`select.chauffage_schedule`, `chauffage.activate_schedule`, `next_preset`…).
+- From 0.4.0-beta.1: update from HACS and restart; nothing else changes.
 
 ## [0.4.0-beta.1] - 2026-10-11
 
@@ -202,7 +214,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.4.0-beta.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.0
 [0.4.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.0-beta.1
 [0.3.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0
 [0.3.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0-beta.1
