@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.4.0-beta.1] - 2026-10-11
+
 **Schedules defined by the user, one vocabulary**: what were the three fixed modes are schedules
 you create, name, duplicate and delete; modes are now called schedules and heating levels
 presets, everywhere ([glossary](docs/glossary.md)). **Stored data: migrated automatically**
@@ -195,7 +197,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.4.0-beta.1...HEAD
+[0.4.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.0-beta.1
 [0.3.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0
 [0.3.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0-beta.1
 [0.2.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.3

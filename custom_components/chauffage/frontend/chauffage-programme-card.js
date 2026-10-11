@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.3.0';
+const VERSION = '0.4.0-beta.1';
 
 const DAY_MIN = 1440;
 
