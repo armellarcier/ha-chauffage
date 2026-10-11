@@ -1,6 +1,6 @@
 # Schedules defined by the user — concept and user stories
 
-Status: **draft, to validate** (concept and user stories; no code yet).
+Status: **decided** (see "Decisions"); implementation in progress, tests first.
 Roadmap context: [ROADMAP.md](../ROADMAP.md), "Next", step 1. Vocabulary: [glossary.md](glossary.md).
 
 ## Concept
@@ -40,9 +40,10 @@ existing installations. Not in this step: activating schedules over periods, "un
 **Managing schedules** (new; admins only, like presets)
 3. As an admin, I **duplicate** a schedule under a new name: every thermostat's week is copied;
    then I change only what differs (*Normal* → *Normal + remote work*).
-4. As an admin, I create a schedule **from scratch**: every thermostat starts with one preset all
-   week (*Eco*), which I then edit.
-5. As an admin, I **rename** a schedule; the name must not be empty or taken by another one.
+4. As an admin, I create an **empty** schedule: every scheduled thermostat starts with one preset
+   all week (*Eco*, or the first preset if there is no *Eco*), which I then edit.
+5. As an admin, I **rename** a schedule; the name must not be empty or taken by another one. Its
+   **id** does not change.
 6. As an admin, I **delete** a schedule, after confirming; I cannot delete the active schedule
    (activate another one first) or the last one.
 7. As an admin, I **reorder** schedules (order of the tabs and of the select's options).
@@ -50,9 +51,11 @@ existing installations. Not in this step: activating schedules over periods, "un
    create, rename, delete or reorder them.
 
 **Automations**
-9. As a user, my automations keep working when I rename a schedule… *to decide*: the select
-   entity's options are the names, so `select.select_option` with the old name stops working
-   (see question 3).
+9. As a user, my automations keep working when I rename a schedule: every schedule has a
+   **stable id**, given from its name when it is created and never changed (like an area or an
+   entity id in HA), shown in the card; the service `chauffage.activate_schedule` takes that id,
+   and the select entity's `schedule_id` attribute gives the active one (for triggers and
+   conditions). The select entity's options stay the names, for dashboards.
 10. As a user, I can switch schedules by date in an automation (odd / even weeks, end of
     holidays): documented with an example in the README.
 
@@ -63,26 +66,33 @@ existing installations. Not in this step: activating schedules over periods, "un
     language); I create the others by duplication.
 
 **Edge cases** (to cover with tests)
-- Managing schedules while the card has unsaved edits of the weeks: the edits are saved first,
-  or the action is refused with a message (see question 4).
+- Managing schedules while the card has unsaved edits of the weeks: the edits are saved first.
 - Two admins at once: an action on a schedule another one has just deleted or renamed fails
   with a clear message, without losing data.
 - A schedule with no week for a thermostat: that thermostat gets *Eco* all week (as today).
 - Deleting a schedule removes its weeks for every thermostat; overrides are not affected.
 
-## Questions to decide
+## Decisions
 
-1. **Fresh install**: a single *Normal* schedule (recommended), or the current three?
-2. **New schedule from scratch** (story 4): needed, or is duplication enough (simpler card)?
-3. **Renaming and automations**: the select entity's options are schedule names. Keep it that
-   way (simple, readable automations; renaming breaks the ones using the old name, said in the
-   confirmation), or add a stable id somewhere?
-4. **Unsaved edits** when managing schedules: save them first automatically, or refuse?
-5. **Entity id**: `select.chauffage_mode` becomes "Active schedule" in the UI. Existing
-   installations keep their entity id (HA's registry keeps it); new installations get
-   `select.chauffage_schedule`? Or keep `select.chauffage_mode` for everyone?
-6. **Where in the card**: a ⋮ menu on the schedule tabs (duplicate, rename, delete, move left /
-   right), plus a "+" tab to duplicate the open schedule?
+1. A new installation starts with **a single schedule**, *Normal*.
+2. A schedule can be created **empty** or as a **copy** of another one.
+3. **Stable ids**, as everywhere in HA: the id comes from the name at creation and never
+   changes; automations use it (`chauffage.activate_schedule`, attribute `schedule_id`).
+4. Unsaved edits of the weeks are **saved first**.
+5. The entity id stays **`select.chauffage_mode`** for now (renamed with the vocabulary step);
+   its name becomes *Active schedule* / *Planning actif*.
+6. In the card, a **"+"** tab creates a schedule (empty or a copy of a chosen one); a **⋮**
+   menu on the open tab renames (showing the id), moves left / right, deletes.
+7. French UI: *preset* is translated **préréglage**, as in Home Assistant.
+
+## API
+
+- Websocket `chauffage/modes/set` (admins): the ordered list of schedules
+  `[{id, name} | {name, copy_of?}]`, with the `revision` the card edited. Known ids are kept
+  (renamed, moved), missing ones deleted (not the active one, not the last one), items without
+  an id created (copy of `copy_of`, or empty). Returns the new list. The names in the API and the
+  data stay *modes* until the vocabulary step (roadmap 3), done in one go.
+- Service `chauffage.activate_schedule` (`schedule`: id).
 
 ## Later (roadmap)
 

@@ -35,7 +35,7 @@ sans écrire d'automatisation.
 
 ### 3. Un seul vocabulaire
 
-Renommer partout *modes* en *plannings* et *niveaux* en *presets* : code, données stockées (avec
+Renommer partout *modes* en *plannings* et *niveaux* en *préréglages* : code, données stockées (avec
 une migration), API websocket, entités quand cela ne casse rien chez les utilisateurs, carte,
 docs ([docs/glossary.md](docs/glossary.md)).
 
@@ -53,7 +53,7 @@ ajustements (règles par thermostat ou par intégration).
 
 ### 6. Plus de thermostats et de créneaux
 
-Les thermostats chaud / froid à plage de températures (`heat_cool`), un preset *Arrêt*, des
+Les thermostats chaud / froid à plage de températures (`heat_cool`), un préréglage *Arrêt*, des
 créneaux portant directement une température (« 21 °C à partir de 06:30 »).
 
 ### 7. Environnement de développement et CI

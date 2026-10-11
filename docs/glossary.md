@@ -9,7 +9,7 @@ canonical; the French column is the UI and docs wording.
 | **Active schedule** | Planning actif | The schedule the thermostats follow now; switched from the card, the select entity or an automation. |
 | **Week** | Semaine | What a schedule says for one thermostat: 7 days of slots. |
 | **Slot** | Créneau | A start time and a preset; it lasts until the next slot of the day. |
-| **Preset** | Preset | What a slot asks a thermostat for (*Comfort*, *Eco*, *Boost*, *Frost protection*…): a name, a color, a default temperature. For each thermostat, a preset is the climate preset with the same name when it has one, otherwise a temperature; it can be set per thermostat. It is the same idea as a climate entity's presets, extended to thermostats that have none. |
+| **Preset** | Préréglage | What a slot asks a thermostat for (*Comfort*, *Eco*, *Boost*, *Frost protection*…): a name, a color, a default temperature. For each thermostat, a preset is the climate preset with the same name when it has one, otherwise a temperature; it can be set per thermostat. It is the same idea as a climate entity's presets, extended to thermostats that have none. |
 | **Override** | Dérogation | A temporary setpoint or preset on one thermostat, usually set by hand on the thermostat; it ends by itself and the thermostat resumes its schedule. |
 
 ## Words to retire
