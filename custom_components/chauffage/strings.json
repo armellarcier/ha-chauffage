@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Chauffage",
-        "description": "Weekly heating schedules for your thermostats. Edit them with the Chauffage card, change the heating mode with the mode entity."
+        "description": "Weekly heating schedules for your thermostats. Edit them with the Chauffage card, switch schedules with the Active schedule entity."
       },
       "import_package": {
         "title": "Import from the package",
@@ -33,7 +33,10 @@
   },
   "entity": {
     "select": {
-      "mode": { "name": "Heating mode" }
+      "mode": {
+        "name": "Active schedule",
+        "state_attributes": { "schedule_id": { "name": "Schedule id" } }
+      }
     },
     "sensor": {
       "schedule": {
@@ -97,11 +100,19 @@
       "fields": {
         "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." }
       }
+    },
+    "activate_schedule": {
+      "name": "Activate a schedule",
+      "description": "Activates a schedule by its id, which does not change when the schedule is renamed.",
+      "fields": {
+        "schedule": { "name": "Schedule id", "description": "The schedule's id, shown in the card (schedule menu, Rename)." }
+      }
     }
   },
   "exceptions": {
     "not_loaded": { "message": "The Chauffage integration is not set up." },
     "not_scheduled": { "message": "{entity_id} has no schedule." },
-    "thermostat_failed": { "message": "{entity_id} did not accept the change." }
+    "thermostat_failed": { "message": "{entity_id} did not accept the change." },
+    "unknown_schedule": { "message": "There is no schedule with the id {schedule}." }
   }
 }

@@ -9,7 +9,7 @@ already done.
   3. three Versatile Thermostat "over a switch" thermostats on the simulated rooms
   4. a dashboard with the card
   5. the Chauffage integration's config entry
-  6. sample schedules for every kind of thermostat (VTherm; kitchen: generic_thermostat without
+  6. two more schedules (Vacances, Absent: Normal, Vacances, Absent in this order) and sample weeks for every kind of thermostat (VTherm; kitchen: generic_thermostat without
      presets; guest room: standard presets, dev/sim_climate), saved through the integration
 """
 
@@ -264,7 +264,11 @@ def day(*slots: str) -> list[list[str]]:
 
 WEEKDAY = day("00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco")
 WEEKEND = day("00:00 eco", "08:00 comfort", "23:00 eco")
-# Week of the first mode (Normal), by thermostat; the other modes: eco, then frost protection
+# Schedules created after the default one (Normal), in this order
+EXTRA_SCHEDULES = ["Vacances", "Absent"]
+# Holidays: everyone home all day; Away: eco
+HOLIDAY_DAY = day("00:00 eco", "07:30 comfort", "22:30 eco")
+# Week of the first schedule (Normal), by thermostat
 SAMPLE_WEEKS = {
     "climate.salon": [WEEKDAY] * 5 + [WEEKEND] * 2,
     "climate.bureau": [day("00:00 eco", "08:30 comfort", "18:00 eco")] * 5 + [day("00:00 eco")] * 2,
@@ -310,14 +314,19 @@ async def integration(api: Api) -> None:
 async def sample_schedules(ws: WS) -> None:
     """Sample schedules for the thermostats that have none, saved through the integration."""
     data = await ws.first_event(type="chauffage/subscribe")
+    if len(data["modes"]) == 1:
+        log(f"schedules: creating {', '.join(EXTRA_SCHEDULES)}")
+        result = await ws.call(type="chauffage/modes/set",
+                               modes=[{"id": data["modes"][0]["id"]}] + [{"name": n} for n in EXTRA_SCHEDULES])
+        data["modes"] = result["modes"]
     schedules = data["schedules"]
     missing = [entity for entity in SAMPLE_WEEKS if entity not in schedules]
     if not missing:
         return
-    first, second, *others = [m["id"] for m in data["modes"]]
+    first, *others = [m["id"] for m in data["modes"]]
     for entity in missing:
-        schedules[entity] = {first: SAMPLE_WEEKS[entity], second: [day("00:00 eco")] * 7,
-                             **{m: [day("00:00 frost")] * 7 for m in others}}
+        weeks = [[HOLIDAY_DAY] * 7, [day("00:00 eco")] * 7]
+        schedules[entity] = {first: SAMPLE_WEEKS[entity], **dict(zip(others, weeks))}
     log(f"schedules: sample schedules for {', '.join(missing)}")
     await ws.call(type="chauffage/schedules/save", schedules=schedules)
 

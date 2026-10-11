@@ -12,6 +12,7 @@
   },
   "services": {
     "set_override": { "service": "mdi:timer-plus-outline" },
-    "clear_override": { "service": "mdi:calendar-sync" }
+    "clear_override": { "service": "mdi:calendar-sync" },
+    "activate_schedule": { "service": "mdi:calendar-check" }
   }
 }

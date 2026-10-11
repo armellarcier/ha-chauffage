@@ -140,12 +140,12 @@ describe('editing a slot', () => {
 });
 
 describe('copying a week', () => {
-  test('to another thermostat and mode', () => {
+  test('to another thermostat and schedule', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     const select = $(card, '.copyweek');
-    select.value = 'climate.bureau|Absent';
+    select.value = 'climate.bureau|away';
     select.dispatchEvent(new Event('change', { bubbles: true }));
-    assert.deepEqual(day(card, 'climate.bureau', 0, 'Absent'), WEEKDAY);
+    assert.deepEqual(day(card, 'climate.bureau', 0, 'away'), WEEKDAY);
     assert.equal(card._dirty, true);
   });
 });
@@ -233,8 +233,8 @@ describe('error messages', () => {
     assert.match($(card, '.msg').textContent, /boom/);
     assert.ok(card._overrides()['climate.salon'], 'the override is shown again');
 
-    card._mode = 'Absent';
-    await card._activateMode('Absent');
+    card._mode = 'away';
+    await card._activateMode('away');
     assert.match($(card, '.msg').textContent, /boom/);
   });
 

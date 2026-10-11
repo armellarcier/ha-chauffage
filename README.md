@@ -12,8 +12,9 @@ Weekly heating schedules for Home Assistant thermostats: thermostats without pre
 presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
 (independent project, not affiliated with Versatile Thermostat):
 
-- 3 modes (Normal / Away / Holiday — `Normal` / `Absent` / `Vacances`), a 7-day schedule per
-  thermostat and per mode;
+- **schedules** you create, duplicate and name (*Normal*, *Remote work*, *Holidays*,
+  *Away*…), each with a 7-day week per thermostat; one is active, switched from the card or by
+  automations;
 - visual Lovelace editor card (`custom:chauffage-programme-card`): drag time slots, copy / paste
   days, several thermostats per day, open a thermostat's more-info dialog from the schedule;
 - **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
@@ -46,8 +47,26 @@ Requires Home Assistant 2026.9 or later.
 
 ### What the integration provides
 
-- **Heating mode** select (`select.chauffage_mode`): switch it from the card (open the
-  mode tab, then "Activate") or from any automation (presence, calendar…).
+- **Schedules**: a new installation starts with *Normal*; in the card, **+** creates a schedule
+  (empty, or a copy of another one) and **⋮** on the open tab renames, moves or deletes it
+  (admins). Each schedule has a **stable id**, shown in that menu, which does not change when it
+  is renamed.
+- **Active schedule** select (`select.chauffage_mode`): switch it from the card (open the
+  schedule's tab, then "Activate") or from any automation. In automations, use the id, which
+  survives a rename: the service `chauffage.activate_schedule` and the select's `schedule_id`
+  attribute. For example, odd and even weeks:
+  ```yaml
+  triggers:
+    - trigger: time
+      at: "00:00:00"
+  conditions:
+    - condition: template
+      value_template: "{{ now().weekday() == 0 }}"
+  actions:
+    - action: chauffage.activate_schedule
+      data:
+        schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'odd_weeks' }}"
+  ```
 - **Heating levels**: schedules use levels (by default *Comfort* 20 °C, *Eco* 17 °C, *Boost*
   21 °C, *Frost protection* 7 °C), not a thermostat's presets. For each thermostat, a level is
   its preset with the same name when it has one, otherwise the level's temperature; this can

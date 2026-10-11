@@ -35,3 +35,11 @@ clear_override:
       selector:
         entity:
           domain: climate
+
+activate_schedule:
+  fields:
+    schedule:
+      required: true
+      example: normal
+      selector:
+        text:

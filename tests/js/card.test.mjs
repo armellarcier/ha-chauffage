@@ -26,7 +26,7 @@ describe('configuration and loading', () => {
 
   test('the tab opened by default is the active mode', () => {
     const card = createCard(fakeHass({ mode: 'Absent' }));
-    assert.equal(card._mode, 'Absent');
+    assert.equal(card._mode, 'away');
   });
 });
 
@@ -41,15 +41,15 @@ describe('switching the active heating mode', () => {
 
   test('viewing another mode offers to activate it', () => {
     const card = createCard(fakeHass({ mode: 'Normal' }));
-    tab(card, 'Absent').click();
-    assert.match(bar(card).textContent, /Mode actif : Normal/);
+    tab(card, 'away').click();
+    assert.match(bar(card).textContent, /Planning actif : Normal/);
     assert.match(bar(card).textContent, /Activer « Absent »/);
   });
 
   test('the button activates the mode in the integration', async () => {
     const hass = fakeHass({ mode: 'Normal' });
     const card = createCard(hass);
-    tab(card, 'Vacances').click();
+    tab(card, 'holiday').click();
     await card._action('activate-mode', {});
     assert.deepEqual(hass.events, [{ type: 'chauffage/mode/set', mode: 'holiday' }]);
   });
@@ -57,7 +57,7 @@ describe('switching the active heating mode', () => {
   test('once HA reports the new mode, the button disappears', () => {
     const hass = fakeHass({ mode: 'Normal' });
     const card = createCard(hass);
-    tab(card, 'Absent').click();
+    tab(card, 'away').click();
     hass.push(integrationData({ mode: 'Absent' }));
     assert.equal(bar(card), null);
   });
@@ -66,8 +66,8 @@ describe('switching the active heating mode', () => {
     const hass = fakeHass({ mode: 'Normal' });
     const card = createCard(hass);
     hass.push(integrationData({ mode: 'Vacances' }));
-    assert.ok(tab(card, 'Vacances').querySelector('.dot'));
-    assert.equal(tab(card, 'Normal').querySelector('.dot'), null);
+    assert.ok(tab(card, 'holiday').querySelector('.dot'));
+    assert.equal(tab(card, 'normal').querySelector('.dot'), null);
   });
 });
 
@@ -121,9 +121,9 @@ describe('copy / paste', () => {
   test('pasting a copied day into another mode and another thermostat', () => {
     const card = createCard(fakeHass());
     card._copyToClipboard('climate.salon', 0);
-    card._mode = 'Absent';
+    card._mode = 'away';
     card._pasteFromClipboard('climate.bureau', 1);
-    assert.deepEqual(day(card, 'climate.bureau', 1, 'Absent'), WEEKDAY);
+    assert.deepEqual(day(card, 'climate.bureau', 1, 'away'), WEEKDAY);
   });
 
   test('the clipboard survives a page reload', () => {

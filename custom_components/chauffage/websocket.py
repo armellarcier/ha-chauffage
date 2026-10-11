@@ -4,6 +4,8 @@ chauffage/subscribe       everything the card needs, then again after every chan
 chauffage/schedules/save  {schedules, revision}: refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set    {entity_id, override | null}: extend or remove an override
 chauffage/mode/set        {mode}: activate a mode (same as the select entity)
+chauffage/modes/set       {modes, revision}: the ordered list of schedules ("modes"): create
+                          (empty or a copy), rename, move, delete (see model.plan_modes)
 chauffage/levels/set      {levels, replacements}: heating levels (a removed level used in the
                           schedules is replaced by the level given in replacements)
 chauffage/mapping/set     {entity_id, mapping}: what the levels mean for one thermostat
@@ -30,6 +32,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_save_schedules)
     websocket_api.async_register_command(hass, ws_set_override)
     websocket_api.async_register_command(hass, ws_set_mode)
+    websocket_api.async_register_command(hass, ws_set_modes)
     websocket_api.async_register_command(hass, ws_set_levels)
     websocket_api.async_register_command(hass, ws_set_mapping)
 
@@ -108,6 +111,27 @@ async def ws_set_mode(hass: HomeAssistant, connection: websocket_api.ActiveConne
         connection.send_error(msg["id"], "invalid_format", str(err))
         return
     connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/modes/set",
+    vol.Required("modes"): list,
+    vol.Optional("revision"): int,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_modes(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if (runtime := _runtime(hass, connection, msg["id"])) is None:
+        return
+    try:
+        modes = await runtime.set_modes(msg["modes"], msg.get("revision"))
+    except StaleRevision:
+        connection.send_error(msg["id"], "stale", "The schedules were changed elsewhere: reload them")
+        return
+    except model.InvalidData as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+    connection.send_result(msg["id"], {"modes": modes, "revision": runtime.data["revision"]})
 
 
 @websocket_api.websocket_command({

@@ -9,6 +9,23 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+**Schedules defined by the user**: what were the three fixed modes are schedules you create,
+name, duplicate and delete. **Stored data: unchanged** (existing modes become schedules with the
+same names and ids).
+
+### Added
+
+- In the card, **+** creates a schedule, empty (eco all week) or a copy of another one; **⋮** on
+  the open tab renames it, moves it, or deletes it after a confirmation (not the active one). Unsaved
+  edits of the weeks are saved first. Admins only.
+- Every schedule has a **stable id**, which does not change when it is renamed, for automations:
+  service `chauffage.activate_schedule`, attribute `schedule_id` of the select entity.
+
+### Changed
+
+- A new installation starts with a single schedule, *Normal* (instead of three modes).
+- The select entity is named *Active schedule* (entity id unchanged: `select.chauffage_mode`).
+
 ## [0.3.0] - 2026-10-11
 
 First stable version of the **Chauffage integration**, installed from HACS and configured from

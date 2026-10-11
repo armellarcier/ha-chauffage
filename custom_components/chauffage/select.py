@@ -1,4 +1,6 @@
-"""Select entity: the active heating mode (replaces the package's input_select.mode_chauffage)."""
+"""Select entity: the active schedule (still "mode" in its id and the data, see docs/glossary.md).
+Its options are the schedules' names; the `schedule_id` attribute gives the active schedule's
+stable id, for automations (with the chauffage.activate_schedule service)."""
 
 from __future__ import annotations
 
@@ -33,6 +35,10 @@ class ModeSelect(ChauffageEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         return self.runtime.mode_name(self.runtime.data["active_mode"])
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        return {"schedule_id": self.runtime.data["active_mode"]}
 
     async def async_select_option(self, option: str) -> None:
         mode_id = next(m["id"] for m in self.runtime.data["modes"] if m["name"] == option)

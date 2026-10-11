@@ -1,8 +1,9 @@
-"""Services for automations: start or end an override.
+"""Services for automations.
 
-chauffage.set_override  sets a thermostat's temperature or preset for a while (the schedule
-                        resumes at the end), like a manual change
-chauffage.clear_override ends it now: the thermostat resumes its schedule
+chauffage.set_override       sets a thermostat's temperature or preset for a while (the schedule
+                             resumes at the end), like a manual change
+chauffage.clear_override     ends it now: the thermostat resumes its schedule
+chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
 """
 
 from __future__ import annotations
@@ -34,13 +35,18 @@ SET_OVERRIDE_SCHEMA = vol.All(
     cv.has_at_least_one_key("temperature", "preset"),
 )
 CLEAR_OVERRIDE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
+ACTIVATE_SCHEDULE_SCHEMA = vol.Schema({vol.Required("schedule"): cv.string})
 
 
-def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
+def loaded_runtime(hass: HomeAssistant) -> ChauffageRuntime:
     entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not entries:
         raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_loaded")
-    runtime: ChauffageRuntime = entries[0].runtime_data
+    return entries[0].runtime_data
+
+
+def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
+    runtime = loaded_runtime(hass)
     if entity_id not in runtime.data["schedules"]:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="not_scheduled", translation_placeholders={"entity_id": entity_id}
@@ -70,5 +76,15 @@ def async_register(hass: HomeAssistant) -> None:
         entity_id = call.data[ATTR_ENTITY_ID]
         await runtime_for(hass, entity_id).set_override(entity_id, None)
 
+    async def activate_schedule(call: ServiceCall) -> None:
+        runtime = loaded_runtime(hass)
+        schedule = call.data["schedule"]
+        if schedule not in runtime.mode_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="unknown_schedule", translation_placeholders={"schedule": schedule}
+            )
+        await runtime.set_mode(schedule)
+
     hass.services.async_register(DOMAIN, "set_override", set_override, schema=SET_OVERRIDE_SCHEMA)
     hass.services.async_register(DOMAIN, "clear_override", clear_override, schema=CLEAR_OVERRIDE_SCHEMA)
+    hass.services.async_register(DOMAIN, "activate_schedule", activate_schedule, schema=ACTIVATE_SCHEDULE_SCHEMA)

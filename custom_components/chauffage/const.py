@@ -29,8 +29,8 @@ DEFAULT_LEVEL_TEMPERATURE = 19.0
 
 # Default modes of a new installation, by language (names can be anything)
 DEFAULT_MODES = {
-    "en": ["Normal", "Away", "Holiday"],
-    "fr": ["Normal", "Absent", "Vacances"],
+    "en": ["Normal"],
+    "fr": ["Normal"],
 }
 
 # The package (packages/chauffage/, v0.1): entities read by the import

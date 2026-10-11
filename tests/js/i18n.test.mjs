@@ -106,8 +106,8 @@ describe('the card in English', () => {
 
   test('the "activate mode" bar', () => {
     const card = createCard(fakeHass({ locale: english }));
-    card.shadowRoot.querySelector('.tab[data-mode="Absent"]').click();
-    assert.match(card.shadowRoot.querySelector('.mode-bar').textContent, /Active mode: Normal/);
+    card.shadowRoot.querySelector('.tab[data-mode="away"]').click();
+    assert.match(card.shadowRoot.querySelector('.mode-bar').textContent, /Active schedule: Normal/);
     assert.match(card.shadowRoot.querySelector('.mode-bar').textContent, /Activate “Absent”/);
   });
 

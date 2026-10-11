@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Chauffage",
-        "description": "Plannings de chauffe hebdomadaires pour vos thermostats. Modifiez-les avec la carte Chauffage, changez de mode de chauffage avec l'entité de mode."
+        "description": "Plannings de chauffe hebdomadaires pour vos thermostats. Modifiez-les avec la carte Chauffage, changez de planning avec l'entité Planning actif."
       },
       "import_package": {
         "title": "Import depuis le package",
@@ -33,7 +33,10 @@
   },
   "entity": {
     "select": {
-      "mode": { "name": "Mode de chauffage" }
+      "mode": {
+        "name": "Planning actif",
+        "state_attributes": { "schedule_id": { "name": "Identifiant du planning" } }
+      }
     },
     "sensor": {
       "schedule": {
@@ -97,11 +100,19 @@
       "fields": {
         "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un programme." }
       }
+    },
+    "activate_schedule": {
+      "name": "Activer un planning",
+      "description": "Active un planning par son identifiant, qui ne change pas quand on renomme le planning.",
+      "fields": {
+        "schedule": { "name": "Identifiant du planning", "description": "L'identifiant du planning, affiché dans la carte (menu du planning, Renommer)." }
+      }
     }
   },
   "exceptions": {
     "not_loaded": { "message": "L'intégration Chauffage n'est pas configurée." },
     "not_scheduled": { "message": "{entity_id} n'a pas de programme." },
-    "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." }
+    "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
+    "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." }
   }
 }

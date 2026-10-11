@@ -12,7 +12,9 @@ Plannings de chauffe hebdomadaires pour les thermostats de Home Assistant : sans
 presets, ou **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
 (projet indépendant, sans lien avec Versatile Thermostat) :
 
-- 3 modes (Normal / Absent / Vacances), un programme sur 7 jours par thermostat et par mode ;
+- des **plannings** que vous créez, dupliquez et nommez (*Normal*, *Télétravail*, *Vacances*,
+  *Absent*…), chacun avec une semaine de 7 jours par thermostat ; un seul est actif, changé
+  depuis la carte ou par des automatisations ;
 - carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : glisser les horaires,
   copier / coller des journées, plusieurs thermostats par journée ;
 - **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
@@ -44,9 +46,27 @@ Nécessite Home Assistant 2026.9 ou plus récent.
 
 ### Ce que fournit l'intégration
 
-- Un sélecteur **Mode de chauffage** (`select.chauffage_mode`) : il se change depuis la
-  carte (ouvrir l'onglet du mode, puis « Activer ») ou depuis n'importe quelle automatisation
-  (présence, calendrier…).
+- Des **plannings** : une nouvelle installation démarre avec *Normal* ; dans la carte, **+**
+  crée un planning (vide, ou copie d'un autre) et **⋮** sur l'onglet ouvert le renomme, le
+  déplace ou le supprime (administrateurs). Chaque planning a un **identifiant stable**, affiché
+  dans ce menu, qui ne change pas quand on le renomme.
+- Un sélecteur **Planning actif** (`select.chauffage_mode`) : il se change depuis la carte
+  (ouvrir l'onglet du planning, puis « Activer ») ou depuis n'importe quelle automatisation.
+  Dans les automatisations, utiliser l'identifiant, qui survit à un renommage : le service
+  `chauffage.activate_schedule` et l'attribut `schedule_id` du sélecteur. Par exemple, semaines
+  paires et impaires :
+  ```yaml
+  triggers:
+    - trigger: time
+      at: "00:00:00"
+  conditions:
+    - condition: template
+      value_template: "{{ now().weekday() == 0 }}"
+  actions:
+    - action: chauffage.activate_schedule
+      data:
+        schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'semaines_impaires' }}"
+  ```
 - Des **niveaux de chauffe** : les plannings utilisent des niveaux (par défaut *Confort* 20 °C,
   *Éco* 17 °C, *Boost* 21 °C, *Hors-gel* 7 °C), pas les presets d'un thermostat. Pour chaque
   thermostat, un niveau correspond à son preset du même nom s'il en a un, sinon à la température

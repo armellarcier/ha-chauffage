@@ -11,6 +11,7 @@ its own (not manual changes).
 from __future__ import annotations
 
 import asyncio
+import copy
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -236,6 +237,29 @@ class ChauffageRuntime:
             self.data["mappings"].pop(entity_id, None)
         self._changed()
         await self.apply(force=True)
+
+    async def set_modes(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
+        """Create (empty or a copy), rename, move and delete schedules (see model.plan_modes).
+        An empty schedule puts every scheduled thermostat in eco (or the first level) all week.
+        The active schedule and its weeks do not change: the thermostats are not touched."""
+        if revision is not None and revision != self.data["revision"]:
+            raise StaleRevision
+        modes, created = model.plan_modes(items, self.data["modes"], self.data["active_mode"])
+        kept = {m["id"] for m in modes}
+        level_ids = [level["id"] for level in self.data["levels"]]
+        fill = "eco" if "eco" in level_ids else level_ids[0]
+        for weeks in self.data["schedules"].values():
+            for mode_id in set(weeks) - kept:
+                del weeks[mode_id]
+            for mode_id, source in created.items():
+                if source is None:
+                    weeks[mode_id] = [[["00:00", fill]] for _ in range(7)]
+                elif source in weeks:
+                    weeks[mode_id] = copy.deepcopy(weeks[source])
+        self.data["modes"] = modes
+        self.data["revision"] += 1
+        self._changed()
+        return copy.deepcopy(modes)
 
     async def set_mode(self, mode_id: str) -> None:
         if mode_id not in self.mode_ids:

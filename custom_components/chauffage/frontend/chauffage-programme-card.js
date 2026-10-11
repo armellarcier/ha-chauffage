@@ -48,11 +48,28 @@ const I18N = {
     duration: '{h}h {mm}',
     deleteAndResume: 'Delete · resume the schedule',
     resume: 'Resume the schedule',
-    activeMode: 'Active mode',
-    activeModeBar: 'Active mode: <strong>{mode}</strong>',
-    noActiveMode: 'No active mode',
+    activeMode: 'Active schedule',
+    activeModeBar: 'Active schedule: <strong>{mode}</strong>',
+    noActiveMode: 'No active schedule',
     activate: 'Activate “{mode}”',
-    modeActivated: '“{mode}” mode activated',
+    modeActivated: '“{mode}” activated',
+    newSchedule: 'New schedule',
+    scheduleMenu: 'Rename, move or delete this schedule',
+    scheduleName: 'Name',
+    emptySchedule: 'Empty',
+    copyOf: 'Copy of',
+    create: 'Create',
+    close: 'Close',
+    rename: 'Rename',
+    scheduleId: 'Id: {id} (for automations: chauffage.activate_schedule)',
+    moveLeft: '◀ Move',
+    moveRight: 'Move ▶',
+    deleteSchedule: 'Delete',
+    confirmDelete: 'Delete “{name}” and its weeks?',
+    cannotDeleteActive: 'The active schedule cannot be deleted.',
+    cannotDeleteLast: 'The last schedule cannot be deleted.',
+    nameRequired: 'Give the schedule a name.',
+    nameTaken: 'This name is already used.',
     multiple: 'Multiple',
     multipleTitle: 'Turn on to show several thermostats (shortcut: Ctrl+click a thermostat)',
     all: 'All',
@@ -126,11 +143,28 @@ const I18N = {
     duration: '{h} h {mm}',
     deleteAndResume: 'Supprimer · reprendre le programme',
     resume: 'Reprendre le programme',
-    activeMode: 'Mode actif',
-    activeModeBar: 'Mode actif : <strong>{mode}</strong>',
-    noActiveMode: 'Aucun mode actif',
+    activeMode: 'Planning actif',
+    activeModeBar: 'Planning actif : <strong>{mode}</strong>',
+    noActiveMode: 'Aucun planning actif',
     activate: 'Activer « {mode} »',
-    modeActivated: 'Mode « {mode} » activé',
+    modeActivated: 'Planning « {mode} » activé',
+    newSchedule: 'Nouveau planning',
+    scheduleMenu: 'Renommer, déplacer ou supprimer ce planning',
+    scheduleName: 'Nom',
+    emptySchedule: 'Vide',
+    copyOf: 'Copie de',
+    create: 'Créer',
+    close: 'Fermer',
+    rename: 'Renommer',
+    scheduleId: 'Identifiant : {id} (pour les automatisations : chauffage.activate_schedule)',
+    moveLeft: '◀ Déplacer',
+    moveRight: 'Déplacer ▶',
+    deleteSchedule: 'Supprimer',
+    confirmDelete: 'Supprimer « {name} » et ses semaines ?',
+    cannotDeleteActive: 'Le planning actif ne peut pas être supprimé.',
+    cannotDeleteLast: 'Le dernier planning ne peut pas être supprimé.',
+    nameRequired: 'Donnez un nom au planning.',
+    nameTaken: 'Ce nom est déjà utilisé.',
     multiple: 'Plusieurs',
     multipleTitle: 'Activer pour afficher plusieurs vannes (raccourci : Ctrl+clic sur une vanne)',
     all: 'Toutes',
@@ -374,8 +408,8 @@ function durationText(min, locale = DEFAULT_LOCALE) {
 
 // ---------- data sources ----------
 // The card reads and writes through the Chauffage integration's websocket API. The source gives
-// the data in the format the card works with: mode names, "HH:MM level" slots, overrides as
-// { type: temp|preset, valeur, debut, fin }.
+// the data in the format the card works with: schedules ("modes") by id, "HH:MM level" slots,
+// overrides as { type: temp|preset, valeur, debut, fin }.
 
 const integrationAvailable = (hass) => !!(hass && hass.services && hass.services.chauffage);
 const filterActive = (raw) => {
@@ -418,22 +452,21 @@ function dataSource(hass) {
   if (available) INTEGRATION.connect(hass);
   const d = available ? INTEGRATION.data : null;
   const modes = d ? d.modes : [];
-  const idOf = (name) => (modes.find((m) => m.name === name) || {}).id;
-  const nameOf = (id) => (modes.find((m) => m.id === id) || {}).name;
+  const ids = new Set(modes.map((m) => m.id));
   return {
     available, // false: the integration is not set up
     ready: !!d,
     revision: d ? d.revision : null,
     stamps: d ? { schedules: `r${d.revision}`, overrides: JSON.stringify(d.overrides), mode: d.active_mode } : {},
-    modes: () => modes.map((m) => m.name),
-    activeMode: () => (d ? nameOf(d.active_mode) || null : null),
+    modes: () => modes.map((m) => m.id),
+    modeName: (id) => (modes.find((m) => m.id === id) || { name: id }).name,
+    activeMode: () => (d ? d.active_mode : null),
     schedules: () => {
       const out = {};
       for (const [climate, byMode] of Object.entries(d ? d.schedules : {})) {
         out[climate] = {};
         for (const [id, week] of Object.entries(byMode)) {
-          const name = nameOf(id);
-          if (name) out[climate][name] = week.map((day) => day.map(([start, preset]) => `${start} ${preset}`));
+          if (ids.has(id)) out[climate][id] = week.map((day) => day.map(([start, preset]) => `${start} ${preset}`));
         }
       }
       return out;
@@ -445,17 +478,18 @@ function dataSource(hass) {
     },
     save: (programmes, revision) => {
       const schedules = {};
-      for (const [climate, byName] of Object.entries(programmes)) {
+      for (const [climate, byId] of Object.entries(programmes)) {
         schedules[climate] = {};
-        for (const [name, week] of Object.entries(byName)) {
-          const id = idOf(name);
-          if (id) schedules[climate][id] = week.map((day) => day.map((s) => s.split(' ')));
+        for (const [id, week] of Object.entries(byId)) {
+          if (ids.has(id)) schedules[climate][id] = week.map((day) => day.map((s) => s.split(' ')));
         }
       }
       return hass.callWS({ type: 'chauffage/schedules/save', schedules, ...(revision != null ? { revision } : {}) });
     },
     setOverride: (climate, d2) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override: toIntegrationOverride(d2) }),
-    activateMode: (name) => hass.callWS({ type: 'chauffage/mode/set', mode: idOf(name) }),
+    activateMode: (id) => hass.callWS({ type: 'chauffage/mode/set', mode: id }),
+    // Create, rename, move, delete schedules: [{ id, name? } | { name, copy_of? }]
+    setModes: (list, revision) => hass.callWS({ type: 'chauffage/modes/set', modes: list, ...(revision != null ? { revision } : {}) }),
     levels: () => (d && d.levels) || [],
     targets: (climate) => (d && d.targets && d.targets[climate]) || {},
     // Levels and mappings are set from the card by admins (the integration refuses the others)
@@ -579,7 +613,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._modeState = modeStamp;
       need = true;
     }
-    if (src.ready && (!this._mode || !this._modes().includes(this._mode))) {
+    if (src.ready && this._wantMode && this._modes().includes(this._wantMode)) {
+      this._mode = this._wantMode; // created from this card
+      this._wantMode = null;
+      need = true;
+    } else if (src.ready && (!this._mode || !this._modes().includes(this._mode))) {
       const active = this._activeMode();
       this._mode = this._modes().includes(active) ? active : this._modes()[0];
       need = true;
@@ -597,8 +635,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel) return;
+      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd) return;
       this._menu = null;
+      this._schedEd = null;
       this._sel = null;
       this._overrideSel = null;
       this._render();
@@ -645,6 +684,10 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _activeMode() {
     return this._source().activeMode();
+  }
+
+  _modeName(id) {
+    return this._source().modeName(id);
   }
 
   _load() {
@@ -755,11 +798,14 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (result && result.revision != null) this._revision = result.revision;
       this._dirty = false;
       this._msg = this._loc.t('saved');
+      this._render();
+      return true;
     } catch (e) {
       // Integration: edited elsewhere since this copy was loaded
       this._msg = e && e.code === 'stale' ? this._loc.t('stale') : this._loc.t('error', { message: e.message || e.code || e });
+      this._render();
+      return false;
     }
-    this._render();
   }
 
   // ---------- rendering ----------
@@ -1002,6 +1048,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="loading">…</div></ha-card>`;
       return;
     }
+    const src = this._source();
     const modes = this._modes();
     const active = this._activeMode();
     const today = todayIdx();
@@ -1015,9 +1062,11 @@ class ChauffageProgrammeCard extends HTMLElement {
         return `<button class="chip${on ? ' on' : ''}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="${esc(tr('openThermostat'))}">${ICON_OPEN}</span></button>`;
       })
       .join('');
+    const editable = src.editable;
     const tabs = modes
-      .map((m) => `<button class="tab${m === this._mode ? ' on' : ''}" data-mode="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeMode'))}"></span>` : ''}${esc(m)}</button>`)
-      .join('');
+      .map((m) => `<button class="tab${m === this._mode ? ' on' : ''}" data-mode="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeMode'))}"></span>` : ''}${esc(this._modeName(m))}</button>${
+        editable && m === this._mode ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`)
+      .join('') + (editable ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
     const days = this._loc.dayOrder.map((d) => this._dayHtml(d, d === today && this._mode === active)).join('');
@@ -1026,7 +1075,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     const st = this._hass.states[focus];
     // What each level means for the focused thermostat (see _levelTemperature); levels are
     // set in the "Levels" view
-    const src = this._source();
     const legend = this._levels()
       .map((l) => {
         const target = this._targetOf(focus, l);
@@ -1039,7 +1087,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .map((t) => {
         const opts = modes
           .filter((m) => !(t.entity === focus && m === this._mode))
-          .map((m) => `<option value="${esc(t.entity)}|${esc(m)}">${esc(this._name(t.entity))} · ${esc(m)}</option>`)
+          .map((m) => `<option value="${esc(t.entity)}|${esc(m)}">${esc(this._name(t.entity))} · ${esc(this._modeName(m))}</option>`)
           .join('');
         return `<optgroup label="${esc(this._name(t.entity))}">${opts}</optgroup>`;
       })
@@ -1056,6 +1104,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
         </div>
         <div class="tabs">${tabs}</div>
+        ${this._schedEdHtml()}
         ${this._modeBarHtml(active)}
         <div class="scale"><div></div>${multi ? '<div></div>' : ''}<div class="ticks">${ticks}</div><div></div></div>
         ${days}
@@ -1216,6 +1265,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const tab = e.target.closest('.tab');
       if (tab) {
         this._mode = tab.dataset.mode;
+        this._schedEd = null;
         this._sel = null;
         this._overrideSel = null;
         this._render();
@@ -1290,17 +1340,112 @@ class ChauffageProgrammeCard extends HTMLElement {
   _modeBarHtml(active) {
     if (!this._mode || this._mode === active) return '';
     const t = this._loc.t;
-    const current = active ? t('activeModeBar', { mode: esc(active) }) : esc(t('noActiveMode'));
+    const current = active ? t('activeModeBar', { mode: esc(this._modeName(active)) }) : esc(t('noActiveMode'));
     return `<div class="mode-bar">
       <span>${current}</span>
-      <button class="btn small" data-act="activate-mode">${esc(t('activate', { mode: this._mode }))}</button>
+      <button class="btn small" data-act="activate-mode">${esc(t('activate', { mode: this._modeName(this._mode) }))}</button>
     </div>`;
+  }
+
+  // Panel under the tabs: a new schedule ("+"), or the open schedule's menu (⋮)
+  _schedEdHtml() {
+    const ed = this._schedEd;
+    if (!ed) return '';
+    const t = this._loc.t;
+    const modes = this._modes();
+    const err = this._schedErr ? `<div class="sched-err">${esc(this._schedErr)}</div>` : '';
+    const close = `<button class="btn small" data-act="schedule-close">${esc(t('close'))}</button>`;
+    if (ed.kind === 'new') {
+      const options = modes.map((m) => `<option value="${esc(m)}"${m === this._mode ? ' selected' : ''}>${esc(this._modeName(m))}</option>`).join('');
+      return `<div class="sched-ed">
+        <label>${esc(t('scheduleName'))} <input data-sched-name value=""></label>
+        <label><input type="radio" name="sched-kind" value="empty" checked> ${esc(t('emptySchedule'))}</label>
+        <label><input type="radio" name="sched-kind" value="copy"> ${esc(t('copyOf'))} <select data-sched-copy>${options}</select></label>
+        ${err}
+        <div class="sched-btns"><button class="btn small primary" data-act="schedule-create">${esc(t('create'))}</button>${close}</div>
+      </div>`;
+    }
+    const id = ed.id;
+    const i = modes.indexOf(id);
+    const name = this._modeName(id);
+    let del;
+    if (ed.confirm) {
+      del = `<span class="sched-confirm">${esc(t('confirmDelete', { name }))}
+        <button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button></span>`;
+    } else {
+      const reason = id === this._activeMode() ? t('cannotDeleteActive') : modes.length < 2 ? t('cannotDeleteLast') : '';
+      del = `<button class="btn small danger" data-act="schedule-delete" ${reason ? 'disabled' : ''}>${esc(t('deleteSchedule'))}</button>${
+        reason ? ` <span class="muted">${esc(reason)}</span>` : ''}`;
+    }
+    return `<div class="sched-ed">
+      <div class="muted">${esc(t('scheduleId', { id }))}</div>
+      <label>${esc(t('scheduleName'))} <input data-sched-name value="${esc(name)}"></label>
+      <button class="btn small" data-act="schedule-rename">${esc(t('rename'))}</button>
+      ${err}
+      <div class="sched-btns">
+        <button class="btn small" data-act="schedule-move" data-dir="-1" ${i <= 0 ? 'disabled' : ''}>${esc(t('moveLeft'))}</button>
+        <button class="btn small" data-act="schedule-move" data-dir="1" ${i >= modes.length - 1 ? 'disabled' : ''}>${esc(t('moveRight'))}</button>
+        ${del}${close}
+      </div>
+    </div>`;
+  }
+
+  // Schedule actions (admins): unsaved edits of the weeks are saved first
+  async _scheduleAction(act, ds) {
+    const t = this._loc.t;
+    const ed = this._schedEd;
+    this._schedErr = '';
+    if (act === 'schedule-new') { this._schedEd = ed && ed.kind === 'new' ? null : { kind: 'new' }; return this._render(); }
+    if (act === 'schedule-menu') { this._schedEd = ed && ed.kind === 'menu' ? null : { kind: 'menu', id: this._mode }; return this._render(); }
+    if (act === 'schedule-close' || !ed) { this._schedEd = null; return this._render(); }
+    if (act === 'schedule-delete') { ed.confirm = true; return this._render(); }
+    const keep = this._modes().map((id) => ({ id }));
+    const nameInput = this.shadowRoot.querySelector('input[data-sched-name]');
+    const checkName = (except) => {
+      const name = nameInput ? nameInput.value.trim() : '';
+      const taken = this._modes().some((m) => m !== except && this._modeName(m).trim().toLowerCase() === name.toLowerCase());
+      this._schedErr = !name ? t('nameRequired') : taken ? t('nameTaken') : '';
+      if (this._schedErr) this._render();
+      return this._schedErr ? null : name;
+    };
+    let list;
+    let created = false;
+    if (act === 'schedule-create') {
+      const name = checkName(null);
+      if (!name) return;
+      const kind = this.shadowRoot.querySelector('input[name="sched-kind"]:checked');
+      const copy = kind && kind.value === 'copy' ? this.shadowRoot.querySelector('select[data-sched-copy]').value : null;
+      list = [...keep, copy ? { name, copy_of: copy } : { name }];
+      created = true;
+    } else if (act === 'schedule-rename') {
+      const name = checkName(ed.id);
+      if (!name) return;
+      list = keep.map((m) => (m.id === ed.id ? { id: m.id, name } : m));
+    } else if (act === 'schedule-move') {
+      const i = keep.findIndex((m) => m.id === ed.id);
+      const j = i + Number(ds.dir);
+      if (i < 0 || j < 0 || j >= keep.length) return;
+      [keep[i], keep[j]] = [keep[j], keep[i]];
+      list = keep;
+    } else if (act === 'schedule-delete-confirm') {
+      list = keep.filter((m) => m.id !== ed.id);
+    } else return;
+    if (this._dirty && !(await this._save())) return;
+    try {
+      const result = await this._source().setModes(list, this._revision);
+      if (result && result.revision != null) this._revision = result.revision;
+      if (created && result && result.modes) this._wantMode = result.modes[result.modes.length - 1].id;
+      this._schedEd = act === 'schedule-move' ? ed : null;
+    } catch (e) {
+      this._msg = e && e.code === 'stale' ? t('stale') : t('error', { message: e.message || e.code || e });
+    }
+    this._render();
   }
 
   async _activateMode(mode) {
     try {
       await this._source().activateMode(mode);
-      this._msg = this._loc.t('modeActivated', { mode });
+      this._msg = this._loc.t('modeActivated', { mode: this._modeName(mode) });
     } catch (e) {
       this._msg = this._loc.t('error', { message: e.message || e.code || e });
     }
@@ -1571,13 +1716,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!this._data[climate]) this._data[climate] = {};
     this._data[climate][mode] = week;
     this._dirty = true;
-    this._msg = this._loc.t('weekCopiedTo', { source: this._name(source), target: this._name(climate), mode });
+    this._msg = this._loc.t('weekCopiedTo', { source: this._name(source), target: this._name(climate), mode: this._modeName(mode) });
     this._render();
   }
 
   _copyToClipboard(climate, day) {
     const segs = clone(this._week(climate)[day]);
-    const label = `${this._name(climate)} · ${this._loc.days[day]} (${this._mode})`;
+    const label = `${this._name(climate)} · ${this._loc.days[day]} (${this._modeName(this._mode)})`;
     this._clip = { segs, label };
     this._clipSrc = { climate, mode: this._mode, day };
     try { localStorage.setItem(LS_CLIP, JSON.stringify(this._clip)); } catch (e) { /* ignore */ }
@@ -1606,6 +1751,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       return this._openMenu(ds.climate, Number(ds.day), b.bottom - card.top + 4, card.right - b.right);
     }
     this._menu = null;
+    if (act.startsWith('schedule-')) return this._scheduleAction(act, ds);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
     if (act.startsWith('override-')) {
       const c = this._overrideSel && this._overrideSel.climate;
@@ -1686,6 +1832,17 @@ const STYLE = `
     background:var(--secondary-background-color); }
   .tab { flex:1; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
+  .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
+    color:var(--secondary-text-color); font-weight:600; }
+  .tab-tool:hover { background:var(--card-background-color); }
+  .sched-ed { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:-4px 0 10px; padding:10px;
+    border-radius:8px; font-size:.9em; background:var(--secondary-background-color); }
+  .sched-ed input[data-sched-name] { padding:4px 8px; border-radius:6px; border:1px solid var(--divider-color);
+    background:var(--card-background-color); }
+  .sched-ed select { padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color); background:var(--card-background-color); }
+  .sched-btns { display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; }
+  .sched-err { color:var(--error-color,#db4437); width:100%; }
+  .sched-confirm { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .mode-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px;
     margin:-4px 0 10px; padding:6px 10px; border-radius:8px; font-size:.88em;
     background:var(--secondary-background-color); color:var(--secondary-text-color); }

@@ -18,6 +18,8 @@ export const LEVELS = (language = 'fr') => [
   ['comfort', '#f57c00', 20], ['eco', '#43a047', 17], ['boost', '#e53935', 21], ['frost', '#29b6f6', 7],
 ].map(([id, color, temperature]) => ({ id, name: LEVEL_NAMES[language.startsWith('fr') ? 'fr' : 'en'][id], color, temperature }));
 
+const slug = (name) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 const PAIRS = (list) => list.map((s) => s.split(' '));
 const SALON = { 'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] } };
 
@@ -81,7 +83,14 @@ export function fakeHass({ data, schedules, overrides, mode, locale = FRENCH, re
     callWS: async (msg) => {
       events.push(msg);
       if (reply) return reply(msg);
-      return msg.type === 'chauffage/schedules/save' ? { revision: msg.revision + 1 } : null;
+      if (msg.type === 'chauffage/schedules/save') return { revision: msg.revision + 1 };
+      if (msg.type === 'chauffage/modes/set') {
+        // Like the integration: kept ids keep their names, new schedules get an id from their name
+        const names = Object.fromEntries((data || integrationData()).modes.map((m) => [m.id, m.name]));
+        const modes = msg.modes.map((m) => ({ id: m.id || slug(m.name), name: m.name || names[m.id] }));
+        return { modes, revision: msg.revision + 1 };
+      }
+      return null;
     },
     push: (d) => listener(d),
   };

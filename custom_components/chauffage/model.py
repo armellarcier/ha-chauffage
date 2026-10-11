@@ -36,6 +36,16 @@ def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", ascii_name.lower()).strip("_") or "mode"
 
 
+def unique_id(name: str, taken: set[str]) -> str:
+    """An id from a name, not in `taken`: "Away" → "away", or "away_2" if taken."""
+    base = new_id = slug(name)
+    n = 2
+    while new_id in taken:
+        new_id = f"{base}_{n}"
+        n += 1
+    return new_id
+
+
 def make_modes(names: list[str]) -> list[dict[str, str]]:
     """Modes with unique ids, in the given order (duplicate names are dropped)."""
     modes: list[dict[str, str]] = []
@@ -43,13 +53,43 @@ def make_modes(names: list[str]) -> list[dict[str, str]]:
         name = str(name).strip()
         if not name or any(m["name"] == name for m in modes):
             continue
-        base = mode_id = slug(name)
-        n = 2
-        while any(m["id"] == mode_id for m in modes):
-            mode_id = f"{base}_{n}"
-            n += 1
-        modes.append({"id": mode_id, "name": name})
+        modes.append({"id": unique_id(name, {m["id"] for m in modes}), "name": name})
     return modes
+
+
+def plan_modes(items: Any, current: list[dict[str, str]], active: str) -> tuple[list[dict[str, str]], dict[str, str | None]]:
+    """The new ordered list of schedules ("modes") from the card's list: `{"id"}` keeps a
+    schedule (with `"name"`: renamed), `{"name", "copy_of"?}` creates one, a missing id deletes
+    one. Returns the list and the created ids with what they copy (None: empty)."""
+    if not isinstance(items, list) or not items:
+        raise InvalidData("at least one schedule is needed")
+    names = {m["id"]: m["name"] for m in current}
+    taken = set(names)
+    modes: list[dict[str, str]] = []
+    created: dict[str, str | None] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            raise InvalidData(f"invalid schedule: {item!r}")
+        mode_id = item.get("id")
+        if mode_id is not None and (mode_id not in names or any(m["id"] == mode_id for m in modes)):
+            raise InvalidData(f"unknown or repeated schedule: {mode_id}")
+        name = item.get("name", names.get(mode_id))
+        if not isinstance(name, str) or not name.strip():
+            raise InvalidData("a schedule needs a name")
+        name = name.strip()
+        if any(m["name"].casefold() == name.casefold() for m in modes):
+            raise InvalidData(f"two schedules named {name}")
+        if mode_id is None:
+            source = item.get("copy_of")
+            if source is not None and source not in names:
+                raise InvalidData(f"unknown schedule to copy: {source}")
+            mode_id = unique_id(name, taken)
+            taken.add(mode_id)
+            created[mode_id] = source
+        modes.append({"id": mode_id, "name": name})
+    if active not in {m["id"] for m in modes}:
+        raise InvalidData("the active schedule cannot be deleted")
+    return modes, created
 
 
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")

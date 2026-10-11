@@ -16,9 +16,9 @@ describe('loading from the integration', () => {
     const card = createCard(hass);
     assert.deepEqual(hass.subscriptions, [{ type: 'chauffage/subscribe' }]);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
-    const tabs = [...card.shadowRoot.querySelectorAll('.tab')].map((t) => t.dataset.mode);
+    const tabs = [...card.shadowRoot.querySelectorAll('.tab')].map((t) => t.textContent.trim());
     assert.deepEqual(tabs, ['Normal', 'Absent', 'Vacances']);
-    assert.equal(card._mode, 'Normal');
+    assert.equal(card._mode, 'normal');
   });
 
   test('a placeholder is shown until the first data arrives', () => {
@@ -34,7 +34,7 @@ describe('loading from the integration', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
     hass.push({ ...INTEGRATION_DATA(), active_mode: 'away' });
-    const active = card.shadowRoot.querySelector('.tab[data-mode="Absent"] .dot');
+    const active = card.shadowRoot.querySelector('.tab[data-mode="away"] .dot');
     assert.ok(active, 'active-mode marker on "Absent"');
   });
 });
@@ -67,7 +67,7 @@ describe('writing to the integration', () => {
   test('activating a mode sends its id', async () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
-    card.shadowRoot.querySelector('.tab[data-mode="Vacances"]').click();
+    card.shadowRoot.querySelector('.tab[data-mode="holiday"]').click();
     await card._action('activate-mode', {});
     assert.deepEqual(lastCall(hass), { type: 'chauffage/mode/set', mode: 'holiday' });
   });

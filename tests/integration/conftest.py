@@ -18,6 +18,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
+from custom_components.chauffage import model
 from custom_components.chauffage.const import DOMAIN
 from custom_components.chauffage.runtime import ChauffageRuntime
 
@@ -38,6 +39,8 @@ LEVEL_TEMPERATURES = {"comfort": 20.0, "eco": 17.0, "boost": 21.0, "frost": 7.0}
 
 WEEKDAY = [["00:00", "eco"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco"]]
 WEEKEND = [["00:00", "eco"], ["08:00", "comfort"], ["23:00", "eco"]]
+# The schedules of an existing installation (the default of the bench); a new one has one schedule
+EXISTING_SCHEDULES = ("Normal", "Away", "Holiday")
 
 
 def every_day(*slots: tuple[str, str]) -> list:
@@ -85,7 +88,8 @@ def expected_lingering_timers() -> bool:
 class Bench:
     """Drives the bench: time, simulated thermostats, schedules, overrides."""
 
-    def __init__(self, hass: HomeAssistant, freezer, kind: str = "vtherm") -> None:
+    def __init__(self, hass: HomeAssistant, freezer, kind: str = "vtherm", storage: dict | None = None) -> None:
+        self.storage = {} if storage is None else storage
         self.hass = hass
         self.kind = kind
         self.freezer = freezer
@@ -98,7 +102,12 @@ class Bench:
     def runtime(self) -> ChauffageRuntime:
         return self.entry.runtime_data
 
-    async def setup(self, options: dict | None = None) -> None:
+    async def setup(self, options: dict | None = None, schedules: tuple[str, ...] | None = EXISTING_SCHEDULES) -> None:
+        """Set the integration up; by default as an existing installation with three schedules
+        (`schedules=None`: a new installation, or one importing the package)."""
+        if schedules and DOMAIN not in self.storage:
+            self.storage[DOMAIN] = {"version": 2, "minor_version": 1, "key": DOMAIN,
+                                    "data": model.default_data(list(schedules))}
         self.entry = MockConfigEntry(domain=DOMAIN, title="Chauffage", options=options or {})
         self.entry.add_to_hass(self.hass)
         assert await self.hass.config_entries.async_setup(self.entry.entry_id)
@@ -166,6 +175,16 @@ class Bench:
         )
         await self.hass.async_block_till_done()
 
+    async def set_schedules(self, schedules: list[dict], revision: int | None = None) -> list[dict]:
+        """What the card sends to create, rename, move or delete schedules."""
+        result = await self.runtime.set_modes(schedules, revision)
+        await self.hass.async_block_till_done()
+        return result
+
+    def schedule_list(self) -> list[tuple[str, str]]:
+        """(id, name) of the schedules, in order."""
+        return [(m["id"], m["name"]) for m in self.runtime.data["modes"]]
+
     async def set_override(self, entity_id: str, override: dict | None) -> None:
         """What the card sends to extend (+30 min…) or remove an override."""
         await self.runtime.set_override(entity_id, override)
@@ -187,9 +206,9 @@ class Bench:
 
 
 @pytest.fixture
-async def bench(hass: HomeAssistant, freezer, thermostat_kind) -> Bench:
+async def bench(hass: HomeAssistant, freezer, thermostat_kind, hass_storage) -> Bench:
     await hass.config.async_set_time_zone("Europe/Paris")
-    b = Bench(hass, freezer, thermostat_kind)
+    b = Bench(hass, freezer, thermostat_kind, hass_storage)
     # Start on Monday 00:00 so tests only move forward in time
     freezer.move_to(dt_util.as_utc(MONDAY))
 

@@ -131,8 +131,8 @@ await pause(700);
 await click(page.locator(`${card} .menu [data-act="paste-day"]`));
 await pause(1000);
 
-// Switch the heating mode from the card
-await click(page.locator(`${card} .tab[data-mode="Absent"]`));
+// Switch the active schedule from the card
+await click(page.locator(`${card} .tab`, { hasText: "Absent" }));
 await pause(900);
 await click(page.locator(`${card} [data-act="activate-mode"]`));
 await pause(1400);
@@ -167,7 +167,7 @@ const rp = await restore.newPage();
 await rp.goto(DASHBOARD);
 await rp.locator(`${card} .bar`).first().waitFor();
 await setOverride(rp, 'climate.salon', null);
-await rp.locator(`${card} .tab[data-mode="Normal"]`).click();
+await rp.locator(`${card} .tab[data-mode="normal"]`).click();
 await rp.locator(`${card} [data-act="activate-mode"]`).click();
 await rp.waitForTimeout(1000);
 await browser.close();

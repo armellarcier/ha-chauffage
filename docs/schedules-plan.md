@@ -1,6 +1,6 @@
 # Schedules defined by the user — concept and user stories
 
-Status: **decided** (see "Decisions"); implementation in progress, tests first.
+Status: **done** (see "Decisions"), to be released.
 Roadmap context: [ROADMAP.md](../ROADMAP.md), "Next", step 1. Vocabulary: [glossary.md](glossary.md).
 
 ## Concept
