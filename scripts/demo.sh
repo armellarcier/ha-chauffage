@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Records docs/demo.gif (the README animation) from the development HA.
 # Needs the dev HA running: docker compose -f dev/compose.yaml up -d
+# Another development HA (a fresh one, with only the sample data): DEMO_NETWORK=<its docker network>
 # Everything runs in Docker (Playwright for the browser, ffmpeg for the GIF).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -11,7 +12,7 @@ PLAYWRIGHT=1.55.0
 rm -rf dev/demo/out && mkdir -p dev/demo/out docs
 
 echo "Recording the demo…"
-docker run --rm --network ha-chauffage-dev_default --ipc=host \
+docker run --rm --network "${DEMO_NETWORK:-ha-chauffage-dev_default}" --ipc=host \
   -e LANG=fr_FR.UTF-8 -e LANGUAGE=fr_FR:fr -e TZ=Europe/Paris \
   -v "$root/dev/demo:/demo" -v ha-chauffage-demo-node-modules:/demo/node_modules -w /demo \
   "mcr.microsoft.com/playwright:v${PLAYWRIGHT}-noble" \

@@ -1,8 +1,11 @@
 // Records the README demo against the development HA (run through scripts/demo.sh).
 // Playwright drives a real browser; the video is converted to docs/demo.gif afterwards.
-// The browser clock is set to a Tuesday morning, with a demo override on the living room.
-// Nothing is kept: schedule edits are discarded, the override is removed and the
-// active schedule is restored at the end.
+// The development HA has three schedules: Normal (active), Vacances, Absent. The browser clock
+// is set to a Tuesday morning, with a demo override on the living room.
+// Scenario: create a "Télétravail" schedule as a copy of Normal and edit its Tuesday, look at
+// the presets, activate Vacances, then a thermostat's more-info dialog.
+// Nothing is kept: the edits are not saved, the created schedule and the override are removed
+// and Normal is active again at the end.
 import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
 
@@ -10,6 +13,7 @@ const HA = process.env.HA_URL || 'http://homeassistant:8123';
 const DASHBOARD = `${HA}/chauffage-dev/planning`;
 const VIEWPORT = { width: 880, height: 640 };
 const OUT = '/demo/out';
+const CREATED = 'Télétravail';
 
 // Demo time: next Tuesday 10:05; demo override on the living room from 08:45 to 11:30
 function nextTuesday(hh, mm) {
@@ -41,11 +45,13 @@ const CURSOR = () => {
   document.addEventListener('mouseup', () => { dot.style.transform = ''; }, true);
 };
 
-// Sets (or removes, null) an override through the integration's API, like the card does
-const setOverride = (page, climate, override) => page.evaluate(([entityId, data]) => {
-  const ha = document.querySelector('home-assistant');
-  return ha.hass.callWS({ type: 'chauffage/override/set', entity_id: entityId, override: data });
-}, [climate, override]);
+// Calls the integration's websocket API, like the card does
+const callWS = (page, message) => page.evaluate((msg) => document.querySelector('home-assistant').hass.callWS(msg), message);
+const setOverride = (page, climate, override) => callWS(page, { type: 'chauffage/override/set', entity_id: climate, override });
+const subscribeOnce = (page) => page.evaluate(() => new Promise((resolve) => {
+  const conn = document.querySelector('home-assistant').hass.connection;
+  conn.subscribeMessage((data) => resolve(data), { type: 'chauffage/subscribe' }).then((unsub) => setTimeout(unsub, 100));
+}));
 
 // Full Chromium (the default headless shell only ships English resources: 12 h time inputs)
 const browser = await chromium.launch({ channel: 'chromium', args: ['--lang=fr-FR'] });
@@ -98,53 +104,63 @@ async function click(locator, options) {
   await page.mouse.down();
   await page.mouse.up();
 }
+async function drag(locator, dxRatioOfDay, barSelector) {
+  const from = await moveTo(locator);
+  await pause(300);
+  await page.mouse.down();
+  const width = (await page.locator(barSelector).boundingBox()).width;
+  await page.mouse.move(from.x + width * dxRatioOfDay, from.y, { steps: 30 });
+  await pause(400);
+  await page.mouse.up();
+}
 
 await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height - 40);
-await pause(1500); // Tuesday: the override is shown on the living room row
+await pause(1500); // Normal is active; Tuesday: the override is shown on the living room row
 
-// Drag a time: living room, Monday, 06:30 → 07:30
-const handle = page.locator(`${bar('salon', 0)} .handle[data-idx="1"]`);
-const from = await moveTo(handle);
-await pause(300);
-await page.mouse.down();
-const width = (await page.locator(bar('salon', 0)).boundingBox()).width;
-await page.mouse.move(from.x + width / 24, from.y, { steps: 30 });
-await pause(400);
-await page.mouse.up();
-await pause(700);
-
-// Edit a slot: office, Wednesday, comfort slot → Boost
-await click(page.locator(`${bar('bureau', 2)} .seg[data-idx="1"]`));
+// A new schedule: a copy of Normal, named "Télétravail"; the card opens it
+await click(page.locator(`${card} [data-act="schedule-new"]`));
 await pause(900);
-await click(page.locator(`${card} .editor [data-preset="boost"]`));
+await click(page.locator(`${card} .sched-menu [data-act="schedule-pick"][data-copy="normal"]`));
+await pause(500);
+await page.keyboard.type(CREATED, { delay: 90 });
+await pause(400);
+await click(page.locator(`${card} .sched-menu [data-act="schedule-create"]`));
+await page.locator(`${card} .tab.on`, { hasText: CREATED }).waitFor();
+await pause(1200);
+
+// Someone works from home on Tuesdays: the living room stays in Comfort during the day…
+await click(page.locator(`${bar('salon', 1)} .seg[data-idx="2"]`));
+await pause(900);
+await click(page.locator(`${card} .editor [data-preset="comfort"]`));
 await pause(1000);
 await page.keyboard.press('Escape');
-await pause(500);
+await pause(400);
+// …and the evening Eco starts an hour earlier
+await drag(page.locator(`${bar('salon', 1)} .handle`).last(), -1 / 24, bar('salon', 1));
+await pause(1200);
 
-// Copy the living room's Monday and paste it on the bedroom's Monday
-await click(page.locator(`${card} [data-act="menu"][data-climate="climate.salon"][data-day="0"]`));
-await pause(700);
-await click(page.locator(`${card} .menu [data-act="copy-day"]`));
+// The presets: what Comfort, Eco… mean for each thermostat
+await click(page.locator(`${card} [data-act="view"][data-view="presets"]`));
+await pause(1500);
+await click(page.locator(`${card} [data-act="cell"][data-kind="thermostat"][data-preset="eco"][data-climate="climate.cuisine"]`));
+await pause(2000);
+await click(page.locator(`${card} [data-act="cell-close"]`));
 await pause(500);
-await click(page.locator(`${card} [data-act="menu"][data-climate="climate.chambre"][data-day="0"]`));
-await pause(700);
-await click(page.locator(`${card} .menu [data-act="paste-day"]`));
-await pause(1000);
+await click(page.locator(`${card} [data-act="view"][data-view="schedule"]`));
+await pause(900);
 
-// Switch the active schedule from the card
-await click(page.locator(`${card} .tab`, { hasText: "Absent" }));
+// Holidays: activate Vacances from the card
+await click(page.locator(`${card} .tab`, { hasText: 'Vacances' }));
 await pause(900);
 await click(page.locator(`${card} [data-act="activate-schedule"]`));
 await pause(1400);
 
-// Show only the living room: its week and today's override
+// Show only the living room, then its more-info dialog: schedule and override
 await click(page.locator(`${card} .chip[data-climate="climate.salon"]`), { dx: 0.25 });
-await pause(1800);
-
-// Open its more-info dialog: schedule and override shown under the controls
+await pause(1200);
 await click(page.locator(`${card} .chip[data-climate="climate.salon"] .chip-open`));
 await pause(1200);
-// The "Programme" block sits under the thermostat controls: scroll the dialog down to it
+// The "Planning" block sits under the thermostat controls: scroll the dialog down to it
 await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height * 0.6, { steps: 15 });
 for (let i = 0; i < 8; i++) {
   await page.mouse.wheel(0, 80);
@@ -161,14 +177,18 @@ const video = page.video();
 await context.close();
 writeFileSync(`${OUT}/timing.json`, JSON.stringify({ video: await video.path(), start, end }));
 
-// 3. Clean up (not recorded): remove the demo override, restore the active schedule and the display
+// 3. Clean up (not recorded): remove the demo override and the created schedule, activate Normal
 const restore = await browser.newContext({ viewport: VIEWPORT, ...LOCALE, storageState: session });
 const rp = await restore.newPage();
 await rp.goto(DASHBOARD);
 await rp.locator(`${card} .bar`).first().waitFor();
 await setOverride(rp, 'climate.salon', null);
-await rp.locator(`${card} .tab[data-schedule="normal"]`).click();
-await rp.locator(`${card} [data-act="activate-schedule"]`).click();
-await rp.waitForTimeout(1000);
+await callWS(rp, { type: 'chauffage/schedule/activate', schedule: 'normal' });
+const data = await subscribeOnce(rp);
+await callWS(rp, {
+  type: 'chauffage/schedules/set',
+  schedules: data.schedules.filter((s) => s.name !== CREATED).map((s) => ({ id: s.id })),
+});
+await rp.evaluate(() => localStorage.removeItem('chauffage-programme-card:shown'));
 await browser.close();
 console.log(`demo recorded: ${(end - start).toFixed(1)} s`);

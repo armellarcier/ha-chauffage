@@ -68,6 +68,17 @@ describe('the "+" menu: a new schedule', () => {
     assert.deepEqual(schedulesSet(hass)[0].schedules.at(-1), { name: 'Guests', copy_of: 'holiday' });
   });
 
+  test('a name being typed survives a redraw of the card (every 30 s during an override)', () => {
+    const card = createCard(fakeHass());
+    click(card, '[data-act="schedule-new"]');
+    click(card, '[data-act="schedule-pick"][data-copy=""]');
+    $(card, 'input[data-sched-name]').value = 'Télé';
+    $(card, 'input[data-sched-name]').focus();
+    card._render();
+    assert.equal($(card, 'input[data-sched-name]').value, 'Télé');
+    assert.equal(card.shadowRoot.activeElement, $(card, 'input[data-sched-name]'));
+  });
+
   test('Enter in the name field creates it', async () => {
     const hass = fakeHass();
     const card = createCard(hass);

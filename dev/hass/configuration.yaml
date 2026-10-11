@@ -4,6 +4,7 @@ default_config:
 homeassistant:
   name: Chauffage (dev)
   time_zone: Europe/Paris
+  language: fr  # presets and schedules are created with French names
   # packages/simulation.yaml = virtual rooms. The card is served by the integration.
   packages: !include_dir_named packages
 

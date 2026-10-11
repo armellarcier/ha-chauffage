@@ -1036,7 +1036,30 @@ class ChauffageProgrammeCard extends HTMLElement {
     return true;
   }
 
+  // Redraws the card, keeping a schedule name being typed in a menu (the card is redrawn every
+  // 30 s during an override, or when Home Assistant sends new data)
   _render() {
+    const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
+    const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
+    this._draw();
+    if (typing) this._restoreSchedName(typing.value, typing.focused);
+  }
+
+  // The name field of the schedule menus: its text, and the focus once ha-card (a Lit component,
+  // rendered asynchronously) shows its content; before that, the field cannot take the focus
+  _restoreSchedName(value, focus) {
+    const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
+    if (!input) return;
+    if (value != null) input.value = value;
+    if (!focus) return;
+    input.focus();
+    const card = this.shadowRoot.querySelector('ha-card');
+    if (card && card.updateComplete instanceof Promise) {
+      card.updateComplete.then(() => { if (input.isConnected) input.focus(); });
+    }
+  }
+
+  _draw() {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
     if (!this._source().available || this._source().outdated) {
@@ -1476,11 +1499,8 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   // Redraws with the schedule menu's name field focused (keeping what was typed)
   _renderSchedMenu(typed) {
-    this._render();
-    const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
-    if (!input) return;
-    if (typed != null) input.value = typed;
-    input.focus();
+    this._draw();
+    this._restoreSchedName(typed, true);
   }
 
   async _activateSchedule(schedule) {

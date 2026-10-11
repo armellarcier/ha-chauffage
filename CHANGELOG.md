@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- A schedule name being typed in the card's "+" or "⋮" menu was erased when the card redrew
+  itself (every 30 s during an override), and the name field did not get the focus.
+
 ## [0.4.0-beta.1] - 2026-10-11
 
 **Schedules defined by the user, one vocabulary**: what were the three fixed modes are schedules

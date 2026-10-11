@@ -21,10 +21,7 @@ from the UI, listed in HACS by default. Why things are the way they are:
 2. Submit ha-chauffage to the **HACS default list** (`hacs/default`) with 0.4.0: it works with
    any `climate` entity and nothing is predefined anymore. Until then it is a HACS *custom
    repository* (HACS shows no icon for those; Home Assistant does, once installed).
-3. Rewrite the demo scenario (`dev/demo/record.mjs`) and re-record `docs/demo.gif`: show the
-   presets and the schedules, with three schedules **Normal**, **Vacances**, **Absent**, in this
-   order (the order the development HA creates them in).
-4. Move the roadmap's items to **GitHub issues** (this page then summarizes them).
+3. Move the roadmap's items to **GitHub issues** (this page then summarizes them).
 
 ## Next
 

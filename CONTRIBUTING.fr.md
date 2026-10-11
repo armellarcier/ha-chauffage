@@ -91,10 +91,16 @@ Les tests tournent aussi sur GitHub Actions à chaque push et pull request
 scripts/demo.sh      # nécessite le HA de dev démarré ; Playwright + ffmpeg dans Docker
 ```
 
-Le scénario est dans [`dev/demo/record.mjs`](dev/demo/record.mjs) : il règle l'horloge du
-navigateur sur un mardi matin, ajoute une dérogation de démo, joue les actions avec un curseur
-visible, puis remet tout en état (dérogation supprimée, Normal de nouveau actif, modifications des
-semaines abandonnées). À réenregistrer quand l'apparence de la carte change.
+Le scénario est dans [`dev/demo/record.mjs`](dev/demo/record.mjs) : un mardi matin (horloge du
+navigateur), avec une dérogation de démo, il crée un planning *Télétravail* par copie de
+*Normal*, modifie son mardi, montre la vue *Préréglages*, active *Vacances*, puis ouvre la
+fenêtre de détail d'un thermostat, avec un curseur visible ; ensuite il remet tout en état
+(dérogation et planning créé supprimés, *Normal* de nouveau actif, modifications des semaines
+non enregistrées). Il attend les données d'exemple d'un HA de développement neuf (*Normal*,
+*Vacances*, *Absent*, noms en français) : pour garder les vôtres, enregistrer depuis un second HA
+de développement neuf (un autre projet compose) avec
+`DEMO_NETWORK=<son réseau docker> scripts/demo.sh`. À réenregistrer quand l'apparence de la carte
+change.
 
 ## Essayer une version sur un vrai Home Assistant
 

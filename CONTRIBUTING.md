@@ -87,10 +87,14 @@ The tests also run on GitHub Actions for every push and pull request
 scripts/demo.sh      # needs the dev HA running; Playwright + ffmpeg in Docker
 ```
 
-The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs): it sets the browser clock
-to a Tuesday morning, adds a demo override, plays the actions with a visible cursor, then
-restores everything (override removed, Normal active again, edits of the weeks discarded).
-Re-record it when the card's look changes.
+The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs): on a Tuesday morning (browser
+clock) with a demo override, it creates a *Télétravail* schedule as a copy of *Normal*, edits its
+Tuesday, shows the *Presets* view, activates *Vacances*, then opens a thermostat's more-info
+dialog, with a visible cursor; then it restores everything (override and created schedule
+removed, *Normal* active again, edits of the weeks not saved). It expects the sample data of a
+new development HA (*Normal*, *Vacances*, *Absent*, French names): to keep yours, record from a
+second, fresh development HA (another compose project) with
+`DEMO_NETWORK=<its docker network> scripts/demo.sh`. Re-record it when the card's look changes.
 
 ## Trying a version on a real Home Assistant
 

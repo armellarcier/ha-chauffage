@@ -24,10 +24,7 @@ ce qui a changé à chaque version : [CHANGELOG.md](CHANGELOG.md) (en anglais).
    fonctionne avec n'importe quelle entité `climate` et plus rien n'est prédéfini. D'ici là, il
    s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour ceux-ci ; Home
    Assistant l'affiche une fois l'intégration installée).
-3. Réécrire le scénario de démo (`dev/demo/record.mjs`) et réenregistrer `docs/demo.gif` :
-   montrer les préréglages et les plannings, avec trois plannings **Normal**, **Vacances**,
-   **Absent**, dans cet ordre (l'ordre dans lequel le HA de développement les crée).
-4. Passer les éléments de la feuille de route en **issues GitHub** (cette page les résumera).
+3. Passer les éléments de la feuille de route en **issues GitHub** (cette page les résumera).
 
 ## Ensuite
 
