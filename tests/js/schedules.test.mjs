@@ -1,17 +1,19 @@
-// Managing schedules from the card: the "+" tab creates one (empty or a copy), the ⋮ menu of the
-// open tab renames (showing its stable id), moves and deletes it (docs/schedules-plan.md).
-// In the websocket API, schedules are still "modes".
+// Managing schedules from the card, with the drop-down menus of the schedule tabs: "+" creates
+// a schedule (empty or a copy, then its name), "⋮" on the open tab renames it (showing its stable
+// id), moves it, deletes it (docs/schedules-plan.md). In the websocket API, schedules are still
+// "modes".
 import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 const click = (card, selector) => $(card, selector).click();
+const menu = (card) => $(card, '.sched-menu');
 const modesSet = (hass) => hass.events.filter((m) => m.type === 'chauffage/modes/set');
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const ALL = [{ id: 'normal' }, { id: 'away' }, { id: 'holiday' }];
 
-// The integration's answer: the new list, then the data pushed to every card
+// The data the integration pushes once a schedule was created
 function withSchedule(id, name) {
   const data = integrationData();
   data.modes = [...data.modes, { id, name }];
@@ -19,47 +21,64 @@ function withSchedule(id, name) {
   return data;
 }
 
-async function create(card, name, { copy } = {}) {
+// "+", then "Empty" or "Copy of …", then the name and Create
+async function create(card, name, { copy = '' } = {}) {
   click(card, '[data-act="schedule-new"]');
+  click(card, `[data-act="schedule-pick"][data-copy="${copy}"]`);
   $(card, 'input[data-sched-name]').value = name;
-  if (copy) {
-    $(card, 'input[name="sched-kind"][value="copy"]').checked = true;
-    $(card, 'select[data-sched-copy]').value = copy;
-  }
   click(card, '[data-act="schedule-create"]');
   await flush();
 }
 
-async function openMenu(card, id) {
+function openMenu(card, id) {
   click(card, `.tab[data-mode="${id}"]`);
   click(card, '[data-act="schedule-menu"]');
 }
 
 afterEach(() => cleanup());
 
-describe('creating a schedule', () => {
-  test('the "+" tab creates an empty schedule, which the card then opens', async () => {
+describe('the "+" menu: a new schedule', () => {
+  test('offers an empty schedule or a copy of each schedule', () => {
+    const card = createCard(fakeHass());
+    click(card, '[data-act="schedule-new"]');
+    const items = [...card.shadowRoot.querySelectorAll('.sched-menu [data-act="schedule-pick"]')].map((b) => b.textContent.trim());
+    assert.deepEqual(items, ['Vide (Éco toute la semaine)', 'Copie de « Normal »', 'Copie de « Absent »', 'Copie de « Vacances »']);
+    assert.equal($(card, '.sched-ed'), null); // a menu, not a form under the tabs
+  });
+
+  test('an empty schedule, which the card then opens', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
     await create(card, 'Télétravail');
     assert.deepEqual(modesSet(hass), [{ type: 'chauffage/modes/set', revision: 4, modes: [...ALL, { name: 'Télétravail' }] }]);
+    assert.equal(menu(card), null);
     hass.push(withSchedule('teletravail', 'Télétravail'));
     assert.equal(card._mode, 'teletravail');
     assert.ok($(card, '.tab.on[data-mode="teletravail"]'));
   });
 
-  test('or a copy of a chosen schedule (the open one by default)', async () => {
+  test('a copy of a schedule', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
-    click(card, '.tab[data-mode="away"]');
     click(card, '[data-act="schedule-new"]');
-    assert.equal($(card, 'select[data-sched-copy]').value, 'away');
-    $(card, 'select[data-sched-copy]').value = 'holiday';
-    $(card, 'input[name="sched-kind"][value="copy"]').checked = true;
+    click(card, '[data-act="schedule-pick"][data-copy="holiday"]');
+    assert.match(menu(card).textContent, /Copie de « Vacances »/);
     $(card, 'input[data-sched-name]').value = 'Guests';
     click(card, '[data-act="schedule-create"]');
     await flush();
     assert.deepEqual(modesSet(hass)[0].modes.at(-1), { name: 'Guests', copy_of: 'holiday' });
+  });
+
+  test('Enter in the name field creates it', async () => {
+    const hass = fakeHass();
+    const card = createCard(hass);
+    click(card, '[data-act="schedule-new"]');
+    click(card, '[data-act="schedule-pick"][data-copy=""]');
+    const input = $(card, 'input[data-sched-name]');
+    input.value = 'Guests';
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
+    await flush();
+    assert.deepEqual(modesSet(hass)[0].modes.at(-1), { name: 'Guests' });
   });
 
   test('unsaved edits of the weeks are saved first, then the schedule is created', async () => {
@@ -81,16 +100,16 @@ describe('creating a schedule', () => {
     assert.match($(card, '.msg').textContent, /modifiés ailleurs/);
   });
 
-  test('a name is needed and must not be taken', async () => {
+  test('a name is needed and must not be taken; the menu stays open', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
     await create(card, '  ');
-    assert.match($(card, '.sched-ed').textContent, /Donnez un nom/);
-    $(card, 'input[data-sched-name]').value = 'absent '; // the panel stays open
+    assert.match(menu(card).textContent, /Donnez un nom/);
+    $(card, 'input[data-sched-name]').value = 'absent ';
     click(card, '[data-act="schedule-create"]');
     await flush();
     assert.deepEqual(modesSet(hass), []);
-    assert.match($(card, '.sched-ed').textContent, /déjà utilisé/);
+    assert.match(menu(card).textContent, /déjà utilisé/);
   });
 
   test('an error of the integration is shown', async () => {
@@ -101,12 +120,13 @@ describe('creating a schedule', () => {
   });
 });
 
-describe('the menu of a schedule', () => {
-  test('renames it and shows its id, used by automations', async () => {
+describe('the "⋮" menu of the open schedule', () => {
+  test('shows its id, used by automations, and renames it', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
-    await openMenu(card, 'away');
-    assert.match($(card, '.sched-ed').textContent, /away/);
+    openMenu(card, 'away');
+    assert.match(menu(card).textContent, /Identifiant : away/);
+    click(card, '[data-act="schedule-rename-open"]');
     assert.equal($(card, 'input[data-sched-name]').value, 'Absent');
     $(card, 'input[data-sched-name]').value = 'Sortis';
     click(card, '[data-act="schedule-rename"]');
@@ -114,7 +134,7 @@ describe('the menu of a schedule', () => {
     assert.deepEqual(modesSet(hass)[0].modes, [{ id: 'normal' }, { id: 'away', name: 'Sortis' }, { id: 'holiday' }]);
   });
 
-  test('the renamed schedule stays open', async () => {
+  test('the renamed schedule stays open', () => {
     const hass = fakeHass();
     const card = createCard(hass);
     click(card, '.tab[data-mode="away"]');
@@ -129,42 +149,58 @@ describe('the menu of a schedule', () => {
   test('moves it left or right', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
-    await openMenu(card, 'away');
+    openMenu(card, 'away');
     click(card, '[data-act="schedule-move"][data-dir="-1"]');
     await flush();
-    await openMenu(card, 'holiday');
-    assert.equal($(card, '[data-act="schedule-move"][data-dir="1"]').disabled, true); // already last
     assert.deepEqual(modesSet(hass)[0].modes, [{ id: 'away' }, { id: 'normal' }, { id: 'holiday' }]);
+    openMenu(card, 'holiday');
+    assert.equal($(card, '[data-act="schedule-move"][data-dir="1"]').disabled, true); // already last
   });
 
   test('deletes it after a confirmation', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
-    await openMenu(card, 'holiday');
+    openMenu(card, 'holiday');
     click(card, '[data-act="schedule-delete"]');
     assert.deepEqual(modesSet(hass), []);
-    assert.match($(card, '.sched-ed').textContent, /Supprimer « Vacances »/);
+    assert.match(menu(card).textContent, /Supprimer « Vacances » et ses semaines/);
     click(card, '[data-act="schedule-delete-confirm"]');
     await flush();
     assert.deepEqual(modesSet(hass)[0].modes, [{ id: 'normal' }, { id: 'away' }]);
   });
 
-  test('the active schedule cannot be deleted', async () => {
+  test('the active schedule cannot be deleted', () => {
     const card = createCard(fakeHass());
-    await openMenu(card, 'normal');
+    openMenu(card, 'normal');
     assert.equal($(card, '[data-act="schedule-delete"]').disabled, true);
-    assert.match($(card, '.sched-ed').textContent, /planning actif ne peut pas être supprimé/);
-  });
-
-  test('Close closes it', async () => {
-    const card = createCard(fakeHass());
-    await openMenu(card, 'away');
-    click(card, '[data-act="schedule-close"]');
-    assert.equal($(card, '.sched-ed'), null);
+    assert.match(menu(card).textContent, /planning actif ne peut pas être supprimé/);
   });
 });
 
-test('only admins see "+" and the menu', () => {
+describe('closing the menus', () => {
+  test('a click elsewhere, Cancel, or the same button again', () => {
+    const card = createCard(fakeHass());
+    openMenu(card, 'away');
+    click(card, '.legend');
+    assert.equal(menu(card), null);
+    click(card, '[data-act="schedule-new"]');
+    click(card, '[data-act="schedule-pick"][data-copy=""]');
+    click(card, '[data-act="schedule-close"]');
+    assert.equal(menu(card), null);
+    click(card, '[data-act="schedule-menu"]');
+    click(card, '[data-act="schedule-menu"]');
+    assert.equal(menu(card), null);
+  });
+
+  test('Escape', () => {
+    const card = createCard(fakeHass());
+    click(card, '[data-act="schedule-new"]');
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal(menu(card), null);
+  });
+});
+
+test('only admins see "+" and "⋮"', () => {
   const hass = fakeHass();
   hass.user = { is_admin: false };
   const card = createCard(hass);
@@ -172,9 +208,9 @@ test('only admins see "+" and the menu', () => {
   assert.equal($(card, '[data-act="schedule-menu"]'), null);
 });
 
-test('in English', async () => {
+test('in English', () => {
   const card = createCard(fakeHass({ locale: { language: 'en' } }));
-  await openMenu(card, 'normal');
-  assert.match($(card, '.sched-ed').textContent, /The active schedule cannot be deleted/);
-  assert.match($(card, '.sched-ed').textContent, /Id: normal/);
+  openMenu(card, 'normal');
+  assert.match(menu(card).textContent, /The active schedule cannot be deleted/);
+  assert.match(menu(card).textContent, /Id: normal/);
 });

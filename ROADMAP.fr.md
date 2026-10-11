@@ -14,6 +14,13 @@ de HACS.
 | 0.2 (bêtas) | L'**intégration Chauffage** : installée depuis HACS, configurée depuis l'interface, données dans un `Store` versionné avec migrations, sélecteur de mode, capteurs, services, API websocket, carte servie par l'intégration, anglais et français, import des données du package ([docs/integration-plan.md](docs/integration-plan.md), en anglais) |
 | 0.3.0 | **Niveaux de chauffe** pour tout thermostat à consigne de température (Versatile Thermostat, presets standard, sans presets), réglés dans la vue *Niveaux* de la carte ; changements manuels jugés par rapport à ce qu'attend le programme ; tests sur les trois types de thermostats et analyse fonctionnelle ([docs/use-cases.md](docs/use-cases.md), [docs/phase-2-plan.md](docs/phase-2-plan.md), en anglais) |
 
+## À court terme
+
+- Passer les tâches à court terme et les étapes de la feuille de route en issues GitHub.
+- Réécrire le scénario de démo (`dev/demo/record.mjs`) et réenregistrer `docs/demo.gif` :
+  montrer les préréglages et les plannings, avec trois plannings **Normal**, **Vacances**,
+  **Absent**, dans cet ordre (l'ordre dans lequel le HA de développement les crée).
+
 ## Ensuite
 
 ### 1. Des plannings définis par l'utilisateur

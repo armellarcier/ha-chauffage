@@ -56,14 +56,15 @@ const I18N = {
     newSchedule: 'New schedule',
     scheduleMenu: 'Rename, move or delete this schedule',
     scheduleName: 'Name',
-    emptySchedule: 'Empty',
-    copyOf: 'Copy of',
+    emptySchedule: 'Empty (Eco all week)',
+    copyOfName: 'Copy of “{name}”',
+    renameMenu: 'Rename…',
+    deleteMenu: 'Delete…',
     create: 'Create',
-    close: 'Close',
     rename: 'Rename',
     scheduleId: 'Id: {id} (for automations: chauffage.activate_schedule)',
-    moveLeft: '◀ Move',
-    moveRight: 'Move ▶',
+    moveLeft: '◀ Move left',
+    moveRight: 'Move right ▶',
     deleteSchedule: 'Delete',
     confirmDelete: 'Delete “{name}” and its weeks?',
     cannotDeleteActive: 'The active schedule cannot be deleted.',
@@ -151,14 +152,15 @@ const I18N = {
     newSchedule: 'Nouveau planning',
     scheduleMenu: 'Renommer, déplacer ou supprimer ce planning',
     scheduleName: 'Nom',
-    emptySchedule: 'Vide',
-    copyOf: 'Copie de',
+    emptySchedule: 'Vide (Éco toute la semaine)',
+    copyOfName: 'Copie de « {name} »',
+    renameMenu: 'Renommer…',
+    deleteMenu: 'Supprimer…',
     create: 'Créer',
-    close: 'Fermer',
     rename: 'Renommer',
     scheduleId: 'Identifiant : {id} (pour les automatisations : chauffage.activate_schedule)',
-    moveLeft: '◀ Déplacer',
-    moveRight: 'Déplacer ▶',
+    moveLeft: '◀ Déplacer à gauche',
+    moveRight: 'Déplacer à droite ▶',
     deleteSchedule: 'Supprimer',
     confirmDelete: 'Supprimer « {name} » et ses semaines ?',
     cannotDeleteActive: 'Le planning actif ne peut pas être supprimé.',
@@ -1104,7 +1106,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
         </div>
         <div class="tabs">${tabs}</div>
-        ${this._schedEdHtml()}
+        ${this._schedMenuHtml()}
         ${this._modeBarHtml(active)}
         <div class="scale"><div></div>${multi ? '<div></div>' : ''}<div class="ticks">${ticks}</div><div></div></div>
         ${days}
@@ -1240,6 +1242,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
 
     root.addEventListener('click', (e) => {
+      // Schedule menu open: a click elsewhere only closes it
+      if (this._schedEd && !e.target.closest('.sched-menu, [data-act="schedule-new"], [data-act="schedule-menu"]')) {
+        this._schedEd = null;
+        this._render();
+        return;
+      }
       // Menu open: a click elsewhere only closes it
       if (this._menu && !e.target.closest('.menu, [data-act="menu"]')) {
         this._menu = null;
@@ -1311,6 +1319,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
     });
 
+    // Enter in a schedule's name field confirms (Create / Rename)
+    root.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !e.target.hasAttribute('data-sched-name')) return;
+      const ok = root.querySelector('.sched-menu .btn.primary');
+      if (ok) ok.click();
+    });
+
     // Typing a temperature for a thermostat's level means "use a temperature"
     root.addEventListener('input', (e) => {
       if (!e.target.hasAttribute('data-cell-temp')) return;
@@ -1347,65 +1362,82 @@ class ChauffageProgrammeCard extends HTMLElement {
     </div>`;
   }
 
-  // Panel under the tabs: a new schedule ("+"), or the open schedule's menu (⋮)
-  _schedEdHtml() {
+  // Drop-down menus of the schedule tabs: "+" (new schedule: empty or a copy, then its name)
+  // and "⋮" (the open schedule: rename, move, delete). Positioned under the clicked button.
+  _schedMenuHtml() {
     const ed = this._schedEd;
     if (!ed) return '';
     const t = this._loc.t;
     const modes = this._modes();
+    const item = (act, label, extra = '', disabled = false, cls = 'mi') =>
+      `<button class="${cls}" data-act="${act}" ${extra} ${disabled ? 'disabled' : ''}><span>${label}</span></button>`;
     const err = this._schedErr ? `<div class="sched-err">${esc(this._schedErr)}</div>` : '';
-    const close = `<button class="btn small" data-act="schedule-close">${esc(t('close'))}</button>`;
-    if (ed.kind === 'new') {
-      const options = modes.map((m) => `<option value="${esc(m)}"${m === this._mode ? ' selected' : ''}>${esc(this._modeName(m))}</option>`).join('');
-      return `<div class="sched-ed">
-        <label>${esc(t('scheduleName'))} <input data-sched-name value=""></label>
-        <label><input type="radio" name="sched-kind" value="empty" checked> ${esc(t('emptySchedule'))}</label>
-        <label><input type="radio" name="sched-kind" value="copy"> ${esc(t('copyOf'))} <select data-sched-copy>${options}</select></label>
+    const cancel = `<button class="btn small" data-act="schedule-close">${esc(t('cancel'))}</button>`;
+    const nameForm = (value, act, label) => `<div class="sched-form">
+        <input data-sched-name value="${esc(value)}" placeholder="${esc(t('scheduleName'))}">
         ${err}
-        <div class="sched-btns"><button class="btn small primary" data-act="schedule-create">${esc(t('create'))}</button>${close}</div>
+        <div class="sched-btns"><button class="btn small primary" data-act="${act}">${esc(label)}</button>${cancel}</div>
       </div>`;
-    }
-    const id = ed.id;
-    const i = modes.indexOf(id);
-    const name = this._modeName(id);
-    let del;
-    if (ed.confirm) {
-      del = `<span class="sched-confirm">${esc(t('confirmDelete', { name }))}
-        <button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button></span>`;
+    let body;
+    if (ed.kind === 'new') {
+      if (ed.step === 'name') {
+        const from = ed.copy ? t('copyOfName', { name: this._modeName(ed.copy) }) : t('emptySchedule');
+        body = `<div class="mh">${esc(t('newSchedule'))} · ${esc(from)}</div>${nameForm('', 'schedule-create', t('create'))}`;
+      } else {
+        body = `<div class="mh">${esc(t('newSchedule'))}</div>
+          ${item('schedule-pick', esc(t('emptySchedule')), 'data-copy=""')}
+          <div class="sep"></div>
+          ${modes.map((m) => item('schedule-pick', esc(t('copyOfName', { name: this._modeName(m) })), `data-copy="${esc(m)}"`)).join('')}`;
+      }
     } else {
-      const reason = id === this._activeMode() ? t('cannotDeleteActive') : modes.length < 2 ? t('cannotDeleteLast') : '';
-      del = `<button class="btn small danger" data-act="schedule-delete" ${reason ? 'disabled' : ''}>${esc(t('deleteSchedule'))}</button>${
-        reason ? ` <span class="muted">${esc(reason)}</span>` : ''}`;
+      const id = ed.id;
+      const name = this._modeName(id);
+      const head = `<div class="mh">${esc(name)}<br><small>${esc(t('scheduleId', { id }))}</small></div>`;
+      if (ed.step === 'rename') {
+        body = `${head}${nameForm(name, 'schedule-rename', t('rename'))}`;
+      } else if (ed.step === 'delete') {
+        body = `${head}<div class="sched-form">${esc(t('confirmDelete', { name }))}
+          <div class="sched-btns"><button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button>${cancel}</div></div>`;
+      } else {
+        const i = modes.indexOf(id);
+        const reason = id === this._activeMode() ? t('cannotDeleteActive') : modes.length < 2 ? t('cannotDeleteLast') : '';
+        body = `${head}
+          ${item('schedule-rename-open', esc(t('renameMenu')))}
+          ${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
+          ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= modes.length - 1)}
+          <div class="sep"></div>
+          ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
+      }
     }
-    return `<div class="sched-ed">
-      <div class="muted">${esc(t('scheduleId', { id }))}</div>
-      <label>${esc(t('scheduleName'))} <input data-sched-name value="${esc(name)}"></label>
-      <button class="btn small" data-act="schedule-rename">${esc(t('rename'))}</button>
-      ${err}
-      <div class="sched-btns">
-        <button class="btn small" data-act="schedule-move" data-dir="-1" ${i <= 0 ? 'disabled' : ''}>${esc(t('moveLeft'))}</button>
-        <button class="btn small" data-act="schedule-move" data-dir="1" ${i >= modes.length - 1 ? 'disabled' : ''}>${esc(t('moveRight'))}</button>
-        ${del}${close}
-      </div>
-    </div>`;
+    return `<div class="menu sched-menu" style="top:${ed.top || 0}px;left:${ed.left || 0}px">${body}</div>`;
   }
 
   // Schedule actions (admins): unsaved edits of the weeks are saved first
-  async _scheduleAction(act, ds) {
+  async _scheduleAction(act, ds, el) {
     const t = this._loc.t;
     const ed = this._schedEd;
     this._schedErr = '';
-    if (act === 'schedule-new') { this._schedEd = ed && ed.kind === 'new' ? null : { kind: 'new' }; return this._render(); }
-    if (act === 'schedule-menu') { this._schedEd = ed && ed.kind === 'menu' ? null : { kind: 'menu', id: this._mode }; return this._render(); }
+    if (act === 'schedule-new' || act === 'schedule-menu') {
+      const kind = act === 'schedule-new' ? 'new' : 'menu';
+      if (ed && ed.kind === kind) { this._schedEd = null; return this._render(); }
+      // Under the button, inside the card
+      const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
+      const b = el ? el.getBoundingClientRect() : { bottom: 0, left: 0 };
+      const left = Math.max(8, Math.min(b.left - card.left, card.width - 280));
+      this._schedEd = { kind, id: this._mode, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4, left };
+      return this._render();
+    }
     if (act === 'schedule-close' || !ed) { this._schedEd = null; return this._render(); }
-    if (act === 'schedule-delete') { ed.confirm = true; return this._render(); }
+    if (act === 'schedule-pick') { ed.copy = ds.copy || null; ed.step = 'name'; return this._renderSchedMenu(); }
+    if (act === 'schedule-rename-open') { ed.step = 'rename'; return this._renderSchedMenu(); }
+    if (act === 'schedule-delete') { ed.step = 'delete'; return this._render(); }
     const keep = this._modes().map((id) => ({ id }));
     const nameInput = this.shadowRoot.querySelector('input[data-sched-name]');
     const checkName = (except) => {
       const name = nameInput ? nameInput.value.trim() : '';
       const taken = this._modes().some((m) => m !== except && this._modeName(m).trim().toLowerCase() === name.toLowerCase());
       this._schedErr = !name ? t('nameRequired') : taken ? t('nameTaken') : '';
-      if (this._schedErr) this._render();
+      if (this._schedErr) this._renderSchedMenu(name);
       return this._schedErr ? null : name;
     };
     let list;
@@ -1413,9 +1445,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'schedule-create') {
       const name = checkName(null);
       if (!name) return;
-      const kind = this.shadowRoot.querySelector('input[name="sched-kind"]:checked');
-      const copy = kind && kind.value === 'copy' ? this.shadowRoot.querySelector('select[data-sched-copy]').value : null;
-      list = [...keep, copy ? { name, copy_of: copy } : { name }];
+      list = [...keep, ed.copy ? { name, copy_of: ed.copy } : { name }];
       created = true;
     } else if (act === 'schedule-rename') {
       const name = checkName(ed.id);
@@ -1430,16 +1460,25 @@ class ChauffageProgrammeCard extends HTMLElement {
     } else if (act === 'schedule-delete-confirm') {
       list = keep.filter((m) => m.id !== ed.id);
     } else return;
+    this._schedEd = null;
     if (this._dirty && !(await this._save())) return;
     try {
       const result = await this._source().setModes(list, this._revision);
       if (result && result.revision != null) this._revision = result.revision;
       if (created && result && result.modes) this._wantMode = result.modes[result.modes.length - 1].id;
-      this._schedEd = act === 'schedule-move' ? ed : null;
     } catch (e) {
       this._msg = e && e.code === 'stale' ? t('stale') : t('error', { message: e.message || e.code || e });
     }
     this._render();
+  }
+
+  // Redraws with the schedule menu's name field focused (keeping what was typed)
+  _renderSchedMenu(typed) {
+    this._render();
+    const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
+    if (!input) return;
+    if (typed != null) input.value = typed;
+    input.focus();
   }
 
   async _activateMode(mode) {
@@ -1751,7 +1790,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       return this._openMenu(ds.climate, Number(ds.day), b.bottom - card.top + 4, card.right - b.right);
     }
     this._menu = null;
-    if (act.startsWith('schedule-')) return this._scheduleAction(act, ds);
+    if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
     if (act.startsWith('override-')) {
       const c = this._overrideSel && this._overrideSel.climate;
@@ -1835,14 +1874,16 @@ const STYLE = `
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
-  .sched-ed { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:-4px 0 10px; padding:10px;
-    border-radius:8px; font-size:.9em; background:var(--secondary-background-color); }
-  .sched-ed input[data-sched-name] { padding:4px 8px; border-radius:6px; border:1px solid var(--divider-color);
+  .sched-menu { min-width:240px; max-width:300px; }
+  .sched-menu .mh small { display:block; margin-top:2px; }
+  .sched-menu .mi small { display:block; font-size:.85em; color:var(--secondary-text-color); }
+  .sched-menu .mi.danger:not(:disabled) { color:var(--error-color,#db4437); }
+  .sched-menu .mi:disabled { opacity:1; color:var(--secondary-text-color); }
+  .sched-form { display:flex; flex-direction:column; gap:8px; padding:4px 14px 8px; font-size:.92em; }
+  .sched-form input { padding:6px 8px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--card-background-color); }
-  .sched-ed select { padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color); background:var(--card-background-color); }
-  .sched-btns { display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; }
-  .sched-err { color:var(--error-color,#db4437); width:100%; }
-  .sched-confirm { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .sched-btns { display:flex; gap:6px; justify-content:flex-end; }
+  .sched-err { color:var(--error-color,#db4437); font-size:.9em; }
   .mode-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px;
     margin:-4px 0 10px; padding:6px 10px; border-radius:8px; font-size:.88em;
     background:var(--secondary-background-color); color:var(--secondary-text-color); }

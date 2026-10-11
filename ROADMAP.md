@@ -13,6 +13,13 @@ from the UI, and eventually listed in HACS by default.
 | 0.2 (betas) | The **Chauffage integration**: installed from HACS, configured from the UI, data in a versioned `Store` with migrations, mode select, sensors, services, websocket API, card served by the integration, English and French, import of the package's data ([docs/integration-plan.md](docs/integration-plan.md)) |
 | 0.3.0 | **Heating levels** for any thermostat with a target temperature (Versatile Thermostat, standard presets, no presets), set in the card's *Levels* view; manual changes judged against what the schedule expects; tests on the three kinds of thermostats and a functional analysis ([docs/use-cases.md](docs/use-cases.md), [docs/phase-2-plan.md](docs/phase-2-plan.md)) |
 
+## Short term
+
+- Move the short-term tasks and the roadmap's steps to GitHub issues.
+- Rewrite the demo scenario (`dev/demo/record.mjs`) and re-record `docs/demo.gif`: show the
+  presets and the schedules, with three schedules **Normal**, **Vacances**, **Absent**, in this
+  order (the order the development HA creates them in).
+
 ## Next
 
 ### 1. Schedules defined by the user
