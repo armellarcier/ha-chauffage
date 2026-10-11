@@ -13,15 +13,17 @@ from the UI, listed in HACS by default. Why things are the way they are:
 | 0.1.0 | First release, as a YAML package (no longer maintained): schedules per thermostat, the editor card, temporary overrides, versioned data |
 | 0.2 (betas) | The **Chauffage integration**: installed from HACS, configured from the UI, data in a versioned `Store`, select entity, sensors, services, websocket API, card served by the integration, English and French, import of the package's data |
 | 0.3.0 | **Presets** (then called heating levels) for any thermostat with a target temperature (Versatile Thermostat, standard presets, no presets), set in the card; manual changes judged against what the schedule expects; tests on the three kinds of thermostats; functional analysis ([docs/use-cases.md](docs/use-cases.md)) |
-| 0.4.0 (beta) | **Schedules defined by the user** (created empty or as a copy, renamed, moved, deleted; stable ids for automations) and **one vocabulary** everywhere ([docs/glossary.md](docs/glossary.md)) |
+| 0.4.0 | **Schedules defined by the user** (created empty or as a copy, renamed, moved, deleted; stable ids for automations) and **one vocabulary** everywhere ([docs/glossary.md](docs/glossary.md)) |
 
 ## Short term
 
-1. Run 0.4.0-beta.1 on a real installation (the author's) for a few days, then release **0.4.0**.
-2. Submit ha-chauffage to the **HACS default list** (`hacs/default`) with 0.4.0: it works with
-   any `climate` entity and nothing is predefined anymore. Until then it is a HACS *custom
-   repository* (HACS shows no icon for those; Home Assistant does, once installed).
-3. Move the roadmap's items to **GitHub issues** (this page then summarizes them).
+1. **HACS default list**: submitted with 0.4.0
+   ([hacs/default#11827](https://github.com/hacs/default/pull/11827), every check passing),
+   waiting for the HACS team's review (it can take months). Until then ha-chauffage is a HACS
+   *custom repository* (HACS shows no icon for those; Home Assistant does, once installed). The
+   repository must keep a single `manifest.json` (the development HA's simulated climate uses
+   `manifest.dev.json`).
+2. Move the roadmap's items to **GitHub issues** (this page then summarizes them).
 
 ## Next
 

@@ -14,17 +14,17 @@ ce qui a changé à chaque version : [CHANGELOG.md](CHANGELOG.md) (en anglais).
 | 0.1.0 | Première version, sous forme de package YAML (plus maintenu) : plannings par thermostat, carte d'édition, dérogations temporaires, données versionnées |
 | 0.2 (bêtas) | L'**intégration Chauffage** : installée depuis HACS, configurée depuis l'interface, données dans un `Store` versionné, sélecteur, capteurs, services, API websocket, carte servie par l'intégration, anglais et français, import des données du package |
 | 0.3.0 | **Préréglages** (alors appelés niveaux de chauffe) pour tout thermostat à consigne de température (Versatile Thermostat, préréglages standard, sans préréglages), réglés dans la carte ; changements manuels jugés par rapport à ce qu'attend le planning ; tests sur les trois types de thermostats ; analyse fonctionnelle ([docs/use-cases.md](docs/use-cases.md)) |
-| 0.4.0 (bêta) | **Plannings définis par l'utilisateur** (créés vides ou par copie, renommés, déplacés, supprimés ; identifiants stables pour les automatisations) et **un seul vocabulaire** partout ([docs/glossary.md](docs/glossary.md)) |
+| 0.4.0 | **Plannings définis par l'utilisateur** (créés vides ou par copie, renommés, déplacés, supprimés ; identifiants stables pour les automatisations) et **un seul vocabulaire** partout ([docs/glossary.md](docs/glossary.md)) |
 
 ## À court terme
 
-1. Faire tourner la 0.4.0-beta.1 sur une vraie installation (celle de l'auteur) quelques jours,
-   puis publier la **0.4.0**.
-2. Proposer ha-chauffage à la **liste par défaut de HACS** (`hacs/default`) avec la 0.4.0 : il
-   fonctionne avec n'importe quelle entité `climate` et plus rien n'est prédéfini. D'ici là, il
-   s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour ceux-ci ; Home
-   Assistant l'affiche une fois l'intégration installée).
-3. Passer les éléments de la feuille de route en **issues GitHub** (cette page les résumera).
+1. **Liste par défaut de HACS** : demande déposée avec la 0.4.0
+   ([hacs/default#11827](https://github.com/hacs/default/pull/11827), toutes les vérifications au
+   vert), en attente de la relecture de l'équipe HACS (cela peut prendre des mois). D'ici là,
+   ha-chauffage s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour
+   ceux-ci ; Home Assistant l'affiche une fois l'intégration installée). Le dépôt doit garder un
+   seul `manifest.json` (le climate simulé du HA de développement utilise `manifest.dev.json`).
+2. Passer les éléments de la feuille de route en **issues GitHub** (cette page les résumera).
 
 ## Ensuite
 
