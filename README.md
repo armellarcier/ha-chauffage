@@ -49,8 +49,8 @@ Requires Home Assistant 2026.9 or later.
 
 - **Schedules**: a new installation starts with *Normal*; in the card, **+** creates a schedule
   (empty, or a copy of another one) and **⋮** on the open tab renames, moves or deletes it
-  (admins). Each schedule has a **stable id**, shown in that menu, which does not change when it
-  is renamed.
+  (admins). Each schedule has a **stable id** (shown in *Rename…*) that never
+  changes, even when the schedule is renamed.
 - **Active schedule** select (`select.chauffage_mode`): switch it from the card (open the
   schedule's tab, then "Activate") or from any automation. In automations, use the id, which
   survives a rename: the service `chauffage.activate_schedule` and the select's `schedule_id`

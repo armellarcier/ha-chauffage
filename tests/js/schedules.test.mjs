@@ -121,12 +121,19 @@ describe('the "+" menu: a new schedule', () => {
 });
 
 describe('the "⋮" menu of the open schedule', () => {
-  test('shows its id, used by automations, and renames it', async () => {
+  test('lists its actions only, without a header', () => {
+    const card = createCard(fakeHass());
+    openMenu(card, 'away');
+    assert.equal(menu(card).querySelector('.mh'), null);
+    assert.doesNotMatch(menu(card).textContent, /Identifiant/);
+  });
+
+  test('renames it, showing its id (used by automations)', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
     openMenu(card, 'away');
-    assert.match(menu(card).textContent, /Identifiant : away/);
     click(card, '[data-act="schedule-rename-open"]');
+    assert.match(menu(card).textContent, /Identifiant : away/);
     assert.equal($(card, 'input[data-sched-name]').value, 'Absent');
     $(card, 'input[data-sched-name]').value = 'Sortis';
     click(card, '[data-act="schedule-rename"]');
@@ -212,5 +219,6 @@ test('in English', () => {
   const card = createCard(fakeHass({ locale: { language: 'en' } }));
   openMenu(card, 'normal');
   assert.match(menu(card).textContent, /The active schedule cannot be deleted/);
+  click(card, '[data-act="schedule-rename-open"]');
   assert.match(menu(card).textContent, /Id: normal/);
 });

@@ -62,7 +62,7 @@ const I18N = {
     deleteMenu: 'Delete…',
     create: 'Create',
     rename: 'Rename',
-    scheduleId: 'Id: {id} (for automations: chauffage.activate_schedule)',
+    scheduleId: 'Id: {id}',
     moveLeft: '◀ Move left',
     moveRight: 'Move right ▶',
     deleteSchedule: 'Delete',
@@ -158,7 +158,7 @@ const I18N = {
     deleteMenu: 'Supprimer…',
     create: 'Créer',
     rename: 'Renommer',
-    scheduleId: 'Identifiant : {id} (pour les automatisations : chauffage.activate_schedule)',
+    scheduleId: 'Identifiant : {id}',
     moveLeft: '◀ Déplacer à gauche',
     moveRight: 'Déplacer à droite ▶',
     deleteSchedule: 'Supprimer',
@@ -1392,17 +1392,16 @@ class ChauffageProgrammeCard extends HTMLElement {
     } else {
       const id = ed.id;
       const name = this._modeName(id);
-      const head = `<div class="mh">${esc(name)}<br><small>${esc(t('scheduleId', { id }))}</small></div>`;
       if (ed.step === 'rename') {
-        body = `${head}${nameForm(name, 'schedule-rename', t('rename'))}`;
+        // The id does not change: automations use it
+        body = `<div class="mh">${esc(t('scheduleId', { id }))}</div>${nameForm(name, 'schedule-rename', t('rename'))}`;
       } else if (ed.step === 'delete') {
-        body = `${head}<div class="sched-form">${esc(t('confirmDelete', { name }))}
+        body = `<div class="sched-form">${esc(t('confirmDelete', { name }))}
           <div class="sched-btns"><button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button>${cancel}</div></div>`;
       } else {
         const i = modes.indexOf(id);
         const reason = id === this._activeMode() ? t('cannotDeleteActive') : modes.length < 2 ? t('cannotDeleteLast') : '';
-        body = `${head}
-          ${item('schedule-rename-open', esc(t('renameMenu')))}
+        body = `${item('schedule-rename-open', esc(t('renameMenu')))}
           ${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
           ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= modes.length - 1)}
           <div class="sep"></div>
@@ -1874,8 +1873,7 @@ const STYLE = `
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
-  .sched-menu { min-width:240px; max-width:300px; }
-  .sched-menu .mh small { display:block; margin-top:2px; }
+  .sched-menu { min-width:200px; max-width:260px; }
   .sched-menu .mi small { display:block; font-size:.85em; color:var(--secondary-text-color); }
   .sched-menu .mi.danger:not(:disabled) { color:var(--error-color,#db4437); }
   .sched-menu .mi:disabled { opacity:1; color:var(--secondary-text-color); }

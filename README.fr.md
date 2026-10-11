@@ -48,8 +48,8 @@ Nécessite Home Assistant 2026.9 ou plus récent.
 
 - Des **plannings** : une nouvelle installation démarre avec *Normal* ; dans la carte, **+**
   crée un planning (vide, ou copie d'un autre) et **⋮** sur l'onglet ouvert le renomme, le
-  déplace ou le supprime (administrateurs). Chaque planning a un **identifiant stable**, affiché
-  dans ce menu, qui ne change pas quand on le renomme.
+  déplace ou le supprime (administrateurs). Chaque planning a un **identifiant stable** (affiché dans
+  *Renommer…*), qui ne change jamais, même quand on le renomme.
 - Un sélecteur **Planning actif** (`select.chauffage_mode`) : il se change depuis la carte
   (ouvrir l'onglet du planning, puis « Activer ») ou depuis n'importe quelle automatisation.
   Dans les automatisations, utiliser l'identifiant, qui survit à un renommage : le service
