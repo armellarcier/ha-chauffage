@@ -70,6 +70,12 @@ and checks that a schedule is applied.
 Once the card is bundled: one JSON file per language with ICU MessageFormat (plurals), as in most
 Home Assistant cards; more languages through contributions.
 
+### 9. Editing the weeks
+
+- **Undo** (Ctrl+Z, and redo) while editing the weeks in the card, until they are saved.
+- **Copy and paste a whole day, all thermostats at once**: one day of every thermostat shown,
+  pasted onto another day (today, the clipboard holds one thermostat's day).
+
 ## HACS default list
 
 ha-chauffage is installed as a HACS *custom repository* (HACS shows no icon for those; Home

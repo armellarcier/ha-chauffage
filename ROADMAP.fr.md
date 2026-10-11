@@ -74,6 +74,14 @@ le démarre, lance le setup et vérifie qu'un planning est appliqué.
 Une fois la carte compilée : un fichier JSON par langue avec ICU MessageFormat (pluriels), comme
 la plupart des cartes Home Assistant ; d'autres langues via des contributions.
 
+### 9. Édition des semaines
+
+- **Annuler** (Ctrl+Z, et rétablir) pendant l'édition des semaines dans la carte, jusqu'à
+  l'enregistrement.
+- **Copier et coller une journée entière, tous thermostats confondus** : la journée de tous les
+  thermostats affichés, collée sur un autre jour (aujourd'hui, le presse-papiers contient la
+  journée d'un seul thermostat).
+
 ## Liste par défaut de HACS
 
 ha-chauffage s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour ceux-ci ;
