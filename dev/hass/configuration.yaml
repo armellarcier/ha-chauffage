@@ -4,17 +4,11 @@ default_config:
 homeassistant:
   name: Chauffage (dev)
   time_zone: Europe/Paris
-  # packages/chauffage = the package (v0.1, kept to test its import by the integration);
   # packages/simulation.yaml = virtual rooms. The card is served by the integration.
   packages: !include_dir_named packages
 
 recorder:
   purge_keep_days: 2
-  exclude:
-    entities:
-      - sensor.programmes_chauffage
-      - sensor.derogations_chauffage
-      - sensor.suivi_vannes_chauffage
 
 logger:
   default: warning

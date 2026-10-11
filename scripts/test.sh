@@ -3,9 +3,8 @@
 # otherwise Docker (nothing to install apart from Docker).
 #   scripts/test.sh               → all tests
 #   scripts/test.sh js            → card (node --test + jsdom)
-#   scripts/test.sh ha            → HA package (pytest + in-memory Home Assistant)
-#   scripts/test.sh integration   → Chauffage integration (custom_components/chauffage)
-#   scripts/test.sh ha -k ends    → extra arguments are passed to pytest
+#   scripts/test.sh integration   → Chauffage integration (pytest + in-memory Home Assistant)
+#   scripts/test.sh integration -k ends → extra arguments are passed to pytest
 #   HA=min scripts/test.sh integration → on the minimum supported Home Assistant (hacs.json)
 #   scripts/test.sh coverage      → card and integration with coverage (fails below the minimum)
 set -euo pipefail
@@ -39,22 +38,17 @@ js_tests() {
   fi
 }
 
-# pytest in an in-memory Home Assistant; $1 = suite directory (tests/ha or tests/integration)
+# pytest in an in-memory Home Assistant; $1 = suite directory
 pytest_suite() {
   local suite="$1"; shift
   if [ "${HA:-}" != min ] && python3 -c 'import pytest_homeassistant_custom_component' 2>/dev/null; then
     python3 -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   else
-    local req=tests/ha/requirements.txt image=ha-chauffage-tests
-    if [ "${HA:-}" = min ]; then req=tests/ha/requirements-min.txt; image=ha-chauffage-tests-min; fi
-    docker build -q -t "$image" --build-arg REQUIREMENTS="$req" -f tests/ha/Dockerfile . >/dev/null
+    local req=tests/integration/requirements.txt image=ha-chauffage-tests
+    if [ "${HA:-}" = min ]; then req=tests/integration/requirements-min.txt; image=ha-chauffage-tests-min; fi
+    docker build -q -t "$image" --build-arg REQUIREMENTS="$req" -f tests/integration/Dockerfile . >/dev/null
     docker run --rm -v "$root:/app" -w /app "$image" python -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   fi
-}
-
-ha_tests() {
-  echo "=== HA package tests (Python) ==="
-  pytest_suite tests/ha "$@"
 }
 
 integration_tests() {
@@ -64,9 +58,8 @@ integration_tests() {
 
 case "$what" in
   js) js_tests ;;
-  ha) ha_tests "$@" ;;
   integration) integration_tests "$@" ;;
   coverage) coverage "$@" ;;
-  all) js_tests && ha_tests "$@" && integration_tests "$@" ;;
-  *) echo "Usage: scripts/test.sh [js|ha|integration|coverage|all] [pytest arguments]" >&2; exit 2 ;;
+  all) js_tests && integration_tests "$@" ;;
+  *) echo "Usage: scripts/test.sh [js|integration|coverage|all] [pytest arguments]" >&2; exit 2 ;;
 esac

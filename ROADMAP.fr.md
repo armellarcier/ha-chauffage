@@ -2,225 +2,72 @@
 
 [English](ROADMAP.md) · **Français**
 
-ha-chauffage cible aujourd'hui **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
-(VTherm). Cette dépendance est **temporaire** : l'objectif est de fonctionner avec **n'importe
-quelle entité `climate` de Home Assistant**, et de permettre d'organiser ses thermostats en groupes
-avec leurs propres plannings et modes de chauffage. Ce document explique pourquoi VTherm est le
-point de départ et ce qu'il faut faire pour devenir générique.
+L'objectif : des plannings de chauffe hebdomadaires pour **n'importe quelle entité `climate` de
+Home Assistant**, entièrement configurés depuis l'interface, et à terme dans la liste par défaut
+de HACS.
 
-## Pourquoi Versatile Thermostat pour l'instant
+## Fait
 
-| Ce dont on a besoin | Ce que VTherm apporte |
+| Version | Contenu |
 |---|---|
-| Une consigne par créneau, réglable sans toucher au planning | Des **presets avec une température par thermostat** (`comfort`, `eco`, `boost`, `frost`), modifiables dans l'interface : le planning dit seulement « confort à partir de 06:30 » |
-| Savoir quand quelqu'un a changé la consigne à la main | VTherm **passe en preset `none`** lors d'un changement manuel de consigne : un signal clair et fiable |
-| Une bonne régulation quel que soit le matériel | VTherm pilote interrupteurs, vannes ou autres climates avec sa propre régulation (TPI), détection d'ouverture / de présence, sécurité… |
-| Une installation réelle pour valider | C'est l'installation de l'auteur (vannes Zigbee derrière des thermostats VTherm) |
+| 0.1.0 | Première version, sous forme de package YAML (plus maintenu) : plannings par thermostat et par mode, carte d'édition, dérogations temporaires, données versionnées |
+| 0.2 (bêtas) | L'**intégration Chauffage** : installée depuis HACS, configurée depuis l'interface, données dans un `Store` versionné avec migrations, sélecteur de mode, capteurs, services, API websocket, carte servie par l'intégration, anglais et français, import des données du package ([docs/integration-plan.md](docs/integration-plan.md), en anglais) |
+| 0.3.0 | **Niveaux de chauffe** pour tout thermostat à consigne de température (Versatile Thermostat, presets standard, sans presets), réglés dans la vue *Niveaux* de la carte ; changements manuels jugés par rapport à ce qu'attend le programme ; tests sur les trois types de thermostats et analyse fonctionnelle ([docs/use-cases.md](docs/use-cases.md), [docs/phase-2-plan.md](docs/phase-2-plan.md), en anglais) |
 
-Partir d'un seul type de thermostat, au comportement bien défini, a permis de mettre au point
-l'essentiel d'abord : plannings hebdomadaires, modes, carte d'édition, dérogations temporaires et
-leur fin, tests.
+## Ensuite
 
-**Conséquences assumées pour l'instant**
+### 1. Repenser les modes de chauffage
 
-- Seuls les thermostats proposant les presets `comfort` / `eco` / `boost` / `frost` sont pris en charge.
-- La détection des changements manuels repose sur le preset `none` de VTherm.
-- Le HA de développement (`dev/setup/setup.py`) crée les thermostats VTherm en parcourant le
-  formulaire de configuration de VTherm, champ par champ. Ce parcours a été découvert sur
-  VTherm 10.5.0 et peut changer. **Nous ne figeons volontairement pas les versions et n'ajoutons
-  pas encore de vérification de bout en bout de ce setup en CI** : cette partie sera remplacée
-  (voir « Environnement de développement » plus bas), la blinder maintenant serait du travail
-  perdu. Si elle casse, `docker compose logs setup` indique l'étape en échec.
+Aujourd'hui il y a trois modes, *Normal* / *Absent* / *Vacances*, créés à l'installation avec un
+planning hebdomadaire par thermostat et par mode, et un seul mode actif pour toute la maison. Ce
+qu'ils veulent dire n'est porté que par leur nom : *Absent*, c'est une journée dehors ou une
+semaine ? *Vacances* se termine-t-il tout seul ? et une chambre d'amis inoccupée ? Ces modes fixes
+et prédéfinis sont aussi ce qui empêche ha-chauffage d'entrer dans la liste par défaut de HACS.
 
-## Première version, migrations, puis un système sans YAML
+Le travail se fait dans cet ordre :
 
-Le package actuel fonctionne et sert au quotidien : il mérite une **première version publiée**
-rapidement, pour que chacun puisse installer une version connue. C'est une étape : le chantier
-suivant le remplace par une **intégration entièrement configurable, sans aucun YAML**.
+1. **Concept et fonctionnel** : ce qu'est un mode, ce dont les utilisateurs ont vraiment besoin
+   (une journée dehors, des vacances, une pièce vide, une journée de télétravail…), ce qui se
+   planifie à l'avance, ce qui se termine tout seul.
+2. **Cas d'usage / user stories**, ajoutés à [docs/use-cases.md](docs/use-cases.md).
+3. **Implémentation, tests d'abord** (voir CONTRIBUTING.fr.md, « Les tests d'abord »), avec une
+   migration des modes et plannings existants.
 
-### Données versionnées et migrations, dès la première version
+Des idées à examiner à ce moment-là, pas des décisions : des modes définis par l'utilisateur, un
+mode limité dans le temps (« absent jusqu'à dimanche 18:00 »), un mode pour certaines pièces
+seulement, des modes pilotés par la présence ou un calendrier.
 
-Chaque version qui change les données stockées doit mettre à jour les installations existantes
-automatiquement, sans action manuelle ni perte de données :
+### 2. Des groupes de thermostats
 
-- une **version de schéma** est stockée avec les données (plannings, dérogations, réglages) ; les
-  données créées avant la première version comptent comme version 1 ;
-- les **migrations** sont de petites étapes ordonnées (version N → N+1), exécutées
-  automatiquement au chargement des données ; chacune est idempotente et **testée avec des données
-  d'exemple de l'ancien format** (`tests/fixtures/`) ;
-- une **sauvegarde** des données précédentes est conservée avant de migrer ; le retour à une
-  version antérieure n'est pas pris en charge, et les notes de version le disent ;
-- tant que le package est la version distribuée, la carte migre les données qu'elle charge et les
-  réenregistre ; dans l'intégration, les migrations utilisent les mécanismes de HA (versions du
-  `Store`, `async_migrate_entry` pour les entrées de configuration) ;
-- **versions publiées** : numérotation sémantique, un `CHANGELOG.md`, des tags Git et des
-  « releases » GitHub (sur lesquelles s'appuie HACS). Liste de contrôle avant publication : tests au
-  vert, migrations testées, démo réenregistrée si l'interface a changé, changelog à jour.
+Des zones partageant un planning (« chambres », « pièces de vie »), avec des exceptions par
+thermostat ; les dérogations restent par thermostat ; la carte édite les groupes. Dépend du
+résultat du travail sur les modes.
 
-**Fait en v0.1.0** pour les plannings (version de schéma, migrations par la carte avec
-sauvegarde, fixtures, changelog, workflow de publication) : voir CONTRIBUTING.fr.md, « Versions
-des données et migrations » et « Publier une version ». Les dérogations, de courte durée, ne
-sont pas migrées.
+### 3. Les thermostats qui changent leur consigne d'eux-mêmes
 
-### Puis, rapidement : plus de YAML
+Certains appareils ajustent eux-mêmes leur consigne (fenêtre ouverte, présence, sécurité) :
+aujourd'hui cela ressemble à un changement manuel et devient une dérogation. Reconnaître ces
+ajustements (règles par thermostat ou par intégration).
 
-**En cours (v0.2.0)** : l'intégration est écrite et testée, la bêta est la prochaine étape ; voir
-[docs/integration-plan.md](docs/integration-plan.md) (en anglais).
+### 4. Plus de thermostats et de créneaux
 
-La première version demande encore de copier des fichiers et de modifier `configuration.yaml`
-(package, `extra_module_url`, exclusions du recorder). L'intégration (section 5 plus bas) supprime
-tout cela : installation depuis HACS, puis **tout se configure depuis l'interface** — thermostats,
-modes, niveaux de chauffe, durée des dérogations, règles de détection. Sa première version inclut
-la **migration automatique depuis la version package** (plannings, dérogations et mode actif
-importés, puis instructions pour retirer le package).
+Les thermostats chaud / froid à plage de températures (`heat_cool`), un niveau *Arrêt*, des
+créneaux portant directement une température (« 21 °C à partir de 06:30 »).
 
-## Devenir générique
+### 5. Environnement de développement et CI
 
-### 1. Des niveaux de chauffe plutôt que des presets
+Figer les versions de Home Assistant et de Versatile Thermostat dans le HA de développement (avec
+un bot qui propose les montées de version) et ajouter une vérification de bout en bout en CI qui
+le démarre, lance le setup et vérifie qu'un planning est appliqué.
 
-**Fait en v0.3** (préversion ; [docs/phase-2-plan.md](docs/phase-2-plan.md), en anglais) : des
-niveaux avec une température par défaut, associés par thermostat à un preset ou à une
-température, réglés dans les options. Pas de niveau *Arrêt* pour l'instant : les thermostats
-éteints ne sont pas touchés. Testé avec Versatile Thermostat, des presets standard et des
-thermostats sans presets.
+### 6. Traductions de la carte en fichiers
 
-Les plannings doivent référencer des **niveaux de chauffe** définis par l'utilisateur (par ex.
-*Confort*, *Éco*, *Nuit*, *Hors-gel*, *Arrêt*), pas les noms de presets d'un thermostat. Chaque
-niveau est ensuite **associé, par thermostat** (ou par groupe, voir plus bas), à ce que le
-thermostat comprend :
+Une fois la carte compilée : un fichier JSON par langue avec ICU MessageFormat (pluriels), comme
+la plupart des cartes Home Assistant ; d'autres langues via des contributions.
 
-- un **preset** (`preset_mode`), quand le thermostat en a un correspondant ;
-- une **consigne** (`temperature`, ou `target_temp_low` / `target_temp_high` en heat_cool) ;
-- l'**arrêt** (`hvac_mode: off`).
+## Liste par défaut de HACS
 
-L'association découle des capacités de chaque entité : `supported_features`, `preset_modes`,
-`hvac_modes`, `min_temp` / `max_temp` / `target_temp_step`. VTherm devient un cas parmi d'autres
-(niveaux associés à ses presets), et un thermostat sans presets fonctionne en températures.
-
-Un créneau peut aussi porter directement une température (« 21 °C à partir de 06:30 »), pour
-ceux qui ne veulent pas de niveaux nommés.
-
-### 2. Détecter les changements manuels sans le preset `none`
-
-**En partie fait en v0.3** : l'intégration reconnaît ses propres changements à leur contexte, et
-juge un changement par rapport à ce que le programme attend (thermostat piloté en température :
-toute autre consigne est une dérogation). Reste à faire : les thermostats qui changent leur
-consigne d'eux-mêmes.
-
-Au lieu de dépendre d'un signal propre à un type de thermostat :
-
-- mémoriser, par thermostat, **ce que le planning a appliqué en dernier** (niveau, preset ou
-  consigne, et quand) ;
-- un changement est **manuel** quand la consigne du thermostat diffère de cette attente **et**
-  qu'il ne vient pas d'une automatisation (`context.parent_id` vide — déjà utilisé aujourd'hui) ;
-- ignorer les ajustements faits par le thermostat lui-même (fenêtre ouverte, présence,
-  sécurité…) via des règles configurables, car certaines intégrations changent leur consigne seules.
-
-### 3. Des groupes de thermostats
-
-Aujourd'hui chaque thermostat a son propre planning. Beaucoup de logements ont besoin de **zones**
-partageant un planning : « chambres », « pièces de vie », « salles de bain »…
-
-- Un **groupe** est un ensemble nommé de climates ; chaque climate appartient à au plus un groupe.
-- Les plannings sont définis **par groupe et par mode** ; un thermostat peut toujours avoir son
-  propre planning (groupe d'un seul thermostat, ou exception au sein du groupe).
-- L'association des niveaux (étape 1) se règle par groupe, avec des exceptions par thermostat
-  (par ex. *Confort* = 21 °C au salon, 19 °C dans les chambres).
-- Les dérogations restent par thermostat (un changement manuel dans une pièce ne touche pas le groupe).
-- La carte édite des groupes : une ligne par groupe au lieu d'une ligne par thermostat,
-  composition des groupes modifiable dans la carte.
-
-### 4. Des modes de chauffage définis par l'utilisateur
-
-Aujourd'hui les modes sont fixes (`Normal` / `Absent` / `Vacances`, dans `input_select.mode_chauffage`).
-
-- Les modes deviennent **définis par l'utilisateur** (nom, ordre), avec des plannings par (groupe, mode).
-- Le mode actif peut être **global ou par groupe** (par ex. une chambre d'amis en *Absent* pendant
-  que le reste est en *Normal*).
-- Les changements de mode restent de simples entités HA (un `select` par groupe), pilotables par
-  la présence, un calendrier (vacances) ou n'importe quelle automatisation.
-- Un mode peut être **limité dans le temps** (« Absent jusqu'à dimanche 18:00 »), comme les dérogations.
-
-### 5. D'un package YAML à une intégration sans YAML
-
-Le package (capteurs template stockant les données dans des attributs, événements envoyés par la
-carte) atteint ses limites : taille des attributs (le recorder ignore les attributs de plus de
-16 Ko), pas de vrais services, pas d'interface de configuration, pas de distribution HACS, et du
-YAML à modifier à la main. La prochaine version majeure est une **intégration**
-(`custom_components/chauffage`) :
-
-- **aucun YAML** : un formulaire de configuration et un formulaire d'options couvrent tous les
-  réglages (thermostats, modes, niveaux de chauffe, groupes, durée des dérogations, règles de
-  détection) ;
-- stockage via le `Store` de HA (plannings, groupes, modes, niveaux, dérogations), avec migrations
-  versionnées (voir plus haut) ;
-- des **services** (`chauffage.set_schedule`, `chauffage.set_override`, `chauffage.set_mode`…)
-  utilisés par la carte et utilisables depuis les automatisations ;
-- des **entités** : un `select` par groupe pour le mode, des capteurs pour le créneau en cours /
-  suivant et la dérogation active ;
-- la carte servie par l'intégration elle-même (plus besoin d'`extra_module_url`), installable
-  avec **HACS** ;
-- une **migration automatique depuis la version package** (plannings, dérogations et mode importés).
-
-### 6. Environnement de développement et tests
-
-- Le HA de développement reçoit des **thermostats génériques sans configuration par l'interface** :
-  le [`generic_thermostat`](https://www.home-assistant.io/integrations/generic_thermostat/) de HA
-  (100 % YAML), des climates template, et un thermostat à presets sans signal `none`. VTherm reste
-  un profil parmi d'autres. L'essentiel du parcours de formulaires de `dev/setup/setup.py`
-  disparaît alors.
-- Les tests tournent sur une **matrice de types de thermostats** (presets seuls, consigne seule,
-  heat_cool, VTherm).
-- Une fois cet environnement stable : **figer les versions** de HA et des intégrations (avec un bot
-  de dépendances qui propose les montées de version) et ajouter une **vérification de bout en bout
-  en CI** qui démarre le HA de dev, lance le setup et vérifie que le planning est appliqué — le
-  blindage volontairement reporté plus haut.
-
-### 7. Internationalisation
-
-**Fait — la carte** parle anglais et français et suit le profil de l'utilisateur Home Assistant
-(`hass.locale`) : langue, horloge 12 / 24 h, séparateur décimal, premier jour de la semaine, et
-l'unité de température. Les textes sont dans un dictionnaire par langue (mêmes clés, vérifiées par
-les tests) ; heures, noms des jours et nombres viennent des API `Intl` du navigateur. Voir
-CONTRIBUTING.fr.md, « Traductions ».
-
-**Encore en français** : les noms des modes (`Normal` / `Absent` / `Vacances`, qui sont des
-données), les noms d'entités et d'événements (`input_select.mode_chauffage`,
-`sensor.derogations_chauffage`, `chauffage_derogation_set`) et les clés stockées (`valeur`,
-`debut`, `fin`). Prochaines étapes :
-
-- **Intégration** (phase 1) : le système de traduction de HA (`strings.json`,
-  `translations/*.json`) pour les noms d'entités (`translation_key`), les états, les services, le
-  formulaire de configuration et les messages d'erreur.
-- **Traductions de la carte en fichiers** : une fois la carte compilée par l'intégration, un
-  fichier JSON par langue et ICU MessageFormat (pluriels), comme la plupart des cartes Home
-  Assistant ; d'autres langues via des contributions.
-- **Identifiants neutres** : des clés anglaises et stables pour les entités, événements, services
-  et données stockées (`value`, `start`, `end`…) ; seul ce que voit l'utilisateur est traduit. Les
-  modes et niveaux de chauffe par défaut sont créés avec des noms dans la langue de l'utilisateur,
-  puis librement renommables.
-- **Documentation** : déjà en anglais (version de référence) et en français ; d'autres langues
-  sont les bienvenues.
-
-Les identifiants neutres arrivent avec le passage à l'intégration (phase 1), dont la migration
-depuis la version package renomme les clés stockées.
-
-## Ordre des travaux
-
-| Phase | Contenu | Terminée quand |
-|---|---|---|
-| 0 | **Première version** du package actuel : `CHANGELOG.md`, données versionnées, système de migration testé | v0.1.0 taguée et publiée sur GitHub ; les données stockées portent une version de schéma |
-| 1 | **Intégration sans YAML** : formulaires de configuration et d'options, stockage, services, entités, carte servie par l'intégration, HACS, traductions, identifiants neutres, migration automatique depuis la version package | installation depuis HACS sans YAML ; une installation package est migrée automatiquement ; interface en anglais et en français |
-| 2 | Niveaux de chauffe, association à preset / consigne / arrêt, détection des capacités | un `generic_thermostat` suit un planning |
-| 3 | Détection générique des changements manuels | les dérogations fonctionnent sur un thermostat sans presets |
-| 4 | Groupes et modes définis par l'utilisateur (modèle de données, puis carte) | deux groupes dans des modes différents fonctionnent en parallèle |
-| 5 | Environnement de dev générique, matrice de tests, versions figées, CI de bout en bout | la CI couvre chaque type de thermostat |
-
-Les phases 2 à 4 sont développées directement dans l'intégration. La carte parle déjà anglais et
-français (section 7) ; ses traductions sont reprises telles quelles par l'intégration.
-
-**Liste officielle de HACS** : d'ici là, ha-chauffage s'installe comme *dépôt personnalisé*
-HACS (HACS n'affiche pas d'icône pour ceux-ci ; Home Assistant l'affiche une fois l'intégration
-installée). Il sera proposé à la liste officielle de HACS (`hacs/default`) quand il fonctionnera
-avec n'importe quelle entité `climate`, c'est-à-dire après les phases 2 et 3, avec une version
-stable.
+ha-chauffage s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour ceux-ci ;
+Home Assistant l'affiche une fois l'intégration installée). Il sera proposé à la liste par défaut
+(`hacs/default`) quand les modes de chauffage ne seront plus prédéfinis (étape 1), avec une
+version stable.

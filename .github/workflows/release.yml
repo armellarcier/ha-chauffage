@@ -32,9 +32,10 @@ jobs:
 
       - name: Build the ZIP
         run: |
-          mkdir -p dist/www/chauffage dist/packages/chauffage
-          cp www/*.js custom_components/chauffage/frontend/chauffage-programme-card.js dist/www/chauffage/
-          cp packages/chauffage/* dist/packages/chauffage/
+          # To unzip into the HA configuration folder (installation without HACS)
+          mkdir -p dist/custom_components
+          cp -R custom_components/chauffage dist/custom_components/
+          find dist -name __pycache__ -prune -exec rm -rf {} +
           cp LICENSE CHANGELOG.md dist/
           (cd dist && zip -r "../ha-chauffage-$GITHUB_REF_NAME.zip" .)
 

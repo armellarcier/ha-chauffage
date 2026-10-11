@@ -3,7 +3,7 @@ import './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  toMin, toHM, parseDate, parseDay, serializeDay, overridePieces, overrideLabel, activeOverrides,
+  toMin, toHM, parseDate, parseDay, serializeDay, overridePieces, overrideLabel,
 } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 describe('times', () => {
@@ -67,18 +67,5 @@ describe('overrides', () => {
     assert.equal(overrideLabel(override('', '', { valeur: 21.5 })), '21.5 °C');
     assert.equal(overrideLabel({ type: 'preset', valeur: 'boost' }), 'Boost');
     assert.equal(overrideLabel({ type: 'preset', valeur: 'unknown' }), 'unknown');
-  });
-
-  test('activeOverrides ignores ended overrides', () => {
-    const hass = { states: { s: { attributes: { derogations: {
-      'climate.a': override('2026-10-12T18:00:00+02:00', '2026-10-12T20:59:00+02:00'),
-      'climate.b': override('2026-10-12T20:00:00+02:00', '2026-10-12T22:00:00+02:00'),
-    } } } } };
-    assert.deepEqual(Object.keys(activeOverrides(hass, 's')), ['climate.b']);
-  });
-
-  test('activeOverrides tolerates an unreadable (text) attribute', () => {
-    const hass = { states: { s: { attributes: { derogations: "{'climate.a': …}" } } } };
-    assert.deepEqual(activeOverrides(hass, 's'), {});
   });
 });

@@ -11,7 +11,7 @@ function block(hass, entity) {
   return el;
 }
 const text = (el) => el.shadowRoot.textContent.replace(/\s+/g, ' ');
-const override = { type: 'temp', valeur: 21.5, debut: '2026-10-12T09:30:00+02:00', fin: '2026-10-12T11:30:00+02:00' };
+const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
 
 describe('more-info block', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') })); // Monday
@@ -38,8 +38,8 @@ describe('more-info block', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const el = block(hass, 'climate.salon');
     el.shadowRoot.querySelector('button[data-min="30"]').click();
-    const { event_type, event_data } = hass.events.at(-1);
-    assert.equal(event_type, 'chauffage_derogation_set');
-    assert.equal(new Date(event_data.derogation.fin).toISOString(), '2026-10-12T10:00:00.000Z');
+    const msg = hass.events.at(-1);
+    assert.equal(msg.type, 'chauffage/override/set');
+    assert.equal(new Date(msg.override.end).toISOString(), '2026-10-12T10:00:00.000Z');
   });
 });

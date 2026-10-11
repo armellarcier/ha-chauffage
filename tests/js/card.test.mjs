@@ -1,5 +1,5 @@
 // Behavior of the custom:chauffage-programme-card card.
-import { fakeHass, createCard, cleanup, ChauffageProgrammeCard, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -46,31 +46,26 @@ describe('switching the active heating mode', () => {
     assert.match(bar(card).textContent, /Activer « Absent »/);
   });
 
-  test('the button selects the mode in the input_select', async () => {
+  test('the button activates the mode in the integration', async () => {
     const hass = fakeHass({ mode: 'Normal' });
     const card = createCard(hass);
     tab(card, 'Vacances').click();
     await card._action('activate-mode', {});
-    assert.deepEqual(hass.services, [{
-      domain: 'input_select', service: 'select_option',
-      data: { entity_id: 'input_select.mode_chauffage', option: 'Vacances' },
-    }]);
+    assert.deepEqual(hass.events, [{ type: 'chauffage/mode/set', mode: 'holiday' }]);
   });
 
   test('once HA reports the new mode, the button disappears', () => {
     const hass = fakeHass({ mode: 'Normal' });
     const card = createCard(hass);
     tab(card, 'Absent').click();
-    hass.states['input_select.mode_chauffage'] = { ...hass.states['input_select.mode_chauffage'], state: 'Absent' };
-    card.hass = { ...hass, states: { ...hass.states } }; // HA pushes a new hass object
+    hass.push(integrationData({ mode: 'Absent' }));
     assert.equal(bar(card), null);
   });
 
   test('the active-mode marker follows a mode change made elsewhere (automation…)', () => {
     const hass = fakeHass({ mode: 'Normal' });
     const card = createCard(hass);
-    hass.states['input_select.mode_chauffage'] = { ...hass.states['input_select.mode_chauffage'], state: 'Vacances' };
-    card.hass = { ...hass, states: { ...hass.states } };
+    hass.push(integrationData({ mode: 'Vacances' }));
     assert.ok(tab(card, 'Vacances').querySelector('.dot'));
     assert.equal(tab(card, 'Normal').querySelector('.dot'), null);
   });
@@ -149,10 +144,9 @@ describe('saving', () => {
     await card._save();
 
     const [msg] = hass.events;
-    assert.equal(msg.type, 'fire_event');
-    assert.equal(msg.event_type, 'chauffage_programmes_set');
-    assert.deepEqual(msg.event_data.programmes['climate.bureau'].Normal[0], ['00:00 eco', '12:00 comfort']);
-    assert.deepEqual(msg.event_data.programmes['climate.salon'].Normal[0], WEEKDAY);
+    assert.equal(msg.type, 'chauffage/schedules/save');
+    assert.deepEqual(msg.schedules['climate.bureau'].normal[0], [['00:00', 'eco'], ['12:00', 'comfort']]);
+    assert.deepEqual(msg.schedules['climate.salon'].normal[0], WEEKDAY.map((s) => s.split(' ')));
     assert.equal(card._dirty, false);
   });
 
@@ -205,7 +199,7 @@ describe('overrides from the card', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
 
-  const override = { type: 'temp', valeur: 21.5, debut: '2026-10-12T09:30:00+02:00', fin: '2026-10-12T11:30:00+02:00' };
+  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
 
   test('the override is shown on today’s row, in the active mode tab', () => {
     const card = createCard(fakeHass({ overrides: { 'climate.salon': override } }));
@@ -214,12 +208,17 @@ describe('overrides from the card', () => {
     assert.equal(zone.dataset.day, '0');
   });
 
+  test('an override that has ended is no longer shown, before the integration removes it', () => {
+    const ended = { ...override, end: '2026-10-12T09:59:00+02:00' };
+    const card = createCard(fakeHass({ overrides: { 'climate.salon': ended } }));
+    assert.equal(card.shadowRoot.querySelector('.override'), null);
+  });
+
   test('shortening before now is clamped to now + 15 min', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass);
     card._setOverrideEnd('climate.salon', new Date('2026-10-12T09:00:00+02:00'));
-    const { derogation } = hass.events.at(-1).event_data;
-    assert.equal(new Date(derogation.fin).toISOString(), '2026-10-12T08:15:00.000Z');
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T08:15:00.000Z');
   });
 
   test('"Reprendre le programme" removes the override', () => {
@@ -227,9 +226,6 @@ describe('overrides from the card', () => {
     const card = createCard(hass);
     card._overrideSel = { climate: 'climate.salon', day: 0 };
     card._action('override-del', {});
-    assert.deepEqual(hass.events.at(-1), {
-      type: 'fire_event', event_type: 'chauffage_derogation_set',
-      event_data: { climate: 'climate.salon', derogation: null },
-    });
+    assert.deepEqual(hass.events.at(-1), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 });

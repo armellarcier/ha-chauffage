@@ -1,22 +1,15 @@
 /*
  * chauffage-programme-card
  * Lovelace card: visual editor for the weekly heating schedules
- * (Versatile Thermostat). 7 days, each with one row per displayed thermostat.
+ * 7 days, each with one row per displayed thermostat.
  *
- * Installed in <config>/www/chauffage/ (served under /local/chauffage/)
- * and loaded on every page by chauffage-loader.js — see README.md.
+ * Served by the Chauffage integration (custom_components/chauffage) and loaded on every page;
+ * reads and writes through its websocket API.
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.3.0-beta.1';
+const VERSION = '0.3.0';
 
-// Preset colors (labels are translated, see I18N)
-const PRESETS = {
-  comfort: { color: '#f57c00' },
-  eco: { color: '#43a047' },
-  boost: { color: '#e53935' },
-  frost: { color: '#29b6f6' },
-};
 const DAY_MIN = 1440;
 
 // ---------- i18n ----------
@@ -100,7 +93,7 @@ const I18N = {
     levelColor: 'Color',
     deleteLevel: 'Delete this level',
     replaceWith: 'replaced by',
-    newerData: 'These schedules were saved by a newer version of ha-chauffage (data version {version}). Update the card to view and edit them.',
+    integrationMissing: 'The Chauffage integration is not set up: add it in Settings → Devices & services.',
   },
   fr: {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
@@ -178,7 +171,7 @@ const I18N = {
     levelColor: 'Couleur',
     deleteLevel: 'Supprimer ce niveau',
     replaceWith: 'remplacé par',
-    newerData: 'Ces plannings ont été enregistrés par une version plus récente de ha-chauffage (données en version {version}). Mettez la carte à jour pour les afficher et les modifier.',
+    integrationMissing: 'L’intégration Chauffage n’est pas configurée : ajoutez-la dans Paramètres → Appareils et services.',
   },
 };
 
@@ -332,71 +325,6 @@ function parseDay(list) {
 
 const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
 
-// ---------- stored data versions ----------
-// The schedules carry a schema version (attribute "version" of sensor.programmes_chauffage;
-// missing = 1, the format used before the first release). A release that changes the format
-// bumps DATA_VERSION and adds MIGRATIONS[n], which upgrades version n to n + 1 (see
-// CONTRIBUTING.md, "Data versions and migrations").
-const DATA_VERSION = 1;
-const MIGRATIONS = {};
-
-class DataVersionError extends Error {
-  constructor(version) {
-    super(`Schedules saved by a newer version of ha-chauffage (data version ${version})`);
-    this.version = version;
-  }
-}
-
-const storedVersion = (st) => {
-  const v = Number(st && st.attributes.version);
-  return Number.isInteger(v) && v >= 1 ? v : 1;
-};
-
-// Upgrades schedules from `version` to `target`, one step at a time, without modifying
-// the input. Throws DataVersionError for data newer than `target` (downgrades not supported).
-function migrateSchedules(programmes, version, { target = DATA_VERSION, migrations = MIGRATIONS } = {}) {
-  if (version > target) throw new DataVersionError(version);
-  let data = clone(programmes && typeof programmes === 'object' ? programmes : {});
-  for (let v = version; v < target; v++) {
-    if (typeof migrations[v] !== 'function') throw new Error(`No migration from data version ${v}`);
-    data = migrations[v](data);
-  }
-  return data;
-}
-
-// Stored schedules, migrated to the current version (throws DataVersionError, see above)
-const readSchedules = (st) => migrateSchedules(st && st.attributes.programmes, storedVersion(st));
-
-// Saves migrated schedules back to HA, keeping the data as it was before the migration in the
-// sensor's "previous" attribute, so that the automation reads the current format even if
-// nobody edits the schedules. Admins only (firing events requires it). Returns true if saved.
-async function saveMigratedSchedules(hass, { sensor, event }, options = {}) {
-  const st = hass && hass.states[sensor];
-  const version = storedVersion(st);
-  const target = options.target || DATA_VERSION;
-  if (!st || version >= target || (hass.user && !hass.user.is_admin)) return false;
-  const programmes = migrateSchedules(st.attributes.programmes, version, { ...options, target });
-  await hass.callWS({
-    type: 'fire_event',
-    event_type: event,
-    event_data: { programmes, version: target, previous: { version, programmes: st.attributes.programmes } },
-  });
-  return true;
-}
-
-// Runs the migration at most once per page: from the card, or from any Home Assistant page
-// (this file is loaded on every page by chauffage-loader.js)
-let migrationRun = null;
-function migrateOnce(hass, cfg) {
-  if (!migrationRun) {
-    migrationRun = saveMigratedSchedules(hass, cfg).catch((e) => {
-      console.error('ha-chauffage: schedule migration failed', e);
-      return false;
-    });
-  }
-  return migrationRun;
-}
-
 // ---------- overrides (shared by the card and the more-info block) ----------
 
 // Splits an override into one piece per day (today + 6 days)
@@ -444,17 +372,10 @@ function durationText(min, locale = DEFAULT_LOCALE) {
     : `${min} min`;
 }
 
-// Active (not ended) overrides read from the package's sensor
-function activeOverrides(hass, sensor) {
-  const st = hass && hass.states[sensor];
-  return filterActive(st && st.attributes.derogations);
-}
-
 // ---------- data sources ----------
-// The card reads and writes through the Chauffage integration (websocket API, v0.2+) when it is
-// set up, otherwise through the package's sensors and events (v0.1). Both give the same view,
-// in the format the card works with: mode names, "HH:MM preset" slots, package override keys
-// ({ type: temp|preset, valeur, debut, fin }).
+// The card reads and writes through the Chauffage integration's websocket API. The source gives
+// the data in the format the card works with: mode names, "HH:MM level" slots, overrides as
+// { type: temp|preset, valeur, debut, fin }.
 
 const integrationAvailable = (hass) => !!(hass && hass.services && hass.services.chauffage);
 const filterActive = (raw) => {
@@ -465,7 +386,7 @@ const filterActive = (raw) => {
   }
   return out;
 };
-const toPackageOverride = (o) => o && ({ type: o.kind === 'temperature' ? 'temp' : o.kind, valeur: o.value, debut: o.start, fin: o.end });
+const toCardOverride = (o) => o && ({ type: o.kind === 'temperature' ? 'temp' : o.kind, valeur: o.value, debut: o.start, fin: o.end });
 const toIntegrationOverride = (d) => d && ({ kind: d.type === 'temp' ? 'temperature' : d.type, value: d.valeur, start: d.debut, end: d.fin });
 
 // One subscription per page, shared by every card and more-info block
@@ -492,14 +413,15 @@ const INTEGRATION = {
   },
 };
 
-function integrationSource(hass) {
-  INTEGRATION.connect(hass);
-  const d = INTEGRATION.data;
+function dataSource(hass) {
+  const available = integrationAvailable(hass);
+  if (available) INTEGRATION.connect(hass);
+  const d = available ? INTEGRATION.data : null;
   const modes = d ? d.modes : [];
   const idOf = (name) => (modes.find((m) => m.name === name) || {}).id;
   const nameOf = (id) => (modes.find((m) => m.id === id) || {}).name;
   return {
-    kind: 'integration',
+    available, // false: the integration is not set up
     ready: !!d,
     revision: d ? d.revision : null,
     stamps: d ? { schedules: `r${d.revision}`, overrides: JSON.stringify(d.overrides), mode: d.active_mode } : {},
@@ -518,7 +440,7 @@ function integrationSource(hass) {
     },
     overrides: () => {
       const out = {};
-      for (const [c, o] of Object.entries(d ? d.overrides : {})) out[c] = toPackageOverride(o);
+      for (const [c, o] of Object.entries(d ? d.overrides : {})) out[c] = toCardOverride(o);
       return out;
     },
     save: (programmes, revision) => {
@@ -553,41 +475,9 @@ function integrationSource(hass) {
   };
 }
 
-function packageSource(hass, cfg) {
-  const s = (hass && hass.states) || {};
-  const st = s[cfg.sensor];
-  const dst = s[cfg.derog_sensor];
-  const mode = s[cfg.mode_entity];
-  return {
-    kind: 'package',
-    ready: true,
-    revision: null,
-    stamps: { schedules: st ? st.last_updated : null, overrides: dst ? dst.last_updated : null, mode },
-    modes: () => (mode && mode.attributes.options) || ['Normal', 'Absent', 'Vacances'],
-    activeMode: () => (mode ? mode.state : null),
-    schedules: () => readSchedules(st), // throws DataVersionError for data from a newer version
-    sensorState: st,
-    overrides: () => ((dst && dst.attributes.derogations) || {}),
-    save: (programmes) => hass.callWS({ type: 'fire_event', event_type: cfg.event, event_data: { programmes, version: DATA_VERSION } }),
-    setOverride: (climate, d) => hass.callWS({ type: 'fire_event', event_type: cfg.derog_event, event_data: { climate, derogation: d } }),
-    activateMode: (name) => hass.callService('input_select', 'select_option', { entity_id: cfg.mode_entity, option: name }),
-    levels: () => [], // the package's fixed presets (PRESETS)
-    targets: () => ({}),
-    editable: false,
-    usePresets: () => true,
-    mapping: () => ({}),
-    learned: () => undefined,
-    usedLevels: () => [],
-  };
-}
-
-const dataSource = (hass, cfg) => (integrationAvailable(hass) ? integrationSource(hass) : packageSource(hass, cfg));
-
-// Heating levels [{ id, name, color }]: the integration's (v0.3+), otherwise the fixed presets
+// Heating levels [{ id, name, color, temperature }]
 function levelsOf(src, loc) {
-  const list = src.levels();
-  const levels = list.length ? list : Object.entries(PRESETS).map(([id, p]) => ({ id, color: p.color }));
-  return levels.map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature }));
+  return src.levels().map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature }));
 }
 const levelOf = (levels, id, loc) => levels.find((l) => l.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
 // Another level for a new slot: comfort ↔ eco when they exist, otherwise the next level
@@ -619,7 +509,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
     this._overrideSel = null; // { climate, day } override whose popover is open
     this._overrideDrag = null;
-    this._overridePending = {}; // changes sent, waiting for the sensor update
+    this._overridePending = {}; // changes sent, waiting for the integration's update
     this._overrideStamp = undefined;
     try {
       const c = JSON.parse(localStorage.getItem(LS_CLIP));
@@ -638,11 +528,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       throw new Error(makeLocale(null, lang).t('thermostatsRequired'));
     }
     this._config = {
-      sensor: 'sensor.programmes_chauffage',
-      mode_entity: 'input_select.mode_chauffage',
-      event: 'chauffage_programmes_set',
-      derog_sensor: 'sensor.derogations_chauffage',
-      derog_event: 'chauffage_derogation_set',
       step: 15,
       ...config,
     };
@@ -671,7 +556,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       need = true;
     }
     const src = this._source();
-    if (src.kind === 'integration' && !this._unlisten) {
+    if (src.available && !this._unlisten) {
       // Data pushed by the integration: same checks as a hass update
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
     }
@@ -743,7 +628,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   // ---------- data ----------
 
   _source() {
-    return dataSource(this._hass, this._config);
+    return dataSource(this._hass);
   }
 
   _levels() {
@@ -765,19 +650,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   _load() {
     const src = this._source();
     this._data = {};
-    this._newerData = null;
     this._revision = src.revision;
-    let raw;
-    try {
-      raw = src.schedules();
-    } catch (e) {
-      if (!(e instanceof DataVersionError)) throw e;
-      this._newerData = e.version; // read-only: saving would lose data
-      return;
-    }
-    const st = src.sensorState;
-    if (st && storedVersion(st) < DATA_VERSION) migrateOnce(this._hass, this._config);
-    for (const [climate, modes] of Object.entries(raw)) {
+    for (const [climate, modes] of Object.entries(src.schedules())) {
       if (!modes || typeof modes !== 'object') continue;
       this._data[climate] = {};
       for (const [mode, week] of Object.entries(modes)) {
@@ -871,7 +745,6 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   async _save() {
-    if (this._newerData) return;
     const out = {};
     for (const [climate, modes] of Object.entries(this._data)) {
       out[climate] = {};
@@ -1116,18 +989,17 @@ class ChauffageProgrammeCard extends HTMLElement {
   _render() {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
-    if (this._view === 'levels' && this._source().kind === 'integration' && this._source().ready) {
+    if (!this._source().available) {
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="missing">${esc(tr('integrationMissing'))}</div></ha-card>`;
+      return;
+    }
+    if (this._view === 'levels' && this._source().ready) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
         <ha-card>${this._viewsHtml()}${this._levelsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
       return;
     }
     if (!this._source().ready) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="loading">…</div></ha-card>`;
-      return;
-    }
-    if (this._newerData) {
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-        <ha-card><div class="newer-data">${esc(tr('newerData', { version: this._newerData }))}</div></ha-card>`;
       return;
     }
     const modes = this._modes();
@@ -1159,7 +1031,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .map((l) => {
         const target = this._targetOf(focus, l);
         const t = multi || !st ? null : this._levelTemperature(focus, target);
-        const hint = !multi && src.kind === 'integration' && 'preset' in target ? ` ${tr('presetHint')}` : '';
+        const hint = !multi && 'preset' in target ? ` ${tr('presetHint')}` : '';
         return `<span><i style="background:${l.color}"></i>${esc(l.name)}${t != null ? ` ${this._loc.number(t)}°` : esc(hint)}</span>`;
       })
       .join('');
@@ -1459,13 +1331,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (known) return known;
     const st = this._hass.states[climate];
     const presets = (st && st.attributes.preset_modes) || [];
-    if (src.kind !== 'integration' || (src.usePresets() && presets.includes(level.id))) return { preset: level.id };
+    if (src.usePresets() && presets.includes(level.id)) return { preset: level.id };
     return { temperature: level.temperature ?? 19 };
   }
 
   // "Schedule | Levels" switch (integration only)
   _viewsHtml() {
-    if (this._source().kind !== 'integration') return '';
     const t = this._loc.t;
     const view = this._view === 'levels' ? 'levels' : 'schedule';
     const button = (v, label) => `<button class="view${view === v ? ' on' : ''}" data-act="view" data-view="${v}">${esc(t(label))}</button>`;
@@ -1973,7 +1844,7 @@ const STYLE = `
   .lv-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
   .lv-row input[type=text] { flex:1; min-width:100px; }
   .lv-row.removed { color:var(--secondary-text-color); }
-  .newer-data { color:var(--error-color,#db4437); }
+  .missing { color:var(--secondary-text-color); padding:16px; }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:30px 60px 1fr 28px; }
     .dgroup { grid-template-columns:30px 1fr; }
@@ -1983,8 +1854,8 @@ const STYLE = `
   }
 `;
 
-// Guards: the file may be loaded twice (dashboard resource + frontend.extra_module_url
-// with a different URL); define things only once.
+// Guards: the file may be loaded twice (the integration, and a copy left in www/ by the v0.1
+// package or a dashboard resource); define things only once.
 if (!customElements.get('chauffage-programme-card')) customElements.define('chauffage-programme-card', ChauffageProgrammeCard);
 
 // =====================================================================
@@ -1995,14 +1866,9 @@ if (!customElements.get('chauffage-programme-card')) customElements.define('chau
 //  other consequence.
 // =====================================================================
 
-// Entities used by the block (updated by the last configured card)
+// Options of the block (updated by the last configured card)
 const MORE_INFO_CFG = {
   language: undefined, // card option: forces the UI language
-  sensor: 'sensor.programmes_chauffage',
-  event: 'chauffage_programmes_set',
-  mode_entity: 'input_select.mode_chauffage',
-  derog_sensor: 'sensor.derogations_chauffage',
-  derog_event: 'chauffage_derogation_set',
   step: 15,
 };
 
@@ -2010,7 +1876,7 @@ class ChauffageMoreInfo extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._pending = undefined; // override sent, waiting for the sensor update
+    this._pending = undefined; // override sent, waiting for the integration's update
     this._drag = null;
     const root = this.shadowRoot;
     root.addEventListener('click', (e) => this._onClick(e));
@@ -2032,8 +1898,8 @@ class ChauffageMoreInfo extends HTMLElement {
     const c = MORE_INFO_CFG;
     const s = hass.states;
     this._loc = makeLocale(hass, c.language);
-    const src = dataSource(hass, c);
-    if (src.kind === 'integration' && !this._unlisten) {
+    const src = dataSource(hass);
+    if (src.available && !this._unlisten) {
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
     }
     const { schedules, overrides, mode } = src.stamps;
@@ -2047,12 +1913,12 @@ class ChauffageMoreInfo extends HTMLElement {
   }
 
   _level(id) {
-    return levelOf(levelsOf(dataSource(this._hass, MORE_INFO_CFG), this._loc), id, this._loc);
+    return levelOf(levelsOf(dataSource(this._hass), this._loc), id, this._loc);
   }
 
   _currentOverride() {
     if (this._pending !== undefined) return this._pending;
-    return filterActive(dataSource(this._hass, MORE_INFO_CFG).overrides())[this._entity] || null;
+    return filterActive(dataSource(this._hass).overrides())[this._entity] || null;
   }
 
   disconnectedCallback() {
@@ -2063,7 +1929,7 @@ class ChauffageMoreInfo extends HTMLElement {
   _send(override) {
     this._pending = override;
     this._render();
-    dataSource(this._hass, MORE_INFO_CFG).setOverride(this._entity, override)
+    dataSource(this._hass).setOverride(this._entity, override)
       .catch(() => { this._pending = undefined; this._render(); });
   }
 
@@ -2076,13 +1942,8 @@ class ChauffageMoreInfo extends HTMLElement {
   }
 
   _week() {
-    const src = dataSource(this._hass, MORE_INFO_CFG);
-    let progs;
-    try {
-      progs = src.schedules();
-    } catch (e) {
-      progs = {}; // saved by a newer version: block hidden
-    }
+    const src = dataSource(this._hass);
+    const progs = src.schedules();
     const mode = src.activeMode();
     const week = progs[this._entity] && progs[this._entity][mode];
     return { mode, week: Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null };
@@ -2315,10 +2176,7 @@ function watchMoreInfo(entityId) {
       if (injected || tries > 25) clearInterval(window.__chauffageMoreInfoTimer);
       return;
     }
-    let progs = null;
-    try {
-      progs = dataSource(hass, MORE_INFO_CFG).schedules();
-    } catch (e) { /* newer data: no block */ }
+    const progs = dataSource(hass).schedules();
     // Location: end of the dialog's "info" view; otherwise right after the thermostat controls
     const info = deepQuery(dialog.shadowRoot, 'ha-more-info-info');
     const content = info ? null : deepQuery(dialog.shadowRoot, 'more-info-content');
@@ -2345,23 +2203,6 @@ function watchMoreInfo(entityId) {
   window.__chauffageMoreInfoTimer = setInterval(tick, 400);
 }
 
-// Migrates the stored schedules as soon as an admin opens any Home Assistant page, so that the
-// automation never waits for someone to open the card
-if (!window.__chauffageMigrationWatch && document.querySelector('home-assistant')) {
-  window.__chauffageMigrationWatch = true;
-  let tries = 0;
-  const timer = setInterval(() => {
-    const ha = document.querySelector('home-assistant');
-    const hass = ha && ha.hass;
-    if (hass && integrationAvailable(hass)) {
-      clearInterval(timer); // the integration keeps its own data up to date
-    } else if (hass && hass.states && hass.states[MORE_INFO_CFG.sensor]) {
-      clearInterval(timer);
-      migrateOnce(hass, MORE_INFO_CFG);
-    } else if (++tries > 60) clearInterval(timer);
-  }, 1000);
-}
-
 if (!window.__chauffageMoreInfoListener) {
   window.__chauffageMoreInfoListener = true;
   window.addEventListener('hass-more-info', (e) => {
@@ -2383,8 +2224,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
-  VERSION, DATA_VERSION, MIGRATIONS, DataVersionError, migrateSchedules, readSchedules, saveMigratedSchedules,
-  PRESETS, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
-  overridePieces, overrideLabel, activeOverrides, MORE_INFO_CFG, INTEGRATION, dataSource,
+  VERSION, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
+  overridePieces, overrideLabel, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo,
 };

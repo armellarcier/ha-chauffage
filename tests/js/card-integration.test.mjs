@@ -1,6 +1,6 @@
-// The card on the Chauffage integration (v0.2+): websocket API instead of the package's
-// sensors and events. The card's behavior is the same; only the data source changes.
-import { fakeHass, fakeIntegrationHass, INTEGRATION_DATA, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+// The card's exchanges with the Chauffage integration (websocket API): subscription, saves,
+// overrides, modes, heating levels; and the card without the integration.
+import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, createCard, cleanup, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -263,13 +263,25 @@ describe('the "Levels" view (v0.3)', () => {
     assert.ok(card.shadowRoot.querySelector('.chips'));
   });
 
-  test('read only for non-admins; no "Levels" view with the package', () => {
+  test('read only for non-admins', () => {
     const hass = fakeIntegrationHass({ data: data() });
     hass.user = { is_admin: false };
     const card = open(hass);
     assert.equal(card.shadowRoot.querySelector('[data-act="cell"]'), null);
     assert.ok(card.shadowRoot.querySelector('.lv-table'));
-    const pkg = createCard(fakeHass());
-    assert.equal(pkg.shadowRoot.querySelector('[data-act="view"]'), null);
+  });
+});
+
+describe('without the integration', () => {
+  test('the card says the Chauffage integration must be added', () => {
+    const card = createCard(hassWithoutIntegration());
+    const text = card.shadowRoot.querySelector('.missing').textContent;
+    assert.match(text, /intégration Chauffage/);
+    assert.equal(card.shadowRoot.querySelector('.chips'), null);
+  });
+
+  test('in English too', () => {
+    const card = createCard(hassWithoutIntegration({ locale: { language: 'en' } }));
+    assert.match(card.shadowRoot.querySelector('.missing').textContent, /Chauffage integration/);
   });
 });

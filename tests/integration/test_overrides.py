@@ -1,4 +1,4 @@
-"""Overrides: temporary manual setpoints (ported from tests/ha/test_overrides.py)."""
+"""Overrides: temporary manual setpoints."""
 
 from datetime import timedelta
 from enum import Enum

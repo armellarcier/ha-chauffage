@@ -9,6 +9,26 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
+First stable version of the **Chauffage integration**, installed from HACS and configured from
+the UI, with heating levels for any thermostat: it gathers 0.2.0-beta.1 to 0.3.0-beta.1 (below).
+**Stored data: imported from the v0.1 package, or migrated from a beta.**
+
+### Removed
+
+- The v0.1 YAML package (`packages/chauffage/`, `www/chauffage-loader.js`) is no longer
+  distributed or maintained: the integration replaces it and imports its data. The card no
+  longer reads the package's sensors; without the integration, it says so.
+- The release ZIP now holds `custom_components/chauffage/` (installation without HACS).
+
+### Upgrading
+
+- From 0.3.0-beta.1: update from HACS and restart; nothing else changes.
+- From an earlier beta: see the "Upgrading" notes of 0.3.0-beta.1.
+- From the v0.1 package: follow "Upgrading" in 0.2.0-beta.1 (install the integration without
+  removing the package, add it, then follow the repair to remove the package).
+
 ## [0.3.0-beta.1] - 2026-10-11
 
 **Heating levels**: ha-chauffage works with any thermostat that has a target temperature, not
@@ -132,7 +152,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.3.0-beta.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0
 [0.3.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0-beta.1
 [0.2.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.3
 [0.2.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.2.0-beta.2

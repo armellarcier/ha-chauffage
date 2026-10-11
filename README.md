@@ -30,8 +30,7 @@ edit. Version 0.1 was a YAML package; [upgrading](#upgrading-from-the-package-v0
 data automatically.
 
 1. In HACS: ⋮ → *Custom repositories* → `https://github.com/armellarcier/ha-chauffage`, type
-   *Integration*; then install **ha-chauffage** and restart Home Assistant. (While v0.2 is in
-   beta, enable *Show beta versions* on the repository in HACS.)
+   *Integration*; then install **ha-chauffage** and restart Home Assistant.
 2. Settings → Devices & services → *Add integration* → **Chauffage**.
 3. Add the card to a dashboard (it is served by the integration: no resource to add):
    ```yaml
@@ -89,7 +88,7 @@ stored data is migrated automatically. Going back to an older version is not sup
 ### Package installation (v0.1)
 
 The [v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) is a YAML
-package: unzip its ZIP into the configuration folder and follow the README of that version.
+package, no longer maintained: unzip its ZIP into the configuration folder and follow the README of that version.
 
 ### Supported thermostats
 
@@ -105,7 +104,7 @@ Any `climate` entity with a target temperature, tested with three kinds:
 
 Not supported yet: heat / cool thermostats with a temperature range (`heat_cool`), and devices
 that change their setpoint by themselves (they can look like manual changes). A device that keeps
-its preset when its setpoint is changed by hand is better mapped to temperatures (options). See
+its preset when its setpoint is changed by hand is better mapped to temperatures (the card's *Levels* view). See
 the [roadmap](ROADMAP.md) for groups of thermostats and user-defined heating modes.
 
 ## Repository layout
@@ -113,13 +112,10 @@ the [roadmap](ROADMAP.md) for groups of thermostats and user-defined heating mod
 ```
 custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
 custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
-packages/chauffage/, www/           the v0.1 package and its card loader (until v0.2.0)
-dev/harness.html, dev/*.js          test bench without HA (fake hass, ha-card and dialog)
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
 tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
-tests/ha/                           tests of the v0.1 package
 tests/fixtures/                     stored data in each past format (migration tests)
-scripts/                            test.sh, reload.sh, logs.sh, deploy.sh, demo.sh
+scripts/                            test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, HACS checks and releases
 ```
 

@@ -38,21 +38,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: HA package
-            suite: tests/ha
-            requirements: tests/ha/requirements.txt
           - name: Integration
-            suite: tests/integration
-            requirements: tests/ha/requirements.txt
+            requirements: tests/integration/requirements.txt
             # Fails below 97 % of the lines
             coverage: --cov=custom_components/chauffage --cov-report=term --cov-report=json:coverage.json --cov-fail-under=97
           # Minimum supported Home Assistant (hacs.json)
-          - name: HA package, HA 2026.9
-            suite: tests/ha
-            requirements: tests/ha/requirements-min.txt
           - name: Integration, HA 2026.9
-            suite: tests/integration
-            requirements: tests/ha/requirements-min.txt
+            requirements: tests/integration/requirements-min.txt
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -61,7 +53,7 @@ jobs:
           cache: pip
           cache-dependency-path: ${{ matrix.requirements }}
       - run: pip install -r ${{ matrix.requirements }}
-      - run: python -m pytest -c ${{ matrix.suite }}/pytest.ini ${{ matrix.suite }} ${{ matrix.coverage }}
+      - run: python -m pytest -c tests/integration/pytest.ini tests/integration ${{ matrix.coverage }}
       - name: Coverage percentage
         if: matrix.coverage
         run: python -c "import json; print(int(json.load(open('coverage.json'))['totals']['percent_covered']))" > coverage-integration.txt

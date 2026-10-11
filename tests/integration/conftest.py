@@ -1,7 +1,6 @@
 """Tests of the Chauffage integration (custom_components/chauffage).
 
-A separate suite from tests/ha/ (the package): run with `scripts/test.sh integration`.
-The bench mirrors tests/ha/conftest.py: simulated `climate.*` states, a recorder in place of
+Run with `scripts/test.sh integration`. The bench: simulated `climate.*` states, a recorder in place of
 `climate.set_preset_mode`, a frozen clock moved forward explicitly.
 """
 

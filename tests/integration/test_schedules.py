@@ -1,4 +1,4 @@
-"""Applying the weekly schedules (ported from tests/ha/test_schedules.py)."""
+"""Applying the weekly schedules."""
 
 from enum import Enum
 

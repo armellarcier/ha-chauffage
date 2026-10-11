@@ -11,7 +11,7 @@ const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 // One pixel per minute: clientX is a time of day in minutes
 const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
 const pointer = (el, type, clientX = 0) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
-const override = { type: 'temp', valeur: 21.5, debut: '2026-10-12T09:30:00+02:00', fin: '2026-10-12T11:30:00+02:00' };
+const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
 
 afterEach(() => cleanup());
 
@@ -59,8 +59,7 @@ describe('dragging the end of an override', () => {
     pointer(handle, 'pointerdown', 690);
     pointer(handle, 'pointermove', 12 * 60 + 40);
     pointer(handle, 'pointerup');
-    const { derogation } = hass.events.at(-1).event_data;
-    assert.equal(new Date(derogation.fin).toISOString(), '2026-10-12T10:45:00.000Z'); // 12:45 in Paris
+        assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:45:00.000Z'); // 12:45 in Paris
   });
 
   test('in the more-info block: sets the new end', () => {
@@ -74,7 +73,7 @@ describe('dragging the end of an override', () => {
     pointer(handle, 'pointerdown', 690);
     pointer(handle, 'pointermove', 14 * 60);
     pointer(handle, 'pointerup');
-    assert.equal(new Date(hass.events.at(-1).event_data.derogation.fin).toISOString(), '2026-10-12T12:00:00.000Z');
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T12:00:00.000Z');
   });
 
   test('in the more-info block: the end time field', () => {
@@ -86,7 +85,7 @@ describe('dragging the end of an override', () => {
     const input = el.shadowRoot.querySelector('input[data-end]');
     input.value = '09:00'; // already past today: tomorrow 09:00
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    assert.equal(new Date(hass.events.at(-1).event_data.derogation.fin).toISOString(), '2026-10-13T07:00:00.000Z');
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-13T07:00:00.000Z');
   });
 });
 
@@ -161,11 +160,11 @@ describe('the override popover in the card', () => {
     $(card, '.override[data-climate="climate.salon"]').click();
     assert.ok($(card, '.override-ed'));
     $(card, '.override-ed [data-act="override-add"][data-min="30"]').click();
-    assert.equal(new Date(hass.events.at(-1).event_data.derogation.fin).toISOString(), '2026-10-12T10:00:00.000Z');
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
     const input = $(card, '.override-ed input[data-override-end]');
     input.value = '18:00';
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    assert.equal(new Date(hass.events.at(-1).event_data.derogation.fin).toISOString(), '2026-10-12T16:00:00.000Z');
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T16:00:00.000Z');
   });
 });
 

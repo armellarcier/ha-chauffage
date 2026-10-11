@@ -7,16 +7,15 @@ already done.
   1. onboarding: user dev / dev, location, analytics, integrations
   2. long-lived access token written to /config/.dev-token (read by scripts/_ha.sh)
   3. three Versatile Thermostat "over a switch" thermostats on the simulated rooms
-  4. a dashboard with the card, and sample schedules
-  5. the Chauffage integration's config entry (it imports the sample schedules from the package)
-  6. sample schedules for the two other kinds of thermostats (kitchen: generic_thermostat without
-     presets; guest room: standard presets, dev/sim_climate), declared in simulation.yaml
+  4. a dashboard with the card
+  5. the Chauffage integration's config entry
+  6. sample schedules for every kind of thermostat (VTherm; kitchen: generic_thermostat without
+     presets; guest room: standard presets, dev/sim_climate), saved through the integration
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
 from pathlib import Path
@@ -114,6 +113,20 @@ class WS:
                 if not reply.get("success", True):
                     raise RuntimeError(f"{message['type']}: {reply.get('error')}")
                 return reply.get("result")
+
+    async def first_event(self, **message) -> dict:
+        """Subscribes and returns the first event (the subscription stays open)."""
+        message["id"] = self.next_id
+        self.next_id += 1
+        await self.ws.send_json(message)
+        while True:
+            reply = await self.ws.receive_json()
+            if reply.get("id") != message["id"]:
+                continue
+            if not reply.get("success", True):
+                raise RuntimeError(f"{message['type']}: {reply.get('error')}")
+            if reply.get("type") == "event":
+                return reply["event"]
 
 
 async def open_ws(session: aiohttp.ClientSession, token: str) -> WS:
@@ -244,14 +257,20 @@ CARD = {
     + [{"entity": entity, "name": name} for entity, name in OTHER_THERMOSTATS.items()],
 }
 
-WEEKDAY = ["00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco"]
-WEEKEND = ["00:00 eco", "08:00 comfort", "23:00 eco"]
-SAMPLE_SCHEDULES = {
-    "climate.salon": {"Normal": [WEEKDAY] * 5 + [WEEKEND] * 2, "Absent": [["00:00 eco"]] * 7, "Vacances": [["00:00 frost"]] * 7},
-    "climate.bureau": {"Normal": [["00:00 eco", "08:30 comfort", "18:00 eco"]] * 5 + [["00:00 eco"]] * 2,
-                       "Absent": [["00:00 eco"]] * 7, "Vacances": [["00:00 frost"]] * 7},
-    "climate.chambre": {"Normal": [["00:00 eco", "06:30 comfort", "07:30 eco", "21:00 comfort", "22:30 eco"]] * 7,
-                        "Absent": [["00:00 eco"]] * 7, "Vacances": [["00:00 frost"]] * 7},
+def day(*slots: str) -> list[list[str]]:
+    """"06:30 comfort" → ["06:30", "comfort"]"""
+    return [slot.split() for slot in slots]
+
+
+WEEKDAY = day("00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco")
+WEEKEND = day("00:00 eco", "08:00 comfort", "23:00 eco")
+# Week of the first mode (Normal), by thermostat; the other modes: eco, then frost protection
+SAMPLE_WEEKS = {
+    "climate.salon": [WEEKDAY] * 5 + [WEEKEND] * 2,
+    "climate.bureau": [day("00:00 eco", "08:30 comfort", "18:00 eco")] * 5 + [day("00:00 eco")] * 2,
+    "climate.chambre": [day("00:00 eco", "06:30 comfort", "07:30 eco", "21:00 comfort", "22:30 eco")] * 7,
+    "climate.cuisine": [day("00:00 eco", "07:00 comfort", "09:00 eco", "18:30 comfort", "21:00 eco")] * 7,
+    "climate.chambre_d_amis": [day("00:00 frost")] * 5 + [day("00:00 eco", "08:00 comfort", "22:00 eco")] * 2,
 }
 
 
@@ -280,14 +299,6 @@ async def dashboard(ws: WS) -> None:
     })
 
 
-async def sample_schedules(api: Api) -> None:
-    state = await api.get("states/sensor.programmes_chauffage")
-    if state and state["attributes"].get("programmes"):
-        return
-    log("schedules: saving sample schedules")
-    await api.post("events/chauffage_programmes_set", {"programmes": SAMPLE_SCHEDULES})
-
-
 async def integration(api: Api) -> None:
     if await api.get("config/config_entries/entry?domain=chauffage"):
         return
@@ -296,23 +307,18 @@ async def integration(api: Api) -> None:
     await api.post(f"config/config_entries/flow/{flow['flow_id']}", {})
 
 
-async def other_schedules(ws: WS) -> None:
-    """Sample schedules for the kitchen and the guest room, saved through the integration."""
-    store = Path("/config/.storage/chauffage")
-    if not store.exists():
-        return
-    data = json.loads(store.read_text())["data"]
+async def sample_schedules(ws: WS) -> None:
+    """Sample schedules for the thermostats that have none, saved through the integration."""
+    data = await ws.first_event(type="chauffage/subscribe")
     schedules = data["schedules"]
-    if all(entity in schedules for entity in OTHER_THERMOSTATS):
+    missing = [entity for entity in SAMPLE_WEEKS if entity not in schedules]
+    if not missing:
         return
-    first, *others = [m["id"] for m in data["modes"]]
-    week = {
-        "climate.cuisine": [[["00:00", "eco"], ["07:00", "comfort"], ["09:00", "eco"], ["18:30", "comfort"], ["21:00", "eco"]]] * 7,
-        "climate.chambre_d_amis": [[["00:00", "frost"]]] * 5 + [[["00:00", "eco"], ["08:00", "comfort"], ["22:00", "eco"]]] * 2,
-    }
-    for entity, days in week.items():
-        schedules.setdefault(entity, {first: days, **{m: [[["00:00", "frost"]]] * 7 for m in others}})
-    log("schedules: sample schedules for the kitchen and the guest room")
+    first, second, *others = [m["id"] for m in data["modes"]]
+    for entity in missing:
+        schedules[entity] = {first: SAMPLE_WEEKS[entity], second: [day("00:00 eco")] * 7,
+                             **{m: [day("00:00 frost")] * 7 for m in others}}
+    log(f"schedules: sample schedules for {', '.join(missing)}")
     await ws.call(type="chauffage/schedules/save", schedules=schedules)
 
 
@@ -325,9 +331,8 @@ async def main() -> None:
         await wait_until_running(api)
         await thermostats(api)
         await dashboard(ws)
-        await sample_schedules(api)
         await integration(api)
-        await other_schedules(ws)
+        await sample_schedules(ws)
         log(f"done — http://localhost:8124/{DASHBOARD_URL} (dev / dev)")
 
 

@@ -26,8 +26,7 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
 [mise à jour](#mise-à-jour-depuis-le-package-v01) importe ses données automatiquement.
 
 1. Dans HACS : ⋮ → *Dépôts personnalisés* → `https://github.com/armellarcier/ha-chauffage`,
-   type *Intégration* ; installer **ha-chauffage** puis redémarrer Home Assistant. (Tant que la
-   v0.2 est en bêta, activer *Afficher les versions bêta* sur le dépôt dans HACS.)
+   type *Intégration* ; installer **ha-chauffage** puis redémarrer Home Assistant.
 2. Paramètres → Appareils et services → *Ajouter une intégration* → **Chauffage**.
 3. Ajouter la carte à un tableau de bord (elle est servie par l'intégration : aucune ressource à
    ajouter) :
@@ -94,7 +93,7 @@ anglais) et mettre à jour depuis HACS ; les données stockées sont migrées au
 ### Installation du package (v0.1)
 
 La [version v0.1.0](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) est un
-package YAML : décompresser son ZIP dans le dossier de configuration et suivre le README de cette
+package YAML, qui n'est plus maintenu : décompresser son ZIP dans le dossier de configuration et suivre le README de cette
 version.
 
 ### Thermostats compatibles
@@ -112,7 +111,7 @@ Toute entité `climate` avec une température de consigne, testée avec trois ty
 Pas encore pris en charge : les thermostats chaud / froid à plage de températures
 (`heat_cool`), et les appareils qui changent leur consigne d'eux-mêmes (ça peut ressembler à des
 changements manuels). Un appareil qui garde son preset quand on change sa consigne à la main est
-mieux réglé en températures (options). Voir la [feuille de route](ROADMAP.fr.md) pour les groupes
+mieux réglé en températures (vue *Niveaux* de la carte). Voir la [feuille de route](ROADMAP.fr.md) pour les groupes
 de thermostats et les modes de chauffage définis par l'utilisateur.
 
 ## Structure
@@ -120,13 +119,10 @@ de thermostats et les modes de chauffage définis par l'utilisateur.
 ```
 custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
 custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
-packages/chauffage/, www/           le package v0.1 et le chargeur de sa carte (jusqu'à la v0.2.0)
-dev/harness.html, dev/*.js          banc de test hors HA (faux hass, faux ha-card, faux dialogue)
 dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
 tests/integration/, tests/js/       tests automatisés (pytest + HA en mémoire, node --test + jsdom)
-tests/ha/                           tests du package v0.1
 tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
-scripts/                            test.sh, reload.sh, logs.sh, deploy.sh, demo.sh
+scripts/                            test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, vérifications HACS et publication
 ```
 

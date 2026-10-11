@@ -61,7 +61,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Default temperature of a level, followed by the thermostats left in automatic | `I/test_levels.py::the_level_s_default_temperature_follows_its_changes`, `C/card-integration.test.mjs::a level's default temperature` |
 | Rename, recolor, add, remove a level (a used one is replaced) | `I/test_levels.py`, `I/test_options.py::the_card_edits_the_levels`, `C/card-integration.test.mjs::renaming, adding and removing levels` |
 | Preset temperatures shown: learned while active; read from VTherm attributes | `I/test_options.py::the_temperature_of_each_preset_is_learned_*`, `C/card-integration.test.mjs::Versatile Thermostat preset temperatures *` |
-| Only admins change levels; others see them | `I/test_options.py::level_and_mapping_changes_need_an_admin`, `C/card-integration.test.mjs::read only for non-admins *` |
+| Only admins change levels; others see them | `I/test_options.py::level_and_mapping_changes_need_an_admin`, `C/card-integration.test.mjs::read only for non-admins` |
 
 ## Editing schedules in the card
 
@@ -74,6 +74,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Open a thermostat's more-info dialog from the card | `C/card.test.mjs` (thermostat more-info dialog) |
 | Error messages (save, override, mode, levels) | `C/interactions.test.mjs` (error messages) |
 | English / French, 12 / 24 h, decimal separator, first day of the week | `C/i18n.test.mjs` |
+| Card added but the integration is not set up: says so | `C/card-integration.test.mjs` (without the integration) |
+| An ended override is no longer shown, even before the integration removes it | `C/card.test.mjs::an override that has ended *` |
 
 ## More-info dialog of a thermostat
 
@@ -89,14 +91,9 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Heating mode select (stable id), schedule and override-end sensors (disabled by default, on the thermostat's device) | `I/test_entities.py` |
 | Websocket API for the card: subscribe, save with revision, overrides, mode, levels, mappings; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_edge_cases.py` |
 
-## The v0.1 package (until v0.2.0)
-
-`tests/ha/` (schedules, overrides, data versions) and `C/migrations.test.mjs`. The fixes found by
-this analysis (thermostats coming back, retries, missed minutes) are made in the integration only.
-
 ## Not covered by automated tests
 
-- Exact placement of the popovers on screen (needs a real browser layout): checked in the test
-  harness (`dev/harness.html`) and the development HA.
-- Two copies of the card loaded at once (package loader and integration, during an upgrade): the
+- Exact placement of the popovers on screen (needs a real browser layout): checked on the
+  development HA.
+- Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the integration's): the
   second one does not register again (guarded), checked on the development HA.
