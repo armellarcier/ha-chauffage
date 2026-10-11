@@ -1,9 +1,9 @@
 """Config flow: a single "Chauffage" entry, created from Settings → Devices & services.
 
 If the package (v0.1) is installed, the form says what will be imported (schedules, overrides,
-active mode); the import itself happens when the entry is set up (see importer.py).
-Options: default settings (override duration, use of the thermostats' presets). Heating levels and
-what they mean per thermostat are set in the card.
+active schedule); the import itself happens when the entry is set up (see importer.py).
+Options: default settings (override duration, use of the thermostats' climate presets). Presets
+and what they mean per thermostat are set in the card.
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ class ChauffageConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ChauffageOptionsFlow(OptionsFlow):
-    """Default settings. Heating levels and what they mean per thermostat are set in the card."""
+    """Default settings. Presets and what they mean per thermostat are set in the card."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:

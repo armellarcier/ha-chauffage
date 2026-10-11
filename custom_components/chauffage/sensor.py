@@ -3,7 +3,7 @@
 - schedule: preset planned now; attributes: next preset and its start time;
 - override end: when the current override ends (empty without override).
 
-Created and removed with the schedules: no list of thermostats to maintain.
+Created and removed with the weeks: no list of thermostats to maintain.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ async def async_setup_entry(
     def sync(reason: str = DATA) -> None:
         if reason != DATA:
             return
-        scheduled = set(runtime.data["schedules"])
+        scheduled = set(runtime.data["weeks"])
         new = []
         for climate in sorted(scheduled - set(known)):
             known[climate] = [ScheduleSensor(runtime, climate), OverrideEndSensor(runtime, climate)]
@@ -75,10 +75,10 @@ class ScheduleSensor(ThermostatSensor):
 
     @property
     def options(self) -> list[str]:
-        return [level["id"] for level in self.runtime.data["levels"]]
+        return [preset["id"] for preset in self.runtime.data["presets"]]
 
-    def _name(self, level_id: str | None) -> str | None:
-        return next((lv["name"] for lv in self.runtime.data["levels"] if lv["id"] == level_id), None)
+    def _name(self, preset_id: str | None) -> str | None:
+        return next((p["name"] for p in self.runtime.data["presets"] if p["id"] == preset_id), None)
 
     @property
     def native_value(self) -> str | None:
@@ -87,12 +87,12 @@ class ScheduleSensor(ThermostatSensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        current, next_level, next_start = self.runtime.planned(self.climate)
+        current, next_preset, next_start = self.runtime.planned(self.climate)
         return {
-            "level_name": self._name(current),
+            "preset_name": self._name(current),
             "target": self.runtime.targets_of(self.climate).get(current) if current else None,
-            "next_level": next_level,
-            "next_level_name": self._name(next_level),
+            "next_preset": next_preset,
+            "next_preset_name": self._name(next_preset),
             "next_start": next_start.isoformat() if next_start else None,
         }
 

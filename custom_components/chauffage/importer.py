@@ -1,9 +1,10 @@
 """Import of a package installation (packages/chauffage/, v0.1).
 
-The package keeps its data in the state machine: schedules in sensor.programmes_chauffage
-("programmes", "version" attributes), overrides in sensor.derogations_chauffage, the active mode
-in input_select.mode_chauffage. Once imported, its automations are turned off (reversible) so
-that two schedulers never drive the valves, and a repair issue explains how to remove it.
+The package keeps its data in the state machine: weeks in sensor.programmes_chauffage
+("programmes", "version" attributes), overrides in sensor.derogations_chauffage, the active
+schedule (a "mode") in input_select.mode_chauffage. Once imported, its automations are turned
+off (reversible) so that two schedulers never drive the valves, and a repair issue explains how
+to remove it.
 """
 
 from __future__ import annotations
@@ -45,37 +46,37 @@ def package_summary(hass: HomeAssistant) -> dict[str, Any] | None:
     version = state.attributes.get("version") or 1
     if not isinstance(version, int) or version > PACKAGE_DATA_VERSION:
         raise PackageTooNew
-    programmes = state.attributes.get("programmes")
-    programmes = programmes if isinstance(programmes, dict) else {}
-    modes = {mode for modes in programmes.values() if isinstance(modes, dict) for mode in modes}
-    return {"thermostats": len(programmes), "modes": len(modes)}
+    weeks = state.attributes.get("programmes")
+    weeks = weeks if isinstance(weeks, dict) else {}
+    schedules = {name for by_name in weeks.values() if isinstance(by_name, dict) for name in by_name}
+    return {"thermostats": len(weeks), "schedules": len(schedules)}
 
 
 def from_package(hass: HomeAssistant) -> dict[str, Any]:
     """The package's data converted to the integration's format (see model.py)."""
     package_summary(hass)  # raises PackageTooNew
-    schedules_state = hass.states.get(PACKAGE_SCHEDULES)
-    programmes = schedules_state.attributes.get("programmes") if schedules_state else None
-    programmes = programmes if isinstance(programmes, dict) else {}
+    weeks_state = hass.states.get(PACKAGE_SCHEDULES)
+    package_weeks = weeks_state.attributes.get("programmes") if weeks_state else None
+    package_weeks = package_weeks if isinstance(package_weeks, dict) else {}
 
     mode_state = hass.states.get(PACKAGE_MODE)
     names = list(mode_state.attributes.get("options", [])) if mode_state else []
-    for modes in programmes.values():  # modes used in the schedules but no longer offered
-        if isinstance(modes, dict):
-            names += [name for name in modes if name not in names]
-    modes = model.make_modes(names or ["Normal"])
-    ids = {m["name"]: m["id"] for m in modes}
+    for by_name in package_weeks.values():  # schedules used in the weeks but no longer offered
+        if isinstance(by_name, dict):
+            names += [name for name in by_name if name not in names]
+    schedules = model.make_schedules(names or ["Normal"])
+    ids = {s["name"]: s["id"] for s in schedules}
 
-    schedules: dict[str, dict[str, Any]] = {}
-    for entity_id, by_mode in programmes.items():
-        if not isinstance(by_mode, dict) or not str(entity_id).startswith("climate."):
+    weeks: dict[str, dict[str, Any]] = {}
+    for entity_id, by_name in package_weeks.items():
+        if not isinstance(by_name, dict) or not str(entity_id).startswith("climate."):
             continue
-        weeks = {}
-        for name, week in by_mode.items():
+        thermostat_weeks = {}
+        for name, week in by_name.items():
             if isinstance(week, list) and len(week) == 7 and name in ids:
-                weeks[ids[name]] = [model.normalize_day(day) for day in week]
-        if weeks:
-            schedules[entity_id] = weeks
+                thermostat_weeks[ids[name]] = [model.normalize_day(day) for day in week]
+        if thermostat_weeks:
+            weeks[entity_id] = thermostat_weeks
 
     overrides: dict[str, Any] = {}
     overrides_state = hass.states.get(PACKAGE_OVERRIDES)
@@ -93,12 +94,12 @@ def from_package(hass: HomeAssistant) -> dict[str, Any]:
 
     active = mode_state.state if mode_state else None
     return {
-        "modes": modes,
-        "active_mode": ids.get(active, modes[0]["id"]),
-        # The package's presets become levels with the same ids (see store._v1_to_v2)
-        "levels": model.default_levels(hass.config.language or "en", model.used_levels(schedules)),
-        "mappings": {},
         "schedules": schedules,
+        "active_schedule": ids.get(active, schedules[0]["id"]),
+        # The package's VTherm presets become presets with the same ids (see store._v1_to_v2)
+        "presets": model.default_presets(hass.config.language or "en", model.used_presets(weeks)),
+        "mappings": {},
+        "weeks": weeks,
         "overrides": overrides,
         "revision": 0,
     }
@@ -121,7 +122,7 @@ async def async_turn_off_package(hass: HomeAssistant) -> list[str]:
     return entity_ids
 
 
-def async_update_package_issue(hass: HomeAssistant, mode_entity_id: str | None) -> None:
+def async_update_package_issue(hass: HomeAssistant, schedule_entity_id: str | None) -> None:
     """Repair issue shown while the package is still installed."""
     if package_installed(hass):
         ir.async_create_issue(
@@ -131,7 +132,7 @@ def async_update_package_issue(hass: HomeAssistant, mode_entity_id: str | None) 
             is_fixable=False,
             severity=ir.IssueSeverity.WARNING,
             translation_key=ISSUE_PACKAGE,
-            translation_placeholders={"mode_entity": mode_entity_id or "select.…"},
+            translation_placeholders={"schedule_entity": schedule_entity_id or "select.…"},
             learn_more_url="https://github.com/armellarcier/ha-chauffage#upgrading-from-the-package-v01",
         )
     else:

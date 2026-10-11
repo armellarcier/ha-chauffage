@@ -1,8 +1,8 @@
 // Records the README demo against the development HA (run through scripts/demo.sh).
 // Playwright drives a real browser; the video is converted to docs/demo.gif afterwards.
 // The browser clock is set to a Tuesday morning, with a demo override on the living room.
-// Nothing is kept: schedule edits are discarded, the override is removed and the heating
-// mode is restored at the end.
+// Nothing is kept: schedule edits are discarded, the override is removed and the
+// active schedule is restored at the end.
 import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
 
@@ -134,7 +134,7 @@ await pause(1000);
 // Switch the active schedule from the card
 await click(page.locator(`${card} .tab`, { hasText: "Absent" }));
 await pause(900);
-await click(page.locator(`${card} [data-act="activate-mode"]`));
+await click(page.locator(`${card} [data-act="activate-schedule"]`));
 await pause(1400);
 
 // Show only the living room: its week and today's override
@@ -161,14 +161,14 @@ const video = page.video();
 await context.close();
 writeFileSync(`${OUT}/timing.json`, JSON.stringify({ video: await video.path(), start, end }));
 
-// 3. Clean up (not recorded): remove the demo override, restore the mode and the display
+// 3. Clean up (not recorded): remove the demo override, restore the active schedule and the display
 const restore = await browser.newContext({ viewport: VIEWPORT, ...LOCALE, storageState: session });
 const rp = await restore.newPage();
 await rp.goto(DASHBOARD);
 await rp.locator(`${card} .bar`).first().waitFor();
 await setOverride(rp, 'climate.salon', null);
-await rp.locator(`${card} .tab[data-mode="normal"]`).click();
-await rp.locator(`${card} [data-act="activate-mode"]`).click();
+await rp.locator(`${card} .tab[data-schedule="normal"]`).click();
+await rp.locator(`${card} [data-act="activate-schedule"]`).click();
 await rp.waitForTimeout(1000);
 await browser.close();
 console.log(`demo recorded: ${(end - start).toFixed(1)} s`);

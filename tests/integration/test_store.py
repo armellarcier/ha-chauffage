@@ -39,3 +39,13 @@ def test_steps_run_in_order_and_a_missing_step_is_an_error():
 async def test_a_stored_file_is_loaded(hass: HomeAssistant, hass_storage):
     hass_storage["chauffage"] = fixture(STORAGE_VERSION)
     assert await ChauffageStore(hass).async_load() == fixture(STORAGE_VERSION)["data"]
+
+
+def test_version_3_speaks_the_project_s_vocabulary():
+    """docs/glossary.md: schedules (formerly modes), weeks, presets (formerly levels); ids and
+    contents do not change."""
+    v2 = fixture(2)["data"]
+    v3 = migrate(v2, 2)
+    assert set(v3) == {"schedules", "active_schedule", "presets", "mappings", "weeks", "overrides", "revision"}
+    assert (v3["schedules"], v3["active_schedule"]) == (v2["modes"], v2["active_mode"])
+    assert (v3["weeks"], v3["presets"]) == (v2["schedules"], v2["levels"])

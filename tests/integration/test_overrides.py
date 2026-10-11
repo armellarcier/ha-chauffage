@@ -26,7 +26,7 @@ async def start(bench: Bench, options: dict | None = None) -> None:
     bench.thermostat("climate.salon", "eco")
     bench.thermostat("climate.bureau", "eco")
     await bench.setup(options)
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     bench.applied()
 
 
@@ -79,7 +79,7 @@ async def test_a_thermostat_without_a_schedule_is_not_watched(bench: Bench):
 async def test_a_thermostat_added_to_the_schedules_is_watched_without_configuration(bench: Bench):
     await start(bench)
     bench.thermostat("climate.cuisine", "eco")
-    await bench.save_schedules({**SCHEDULES, "climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
+    await bench.save_weeks({**SCHEDULES, "climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
     await bench.manual_setpoint("climate.cuisine", 22)
     assert "climate.cuisine" in bench.overrides()
 
@@ -98,7 +98,7 @@ async def test_a_forced_realignment_spares_overridden_thermostats(bench: Bench):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
     bench.thermostat("climate.bureau", "boost", context=CTX_AUTOMATION)  # off schedule
-    await bench.save_schedules(SCHEDULES)  # saved from the card → realignment
+    await bench.save_weeks(SCHEDULES)  # saved from the card → realignment
     assert bench.applied() == {"climate.bureau": "eco"}
 
 
@@ -195,7 +195,7 @@ async def test_an_enum_preset_does_not_break_detection(bench: Bench):
     await bench.manual_setpoint("climate.salon", 21)
     assert "climate.salon" in bench.overrides()
     assert "climate.bureau" not in bench.overrides()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     assert bench.applied() == {}
 
 

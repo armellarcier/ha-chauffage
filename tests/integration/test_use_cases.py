@@ -27,14 +27,14 @@ async def start(bench: Bench, hhmm: str = "10:00", day: int = 0) -> None:
     await bench.go_to(hhmm, day)
     bench.thermostat("climate.salon", "eco")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     bench.applied()
 
 
 # ----- thermostats coming back -----
 
 async def test_a_thermostat_turned_back_on_is_set_to_its_schedule(bench: Bench):
-    """Summer over: the thermostat is turned back on; it gets its level right away."""
+    """Summer over: the thermostat is turned back on; it gets its preset right away."""
     await start(bench)
     bench.thermostat("climate.salon", "comfort", state="off")
     await bench.hass.async_block_till_done()
@@ -100,7 +100,7 @@ def test_spring_forward_a_slot_in_the_skipped_hour_is_applied_at_3_00():
     paris = ZoneInfo("Europe/Paris")
     week = [[["00:00", "eco"], ["02:30", "comfort"]]] * 7
     plan = engine.Plan({"climate.salon": {"normal": week}}, "normal",
-                       {lv["id"]: lv for lv in model.default_levels("en")}, {}, {})
+                       {lv["id"]: lv for lv in model.default_presets("en")}, {}, {})
     thermostat = engine.Thermostat("heat", "eco", 17.0, ("eco", "comfort"))
     before = datetime(2027, 3, 28, 1, 59, tzinfo=paris)
     after = (before.astimezone(ZoneInfo("UTC")) + timedelta(minutes=1)).astimezone(paris)  # 03:00 local
@@ -123,7 +123,7 @@ async def test_sunday_to_monday(bench: Bench):
 
 
 def test_fall_back_the_repeated_hour_changes_nothing():
-    """Last Sunday of October: 03:00 → 02:00; the planned level stays right."""
+    """Last Sunday of October: 03:00 → 02:00; the planned preset stays right."""
     paris = ZoneInfo("Europe/Paris")
     week = [[["00:00", "eco"], ["06:30", "comfort"]]] * 7
     first = datetime(2026, 10, 25, 2, 30, tzinfo=paris, fold=0)
@@ -167,6 +167,6 @@ async def test_a_change_on_the_thermostat_itself_is_an_override(bench: Bench):
 async def test_a_thermostat_removed_from_the_schedules_is_no_longer_watched(bench: Bench):
     await start(bench)
     bench.thermostat("climate.bureau", "eco")
-    await bench.save_schedules({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
+    await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
     await bench.manual_setpoint("climate.salon", 22)
     assert bench.overrides() == {}

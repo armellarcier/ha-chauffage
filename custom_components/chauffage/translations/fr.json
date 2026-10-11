@@ -7,7 +7,7 @@
       },
       "import_package": {
         "title": "Import depuis le package",
-        "description": "Le package ha-chauffage (v0.1) est installé. Ses plannings ({thermostats} thermostats, {modes} modes), ses dérogations en cours et le mode actif seront importés, et ses deux automatisations désactivées pour qu'un seul programmateur pilote vos thermostats. On vous expliquera ensuite comment retirer le package."
+        "description": "Le package ha-chauffage (v0.1) est installé. Ses plannings ({thermostats} thermostats, {schedules} plannings), ses dérogations en cours et le planning actif seront importés, et ses deux automatisations désactivées pour qu'un seul programmateur pilote vos thermostats. On vous expliquera ensuite comment retirer le package."
       }
     },
     "abort": {
@@ -19,45 +19,45 @@
     "step": {
       "init": {
         "title": "Options de Chauffage",
-        "description": "Réglages par défaut. Les niveaux de chauffe et ce qu'ils signifient pour chaque thermostat se règlent dans la carte Chauffage (légende et ⚙ Niveaux).",
+        "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans la carte Chauffage (vue Préréglages).",
         "data": {
           "override_duration": "Durée des dérogations",
-          "use_presets": "Utiliser les presets des thermostats"
+          "use_presets": "Utiliser les préréglages des thermostats"
         },
         "data_description": {
-          "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son programme.",
-          "use_presets": "Un niveau utilise le preset du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte."
+          "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son planning.",
+          "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte."
         }
       }
     }
   },
   "entity": {
     "select": {
-      "mode": {
+      "active_schedule": {
         "name": "Planning actif",
         "state_attributes": { "schedule_id": { "name": "Identifiant du planning" } }
       }
     },
     "sensor": {
       "schedule": {
-        "name": "Programme",
+        "name": "Planning",
         "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
         "state_attributes": {
-          "level_name": { "name": "Nom du niveau" },
+          "preset_name": { "name": "Nom du préréglage" },
           "target": { "name": "Consigne" },
-          "next_level": { "name": "Niveau suivant" },
-          "next_level_name": { "name": "Nom du niveau suivant" },
+          "next_preset": { "name": "Préréglage suivant" },
+          "next_preset_name": { "name": "Nom du préréglage suivant" },
           "next_start": { "name": "Début de la plage suivante" }
         }
       },
       "schedule_of": {
-        "name": "Programme {thermostat}",
+        "name": "Planning {thermostat}",
         "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
         "state_attributes": {
-          "level_name": { "name": "Nom du niveau" },
+          "preset_name": { "name": "Nom du préréglage" },
           "target": { "name": "Consigne" },
-          "next_level": { "name": "Niveau suivant" },
-          "next_level_name": { "name": "Nom du niveau suivant" },
+          "next_preset": { "name": "Préréglage suivant" },
+          "next_preset_name": { "name": "Nom du préréglage suivant" },
           "next_start": { "name": "Début de la plage suivante" }
         }
       },
@@ -74,7 +74,7 @@
   "issues": {
     "package_installed": {
       "title": "Retirer le package ha-chauffage",
-      "description": "L'intégration Chauffage programme désormais vos thermostats ; les automatisations du package ont été désactivées. Pour terminer : supprimez `packages/chauffage/` et `www/chauffage/` de votre dossier de configuration, retirez la ligne `/local/chauffage/chauffage-loader.js` de `frontend: extra_module_url` et les trois lignes `sensor.*_chauffage` de `recorder: exclude` dans `configuration.yaml`, puis redémarrez Home Assistant. Dans vos propres automatisations, remplacez `input_select.mode_chauffage` par `{mode_entity}`."
+      "description": "L'intégration Chauffage programme désormais vos thermostats ; les automatisations du package ont été désactivées. Pour terminer : supprimez `packages/chauffage/` et `www/chauffage/` de votre dossier de configuration, retirez la ligne `/local/chauffage/chauffage-loader.js` de `frontend: extra_module_url` et les trois lignes `sensor.*_chauffage` de `recorder: exclude` dans `configuration.yaml`, puis redémarrez Home Assistant. Dans vos propres automatisations, remplacez `input_select.mode_chauffage` par `{schedule_entity}`."
     }
   },
   "selector": {
@@ -85,20 +85,20 @@
   "services": {
     "set_override": {
       "name": "Créer une dérogation",
-      "description": "Règle la température ou le preset d'un thermostat programmé pour un temps donné, puis il reprend son programme (comme un changement manuel).",
+      "description": "Règle la température ou le préréglage d'un thermostat programmé pour un temps donné, puis il reprend son planning (comme un changement manuel).",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un programme." },
-        "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un preset)." },
-        "preset": { "name": "Preset", "description": "Preset à utiliser (ou indiquer une température)." },
+        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un planning." },
+        "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un préréglage)." },
+        "preset": { "name": "Préréglage", "description": "Préréglage à utiliser (ou indiquer une température)." },
         "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },
         "end": { "name": "Fin", "description": "Quand la dérogation se termine (au lieu d'une durée)." }
       }
     },
     "clear_override": {
       "name": "Terminer une dérogation",
-      "description": "Termine la dérogation d'un thermostat : il reprend son programme.",
+      "description": "Termine la dérogation d'un thermostat : il reprend son planning.",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un programme." }
+        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un planning." }
       }
     },
     "activate_schedule": {
@@ -111,7 +111,7 @@
   },
   "exceptions": {
     "not_loaded": { "message": "L'intégration Chauffage n'est pas configurée." },
-    "not_scheduled": { "message": "{entity_id} n'a pas de programme." },
+    "not_scheduled": { "message": "{entity_id} n'a pas de planning." },
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
     "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." }
   }

@@ -12,13 +12,17 @@ canonical; the French column is the UI and docs wording.
 | **Preset** | Préréglage | What a slot asks a thermostat for (*Comfort*, *Eco*, *Boost*, *Frost protection*…): a name, a color, a default temperature. For each thermostat, a preset is the climate preset with the same name when it has one, otherwise a temperature; it can be set per thermostat. It is the same idea as a climate entity's presets, extended to thermostats that have none. |
 | **Override** | Dérogation | A temporary setpoint or preset on one thermostat, usually set by hand on the thermostat; it ends by itself and the thermostat resumes its schedule. |
 
-## Words to retire
+## Former words
 
-| Old word | Use instead | Where it still appears |
-|---|---|---|
-| Mode (`modes`, `active_mode`, `select.chauffage_mode`, `chauffage/mode/set`) | Schedule | data, websocket API, entity, code, card, docs |
-| Level, heating level (`levels`, `level`, *Levels* view) | Preset | data, websocket API, sensors' attributes, code, card, docs |
-| Programme (French, in old code and tests) | Schedule / week | card code, some test names |
+Retired in v0.4 (code, stored data with a migration, websocket API, entities, card, docs):
 
-Renaming them everywhere (code, data with a migration, API, entity ids where users are not
-broken, UI, docs) is a roadmap item; new code and docs use the terms above from now on.
+| Former word | Now |
+|---|---|
+| Mode (`modes`, `active_mode`, `select.chauffage_mode`, `chauffage/mode/set`) | Schedule (`schedules`, `active_schedule`, `select.chauffage_schedule`, `chauffage/schedule/activate`) |
+| Schedules, for the weeks of each thermostat (`schedules`, `chauffage/schedules/save`) | Weeks (`weeks`, `chauffage/weeks/save`) |
+| Level, heating level (`levels`, *Levels* view, `next_level` attribute) | Preset (`presets`, *Presets* view, `next_preset`) |
+| Programme (French, in old code) | Schedule, week |
+
+Kept on purpose: the card's type, `custom:chauffage-programme-card` (dashboards refer to it), and
+the v0.1 package's entities read by the import (`input_select.mode_chauffage`,
+`sensor.programmes_chauffage`…).

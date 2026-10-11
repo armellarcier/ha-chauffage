@@ -15,7 +15,7 @@ async def start(bench: Bench) -> None:
     await bench.go_to("10:00")
     bench.thermostat("climate.salon", "eco")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     bench.applied()
 
 
@@ -27,19 +27,19 @@ async def test_subscribe_sends_everything_then_every_change(bench: Bench, ws_cli
     await client.send_json_auto_id({"type": "chauffage/subscribe"})
     assert (await client.receive_json())["success"]
     first = (await client.receive_json())["event"]
-    assert [m["id"] for m in first["modes"]] == ["normal", "away", "holiday"]
-    assert first["schedules"] == SCHEDULES
-    assert (first["active_mode"], first["revision"], first["override_duration"]) == ("normal", 1, 120)
+    assert [m["id"] for m in first["schedules"]] == ["normal", "away", "holiday"]
+    assert first["weeks"] == SCHEDULES
+    assert (first["active_schedule"], first["revision"], first["override_duration"]) == ("normal", 1, 120)
 
-    await bench.set_mode("Away")
-    assert (await client.receive_json())["event"]["active_mode"] == "away"
+    await bench.activate_schedule("Away")
+    assert (await client.receive_json())["event"]["active_schedule"] == "away"
 
 
 async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_client):
     await start(bench)
     client = await ws_client(bench.hass)
     week = [[["00:00", "comfort"]]] * 7
-    await client.send_json_auto_id({"type": "chauffage/schedules/save", "schedules": {"climate.salon": {"normal": week}}, "revision": 1})
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}}, "revision": 1})
     reply = await client.receive_json()
     assert reply["success"] and reply["result"] == {"revision": 2}
     await bench.hass.async_block_till_done()
@@ -49,21 +49,21 @@ async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_clien
 async def test_saving_from_an_outdated_copy_is_refused(bench: Bench, ws_client):
     await start(bench)
     client = await ws_client(bench.hass)
-    await client.send_json_auto_id({"type": "chauffage/schedules/save", "schedules": {}, "revision": 0})
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}, "revision": 0})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "stale"
-    assert bench.runtime.data["schedules"] == SCHEDULES
+    assert bench.runtime.data["weeks"] == SCHEDULES
 
 
 async def test_invalid_schedules_are_refused(bench: Bench, ws_client):
     await start(bench)
     client = await ws_client(bench.hass)
-    await client.send_json_auto_id({"type": "chauffage/schedules/save", "schedules": {"climate.salon": {"unknown": []}}})
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"unknown": []}}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
 
 
-async def test_overrides_and_mode_from_the_card(bench: Bench, ws_client):
+async def test_overrides_and_active_schedule_from_the_card(bench: Bench, ws_client):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21)
     client = await ws_client(bench.hass)
@@ -79,15 +79,15 @@ async def test_overrides_and_mode_from_the_card(bench: Bench, ws_client):
     assert bench.overrides() == {}
     assert bench.applied() == {"climate.salon": "eco"}
 
-    await client.send_json_auto_id({"type": "chauffage/mode/set", "mode": "away"})
+    await client.send_json_auto_id({"type": "chauffage/schedule/activate", "schedule": "away"})
     assert (await client.receive_json())["success"]
-    assert bench.runtime.data["active_mode"] == "away"
+    assert bench.runtime.data["active_schedule"] == "away"
 
 
 async def test_writes_need_an_admin(bench: Bench, ws_client):
     await start(bench)
     client = await ws_client(bench.hass, admin=False)
-    await client.send_json_auto_id({"type": "chauffage/schedules/save", "schedules": {}})
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
 

@@ -24,7 +24,7 @@ async def start(bench: Bench) -> None:
     bench.thermostat("climate.salon", "eco")
     bench.thermostat("climate.bureau", "comfort")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     bench.applied()
 
 
@@ -74,30 +74,30 @@ async def test_thermostats_are_sent_one_after_the_other(bench: Bench, monkeypatc
     bench.thermostat("climate.bureau", "eco")
     await bench.setup()
     bench.runtime.pause = 0.3
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     assert bench.calls == [("climate.salon", "eco"), ("climate.bureau", "comfort")]
     assert [p for p in pauses if p] == [0.3]  # between the two (HA itself also calls sleep(0))
 
 
 # ----- runtime rules -----
 
-async def test_selecting_the_active_mode_again_changes_nothing(bench: Bench):
+async def test_activating_the_active_schedule_again_changes_nothing(bench: Bench):
     await start(bench)
     bench.thermostat("climate.salon", "boost")  # off schedule, by the thermostat itself
     await bench.hass.async_block_till_done()
-    await bench.set_mode("Normal")
+    await bench.activate_schedule("Normal")
     assert bench.applied() == {}
 
 
-async def test_unknown_modes_duplicate_or_no_levels_are_refused(bench: Bench):
+async def test_unknown_schedules_duplicate_or_no_presets_are_refused(bench: Bench):
     await start(bench)
     with pytest.raises(model.InvalidData):
-        await bench.runtime.set_mode("unknown")
-    levels = [dict(lv) for lv in bench.runtime.data["levels"]]
+        await bench.runtime.activate_schedule("unknown")
+    presets = [dict(p) for p in bench.runtime.data["presets"]]
     with pytest.raises(model.InvalidData):
-        await bench.runtime.set_levels(levels + [levels[0]])
+        await bench.runtime.set_presets(presets + [presets[0]])
     with pytest.raises(model.InvalidData):
-        await bench.runtime.set_levels([])
+        await bench.runtime.set_presets([])
 
 
 async def test_removing_an_override_that_does_not_exist_changes_nothing(bench: Bench):
@@ -108,9 +108,9 @@ async def test_removing_an_override_that_does_not_exist_changes_nothing(bench: B
     assert bench.runtime.data["revision"] == revision
 
 
-async def test_a_thermostat_without_a_schedule_for_the_active_mode_has_no_planned_level(bench: Bench):
+async def test_a_thermostat_without_a_week_in_the_active_schedule_has_no_planned_preset(bench: Bench):
     await start(bench)
-    await bench.set_mode("Away")  # no "away" schedule
+    await bench.activate_schedule("Away")  # no "away" schedule
     assert bench.runtime.planned("climate.salon") == (None, None, None)
 
 
@@ -147,10 +147,10 @@ async def test_set_override_on_a_thermostat_that_does_not_answer(bench: Bench):
 
 @pytest.mark.parametrize("command", [
     {"type": "chauffage/subscribe"},
-    {"type": "chauffage/schedules/save", "schedules": {}},
+    {"type": "chauffage/weeks/save", "weeks": {}},
     {"type": "chauffage/override/set", "entity_id": "climate.salon", "override": None},
-    {"type": "chauffage/mode/set", "mode": "normal"},
-    {"type": "chauffage/levels/set", "levels": []},
+    {"type": "chauffage/schedule/activate", "schedule": "normal"},
+    {"type": "chauffage/presets/set", "presets": []},
     {"type": "chauffage/mapping/set", "entity_id": "climate.salon", "mapping": {}},
 ])
 async def test_the_api_without_the_integration(bench: Bench, ws_client, command):
@@ -164,8 +164,8 @@ async def test_the_api_without_the_integration(bench: Bench, ws_client, command)
 
 @pytest.mark.parametrize("command", [
     {"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {"kind": "warm"}},
-    {"type": "chauffage/mode/set", "mode": "unknown"},
-    {"type": "chauffage/levels/set", "levels": [{"name": ""}]},
+    {"type": "chauffage/schedule/activate", "schedule": "unknown"},
+    {"type": "chauffage/presets/set", "presets": [{"name": ""}]},
 ])
 async def test_invalid_requests_are_refused(bench: Bench, ws_client, command):
     await start(bench)
@@ -196,19 +196,19 @@ async def test_unreadable_package_parts_are_skipped(bench: Bench):
                                            "climate.bureau": "nonsense"}})
     hass.states.async_set("input_select.mode_chauffage", "Normal", {"options": ["Normal"]})
     await bench.setup(schedules=None)  # no automation service: the package automations cannot be turned off (logged)
-    assert list(bench.runtime.data["schedules"]) == ["climate.salon"]
+    assert list(bench.runtime.data["weeks"]) == ["climate.salon"]
     assert bench.runtime.data["overrides"] == {}
 
 
 # ----- data validation -----
 
 @pytest.mark.parametrize(("function", "value"), [
-    (lambda v: model.normalize_level(v, set()), "not a dict"),
+    (lambda v: model.normalize_preset(v, set()), "not a dict"),
     (lambda v: model.normalize_mapping(v, {"eco"}), ["not", "a", "dict"]),
     (lambda v: model.normalize_mapping(v, {"eco"}), {"eco": {"temperature": "warm"}}),
     (lambda v: model.normalize_mapping(v, {"eco"}), {"eco": {}}),
-    (lambda v: model.normalize_schedules(v, {"normal"}), ["not a dict"]),
-    (lambda v: model.normalize_schedules(v, {"normal"}), {"climate.salon": "not a dict"}),
+    (lambda v: model.normalize_weeks(v, {"normal"}), ["not a dict"]),
+    (lambda v: model.normalize_weeks(v, {"normal"}), {"climate.salon": "not a dict"}),
     (model.normalize_override, "not a dict"),
     (model.normalize_override, {"kind": "temperature", "value": "warm", "start": "a", "end": "b"}),
     (model.normalize_override, {"kind": "preset", "value": "boost", "start": 1, "end": None}),
@@ -218,5 +218,5 @@ def test_invalid_data_is_refused(function, value):
         function(value)
 
 
-def test_a_level_named_like_an_existing_one_gets_another_id():
-    assert model.normalize_level({"name": "Eco"}, {"eco"})["id"] == "eco_2"
+def test_a_preset_named_like_an_existing_one_gets_another_id():
+    assert model.normalize_preset({"name": "Eco"}, {"eco"})["id"] == "eco_2"

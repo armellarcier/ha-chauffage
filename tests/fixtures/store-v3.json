@@ -1,0 +1,246 @@
+{
+  "data": {
+    "active_schedule": "normal",
+    "mappings": {},
+    "overrides": {
+      "climate.salon": {
+        "end": "2026-10-12T11:30:00+02:00",
+        "kind": "temperature",
+        "start": "2026-10-12T09:30:00+02:00",
+        "value": 21.5
+      }
+    },
+    "presets": [
+      {
+        "color": "#f57c00",
+        "id": "comfort",
+        "name": "Comfort",
+        "temperature": 20
+      },
+      {
+        "color": "#43a047",
+        "id": "eco",
+        "name": "Eco",
+        "temperature": 17
+      },
+      {
+        "color": "#e53935",
+        "id": "boost",
+        "name": "Boost",
+        "temperature": 21
+      },
+      {
+        "color": "#29b6f6",
+        "id": "frost",
+        "name": "Frost protection",
+        "temperature": 7
+      }
+    ],
+    "revision": 3,
+    "schedules": [
+      {
+        "id": "normal",
+        "name": "Normal"
+      },
+      {
+        "id": "absent",
+        "name": "Absent"
+      },
+      {
+        "id": "vacances",
+        "name": "Vacances"
+      }
+    ],
+    "weeks": {
+      "climate.salon": {
+        "absent": [
+          [
+            [
+              "00:00",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ]
+          ]
+        ],
+        "normal": [
+          [
+            [
+              "00:00",
+              "eco"
+            ],
+            [
+              "06:30",
+              "comfort"
+            ],
+            [
+              "08:30",
+              "eco"
+            ],
+            [
+              "17:30",
+              "comfort"
+            ],
+            [
+              "22:30",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ],
+            [
+              "06:30",
+              "comfort"
+            ],
+            [
+              "08:30",
+              "eco"
+            ],
+            [
+              "17:30",
+              "comfort"
+            ],
+            [
+              "22:30",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ],
+            [
+              "06:30",
+              "comfort"
+            ],
+            [
+              "08:30",
+              "eco"
+            ],
+            [
+              "17:30",
+              "comfort"
+            ],
+            [
+              "22:30",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ],
+            [
+              "06:30",
+              "comfort"
+            ],
+            [
+              "08:30",
+              "eco"
+            ],
+            [
+              "17:30",
+              "comfort"
+            ],
+            [
+              "22:30",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ],
+            [
+              "06:30",
+              "comfort"
+            ],
+            [
+              "08:30",
+              "eco"
+            ],
+            [
+              "17:30",
+              "comfort"
+            ],
+            [
+              "22:30",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ],
+            [
+              "08:00",
+              "comfort"
+            ],
+            [
+              "23:00",
+              "eco"
+            ]
+          ],
+          [
+            [
+              "00:00",
+              "eco"
+            ],
+            [
+              "08:00",
+              "comfort"
+            ],
+            [
+              "23:00",
+              "eco"
+            ]
+          ]
+        ]
+      }
+    }
+  },
+  "key": "chauffage",
+  "minor_version": 1,
+  "version": 3
+}

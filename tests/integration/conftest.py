@@ -21,6 +21,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 from custom_components.chauffage import model
 from custom_components.chauffage.const import DOMAIN
 from custom_components.chauffage.runtime import ChauffageRuntime
+from custom_components.chauffage.store import STORAGE_VERSION
 
 PARIS = ZoneInfo("Europe/Paris")
 MONDAY = datetime(2026, 10, 12, tzinfo=PARIS)  # Monday, October 12, 2026
@@ -35,7 +36,7 @@ PRESETS_OF = {
     "plain": [],  # no presets (generic_thermostat)
 }
 MANUAL_PRESET = {"vtherm": "none", "standard": None, "plain": None}  # after a manual setpoint
-LEVEL_TEMPERATURES = {"comfort": 20.0, "eco": 17.0, "boost": 21.0, "frost": 7.0}  # defaults
+PRESET_TEMPERATURES = {"comfort": 20.0, "eco": 17.0, "boost": 21.0, "frost": 7.0}  # defaults
 
 WEEKDAY = [["00:00", "eco"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco"]]
 WEEKEND = [["00:00", "eco"], ["08:00", "comfort"], ["23:00", "eco"]]
@@ -102,14 +103,16 @@ class Bench:
     def runtime(self) -> ChauffageRuntime:
         return self.entry.runtime_data
 
-    async def setup(self, options: dict | None = None, schedules: tuple[str, ...] | None = EXISTING_SCHEDULES) -> None:
+    async def setup(self, options: dict | None = None, schedules: tuple[str, ...] | None = EXISTING_SCHEDULES,
+                    entry: MockConfigEntry | None = None) -> None:
         """Set the integration up; by default as an existing installation with three schedules
         (`schedules=None`: a new installation, or one importing the package)."""
         if schedules and DOMAIN not in self.storage:
-            self.storage[DOMAIN] = {"version": 2, "minor_version": 1, "key": DOMAIN,
+            self.storage[DOMAIN] = {"version": STORAGE_VERSION, "minor_version": 1, "key": DOMAIN,
                                     "data": model.default_data(list(schedules))}
-        self.entry = MockConfigEntry(domain=DOMAIN, title="Chauffage", options=options or {})
-        self.entry.add_to_hass(self.hass)
+        self.entry = entry or MockConfigEntry(domain=DOMAIN, title="Chauffage", options=options or {})
+        if entry is None:
+            self.entry.add_to_hass(self.hass)
         assert await self.hass.config_entries.async_setup(self.entry.entry_id)
         await self.hass.async_block_till_done()
         self.runtime.pause = 0
@@ -137,19 +140,20 @@ class Bench:
         if self.kind not in kinds:
             pytest.skip(f"not relevant for {self.kind} thermostats")
 
-    def thermostat(self, entity_id: str, level: Any = "eco", temperature: float | None = None,
+    def thermostat(self, entity_id: str, preset: Any = "eco", temperature: float | None = None,
                    state: str = "heat", context: Context | None = None, **attributes) -> None:
-        """A thermostat at a level, as this kind shows it (its preset, or the level's default
-        temperature); any other value is a raw preset ("none", "safety", an Enum…)."""
+        """A thermostat at a preset, as this kind shows it (its own climate preset, or the
+        preset's default temperature); any other value is a raw climate preset ("none",
+        "safety", an Enum…)."""
         presets = PRESETS_OF[self.kind]
-        if isinstance(level, str) and level in LEVEL_TEMPERATURES:
-            preset = level if level in presets else MANUAL_PRESET[self.kind]
-            temperature = LEVEL_TEMPERATURES[level] if temperature is None else temperature
+        if isinstance(preset, str) and preset in PRESET_TEMPERATURES:
+            climate_preset = preset if preset in presets else MANUAL_PRESET[self.kind]
+            temperature = PRESET_TEMPERATURES[preset] if temperature is None else temperature
         else:
-            preset, temperature = level, 17.0 if temperature is None else temperature
+            climate_preset, temperature = preset, 17.0 if temperature is None else temperature
         values = {"temperature": temperature, "min_temp": 5, "max_temp": 30, "target_temp_step": 0.5}
         if presets:
-            values |= {"preset_mode": preset, "preset_modes": presets}
+            values |= {"preset_mode": climate_preset, "preset_modes": presets}
         self.hass.states.async_set(entity_id, state, values | attributes, context=context)
 
     async def manual_setpoint(self, entity_id: str, temperature: float) -> None:
@@ -157,33 +161,34 @@ class Bench:
         self.thermostat(entity_id, MANUAL_PRESET[self.kind], temperature, context=CTX_USER)
         await self.hass.async_block_till_done()
 
-    async def thermostat_applies(self, entity_id: str, level: str) -> None:
+    async def thermostat_applies(self, entity_id: str, preset: str) -> None:
         """Thermostat reacting to a call from an automation."""
-        self.thermostat(entity_id, level, context=CTX_AUTOMATION)
+        self.thermostat(entity_id, preset, context=CTX_AUTOMATION)
         await self.hass.async_block_till_done()
 
-    # ----- schedules / mode / overrides -----
+    # ----- weeks / schedules / overrides -----
 
-    async def save_schedules(self, schedules: dict) -> None:
+    async def save_weeks(self, weeks: dict) -> None:
         """What the card sends when the user clicks Save."""
-        await self.runtime.save_schedules(schedules)
+        await self.runtime.save_weeks(weeks)
         await self.hass.async_block_till_done()
 
-    async def set_mode(self, name: str) -> None:
+    async def activate_schedule(self, name: str) -> None:
+        """Picks a schedule in the active-schedule select."""
         await self.hass.services.async_call(
-            "select", "select_option", {"entity_id": self.mode_entity, "option": name}, blocking=True
+            "select", "select_option", {"entity_id": self.schedule_entity, "option": name}, blocking=True
         )
         await self.hass.async_block_till_done()
 
     async def set_schedules(self, schedules: list[dict], revision: int | None = None) -> list[dict]:
         """What the card sends to create, rename, move or delete schedules."""
-        result = await self.runtime.set_modes(schedules, revision)
+        result = await self.runtime.set_schedules(schedules, revision)
         await self.hass.async_block_till_done()
         return result
 
     def schedule_list(self) -> list[tuple[str, str]]:
         """(id, name) of the schedules, in order."""
-        return [(m["id"], m["name"]) for m in self.runtime.data["modes"]]
+        return [(s["id"], s["name"]) for s in self.runtime.data["schedules"]]
 
     async def set_override(self, entity_id: str, override: dict | None) -> None:
         """What the card sends to extend (+30 min…) or remove an override."""
@@ -191,15 +196,15 @@ class Bench:
         await self.hass.async_block_till_done()
 
     @property
-    def mode_entity(self) -> str:
+    def schedule_entity(self) -> str:
         return self.hass.states.async_entity_ids("select")[0]
 
     def overrides(self) -> dict:
         return self.runtime.data["overrides"]
 
     def applied(self) -> dict[str, str]:
-        """Last level requested per thermostat (a preset, or a level's default temperature),
-        then reset the call log."""
+        """Last preset requested per thermostat (its climate preset, or the preset's default
+        temperature), then reset the call log."""
         result = {entity_id: preset for entity_id, preset in self.calls}
         self.calls.clear()
         return result
@@ -224,8 +229,8 @@ async def bench(hass: HomeAssistant, freezer, thermostat_kind, hass_storage) -> 
         call's context."""
         entity_id, temperature = call.data["entity_id"], call.data["temperature"]
         b.temperature_calls.append((entity_id, temperature))
-        level = next((lv for lv, t in LEVEL_TEMPERATURES.items() if t == temperature), str(temperature))
-        b.calls.append((entity_id, level))
+        preset = next((p for p, t in PRESET_TEMPERATURES.items() if t == temperature), str(temperature))
+        b.calls.append((entity_id, preset))
         if entity_id in b.unreachable:
             raise HomeAssistantError("Failed to send request: NWK_NO_ROUTE (simulated)")
         b.thermostat(entity_id, MANUAL_PRESET[b.kind], temperature, context=call.context)

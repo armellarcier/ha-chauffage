@@ -6,7 +6,7 @@
 
 **English** · [Français](README.fr.md)
 
-![Editing schedules, an override and the heating mode, then the thermostat's more-info dialog](docs/demo.gif)
+![Editing schedules, an override and the active schedule, then the thermostat's more-info dialog](docs/demo.gif)
 
 Weekly heating schedules for Home Assistant thermostats: thermostats without presets, with
 presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
@@ -47,11 +47,15 @@ Requires Home Assistant 2026.9 or later.
 
 ### What the integration provides
 
+Vocabulary: a **schedule** is a weekly plan (*Normal*, *Holidays*…) with a **week** per
+thermostat, made of **slots**; each slot asks for a **preset** (*Comfort*, *Eco*…); an
+**override** is a temporary change on one thermostat ([glossary](docs/glossary.md)).
+
 - **Schedules**: a new installation starts with *Normal*; in the card, **+** creates a schedule
   (empty, or a copy of another one) and **⋮** on the open tab renames, moves or deletes it
   (admins). Each schedule has a **stable id** (shown in *Rename…*) that never
   changes, even when the schedule is renamed.
-- **Active schedule** select (`select.chauffage_mode`): switch it from the card (open the
+- **Active schedule** select (`select.chauffage_schedule`): switch it from the card (open the
   schedule's tab, then "Activate") or from any automation. In automations, use the id, which
   survives a rename: the service `chauffage.activate_schedule` and the select's `schedule_id`
   attribute. For example, odd and even weeks:
@@ -67,24 +71,25 @@ Requires Home Assistant 2026.9 or later.
       data:
         schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'odd_weeks' }}"
   ```
-- **Heating levels**: schedules use levels (by default *Comfort* 20 °C, *Eco* 17 °C, *Boost*
-  21 °C, *Frost protection* 7 °C), not a thermostat's presets. For each thermostat, a level is
-  its preset with the same name when it has one, otherwise the level's temperature; this can
-  be changed per thermostat (a preset of its own, or a temperature). **Set in the card**,
-  *Levels* view (switch at the top of the card, admins): a table with one column per level and
-  one row per thermostat. The column header is the level (name, color; add, remove) and its
-  default temperature; each cell says what that thermostat does at that level: automatic, one
-  of its presets (⟲), or its own temperature (●).
-- The table and the legend show each level's temperature. For a preset, no
+- **Presets**: slots use the integration's presets (by default *Comfort* 20 °C, *Eco* 17 °C,
+  *Boost* 21 °C, *Frost protection* 7 °C). For each thermostat, a preset is the thermostat's own
+  preset with the same name when it has one, otherwise the preset's temperature; this can be
+  changed per thermostat (one of its own presets, or a temperature). **Set in the card**,
+  *Presets* view (switch at the top of the card, admins): a table with one column per preset
+  and one row per thermostat. The column header is the preset (name, color; add, remove) and its
+  default temperature; each cell says what that thermostat does with that preset: automatic,
+  one of its own presets (⟲), or its own temperature (●).
+- The table and the legend show each preset's temperature. For a thermostat's own preset, no
   standard attribute gives it: the integration remembers the setpoint seen while that preset was
   active. **Versatile Thermostat bonus**: its preset temperatures are read directly from its
   attributes (`preset_temperatures` since VTherm 10, `comfort_temp`… before), a deliberate extra
   for VTherm users.
 - Per scheduled thermostat, two sensors **disabled by default** (enable them on the
-  thermostat's device page): **Schedule** (level planned now, next slot in attributes) and
-  **Override end** (timestamp, usable as a time trigger).
-- Services `chauffage.set_override` (temperature or preset for a duration or until a time) and
-  `chauffage.clear_override`.
+  thermostat's device page): **Schedule** (preset planned now; attributes `preset_name`,
+  `target`, `next_preset`, `next_preset_name`, `next_start`) and **Override end** (timestamp,
+  usable as a time trigger).
+- Services `chauffage.set_override` (temperature or preset for a duration or until a time),
+  `chauffage.clear_override` and `chauffage.activate_schedule`.
 - Options (Settings → Devices & services → Chauffage → *Configure*), a single form: override
   duration (2 h by default), and *Use the thermostats' presets* (on by default; off, every
   thermostat is driven by temperatures, all set in the card).
@@ -92,14 +97,15 @@ Requires Home Assistant 2026.9 or later.
 ### Upgrading from the package (v0.1)
 
 1. Install the integration (steps 1–2 above) **without removing the package**: the setup
-   offers to import its schedules, current overrides and active mode, then turns off the
-   package's two automations so that only one scheduler drives the thermostats.
+   offers to import its weeks, current overrides and active schedule (the package's "mode"),
+   then turns off the package's two automations so that only one scheduler drives the
+   thermostats.
 2. Check the card and the thermostats. To go back, delete the integration and turn the two
    `automation.chauffage_*` automations back on: the package's data is untouched.
 3. Follow the repair shown in Settings: delete `packages/chauffage/` and `www/chauffage/`,
    remove the `extra_module_url` line and the `recorder` exclusions from `configuration.yaml`,
    restart. In your automations, replace `input_select.mode_chauffage` with
-   `select.chauffage_mode`.
+   `select.chauffage_schedule`.
 
 Upgrading the integration itself: read the [changelog](CHANGELOG.md) and update from HACS;
 stored data is migrated automatically. Going back to an older version is not supported.
@@ -107,24 +113,27 @@ stored data is migrated automatically. Going back to an older version is not sup
 ### Package installation (v0.1)
 
 The [v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) is a YAML
-package, no longer maintained: unzip its ZIP into the configuration folder and follow the README of that version.
+package, no longer maintained: unzip its ZIP into the configuration folder and follow the README
+of that version.
 
 ### Supported thermostats
 
 Any `climate` entity with a target temperature, tested with three kinds:
 
-- **Versatile Thermostat**: levels use its presets (`comfort`, `eco`, `boost`, `frost`), whose
+- **Versatile Thermostat**: presets use its own (`comfort`, `eco`, `boost`, `frost`), whose
   temperatures are set in VTherm; a setpoint changed by hand switches it to preset `none` and
   becomes an override;
-- **thermostats with standard presets** (`eco`, `comfort`, `away`, `boost`…): levels use the
-  presets with the same name, temperatures for the others (frost protection, for example);
-- **thermostats without presets** (such as `generic_thermostat`): levels are temperatures; any
+- **thermostats with standard presets** (`eco`, `comfort`, `away`, `boost`…): presets use the
+  thermostat's own with the same name, temperatures for the others (frost protection, for
+  example);
+- **thermostats without presets** (such as `generic_thermostat`): presets are temperatures; any
   setpoint changed by someone else becomes an override.
 
 Not supported yet: heat / cool thermostats with a temperature range (`heat_cool`), and devices
 that change their setpoint by themselves (they can look like manual changes). A device that keeps
-its preset when its setpoint is changed by hand is better mapped to temperatures (the card's *Levels* view). See
-the [roadmap](ROADMAP.md) for groups of thermostats and user-defined heating modes.
+its preset when its setpoint is changed by hand is better set to temperatures (the card's
+*Presets* view). See the [roadmap](ROADMAP.md) for groups of thermostats and a calendar of
+schedules.
 
 ## Repository layout
 
@@ -142,17 +151,17 @@ Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
-- Data is stored in `.storage/chauffage` (versioned, migrated automatically): modes, schedules
-  (`{climate: {mode id: [7 days × [[start, preset], …]]}}`), current overrides.
+- Data is stored in `.storage/chauffage` (versioned, migrated automatically): schedules, presets,
+  weeks (`{climate: {schedule id: [7 days × [[start, preset], …]]}}`), current overrides.
 - **Scheduler**: every minute, applies the preset of the slots starting now and resumes the
   schedule of thermostats whose override ends; it realigns every thermostat at startup, when
-  the mode changes and when schedules are saved. Thermostats with an active override, turned
+  a schedule is activated and when weeks are saved. Thermostats with an active override, turned
   off or unavailable are left alone; an unreachable valve does not stop the others.
 - **Manual changes**: a setpoint changed by hand (the thermostat switches to preset `none`) or
   a preset picked by a user becomes a temporary override. Changes made by the integration itself
   (its own context) or by an automation are ignored.
 - **Card**: served by the integration and loaded on every page (card + more-info block); it
-  talks to the integration over websocket (`chauffage/subscribe`, `chauffage/schedules/save`…);
+  talks to the integration over websocket (`chauffage/subscribe`, `chauffage/weeks/save`…);
   a save made from an outdated copy is refused instead of overwriting someone else's changes.
 
 Known pitfalls (already handled, covered by tests): ZHA presets are Enums; dates with

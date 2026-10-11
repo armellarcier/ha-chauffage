@@ -1,17 +1,19 @@
 """Stored data of the integration, as plain JSON-compatible dictionaries (no HA import).
+Vocabulary: docs/glossary.md.
 
-    modes:       [{"id": "normal", "name": "Normal"}, …]      renaming a mode keeps its id
-    active_mode: "normal"
-    levels:      [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
-                 heating levels; "temperature" is the default for thermostats mapped to temperatures
-    mappings:    {climate entity id: {level id: {"preset": "comfort"} | {"temperature": 20.5}}}
-                 only what was set by hand: the rest is engine.default_target
-    schedules:   {climate entity id: {mode id: [7 days, Monday first]}}
-                 a day is a list of [start "HH:MM", level id] slots, the first one at "00:00"
-    overrides:   {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
-                                      "start": ISO datetime, "end": ISO datetime}}
-    revision:    increases on every schedule change; the card saves against a revision so
-                 that two editors cannot overwrite each other
+    schedules:       [{"id": "normal", "name": "Normal"}, …]   renaming a schedule keeps its id
+    active_schedule: "normal"
+    presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
+                     "temperature" is the default for thermostats driven by temperatures
+    mappings:        {climate entity id: {preset id: {"preset": "comfort"} | {"temperature": 20.5}}}
+                     what a preset means for one thermostat, only what was set by hand: the rest
+                     is engine.default_target
+    weeks:           {climate entity id: {schedule id: [7 days, Monday first]}}
+                     a day is a list of [start "HH:MM", preset id] slots, the first one at "00:00"
+    overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
+                                          "start": ISO datetime, "end": ISO datetime}}
+    revision:        increases on every change of the schedules or weeks; the card saves against
+                     a revision so that two editors cannot overwrite each other
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ import re
 import unicodedata
 from typing import Any
 
-from .const import DEFAULT_LEVEL_COLOR, DEFAULT_LEVEL_TEMPERATURE, DEFAULT_LEVELS, LEVEL_NAMES
+from .const import DEFAULT_PRESET_COLOR, DEFAULT_PRESET_TEMPERATURE, DEFAULT_PRESETS, PRESET_NAMES
 
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 DEFAULT_DAY = [["00:00", "eco"]]
@@ -31,9 +33,9 @@ class InvalidData(ValueError):
 
 
 def slug(name: str) -> str:
-    """Mode id from a mode name: "Vacances d'été" → "vacances_d_ete"."""
+    """Id from a name: "Vacances d'été" → "vacances_d_ete"."""
     ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9]+", "_", ascii_name.lower()).strip("_") or "mode"
+    return re.sub(r"[^a-z0-9]+", "_", ascii_name.lower()).strip("_") or "schedule"
 
 
 def unique_id(name: str, taken: set[str]) -> str:
@@ -46,126 +48,120 @@ def unique_id(name: str, taken: set[str]) -> str:
     return new_id
 
 
-def make_modes(names: list[str]) -> list[dict[str, str]]:
-    """Modes with unique ids, in the given order (duplicate names are dropped)."""
-    modes: list[dict[str, str]] = []
+def make_schedules(names: list[str]) -> list[dict[str, str]]:
+    """Schedules with unique ids, in the given order (duplicate names are dropped)."""
+    schedules: list[dict[str, str]] = []
     for name in names:
         name = str(name).strip()
-        if not name or any(m["name"] == name for m in modes):
+        if not name or any(s["name"] == name for s in schedules):
             continue
-        modes.append({"id": unique_id(name, {m["id"] for m in modes}), "name": name})
-    return modes
+        schedules.append({"id": unique_id(name, {s["id"] for s in schedules}), "name": name})
+    return schedules
 
 
-def plan_modes(items: Any, current: list[dict[str, str]], active: str) -> tuple[list[dict[str, str]], dict[str, str | None]]:
-    """The new ordered list of schedules ("modes") from the card's list: `{"id"}` keeps a
-    schedule (with `"name"`: renamed), `{"name", "copy_of"?}` creates one, a missing id deletes
-    one. Returns the list and the created ids with what they copy (None: empty)."""
+def plan_schedules(items: Any, current: list[dict[str, str]], active: str) -> tuple[list[dict[str, str]], dict[str, str | None]]:
+    """The new ordered list of schedules from the card's list: `{"id"}` keeps a schedule (with
+    `"name"`: renamed), `{"name", "copy_of"?}` creates one, a missing id deletes one. Returns
+    the list and the created ids with what they copy (None: empty)."""
     if not isinstance(items, list) or not items:
         raise InvalidData("at least one schedule is needed")
-    names = {m["id"]: m["name"] for m in current}
+    names = {s["id"]: s["name"] for s in current}
     taken = set(names)
-    modes: list[dict[str, str]] = []
+    schedules: list[dict[str, str]] = []
     created: dict[str, str | None] = {}
     for item in items:
         if not isinstance(item, dict):
             raise InvalidData(f"invalid schedule: {item!r}")
-        mode_id = item.get("id")
-        if mode_id is not None and (mode_id not in names or any(m["id"] == mode_id for m in modes)):
-            raise InvalidData(f"unknown or repeated schedule: {mode_id}")
-        name = item.get("name", names.get(mode_id))
+        schedule_id = item.get("id")
+        if schedule_id is not None and (schedule_id not in names or any(s["id"] == schedule_id for s in schedules)):
+            raise InvalidData(f"unknown or repeated schedule: {schedule_id}")
+        name = item.get("name", names.get(schedule_id))
         if not isinstance(name, str) or not name.strip():
             raise InvalidData("a schedule needs a name")
         name = name.strip()
-        if any(m["name"].casefold() == name.casefold() for m in modes):
+        if any(s["name"].casefold() == name.casefold() for s in schedules):
             raise InvalidData(f"two schedules named {name}")
-        if mode_id is None:
+        if schedule_id is None:
             source = item.get("copy_of")
             if source is not None and source not in names:
                 raise InvalidData(f"unknown schedule to copy: {source}")
-            mode_id = unique_id(name, taken)
-            taken.add(mode_id)
-            created[mode_id] = source
-        modes.append({"id": mode_id, "name": name})
-    if active not in {m["id"] for m in modes}:
+            schedule_id = unique_id(name, taken)
+            taken.add(schedule_id)
+            created[schedule_id] = source
+        schedules.append({"id": schedule_id, "name": name})
+    if active not in {s["id"] for s in schedules}:
         raise InvalidData("the active schedule cannot be deleted")
-    return modes, created
+    return schedules, created
 
 
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
-def default_levels(language: str, extra: list[str] | None = None) -> list[dict[str, Any]]:
-    """The four default levels named in `language`, then `extra` level ids (presets found in
-    existing schedules, kept so that nothing changes for those thermostats)."""
-    names = LEVEL_NAMES.get((language or "en").split("-")[0], LEVEL_NAMES["en"])
-    levels = [{"id": i, "name": names[i], "color": c, "temperature": t} for i, c, t in DEFAULT_LEVELS]
-    for level_id in extra or []:
-        if not any(level["id"] == level_id for level in levels):
-            levels.append({"id": level_id, "name": level_id, "color": DEFAULT_LEVEL_COLOR,
-                           "temperature": DEFAULT_LEVEL_TEMPERATURE})
-    return levels
+def default_presets(language: str, extra: list[str] | None = None) -> list[dict[str, Any]]:
+    """The four default presets named in `language`, then `extra` preset ids (found in existing
+    weeks, kept so that nothing changes for those thermostats)."""
+    names = PRESET_NAMES.get((language or "en").split("-")[0], PRESET_NAMES["en"])
+    presets = [{"id": i, "name": names[i], "color": c, "temperature": t} for i, c, t in DEFAULT_PRESETS]
+    for preset_id in extra or []:
+        if not any(preset["id"] == preset_id for preset in presets):
+            presets.append({"id": preset_id, "name": preset_id, "color": DEFAULT_PRESET_COLOR,
+                            "temperature": DEFAULT_PRESET_TEMPERATURE})
+    return presets
 
 
-def used_levels(schedules: dict[str, Any]) -> list[str]:
-    """Level ids used in schedules, in order of appearance."""
+def used_presets(weeks: dict[str, Any]) -> list[str]:
+    """Preset ids used in the weeks, in order of appearance."""
     seen: list[str] = []
-    for modes in schedules.values():
-        for week in modes.values():
+    for by_schedule in weeks.values():
+        for week in by_schedule.values():
             for day in week:
-                for _, level in day:
-                    if level not in seen:
-                        seen.append(level)
+                for _, preset in day:
+                    if preset not in seen:
+                        seen.append(preset)
     return seen
 
 
-def default_data(mode_names: list[str], language: str = "en") -> dict[str, Any]:
-    modes = make_modes(mode_names)
-    return {"modes": modes, "active_mode": modes[0]["id"], "levels": default_levels(language),
-            "mappings": {}, "schedules": {}, "overrides": {}, "revision": 0}
+def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
+    schedules = make_schedules(schedule_names)
+    return {"schedules": schedules, "active_schedule": schedules[0]["id"], "presets": default_presets(language),
+            "mappings": {}, "weeks": {}, "overrides": {}, "revision": 0}
 
 
-def normalize_level(level: Any, taken_ids: set[str]) -> dict[str, Any]:
-    """Validated level; a new level (no id) gets a unique id from its name."""
-    if not isinstance(level, dict):
-        raise InvalidData("a level must be a dictionary")
-    name = str(level.get("name", "")).strip()
+def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
+    """Validated preset; a new preset (no id) gets a unique id from its name."""
+    if not isinstance(preset, dict):
+        raise InvalidData("a preset must be a dictionary")
+    name = str(preset.get("name", "")).strip()
     if not name:
-        raise InvalidData("a level needs a name")
-    color = str(level.get("color", DEFAULT_LEVEL_COLOR))
+        raise InvalidData("a preset needs a name")
+    color = str(preset.get("color", DEFAULT_PRESET_COLOR))
     if not COLOR.match(color):
         raise InvalidData(f"invalid color: {color}")
     try:
-        temperature = float(level.get("temperature", DEFAULT_LEVEL_TEMPERATURE))
+        temperature = float(preset.get("temperature", DEFAULT_PRESET_TEMPERATURE))
     except (TypeError, ValueError) as err:
         raise InvalidData("invalid temperature") from err
-    level_id = level.get("id")
-    if not level_id:
-        base = level_id = slug(name)
-        n = 2
-        while level_id in taken_ids:
-            level_id = f"{base}_{n}"
-            n += 1
-    return {"id": str(level_id), "name": name, "color": color.lower(), "temperature": temperature}
+    preset_id = preset.get("id") or unique_id(name, taken_ids)
+    return {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
 
 
-def normalize_mapping(mapping: Any, level_ids: set[str]) -> dict[str, dict[str, Any]]:
-    """{level id: {"preset": …} | {"temperature": …}} set by hand for one thermostat."""
+def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
+    """{preset id: {"preset": climate preset} | {"temperature": …}} set by hand for one thermostat."""
     if not isinstance(mapping, dict):
         raise InvalidData("a mapping must be a dictionary")
     out: dict[str, dict[str, Any]] = {}
-    for level_id, target in mapping.items():
-        if level_id not in level_ids:
-            raise InvalidData(f"unknown level: {level_id}")
+    for preset_id, target in mapping.items():
+        if preset_id not in preset_ids:
+            raise InvalidData(f"unknown preset: {preset_id}")
         if isinstance(target, dict) and isinstance(target.get("preset"), str) and target["preset"]:
-            out[level_id] = {"preset": target["preset"]}
+            out[preset_id] = {"preset": target["preset"]}
         elif isinstance(target, dict) and "temperature" in target:
             try:
-                out[level_id] = {"temperature": float(target["temperature"])}
+                out[preset_id] = {"temperature": float(target["temperature"])}
             except (TypeError, ValueError) as err:
                 raise InvalidData("invalid temperature") from err
         else:
-            raise InvalidData(f"{level_id}: a preset or a temperature is needed")
+            raise InvalidData(f"{preset_id}: a climate preset or a temperature is needed")
     return out
 
 
@@ -201,24 +197,24 @@ def normalize_week(week: Any) -> list[list[list[str]]]:
     return [normalize_day(day) for day in week]
 
 
-def normalize_schedules(schedules: Any, mode_ids: set[str], level_ids: set[str] | None = None) -> dict[str, dict[str, Any]]:
-    """Validated copy of schedules sent by the card or an import."""
-    if not isinstance(schedules, dict):
-        raise InvalidData("schedules must be a dictionary")
+def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | None = None) -> dict[str, dict[str, Any]]:
+    """Validated copy of the weeks sent by the card or an import."""
+    if not isinstance(weeks, dict):
+        raise InvalidData("weeks must be a dictionary")
     out: dict[str, dict[str, Any]] = {}
-    for entity_id, modes in schedules.items():
+    for entity_id, by_schedule in weeks.items():
         if not isinstance(entity_id, str) or not entity_id.startswith("climate."):
             raise InvalidData(f"not a climate entity: {entity_id}")
-        if not isinstance(modes, dict):
-            raise InvalidData(f"{entity_id}: modes must be a dictionary")
-        unknown = set(modes) - mode_ids
+        if not isinstance(by_schedule, dict):
+            raise InvalidData(f"{entity_id}: the weeks by schedule must be a dictionary")
+        unknown = set(by_schedule) - schedule_ids
         if unknown:
-            raise InvalidData(f"{entity_id}: unknown modes {sorted(unknown)}")
-        out[entity_id] = {mode: normalize_week(week) for mode, week in modes.items()}
-    if level_ids is not None:
-        unknown_levels = set(used_levels(out)) - level_ids
-        if unknown_levels:
-            raise InvalidData(f"unknown levels {sorted(unknown_levels)}")
+            raise InvalidData(f"{entity_id}: unknown schedules {sorted(unknown)}")
+        out[entity_id] = {schedule: normalize_week(week) for schedule, week in by_schedule.items()}
+    if preset_ids is not None:
+        unknown_presets = set(used_presets(out)) - preset_ids
+        if unknown_presets:
+            raise InvalidData(f"unknown presets {sorted(unknown_presets)}")
     return out
 
 

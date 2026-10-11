@@ -14,7 +14,7 @@ MONDAY = datetime(2026, 10, 12, tzinfo=PARIS)
 WEEKDAY = [["00:00", "eco"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco"]]
 WEEKEND = [["00:00", "eco"], ["08:00", "comfort"], ["23:00", "eco"]]
 WEEK = [WEEKDAY] * 5 + [WEEKEND] * 2
-SCHEDULES = {
+WEEKS = {
     "climate.salon": {"normal": WEEK, "away": [[["00:00", "eco"]]] * 7},
     "climate.bureau": {"normal": [[["00:00", "eco"], ["09:00", "comfort"], ["18:00", "eco"]]] * 7},
 }
@@ -26,7 +26,7 @@ def at(hhmm: str, day: int = 0) -> datetime:
 
 
 VTHERM = ("none", "frost", "eco", "comfort", "boost")
-LEVELS = {level["id"]: level for level in model.default_levels("en")}
+PRESETS = {preset["id"]: preset for preset in model.default_presets("en")}
 
 
 def heat(preset="eco", temperature=17.0, state="heat", presets=VTHERM) -> Thermostat:
@@ -38,8 +38,8 @@ def plain(temperature=17.0, state="heat", **kw) -> Thermostat:
     return Thermostat(state, None, temperature, (), kw.get("min_temp", 5.0), kw.get("max_temp", 30.0), kw.get("step", 0.5))
 
 
-def targets(now, thermostats, mode="normal", overrides=None, mappings=None, **kw):
-    plan = engine.Plan(SCHEDULES, mode, LEVELS, mappings or {}, overrides or {})
+def targets(now, thermostats, schedule="normal", overrides=None, mappings=None, **kw):
+    plan = engine.Plan(WEEKS, schedule, PRESETS, mappings or {}, overrides or {})
     return [(entity_id, target.value) for entity_id, target in engine.targets(plan, now, thermostats, **kw)]
 
 
@@ -77,9 +77,9 @@ def test_the_day_of_the_week_is_respected():
     assert targets(at("08:00", day=0), thermostats) == []
 
 
-def test_another_mode_and_thermostats_without_that_mode():
+def test_another_schedule_and_thermostats_without_a_week_in_it():
     thermostats = {"climate.salon": heat("comfort"), "climate.bureau": heat("comfort")}
-    assert targets(at("10:00"), thermostats, mode="away", force=True) == [("climate.salon", "eco")]
+    assert targets(at("10:00"), thermostats, schedule="away", force=True) == [("climate.salon", "eco")]
 
 
 def test_off_unavailable_and_unknown_thermostats_are_ignored():
@@ -143,15 +143,15 @@ def test_days_are_normalized_like_in_the_card():
 
 
 def test_schedules_are_validated():
-    ok = model.normalize_schedules({"climate.salon": {"normal": WEEK}}, {"normal"})
+    ok = model.normalize_weeks({"climate.salon": {"normal": WEEK}}, {"normal"})
     assert ok["climate.salon"]["normal"] == WEEK
     for bad in ({"light.x": {}}, {"climate.salon": {"other": WEEK}}, {"climate.salon": {"normal": [WEEKDAY]}}):
         with pytest.raises(model.InvalidData):
-            model.normalize_schedules(bad, {"normal"})
+            model.normalize_weeks(bad, {"normal"})
 
 
-def test_mode_ids_are_unique_slugs_of_their_names():
-    assert model.make_modes(["Normal", "Vacances d'été", "Normal", "normal!"]) == [
+def test_schedule_ids_are_unique_slugs_of_their_names():
+    assert model.make_schedules(["Normal", "Vacances d'été", "Normal", "normal!"]) == [
         {"id": "normal", "name": "Normal"},
         {"id": "vacances_d_ete", "name": "Vacances d'été"},
         {"id": "normal_2", "name": "normal!"},
@@ -165,37 +165,37 @@ def test_overrides_are_validated():
         model.normalize_override({"kind": "temp", "value": 21, "start": "a", "end": "b"})
 
 
-# ----- heating levels → presets or temperatures -----
+# ----- presets → climate presets or temperatures -----
 
-def test_a_level_uses_the_thermostat_s_preset_with_the_same_name():
-    assert engine.default_target(LEVELS["comfort"], heat()) == engine.Target("preset", "comfort")
+def test_a_preset_uses_the_thermostat_s_climate_preset_with_the_same_name():
+    assert engine.default_target(PRESETS["comfort"], heat()) == engine.Target("preset", "comfort")
 
 
-def test_without_that_preset_the_level_s_temperature_is_used():
+def test_without_that_climate_preset_the_preset_s_temperature_is_used():
     standard = heat(presets=("eco", "comfort", "away", "boost"))  # no "frost"
-    assert engine.default_target(LEVELS["frost"], standard) == engine.Target("temperature", 7.0)
-    assert engine.default_target(LEVELS["comfort"], plain()) == engine.Target("temperature", 20.0)
+    assert engine.default_target(PRESETS["frost"], standard) == engine.Target("temperature", 7.0)
+    assert engine.default_target(PRESETS["comfort"], plain()) == engine.Target("temperature", 20.0)
 
 
 def test_temperatures_are_fitted_to_the_thermostat():
-    assert engine.default_target(LEVELS["frost"], plain(min_temp=10.0)).value == 10.0
-    assert engine.default_target(LEVELS["comfort"], plain(max_temp=18.0)).value == 18.0
+    assert engine.default_target(PRESETS["frost"], plain(min_temp=10.0)).value == 10.0
+    assert engine.default_target(PRESETS["comfort"], plain(max_temp=18.0)).value == 18.0
     assert engine.fit_temperature(20.3, plain(step=0.5)) == 20.5
     assert engine.fit_temperature(20.26, plain(step=0.1)) == 20.3
 
 
 def test_a_mapping_set_by_hand_wins_over_the_default():
     mapping = {"comfort": {"temperature": 19.5}, "eco": {"preset": "away"}}
-    assert engine.resolve("comfort", LEVELS, mapping, heat()) == engine.Target("temperature", 19.5)
-    assert engine.resolve("eco", LEVELS, mapping, heat()) == engine.Target("preset", "away")
-    assert engine.resolve("boost", LEVELS, mapping, heat()) == engine.Target("preset", "boost")
-    assert engine.resolve("unknown", LEVELS, mapping, heat()) is None
+    assert engine.resolve("comfort", PRESETS, mapping, heat()) == engine.Target("temperature", 19.5)
+    assert engine.resolve("eco", PRESETS, mapping, heat()) == engine.Target("preset", "away")
+    assert engine.resolve("boost", PRESETS, mapping, heat()) == engine.Target("preset", "boost")
+    assert engine.resolve("unknown", PRESETS, mapping, heat()) is None
 
 
 def test_a_thermostat_without_presets_gets_temperatures():
     thermostats = {"climate.salon": plain(17.0), "climate.bureau": plain(17.0)}
     assert targets(at("10:00"), thermostats, force=True) == [("climate.bureau", 20.0)]
-    # Already at the level's temperature (within half a step): nothing to send
+    # Already at the preset's temperature (within half a step): nothing to send
     thermostats = {"climate.salon": plain(17.0), "climate.bureau": plain(20.2)}
     assert targets(at("10:00"), thermostats, force=True) == []
 
@@ -219,25 +219,25 @@ def test_a_setpoint_change_keeping_the_preset_is_the_preset_s_temperature():
     assert engine.manual_change(heat("comfort", 20.0), heat("comfort", 21.0), by_user=True, expected=expected) is None
 
 
-# ----- level data -----
+# ----- preset data -----
 
-def test_default_levels_are_named_in_the_language_and_keep_unknown_presets():
-    levels = model.default_levels("fr", ["eco", "sleep"])
-    assert [lv["name"] for lv in levels] == ["Confort", "Éco", "Boost", "Hors-gel", "sleep"]
-    assert levels[-1]["id"] == "sleep"
+def test_default_presets_are_named_in_the_language_and_keep_unknown_ones():
+    presets = model.default_presets("fr", ["eco", "sleep"])
+    assert [p["name"] for p in presets] == ["Confort", "Éco", "Boost", "Hors-gel", "sleep"]
+    assert presets[-1]["id"] == "sleep"
 
 
-def test_levels_and_mappings_are_validated():
-    level = model.normalize_level({"name": "Nuit", "color": "#123ABC", "temperature": "18.5"}, {"eco"})
-    assert level == {"id": "nuit", "name": "Nuit", "color": "#123abc", "temperature": 18.5}
+def test_presets_and_mappings_are_validated():
+    preset = model.normalize_preset({"name": "Nuit", "color": "#123ABC", "temperature": "18.5"}, {"eco"})
+    assert preset == {"id": "nuit", "name": "Nuit", "color": "#123abc", "temperature": 18.5}
     for bad in ({"name": ""}, {"name": "x", "color": "red"}, {"name": "x", "temperature": "hot"}):
         with pytest.raises(model.InvalidData):
-            model.normalize_level(bad, set())
+            model.normalize_preset(bad, set())
     assert model.normalize_mapping({"eco": {"temperature": "17"}}, {"eco"}) == {"eco": {"temperature": 17.0}}
     with pytest.raises(model.InvalidData):
         model.normalize_mapping({"night": {"preset": "sleep"}}, {"eco"})
 
 
-def test_schedules_with_an_unknown_level_are_refused():
+def test_weeks_with_an_unknown_preset_are_refused():
     with pytest.raises(model.InvalidData):
-        model.normalize_schedules({"climate.salon": {"normal": [[["00:00", "sleep"]]] * 7}}, {"normal"}, {"eco"})
+        model.normalize_weeks({"climate.salon": {"normal": [[["00:00", "sleep"]]] * 7}}, {"normal"}, {"eco"})

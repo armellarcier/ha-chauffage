@@ -16,7 +16,7 @@ from homeassistant.helpers.storage import Store
 from . import model
 from .const import DOMAIN
 
-STORAGE_VERSION = 2
+STORAGE_VERSION = 3
 STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
@@ -28,12 +28,19 @@ def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
     each thermostat with that preset keeps using it (default mapping), so nothing changes."""
     return {
         **data,
-        "levels": model.default_levels(language, model.used_levels(data.get("schedules", {}))),
+        "levels": model.default_presets(language, model.used_presets(data.get("schedules", {}))),
         "mappings": {},
     }
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2}
+def _v2_to_v3(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """One vocabulary (v0.4, docs/glossary.md): modes are schedules, levels are presets, and the
+    weeks of each thermostat (formerly "schedules") are weeks. Ids and contents are unchanged."""
+    renamed = {"modes": "schedules", "active_mode": "active_schedule", "levels": "presets", "schedules": "weeks"}
+    return {renamed.get(key, key): value for key, value in data.items()}
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3}
 
 
 class ChauffageStore(Store[dict[str, Any]]):

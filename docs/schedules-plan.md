@@ -79,19 +79,19 @@ existing installations. Not in this step: activating schedules over periods, "un
 3. **Stable ids**, as everywhere in HA: the id comes from the name at creation and never
    changes; automations use it (`chauffage.activate_schedule`, attribute `schedule_id`).
 4. Unsaved edits of the weeks are **saved first**.
-5. The entity id stays **`select.chauffage_mode`** for now (renamed with the vocabulary step);
-   its name becomes *Active schedule* / *Planning actif*.
-6. In the card, a **"+"** tab creates a schedule (empty or a copy of a chosen one); a **⋮**
-   menu on the open tab renames (showing the id), moves left / right, deletes.
+5. The select entity is *Active schedule* / *Planning actif*; with the vocabulary step (v0.4)
+   its id became **`select.chauffage_schedule`** for every installation.
+6. In the card, the **"+"** tab opens a menu (an empty schedule, or a copy of each schedule,
+   then its name); **⋮** on the open tab opens a menu: rename (showing the id), move left /
+   right, delete.
 7. French UI: *preset* is translated **préréglage**, as in Home Assistant.
 
 ## API
 
-- Websocket `chauffage/modes/set` (admins): the ordered list of schedules
+- Websocket `chauffage/schedules/set` (admins): the ordered list of schedules
   `[{id, name} | {name, copy_of?}]`, with the `revision` the card edited. Known ids are kept
   (renamed, moved), missing ones deleted (not the active one, not the last one), items without
-  an id created (copy of `copy_of`, or empty). Returns the new list. The names in the API and the
-  data stay *modes* until the vocabulary step (roadmap 3), done in one go.
+  an id created (copy of `copy_of`, or empty). Returns the new list.
 - Service `chauffage.activate_schedule` (`schedule`: id).
 
 ## Later (roadmap)
@@ -100,4 +100,3 @@ existing installations. Not in this step: activating schedules over periods, "un
   colored by schedule, like the weekly view with slots. A **default schedule** applies outside
   the periods. It also covers "activate *Away* until Tuesday" or "until 18:00" without an
   automation.
-- **Vocabulary**: rename modes → schedules and levels → presets everywhere (glossary).

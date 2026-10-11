@@ -32,10 +32,10 @@ async def start(bench: Bench, hhmm: str = "10:00", day: int = 0) -> None:
     bench.thermostat("climate.salon", "eco")
     bench.thermostat("climate.bureau", "eco")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
 
 
-async def test_saving_schedules_realigns_every_thermostat(bench: Bench):
+async def test_saving_the_weeks_realigns_every_thermostat(bench: Bench):
     await start(bench, "10:00")  # Monday 10:00: living room in eco (08:30), office in comfort (09:00)
     assert bench.applied() == {"climate.bureau": "comfort"}
 
@@ -45,7 +45,7 @@ async def test_a_preset_already_active_is_not_sent_again(bench: Bench):
     bench.thermostat("climate.salon", "eco")
     bench.thermostat("climate.bureau", "comfort")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     assert bench.applied() == {}
 
 
@@ -74,17 +74,17 @@ async def test_the_day_of_the_week_is_respected(bench: Bench):
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
-async def test_changing_mode_applies_that_mode_s_schedule(bench: Bench):
+async def test_activating_a_schedule_applies_its_weeks(bench: Bench):
     await start(bench, "10:00")
     bench.applied()
-    await bench.set_mode("Away")
+    await bench.activate_schedule("Away")
     assert bench.applied() == {"climate.bureau": "frost"}  # living room already in eco
 
 
-async def test_a_thermostat_without_a_schedule_for_the_mode_is_left_alone(bench: Bench):
+async def test_a_thermostat_without_a_week_in_the_schedule_is_left_alone(bench: Bench):
     await start(bench, "10:00")
     bench.applied()
-    await bench.set_mode("Holiday")  # the office has no holiday schedule
+    await bench.activate_schedule("Holiday")  # the office has no holiday schedule
     assert bench.applied() == {"climate.salon": "frost"}
 
 
@@ -93,7 +93,7 @@ async def test_a_thermostat_turned_off_is_ignored(bench: Bench):
     bench.thermostat("climate.salon", "eco")
     bench.thermostat("climate.bureau", "eco", state="off")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     assert bench.applied() == {}
 
 
@@ -104,7 +104,7 @@ async def test_an_unreachable_thermostat_does_not_block_the_others(bench: Bench)
     bench.thermostat("climate.salon", "comfort")
     bench.thermostat("climate.bureau", "eco")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     assert bench.calls == [("climate.salon", "eco"), ("climate.bureau", "comfort")]
 
 
@@ -119,7 +119,7 @@ async def test_an_enum_preset_is_compared_correctly(bench: Bench):
     bench.thermostat("climate.salon", Preset.ECO)
     bench.thermostat("climate.bureau", "comfort")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     assert bench.applied() == {}
 
 
@@ -133,9 +133,9 @@ async def test_thermostats_are_realigned_when_the_integration_starts(bench: Benc
     assert bench.applied() == {"climate.bureau": "comfort"}
 
 
-async def test_the_schedules_survive_a_restart(bench: Bench, hass_storage):
+async def test_the_weeks_survive_a_restart(bench: Bench, hass_storage):
     await start(bench, "10:00")
     await bench.advance(1)  # delayed save
     stored = hass_storage["chauffage"]["data"]
-    assert stored["schedules"]["climate.salon"]["normal"][0] == WEEKDAY
+    assert stored["weeks"]["climate.salon"]["normal"][0] == WEEKDAY
     assert stored["revision"] == 1

@@ -2,7 +2,7 @@
 
 The tests are the specification (see CONTRIBUTING.md, "Tests first"). This page lists what a
 user can do or expect, and the test that proves it. A use case without a test is a bug waiting
-to happen: add the test first.
+to happen: add the test first. Vocabulary: [glossary.md](glossary.md).
 
 Files: `I/` = `tests/integration/`, `C/` = `tests/js/` (card). Behavior tests marked **×3** run on
 the three kinds of thermostats (Versatile Thermostat, standard presets, no presets).
@@ -12,34 +12,40 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Add the integration in one step; only one instance | `I/test_config_flow.py` |
-| A new installation gets modes and levels in HA's language | `I/test_entities.py::default_mode_names_follow_the_language`, `I/test_levels.py::a_new_installation_has_the_four_default_levels` |
-| Upgrade from the package: schedules, overrides, active mode imported; package automations turned off; repair until the package is removed | `I/test_import.py` |
+| A new installation gets one schedule (*Normal*) and the default presets in HA's language | `I/test_schedule_list.py::a_new_installation_*`, `I/test_presets.py::a_new_installation_has_the_four_default_presets` |
+| Upgrade from the package: weeks, overrides, active schedule imported; package automations turned off; repair until the package is removed | `I/test_import.py` |
 | Package data newer than the integration, unreadable parts, added during HA startup | `I/test_import.py`, `I/test_edge_cases.py::a_package_too_new_*`, `::unreadable_package_parts_are_skipped` |
-| Upgrade of the integration: stored data migrated (v1 → v2), nothing changes | `I/test_store.py`, `I/test_levels.py::storage_from_v0_2_is_migrated_without_changing_anything` |
+| Upgrade of the integration: stored data migrated (v1 → v2 → v3), nothing changes | `I/test_store.py`, `I/test_presets.py::storage_from_v0_2_is_migrated_without_changing_anything` |
+| Upgrade from v0.3: `select.chauffage_mode` becomes `select.chauffage_schedule` (an entity id chosen by the user is kept) | `I/test_entities.py::the_select_of_an_older_version_*`, `::an_entity_id_chosen_by_the_user_is_kept` |
 | Remove the integration: its data is deleted | `I/test_edge_cases.py::deleting_the_integration_deletes_its_data` |
 | The card is served by the integration and loaded on every page | `I/test_frontend.py` |
 
-## Schedules applied (scheduler) — ×3
+## Schedules
 
 | Use case | Test |
 |---|---|
-| A level applied exactly at its slot start, nothing between slots | `I/test_schedules.py::the_preset_changes_exactly_at_the_slot_start`, `::between_two_slots_nothing_is_sent` |
+| Existing schedules are kept on upgrade | `I/test_schedule_list.py::an_existing_installation_keeps_its_schedules` |
+| Create a schedule empty (eco, or the first preset, all week) or as a copy of another one; the card opens it | `I/test_schedule_list.py::duplicating_*`, `::an_empty_schedule_*`, `::creating_a_schedule_does_not_touch_the_thermostats`, `C/schedules.test.mjs` (the "+" menu) |
+| Rename (stable id shown, active schedule kept), move, delete (with a confirmation; not the active one or the last one) | `I/test_schedule_list.py` (renaming, moving, deleting), `C/schedules.test.mjs` (the "⋮" menu) |
+| Names required and unique; unknown ids refused; only admins manage schedules; unsaved weeks saved first | `I/test_schedule_list.py::a_name_must_be_set_and_not_taken`, `::unknown_ids_*`, `::only_admins_manage_schedules`, `C/schedules.test.mjs::unsaved edits *`, `::a name is needed *` |
+| Activating a schedule (card, select, automation) realigns every thermostat | `I/test_schedules.py::activating_a_schedule_applies_its_weeks`, `C/card.test.mjs` (activating a schedule), `C/card-integration.test.mjs::activating a schedule sends its id` |
+| An automation activates a schedule by its stable id, even once renamed; the select's `schedule_id` attribute | `I/test_schedule_list.py::an_automation_activates_a_schedule_by_its_id_*`, `::activating_an_unknown_schedule_says_so` |
+
+## Weeks applied (scheduler) — ×3
+
+| Use case | Test |
+|---|---|
+| A preset applied exactly at its slot start, nothing between slots | `I/test_schedules.py::the_preset_changes_exactly_at_the_slot_start`, `::between_two_slots_nothing_is_sent` |
 | Weekdays / weekend; Sunday night → Monday morning | `I/test_schedules.py::the_day_of_the_week_is_respected`, `I/test_use_cases.py::sunday_to_monday` |
 | A slot starting during a missed minute (HA busy) or in the hour skipped by summer time is applied late, not never | `I/test_use_cases.py::a_slot_starting_during_a_missed_minute_is_applied`, `::spring_forward_*` |
 | The repeated hour of winter time changes nothing | `I/test_use_cases.py::fall_back_the_repeated_hour_changes_nothing` |
-| Changing mode (card, select, automation) realigns every thermostat | `I/test_schedules.py::changing_mode_applies_that_mode_s_schedule`, `C/card.test.mjs` (mode bar), `C/card-integration.test.mjs::activating a mode sends its id` |
-| Schedules defined by the user: a new installation has one (*Normal*); existing ones are kept | `I/test_schedule_list.py::a_new_installation_*`, `::an_existing_installation_keeps_its_schedules` |
-| Create a schedule empty (eco, or the first preset, all week) or as a copy of another one; the card opens it | `I/test_schedule_list.py::duplicating_*`, `::an_empty_schedule_*`, `::creating_a_schedule_does_not_touch_the_thermostats`, `C/schedules.test.mjs` (creating a schedule) |
-| Rename (stable id shown, active schedule kept), move, delete (with a confirmation; not the active one or the last one) | `I/test_schedule_list.py` (renaming, moving, deleting), `C/schedules.test.mjs` (the menu of a schedule) |
-| Names required and unique; unknown ids refused; only admins manage schedules; unsaved weeks saved first | `I/test_schedule_list.py::a_name_must_be_set_and_not_taken`, `::unknown_ids_*`, `::only_admins_manage_schedules`, `C/schedules.test.mjs::unsaved edits *`, `::a name is needed *` |
-| An automation activates a schedule by its stable id, even once renamed; the select's `schedule_id` attribute | `I/test_schedule_list.py::an_automation_activates_a_schedule_by_its_id_*`, `::activating_an_unknown_schedule_says_so` |
-| Saving schedules realigns; an already right thermostat gets nothing | `I/test_schedules.py::saving_schedules_realigns_every_thermostat`, `::a_preset_already_active_is_not_sent_again` |
-| HA restart: thermostats realigned once HA has started; schedules and overrides kept | `I/test_edge_cases.py::thermostats_are_realigned_once_home_assistant_has_started`, `I/test_schedules.py::the_schedules_survive_a_restart`, `I/test_use_cases.py::overrides_survive_a_restart` |
-| A thermostat turned off (summer) is left alone; turned back on, it gets its level at once | `I/test_schedules.py::a_thermostat_turned_off_is_ignored`, `I/test_use_cases.py::a_thermostat_turned_back_on_*` |
+| Saving the weeks realigns; an already right thermostat gets nothing | `I/test_schedules.py::saving_the_weeks_realigns_every_thermostat`, `::a_preset_already_active_is_not_sent_again` |
+| HA restart: thermostats realigned once HA has started; weeks and overrides kept | `I/test_edge_cases.py::thermostats_are_realigned_once_home_assistant_has_started`, `I/test_schedules.py::the_weeks_survive_a_restart`, `I/test_use_cases.py::overrides_survive_a_restart` |
+| A thermostat turned off (summer) is left alone; turned back on, it gets its preset at once | `I/test_schedules.py::a_thermostat_turned_off_is_ignored`, `I/test_use_cases.py::a_thermostat_turned_back_on_*` |
 | An unavailable valve catches up as soon as it is back online | `I/test_use_cases.py::a_thermostat_back_online_*` |
 | An unreachable valve does not block the others; its command is retried every minute until delivered | `I/test_schedules.py::an_unreachable_thermostat_does_not_block_the_others`, `I/test_use_cases.py::a_failed_command_is_retried_the_next_minutes` |
 | Commands are spaced out (Zigbee network) | `I/test_edge_cases.py::thermostats_are_sent_one_after_the_other` |
-| A thermostat without a schedule for the active mode is left alone | `I/test_schedules.py::a_thermostat_without_a_schedule_for_the_mode_is_left_alone` |
+| A thermostat without a week in the active schedule is left alone | `I/test_schedules.py::a_thermostat_without_a_week_in_the_schedule_is_left_alone` |
 | ZHA Enum presets | `I/test_schedules.py::an_enum_preset_is_compared_correctly`, `I/test_overrides.py::an_enum_preset_does_not_break_detection` |
 
 ## Overrides — ×3
@@ -56,30 +62,31 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Extend, shorten (not before now + 15 min), remove an override from the card (drag, buttons, time field) or the more-info dialog | `I/test_overrides.py::extending_*`, `::removing_the_override_*`, `C/card.test.mjs` (overrides), `C/interactions.test.mjs` (dragging the end, popover), `C/more-info.test.mjs` |
 | Services for automations: set (temperature / preset, duration / end), clear; errors | `I/test_api.py::set_override_*`, `I/test_edge_cases.py::set_override_*`, `::services_without_the_integration` |
 
-## Heating levels
+## Presets
 
 | Use case | Test |
 |---|---|
-| A level is the thermostat's preset with the same name, else the level's temperature (fitted to the thermostat) | `I/test_engine.py` (levels → targets) |
+| A preset is the thermostat's own preset with the same name, else the preset's temperature (fitted to the thermostat) | `I/test_engine.py` (presets → climate presets or temperatures) |
 | Option "use the thermostats' presets" off: everything driven by temperature | `I/test_options.py::without_presets_*`, `C/interactions.test.mjs` (option off) |
-| Per thermostat: automatic, one of its presets, or its own temperature; back to automatic | `I/test_levels.py::a_mapping_set_by_hand_is_applied`, `C/card-integration.test.mjs` (Levels view) |
-| Default temperature of a level, followed by the thermostats left in automatic | `I/test_levels.py::the_level_s_default_temperature_follows_its_changes`, `C/card-integration.test.mjs::a level's default temperature` |
-| Rename, recolor, add, remove a level (a used one is replaced) | `I/test_levels.py`, `I/test_options.py::the_card_edits_the_levels`, `C/card-integration.test.mjs::renaming, adding and removing levels` |
-| Preset temperatures shown: learned while active; read from VTherm attributes | `I/test_options.py::the_temperature_of_each_preset_is_learned_*`, `C/card-integration.test.mjs::Versatile Thermostat preset temperatures *` |
-| Only admins change levels; others see them | `I/test_options.py::level_and_mapping_changes_need_an_admin`, `C/card-integration.test.mjs::read only for non-admins` |
+| Per thermostat: automatic, one of its own presets, or its own temperature; back to automatic | `I/test_presets.py::a_mapping_set_by_hand_is_applied`, `C/card-integration.test.mjs` (Presets view) |
+| Default temperature of a preset, followed by the thermostats left in automatic | `I/test_presets.py::the_preset_s_default_temperature_follows_its_changes`, `C/card-integration.test.mjs::a preset's default temperature` |
+| Rename, recolor, add, remove a preset (a used one is replaced) | `I/test_presets.py`, `I/test_options.py::the_card_edits_the_presets`, `C/card-integration.test.mjs::renaming, adding and removing presets` |
+| Temperatures of the thermostats' own presets shown: learned while active; read from VTherm attributes | `I/test_options.py::the_temperature_of_each_preset_is_learned_*`, `C/card-integration.test.mjs::Versatile Thermostat preset temperatures *` |
+| Only admins change presets; others see them | `I/test_options.py::preset_and_mapping_changes_need_an_admin`, `C/card-integration.test.mjs::read only for non-admins` |
 
-## Editing schedules in the card
+## Editing the weeks in the card
 
 | Use case | Test |
 |---|---|
-| Show schedules per mode, one or several thermostats, selection kept for the next visit | `C/card.test.mjs` (configuration, choosing thermostats), `C/interactions.test.mjs` (thermostats shown) |
-| Add a cut (double click), insert, delete, change a slot's level, move times (drag or fields), close the editor | `C/card.test.mjs` (editing a day), `C/interactions.test.mjs` (slot editor buttons, double click, dragging, editing a slot) |
+| Show the weeks per schedule, one or several thermostats, selection kept for the next visit | `C/card.test.mjs` (configuration, choosing thermostats), `C/interactions.test.mjs` (thermostats shown) |
+| Add a cut (double click), insert, delete, change a slot's preset, move times (drag or fields), close the editor | `C/card.test.mjs` (editing a day), `C/interactions.test.mjs` (slot editor buttons, double click, dragging, editing a slot) |
 | Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
 | Save, cancel; a save from an outdated copy is refused; edits in progress are not replaced by changes saved elsewhere | `C/card.test.mjs` (saving), `C/card-integration.test.mjs::a save refused *`, `C/interactions.test.mjs` (edits in progress), `I/test_api.py::saving_from_an_outdated_copy_is_refused` |
 | Open a thermostat's more-info dialog from the card | `C/card.test.mjs` (thermostat more-info dialog) |
-| Error messages (save, override, mode, levels) | `C/interactions.test.mjs` (error messages) |
+| Error messages (save, override, schedule, presets) | `C/interactions.test.mjs` (error messages) |
 | English / French, 12 / 24 h, decimal separator, first day of the week | `C/i18n.test.mjs` |
 | Card added but the integration is not set up: says so | `C/card-integration.test.mjs` (without the integration) |
+| Updated from HACS, Home Assistant not restarted yet (the card is newer than the running integration): asks for a restart | `C/card-integration.test.mjs` (an integration older than the card) |
 | An ended override is no longer shown, even before the integration removes it | `C/card.test.mjs::an override that has ended *` |
 
 ## More-info dialog of a thermostat
@@ -87,18 +94,18 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
-| Current and next slot, override, +30 min, drag its end, end time field, resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end) |
+| The active schedule's name, current and next slot, override, +30 min, drag its end, end time field, resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end) |
 
 ## Entities and API
 
 | Use case | Test |
 |---|---|
-| Heating mode select (stable id), schedule and override-end sensors (disabled by default, on the thermostat's device) | `I/test_entities.py` |
-| Websocket API for the card: subscribe, save with revision, overrides, mode, levels, mappings; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_edge_cases.py` |
+| Active-schedule select (`select.chauffage_schedule`), schedule and override-end sensors (disabled by default, on the thermostat's device; attributes `preset_name`, `next_preset`…) | `I/test_entities.py` |
+| Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
 
 ## Not covered by automated tests
 
-- Exact placement of the popovers on screen (needs a real browser layout): checked on the
-  development HA.
-- Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the integration's): the
-  second one does not register again (guarded), checked on the development HA.
+- Exact placement of the menus and popovers on screen (needs a real browser layout): checked on
+  the development HA.
+- Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the
+  integration's): the second one does not register again (guarded), checked on the development HA.

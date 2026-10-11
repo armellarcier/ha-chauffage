@@ -1,7 +1,7 @@
 {
   "entity": {
     "select": {
-      "mode": { "default": "mdi:home-thermometer" }
+      "active_schedule": { "default": "mdi:home-thermometer" }
     },
     "sensor": {
       "schedule": { "default": "mdi:calendar-clock" },

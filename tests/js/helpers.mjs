@@ -8,15 +8,15 @@ export const WEEKEND = ['00:00 eco', '08:00 comfort', '23:00 eco'];
 // Default user: French, 24 h clock, formats following the language (most existing tests are in French)
 export const FRENCH = { language: 'fr', time_format: 'language', number_format: 'language', first_weekday: 'language' };
 
-// The integration's default modes and levels (created in the HA language)
-const MODES = [{ id: 'normal', name: 'Normal' }, { id: 'away', name: 'Absent' }, { id: 'holiday', name: 'Vacances' }];
-const LEVEL_NAMES = {
+// Schedules and presets of an installation (presets are created in the HA language)
+const SCHEDULES = () => [{ id: 'normal', name: 'Normal' }, { id: 'away', name: 'Absent' }, { id: 'holiday', name: 'Vacances' }];
+const PRESET_NAMES = {
   en: { comfort: 'Comfort', eco: 'Eco', boost: 'Boost', frost: 'Frost protection' },
   fr: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
 };
-export const LEVELS = (language = 'fr') => [
+export const PRESETS = (language = 'fr') => [
   ['comfort', '#f57c00', 20], ['eco', '#43a047', 17], ['boost', '#e53935', 21], ['frost', '#29b6f6', 7],
-].map(([id, color, temperature]) => ({ id, name: LEVEL_NAMES[language.startsWith('fr') ? 'fr' : 'en'][id], color, temperature }));
+].map(([id, color, temperature]) => ({ id, name: PRESET_NAMES[language.startsWith('fr') ? 'fr' : 'en'][id], color, temperature }));
 
 const slug = (name) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -24,23 +24,24 @@ const PAIRS = (list) => list.map((s) => s.split(' '));
 const SALON = { 'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] } };
 
 /**
- * The data pushed by the integration (`chauffage/subscribe`). Shortcuts: `schedules` by mode
- * name with "HH:MM level" slots, `mode` = name of the active mode.
+ * The data pushed by the integration (`chauffage/subscribe`). Shortcuts: `weeks` by schedule
+ * name with "HH:MM preset" slots, `schedule` = name of the active schedule.
  */
-export function integrationData({ schedules = SALON, overrides = {}, mode = 'Normal', language = 'fr' } = {}) {
-  const idOf = (name) => MODES.find((m) => m.name === name).id;
+export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Normal', language = 'fr' } = {}) {
+  const schedules = SCHEDULES();
+  const idOf = (name) => schedules.find((s) => s.name === name).id;
   const out = {};
-  for (const [climate, byMode] of Object.entries(schedules)) {
+  for (const [climate, byName] of Object.entries(weeks)) {
     out[climate] = {};
-    for (const [name, week] of Object.entries(byMode)) out[climate][idOf(name)] = week.map(PAIRS);
+    for (const [name, week] of Object.entries(byName)) out[climate][idOf(name)] = week.map(PAIRS);
   }
   return {
-    modes: MODES,
-    active_mode: idOf(mode),
-    levels: LEVELS(language),
+    schedules,
+    active_schedule: idOf(schedule),
+    presets: PRESETS(language),
     mappings: {},
     targets: {},
-    schedules: out,
+    weeks: out,
     overrides,
     revision: 4,
     override_duration: 120,
@@ -54,11 +55,11 @@ export const INTEGRATION_DATA = () => integrationData();
  * `hass.events` records the websocket commands; `hass.push(data)` sends an update to the card;
  * `reply(msg)` answers (or throws for) a command.
  */
-export function fakeHass({ data, schedules, overrides, mode, locale = FRENCH, reply } = {}) {
+export function fakeHass({ data, weeks, overrides, schedule, locale = FRENCH, reply } = {}) {
   INTEGRATION.connection = null; // one subscription per page: reset between tests
   INTEGRATION.data = null;
   INTEGRATION.listeners.clear();
-  if (data === undefined) data = integrationData({ schedules, overrides, mode, language: locale.language });
+  if (data === undefined) data = integrationData({ weeks, overrides, schedule, language: locale.language });
   const events = [];
   let listener = null;
   const hass = {
@@ -83,12 +84,12 @@ export function fakeHass({ data, schedules, overrides, mode, locale = FRENCH, re
     callWS: async (msg) => {
       events.push(msg);
       if (reply) return reply(msg);
-      if (msg.type === 'chauffage/schedules/save') return { revision: msg.revision + 1 };
-      if (msg.type === 'chauffage/modes/set') {
+      if (msg.type === 'chauffage/weeks/save') return { revision: msg.revision + 1 };
+      if (msg.type === 'chauffage/schedules/set') {
         // Like the integration: kept ids keep their names, new schedules get an id from their name
-        const names = Object.fromEntries((data || integrationData()).modes.map((m) => [m.id, m.name]));
-        const modes = msg.modes.map((m) => ({ id: m.id || slug(m.name), name: m.name || names[m.id] }));
-        return { modes, revision: msg.revision + 1 };
+        const names = Object.fromEntries((data || integrationData()).schedules.map((s) => [s.id, s.name]));
+        const schedules = msg.schedules.map((s) => ({ id: s.id || slug(s.name), name: s.name || names[s.id] }));
+        return { schedules, revision: msg.revision + 1 };
       }
       return null;
     },

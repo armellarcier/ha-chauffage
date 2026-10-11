@@ -1,4 +1,4 @@
-"""Entities: heating mode select, per-thermostat sensors."""
+"""Entities: active-schedule select, per-thermostat sensors."""
 
 import pytest
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -6,24 +6,49 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from conftest import WEEKDAY, Bench, every_day
 
-SCHEDULES = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": every_day(("00:00", "frost"))}}
+WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": every_day(("00:00", "frost"))}}
 
 
 async def start(bench: Bench) -> None:
     await bench.go_to("10:00")
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await bench.setup()
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(WEEKS)
 
 
-async def test_the_mode_select_lists_the_modes_and_shows_the_active_one(bench: Bench):
+async def test_the_active_schedule_select_lists_the_schedules_and_shows_the_active_one(bench: Bench):
     await start(bench)
-    state = bench.hass.states.get("select.chauffage_mode")
+    state = bench.hass.states.get("select.chauffage_schedule")
     assert state.attributes["options"] == ["Normal", "Away", "Holiday"]
     assert state.state == "Normal"
-    await bench.set_mode("Away")
-    assert bench.hass.states.get("select.chauffage_mode").state == "Away"
-    assert bench.runtime.data["active_mode"] == "away"
+    await bench.activate_schedule("Away")
+    assert bench.hass.states.get("select.chauffage_schedule").state == "Away"
+    assert bench.runtime.data["active_schedule"] == "away"
+
+
+async def test_the_select_of_an_older_version_becomes_select_chauffage_schedule(bench: Bench):
+    """Before v0.4 it was select.chauffage_mode: automations must use the new id."""
+    entry = MockConfigEntry(domain="chauffage", title="Chauffage")
+    entry.add_to_hass(bench.hass)
+    registry = er.async_get(bench.hass)
+    registry.async_get_or_create("select", "chauffage", f"{entry.entry_id}_mode",
+                                 suggested_object_id="chauffage_mode", config_entry=entry)
+    await bench.setup(entry=entry)
+    assert registry.async_get("select.chauffage_mode") is None
+    renamed = registry.async_get("select.chauffage_schedule")
+    assert renamed.unique_id == f"{entry.entry_id}_schedule"
+    assert bench.hass.states.get("select.chauffage_schedule").state == "Normal"
+
+
+async def test_an_entity_id_chosen_by_the_user_is_kept(bench: Bench):
+    entry = MockConfigEntry(domain="chauffage", title="Chauffage")
+    entry.add_to_hass(bench.hass)
+    registry = er.async_get(bench.hass)
+    registry.async_get_or_create("select", "chauffage", f"{entry.entry_id}_mode",
+                                 suggested_object_id="heating", config_entry=entry)
+    await bench.setup(entry=entry)
+    assert bench.hass.states.get("select.heating").state == "Normal"
+    assert bench.hass.states.get("select.chauffage_schedule") is None
 
 
 async def test_thermostat_sensors_are_disabled_by_default(bench: Bench):
@@ -39,11 +64,11 @@ async def test_the_schedule_sensor_shows_the_planned_preset_and_the_next_slot(be
     await start(bench)
     state = bench.hass.states.get("sensor.salon_schedule")
     assert state.state == "eco"
-    assert state.attributes["next_level"] == "comfort"
+    assert state.attributes["next_preset"] == "comfort"
     assert state.attributes["next_start"].startswith("2026-10-12T17:30")
     await bench.go_to("17:30")
     assert bench.hass.states.get("sensor.salon_schedule").state == "comfort"
-    await bench.set_mode("Away")
+    await bench.activate_schedule("Away")
     assert bench.hass.states.get("sensor.salon_schedule").state == "frost"
 
 
@@ -58,12 +83,12 @@ async def test_the_override_end_sensor(bench: Bench):
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
-async def test_sensors_follow_the_thermostats_in_the_schedules(bench: Bench):
+async def test_sensors_follow_the_thermostats_in_the_weeks(bench: Bench):
     await start(bench)
     bench.thermostat("climate.bureau", "eco", friendly_name="Bureau")
-    await bench.save_schedules({**SCHEDULES, "climate.bureau": {"normal": every_day(("00:00", "eco"))}})
+    await bench.save_weeks({**WEEKS, "climate.bureau": {"normal": every_day(("00:00", "eco"))}})
     assert bench.hass.states.get("sensor.bureau_schedule").state == "eco"
-    await bench.save_schedules({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
+    await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
     assert er.async_get(bench.hass).async_get("sensor.salon_schedule") is None
 
 

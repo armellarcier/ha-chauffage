@@ -53,7 +53,7 @@ describe('overrides', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T21:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
 
-  const override = (debut, fin, extra = {}) => ({ type: 'temp', valeur: 21, debut, fin, ...extra });
+  const override = (start, end, extra = {}) => ({ kind: 'temperature', value: 21, start, end, ...extra });
 
   test('an override past midnight is split over two days', () => {
     const pieces = overridePieces(override('2026-10-12T20:00:00+02:00', '2026-10-13T02:00:00+02:00'));
@@ -64,8 +64,8 @@ describe('overrides', () => {
   });
 
   test('label: temperature or preset name', () => {
-    assert.equal(overrideLabel(override('', '', { valeur: 21.5 })), '21.5 °C');
-    assert.equal(overrideLabel({ type: 'preset', valeur: 'boost' }), 'Boost');
-    assert.equal(overrideLabel({ type: 'preset', valeur: 'unknown' }), 'unknown');
+    assert.equal(overrideLabel(override('', '', { value: 21.5 })), '21.5 °C');
+    assert.equal(overrideLabel({ kind: 'preset', value: 'boost' }), 'Boost');
+    assert.equal(overrideLabel({ kind: 'preset', value: 'unknown' }), 'unknown');
   });
 });

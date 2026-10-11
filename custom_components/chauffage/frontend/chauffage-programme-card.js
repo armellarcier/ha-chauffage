@@ -15,7 +15,7 @@ const DAY_MIN = 1440;
 // ---------- i18n ----------
 // UI texts in English and French. The language follows the user's Home Assistant language
 // (French for any "fr*" language, English otherwise) unless the card sets `language`.
-// Mode names (Normal / Absent / Vacances) are data (input_select options): not translated here.
+// Schedule and preset names are data (set by the user): not translated here.
 const I18N = {
   en: {
     presets: { comfort: 'Comfort', eco: 'Eco', boost: 'Boost', frost: 'Frost protection' },
@@ -48,11 +48,11 @@ const I18N = {
     duration: '{h}h {mm}',
     deleteAndResume: 'Delete · resume the schedule',
     resume: 'Resume the schedule',
-    activeMode: 'Active schedule',
-    activeModeBar: 'Active schedule: <strong>{mode}</strong>',
-    noActiveMode: 'No active schedule',
-    activate: 'Activate “{mode}”',
-    modeActivated: '“{mode}” activated',
+    activeSchedule: 'Active schedule',
+    activeScheduleBar: 'Active schedule: <strong>{schedule}</strong>',
+    noActiveSchedule: 'No active schedule',
+    activate: 'Activate “{schedule}”',
+    scheduleActivated: '“{schedule}” activated',
     newSchedule: 'New schedule',
     scheduleMenu: 'Rename, move or delete this schedule',
     scheduleName: 'Name',
@@ -81,7 +81,7 @@ const I18N = {
     unsaved: 'Unsaved changes',
     destinations: { weekdays: 'Mon–Fri', weekend: 'Sat–Sun', all: 'every day', others: 'the other thermostats' },
     dayCopiedTo: '{name} · {day} copied to {destination}',
-    weekCopiedTo: '{source}’s week copied to {target} · {mode}',
+    weekCopiedTo: '{source}’s week copied to {target} · {schedule}',
     copied: 'Copied: {label}',
     pastedOn: 'Pasted on {name} · {day}',
     schedule: 'Schedule',
@@ -91,27 +91,28 @@ const I18N = {
     todayTitle: 'Today',
     week: 'Week',
     stale: 'These schedules were changed elsewhere in the meantime: cancel to reload them, then redo your changes.',
-    presetHint: '(preset)',
-    levelFor: '{level} · {name}',
-    levelPreset: 'Thermostat preset',
-    levelTemperature: 'Temperature',
-    levelAuto: 'Automatic ({value})',
+    presetHint: '(its preset)',
+    presetFor: '{preset} · {name}',
+    ownPreset: 'Thermostat preset',
+    presetTemperature: 'Temperature',
+    presetAuto: 'Automatic ({value})',
     apply: 'OK',
     viewSchedule: 'Schedule',
-    viewLevels: 'Levels',
-    levelDefaults: 'Default',
-    defaultFor: '{level} · default',
-    defaultHelp: 'Used by thermostats set to automatic that have no preset named like this level.',
+    viewPresets: 'Presets',
+    presetDefaults: 'Default',
+    defaultFor: '{preset} · default',
+    defaultHelp: 'Used by thermostats set to automatic that have no preset of their own named like this one.',
     keyPreset: 'follows a thermostat preset',
     keyCustom: 'set for this thermostat',
-    keyDefault: 'level default',
-    addLevel: 'Add a level',
-    newLevel: 'New level',
-    levelName: 'Name',
-    levelColor: 'Color',
-    deleteLevel: 'Delete this level',
+    keyDefault: 'preset default',
+    addPreset: 'Add a preset',
+    newPreset: 'New preset',
+    presetName: 'Name',
+    presetColor: 'Color',
+    deletePreset: 'Delete this preset',
     replaceWith: 'replaced by',
     integrationMissing: 'The Chauffage integration is not set up: add it in Settings → Devices & services.',
+    restartNeeded: 'Chauffage was updated: restart Home Assistant to finish the update.',
   },
   fr: {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
@@ -142,13 +143,13 @@ const I18N = {
     today: 'aujourd\'hui',
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
-    deleteAndResume: 'Supprimer · reprendre le programme',
-    resume: 'Reprendre le programme',
-    activeMode: 'Planning actif',
-    activeModeBar: 'Planning actif : <strong>{mode}</strong>',
-    noActiveMode: 'Aucun planning actif',
-    activate: 'Activer « {mode} »',
-    modeActivated: 'Planning « {mode} » activé',
+    deleteAndResume: 'Supprimer · reprendre le planning',
+    resume: 'Reprendre le planning',
+    activeSchedule: 'Planning actif',
+    activeScheduleBar: 'Planning actif : <strong>{schedule}</strong>',
+    noActiveSchedule: 'Aucun planning actif',
+    activate: 'Activer « {schedule} »',
+    scheduleActivated: 'Planning « {schedule} » activé',
     newSchedule: 'Nouveau planning',
     scheduleMenu: 'Renommer, déplacer ou supprimer ce planning',
     scheduleName: 'Nom',
@@ -177,37 +178,38 @@ const I18N = {
     unsaved: 'Modifications non enregistrées',
     destinations: { weekdays: 'Lun–Ven', weekend: 'Sam–Dim', all: 'tous les jours', others: 'les autres vannes' },
     dayCopiedTo: '{name} · {day} copié vers {destination}',
-    weekCopiedTo: 'Semaine de {source} copiée vers {target} · {mode}',
+    weekCopiedTo: 'Semaine de {source} copiée vers {target} · {schedule}',
     copied: 'Copié : {label}',
     pastedOn: 'Collé sur {name} · {day}',
-    schedule: 'Programme',
-    followsSchedule: 'Suit le programme :',
+    schedule: 'Planning',
+    followsSchedule: 'Suit le planning :',
     untilThen: '{current} jusqu\'à {time}, puis {next}',
     untilMidnight: '{current} jusqu\'à minuit',
     todayTitle: 'Aujourd\'hui',
     week: 'Semaine',
     stale: 'Ces plannings ont été modifiés ailleurs entre-temps : annulez pour les recharger, puis refaites vos modifications.',
-    presetHint: '(preset)',
-    levelFor: '{level} · {name}',
-    levelPreset: 'Preset du thermostat',
-    levelTemperature: 'Température',
-    levelAuto: 'Automatique ({value})',
+    presetHint: '(son préréglage)',
+    presetFor: '{preset} · {name}',
+    ownPreset: 'Préréglage du thermostat',
+    presetTemperature: 'Température',
+    presetAuto: 'Automatique ({value})',
     apply: 'OK',
     viewSchedule: 'Planning',
-    viewLevels: 'Niveaux',
-    levelDefaults: 'Par défaut',
-    defaultFor: '{level} · par défaut',
-    defaultHelp: 'Utilisée par les thermostats en automatique qui n\'ont pas de preset du nom de ce niveau.',
-    keyPreset: 'suit un preset de la vanne',
+    viewPresets: 'Préréglages',
+    presetDefaults: 'Par défaut',
+    defaultFor: '{preset} · par défaut',
+    defaultHelp: 'Utilisée par les thermostats en automatique qui n\'ont pas de préréglage du même nom.',
+    keyPreset: 'suit un préréglage de la vanne',
     keyCustom: 'réglé pour cette vanne',
-    keyDefault: 'défaut du niveau',
-    addLevel: 'Ajouter un niveau',
-    newLevel: 'Nouveau niveau',
-    levelName: 'Nom',
-    levelColor: 'Couleur',
-    deleteLevel: 'Supprimer ce niveau',
+    keyDefault: 'défaut du préréglage',
+    addPreset: 'Ajouter un préréglage',
+    newPreset: 'Nouveau préréglage',
+    presetName: 'Nom',
+    presetColor: 'Couleur',
+    deletePreset: 'Supprimer ce préréglage',
     replaceWith: 'remplacé par',
     integrationMissing: 'L’intégration Chauffage n’est pas configurée : ajoutez-la dans Paramètres → Appareils et services.',
+    restartNeeded: 'Chauffage a été mis à jour : redémarrez Home Assistant pour terminer la mise à jour.',
   },
 };
 
@@ -366,8 +368,8 @@ const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
 // Splits an override into one piece per day (today + 6 days)
 function overridePieces(d) {
   if (!d) return [];
-  const startsAt = parseDate(d.debut);
-  const endsAt = parseDate(d.fin);
+  const startsAt = parseDate(d.start);
+  const endsAt = parseDate(d.end);
   const day0 = new Date();
   day0.setHours(0, 0, 0, 0);
   const pieces = [];
@@ -395,8 +397,8 @@ const DEFAULT_LOCALE = makeLocale(null, 'en');
 
 function overrideLabel(d, locale = DEFAULT_LOCALE) {
   if (!d) return '';
-  if (d.type === 'temp') return `${locale.number(d.valeur)} ${locale.unit}`;
-  return locale.preset(d.valeur);
+  if (d.kind === 'temperature') return `${locale.number(d.value)} ${locale.unit}`;
+  return locale.preset(d.value);
 }
 
 const hmOf = (date) => toHM(date.getHours() * 60 + date.getMinutes());
@@ -410,20 +412,18 @@ function durationText(min, locale = DEFAULT_LOCALE) {
 
 // ---------- data sources ----------
 // The card reads and writes through the Chauffage integration's websocket API. The source gives
-// the data in the format the card works with: schedules ("modes") by id, "HH:MM level" slots,
-// overrides as { type: temp|preset, valeur, debut, fin }.
+// the data in the format the card works with: schedules by id, "HH:MM preset" slots,
+// overrides as { kind: temperature|preset, value, start, end }.
 
 const integrationAvailable = (hass) => !!(hass && hass.services && hass.services.chauffage);
 const filterActive = (raw) => {
   const out = {};
   const now = new Date();
   for (const [c, d] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
-    if (d && parseDate(d.fin) > now) out[c] = d;
+    if (d && parseDate(d.end) > now) out[c] = d;
   }
   return out;
 };
-const toCardOverride = (o) => o && ({ type: o.kind === 'temperature' ? 'temp' : o.kind, valeur: o.value, debut: o.start, fin: o.end });
-const toIntegrationOverride = (d) => d && ({ kind: d.type === 'temp' ? 'temperature' : d.type, value: d.valeur, start: d.debut, end: d.fin });
 
 // One subscription per page, shared by every card and more-info block
 const INTEGRATION = {
@@ -452,73 +452,75 @@ const INTEGRATION = {
 function dataSource(hass) {
   const available = integrationAvailable(hass);
   if (available) INTEGRATION.connect(hass);
-  const d = available ? INTEGRATION.data : null;
-  const modes = d ? d.modes : [];
-  const ids = new Set(modes.map((m) => m.id));
+  const raw = available ? INTEGRATION.data : null;
+  // Data in a format this card does not know: the running integration is older (updated from
+  // HACS, Home Assistant not restarted yet)
+  const outdated = !!raw && !(Array.isArray(raw.schedules) && raw.weeks && typeof raw.weeks === 'object');
+  const d = outdated ? null : raw;
+  const schedules = d ? d.schedules : [];
+  const ids = new Set(schedules.map((s) => s.id));
   return {
     available, // false: the integration is not set up
+    outdated, // true: Home Assistant must be restarted to finish an update
     ready: !!d,
     revision: d ? d.revision : null,
-    stamps: d ? { schedules: `r${d.revision}`, overrides: JSON.stringify(d.overrides), mode: d.active_mode } : {},
-    modes: () => modes.map((m) => m.id),
-    modeName: (id) => (modes.find((m) => m.id === id) || { name: id }).name,
-    activeMode: () => (d ? d.active_mode : null),
-    schedules: () => {
+    stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides), schedule: d.active_schedule } : {},
+    schedules: () => schedules.map((s) => s.id),
+    scheduleName: (id) => (schedules.find((s) => s.id === id) || { name: id }).name,
+    activeSchedule: () => (d ? d.active_schedule : null),
+    // Weeks by thermostat and schedule id, with "HH:MM preset" slots
+    weeks: () => {
       const out = {};
-      for (const [climate, byMode] of Object.entries(d ? d.schedules : {})) {
+      for (const [climate, bySchedule] of Object.entries(d ? d.weeks : {})) {
         out[climate] = {};
-        for (const [id, week] of Object.entries(byMode)) {
+        for (const [id, week] of Object.entries(bySchedule)) {
           if (ids.has(id)) out[climate][id] = week.map((day) => day.map(([start, preset]) => `${start} ${preset}`));
         }
       }
       return out;
     },
-    overrides: () => {
+    overrides: () => ({ ...(d ? d.overrides : {}) }),
+    saveWeeks: (weeks, revision) => {
       const out = {};
-      for (const [c, o] of Object.entries(d ? d.overrides : {})) out[c] = toCardOverride(o);
-      return out;
-    },
-    save: (programmes, revision) => {
-      const schedules = {};
-      for (const [climate, byId] of Object.entries(programmes)) {
-        schedules[climate] = {};
-        for (const [id, week] of Object.entries(byId)) {
-          if (ids.has(id)) schedules[climate][id] = week.map((day) => day.map((s) => s.split(' ')));
+      for (const [climate, bySchedule] of Object.entries(weeks)) {
+        out[climate] = {};
+        for (const [id, week] of Object.entries(bySchedule)) {
+          if (ids.has(id)) out[climate][id] = week.map((day) => day.map((s) => s.split(' ')));
         }
       }
-      return hass.callWS({ type: 'chauffage/schedules/save', schedules, ...(revision != null ? { revision } : {}) });
+      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...(revision != null ? { revision } : {}) });
     },
-    setOverride: (climate, d2) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override: toIntegrationOverride(d2) }),
-    activateMode: (id) => hass.callWS({ type: 'chauffage/mode/set', mode: id }),
+    setOverride: (climate, override) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override }),
+    activateSchedule: (id) => hass.callWS({ type: 'chauffage/schedule/activate', schedule: id }),
     // Create, rename, move, delete schedules: [{ id, name? } | { name, copy_of? }]
-    setModes: (list, revision) => hass.callWS({ type: 'chauffage/modes/set', modes: list, ...(revision != null ? { revision } : {}) }),
-    levels: () => (d && d.levels) || [],
+    setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
+    presets: () => (d && d.presets) || [],
     targets: (climate) => (d && d.targets && d.targets[climate]) || {},
-    // Levels and mappings are set from the card by admins (the integration refuses the others)
+    // Presets and mappings are set from the card by admins (the integration refuses the others)
     editable: !!d && (!hass.user || !!hass.user.is_admin),
     mapping: (climate) => (d && d.mappings && d.mappings[climate]) || {},
     usePresets: () => !d || d.use_presets !== false,
     learned: (climate, preset) => ((d && d.preset_temperatures && d.preset_temperatures[climate]) || {})[preset],
-    usedLevels: () => {
+    usedPresets: () => {
       const used = new Set();
-      for (const byMode of Object.values(d ? d.schedules : {})) {
-        for (const week of Object.values(byMode)) for (const day of week) for (const [, level] of day) used.add(level);
+      for (const bySchedule of Object.values(d ? d.weeks : {})) {
+        for (const week of Object.values(bySchedule)) for (const day of week) for (const [, preset] of day) used.add(preset);
       }
       return [...used];
     },
     setMapping: (climate, mapping) => hass.callWS({ type: 'chauffage/mapping/set', entity_id: climate, mapping }),
-    setLevels: (levels, replacements) => hass.callWS({ type: 'chauffage/levels/set', levels, replacements }),
+    setPresets: (presets, replacements) => hass.callWS({ type: 'chauffage/presets/set', presets, replacements }),
   };
 }
 
-// Heating levels [{ id, name, color, temperature }]
-function levelsOf(src, loc) {
-  return src.levels().map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature }));
+// Presets [{ id, name, color, temperature }]
+function presetsOf(src, loc) {
+  return src.presets().map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature }));
 }
-const levelOf = (levels, id, loc) => levels.find((l) => l.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
-// Another level for a new slot: comfort ↔ eco when they exist, otherwise the next level
-function otherLevel(levels, id) {
-  const ids = levels.map((l) => l.id);
+const presetOf = (presets, id, loc) => presets.find((p) => p.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
+// Another preset for a new slot: comfort ↔ eco when they exist, otherwise the next preset
+function otherPreset(presets, id) {
+  const ids = presets.map((p) => p.id);
   if (id === 'comfort' && ids.includes('eco')) return 'eco';
   if (id !== 'comfort' && ids.includes('comfort')) return 'comfort';
   return ids[(ids.indexOf(id) + 1) % ids.length] || id;
@@ -539,7 +541,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._renderedDay = null;
     // Internal clipboard: { segs, label }, shared between cards through localStorage
     this._clip = null;
-    this._clipSrc = null; // { climate, mode, day } of the copied row (highlight)
+    this._clipSrc = null; // { climate, schedule, day } of the copied row (highlight)
     this._menu = null; // { climate, day, top, right } open row menu
     this._multiSel = false; // "Plusieurs" mode: clicking a thermostat adds / removes it
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
@@ -576,7 +578,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const fromSaved = Array.isArray(saved) ? all.filter((e) => saved.includes(e)) : [];
     const fromConfig = config.show === 'all' ? all : Array.isArray(config.show) ? all.filter((e) => config.show.includes(e)) : [all[0]];
     this._shown = fromSaved.length ? fromSaved : fromConfig.length ? fromConfig : [all[0]];
-    this._mode = null;
+    this._schedule = null;
     if (this._hass) this._render();
   }
 
@@ -596,7 +598,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       // Data pushed by the integration: same checks as a hass update
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
     }
-    const stamp = src.stamps.schedules;
+    const stamp = src.stamps.weeks;
     if ((stamp !== this._stamp || !this._data) && !this._dirty && !this._drag) {
       this._load();
       this._stamp = stamp;
@@ -608,20 +610,20 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._overridePending = {};
       need = true;
     }
-    // Active mode changed (from the card, another dashboard or an automation): redraw the
-    // active-mode marker and the "activate" bar
-    const modeStamp = src.stamps.mode;
-    if (modeStamp !== this._modeState && !this._drag && !this._overrideDrag) {
-      this._modeState = modeStamp;
+    // Active schedule changed (from the card, another dashboard or an automation): redraw the
+    // active-schedule marker and the "activate" bar
+    const scheduleStamp = src.stamps.schedule;
+    if (scheduleStamp !== this._scheduleState && !this._drag && !this._overrideDrag) {
+      this._scheduleState = scheduleStamp;
       need = true;
     }
-    if (src.ready && this._wantMode && this._modes().includes(this._wantMode)) {
-      this._mode = this._wantMode; // created from this card
-      this._wantMode = null;
+    if (src.ready && this._wantSchedule && this._schedules().includes(this._wantSchedule)) {
+      this._schedule = this._wantSchedule; // created from this card
+      this._wantSchedule = null;
       need = true;
-    } else if (src.ready && (!this._mode || !this._modes().includes(this._mode))) {
-      const active = this._activeMode();
-      this._mode = this._modes().includes(active) ? active : this._modes()[0];
+    } else if (src.ready && (!this._schedule || !this._schedules().includes(this._schedule))) {
+      const active = this._activeSchedule();
+      this._schedule = this._schedules().includes(active) ? active : this._schedules()[0];
       need = true;
     }
     if (need) this._render();
@@ -672,46 +674,46 @@ class ChauffageProgrammeCard extends HTMLElement {
     return dataSource(this._hass);
   }
 
-  _levels() {
-    return levelsOf(this._source(), this._loc);
+  _presets() {
+    return presetsOf(this._source(), this._loc);
   }
 
-  _level(id) {
-    return levelOf(this._levels(), id, this._loc);
+  _preset(id) {
+    return presetOf(this._presets(), id, this._loc);
   }
 
-  _modes() {
-    return this._source().modes();
+  _schedules() {
+    return this._source().schedules();
   }
 
-  _activeMode() {
-    return this._source().activeMode();
+  _activeSchedule() {
+    return this._source().activeSchedule();
   }
 
-  _modeName(id) {
-    return this._source().modeName(id);
+  _scheduleName(id) {
+    return this._source().scheduleName(id);
   }
 
   _load() {
     const src = this._source();
     this._data = {};
     this._revision = src.revision;
-    for (const [climate, modes] of Object.entries(src.schedules())) {
-      if (!modes || typeof modes !== 'object') continue;
+    for (const [climate, bySchedule] of Object.entries(src.weeks())) {
+      if (!bySchedule || typeof bySchedule !== 'object') continue;
       this._data[climate] = {};
-      for (const [mode, week] of Object.entries(modes)) {
+      for (const [schedule, week] of Object.entries(bySchedule)) {
         if (!Array.isArray(week)) continue;
-        this._data[climate][mode] = [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i]));
+        this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i]));
       }
     }
   }
 
-  _week(climate, mode = this._mode) {
+  _week(climate, schedule = this._schedule) {
     if (!this._data[climate]) this._data[climate] = {};
-    if (!this._data[climate][mode]) {
-      this._data[climate][mode] = [0, 1, 2, 3, 4, 5, 6].map(() => [{ start: 0, preset: 'eco' }]);
+    if (!this._data[climate][schedule]) {
+      this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map(() => [{ start: 0, preset: 'eco' }]);
     }
-    return this._data[climate][mode];
+    return this._data[climate][schedule];
   }
 
   _name(entity) {
@@ -754,7 +756,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     const now = new Date();
     for (const [c, d] of Object.entries(out)) {
-      if (!d || !(parseDate(d.fin) > now)) delete out[c];
+      if (!d || !(parseDate(d.end) > now)) delete out[c];
     }
     return out;
   }
@@ -786,17 +788,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!d) return;
     const min = new Date(Date.now() + this._config.step * 60000);
     const f = endsAt < min ? min : endsAt;
-    this._sendOverride(climate, { ...d, fin: f.toISOString() });
+    this._sendOverride(climate, { ...d, end: f.toISOString() });
   }
 
   async _save() {
     const out = {};
-    for (const [climate, modes] of Object.entries(this._data)) {
+    for (const [climate, bySchedule] of Object.entries(this._data)) {
       out[climate] = {};
-      for (const [mode, week] of Object.entries(modes)) out[climate][mode] = week.map(serializeDay);
+      for (const [schedule, week] of Object.entries(bySchedule)) out[climate][schedule] = week.map(serializeDay);
     }
     try {
-      const result = await this._source().save(out, this._revision);
+      const result = await this._source().saveWeeks(out, this._revision);
       if (result && result.revision != null) this._revision = result.revision;
       this._dirty = false;
       this._msg = this._loc.t('saved');
@@ -820,7 +822,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const parts = [];
     if (a.current_temperature != null) parts.push(`${this._loc.number(a.current_temperature)}°`);
     const d = this._overrides()[climate];
-    if (d) parts.push(`⏱ ${this._overrideLabel(d)} → ${this._loc.time(minutesOf(parseDate(d.fin)))}`);
+    if (d) parts.push(`⏱ ${this._overrideLabel(d)} → ${this._loc.time(minutesOf(parseDate(d.end)))}`);
     else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) parts.push(this._loc.t('manual'));
     else if (a.preset_mode) parts.push(this._loc.preset(a.preset_mode));
     return parts.join(' · ');
@@ -839,7 +841,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const compact = this._shown.length > 1;
     const wide = this._loc.hour12 ? 25 : 0; // "6:30 AM" needs more room than "06:30"
     const t = dur >= (compact ? 60 : 75) + wide ? this._loc.time(start) : '';
-    const l = dur >= (compact ? 180 : 150) + wide ? esc(this._level(preset).name) : '';
+    const l = dur >= (compact ? 180 : 150) + wide ? esc(this._preset(preset).name) : '';
     return `<span class="t">${t}</span><span class="l">${l}</span>`;
   }
 
@@ -847,7 +849,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const segHtml = segs
       .map((s, i) => {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
-        const p = this._level(s.preset);
+        const p = this._preset(s.preset);
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : ''].join(' ');
         return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}">${this._segInner(s.start, end, s.preset)}</div>`;
@@ -859,17 +861,17 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
     const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
     const cs = this._clipSrc;
-    const isSrc = cs && cs.climate === climate && cs.mode === this._mode && cs.day === d;
+    const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && cs.day === d;
     return `<div class="bar${isSrc ? ' clipsrc' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${this._overrideHtml(climate, d)}${now}</div>`;
   }
 
-  // Override drawn over the schedule (only in the active mode's tab)
+  // Override drawn over the schedule (only in the active schedule's tab)
   _overrideHtml(climate, day) {
-    if (this._mode !== this._activeMode()) return '';
+    if (this._schedule !== this._activeSchedule()) return '';
     const d = this._overrides()[climate];
     const piece = this._overridePieces(climate).find((p) => p.day === day);
     if (!d || !piece) return '';
-    const endHM = this._loc.time(minutesOf(parseDate(d.fin)));
+    const endHM = this._loc.time(minutesOf(parseDate(d.end)));
     const label = `${this._overrideLabel(d)} → ${endHM}`;
     const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === day;
     return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${day}"
@@ -940,7 +942,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const stepSec = this._config.step * 60;
     const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>` : `<input type="time" data-edge="start" step="${stepSec}" value="${toHM(s.start)}">`;
     const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>` : `<input type="time" data-edge="end" step="${stepSec}" value="${toHM(end)}">`;
-    const presets = this._levels()
+    const presets = this._presets()
       .map((l) => `<button data-act="preset" data-preset="${esc(l.id)}" class="${s.preset === l.id ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`)
       .join('');
     return `${hint}<div class="editor">
@@ -962,7 +964,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const d = this._overrides()[climate];
     if (!d || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
     const t = this._loc.t;
-    const endsAt = parseDate(d.fin);
+    const endsAt = parseDate(d.end);
     const today = new Date();
     const dayLabel = endsAt.toDateString() === today.toDateString() ? t('today')
       : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
@@ -1037,13 +1039,14 @@ class ChauffageProgrammeCard extends HTMLElement {
   _render() {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
-    if (!this._source().available) {
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="missing">${esc(tr('integrationMissing'))}</div></ha-card>`;
+    if (!this._source().available || this._source().outdated) {
+      const text = this._source().outdated ? tr('restartNeeded') : tr('integrationMissing');
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="missing">${esc(text)}</div></ha-card>`;
       return;
     }
-    if (this._view === 'levels' && this._source().ready) {
+    if (this._view === 'presets' && this._source().ready) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-        <ha-card>${this._viewsHtml()}${this._levelsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+        <ha-card>${this._viewsHtml()}${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
       return;
     }
     if (!this._source().ready) {
@@ -1051,8 +1054,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       return;
     }
     const src = this._source();
-    const modes = this._modes();
-    const active = this._activeMode();
+    const schedules = this._schedules();
+    const active = this._activeSchedule();
     const today = todayIdx();
     this._renderedDay = today;
     const multi = this._shown.length > 1;
@@ -1065,31 +1068,31 @@ class ChauffageProgrammeCard extends HTMLElement {
       })
       .join('');
     const editable = src.editable;
-    const tabs = modes
-      .map((m) => `<button class="tab${m === this._mode ? ' on' : ''}" data-mode="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeMode'))}"></span>` : ''}${esc(this._modeName(m))}</button>${
-        editable && m === this._mode ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`)
+    const tabs = schedules
+      .map((m) => `<button class="tab${m === this._schedule ? ' on' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${esc(this._scheduleName(m))}</button>${
+        editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`)
       .join('') + (editable ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
-    const days = this._loc.dayOrder.map((d) => this._dayHtml(d, d === today && this._mode === active)).join('');
+    const days = this._loc.dayOrder.map((d) => this._dayHtml(d, d === today && this._schedule === active)).join('');
 
     const focus = this._focusClimate();
     const st = this._hass.states[focus];
-    // What each level means for the focused thermostat (see _levelTemperature); levels are
-    // set in the "Levels" view
-    const legend = this._levels()
+    // What each preset means for the focused thermostat (see _presetTemperature); presets are
+    // set in the "Presets" view
+    const legend = this._presets()
       .map((l) => {
         const target = this._targetOf(focus, l);
-        const t = multi || !st ? null : this._levelTemperature(focus, target);
+        const t = multi || !st ? null : this._presetTemperature(focus, target);
         const hint = !multi && 'preset' in target ? ` ${tr('presetHint')}` : '';
         return `<span><i style="background:${l.color}"></i>${esc(l.name)}${t != null ? ` ${this._loc.number(t)}°` : esc(hint)}</span>`;
       })
       .join('');
     const copyWeek = this._thermostats
       .map((t) => {
-        const opts = modes
-          .filter((m) => !(t.entity === focus && m === this._mode))
-          .map((m) => `<option value="${esc(t.entity)}|${esc(m)}">${esc(this._name(t.entity))} · ${esc(this._modeName(m))}</option>`)
+        const opts = schedules
+          .filter((m) => !(t.entity === focus && m === this._schedule))
+          .map((m) => `<option value="${esc(t.entity)}|${esc(m)}">${esc(this._name(t.entity))} · ${esc(this._scheduleName(m))}</option>`)
           .join('');
         return `<optgroup label="${esc(this._name(t.entity))}">${opts}</optgroup>`;
       })
@@ -1107,7 +1110,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>
         <div class="tabs">${tabs}</div>
         ${this._schedMenuHtml()}
-        ${this._modeBarHtml(active)}
+        ${this._scheduleBarHtml(active)}
         <div class="scale"><div></div>${multi ? '<div></div>' : ''}<div class="ticks">${ticks}</div><div></div></div>
         ${days}
         ${this._menuHtml()}
@@ -1272,7 +1275,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
       const tab = e.target.closest('.tab');
       if (tab) {
-        this._mode = tab.dataset.mode;
+        this._schedule = tab.dataset.schedule;
         this._schedEd = null;
         this._sel = null;
         this._overrideSel = null;
@@ -1326,7 +1329,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (ok) ok.click();
     });
 
-    // Typing a temperature for a thermostat's level means "use a temperature"
+    // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e) => {
       if (!e.target.hasAttribute('data-cell-temp')) return;
       const radio = root.querySelector('input[name="cell-kind"][value="temperature"]');
@@ -1350,15 +1353,15 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
   }
 
-  // Shown when the viewed tab is not the active mode: switch the heating mode from the card,
+  // Shown when the viewed tab is not the active schedule: activate it from the card,
   // without a separate input_select card.
-  _modeBarHtml(active) {
-    if (!this._mode || this._mode === active) return '';
+  _scheduleBarHtml(active) {
+    if (!this._schedule || this._schedule === active) return '';
     const t = this._loc.t;
-    const current = active ? t('activeModeBar', { mode: esc(this._modeName(active)) }) : esc(t('noActiveMode'));
-    return `<div class="mode-bar">
+    const current = active ? t('activeScheduleBar', { schedule: esc(this._scheduleName(active)) }) : esc(t('noActiveSchedule'));
+    return `<div class="schedule-bar">
       <span>${current}</span>
-      <button class="btn small" data-act="activate-mode">${esc(t('activate', { mode: this._modeName(this._mode) }))}</button>
+      <button class="btn small" data-act="activate-schedule">${esc(t('activate', { schedule: this._scheduleName(this._schedule) }))}</button>
     </div>`;
   }
 
@@ -1368,7 +1371,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const ed = this._schedEd;
     if (!ed) return '';
     const t = this._loc.t;
-    const modes = this._modes();
+    const schedules = this._schedules();
     const item = (act, label, extra = '', disabled = false, cls = 'mi') =>
       `<button class="${cls}" data-act="${act}" ${extra} ${disabled ? 'disabled' : ''}><span>${label}</span></button>`;
     const err = this._schedErr ? `<div class="sched-err">${esc(this._schedErr)}</div>` : '';
@@ -1381,17 +1384,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     let body;
     if (ed.kind === 'new') {
       if (ed.step === 'name') {
-        const from = ed.copy ? t('copyOfName', { name: this._modeName(ed.copy) }) : t('emptySchedule');
+        const from = ed.copy ? t('copyOfName', { name: this._scheduleName(ed.copy) }) : t('emptySchedule');
         body = `<div class="mh">${esc(t('newSchedule'))} · ${esc(from)}</div>${nameForm('', 'schedule-create', t('create'))}`;
       } else {
         body = `<div class="mh">${esc(t('newSchedule'))}</div>
           ${item('schedule-pick', esc(t('emptySchedule')), 'data-copy=""')}
           <div class="sep"></div>
-          ${modes.map((m) => item('schedule-pick', esc(t('copyOfName', { name: this._modeName(m) })), `data-copy="${esc(m)}"`)).join('')}`;
+          ${schedules.map((m) => item('schedule-pick', esc(t('copyOfName', { name: this._scheduleName(m) })), `data-copy="${esc(m)}"`)).join('')}`;
       }
     } else {
       const id = ed.id;
-      const name = this._modeName(id);
+      const name = this._scheduleName(id);
       if (ed.step === 'rename') {
         // The id does not change: automations use it
         body = `<div class="mh">${esc(t('scheduleId', { id }))}</div>${nameForm(name, 'schedule-rename', t('rename'))}`;
@@ -1399,11 +1402,11 @@ class ChauffageProgrammeCard extends HTMLElement {
         body = `<div class="sched-form">${esc(t('confirmDelete', { name }))}
           <div class="sched-btns"><button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button>${cancel}</div></div>`;
       } else {
-        const i = modes.indexOf(id);
-        const reason = id === this._activeMode() ? t('cannotDeleteActive') : modes.length < 2 ? t('cannotDeleteLast') : '';
+        const i = schedules.indexOf(id);
+        const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast') : '';
         body = `${item('schedule-rename-open', esc(t('renameMenu')))}
           ${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
-          ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= modes.length - 1)}
+          ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= schedules.length - 1)}
           <div class="sep"></div>
           ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
       }
@@ -1423,18 +1426,18 @@ class ChauffageProgrammeCard extends HTMLElement {
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
       const b = el ? el.getBoundingClientRect() : { bottom: 0, left: 0 };
       const left = Math.max(8, Math.min(b.left - card.left, card.width - 280));
-      this._schedEd = { kind, id: this._mode, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4, left };
+      this._schedEd = { kind, id: this._schedule, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4, left };
       return this._render();
     }
     if (act === 'schedule-close' || !ed) { this._schedEd = null; return this._render(); }
     if (act === 'schedule-pick') { ed.copy = ds.copy || null; ed.step = 'name'; return this._renderSchedMenu(); }
     if (act === 'schedule-rename-open') { ed.step = 'rename'; return this._renderSchedMenu(); }
     if (act === 'schedule-delete') { ed.step = 'delete'; return this._render(); }
-    const keep = this._modes().map((id) => ({ id }));
+    const keep = this._schedules().map((id) => ({ id }));
     const nameInput = this.shadowRoot.querySelector('input[data-sched-name]');
     const checkName = (except) => {
       const name = nameInput ? nameInput.value.trim() : '';
-      const taken = this._modes().some((m) => m !== except && this._modeName(m).trim().toLowerCase() === name.toLowerCase());
+      const taken = this._schedules().some((m) => m !== except && this._scheduleName(m).trim().toLowerCase() === name.toLowerCase());
       this._schedErr = !name ? t('nameRequired') : taken ? t('nameTaken') : '';
       if (this._schedErr) this._renderSchedMenu(name);
       return this._schedErr ? null : name;
@@ -1462,9 +1465,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._schedEd = null;
     if (this._dirty && !(await this._save())) return;
     try {
-      const result = await this._source().setModes(list, this._revision);
+      const result = await this._source().setSchedules(list, this._revision);
       if (result && result.revision != null) this._revision = result.revision;
-      if (created && result && result.modes) this._wantMode = result.modes[result.modes.length - 1].id;
+      if (created && result && result.schedules) this._wantSchedule = result.schedules[result.schedules.length - 1].id;
     } catch (e) {
       this._msg = e && e.code === 'stale' ? t('stale') : t('error', { message: e.message || e.code || e });
     }
@@ -1480,20 +1483,20 @@ class ChauffageProgrammeCard extends HTMLElement {
     input.focus();
   }
 
-  async _activateMode(mode) {
+  async _activateSchedule(schedule) {
     try {
-      await this._source().activateMode(mode);
-      this._msg = this._loc.t('modeActivated', { mode: this._modeName(mode) });
+      await this._source().activateSchedule(schedule);
+      this._msg = this._loc.t('scheduleActivated', { schedule: this._scheduleName(schedule) });
     } catch (e) {
       this._msg = this._loc.t('error', { message: e.message || e.code || e });
     }
     this._render();
   }
 
-  // Temperature a level gives a thermostat: its own for a temperature; for a preset, the one
+  // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one
   // Versatile Thermostat shows (comfort_temp… attributes: a deliberate extra for VTherm users),
   // otherwise the one last seen while that preset was active (learned by the integration)
-  _levelTemperature(climate, target) {
+  _presetTemperature(climate, target) {
     if ('temperature' in target) return target.temperature;
     const st = this._hass.states[climate];
     // VTherm 10+: preset_temperatures: {comfort_temp: …}; older versions: comfort_temp attributes
@@ -1506,48 +1509,48 @@ class ChauffageProgrammeCard extends HTMLElement {
     return typeof learned === 'number' ? learned : null;
   }
 
-  // What a level means for a thermostat: its mapping (as computed by the integration), else
+  // What a preset means for a thermostat: its mapping (as computed by the integration), else
   // the default for a thermostat the integration does not know yet
-  _targetOf(climate, level) {
+  _targetOf(climate, preset) {
     const src = this._source();
-    const known = src.targets(climate)[level.id];
+    const known = src.targets(climate)[preset.id];
     if (known) return known;
     const st = this._hass.states[climate];
-    const presets = (st && st.attributes.preset_modes) || [];
-    if (src.usePresets() && presets.includes(level.id)) return { preset: level.id };
-    return { temperature: level.temperature ?? 19 };
+    const own = (st && st.attributes.preset_modes) || []; // the thermostat's own presets
+    if (src.usePresets() && own.includes(preset.id)) return { preset: preset.id };
+    return { temperature: preset.temperature ?? 19 };
   }
 
-  // "Schedule | Levels" switch (integration only)
+  // "Schedule | Presets" switch
   _viewsHtml() {
     const t = this._loc.t;
-    const view = this._view === 'levels' ? 'levels' : 'schedule';
+    const view = this._view === 'presets' ? 'presets' : 'schedule';
     const button = (v, label) => `<button class="view${view === v ? ' on' : ''}" data-act="view" data-view="${v}">${esc(t(label))}</button>`;
-    return `<div class="views">${button('schedule', 'viewSchedule')}${button('levels', 'viewLevels')}</div>`;
+    return `<div class="views">${button('schedule', 'viewSchedule')}${button('presets', 'viewPresets')}</div>`;
   }
 
-  // Table: one column per level (header: the level, then its default temperature), one row per
-  // thermostat; each cell says what that thermostat does at that level
-  _levelsViewHtml() {
+  // Table: one column per preset (header: the preset, then its default temperature), one row per
+  // thermostat; each cell says what that thermostat does with that preset
+  _presetsViewHtml() {
     const t = this._loc.t;
     const src = this._source();
     const editable = src.editable;
-    const levels = this._levels();
+    const presets = this._presets();
     const sel = this._cell;
-    const isSel = (kind, level, climate) => sel && sel.kind === kind && sel.level === level && (sel.climate || null) === (climate || null);
-    const cell = (kind, level, climate, inner, cls) => {
-      const on = isSel(kind, level, climate) ? ' on' : '';
-      const attrs = `data-act="cell" data-kind="${kind}" data-level="${esc(level || '')}"${climate ? ` data-climate="${esc(climate)}"` : ''}`;
+    const isSel = (kind, preset, climate) => sel && sel.kind === kind && sel.preset === preset && (sel.climate || null) === (climate || null);
+    const cell = (kind, preset, climate, inner, cls) => {
+      const on = isSel(kind, preset, climate) ? ' on' : '';
+      const attrs = `data-act="cell" data-kind="${kind}" data-preset="${esc(preset || '')}"${climate ? ` data-climate="${esc(climate)}"` : ''}`;
       return editable ? `<button class="cell ${cls}${on}" ${attrs}>${inner}</button>` : `<span class="cell ${cls}">${inner}</span>`;
     };
-    const head = levels.map((l) => `<th>${cell('level', l.id, null, `<i style="background:${l.color}"></i>${esc(l.name)}`, 'head')}</th>`).join('')
+    const head = presets.map((l) => `<th>${cell('preset', l.id, null, `<i style="background:${l.color}"></i>${esc(l.name)}`, 'head')}</th>`).join('')
       + (editable ? `<th>${cell('new', '', null, '+', 'add')}</th>` : '');
-    const defaults = levels.map((l) => `<td>${cell('default', l.id, null, `${this._loc.number(l.temperature ?? 19)}°`, 'default')}</td>`).join('');
+    const defaults = presets.map((l) => `<td>${cell('default', l.id, null, `${this._loc.number(l.temperature ?? 19)}°`, 'default')}</td>`).join('');
     const rows = this._thermostats.map(({ entity }) => {
       const explicit = src.mapping(entity);
-      const cells = levels.map((l) => {
+      const cells = presets.map((l) => {
         const target = this._targetOf(entity, l);
-        const temp = this._levelTemperature(entity, target);
+        const temp = this._presetTemperature(entity, target);
         const value = temp != null ? `${this._loc.number(temp)}°` : '';
         let inner;
         let cls;
@@ -1564,12 +1567,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       }).join('');
       return `<tr><th class="name">${esc(this._name(entity))}</th>${cells}${editable ? '<td></td>' : ''}</tr>`;
     }).join('');
-    return `<div class="levels-view">
-      <div class="table-wrap"><table class="lv-table">
+    return `<div class="presets-view">
+      <div class="table-wrap"><table class="pv-table">
         <thead><tr><th></th>${head}</tr></thead>
-        <tbody><tr class="defaults"><th>${esc(t('levelDefaults'))}</th>${defaults}${editable ? '<td></td>' : ''}</tr>${rows}</tbody>
+        <tbody><tr class="defaults"><th>${esc(t('presetDefaults'))}</th>${defaults}${editable ? '<td></td>' : ''}</tr>${rows}</tbody>
       </table></div>
-      <div class="lv-key">⟲ ${esc(t('keyPreset'))} · ● ${esc(t('keyCustom'))} · <span class="default">${esc(t('keyDefault'))}</span></div>
+      <div class="pv-key">⟲ ${esc(t('keyPreset'))} · ● ${esc(t('keyCustom'))} · <span class="default">${esc(t('keyDefault'))}</span></div>
       ${this._cellPanelHtml()}
     </div>`;
   }
@@ -1580,44 +1583,44 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!sel) return '';
     const t = this._loc.t;
     const src = this._source();
-    const levels = this._levels();
-    const level = levels.find((l) => l.id === sel.level) || { id: '', name: '', color: '#9e9e9e', temperature: 19 };
-    const tempInput = (value) => `<div class="lv-temp">
+    const presets = this._presets();
+    const preset = presets.find((l) => l.id === sel.preset) || { id: '', name: '', color: '#9e9e9e', temperature: 19 };
+    const tempInput = (value) => `<div class="pv-temp">
         <button class="btn icon" data-act="cell-step" data-delta="-0.5">−</button>
         <input type="number" data-cell-temp step="0.5" min="5" max="30" value="${value}"> °C
         <button class="btn icon" data-act="cell-step" data-delta="0.5">+</button></div>`;
     let title;
     let body;
     if (sel.kind === 'thermostat') {
-      title = t('levelFor', { level: level.name, name: this._name(sel.climate) });
-      const explicit = src.mapping(sel.climate)[level.id];
+      title = t('presetFor', { preset: preset.name, name: this._name(sel.climate) });
+      const explicit = src.mapping(sel.climate)[preset.id];
       const st = this._hass.states[sel.climate];
-      const presets = ((st && st.attributes.preset_modes) || []).map(String)
+      const own = ((st && st.attributes.preset_modes) || []).map(String)
         .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()));
-      // What "automatic" gives: the thermostat's preset named like the level, or the level's default
-      const auto = src.usePresets() && presets.includes(level.id)
-        ? `${t('levelPreset').toLowerCase()} ${this._loc.preset(level.id)}`
-        : `${this._loc.number(level.temperature ?? 19)} °C`;
+      // What "automatic" gives: the thermostat's own preset of the same name, or the preset's default
+      const auto = src.usePresets() && own.includes(preset.id)
+        ? `${t('ownPreset').toLowerCase()} ${this._loc.preset(preset.id)}`
+        : `${this._loc.number(preset.temperature ?? 19)} °C`;
       const choice = !explicit ? 'auto' : 'preset' in explicit ? 'preset' : 'temperature';
-      const current = this._targetOf(sel.climate, level);
-      const temp = explicit && 'temperature' in explicit ? explicit.temperature : this._levelTemperature(sel.climate, current) ?? level.temperature ?? 19;
-      const radio = (value, label) => `<label class="lv-kind"><input type="radio" name="cell-kind" value="${value}" ${choice === value ? 'checked' : ''}> ${label}</label>`;
-      body = radio('auto', esc(t('levelAuto', { value: auto })))
-        + (presets.length ? radio('preset', `${esc(t('levelPreset'))} <select data-cell-preset>${presets.map((p) => `<option value="${esc(p)}" ${((explicit && explicit.preset) || level.id) === p ? 'selected' : ''}>${esc(this._loc.preset(p))}</option>`).join('')}</select>`) : '')
-        + radio('temperature', esc(t('levelTemperature'))) + tempInput(temp);
+      const current = this._targetOf(sel.climate, preset);
+      const temp = explicit && 'temperature' in explicit ? explicit.temperature : this._presetTemperature(sel.climate, current) ?? preset.temperature ?? 19;
+      const radio = (value, label) => `<label class="pv-kind"><input type="radio" name="cell-kind" value="${value}" ${choice === value ? 'checked' : ''}> ${label}</label>`;
+      body = radio('auto', esc(t('presetAuto', { value: auto })))
+        + (own.length ? radio('preset', `${esc(t('ownPreset'))} <select data-cell-preset>${own.map((p) => `<option value="${esc(p)}" ${((explicit && explicit.preset) || preset.id) === p ? 'selected' : ''}>${esc(this._loc.preset(p))}</option>`).join('')}</select>`) : '')
+        + radio('temperature', esc(t('presetTemperature'))) + tempInput(temp);
     } else if (sel.kind === 'default') {
-      title = t('defaultFor', { level: level.name });
-      body = `<div class="muted">${esc(t('defaultHelp'))}</div>${tempInput(level.temperature ?? 19)}`;
+      title = t('defaultFor', { preset: preset.name });
+      body = `<div class="muted">${esc(t('defaultHelp'))}</div>${tempInput(preset.temperature ?? 19)}`;
     } else {
       const isNew = sel.kind === 'new';
-      title = isNew ? t('newLevel') : level.name;
-      const used = !isNew && src.usedLevels().includes(level.id);
-      const others = levels.filter((l) => l.id !== level.id);
-      body = `<div class="lv-row">
-          <input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : level.color)}" title="${esc(t('levelColor'))}">
-          <input type="text" data-cell-name value="${esc(isNew ? '' : level.name)}" placeholder="${esc(t('levelName'))}"></div>`
+      title = isNew ? t('newPreset') : preset.name;
+      const used = !isNew && src.usedPresets().includes(preset.id);
+      const others = presets.filter((l) => l.id !== preset.id);
+      body = `<div class="pv-row">
+          <input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t('presetColor'))}">
+          <input type="text" data-cell-name value="${esc(isNew ? '' : preset.name)}" placeholder="${esc(t('presetName'))}"></div>`
         + (isNew ? tempInput(19) : '')
-        + (!isNew && levels.length > 1 ? `<label class="lv-kind"><input type="checkbox" data-cell-delete> ${esc(t('deleteLevel'))}${used
+        + (!isNew && presets.length > 1 ? `<label class="pv-kind"><input type="checkbox" data-cell-delete> ${esc(t('deletePreset'))}${used
           ? ` · ${esc(t('replaceWith'))} <select data-cell-replacement>${others.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select>` : ''}</label>` : '');
     }
     return `<div class="panel" data-panel="cell">
@@ -1631,8 +1634,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   async _cellAction(act, ds) {
     const root = this.shadowRoot;
     if (act === 'cell') {
-      const same = this._cell && this._cell.kind === ds.kind && this._cell.level === ds.level && (this._cell.climate || '') === (ds.climate || '');
-      this._cell = same ? null : { kind: ds.kind, level: ds.level, climate: ds.climate };
+      const same = this._cell && this._cell.kind === ds.kind && this._cell.preset === ds.preset && (this._cell.climate || '') === (ds.climate || '');
+      this._cell = same ? null : { kind: ds.kind, preset: ds.preset, climate: ds.climate };
       return this._render();
     }
     const sel = this._cell;
@@ -1645,25 +1648,25 @@ class ChauffageProgrammeCard extends HTMLElement {
       return undefined;
     }
     const src = this._source();
-    const levels = this._levels().map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19 }));
+    const presets = this._presets().map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19 }));
     const value = (sel2) => { const el = root.querySelector(sel2); return el ? el.value : ''; };
     try {
       if (sel.kind === 'thermostat') {
         const mapping = { ...src.mapping(sel.climate) };
         const kind = (root.querySelector('input[name="cell-kind"]:checked') || {}).value || 'auto';
-        if (kind === 'auto') delete mapping[sel.level];
-        else if (kind === 'preset') mapping[sel.level] = { preset: value('[data-cell-preset]') };
-        else mapping[sel.level] = { temperature: Number(input.value) };
+        if (kind === 'auto') delete mapping[sel.preset];
+        else if (kind === 'preset') mapping[sel.preset] = { preset: value('[data-cell-preset]') };
+        else mapping[sel.preset] = { temperature: Number(input.value) };
         await src.setMapping(sel.climate, mapping);
       } else if (sel.kind === 'default') {
-        await src.setLevels(levels.map((l) => (l.id === sel.level ? { ...l, temperature: Number(input.value) } : l)), {});
+        await src.setPresets(presets.map((l) => (l.id === sel.preset ? { ...l, temperature: Number(input.value) } : l)), {});
       } else if (sel.kind === 'new') {
-        await src.setLevels([...levels, { name: value('[data-cell-name]').trim(), color: value('[data-cell-color]'), temperature: Number(input.value) }], {});
+        await src.setPresets([...presets, { name: value('[data-cell-name]').trim(), color: value('[data-cell-color]'), temperature: Number(input.value) }], {});
       } else if (root.querySelector('[data-cell-delete]') && root.querySelector('[data-cell-delete]').checked) {
         const replacement = value('[data-cell-replacement]');
-        await src.setLevels(levels.filter((l) => l.id !== sel.level), replacement ? { [sel.level]: replacement } : {});
+        await src.setPresets(presets.filter((l) => l.id !== sel.preset), replacement ? { [sel.preset]: replacement } : {});
       } else {
-        await src.setLevels(levels.map((l) => (l.id === sel.level
+        await src.setPresets(presets.map((l) => (l.id === sel.preset
           ? { ...l, name: value('[data-cell-name]').trim(), color: value('[data-cell-color]') } : l)), {});
       }
       this._cell = null;
@@ -1708,7 +1711,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const s = segs[idx];
     const end = idx < segs.length - 1 ? segs[idx + 1].start : DAY_MIN;
     if (m < s.start + step || m > end - step) return;
-    segs.splice(idx + 1, 0, { start: m, preset: otherLevel(this._levels(), s.preset) });
+    segs.splice(idx + 1, 0, { start: m, preset: otherPreset(this._presets(), s.preset) });
     this._commit(climate, day, m);
   }
 
@@ -1748,21 +1751,21 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _copyWeek(value) {
     if (!value) return;
-    const [climate, mode] = value.split('|');
+    const [climate, schedule] = value.split('|');
     const source = this._focusClimate();
     const week = clone(this._week(source));
     if (!this._data[climate]) this._data[climate] = {};
-    this._data[climate][mode] = week;
+    this._data[climate][schedule] = week;
     this._dirty = true;
-    this._msg = this._loc.t('weekCopiedTo', { source: this._name(source), target: this._name(climate), mode: this._modeName(mode) });
+    this._msg = this._loc.t('weekCopiedTo', { source: this._name(source), target: this._name(climate), schedule: this._scheduleName(schedule) });
     this._render();
   }
 
   _copyToClipboard(climate, day) {
     const segs = clone(this._week(climate)[day]);
-    const label = `${this._name(climate)} · ${this._loc.days[day]} (${this._modeName(this._mode)})`;
+    const label = `${this._name(climate)} · ${this._loc.days[day]} (${this._scheduleName(this._schedule)})`;
     this._clip = { segs, label };
-    this._clipSrc = { climate, mode: this._mode, day };
+    this._clipSrc = { climate, schedule: this._schedule, day };
     try { localStorage.setItem(LS_CLIP, JSON.stringify(this._clip)); } catch (e) { /* ignore */ }
     // Also copies as text to the system clipboard (when the browser allows it)
     try {
@@ -1796,7 +1799,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const d = c && this._overrides()[c];
       if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
       if (act === 'override-del') return this._sendOverride(c, null);
-      if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.fin).getTime() + Number(ds.min) * 60000));
+      if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.end).getTime() + Number(ds.min) * 60000));
     }
     if (act === 'view') {
       this._view = ds.view;
@@ -1815,7 +1818,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
     if (act === 'paste-day') return this._pasteFromClipboard(ds.climate, Number(ds.day));
-    if (act === 'activate-mode') return this._activateMode(this._mode);
+    if (act === 'activate-schedule') return this._activateSchedule(this._schedule);
     if (act === 'multi-sel') {
       this._multiSel = !this._multiSel;
       return this._render();
@@ -1841,7 +1844,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const m1 = this._snap(s.start + (end - s.start) / 3);
       const m2 = this._snap(s.start + (2 * (end - s.start)) / 3);
       if (m1 <= s.start || m2 >= end || m2 <= m1 || m1 - s.start < step) return;
-      segs.splice(idx + 1, 0, { start: m1, preset: otherLevel(this._levels(), s.preset) }, { start: m2, preset: s.preset });
+      segs.splice(idx + 1, 0, { start: m1, preset: otherPreset(this._presets(), s.preset) }, { start: m2, preset: s.preset });
       this._commit(climate, day, m1);
     } else if (act === 'delete') {
       if (segs.length === 1) return;
@@ -1882,10 +1885,10 @@ const STYLE = `
     background:var(--card-background-color); }
   .sched-btns { display:flex; gap:6px; justify-content:flex-end; }
   .sched-err { color:var(--error-color,#db4437); font-size:.9em; }
-  .mode-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px;
+  .schedule-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px;
     margin:-4px 0 10px; padding:6px 10px; border-radius:8px; font-size:.88em;
     background:var(--secondary-background-color); color:var(--secondary-text-color); }
-  .mode-bar strong { color:var(--primary-text-color); }
+  .schedule-bar strong { color:var(--primary-text-color); }
   .btn.small { padding:4px 10px; font-size:.95em; }
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;
     background:var(--success-color,#43a047); vertical-align:middle; }
@@ -2012,10 +2015,10 @@ const STYLE = `
   .view:last-child { border-radius:0 12px 12px 0; }
   .view.on { background:var(--primary-color); border-color:var(--primary-color); color:var(--text-primary-color,#fff); }
   .table-wrap { overflow-x:auto; }
-  .lv-table { border-collapse:collapse; width:100%; font-size:.9em; }
-  .lv-table th, .lv-table td { padding:2px; text-align:center; white-space:nowrap; }
-  .lv-table th.name, .lv-table tr.defaults th { text-align:left; font-weight:normal; color:var(--secondary-text-color); padding-right:8px; }
-  .lv-table tr.defaults td, .lv-table tr.defaults th { border-bottom:1px solid var(--divider-color); padding-bottom:6px; }
+  .pv-table { border-collapse:collapse; width:100%; font-size:.9em; }
+  .pv-table th, .pv-table td { padding:2px; text-align:center; white-space:nowrap; }
+  .pv-table th.name, .pv-table tr.defaults th { text-align:left; font-weight:normal; color:var(--secondary-text-color); padding-right:8px; }
+  .pv-table tr.defaults td, .pv-table tr.defaults th { border-bottom:1px solid var(--divider-color); padding-bottom:6px; }
   .cell { display:inline-flex; align-items:center; justify-content:center; gap:5px; width:100%; min-width:64px;
     padding:5px 6px; border:1px solid transparent; border-radius:6px; background:transparent; font:inherit; color:inherit; }
   button.cell { cursor:pointer; }
@@ -2026,8 +2029,8 @@ const STYLE = `
   .cell.default { color:var(--secondary-text-color); }
   .cell.custom { font-weight:600; color:var(--primary-text-color); }
   .cell.add { color:var(--primary-color); font-weight:600; }
-  .lv-key { margin-top:6px; font-size:.78em; color:var(--secondary-text-color); }
-  .lv-key .default { opacity:.8; }
+  .pv-key { margin-top:6px; font-size:.78em; color:var(--secondary-text-color); }
+  .pv-key .default { opacity:.8; }
   .panel { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--divider-color);
     background:var(--card-background-color); display:flex; flex-direction:column; gap:8px; }
   .panel-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -2035,11 +2038,11 @@ const STYLE = `
     background:var(--secondary-background-color); }
   .panel input[type=number] { width:70px; }
   .panel input[type=color] { width:36px; height:28px; padding:0 2px; }
-  .lv-kind { display:flex; align-items:center; gap:6px; }
-  .lv-temp { display:flex; align-items:center; gap:6px; }
-  .lv-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-  .lv-row input[type=text] { flex:1; min-width:100px; }
-  .lv-row.removed { color:var(--secondary-text-color); }
+  .pv-kind { display:flex; align-items:center; gap:6px; }
+  .pv-temp { display:flex; align-items:center; gap:6px; }
+  .pv-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .pv-row input[type=text] { flex:1; min-width:100px; }
+  .pv-row.removed { color:var(--secondary-text-color); }
   .missing { color:var(--secondary-text-color); padding:16px; }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:30px 60px 1fr 28px; }
@@ -2056,7 +2059,7 @@ if (!customElements.get('chauffage-programme-card')) customElements.define('chau
 
 // =====================================================================
 //  Block added to the more-info dialog of a scheduled thermostat: current day,
-//  week of the active mode, editable temporary override.
+//  week of the active schedule, editable temporary override.
 //  HA offers no official extension point: the block is inserted into its internal
 //  structure. If an HA update changes it, the block no longer shows up, with no
 //  other consequence.
@@ -2098,18 +2101,18 @@ class ChauffageMoreInfo extends HTMLElement {
     if (src.available && !this._unlisten) {
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
     }
-    const { schedules, overrides, mode } = src.stamps;
+    const { weeks, overrides, schedule } = src.stamps;
     if (this._key && overrides !== this._key[2]) this._pending = undefined;
     // Redraw only when relevant data changed (or every new minute)
-    const key = [s[this._entity], schedules, overrides, mode, Math.floor(Date.now() / 60000), this._loc.signature];
+    const key = [s[this._entity], weeks, overrides, schedule, Math.floor(Date.now() / 60000), this._loc.signature];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
     this._key = key;
     this._render();
   }
 
-  _level(id) {
-    return levelOf(levelsOf(dataSource(this._hass), this._loc), id, this._loc);
+  _preset(id) {
+    return presetOf(presetsOf(dataSource(this._hass), this._loc), id, this._loc);
   }
 
   _currentOverride() {
@@ -2134,21 +2137,21 @@ class ChauffageMoreInfo extends HTMLElement {
     const d = this._currentOverride();
     if (!d) return;
     const min = new Date(Date.now() + MORE_INFO_CFG.step * 60000);
-    this._send({ ...d, fin: (endsAt < min ? min : endsAt).toISOString() });
+    this._send({ ...d, end: (endsAt < min ? min : endsAt).toISOString() });
   }
 
   _week() {
     const src = dataSource(this._hass);
-    const progs = src.schedules();
-    const mode = src.activeMode();
-    const week = progs[this._entity] && progs[this._entity][mode];
-    return { mode, week: Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null };
+    const weeks = src.weeks();
+    const schedule = src.activeSchedule();
+    const week = weeks[this._entity] && weeks[this._entity][schedule];
+    return { schedule: schedule && src.scheduleName(schedule), week: Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null };
   }
 
   _bar(segs, piece, showNow, big) {
     const segHtml = segs.map((s, i) => {
       const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
-      const p = this._level(s.preset);
+      const p = this._preset(s.preset);
       const txt = big && end - s.start >= (this._loc.hour12 ? 120 : 90) ? `<span>${this._loc.time(s.start)}</span>` : '';
       return `<div class="seg" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}">${txt}</div>`;
     }).join('');
@@ -2166,7 +2169,7 @@ class ChauffageMoreInfo extends HTMLElement {
 
   _render() {
     const t = this._loc.t;
-    const { mode, week } = this._week();
+    const { schedule, week } = this._week();
     if (!week) { this.shadowRoot.innerHTML = ''; this.style.display = 'none'; return; }
     this.style.display = '';
     const today = todayIdx();
@@ -2180,16 +2183,16 @@ class ChauffageMoreInfo extends HTMLElement {
     const now = nowMin();
     let idx = 0;
     segs.forEach((s, i) => { if (s.start <= now) idx = i; });
-    const current = this._level(segs[idx].preset).name;
+    const current = this._preset(segs[idx].preset).name;
     const next = segs[idx + 1];
     const followText = next
-      ? t('untilThen', { current, time: this._loc.time(next.start), next: this._level(next.preset).name })
+      ? t('untilThen', { current, time: this._loc.time(next.start), next: this._preset(next.preset).name })
       : t('untilMidnight', { current });
 
     let status;
     let endDay = '';
     if (d) {
-      const endsAt = parseDate(d.fin);
+      const endsAt = parseDate(d.end);
       const remaining = Math.max(0, Math.round((endsAt - new Date()) / 60000));
       const lastPiece = pieces.find((p) => p.isLast);
       const dayLabel = endsAt.toDateString() === new Date().toDateString()
@@ -2221,7 +2224,7 @@ class ChauffageMoreInfo extends HTMLElement {
 
     this.shadowRoot.innerHTML = `<style>${MORE_INFO_STYLE}</style>
       <div class="wrap">
-        <div class="title">${esc(t('schedule'))} <span class="muted">· ${esc(mode)}</span></div>
+        <div class="title">${esc(t('schedule'))} <span class="muted">· ${esc(schedule)}</span></div>
         ${status}
         <div class="today-lbl">${esc(t('todayTitle'))}</div>
         ${this._bar(segs, pieceFor(today), true, true)}
@@ -2241,7 +2244,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const d = this._currentOverride();
     if (!d) return;
     if (b.hasAttribute('data-del')) return this._send(null);
-    this._setEnd(new Date(parseDate(d.fin).getTime() + Number(b.dataset.min) * 60000));
+    this._setEnd(new Date(parseDate(d.end).getTime() + Number(b.dataset.min) * 60000));
   }
 
   _onChange(e) {
@@ -2372,14 +2375,14 @@ function watchMoreInfo(entityId) {
       if (injected || tries > 25) clearInterval(window.__chauffageMoreInfoTimer);
       return;
     }
-    const progs = dataSource(hass).schedules();
+    const weeks = dataSource(hass).weeks();
     // Location: end of the dialog's "info" view; otherwise right after the thermostat controls
     const info = deepQuery(dialog.shadowRoot, 'ha-more-info-info');
     const content = info ? null : deepQuery(dialog.shadowRoot, 'more-info-content');
     const host = info ? info.shadowRoot || info : content && content.parentNode;
     if (!host) return; // another dialog tab (history, settings…)
     let block = host.querySelector('chauffage-moreinfo');
-    if (!current.startsWith('climate.') || !progs || typeof progs !== 'object' || !progs[current]) {
+    if (!current.startsWith('climate.') || !weeks[current]) {
       if (block) block.remove();
       return;
     }
@@ -2410,7 +2413,7 @@ if (!window.__chauffageMoreInfoListener) {
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === 'chauffage-programme-card')) window.customCards.push({
   type: 'chauffage-programme-card',
-  name: resolveLanguage(null, typeof navigator !== 'undefined' && navigator.language) === 'fr' ? 'Programme de chauffe' : 'Heating schedule',
+  name: resolveLanguage(null, typeof navigator !== 'undefined' && navigator.language) === 'fr' ? 'Plannings de chauffe' : 'Heating schedules',
   description: resolveLanguage(null, typeof navigator !== 'undefined' && navigator.language) === 'fr'
     ? 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée'
     : 'Weekly heating schedules, several thermostats per day',

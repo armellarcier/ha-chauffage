@@ -104,11 +104,11 @@ describe('the card in English', () => {
     assert.match(root.querySelector('.bar[data-day="0"] .seg[data-idx="1"]').title, /6:30\s?AM/); // Monday
   });
 
-  test('the "activate mode" bar', () => {
+  test('the "activate schedule" bar', () => {
     const card = createCard(fakeHass({ locale: english }));
-    card.shadowRoot.querySelector('.tab[data-mode="away"]').click();
-    assert.match(card.shadowRoot.querySelector('.mode-bar').textContent, /Active schedule: Normal/);
-    assert.match(card.shadowRoot.querySelector('.mode-bar').textContent, /Activate “Absent”/);
+    card.shadowRoot.querySelector('.tab[data-schedule="away"]').click();
+    assert.match(card.shadowRoot.querySelector('.schedule-bar').textContent, /Active schedule: Normal/);
+    assert.match(card.shadowRoot.querySelector('.schedule-bar').textContent, /Activate “Absent”/);
   });
 
   test('switching the HA language redraws the card in the new language', () => {

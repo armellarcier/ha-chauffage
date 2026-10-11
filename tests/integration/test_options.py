@@ -1,4 +1,4 @@
-"""Options (default settings), and what the card sets: heating levels, per-thermostat mappings."""
+"""Options (default settings), and what the card sets: presets, per-thermostat mappings."""
 
 import pytest
 
@@ -11,7 +11,7 @@ async def start(bench: Bench, options: dict | None = None) -> None:
     await bench.go_to("10:00")
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await bench.setup(options)
-    await bench.save_schedules(SCHEDULES)
+    await bench.save_weeks(SCHEDULES)
     bench.applied()
 
 
@@ -30,7 +30,7 @@ async def test_the_options_form(bench: Bench):
 
 
 async def test_without_presets_every_thermostat_is_driven_by_temperature(bench: Bench):
-    """VTherm included: it receives the levels' temperatures (and switches to preset "none")."""
+    """VTherm included: it receives the presets' temperatures (and switches to preset "none")."""
     await start(bench, {"use_presets": False})
     await bench.go_to("17:30")
     assert bench.temperature_calls[-1] == ("climate.salon", 20.0)
@@ -57,7 +57,7 @@ async def test_learned_temperatures_are_given_to_the_card(bench: Bench):
 
 # ----- set from the card (websocket) -----
 
-async def test_the_card_sets_what_a_level_means_for_a_thermostat(bench: Bench, ws_client):
+async def test_the_card_sets_what_a_preset_means_for_a_thermostat(bench: Bench, ws_client):
     await start(bench)
     client = await ws_client(bench.hass)
     await client.send_json_auto_id({"type": "chauffage/mapping/set", "entity_id": "climate.salon",
@@ -66,30 +66,30 @@ async def test_the_card_sets_what_a_level_means_for_a_thermostat(bench: Bench, w
     await bench.hass.async_block_till_done()
     assert bench.temperature_calls[-1] == ("climate.salon", 16.5)
     await client.send_json_auto_id({"type": "chauffage/mapping/set", "entity_id": "climate.salon",
-                                    "mapping": {"eco": {"preset": "unknown_level_is_fine"}, "sleep": {"temperature": 1}}})
+                                    "mapping": {"eco": {"preset": "unknown_climate_preset_is_fine"}, "sleep": {"temperature": 1}}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
 
 
-async def test_the_card_edits_the_levels(bench: Bench, ws_client):
+async def test_the_card_edits_the_presets(bench: Bench, ws_client):
     await start(bench)
-    levels = [dict(lv) for lv in bench.runtime.data["levels"] if lv["id"] != "comfort"]
-    levels.append({"name": "Nuit", "color": "#3f51b5", "temperature": 18})
+    presets = [dict(p) for p in bench.runtime.data["presets"] if p["id"] != "comfort"]
+    presets.append({"name": "Nuit", "color": "#3f51b5", "temperature": 18})
     client = await ws_client(bench.hass)
-    await client.send_json_auto_id({"type": "chauffage/levels/set", "levels": levels})
+    await client.send_json_auto_id({"type": "chauffage/presets/set", "presets": presets})
     reply = await client.receive_json()
     assert not reply["success"] and "replacement" in reply["error"]["message"]  # comfort is used
-    await client.send_json_auto_id({"type": "chauffage/levels/set", "levels": levels, "replacements": {"comfort": "nuit"}})
+    await client.send_json_auto_id({"type": "chauffage/presets/set", "presets": presets, "replacements": {"comfort": "nuit"}})
     assert (await client.receive_json())["success"]
-    assert [lv["id"] for lv in bench.runtime.data["levels"]] == ["eco", "boost", "frost", "nuit"]
-    assert bench.runtime.data["schedules"]["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
+    assert [lv["id"] for lv in bench.runtime.data["presets"]] == ["eco", "boost", "frost", "nuit"]
+    assert bench.runtime.data["weeks"]["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
 
 
 @pytest.mark.parametrize("command", [
-    {"type": "chauffage/levels/set", "levels": []},
+    {"type": "chauffage/presets/set", "presets": []},
     {"type": "chauffage/mapping/set", "entity_id": "climate.salon", "mapping": {}},
 ])
-async def test_level_and_mapping_changes_need_an_admin(bench: Bench, ws_client, command):
+async def test_preset_and_mapping_changes_need_an_admin(bench: Bench, ws_client, command):
     await start(bench)
     client = await ws_client(bench.hass, admin=False)
     await client.send_json_auto_id(command)
@@ -101,6 +101,6 @@ async def test_without_schedules_nothing_is_learned(bench: Bench):
     await bench.go_to("10:00")
     bench.thermostat("climate.cuisine", "eco")
     await bench.setup()
-    await bench.save_schedules({"climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
-    await bench.save_schedules({})
+    await bench.save_weeks({"climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
+    await bench.save_weeks({})
     assert bench.runtime.data["preset_temperatures"] == {}

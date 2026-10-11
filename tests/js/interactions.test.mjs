@@ -6,7 +6,7 @@ import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay, ChauffageProgrammeCard } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
-const day = (card, climate, d, mode) => serializeDay(card._week(climate, mode)[d]);
+const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 // One pixel per minute: clientX is a time of day in minutes
 const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
@@ -221,7 +221,7 @@ describe('error messages', () => {
   afterEach(() => mock.timers.reset());
   const failing = (hass) => { hass.callWS = async () => { throw { message: 'boom' }; }; hass.callService = hass.callWS; return hass; };
 
-  test('saving, removing an override, activating a mode', async () => {
+  test('saving, removing an override, activating a schedule', async () => {
     const hass = failing(fakeHass({ overrides: { 'climate.salon': override } }));
     const card = createCard(hass, { show: ['climate.salon'] });
     card._dirty = true;
@@ -233,16 +233,16 @@ describe('error messages', () => {
     assert.match($(card, '.msg').textContent, /boom/);
     assert.ok(card._overrides()['climate.salon'], 'the override is shown again');
 
-    card._mode = 'away';
-    await card._activateMode('away');
+    card._schedule = 'away';
+    await card._activateSchedule('away');
     assert.match($(card, '.msg').textContent, /boom/);
   });
 
-  test('a level change refused by the integration', async () => {
+  test('a preset change refused by the integration', async () => {
     const hass = failing(fakeIntegrationHass());
     const card = createCard(hass);
-    $(card, '[data-act="view"][data-view="levels"]').click();
-    $(card, '[data-kind="default"][data-level="eco"]').click();
+    $(card, '[data-act="view"][data-view="presets"]').click();
+    $(card, '[data-kind="default"][data-preset="eco"]').click();
     await card._action('cell-apply', {});
     assert.match($(card, '.msg').textContent, /boom/);
     assert.ok($(card, '[data-panel="cell"]'), 'the panel stays open');
@@ -263,7 +263,7 @@ describe('dashboard editor helpers', () => {
 describe('slot editor buttons', () => {
   const select = (card, idx) => $(card, `.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="${idx}"]`).click();
 
-  test('"Insert a slot" splits the slot in three, the middle one in another level', () => {
+  test('"Insert a slot" splits the slot in three, the middle one in another preset', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     select(card, 2); // 08:30 → 17:30 eco
     $(card, '.editor [data-act="insert"]').click();
@@ -317,8 +317,8 @@ describe('edits in progress', () => {
     const card = createCard(hass, { show: ['climate.salon'] });
     card._split('climate.salon', 0, 12 * 60);
     const mine = day(card, 'climate.salon', 0);
-    hass.push({ modes: [{ id: 'normal', name: 'Normal' }], active_mode: 'normal',
-      schedules: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
+    hass.push({ schedules: [{ id: 'normal', name: 'Normal' }], active_schedule: 'normal',
+      weeks: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
     assert.deepEqual(day(card, 'climate.salon', 0), mine);
     assert.equal(card._dirty, true);
   });
@@ -327,8 +327,8 @@ describe('edits in progress', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass, { show: ['climate.salon'] });
     card._split('climate.salon', 0, 12 * 60);
-    hass.push({ modes: [{ id: 'normal', name: 'Normal' }], active_mode: 'normal',
-      schedules: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
+    hass.push({ schedules: [{ id: 'normal', name: 'Normal' }], active_schedule: 'normal',
+      weeks: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
     $(card, '[data-act="cancel"]').click();
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 frost']);
   });
@@ -350,18 +350,18 @@ describe('thermostats shown', () => {
   });
 });
 
-describe('levels without the thermostats\' presets (option off)', () => {
+describe('presets without the thermostats\' own presets (option off)', () => {
   test('every cell is a temperature', () => {
     const data = {
-      modes: [{ id: 'normal', name: 'Normal' }], active_mode: 'normal', schedules: {}, overrides: {}, revision: 1,
-      levels: [{ id: 'comfort', name: 'Confort', color: '#f57c00', temperature: 20 }],
+      schedules: [{ id: 'normal', name: 'Normal' }], active_schedule: 'normal', weeks: {}, overrides: {}, revision: 1,
+      presets: [{ id: 'comfort', name: 'Confort', color: '#f57c00', temperature: 20 }],
       mappings: {}, targets: {}, preset_temperatures: {}, use_presets: false,
     };
     const hass = fakeIntegrationHass({ data });
     hass.states['climate.salon'].attributes.preset_modes = ['comfort'];
     const card = createCard(hass);
-    $(card, '[data-act="view"][data-view="levels"]').click();
-    const cell = $(card, '[data-kind="thermostat"][data-level="comfort"][data-climate="climate.salon"]');
+    $(card, '[data-act="view"][data-view="presets"]').click();
+    const cell = $(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(cell.textContent.trim(), '20°');
   });
 });

@@ -1,4 +1,4 @@
-// "Programme" block injected into a thermostat's more-info dialog.
+// "Schedule" block injected into a thermostat's more-info dialog.
 import { fakeHass, cleanup } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +19,13 @@ describe('more-info block', () => {
 
   test('without override: current and next slot', () => {
     const el = block(fakeHass(), 'climate.salon');
-    assert.match(text(el), /Suit le programme : Éco jusqu'à 17:30, puis Confort/);
+    assert.match(text(el), /Suit le planning : Éco jusqu'à 17:30, puis Confort/);
+  });
+
+  test('the title shows the name of the active schedule, not its id', () => {
+    const el = block(fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } }), 'climate.salon');
+    assert.match(text(el), /Planning · Vacances/);
+    assert.doesNotMatch(text(el), /holiday/);
   });
 
   test('thermostat without a schedule: block hidden', () => {

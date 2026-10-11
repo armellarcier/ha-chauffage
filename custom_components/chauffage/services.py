@@ -47,7 +47,7 @@ def loaded_runtime(hass: HomeAssistant) -> ChauffageRuntime:
 
 def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
     runtime = loaded_runtime(hass)
-    if entity_id not in runtime.data["schedules"]:
+    if entity_id not in runtime.data["weeks"]:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="not_scheduled", translation_placeholders={"entity_id": entity_id}
         )
@@ -79,11 +79,11 @@ def async_register(hass: HomeAssistant) -> None:
     async def activate_schedule(call: ServiceCall) -> None:
         runtime = loaded_runtime(hass)
         schedule = call.data["schedule"]
-        if schedule not in runtime.mode_ids:
+        if schedule not in runtime.schedule_ids:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="unknown_schedule", translation_placeholders={"schedule": schedule}
             )
-        await runtime.set_mode(schedule)
+        await runtime.activate_schedule(schedule)
 
     hass.services.async_register(DOMAIN, "set_override", set_override, schema=SET_OVERRIDE_SCHEMA)
     hass.services.async_register(DOMAIN, "clear_override", clear_override, schema=CLEAR_OVERRIDE_SCHEMA)

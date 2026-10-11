@@ -12,7 +12,7 @@ de HACS.
 |---|---|
 | 0.1.0 | Première version, sous forme de package YAML (plus maintenu) : plannings par thermostat et par mode, carte d'édition, dérogations temporaires, données versionnées |
 | 0.2 (bêtas) | L'**intégration Chauffage** : installée depuis HACS, configurée depuis l'interface, données dans un `Store` versionné avec migrations, sélecteur de mode, capteurs, services, API websocket, carte servie par l'intégration, anglais et français, import des données du package ([docs/integration-plan.md](docs/integration-plan.md), en anglais) |
-| 0.3.0 | **Niveaux de chauffe** pour tout thermostat à consigne de température (Versatile Thermostat, presets standard, sans presets), réglés dans la vue *Niveaux* de la carte ; changements manuels jugés par rapport à ce qu'attend le programme ; tests sur les trois types de thermostats et analyse fonctionnelle ([docs/use-cases.md](docs/use-cases.md), [docs/phase-2-plan.md](docs/phase-2-plan.md), en anglais) |
+| 0.3.0 | **Préréglages** (alors appelés niveaux de chauffe) pour tout thermostat à consigne de température (Versatile Thermostat, préréglages standard, sans préréglages), réglés dans la vue *Niveaux* de la carte (aujourd'hui *Préréglages*) ; changements manuels jugés par rapport à ce qu'attend le programme ; tests sur les trois types de thermostats et analyse fonctionnelle ([docs/use-cases.md](docs/use-cases.md), [docs/phase-2-plan.md](docs/phase-2-plan.md), en anglais) |
 
 ## À court terme
 
@@ -23,15 +23,14 @@ de HACS.
 
 ## Ensuite
 
-### 1. Des plannings définis par l'utilisateur
+### 1. Des plannings définis par l'utilisateur, un seul vocabulaire
 
-Ce qu'on appelait des *modes* (*Normal* / *Absent* / *Vacances*, prédéfinis) sont des
-**plannings** : des programmes hebdomadaires nommés, créés par l'utilisateur, dont un seul est
-actif (voir [docs/glossary.md](docs/glossary.md), en anglais). Cette étape : créer un planning en
-dupliquant un autre, renommer, supprimer, réordonner, et migrer les modes existants ; une
-nouvelle installation démarre avec un seul planning. Concept et user stories :
-[docs/schedules-plan.md](docs/schedules-plan.md) (en anglais). Les modes prédéfinis sont aussi ce
-qui empêche ha-chauffage d'entrer dans la liste par défaut de HACS.
+**Fait (non publié, v0.4)** : ce qu'on appelait des *modes* (*Normal* / *Absent* / *Vacances*,
+prédéfinis) sont des **plannings** que l'utilisateur crée (vides ou par copie), renomme,
+déplace et supprime, avec des identifiants stables pour les automatisations
+([docs/schedules-plan.md](docs/schedules-plan.md), en anglais) ; et un seul vocabulaire partout
+— plannings, semaines, créneaux, préréglages, dérogations ([docs/glossary.md](docs/glossary.md)),
+avec une migration des données stockées.
 
 ### 2. Un calendrier des plannings
 
@@ -40,41 +39,35 @@ planning, comme la vue de la semaine avec ses créneaux ; un **planning par déf
 dehors des périodes. Cela couvre aussi « activer *Absent* jusqu'à mardi » ou « jusqu'à 18:00 »
 sans écrire d'automatisation.
 
-### 3. Un seul vocabulaire
-
-Renommer partout *modes* en *plannings* et *niveaux* en *préréglages* : code, données stockées (avec
-une migration), API websocket, entités quand cela ne casse rien chez les utilisateurs, carte,
-docs ([docs/glossary.md](docs/glossary.md)).
-
-### 4. Des groupes de thermostats
+### 3. Des groupes de thermostats
 
 Des zones partageant un planning (« chambres », « pièces de vie »), avec des exceptions par
 thermostat ; les dérogations restent par thermostat ; la carte édite les groupes. S'appuie sur
 les plannings (étape 1).
 
-### 5. Les thermostats qui changent leur consigne d'eux-mêmes
+### 4. Les thermostats qui changent leur consigne d'eux-mêmes
 
 Certains appareils ajustent eux-mêmes leur consigne (fenêtre ouverte, présence, sécurité) :
 aujourd'hui cela ressemble à un changement manuel et devient une dérogation. Reconnaître ces
 ajustements (règles par thermostat ou par intégration).
 
-### 6. Plus de thermostats et de créneaux
+### 5. Plus de thermostats et de créneaux
 
 Les thermostats chaud / froid à plage de températures (`heat_cool`), un préréglage *Arrêt*, des
 créneaux portant directement une température (« 21 °C à partir de 06:30 »).
 
-### 7. Environnement de développement et CI
+### 6. Environnement de développement et CI
 
 Figer les versions de Home Assistant et de Versatile Thermostat dans le HA de développement (avec
 un bot qui propose les montées de version) et ajouter une vérification de bout en bout en CI qui
 le démarre, lance le setup et vérifie qu'un planning est appliqué.
 
-### 8. Traductions de la carte en fichiers
+### 7. Traductions de la carte en fichiers
 
 Une fois la carte compilée : un fichier JSON par langue avec ICU MessageFormat (pluriels), comme
 la plupart des cartes Home Assistant ; d'autres langues via des contributions.
 
-### 9. Édition des semaines
+### 8. Édition des semaines
 
 - **Annuler** (Ctrl+Z, et rétablir) pendant l'édition des semaines dans la carte, jusqu'à
   l'enregistrement.

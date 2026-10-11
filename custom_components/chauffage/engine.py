@@ -1,7 +1,8 @@
 """Scheduling logic, without Home Assistant (unit-tested directly).
 
-Schedules give a heating level per slot; each level becomes, for a given thermostat, a preset
-or a target temperature (a mapping set by hand, otherwise the default from its capabilities).
+The active schedule's weeks give a preset per slot; each preset becomes, for a given thermostat,
+one of its climate presets or a target temperature (a mapping set by hand, otherwise the default
+from its capabilities). Vocabulary: docs/glossary.md.
 See tests/integration/test_engine.py.
 """
 
@@ -70,7 +71,7 @@ def is_manual_preset(preset: str | None) -> bool:
     return preset is None or preset.lower() in MANUAL_PRESETS
 
 
-# ----- levels → targets -----
+# ----- presets → targets -----
 
 def fit_temperature(value: float, thermostat: Thermostat | None) -> float:
     """A temperature the thermostat accepts: within its limits, on its step."""
@@ -83,31 +84,31 @@ def fit_temperature(value: float, thermostat: Thermostat | None) -> float:
     return value
 
 
-def default_target(level: dict[str, Any], thermostat: Thermostat | None, use_presets: bool = True) -> Target:
-    """The thermostat's preset named like the level if it has one (and presets are used), else
-    the level's temperature."""
-    if use_presets and thermostat and level["id"] in thermostat.presets:
-        return Target("preset", level["id"])
-    return Target("temperature", fit_temperature(level["temperature"], thermostat))
+def default_target(preset: dict[str, Any], thermostat: Thermostat | None, use_presets: bool = True) -> Target:
+    """The thermostat's climate preset named like the preset if it has one (and climate presets
+    are used), else the preset's temperature."""
+    if use_presets and thermostat and preset["id"] in thermostat.presets:
+        return Target("preset", preset["id"])
+    return Target("temperature", fit_temperature(preset["temperature"], thermostat))
 
 
 def resolve(
-    level_id: str | None,
-    levels: dict[str, dict[str, Any]],
+    preset_id: str | None,
+    presets: dict[str, dict[str, Any]],
     mapping: dict[str, Any] | None,
     thermostat: Thermostat | None,
     use_presets: bool = True,
 ) -> Target | None:
-    """Target of a level for one thermostat: its mapping set by hand, else the default."""
-    level = levels.get(level_id) if level_id else None
-    if level is None:
+    """Target of a preset for one thermostat: its mapping set by hand, else the default."""
+    preset = presets.get(preset_id) if preset_id else None
+    if preset is None:
         return None
-    explicit = (mapping or {}).get(level_id)
+    explicit = (mapping or {}).get(preset_id)
     if explicit and "preset" in explicit:
         return Target("preset", explicit["preset"])
     if explicit and "temperature" in explicit:
         return Target("temperature", fit_temperature(explicit["temperature"], thermostat))
-    return default_target(level, thermostat, use_presets)
+    return default_target(preset, thermostat, use_presets)
 
 
 def same_temperature(a: float | None, b: float | None, thermostat: Thermostat | None = None) -> bool:
@@ -126,29 +127,29 @@ def satisfied(target: Target, thermostat: Thermostat) -> bool:
 # ----- slots -----
 
 def slot_at(day: list[list[str]], hhmm: str) -> tuple[str | None, bool]:
-    """Level of the slot running at HH:MM, and whether that slot starts exactly then."""
-    level, starts_now = None, False
-    for start, slot_level in day:
+    """Preset of the slot running at HH:MM, and whether that slot starts exactly then."""
+    preset, starts_now = None, False
+    for start, slot_preset in day:
         if start <= hhmm:
-            level, starts_now = slot_level, start == hhmm
-    return level, starts_now
+            preset, starts_now = slot_preset, start == hhmm
+    return preset, starts_now
 
 
 def current_and_next(week: list[list[list[str]]], now: datetime) -> tuple[str | None, str | None, datetime | None]:
-    """Level planned now, then the next different one and when it starts (within 7 days)."""
+    """Preset planned now, then the next different one and when it starts (within 7 days)."""
     hhmm = now.strftime("%H:%M")
     current, _ = slot_at(week[now.weekday()], hhmm)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     for offset in range(8):
         day = (now.weekday() + offset) % 7
-        for start, level in week[day]:
+        for start, preset in week[day]:
             if offset == 0 and start <= hhmm:
                 continue
-            if level != current:
+            if preset != current:
                 hours, minutes = (int(x) for x in start.split(":"))
                 # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
                 when = (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes)
-                return current, level, when
+                return current, preset, when
     return current, None, None
 
 
@@ -166,22 +167,22 @@ def ended_overrides(overrides: dict[str, Any], now: datetime) -> list[str]:
 class Plan:
     """The data a decision needs (the integration's stored data, see model.py)."""
 
-    schedules: dict[str, dict[str, Any]]
-    mode: str
-    levels: dict[str, dict[str, Any]]
+    weeks: dict[str, dict[str, Any]]
+    schedule: str  # the active schedule
+    presets: dict[str, dict[str, Any]]
     mappings: dict[str, dict[str, Any]]
     overrides: dict[str, Any]
     use_presets: bool = True
 
-    def level_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
-        week = self.schedules.get(entity_id, {}).get(self.mode)
+    def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
+        week = self.weeks.get(entity_id, {}).get(self.schedule)
         if not week or len(week) != 7:
             return None, False
         return slot_at(week[now.weekday()], now.strftime("%H:%M"))
 
     def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
-        level, _ = self.level_at(entity_id, now)
-        return resolve(level, self.levels, self.mappings.get(entity_id), thermostat, self.use_presets)
+        preset, _ = self.preset_at(entity_id, now)
+        return resolve(preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets)
 
 
 def targets(
@@ -197,8 +198,8 @@ def targets(
 ) -> list[tuple[str, Target]]:
     """(thermostat, target) pairs to apply now, in schedule order.
 
-    - force: realign every thermostat (mode changed, schedules saved, HA started);
-    - otherwise only thermostats whose level changed since the previous check (`since`; a slot
+    - force: realign every thermostat (schedule activated, weeks saved, HA started);
+    - otherwise only thermostats whose preset changed since the previous check (`since`; a slot
       starting during a missed minute, or in the hour skipped by the change to summer time, is
       applied late rather than never), whose slot starts now, whose override just ended or was
       removed (resumed), or that must be realigned (`include`: back online, failed command);
@@ -206,17 +207,17 @@ def targets(
       left alone.
     """
     out = []
-    for entity_id in plan.schedules:
+    for entity_id in plan.weeks:
         if entity_id in plan.overrides and entity_id not in ended and entity_id != resumed:
             continue
-        level, starts_now = plan.level_at(entity_id, now)
+        preset, starts_now = plan.preset_at(entity_id, now)
         thermostat = thermostats.get(entity_id)
-        if level is None or thermostat is None:
+        if preset is None or thermostat is None:
             continue
-        changed = starts_now or (since is not None and plan.level_at(entity_id, since)[0] != level)
+        changed = starts_now or (since is not None and plan.preset_at(entity_id, since)[0] != preset)
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
-        target = resolve(level, plan.levels, plan.mappings.get(entity_id), thermostat, plan.use_presets)
+        target = resolve(preset, plan.presets, plan.mappings.get(entity_id), thermostat, plan.use_presets)
         if target is None or thermostat.state in IGNORED_STATES or satisfied(target, thermostat):
             continue
         out.append((entity_id, target))

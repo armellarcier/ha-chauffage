@@ -1,7 +1,7 @@
 """The scheduler: replaces the package's two automations.
 
 - every minute: slots starting now, overrides ending now;
-- full realignment when HA starts, the mode changes or the schedules are saved;
+- full realignment when HA starts, a schedule is activated or the weeks are saved;
 - a manual change on a scheduled thermostat becomes a temporary override.
 
 The integration calls services with its own contexts: state changes carrying one of them are
@@ -30,12 +30,12 @@ from .store import SAVE_DELAY, ChauffageStore
 
 _LOGGER = logging.getLogger(__name__)
 
-# Listener reasons: "data" (schedules, overrides, mode changed) or "tick" (every minute)
+# Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
 DATA, TICK = "data", "tick"
 
 
 class StaleRevision(Exception):
-    """Schedules saved from an outdated copy (edited elsewhere in the meantime)."""
+    """Weeks or schedules saved from an outdated copy (edited elsewhere in the meantime)."""
 
 
 def thermostat(state: State | None) -> engine.Thermostat | None:
@@ -78,7 +78,7 @@ class ChauffageRuntime:
         self._last_tick = dt_util.now()  # the realignment below covers the time before
         self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
         self._track_thermostats()
-        for entity_id in self.data["schedules"]:
+        for entity_id in self.data["weeks"]:
             self._learn(self.hass.states.get(entity_id))
         if self.hass.state is CoreState.running:
             self.entry.async_create_task(self.hass, self.apply(force=True), "chauffage realign")
@@ -122,21 +122,21 @@ class ChauffageRuntime:
         return int(self.entry.options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION))
 
     @property
-    def mode_ids(self) -> set[str]:
-        return {m["id"] for m in self.data["modes"]}
+    def schedule_ids(self) -> set[str]:
+        return {m["id"] for m in self.data["schedules"]}
 
-    def mode_name(self, mode_id: str) -> str | None:
-        return next((m["name"] for m in self.data["modes"] if m["id"] == mode_id), None)
+    def schedule_name(self, schedule_id: str) -> str | None:
+        return next((m["name"] for m in self.data["schedules"] if m["id"] == schedule_id), None)
 
     @property
-    def level_ids(self) -> set[str]:
-        return {level["id"] for level in self.data["levels"]}
+    def preset_ids(self) -> set[str]:
+        return {preset["id"] for preset in self.data["presets"]}
 
     def plan(self) -> engine.Plan:
         return engine.Plan(
-            self.data["schedules"],
-            self.data["active_mode"],
-            {level["id"]: level for level in self.data["levels"]},
+            self.data["weeks"],
+            self.data["active_schedule"],
+            {preset["id"]: preset for preset in self.data["presets"]},
             self.data["mappings"],
             self.data["overrides"],
             self.use_presets,
@@ -147,25 +147,25 @@ class ChauffageRuntime:
         return bool(self.entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
-        """What each level means for a thermostat (mapping set by hand, else the default)."""
+        """What each preset means for a thermostat (mapping set by hand, else the default)."""
         plan = self.plan()
         current = thermostat(self.hass.states.get(entity_id))
         out = {}
-        for level_id in plan.levels:
-            target = engine.resolve(level_id, plan.levels, plan.mappings.get(entity_id), current, plan.use_presets)
+        for preset_id in plan.presets:
+            target = engine.resolve(preset_id, plan.presets, plan.mappings.get(entity_id), current, plan.use_presets)
             if target:
-                out[level_id] = target.as_dict()
+                out[preset_id] = target.as_dict()
         return out
 
     def snapshot(self) -> dict[str, Any]:
         """Everything the card needs."""
         return {
-            "modes": self.data["modes"],
-            "active_mode": self.data["active_mode"],
-            "levels": self.data["levels"],
-            "mappings": self.data["mappings"],
-            "targets": {e: self.targets_of(e) for e in self.data["schedules"]},
             "schedules": self.data["schedules"],
+            "active_schedule": self.data["active_schedule"],
+            "presets": self.data["presets"],
+            "mappings": self.data["mappings"],
+            "targets": {e: self.targets_of(e) for e in self.data["weeks"]},
+            "weeks": self.data["weeks"],
             "overrides": self.data["overrides"],
             "preset_temperatures": self.data["preset_temperatures"],
             "use_presets": self.use_presets,
@@ -174,63 +174,63 @@ class ChauffageRuntime:
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
-        """(level now, next level, its start) for a thermostat in the active mode."""
-        week = self.data["schedules"].get(entity_id, {}).get(self.data["active_mode"])
+        """(preset now, next preset, its start) for a thermostat in the active schedule."""
+        week = self.data["weeks"].get(entity_id, {}).get(self.data["active_schedule"])
         if not week:
             return None, None, None
         return engine.current_and_next(week, now or dt_util.now())
 
     # ----- writing -----
 
-    async def save_schedules(self, schedules: Any, revision: int | None = None) -> None:
+    async def save_weeks(self, weeks: Any, revision: int | None = None) -> None:
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
-        self.data["schedules"] = model.normalize_schedules(schedules, self.mode_ids, self.level_ids)
-        for entity_id in set(self.data["preset_temperatures"]) - set(self.data["schedules"]):
+        self.data["weeks"] = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
+        for entity_id in set(self.data["preset_temperatures"]) - set(self.data["weeks"]):
             del self.data["preset_temperatures"][entity_id]
         self.data["revision"] += 1
         self._track_thermostats()
-        for entity_id in self.data["schedules"]:
+        for entity_id in self.data["weeks"]:
             self._learn(self.hass.states.get(entity_id))
         self._changed()
         await self.apply(force=True)
 
-    async def set_levels(self, levels: list[Any], replacements: dict[str, str] | None = None) -> None:
-        """New list of levels; a removed level is replaced in the schedules by the level given
+    async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:
+        """New list of presets; a removed preset is replaced in the weeks by the preset given
         in `replacements` (it must exist), and its mappings are dropped."""
         taken: set[str] = set()
-        new_levels = []
-        for level in levels:
-            normalized = model.normalize_level(level, taken | self.level_ids)
+        new_presets = []
+        for preset in presets:
+            normalized = model.normalize_preset(preset, taken | self.preset_ids)
             if normalized["id"] in taken:
-                raise model.InvalidData(f"duplicate level: {normalized['id']}")
+                raise model.InvalidData(f"duplicate preset: {normalized['id']}")
             taken.add(normalized["id"])
-            new_levels.append(normalized)
-        if not new_levels:
-            raise model.InvalidData("at least one level is needed")
-        removed = self.level_ids - taken
+            new_presets.append(normalized)
+        if not new_presets:
+            raise model.InvalidData("at least one preset is needed")
+        removed = self.preset_ids - taken
         replacements = replacements or {}
-        used = set(model.used_levels(self.data["schedules"]))
-        for level_id in removed & used:
-            if replacements.get(level_id) not in taken:
-                raise model.InvalidData(f"{level_id} is used in schedules: choose a replacement")
+        used = set(model.used_presets(self.data["weeks"]))
+        for preset_id in removed & used:
+            if replacements.get(preset_id) not in taken:
+                raise model.InvalidData(f"{preset_id} is used in the weeks: choose a replacement")
         if removed & used:
-            for modes in self.data["schedules"].values():
-                for mode, week in modes.items():
-                    modes[mode] = model.normalize_week(
-                        [[[start, replacements.get(level, level)] for start, level in day] for day in week]
+            for by_schedule in self.data["weeks"].values():
+                for schedule_id, week in by_schedule.items():
+                    by_schedule[schedule_id] = model.normalize_week(
+                        [[[start, replacements.get(preset, preset)] for start, preset in day] for day in week]
                     )
             self.data["revision"] += 1
         for mapping in self.data["mappings"].values():
-            for level_id in removed:
-                mapping.pop(level_id, None)
-        self.data["levels"] = new_levels
+            for preset_id in removed:
+                mapping.pop(preset_id, None)
+        self.data["presets"] = new_presets
         self._changed()
         await self.apply(force=True)
 
     async def set_mapping(self, entity_id: str, mapping: Any) -> None:
         """Mapping set by hand for one thermostat ({} = defaults only)."""
-        normalized = model.normalize_mapping(mapping, self.level_ids)
+        normalized = model.normalize_mapping(mapping, self.preset_ids)
         if normalized:
             self.data["mappings"][entity_id] = normalized
         else:
@@ -238,35 +238,35 @@ class ChauffageRuntime:
         self._changed()
         await self.apply(force=True)
 
-    async def set_modes(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
-        """Create (empty or a copy), rename, move and delete schedules (see model.plan_modes).
-        An empty schedule puts every scheduled thermostat in eco (or the first level) all week.
+    async def set_schedules(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
+        """Create (empty or a copy), rename, move and delete schedules (see model.plan_schedules).
+        An empty schedule puts every scheduled thermostat in eco (or the first preset) all week.
         The active schedule and its weeks do not change: the thermostats are not touched."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
-        modes, created = model.plan_modes(items, self.data["modes"], self.data["active_mode"])
-        kept = {m["id"] for m in modes}
-        level_ids = [level["id"] for level in self.data["levels"]]
-        fill = "eco" if "eco" in level_ids else level_ids[0]
-        for weeks in self.data["schedules"].values():
-            for mode_id in set(weeks) - kept:
-                del weeks[mode_id]
-            for mode_id, source in created.items():
+        schedules, created = model.plan_schedules(items, self.data["schedules"], self.data["active_schedule"])
+        kept = {s["id"] for s in schedules}
+        preset_ids = [preset["id"] for preset in self.data["presets"]]
+        fill = "eco" if "eco" in preset_ids else preset_ids[0]
+        for weeks in self.data["weeks"].values():
+            for schedule_id in set(weeks) - kept:
+                del weeks[schedule_id]
+            for schedule_id, source in created.items():
                 if source is None:
-                    weeks[mode_id] = [[["00:00", fill]] for _ in range(7)]
+                    weeks[schedule_id] = [[["00:00", fill]] for _ in range(7)]
                 elif source in weeks:
-                    weeks[mode_id] = copy.deepcopy(weeks[source])
-        self.data["modes"] = modes
+                    weeks[schedule_id] = copy.deepcopy(weeks[source])
+        self.data["schedules"] = schedules
         self.data["revision"] += 1
         self._changed()
-        return copy.deepcopy(modes)
+        return copy.deepcopy(schedules)
 
-    async def set_mode(self, mode_id: str) -> None:
-        if mode_id not in self.mode_ids:
-            raise model.InvalidData(f"unknown mode: {mode_id}")
-        if mode_id == self.data["active_mode"]:
+    async def activate_schedule(self, schedule_id: str) -> None:
+        if schedule_id not in self.schedule_ids:
+            raise model.InvalidData(f"unknown schedule: {schedule_id}")
+        if schedule_id == self.data["active_schedule"]:
             return
-        self.data["active_mode"] = mode_id
+        self.data["active_schedule"] = schedule_id
         self._changed()
         await self.apply(force=True)
 
@@ -304,11 +304,11 @@ class ChauffageRuntime:
     async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None,
                     since: datetime | None = None, include: set[str] | None = None) -> None:
         async with self._lock:
-            schedules = self.data["schedules"]
+            weeks = self.data["weeks"]
             todo = engine.targets(
                 self.plan(),
                 dt_util.now(),
-                {e: t for e in schedules if (t := thermostat(self.hass.states.get(e)))},
+                {e: t for e in weeks if (t := thermostat(self.hass.states.get(e)))},
                 force=force,
                 resumed=resumed,
                 ended=ended or (),
@@ -346,7 +346,7 @@ class ChauffageRuntime:
     def _track_thermostats(self) -> None:
         if self._unsub_states:
             self._unsub_states()
-        entities = list(self.data["schedules"])
+        entities = list(self.data["weeks"])
         self._unsub_states = (
             async_track_state_change_event(self.hass, entities, self._state_changed) if entities else None
         )

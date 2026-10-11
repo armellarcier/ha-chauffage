@@ -89,7 +89,7 @@ scripts/demo.sh      # needs the dev HA running; Playwright + ffmpeg in Docker
 
 The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs): it sets the browser clock
 to a Tuesday morning, adds a demo override, plays the actions with a visible cursor, then
-restores everything (override removed, mode back to Normal, schedule edits discarded).
+restores everything (override removed, Normal active again, edits of the weeks discarded).
 Re-record it when the card's look changes.
 
 ## 3. Trying a version on a real Home Assistant
@@ -153,8 +153,8 @@ separator), **first day of the week**, and the temperature unit of the HA config
 - Every language has exactly the same keys and placeholders: `tests/js/i18n.test.mjs` checks it.
 - Formats are never written by hand: times, day names and numbers come from the browser's `Intl`
   APIs, following `hass.locale` (see `makeLocale`).
-- Mode names (`Normal` / `Absent` / `Vacances`) are data, not UI texts: they are not
-  translated (the integration creates the default modes in the HA language).
+- Schedule and preset names (`Normal`, `Confort`…) are data, not UI texts: they are not
+  translated (the integration creates the default ones in the HA language).
 - The integration's texts (config flow, entities, services, repairs, errors) use Home
   Assistant's translation files: `strings.json` (English, source) and `translations/en.json`,
   `translations/fr.json`, with the same keys.
@@ -195,9 +195,8 @@ These conventions apply to every contributor, human or AI assistant
   and file names, comments, specs and tests. Some existing code still has French comments or
   identifiers: translate them when you modify the surrounding code.
 - **One vocabulary** ([docs/glossary.md](docs/glossary.md)): *schedule*, *preset*, *slot*,
-  *override*, the same in the UI, docs, code, data and tests. Older code still says *mode* and
-  *level*: new code uses the glossary's terms, except the stored data and the websocket API,
-  renamed in one go later (roadmap, "One vocabulary").
+  *override*, the same in the UI, docs, code, data and tests. In French, a preset is a
+  *préréglage*, as in Home Assistant.
 - HA entity names in French.
 - **Commits in English**, short and descriptive.
 - **Documentation** (`README`, `CONTRIBUTING`): the English version (`*.md`) is canonical.

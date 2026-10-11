@@ -312,23 +312,23 @@ async def integration(api: Api) -> None:
 
 
 async def sample_schedules(ws: WS) -> None:
-    """Sample schedules for the thermostats that have none, saved through the integration."""
+    """Sample schedules and weeks for the thermostats that have none, saved through the integration."""
     data = await ws.first_event(type="chauffage/subscribe")
-    if len(data["modes"]) == 1:
+    if len(data["schedules"]) == 1:
         log(f"schedules: creating {', '.join(EXTRA_SCHEDULES)}")
-        result = await ws.call(type="chauffage/modes/set",
-                               modes=[{"id": data["modes"][0]["id"]}] + [{"name": n} for n in EXTRA_SCHEDULES])
-        data["modes"] = result["modes"]
-    schedules = data["schedules"]
-    missing = [entity for entity in SAMPLE_WEEKS if entity not in schedules]
+        result = await ws.call(type="chauffage/schedules/set",
+                               schedules=[{"id": data["schedules"][0]["id"]}] + [{"name": n} for n in EXTRA_SCHEDULES])
+        data["schedules"] = result["schedules"]
+    weeks = data["weeks"]
+    missing = [entity for entity in SAMPLE_WEEKS if entity not in weeks]
     if not missing:
         return
-    first, *others = [m["id"] for m in data["modes"]]
+    first, *others = [s["id"] for s in data["schedules"]]
     for entity in missing:
-        weeks = [[HOLIDAY_DAY] * 7, [day("00:00 eco")] * 7]
-        schedules[entity] = {first: SAMPLE_WEEKS[entity], **dict(zip(others, weeks))}
-    log(f"schedules: sample schedules for {', '.join(missing)}")
-    await ws.call(type="chauffage/schedules/save", schedules=schedules)
+        other_weeks = [[HOLIDAY_DAY] * 7, [day("00:00 eco")] * 7]
+        weeks[entity] = {first: SAMPLE_WEEKS[entity], **dict(zip(others, other_weeks))}
+    log(f"schedules: sample weeks for {', '.join(missing)}")
+    await ws.call(type="chauffage/weeks/save", weeks=weeks)
 
 
 async def main() -> None:

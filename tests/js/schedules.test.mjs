@@ -1,7 +1,6 @@
 // Managing schedules from the card, with the drop-down menus of the schedule tabs: "+" creates
 // a schedule (empty or a copy, then its name), "⋮" on the open tab renames it (showing its stable
-// id), moves it, deletes it (docs/schedules-plan.md). In the websocket API, schedules are still
-// "modes".
+// id), moves it, deletes it (docs/schedules-plan.md).
 import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,14 +8,14 @@ import assert from 'node:assert/strict';
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 const click = (card, selector) => $(card, selector).click();
 const menu = (card) => $(card, '.sched-menu');
-const modesSet = (hass) => hass.events.filter((m) => m.type === 'chauffage/modes/set');
+const schedulesSet = (hass) => hass.events.filter((m) => m.type === 'chauffage/schedules/set');
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const ALL = [{ id: 'normal' }, { id: 'away' }, { id: 'holiday' }];
 
 // The data the integration pushes once a schedule was created
 function withSchedule(id, name) {
   const data = integrationData();
-  data.modes = [...data.modes, { id, name }];
+  data.schedules = [...data.schedules, { id, name }];
   data.revision = 5;
   return data;
 }
@@ -31,7 +30,7 @@ async function create(card, name, { copy = '' } = {}) {
 }
 
 function openMenu(card, id) {
-  click(card, `.tab[data-mode="${id}"]`);
+  click(card, `.tab[data-schedule="${id}"]`);
   click(card, '[data-act="schedule-menu"]');
 }
 
@@ -50,11 +49,11 @@ describe('the "+" menu: a new schedule', () => {
     const hass = fakeHass();
     const card = createCard(hass);
     await create(card, 'Télétravail');
-    assert.deepEqual(modesSet(hass), [{ type: 'chauffage/modes/set', revision: 4, modes: [...ALL, { name: 'Télétravail' }] }]);
+    assert.deepEqual(schedulesSet(hass), [{ type: 'chauffage/schedules/set', revision: 4, schedules: [...ALL, { name: 'Télétravail' }] }]);
     assert.equal(menu(card), null);
     hass.push(withSchedule('teletravail', 'Télétravail'));
-    assert.equal(card._mode, 'teletravail');
-    assert.ok($(card, '.tab.on[data-mode="teletravail"]'));
+    assert.equal(card._schedule, 'teletravail');
+    assert.ok($(card, '.tab.on[data-schedule="teletravail"]'));
   });
 
   test('a copy of a schedule', async () => {
@@ -66,7 +65,7 @@ describe('the "+" menu: a new schedule', () => {
     $(card, 'input[data-sched-name]').value = 'Guests';
     click(card, '[data-act="schedule-create"]');
     await flush();
-    assert.deepEqual(modesSet(hass)[0].modes.at(-1), { name: 'Guests', copy_of: 'holiday' });
+    assert.deepEqual(schedulesSet(hass)[0].schedules.at(-1), { name: 'Guests', copy_of: 'holiday' });
   });
 
   test('Enter in the name field creates it', async () => {
@@ -78,7 +77,7 @@ describe('the "+" menu: a new schedule', () => {
     input.value = 'Guests';
     input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
     await flush();
-    assert.deepEqual(modesSet(hass)[0].modes.at(-1), { name: 'Guests' });
+    assert.deepEqual(schedulesSet(hass)[0].schedules.at(-1), { name: 'Guests' });
   });
 
   test('unsaved edits of the weeks are saved first, then the schedule is created', async () => {
@@ -86,17 +85,17 @@ describe('the "+" menu: a new schedule', () => {
     const card = createCard(hass);
     card._split('climate.bureau', 0, 12 * 60);
     await create(card, 'Guests');
-    assert.deepEqual(hass.events.map((m) => m.type), ['chauffage/schedules/save', 'chauffage/modes/set']);
-    assert.equal(modesSet(hass)[0].revision, 5); // the revision the save produced
+    assert.deepEqual(hass.events.map((m) => m.type), ['chauffage/weeks/save', 'chauffage/schedules/set']);
+    assert.equal(schedulesSet(hass)[0].revision, 5); // the revision the save produced
     assert.equal(card._dirty, false);
   });
 
   test('when saving the edits fails, nothing is created', async () => {
-    const hass = fakeHass({ reply: (msg) => { if (msg.type === 'chauffage/schedules/save') throw { code: 'stale', message: 'stale' }; } });
+    const hass = fakeHass({ reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'stale', message: 'stale' }; } });
     const card = createCard(hass);
     card._split('climate.bureau', 0, 12 * 60);
     await create(card, 'Guests');
-    assert.deepEqual(modesSet(hass), []);
+    assert.deepEqual(schedulesSet(hass), []);
     assert.match($(card, '.msg').textContent, /modifiés ailleurs/);
   });
 
@@ -108,12 +107,12 @@ describe('the "+" menu: a new schedule', () => {
     $(card, 'input[data-sched-name]').value = 'absent ';
     click(card, '[data-act="schedule-create"]');
     await flush();
-    assert.deepEqual(modesSet(hass), []);
+    assert.deepEqual(schedulesSet(hass), []);
     assert.match(menu(card).textContent, /déjà utilisé/);
   });
 
   test('an error of the integration is shown', async () => {
-    const hass = fakeHass({ reply: (msg) => { if (msg.type === 'chauffage/modes/set') throw { code: 'invalid_format', message: 'boom' }; } });
+    const hass = fakeHass({ reply: (msg) => { if (msg.type === 'chauffage/schedules/set') throw { code: 'invalid_format', message: 'boom' }; } });
     const card = createCard(hass);
     await create(card, 'Guests');
     assert.match($(card, '.msg').textContent, /boom/);
@@ -138,18 +137,18 @@ describe('the "⋮" menu of the open schedule', () => {
     $(card, 'input[data-sched-name]').value = 'Sortis';
     click(card, '[data-act="schedule-rename"]');
     await flush();
-    assert.deepEqual(modesSet(hass)[0].modes, [{ id: 'normal' }, { id: 'away', name: 'Sortis' }, { id: 'holiday' }]);
+    assert.deepEqual(schedulesSet(hass)[0].schedules, [{ id: 'normal' }, { id: 'away', name: 'Sortis' }, { id: 'holiday' }]);
   });
 
   test('the renamed schedule stays open', () => {
     const hass = fakeHass();
     const card = createCard(hass);
-    click(card, '.tab[data-mode="away"]');
+    click(card, '.tab[data-schedule="away"]');
     const data = integrationData();
-    data.modes[1].name = 'Sortis';
+    data.schedules[1].name = 'Sortis';
     data.revision = 5;
     hass.push(data);
-    assert.equal(card._mode, 'away');
+    assert.equal(card._schedule, 'away');
     assert.equal($(card, '.tab.on').textContent.trim(), 'Sortis');
   });
 
@@ -159,7 +158,7 @@ describe('the "⋮" menu of the open schedule', () => {
     openMenu(card, 'away');
     click(card, '[data-act="schedule-move"][data-dir="-1"]');
     await flush();
-    assert.deepEqual(modesSet(hass)[0].modes, [{ id: 'away' }, { id: 'normal' }, { id: 'holiday' }]);
+    assert.deepEqual(schedulesSet(hass)[0].schedules, [{ id: 'away' }, { id: 'normal' }, { id: 'holiday' }]);
     openMenu(card, 'holiday');
     assert.equal($(card, '[data-act="schedule-move"][data-dir="1"]').disabled, true); // already last
   });
@@ -169,11 +168,11 @@ describe('the "⋮" menu of the open schedule', () => {
     const card = createCard(hass);
     openMenu(card, 'holiday');
     click(card, '[data-act="schedule-delete"]');
-    assert.deepEqual(modesSet(hass), []);
+    assert.deepEqual(schedulesSet(hass), []);
     assert.match(menu(card).textContent, /Supprimer « Vacances » et ses semaines/);
     click(card, '[data-act="schedule-delete-confirm"]');
     await flush();
-    assert.deepEqual(modesSet(hass)[0].modes, [{ id: 'normal' }, { id: 'away' }]);
+    assert.deepEqual(schedulesSet(hass)[0].schedules, [{ id: 'normal' }, { id: 'away' }]);
   });
 
   test('the active schedule cannot be deleted', () => {

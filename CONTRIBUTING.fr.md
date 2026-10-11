@@ -93,8 +93,8 @@ scripts/demo.sh      # nécessite le HA de dev démarré ; Playwright + ffmpeg d
 
 Le scénario est dans [`dev/demo/record.mjs`](dev/demo/record.mjs) : il règle l'horloge du
 navigateur sur un mardi matin, ajoute une dérogation de démo, joue les actions avec un curseur
-visible, puis remet tout en état (dérogation supprimée, mode Normal, modifications du planning
-abandonnées). À réenregistrer quand l'apparence de la carte change.
+visible, puis remet tout en état (dérogation supprimée, Normal de nouveau actif, modifications des
+semaines abandonnées). À réenregistrer quand l'apparence de la carte change.
 
 ## 3. Essayer une version sur un vrai Home Assistant
 
@@ -162,9 +162,9 @@ configuration HA.
 - Chaque langue a exactement les mêmes clés et variables : `tests/js/i18n.test.mjs` le vérifie.
 - Les formats ne sont jamais écrits à la main : heures, noms des jours et nombres viennent des API
   `Intl` du navigateur, selon `hass.locale` (voir `makeLocale`).
-- Les noms des modes (`Normal` / `Absent` / `Vacances`) sont des données, pas des textes
-  d'interface : ils ne sont pas traduits (l'intégration crée les modes par défaut dans la langue
-  de HA).
+- Les noms des plannings et des préréglages (`Normal`, `Confort`…) sont des données, pas des
+  textes d'interface : ils ne sont pas traduits (l'intégration crée ceux par défaut dans la
+  langue de HA).
 - Les textes de l'intégration (flux de configuration, entités, services, réparations, erreurs)
   utilisent les fichiers de traduction de Home Assistant : `strings.json` (anglais, source) et
   `translations/en.json`, `translations/fr.json`, avec les mêmes clés.
@@ -208,10 +208,8 @@ Ces conventions s'appliquent à tous les contributeurs, humains comme assistants
   fonctions et fichiers, commentaires, specs et tests. Du code existant a encore des
   commentaires ou des noms en français : les traduire quand on modifie le code autour.
 - **Un seul vocabulaire** ([docs/glossary.md](docs/glossary.md)) : *planning*, *préréglage*,
-  *créneau*, *dérogation*, les mêmes dans l'interface, la doc, le code, les données et les tests.
-  Le code plus ancien dit encore *mode* et *niveau* : le nouveau code utilise les termes du
-  glossaire, sauf les données stockées et l'API websocket, renommées d'un coup plus tard (feuille
-  de route, « Un seul vocabulaire »).
+  *créneau*, *dérogation*, les mêmes dans l'interface, la doc, le code, les données et les
+  tests. En anglais (code, données), un préréglage est un *preset*, comme dans Home Assistant.
 - Noms d'entités HA en français.
 - **Commits en anglais**, courts et descriptifs.
 - **Documentation** (`README`, `CONTRIBUTING`) : la version anglaise (`*.md`) est la référence.

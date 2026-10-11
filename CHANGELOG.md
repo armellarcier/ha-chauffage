@@ -9,22 +9,48 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
-**Schedules defined by the user**: what were the three fixed modes are schedules you create,
-name, duplicate and delete. **Stored data: unchanged** (existing modes become schedules with the
-same names and ids).
+**Schedules defined by the user, one vocabulary**: what were the three fixed modes are schedules
+you create, name, duplicate and delete; modes are now called schedules and heating levels
+presets, everywhere ([glossary](docs/glossary.md)). **Stored data: migrated automatically**
+(same names, ids and contents). **Breaking**: an entity id and sensor attributes are renamed
+(see "Upgrading").
 
 ### Added
 
-- In the card, **+** creates a schedule, empty (eco all week) or a copy of another one; **⋮** on
-  the open tab renames it, moves it, or deletes it after a confirmation (not the active one). Unsaved
-  edits of the weeks are saved first. Admins only.
+- In the card, **+** opens a menu to create a schedule, empty (eco all week) or a copy of
+  another one; **⋮** on the open tab opens a menu to rename it (showing its id), move it, or
+  delete it after a confirmation (not the active one). Unsaved edits of the weeks are saved
+  first. Admins only.
 - Every schedule has a **stable id**, which does not change when it is renamed, for automations:
   service `chauffage.activate_schedule`, attribute `schedule_id` of the select entity.
 
 ### Changed
 
 - A new installation starts with a single schedule, *Normal* (instead of three modes).
-- The select entity is named *Active schedule* (entity id unchanged: `select.chauffage_mode`).
+- One vocabulary: *schedule* (formerly mode), *week*, *slot*, *preset* (formerly level; French:
+  *préréglage*), *override*. The card's *Levels* view is now *Presets*.
+- The select entity is now **`select.chauffage_schedule`** (formerly `select.chauffage_mode`),
+  named *Active schedule*.
+- The **Schedule** sensors' attributes `level_name`, `next_level`, `next_level_name` are now
+  `preset_name`, `next_preset`, `next_preset_name`.
+- Websocket API (used by the card): `chauffage/weeks/save`, `chauffage/schedule/activate`,
+  `chauffage/schedules/set`, `chauffage/presets/set`; the subscription sends `schedules`,
+  `active_schedule`, `presets`, `weeks`.
+
+### Fixed
+
+- The thermostat's more-info block showed the active schedule's id instead of its name.
+- After an update from HACS, until Home Assistant restarts, the card asks for a restart instead
+  of breaking (its file is already the new one, the running integration is still the former).
+
+### Upgrading
+
+- Update from HACS and restart: the stored data is migrated (version 3), the select entity
+  becomes `select.chauffage_schedule` (unless you gave it another id). In your automations,
+  replace `select.chauffage_mode` with `select.chauffage_schedule` (or use
+  `chauffage.activate_schedule` with the schedule's id), and the sensors' `next_level`,
+  `level_name`, `next_level_name` attributes with `next_preset`, `preset_name`,
+  `next_preset_name`.
 
 ## [0.3.0] - 2026-10-11
 
