@@ -41,8 +41,11 @@ services:
     volumes:
       - ./hass:/config
       - ../custom_components/chauffage:/config/custom_components/chauffage:ro
-      # Dev-only climate with standard presets (a kind of thermostat to test, see sim_climate/)
-      - ./sim_climate:/config/custom_components/sim_climate:ro
+      # Dev-only climate with standard presets (a kind of thermostat to test, see sim_climate/).
+      # Its manifest is manifest.dev.json in the repository: HACS wants a single manifest.json
+      - ./sim_climate/__init__.py:/config/custom_components/sim_climate/__init__.py:ro
+      - ./sim_climate/climate.py:/config/custom_components/sim_climate/climate.py:ro
+      - ./sim_climate/manifest.dev.json:/config/custom_components/sim_climate/manifest.json:ro
     restart: unless-stopped
 
   # First-run setup through HA's APIs (user dev / dev, token, thermostats, dashboard,
