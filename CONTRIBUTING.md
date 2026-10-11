@@ -194,6 +194,9 @@ These conventions apply to every contributor, human or AI assistant
 - **Code in English**, even though the project is called `ha-chauffage`: variable, function
   and file names, comments, specs and tests. Some existing code still has French comments or
   identifiers: translate them when you modify the surrounding code.
+- **One vocabulary** ([docs/glossary.md](docs/glossary.md)): *schedule*, *preset*, *slot*,
+  *override*, the same in the UI, docs, code, data and tests. Older code still says *mode* and
+  *level*: new code uses the glossary's terms.
 - HA entity names in French.
 - **Commits in English**, short and descriptive.
 - **Documentation** (`README`, `CONTRIBUTING`): the English version (`*.md`) is canonical.

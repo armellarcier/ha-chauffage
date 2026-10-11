@@ -207,6 +207,10 @@ Ces conventions s'appliquent à tous les contributeurs, humains comme assistants
 - **Code en anglais**, même si le projet s'appelle `ha-chauffage` : noms de variables,
   fonctions et fichiers, commentaires, specs et tests. Du code existant a encore des
   commentaires ou des noms en français : les traduire quand on modifie le code autour.
+- **Un seul vocabulaire** ([docs/glossary.md](docs/glossary.md)) : *planning*, *preset*,
+  *créneau*, *dérogation*, les mêmes dans l'interface, la doc, le code, les données et les tests.
+  Le code plus ancien dit encore *mode* et *niveau* : le nouveau code utilise les termes du
+  glossaire.
 - Noms d'entités HA en français.
 - **Commits en anglais**, courts et descriptifs.
 - **Documentation** (`README`, `CONTRIBUTING`) : la version anglaise (`*.md`) est la référence.

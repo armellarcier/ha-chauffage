@@ -15,48 +15,50 @@ from the UI, and eventually listed in HACS by default.
 
 ## Next
 
-### 1. Rethink the heating modes
+### 1. Schedules defined by the user
 
-Today there are three modes, *Normal* / *Away* / *Holiday*, created at setup with a weekly
-schedule per thermostat and per mode, and one active mode for the whole home. What they mean is
-only implied by their names: is *Away* a day out or a week? does *Holiday* end by itself? what
-about a guest room nobody uses? Fixed, predefined modes are also what keeps ha-chauffage out of
-the HACS default list.
+What were called *modes* (*Normal* / *Away* / *Holiday*, predefined) are **schedules**: named
+weekly plans created by the user, one of them active (see [docs/glossary.md](docs/glossary.md)).
+This step: create a schedule by duplicating another, rename, delete, reorder, and migrate the
+existing modes; a new installation starts with a single schedule. Concept and user stories:
+[docs/schedules-plan.md](docs/schedules-plan.md). Predefined modes are also what keeps
+ha-chauffage out of the HACS default list.
 
-The work is done in this order:
+### 2. Calendar of schedules
 
-1. **Concept and function**: what a mode is, what users actually need (a day out, holidays, an
-   empty room, a home office day…), what can be planned in advance, what ends by itself.
-2. **Use cases / user stories**, added to [docs/use-cases.md](docs/use-cases.md).
-3. **Implementation, tests first** (see CONTRIBUTING.md, "Tests first"), with a migration of the
-   existing modes and schedules.
+A year view, one row per month, with periods (days and times) colored by schedule, like the
+weekly view with its slots; a **default schedule** applies outside the periods. It also covers
+"activate *Away* until Tuesday" or "until 18:00" without writing an automation.
 
-Ideas to examine then, not decisions: user-defined modes, a mode limited in time ("away until
-Sunday 18:00"), a mode for some rooms only, modes driven by presence or a calendar.
+### 3. One vocabulary
 
-### 2. Groups of thermostats
+Rename *modes* to *schedules* and *levels* to *presets* everywhere: code, stored data (with a
+migration), websocket API, entities where users are not broken, card, docs
+([docs/glossary.md](docs/glossary.md)).
+
+### 4. Groups of thermostats
 
 Zones sharing a schedule ("bedrooms", "living areas"), with exceptions per thermostat; overrides
-stay per thermostat; the card edits groups. Depends on the outcome of the modes work.
+stay per thermostat; the card edits groups. Builds on the schedules (step 1).
 
-### 3. Thermostats that change their setpoint by themselves
+### 5. Thermostats that change their setpoint by themselves
 
 Some devices adjust their own setpoint (open window, presence, safety): today it looks like a
 manual change and becomes an override. Recognize these adjustments (rules per thermostat or per
 integration).
 
-### 4. More thermostats and slots
+### 6. More thermostats and slots
 
-Heat / cool thermostats with a temperature range (`heat_cool`), an *Off* level, slots carrying a
+Heat / cool thermostats with a temperature range (`heat_cool`), an *Off* preset, slots carrying a
 temperature directly ("21 °C from 06:30").
 
-### 5. Development environment and CI
+### 7. Development environment and CI
 
 Pin the versions of Home Assistant and Versatile Thermostat in the development HA (with a
 dependency bot proposing upgrades) and add an end-to-end CI check that starts it, runs the setup
 and checks that a schedule is applied.
 
-### 6. Card translations as files
+### 8. Card translations as files
 
 Once the card is bundled: one JSON file per language with ICU MessageFormat (plurals), as in most
 Home Assistant cards; more languages through contributions.
@@ -65,4 +67,4 @@ Home Assistant cards; more languages through contributions.
 
 ha-chauffage is installed as a HACS *custom repository* (HACS shows no icon for those; Home
 Assistant does, once installed). It will be submitted to the default list (`hacs/default`) once
-the heating modes are no longer predefined (step 1), with a stable release.
+schedules are no longer predefined (step 1), with a stable release.

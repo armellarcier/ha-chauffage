@@ -16,51 +16,53 @@ de HACS.
 
 ## Ensuite
 
-### 1. Repenser les modes de chauffage
+### 1. Des plannings définis par l'utilisateur
 
-Aujourd'hui il y a trois modes, *Normal* / *Absent* / *Vacances*, créés à l'installation avec un
-planning hebdomadaire par thermostat et par mode, et un seul mode actif pour toute la maison. Ce
-qu'ils veulent dire n'est porté que par leur nom : *Absent*, c'est une journée dehors ou une
-semaine ? *Vacances* se termine-t-il tout seul ? et une chambre d'amis inoccupée ? Ces modes fixes
-et prédéfinis sont aussi ce qui empêche ha-chauffage d'entrer dans la liste par défaut de HACS.
+Ce qu'on appelait des *modes* (*Normal* / *Absent* / *Vacances*, prédéfinis) sont des
+**plannings** : des programmes hebdomadaires nommés, créés par l'utilisateur, dont un seul est
+actif (voir [docs/glossary.md](docs/glossary.md), en anglais). Cette étape : créer un planning en
+dupliquant un autre, renommer, supprimer, réordonner, et migrer les modes existants ; une
+nouvelle installation démarre avec un seul planning. Concept et user stories :
+[docs/schedules-plan.md](docs/schedules-plan.md) (en anglais). Les modes prédéfinis sont aussi ce
+qui empêche ha-chauffage d'entrer dans la liste par défaut de HACS.
 
-Le travail se fait dans cet ordre :
+### 2. Un calendrier des plannings
 
-1. **Concept et fonctionnel** : ce qu'est un mode, ce dont les utilisateurs ont vraiment besoin
-   (une journée dehors, des vacances, une pièce vide, une journée de télétravail…), ce qui se
-   planifie à l'avance, ce qui se termine tout seul.
-2. **Cas d'usage / user stories**, ajoutés à [docs/use-cases.md](docs/use-cases.md).
-3. **Implémentation, tests d'abord** (voir CONTRIBUTING.fr.md, « Les tests d'abord »), avec une
-   migration des modes et plannings existants.
+Une vue de l'année, une ligne par mois, avec des périodes (jours et heures) colorées selon le
+planning, comme la vue de la semaine avec ses créneaux ; un **planning par défaut** s'applique en
+dehors des périodes. Cela couvre aussi « activer *Absent* jusqu'à mardi » ou « jusqu'à 18:00 »
+sans écrire d'automatisation.
 
-Des idées à examiner à ce moment-là, pas des décisions : des modes définis par l'utilisateur, un
-mode limité dans le temps (« absent jusqu'à dimanche 18:00 »), un mode pour certaines pièces
-seulement, des modes pilotés par la présence ou un calendrier.
+### 3. Un seul vocabulaire
 
-### 2. Des groupes de thermostats
+Renommer partout *modes* en *plannings* et *niveaux* en *presets* : code, données stockées (avec
+une migration), API websocket, entités quand cela ne casse rien chez les utilisateurs, carte,
+docs ([docs/glossary.md](docs/glossary.md)).
+
+### 4. Des groupes de thermostats
 
 Des zones partageant un planning (« chambres », « pièces de vie »), avec des exceptions par
-thermostat ; les dérogations restent par thermostat ; la carte édite les groupes. Dépend du
-résultat du travail sur les modes.
+thermostat ; les dérogations restent par thermostat ; la carte édite les groupes. S'appuie sur
+les plannings (étape 1).
 
-### 3. Les thermostats qui changent leur consigne d'eux-mêmes
+### 5. Les thermostats qui changent leur consigne d'eux-mêmes
 
 Certains appareils ajustent eux-mêmes leur consigne (fenêtre ouverte, présence, sécurité) :
 aujourd'hui cela ressemble à un changement manuel et devient une dérogation. Reconnaître ces
 ajustements (règles par thermostat ou par intégration).
 
-### 4. Plus de thermostats et de créneaux
+### 6. Plus de thermostats et de créneaux
 
-Les thermostats chaud / froid à plage de températures (`heat_cool`), un niveau *Arrêt*, des
+Les thermostats chaud / froid à plage de températures (`heat_cool`), un preset *Arrêt*, des
 créneaux portant directement une température (« 21 °C à partir de 06:30 »).
 
-### 5. Environnement de développement et CI
+### 7. Environnement de développement et CI
 
 Figer les versions de Home Assistant et de Versatile Thermostat dans le HA de développement (avec
 un bot qui propose les montées de version) et ajouter une vérification de bout en bout en CI qui
 le démarre, lance le setup et vérifie qu'un planning est appliqué.
 
-### 6. Traductions de la carte en fichiers
+### 8. Traductions de la carte en fichiers
 
 Une fois la carte compilée : un fichier JSON par langue avec ICU MessageFormat (pluriels), comme
 la plupart des cartes Home Assistant ; d'autres langues via des contributions.
@@ -69,5 +71,5 @@ la plupart des cartes Home Assistant ; d'autres langues via des contributions.
 
 ha-chauffage s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour ceux-ci ;
 Home Assistant l'affiche une fois l'intégration installée). Il sera proposé à la liste par défaut
-(`hacs/default`) quand les modes de chauffage ne seront plus prédéfinis (étape 1), avec une
+(`hacs/default`) quand les plannings ne seront plus prédéfinis (étape 1), avec une
 version stable.
