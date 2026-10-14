@@ -46,8 +46,8 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
 
 Nécessite Home Assistant 2025.1 ou plus récent. Cette version minimale ne monte que quand une
 API de Home Assistant l'impose, dans une version mineure annoncée dans le
-[changelog](CHANGELOG.md) ; les tests tournent sur elle, sur la dernière version de Home
-Assistant et, chaque semaine, sur la beta.
+[changelog](CHANGELOG.md) ; les tests tournent sur elle, sur une version par trimestre depuis,
+sur la dernière version de Home Assistant et, chaque semaine, sur la beta.
 
 ### Ce que fournit l'intégration
 

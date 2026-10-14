@@ -47,7 +47,7 @@ data automatically.
 
 Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Assistant API
 requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,
-on the latest Home Assistant and, every week, on the beta.
+on one version per quarter since, on the latest Home Assistant and, every week, on the beta.
 
 ### What the integration provides
 

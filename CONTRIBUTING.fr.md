@@ -115,17 +115,22 @@ jusqu'à la dernière version publiée.
   `.github/workflows/tests.yml` et les README : `tests/js/release.test.mjs` vérifie qu'ils
   concordent. Si ce Home Assistant demande un autre Python, le changer aussi (le `python` du
   job, et celui de `HA=min` dans `scripts/test.sh`).
-- **Descendre s'essaie par grands pas**, pas mois par mois : `.github/workflows/ha-versions.yml`
-  lance les tests de l'intégration sur des versions plus anciennes côte à côte (à la main depuis
-  l'onglet *Actions*, ou en modifiant sa matrice dans une pull request) ; ses commentaires disent
-  ce qui échoue sous la version minimale. La carte est ensuite essayée dans un HA de
-  développement sur la version choisie (`HA_VERSION=2025.1.0`) : la CI ne la teste que face à
-  un faux HA, pas face au vrai frontend de cette version. En octobre 2026, la version minimale
-  est passée de 2026.9 à 2025.1 ; 2024.10 demande un flux d'options et un recorder qui
-  fonctionnent autrement.
-- **Les tests tournent aux deux bouts** : la dernière version (`requirements.txt`, avancé par
-  Dependabot, `.github/dependabot.yml`) et la version minimale (`requirements-min.txt`, avancé
-  seulement à la main), à chaque push (`HA=min scripts/test.sh integration` en local).
+- **La CI teste les versions prises en charge**, à chaque push (la matrice du job `python` de
+  `.github/workflows/tests.yml`) : la dernière version (`requirements.txt`, avancé par
+  Dependabot, `.github/dependabot.yml`), la version minimale (`requirements-min.txt`, avancé
+  seulement à la main ; `HA=min scripts/test.sh integration` en local), une version par
+  trimestre depuis (x.1, x.4, x.7, x.10), et les deux côtés d'un test de version dans le code.
+  Pas chaque mois : un trimestre suffit pour attraper une API qui apparaît ou disparaît. Quand
+  Dependabot fait entrer un nouveau trimestre, `test_supported_versions.py` échoue tant que le
+  précédent n'a pas sa ligne dans la matrice (le `pytest-homeassistant-custom-component` de ce
+  Home Assistant, son Python, et des versions figées si une dépendance non figée le casse). Les
+  versions plus anciennes que la version minimale ne sont pas testées.
+- **Descendre s'essaie par grands pas**, pas mois par mois : dans une pull request, baisser la
+  version minimale et ajouter les versions plus anciennes à la matrice ; la CI montre ce qui
+  casse. La carte est ensuite essayée dans un HA de développement sur la version choisie
+  (`HA_VERSION=2025.1.0`) : la CI ne la teste que face à un faux HA, pas face au vrai frontend
+  de cette version. En octobre 2026, la version minimale est passée de 2026.9 à 2025.1 ;
+  2024.10 demande un flux d'options et un recorder qui fonctionnent autrement.
 - **La prochaine version est essayée chaque semaine** : `.github/workflows/ha-beta.yml` lance
   les tests de l'intégration sur la beta de Home Assistant (le lundi, ou à la main depuis
   l'onglet *Actions*). Il ne bloque jamais un push ni une publication ; un échec prévient d'un

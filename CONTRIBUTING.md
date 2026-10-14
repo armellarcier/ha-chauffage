@@ -107,16 +107,21 @@ minimum in `hacs.json` (also written in the READMEs) to the latest release.
   `.github/workflows/tests.yml` and the READMEs together: `tests/js/release.test.mjs` checks
   that they agree. If that Home Assistant needs another Python, change it too (the `python` of
   the job, and of `HA=min` in `scripts/test.sh`).
-- **Going down is tried by big steps**, not month by month: `.github/workflows/ha-versions.yml`
-  runs the integration tests on older versions side by side (by hand from the *Actions* tab, or
-  by editing its matrix in a pull request); its comments say what fails below the minimum. The
-  card is then tried in a development HA on the chosen version (`HA_VERSION=2025.1.0`): the CI
-  only tests it against a fake HA, not against the real frontend of that version. In October
-  2026 the minimum went from 2026.9 down to 2025.1; 2024.10 needs an options flow and a recorder
-  that work differently.
-- **The tests run on both ends**: the latest release (`requirements.txt`, moved forward by
-  Dependabot, `.github/dependabot.yml`) and the minimum (`requirements-min.txt`, moved only by
-  hand), on every push (`HA=min scripts/test.sh integration` locally).
+- **The CI tests the supported versions**, on every push (the matrix of the `python` job in
+  `.github/workflows/tests.yml`): the latest release (`requirements.txt`, moved forward by
+  Dependabot, `.github/dependabot.yml`), the minimum (`requirements-min.txt`, moved only by
+  hand; `HA=min scripts/test.sh integration` locally), one version per quarter since (x.1, x.4,
+  x.7, x.10), and both sides of a version check in the code. Not every month: a quarter is
+  enough to catch an API that comes or goes. When Dependabot brings in a new quarter,
+  `test_supported_versions.py` fails until the previous one has its line in the matrix (the
+  `pytest-homeassistant-custom-component` of that Home Assistant, its Python, and pins if an
+  unpinned dependency breaks it). Versions older than the minimum are not tested.
+- **Going down is tried by big steps**, not month by month: in a pull request, lower the minimum
+  and add the older versions to the matrix; the CI shows what breaks. The card is then tried in
+  a development HA on the chosen version (`HA_VERSION=2025.1.0`): the CI only tests it against
+  a fake HA, not against the real frontend of that version. In October 2026 the minimum went
+  from 2026.9 down to 2025.1; 2024.10 needs an options flow and a recorder that work
+  differently.
 - **The next release is tried every week**: `.github/workflows/ha-beta.yml` runs the
   integration tests on the Home Assistant beta (on Monday, or by hand from the *Actions* tab).
   It never blocks a push or a release; a failure warns of a coming change, to fix before the

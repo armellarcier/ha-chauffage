@@ -146,8 +146,9 @@ future contributor might question.
 - **The minimum Home Assistant stays as low as possible** and only rises when a Home Assistant
   API requires it (CONTRIBUTING.md, "Supported Home Assistant versions"): a heating schedule is
   set up once and its HA is often not updated every month; dropping it for a version number
-  would cost users more than the tests on two versions cost us. The tests run on the minimum
-  and the latest release, and every week on the beta (never blocking). The first minimum
+  would cost users more than testing several versions costs us. The tests run on the minimum,
+  one version per quarter since (not every month: enough to catch an API that comes or goes, for
+  a few jobs), the latest release, and every week on the beta (never blocking). The first minimum
   (2026.9) was only the version tried then; it went down to 2025.1 by replacing APIs that were
   only conveniences (`async_entity_id_to_device`, `async_loaded_entries`,
   `last_updated_timestamp`, `AddConfigEntryEntitiesCallback`) and attaching the sensors to the
