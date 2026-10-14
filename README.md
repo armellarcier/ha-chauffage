@@ -73,6 +73,18 @@ thermostat, made of **slots**; each slot asks for a **preset** (*Comfort*, *Eco*
       data:
         schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'odd_weeks' }}"
   ```
+- **Activation rules**, without writing an automation: in the card's *Rules* view (admins), an
+  ordered list of rules; the first that applies wins, and a default schedule is activated when
+  none does (or the active schedule stays). A rule is either a template and the schedule it
+  activates while the template is true (as in a template condition: `true`, `on`, `yes`, `1`…;
+  any other text is false), or a template that gives the schedule itself, by its id or its name.
+  For example, following the EDF Tempo color of the day, two rules
+  `{{ is_state('sensor.edf_tempo_color', 'red') }}` → *Away* and
+  `{{ is_state('sensor.edf_tempo_color', 'white') }}` → *Eco days*, otherwise *Normal*; or a
+  single rule whose template gives the schedule:
+  `{{ {'red': 'away', 'white': 'eco_days'}.get(states('sensor.edf_tempo_color'), 'normal') }}`.
+  Rules are tried as they are typed: each one shows what its template gives now (or its error)
+  and whether it applies. A schedule chosen by hand stays until the outcome of the rules changes.
 - **Presets**: slots use the integration's presets (by default *Comfort* 20 °C, *Eco* 17 °C,
   *Boost* 21 °C, *Frost protection* 7 °C). For each thermostat, a preset is the thermostat's own
   preset with the same name when it has one, otherwise the preset's temperature; this can be

@@ -14,6 +14,13 @@ Vocabulary: docs/glossary.md.
                                           "start": ISO datetime, "end": ISO datetime}}
     revision:        increases on every change of the schedules or weeks; the card saves against
                      a revision so that two editors cannot overwrite each other
+    rules:           [{"template": "{{ … }}", "schedule": "away" | None}, …]   activation rules, in
+                     order: the first that applies gives the schedule; with a schedule, the rule
+                     applies while its template is true; without (None), its template gives the
+                     schedule (an id or a name) and the rule applies when it names one
+    default_schedule: "normal" | None   the schedule when no rule is true (None: no change)
+    rules_choice:    the schedule the rules chose last (None: none); a schedule chosen by hand
+                     stays until this changes
 """
 
 from __future__ import annotations
@@ -124,7 +131,43 @@ def used_presets(weeks: dict[str, Any]) -> list[str]:
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
     schedules = make_schedules(schedule_names)
     return {"schedules": schedules, "active_schedule": schedules[0]["id"], "presets": default_presets(language),
-            "mappings": {}, "weeks": {}, "overrides": {}, "revision": 0}
+            "mappings": {}, "weeks": {}, "overrides": {}, "revision": 0,
+            "rules": [], "default_schedule": None, "rules_choice": None}
+
+
+def normalize_rules(rules: Any, default: Any, schedule_ids: set[str]) -> list[dict[str, Any]]:
+    """Validated activation rules (the templates themselves are checked by the runtime, with HA)."""
+    if not isinstance(rules, list):
+        raise InvalidData("rules must be a list")
+    out: list[dict[str, Any]] = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            raise InvalidData(f"invalid rule: {rule!r}")
+        template, schedule = rule.get("template"), rule.get("schedule")
+        if not isinstance(template, str) or not template.strip():
+            raise InvalidData("a rule needs a template")
+        if schedule is not None and schedule not in schedule_ids:
+            raise InvalidData(f"unknown schedule: {schedule}")
+        out.append({"template": template.strip(), "schedule": schedule})
+    if default is not None and default not in schedule_ids:
+        raise InvalidData(f"unknown schedule: {default}")
+    return out
+
+
+def schedule_named(text: str, schedules: list[dict[str, str]]) -> str | None:
+    """The schedule a template gives: its id, else its name (any case); None if none matches."""
+    text = text.strip()
+    if any(s["id"] == text for s in schedules):
+        return text
+    return next((s["id"] for s in schedules if s["name"].casefold() == text.casefold()), None)
+
+
+def rules_outcome(rules: list[dict[str, Any]], results: list[Any], default: str | None) -> str | None:
+    """The schedule of the first rule that applies (true, or a schedule given by its template),
+    else the default one (a failed template does not apply); None without rules."""
+    if not rules:
+        return None
+    return next((rule["schedule"] or result for rule, result in zip(rules, results) if result), default)
 
 
 def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:

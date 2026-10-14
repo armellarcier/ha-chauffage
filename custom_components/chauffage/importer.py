@@ -102,6 +102,9 @@ def from_package(hass: HomeAssistant) -> dict[str, Any]:
         "weeks": weeks,
         "overrides": overrides,
         "revision": 0,
+        "rules": [],
+        "default_schedule": None,
+        "rules_choice": None,
     }
 
 

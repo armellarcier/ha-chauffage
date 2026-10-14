@@ -2,7 +2,9 @@
 
 - every minute: slots starting now, overrides ending now;
 - full realignment when HA starts, a schedule is activated or the weeks are saved;
-- a manual change on a scheduled thermostat becomes a temporary override.
+- a manual change on a scheduled thermostat becomes a temporary override;
+- activation rules: their templates are tracked, and a change of their outcome activates a
+  schedule (a schedule chosen by hand stays until then).
 
 The integration calls services with its own contexts: state changes carrying one of them are
 its own (not manual changes).
@@ -21,7 +23,14 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Context, Event, EventStateChangedData, HomeAssistant, State, callback
-from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
+from homeassistant.exceptions import TemplateError
+from homeassistant.helpers.event import (
+    TrackTemplate,
+    async_track_state_change_event,
+    async_track_template_result,
+    async_track_time_change,
+)
+from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
 from . import engine, model
@@ -73,6 +82,8 @@ class ChauffageRuntime:
         self._last_tick: datetime | None = None
         self._retry: set[str] = set()  # thermostats whose last command failed
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
+        self._unsub_rules: Callable[[], None] | None = None
+        self.rule_results: list[Any] = []  # each rule now (see render_rule)
 
     # ----- life cycle -----
 
@@ -83,13 +94,19 @@ class ChauffageRuntime:
         for entity_id in self.data["weeks"]:
             self._learn(self.hass.states.get(entity_id))
         if self.hass.state is CoreState.running:
-            self.entry.async_create_task(self.hass, self.apply(force=True), "chauffage realign")
+            self.entry.async_create_task(self.hass, self._started(), "chauffage realign")
         else:
             @callback
             def started(_event: Event) -> None:
-                self.entry.async_create_task(self.hass, self.apply(force=True), "chauffage realign")
+                self.entry.async_create_task(self.hass, self._started(), "chauffage realign")
 
             self._unsubs.append(self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started))
+
+    async def _started(self) -> None:
+        # The rules wait for HA to have started: their entities are not all there before
+        self._track_rules()
+        await self.follow_rules()
+        await self.apply(force=True)
 
     @callback
     def async_stop(self) -> None:
@@ -99,6 +116,9 @@ class ChauffageRuntime:
         if self._unsub_states:
             self._unsub_states()
             self._unsub_states = None
+        if self._unsub_rules:
+            self._unsub_rules()
+            self._unsub_rules = None
 
     # ----- listeners (entities, websocket) -----
 
@@ -173,6 +193,9 @@ class ChauffageRuntime:
             "use_presets": self.use_presets,
             "revision": self.data["revision"],
             "override_duration": self.override_duration,
+            "rules": self.data["rules"],
+            "default_schedule": self.data["default_schedule"],
+            "rule_results": self.rule_results,
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
@@ -248,6 +271,9 @@ class ChauffageRuntime:
             raise StaleRevision
         schedules, created = model.plan_schedules(items, self.data["schedules"], self.data["active_schedule"])
         kept = {s["id"] for s in schedules}
+        in_rules = ({rule["schedule"] for rule in self.data["rules"]} | {self.data["default_schedule"]}) - {None}
+        if in_rules - kept:
+            raise model.InvalidData(f"used by the activation rules: {sorted(in_rules - kept)}")
         preset_ids = [preset["id"] for preset in self.data["presets"]]
         fill = "eco" if "eco" in preset_ids else preset_ids[0]
         for weeks in self.data["weeks"].values():
@@ -271,6 +297,95 @@ class ChauffageRuntime:
         self.data["active_schedule"] = schedule_id
         self._changed()
         await self.apply(force=True)
+
+    # ----- activation rules -----
+
+    async def set_rules(self, rules: Any, default_schedule: Any) -> None:
+        """New activation rules, applied at once (even over a schedule chosen by hand)."""
+        normalized = model.normalize_rules(rules, default_schedule, self.schedule_ids)
+        for rule in normalized:
+            try:
+                Template(rule["template"], self.hass).ensure_valid()
+            except TemplateError as err:
+                raise model.InvalidData(f"invalid template: {err}") from err
+        self.data["rules"], self.data["default_schedule"] = normalized, default_schedule
+        self._changed()
+        self._track_rules()
+        await self.follow_rules(force=True)
+
+    @callback
+    def _track_rules(self) -> None:
+        """Watches the entities (and the time) the templates of the rules depend on."""
+        if self._unsub_rules:
+            self._unsub_rules()
+        self.rule_results = []
+
+        @callback
+        def changed() -> None:
+            self.entry.async_create_task(self.hass, self.follow_rules(), "chauffage rules")
+
+        self._unsub_rules = self.track_templates([rule["template"] for rule in self.data["rules"]], changed)
+
+    @callback
+    def track_templates(self, templates: list[str], action: Callable[[], None]) -> Callable[[], None] | None:
+        """Calls `action` (a callback) when the result of one of these templates may have changed:
+        HA's template tracking (the entities they read, the time when they use now()). Empty and
+        invalid templates are left out; None when nothing is tracked."""
+        tracked = []
+        for text in templates:
+            template = Template(text, self.hass)
+            try:
+                template.ensure_valid()
+            except TemplateError:
+                continue
+            if text.strip():
+                tracked.append(TrackTemplate(template, None))
+        if not tracked:
+            return None
+
+        @callback
+        def changed(_event: Event | None, _updates: list) -> None:
+            action()
+
+        return async_track_template_result(self.hass, tracked, changed).async_remove
+
+    def render_rule(self, rule: dict[str, Any]) -> tuple[Any, str | None, str | None]:
+        """(result, text, error) of a rule now. The result: True / False for a rule with a schedule,
+        the schedule its template gives (False: none) for a rule without; None when its template is
+        empty or fails (the rule does not apply)."""
+        if not rule["template"].strip():
+            return None, None, None
+        try:
+            text = Template(rule["template"], self.hass).async_render(parse_result=False)
+        except TemplateError as err:
+            return None, None, str(err)
+        if rule["schedule"]:
+            return result_as_boolean(text), text, None
+        return model.schedule_named(text, self.data["schedules"]) or False, text, None
+
+    def _evaluate_rules(self) -> list[Any]:
+        results = []
+        for rule in self.data["rules"]:
+            result, _, error = self.render_rule(rule)
+            if error:
+                _LOGGER.warning("Activation rule %s: %s", rule["template"], error)
+            results.append(result)
+        return results
+
+    async def follow_rules(self, force: bool = False) -> None:
+        """Activates the schedule the rules give when their outcome changed (or `force`)."""
+        results = self._evaluate_rules()
+        notify = results != self.rule_results
+        self.rule_results = results
+        outcome = model.rules_outcome(self.data["rules"], results, self.data["default_schedule"])
+        changed = outcome != self.data["rules_choice"]
+        if changed:
+            self.data["rules_choice"] = outcome
+            self._changed()
+        elif notify:
+            self._notify(DATA)
+        if outcome is not None and (changed or force):
+            await self.activate_schedule(outcome)
 
     async def set_override(self, entity_id: str, override: dict[str, Any] | None) -> None:
         """Create / extend (override) or remove (None) a thermostat's override."""

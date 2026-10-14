@@ -10,6 +10,11 @@ chauffage/presets/set        {presets, replacements}: the presets (a removed pre
                              weeks is replaced by the preset given in replacements)
 chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one thermostat
                              ({preset id: {"preset": climate preset} | {"temperature": …}}; {} = defaults)
+chauffage/rules/set          {rules, default_schedule}: the activation rules ([{"template", "schedule"}],
+                             the first that applies wins; schedule null: the template gives it) and
+                             the schedule when none applies (or null)
+chauffage/rules/preview      {rules}: tries rules being typed, as the integration would, then again
+                             when their entities change: {results, texts, errors}, one per rule
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -33,7 +38,7 @@ from .runtime import DATA, ChauffageRuntime, StaleRevision
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
-                    ws_set_presets, ws_set_mapping, ws_history):
+                    ws_set_presets, ws_set_mapping, ws_set_rules, ws_preview_rules, ws_history):
         websocket_api.async_register_command(hass, command)
 
 
@@ -144,6 +149,43 @@ async def ws_set_presets(hass: HomeAssistant, connection: websocket_api.ActiveCo
 @websocket_api.async_response
 async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_mapping(msg["entity_id"], msg["mapping"]))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/rules/set",
+    vol.Required("rules"): list,
+    vol.Required("default_schedule"): vol.Any(None, str),
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_rules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    await _run(hass, connection, msg, lambda runtime: runtime.set_rules(msg["rules"], msg["default_schedule"]))
+
+
+PREVIEW_TEXT = 255  # characters of a template's text sent back
+
+
+@websocket_api.websocket_command({vol.Required("type"): "chauffage/rules/preview", vol.Required("rules"): [dict]})
+@websocket_api.require_admin
+@callback
+def ws_preview_rules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Admins only, like HA's render_template: a template can read any entity."""
+    if (runtime := _runtime(hass, connection, msg["id"])) is None:
+        return
+    rules = [{"template": str(rule.get("template") or ""), "schedule": rule.get("schedule") or None} for rule in msg["rules"]]
+
+    @callback
+    def send() -> None:
+        rendered = [runtime.render_rule(rule) for rule in rules]
+        connection.send_message(websocket_api.event_message(msg["id"], {
+            "results": [result for result, _, _ in rendered],
+            "texts": [text if text is None else text[:PREVIEW_TEXT] for _, text, _ in rendered],
+            "errors": [error for _, _, error in rendered],
+        }))
+
+    connection.subscriptions[msg["id"]] = runtime.track_templates([rule["template"] for rule in rules], send) or (lambda: None)
+    connection.send_result(msg["id"])
+    send()
 
 
 @websocket_api.websocket_command({

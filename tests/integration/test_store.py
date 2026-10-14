@@ -45,7 +45,13 @@ def test_version_3_speaks_the_project_s_vocabulary():
     """docs/glossary.md: schedules (formerly modes), weeks, presets (formerly levels); ids and
     contents do not change."""
     v2 = fixture(2)["data"]
-    v3 = migrate(v2, 2)
+    v3 = migrate(v2, 2, target=3)
     assert set(v3) == {"schedules", "active_schedule", "presets", "mappings", "weeks", "overrides", "revision"}
     assert (v3["schedules"], v3["active_schedule"]) == (v2["modes"], v2["active_mode"])
     assert (v3["weeks"], v3["presets"]) == (v2["schedules"], v2["levels"])
+
+
+def test_version_4_adds_activation_rules_and_none_are_set():
+    """An upgrade keeps choosing the active schedule by hand (docs/decisions.md, "Activation rules")."""
+    v4 = migrate(fixture(3)["data"], 3)
+    assert (v4["rules"], v4["default_schedule"], v4["rules_choice"]) == ([], None, None)

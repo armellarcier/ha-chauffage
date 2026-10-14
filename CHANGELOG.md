@@ -9,6 +9,35 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+**Activation rules**: schedules activated by themselves
+([#1](https://github.com/armellarcier/ha-chauffage/issues/1)). **Migrates stored data** (v3 → v4:
+no rules yet, nothing changes).
+
+### Added
+
+- **Rules** view in the card (admins): an ordered list of rules, the first that applies wins, a
+  default schedule otherwise (or the active schedule stays). A rule is a template and the
+  schedule it activates while the template is true (read as HA's template conditions read it),
+  or a template that gives the schedule itself, by its id or its name. For example, following
+  the EDF Tempo color of the day: `{{ is_state('sensor.edf_tempo_color', 'red') }}` → *Away*.
+  Templates are tracked by Home Assistant (the entities they read, and the time with `now()`); a
+  template that fails does not apply.
+- Rules are **tried as they are typed**: each one shows what its template gives now (or its
+  error, or that its text is neither true nor false, or names no schedule) and whether it
+  applies, updated when its entities change; the view says which schedule the saved rules give.
+- A schedule chosen by hand (card, select, automation) stays until the outcome of the rules
+  changes, even across a restart.
+- Websocket `chauffage/rules/set` and `chauffage/rules/preview` (admins); the subscription also
+  sends `rules`, `default_schedule` and `rule_results`.
+
+### Changed
+
+- A schedule used by the rules cannot be deleted.
+
+### Upgrading
+
+- Update from HACS, restart HA, then reload the browser page.
+
 ## [0.5.0-beta.1] - 2026-10-14
 
 **History of the measured temperature**, drawn over each day of the week with the setpoint

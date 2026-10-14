@@ -74,6 +74,19 @@ Vocabulaire : un **planning** est un programme hebdomadaire (*Normal*, *Vacances
       data:
         schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'semaines_impaires' }}"
   ```
+- Des **règles d'activation**, sans écrire d'automatisation : dans la vue *Règles* de la carte
+  (administrateurs), une liste ordonnée de règles ; la première qui s'applique l'emporte, et un
+  planning par défaut est activé quand aucune ne s'applique (ou le planning actif reste). Une
+  règle est soit un template et le planning qu'il active tant qu'il est vrai (comme une condition
+  template : `true`, `on`, `yes`, `1`… ; tout autre texte est faux), soit un template qui donne
+  lui-même le planning, par son identifiant ou son nom. Par exemple, suivre la couleur du jour
+  EDF Tempo avec deux règles `{{ is_state('sensor.edf_tempo_color', 'red') }}` → *Absent* et
+  `{{ is_state('sensor.edf_tempo_color', 'white') }}` → *Jours éco*, sinon *Normal* ; ou une
+  seule règle dont le template donne le planning :
+  `{{ {'red': 'absent', 'white': 'jours_eco'}.get(states('sensor.edf_tempo_color'), 'normal') }}`.
+  Les règles sont essayées pendant la saisie : chacune montre ce que rend son template en ce
+  moment (ou son erreur) et si elle s'applique. Un planning choisi à la main reste jusqu'à ce que
+  le résultat des règles change.
 - Des **préréglages** : les créneaux utilisent les préréglages de l'intégration (par défaut
   *Confort* 20 °C, *Éco* 17 °C, *Boost* 21 °C, *Hors-gel* 7 °C). Pour chaque thermostat, un
   préréglage correspond à son propre préréglage du même nom s'il en a un, sinon à la température

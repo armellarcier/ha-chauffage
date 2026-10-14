@@ -69,6 +69,7 @@ const I18N = {
     confirmDelete: 'Delete “{name}” and its weeks?',
     cannotDeleteActive: 'The active schedule cannot be deleted.',
     cannotDeleteLast: 'The last schedule cannot be deleted.',
+    cannotDeleteInRules: 'Used by the activation rules (Rules view): it cannot be deleted.',
     nameRequired: 'Give the schedule a name.',
     nameTaken: 'This name is already used.',
     multiple: 'Multiple',
@@ -119,6 +120,29 @@ const I18N = {
     presetColor: 'Color',
     deletePreset: 'Delete this preset',
     replaceWith: 'replaced by',
+    viewRules: 'Rules',
+    rulesIntro: 'Schedules activated by themselves: the first rule that applies wins (its template is true, or gives the name or id of a schedule). A schedule chosen by hand stays until the rules give another one.',
+    rulesEmpty: 'No rules: the active schedule is chosen by hand (card, select entity, automations).',
+    rulesTry: 'Try a template',
+    ruleActivates: 'activates',
+    ruleTrue: 'true',
+    ruleFalse: 'false',
+    ruleError: 'template error',
+    ruleUnsaved: 'not saved',
+    ruleNoSchedule: 'no schedule',
+    ruleTemplateGives: 'the schedule the template gives',
+    ruleText: 'gives “{text}”',
+    ruleNotBoolean: 'neither true nor false: counts as false',
+    ruleNamesNone: 'no schedule with this name or id',
+    ruleChooseSchedule: 'true or false: choose the schedule it activates',
+    ruleAdd: '+ Add a rule',
+    ruleUp: 'Move up',
+    ruleDown: 'Move down',
+    rulesOtherwise: 'Otherwise',
+    rulesKeep: 'keep the active schedule',
+    rulesOutcome: 'The rules give {schedule}.',
+    rulesNoOutcome: 'No rule is true: the active schedule stays.',
+    rulesByHand: '{schedule} was chosen by hand: it stays until the rules change.',
     integrationMissing: 'The Chauffage integration is not set up: add it in Settings → Devices & services.',
     restartNeeded: 'Chauffage was updated: restart Home Assistant to finish the update.',
   },
@@ -174,6 +198,7 @@ const I18N = {
     confirmDelete: 'Supprimer « {name} » et ses semaines ?',
     cannotDeleteActive: 'Le planning actif ne peut pas être supprimé.',
     cannotDeleteLast: 'Le dernier planning ne peut pas être supprimé.',
+    cannotDeleteInRules: 'Utilisé par les règles d’activation (vue Règles) : il ne peut pas être supprimé.',
     nameRequired: 'Donnez un nom au planning.',
     nameTaken: 'Ce nom est déjà utilisé.',
     multiple: 'Plusieurs',
@@ -224,6 +249,29 @@ const I18N = {
     presetColor: 'Couleur',
     deletePreset: 'Supprimer ce préréglage',
     replaceWith: 'remplacé par',
+    viewRules: 'Règles',
+    rulesIntro: 'Les plannings s’activent tout seuls : la première règle qui s’applique l’emporte (son template est vrai, ou donne le nom ou l’identifiant d’un planning). Un planning choisi à la main reste jusqu’à ce que les règles en donnent un autre.',
+    rulesEmpty: 'Aucune règle : le planning actif est choisi à la main (carte, entité select, automatisations).',
+    rulesTry: 'Essayer un template',
+    ruleActivates: 'active',
+    ruleTrue: 'vrai',
+    ruleFalse: 'faux',
+    ruleError: 'erreur du template',
+    ruleUnsaved: 'non enregistrée',
+    ruleNoSchedule: 'aucun planning',
+    ruleTemplateGives: 'le planning donné par le template',
+    ruleText: 'rend « {text} »',
+    ruleNotBoolean: 'ni vrai ni faux : compte comme faux',
+    ruleNamesNone: 'aucun planning de ce nom ou identifiant',
+    ruleChooseSchedule: 'vrai ou faux : choisissez le planning qu’il active',
+    ruleAdd: '+ Ajouter une règle',
+    ruleUp: 'Monter',
+    ruleDown: 'Descendre',
+    rulesOtherwise: 'Sinon',
+    rulesKeep: 'garder le planning actif',
+    rulesOutcome: 'Les règles donnent {schedule}.',
+    rulesNoOutcome: 'Aucune règle n’est vraie : le planning actif reste.',
+    rulesByHand: '{schedule} a été choisi à la main : il reste jusqu’à ce que les règles changent.',
     integrationMissing: 'L’intégration Chauffage n’est pas configurée : ajoutez-la dans Paramètres → Appareils et services.',
     restartNeeded: 'Chauffage a été mis à jour : redémarrez Home Assistant pour terminer la mise à jour.',
   },
@@ -583,7 +631,8 @@ function dataSource(hass) {
     outdated, // true: Home Assistant must be restarted to finish an update
     ready: !!d,
     revision: d ? d.revision : null,
-    stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides), schedule: d.active_schedule } : {},
+    stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides), schedule: d.active_schedule,
+      rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]) } : {},
     schedules: () => schedules.map((s) => s.id),
     scheduleName: (id) => (schedules.find((s) => s.id === id) || { name: id }).name,
     activeSchedule: () => (d ? d.active_schedule : null),
@@ -629,6 +678,12 @@ function dataSource(hass) {
     },
     setMapping: (climate, mapping) => hass.callWS({ type: 'chauffage/mapping/set', entity_id: climate, mapping }),
     setPresets: (presets, replacements) => hass.callWS({ type: 'chauffage/presets/set', presets, replacements }),
+    // Activation rules [{ template, schedule }], the schedule when none is true (null: no change),
+    // and each rule now (true, false, null: its template failed)
+    rules: () => (d && d.rules) || [],
+    defaultSchedule: () => (d && d.default_schedule) || null,
+    ruleResults: () => (d && d.rule_results) || [],
+    setRules: (rules, defaultSchedule) => hass.callWS({ type: 'chauffage/rules/set', rules, default_schedule: defaultSchedule }),
   };
 }
 
@@ -637,6 +692,8 @@ function presetsOf(src, loc) {
   return src.presets().map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature }));
 }
 const presetOf = (presets, id, loc) => presets.find((p) => p.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
+// What Home Assistant reads as true or false in a template's text (any other text is false)
+const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
 // Another preset for a new slot: comfort ↔ eco when they exist, otherwise the next preset
 function otherPreset(presets, id) {
   const ids = presets.map((p) => p.id);
@@ -656,6 +713,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._drag = null;
     this._stamp = undefined;
     this._msg = '';
+    this._rulesDraft = null; // activation rules being edited ({ rules, def })
+    this._previewDelay = 400; // ms of pause in the typing before a rule is tried
+    this._preview = null; // last try of the rules shown ({ rules, data })
     this._lastClick = null;
     this._renderedDay = null;
     // Internal clipboard: { segs, label }, shared between cards through localStorage
@@ -741,6 +801,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._scheduleState = scheduleStamp;
       need = true;
     }
+    // Activation rules changed, or one became true or false: redraw the "Rules" view
+    if (src.stamps.rules !== this._rulesStamp) {
+      this._rulesStamp = src.stamps.rules;
+      if (this._view === 'rules') need = true;
+    }
     if (src.ready && this._wantSchedule && this._schedules().includes(this._wantSchedule)) {
       this._schedule = this._wantSchedule; // created from this card
       this._wantSchedule = null;
@@ -786,6 +851,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     clearInterval(this._timer);
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
+    clearTimeout(this._previewTimer);
+    this._closePreview();
+    this._previewKey = null;
     document.removeEventListener('pointerdown', this._onDocDown, true);
     document.removeEventListener('keydown', this._onKey);
   }
@@ -1331,13 +1399,35 @@ class ChauffageProgrammeCard extends HTMLElement {
     return true;
   }
 
-  // Redraws the card, keeping a schedule name being typed in a menu (the card is redrawn every
-  // 30 s during an override, or when Home Assistant sends new data)
+  // Redraws the card, keeping a schedule name being typed in a menu, and the caret of a rule's
+  // template being typed (the card is redrawn every 30 s during an override, or when Home
+  // Assistant sends new data)
   _render() {
     const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
     const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
+    const area = this.shadowRoot.activeElement;
+    const rule = area && area.hasAttribute && area.hasAttribute('data-rule-template')
+      && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
     this._draw();
     if (typing) this._restoreSchedName(typing.value, typing.focused);
+    if (rule) this._restoreRuleCaret(rule);
+    this._syncPreview();
+  }
+
+  // Focus and caret of a rule's template, again once ha-card (a Lit component, rendered
+  // asynchronously) shows its content, as for the schedule names below
+  _restoreRuleCaret({ idx, start, end }) {
+    const focus = () => {
+      const area = this.shadowRoot.querySelector(`textarea[data-rule-template="${idx}"]`);
+      if (!area) return;
+      area.focus();
+      area.setSelectionRange(start, end);
+    };
+    focus();
+    const card = this.shadowRoot.querySelector('ha-card');
+    if (card && card.updateComplete instanceof Promise) {
+      card.updateComplete.then(() => { if (card.isConnected) focus(); });
+    }
   }
 
   // The name field of the schedule menus: its text, and the focus once ha-card (a Lit component,
@@ -1365,6 +1455,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (this._view === 'presets' && this._source().ready) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
         <ha-card>${this._viewsHtml()}${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+      return;
+    }
+    if (this._view === 'rules' && this._source().ready) {
+      const msg = this._msg || (this._rulesDraft ? tr('unsaved') : '');
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
+        <ha-card>${this._viewsHtml()}${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div></ha-card>`;
       return;
     }
     if (!this._source().ready) {
@@ -1673,6 +1769,13 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e) => {
+      if (e.target.hasAttribute('data-rule-template')) {
+        const first = !this._rulesDraft;
+        this._editRules((d) => { d.rules[Number(e.target.dataset.ruleTemplate)].template = e.target.value; });
+        if (first) this._render(); // shows Cancel and "unsaved"; the text and the caret are kept
+        this._syncPreview();
+        return;
+      }
       if (!e.target.hasAttribute('data-cell-temp')) return;
       const radio = root.querySelector('input[name="cell-kind"][value="temperature"]');
       if (radio) radio.checked = true;
@@ -1680,7 +1783,13 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     root.addEventListener('change', (e) => {
       const el = e.target;
-      if (el.classList.contains('copyweek')) {
+      if (el.hasAttribute('data-rule-schedule')) {
+        this._editRules((d) => { d.rules[Number(el.dataset.ruleSchedule)].schedule = el.value || null; });
+        this._render();
+      } else if (el.hasAttribute('data-rules-default')) {
+        this._editRules((d) => { d.def = el.value || null; });
+        this._render();
+      } else if (el.classList.contains('copyweek')) {
         this._copyWeek(el.value);
       } else if (el.dataset.edge) {
         this._setEdge(el.dataset.edge, el.value);
@@ -1745,7 +1854,10 @@ class ChauffageProgrammeCard extends HTMLElement {
           <div class="sched-btns"><button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button>${cancel}</div></div>`;
       } else {
         const i = schedules.indexOf(id);
-        const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast') : '';
+        const src = this._source();
+        const inRules = src.rules().some((r) => r.schedule === id) || src.defaultSchedule() === id;
+        const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast')
+          : inRules ? t('cannotDeleteInRules') : '';
         body = `${item('schedule-rename-open', esc(t('renameMenu')))}
           ${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
           ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= schedules.length - 1)}
@@ -1860,12 +1972,160 @@ class ChauffageProgrammeCard extends HTMLElement {
     return { temperature: preset.temperature ?? 19 };
   }
 
-  // "Schedule | Presets" switch
+  // "Schedule | Presets | Rules" switch
   _viewsHtml() {
     const t = this._loc.t;
-    const view = this._view === 'presets' ? 'presets' : 'schedule';
+    const view = ['presets', 'rules'].includes(this._view) ? this._view : 'schedule';
     const button = (v, label) => `<button class="view${view === v ? ' on' : ''}" data-act="view" data-view="${v}">${esc(t(label))}</button>`;
-    return `<div class="views">${button('schedule', 'viewSchedule')}${button('presets', 'viewPresets')}</div>`;
+    return `<div class="views">${button('schedule', 'viewSchedule')}${button('presets', 'viewPresets')}${button('rules', 'viewRules')}</div>`;
+  }
+
+  // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
+  _rulesShown() {
+    const src = this._source();
+    return this._rulesDraft || { rules: src.rules().map((r) => ({ ...r })), def: src.defaultSchedule() };
+  }
+
+  // The "Rules" view: one row per rule (template, the schedule it activates or "given by the
+  // template", what it gives now), then the schedule when no rule applies. Rules shown are tried
+  // by the integration as they are typed (_syncPreview); otherwise its results for the saved ones.
+  _rulesViewHtml() {
+    const t = this._loc.t;
+    const src = this._source();
+    const editable = src.editable;
+    const { rules, def } = this._rulesShown();
+    const saved = src.rules();
+    const results = src.ruleResults();
+    const schedules = this._schedules();
+    const options = (selected) => schedules
+      .map((id) => `<option value="${esc(id)}"${id === selected ? ' selected' : ''}>${esc(this._scheduleName(id))}</option>`).join('');
+    const ro = editable ? '' : ' disabled';
+    const live = this._preview && this._preview.data;
+    // What a rule gives now: tried while typed, or the integration's result for the same saved rule
+    const stateOf = (rule, i) => {
+      const tried = live && this._preview.rules[i];
+      if (tried && tried.template === rule.template && tried.schedule === (rule.schedule || null)) {
+        return { result: live.results[i], text: live.texts[i], error: live.errors[i], live: true };
+      }
+      const s = saved[i];
+      const same = s && s.template === rule.template.trim() && (s.schedule || null) === (rule.schedule || null);
+      return same ? { result: results[i] } : null;
+    };
+    const rows = rules.map((rule, i) => {
+      const st = rule.template.trim() ? stateOf(rule, i) : null;
+      let cls = 'unsaved';
+      let label = t('ruleUnsaved');
+      if (st && st.result == null) [cls, label] = ['error', t('ruleError')];
+      else if (st && !rule.schedule) [cls, label] = st.result ? ['true', `→ ${this._scheduleName(st.result)}`] : ['false', t('ruleNoSchedule')];
+      else if (st) [cls, label] = st.result ? ['true', t('ruleTrue')] : ['false', t('ruleFalse')];
+      let detail = '';
+      if (st && st.live && st.error) detail = st.error;
+      else if (st && st.live && st.text != null) {
+        detail = t('ruleText', { text: st.text });
+        const boolean = BOOLEAN_WORDS.includes(st.text.trim().toLowerCase());
+        if (rule.schedule && !boolean) detail += ` · ${t('ruleNotBoolean')}`;
+        if (!rule.schedule && !st.result) detail += ` · ${t(boolean ? 'ruleChooseSchedule' : 'ruleNamesNone')}`;
+      }
+      const tools = editable ? `<span class="rule-tools">
+          <button class="btn icon" data-act="rule-up" data-idx="${i}" title="${esc(t('ruleUp'))}"${i ? '' : ' disabled'}>↑</button>
+          <button class="btn icon" data-act="rule-down" data-idx="${i}" title="${esc(t('ruleDown'))}"${i < rules.length - 1 ? '' : ' disabled'}>↓</button>
+          <button class="btn icon" data-act="rule-delete" data-idx="${i}" title="${esc(t('delete'))}">✕</button></span>` : '';
+      return `<div class="rule">
+        <div class="rule-head"><span class="rule-num">${i + 1}</span><span class="rule-state ${cls}">${esc(label)}</span>${tools}</div>
+        <textarea data-rule-template="${i}" rows="2" spellcheck="false" placeholder="{{ is_state('sensor.edf_tempo_color', 'red') }}"${editable ? '' : ' readonly'}>${esc(rule.template)}</textarea>
+        ${detail ? `<div class="rule-result${st.error ? ' error' : ''}">${esc(detail)}</div>` : ''}
+        <label class="rule-then">${esc(t('ruleActivates'))} <select data-rule-schedule="${i}"${ro}>
+          <option value=""${rule.schedule ? '' : ' selected'}>${esc(t('ruleTemplateGives'))}</option>${options(rule.schedule)}</select></label>
+      </div>`;
+    }).join('');
+    // What the integration's rules give now, and a schedule chosen by hand meanwhile
+    let outcome = '';
+    if (saved.length) {
+      const first = saved.findIndex((_, i) => results[i]);
+      const given = first >= 0 ? saved[first].schedule || results[first] : src.defaultSchedule();
+      const active = this._activeSchedule();
+      outcome = !given ? t('rulesNoOutcome') : t('rulesOutcome', { schedule: this._scheduleName(given) });
+      if (given && active && given !== active) outcome += ` ${t('rulesByHand', { schedule: this._scheduleName(active) })}`;
+    }
+    const actions = editable ? `<div class="ed-actions start">
+        <button class="btn" data-act="rule-add">${esc(t('ruleAdd'))}</button>
+        ${this._rulesDraft ? `<button class="btn" data-act="rules-cancel">${esc(t('cancel'))}</button>` : ''}
+        <button class="btn primary" data-act="rules-save">${esc(t('save'))}</button></div>` : '';
+    return `<div class="rules-view">
+      <div class="muted">${esc(t('rulesIntro'))} <a class="rules-try" href="/developer-tools/template" target="_top">${esc(t('rulesTry'))}</a></div>
+      ${rules.length ? rows : `<div class="rules-empty muted">${esc(t('rulesEmpty'))}</div>`}
+      ${rules.length ? `<label class="rule-then rules-default">${esc(t('rulesOtherwise'))} <select data-rules-default${ro}>
+        <option value=""${def ? '' : ' selected'}>${esc(t('rulesKeep'))}</option>${options(def)}</select></label>` : ''}
+      ${outcome ? `<div class="rules-outcome">${esc(outcome)}</div>` : ''}
+      ${actions}
+    </div>`;
+  }
+
+  // The rules shown are tried by the integration (chauffage/rules/preview, admins only: a template
+  // can read any entity), again whenever their entities change; a new try once they are edited
+  // (after a short pause in the typing), none outside the "Rules" view
+  _syncPreview() {
+    if (!this._hass) return;
+    const src = this._source();
+    const rules = this._view === 'rules' && src.ready && src.editable && this._hass.connection
+      ? this._rulesShown().rules.map((r) => ({ template: r.template, schedule: r.schedule || null })) : [];
+    const key = JSON.stringify(rules);
+    if (key === this._previewKey) return;
+    this._previewKey = key;
+    clearTimeout(this._previewTimer);
+    this._closePreview();
+    if (!rules.length) return;
+    this._previewTimer = setTimeout(() => {
+      const sub = { rules, data: null };
+      this._previewSub = sub;
+      sub.unsub = this._hass.connection.subscribeMessage((data) => {
+        if (this._previewSub !== sub) return;
+        sub.data = data;
+        this._preview = sub; // kept while the next try starts: rules unchanged still show it
+        this._render();
+      }, { type: 'chauffage/rules/preview', rules });
+      sub.unsub.catch(() => {});
+    }, this._previewDelay);
+  }
+
+  _closePreview() {
+    if (!this._previewSub) return;
+    this._previewSub.unsub.then((unsub) => unsub()).catch(() => {});
+    this._previewSub = null;
+  }
+
+  // Edits the draft of the rules (created from the integration's on the first change)
+  _editRules(change) {
+    const draft = this._rulesShown();
+    change(draft);
+    this._rulesDraft = draft;
+    this._msg = '';
+  }
+
+  async _rulesAction(act, ds) {
+    const i = Number(ds.idx);
+    if (act === 'rule-add') {
+      this._editRules((d) => d.rules.push({ template: '', schedule: this._schedules()[0] }));
+    } else if (act === 'rule-up' || act === 'rule-down') {
+      const j = act === 'rule-up' ? i - 1 : i + 1;
+      this._editRules((d) => { [d.rules[i], d.rules[j]] = [d.rules[j], d.rules[i]]; });
+    } else if (act === 'rule-delete') {
+      this._editRules((d) => d.rules.splice(i, 1));
+    } else if (act === 'rules-cancel') {
+      this._rulesDraft = null;
+      this._msg = '';
+    } else if (act === 'rules-save') {
+      const { rules, def } = this._rulesShown();
+      try {
+        await this._source().setRules(
+          rules.filter((r) => r.template.trim()).map((r) => ({ template: r.template.trim(), schedule: r.schedule || null })), def || null);
+        this._rulesDraft = null;
+        this._msg = this._loc.t('saved');
+      } catch (err) {
+        this._msg = this._loc.t('error', { message: err.message || err.code || err });
+      }
+    }
+    return this._render();
   }
 
   // Table: one column per preset (header: the preset, then its default temperature), one row per
@@ -2147,6 +2407,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       return this._render();
     }
     if (act === 'cell' || act.startsWith('cell-')) return this._cellAction(act, ds);
+    if (act.startsWith('rule-') || act.startsWith('rules-')) return this._rulesAction(act, ds);
     if (act === 'save') return this._save();
     if (act === 'cancel') {
       this._dirty = false;
@@ -2395,6 +2656,24 @@ const STYLE = `
   .cell.add { color:var(--primary-color); font-weight:600; }
   .pv-key { margin-top:6px; font-size:.78em; color:var(--secondary-text-color); }
   .pv-key .default { opacity:.8; }
+  .rules-view { display:flex; flex-direction:column; gap:10px; margin-top:8px; }
+  .rules-try { color:var(--primary-color); white-space:nowrap; }
+  .rule { padding:8px 10px; border-radius:10px; border:1px solid var(--divider-color); display:flex; flex-direction:column; gap:6px; }
+  .rule-head { display:flex; align-items:center; gap:8px; }
+  .rule-num { font-weight:500; }
+  .rule-state { font-size:.78em; padding:1px 8px; border-radius:10px; background:var(--secondary-background-color); color:var(--secondary-text-color); }
+  .rule-state.true { background:var(--success-color,#43a047); color:#fff; }
+  .rule-state.error { background:var(--error-color,#db4437); color:#fff; }
+  .rule-tools { margin-left:auto; display:flex; gap:4px; }
+  .rule textarea { width:100%; box-sizing:border-box; font-family:var(--code-font-family,monospace); font-size:.85em;
+    padding:6px; border-radius:6px; border:1px solid var(--divider-color); background:var(--card-background-color);
+    color:var(--primary-text-color); resize:vertical; }
+  .rule-then { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:.9em; }
+  .rule-then select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color); max-width:100%;
+    background:var(--card-background-color); color:var(--primary-text-color); }
+  .rule-result { font-size:.8em; color:var(--secondary-text-color); overflow-wrap:anywhere; }
+  .rule-result.error { color:var(--error-color,#db4437); }
+  .rules-outcome { font-size:.9em; }
   .panel { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--divider-color);
     background:var(--card-background-color); display:flex; flex-direction:column; gap:8px; }
   .panel-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }

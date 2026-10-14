@@ -186,6 +186,16 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.deepEqual(schedulesSet(hass)[0].schedules, [{ id: 'normal' }, { id: 'away' }]);
   });
 
+  test('a schedule used by the activation rules cannot be deleted', () => {
+    const data = { ...integrationData(), rules: [{ template: '{{ true }}', schedule: 'holiday' }], default_schedule: 'away', rule_results: [true] };
+    const card = createCard(fakeHass({ data }));
+    for (const id of ['holiday', 'away']) {
+      openMenu(card, id);
+      assert.equal($(card, '[data-act="schedule-delete"]').disabled, true);
+      assert.match(menu(card).textContent, /utilisé par les règles/i);
+    }
+  });
+
   test('the active schedule cannot be deleted', () => {
     const card = createCard(fakeHass());
     openMenu(card, 'normal');

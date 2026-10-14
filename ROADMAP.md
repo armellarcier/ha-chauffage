@@ -30,17 +30,10 @@ its issue when it has one.
 
 ## Next
 
-### Activation rules
+### Calendar of schedules
 
-Schedules activated by themselves, without writing an automation: an ordered list of rules
-"template → schedule", the first true one winning, a **default schedule** otherwise. A template
-can express anything; it is written in Home Assistant's own template field and tried in the
-Developer tools (no editor of our own). For example, following the EDF Tempo color of the day
-([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
-
-#### Calendar of schedules
-
-A year view, one row per month, with periods (days and times) colored by schedule, like the
+Built on the **activation rules** (done, [#1](https://github.com/armellarcier/ha-chauffage/issues/1):
+ordered rules "template → schedule", see the [changelog](CHANGELOG.md)). A year view, one row per month, with periods (days and times) colored by schedule, like the
 weekly view with its slots. Its periods are rules too. It also covers "activate *Away* until
 Tuesday" or "until 18:00".
 

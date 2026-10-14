@@ -31,17 +31,10 @@ idée retenue renvoie vers son issue quand elle en a une.
 
 ## Ensuite
 
-### Des règles d'activation
+### Un calendrier des plannings
 
-Des plannings qui s'activent d'eux-mêmes, sans écrire d'automatisation : une liste ordonnée de
-règles « template → planning », la première vraie l'emportant, un **planning par défaut** sinon.
-Un template peut tout exprimer ; il s'écrit dans le champ template de Home Assistant et se met
-au point dans les Outils de développement (pas d'éditeur maison). Par exemple, suivre la couleur du
-jour EDF Tempo ([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
-
-#### Un calendrier des plannings
-
-Une vue de l'année, une ligne par mois, avec des périodes (jours et heures) colorées selon le
+Construit sur les **règles d'activation** (fait, [#1](https://github.com/armellarcier/ha-chauffage/issues/1) :
+règles ordonnées « template → planning », voir le [changelog](CHANGELOG.md)). Une vue de l'année, une ligne par mois, avec des périodes (jours et heures) colorées selon le
 planning, comme la vue de la semaine avec ses créneaux. Ses périodes sont aussi des règles. Il
 couvre également « activer *Absent* jusqu'à mardi » ou « jusqu'à 18:00 ».
 

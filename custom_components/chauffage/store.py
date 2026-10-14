@@ -16,7 +16,7 @@ from homeassistant.helpers.storage import Store
 from . import model
 from .const import DOMAIN
 
-STORAGE_VERSION = 3
+STORAGE_VERSION = 4
 STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
@@ -40,7 +40,12 @@ def _v2_to_v3(data: dict[str, Any], language: str) -> dict[str, Any]:
     return {renamed.get(key, key): value for key, value in data.items()}
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3}
+def _v3_to_v4(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """Activation rules (v0.5): none yet, the active schedule stays chosen by hand."""
+    return {**data, "rules": [], "default_schedule": None, "rules_choice": None}
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4}
 
 
 class ChauffageStore(Store[dict[str, Any]]):

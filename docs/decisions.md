@@ -55,14 +55,48 @@ future contributor might question.
 
 - **Schedules are defined by the user** (v0.4), not predefined modes: their meaning (a day out,
   holidays, remote work…) is only their content; when one is active and until when is the job of
-  the select entity, automations, and later a calendar of schedules.
+  the select entity, automations, the activation rules, and later a calendar of schedules.
 - **A new installation has a single schedule**, *Normal*; others are created empty (eco, or the
   first preset, all week) or as a copy.
 - **Stable ids**, as everywhere in HA: given from the name when a schedule is created, never
   changed; automations use them (`chauffage.activate_schedule`, attribute `schedule_id`). The
   select's options stay the names, for dashboards.
 - **The active schedule and the last one cannot be deleted**; unsaved edits of the weeks are
-  saved before a schedule is created, renamed, moved or deleted.
+  saved before a schedule is created, renamed, moved or deleted. Nor can a schedule used by the
+  activation rules: the rules would point at nothing.
+
+## Activation rules
+
+- **An ordered list of rules "template → schedule", the first true one wins, an optional default
+  schedule otherwise** (v0.5, [#1](https://github.com/armellarcier/ha-chauffage/issues/1)), not a
+  condition on each schedule: two true conditions would need a hidden priority, here the order
+  is the priority and it is visible. Without a default and with no true rule, the active
+  schedule stays.
+- **Templates, not a condition editor of our own**: a template can express anything (an entity's
+  state, the time, several entities), users already write them for other integrations, and HA's
+  Developer tools try them (the *Rules* view links there). The integration tracks them with HA's
+  own template tracking (`async_track_template_result`: the entities they read, and the time when
+  they use `now()`); a template that fails does not apply, and is shown as an error.
+- **True or false as HA's template conditions read it** (`result_as_boolean` on the rendered
+  text: `true`, `on`, `yes`, `1`, `enable`; any other text is false, `red` or `2` included), so
+  that a template behaves as it does in an automation.
+- **A rule without a schedule: its template gives the schedule**, by its id or its name (any
+  case), and the rule applies when it names one. One template can then map a value to schedules
+  (the three Tempo colors) instead of one rule per value; a text that names no schedule lets the
+  next rule decide. Ids are recommended: a rename keeps them.
+- **Rules are tried as they are typed, by the integration** (`chauffage/rules/preview`), not by
+  HA's `render_template`: the same rendering and the same reading as the saved rules (true or
+  false, the schedule named), and again when their entities change. Admins only, like
+  `render_template`: a template can read any entity.
+- **A plain text field in the card**, not HA's template code editor: that editor is an internal
+  element of HA's frontend, loaded lazily (not on every dashboard) and the card redraws with
+  `innerHTML`. The integration checks the template when the rules are saved and refuses an
+  invalid one with HA's message.
+- **A schedule chosen by hand stays until the outcome of the rules changes** (the card, the select
+  or an automation), like an override that ends by itself: the rules take over again when they
+  give another schedule (tomorrow's Tempo color), not at their next evaluation. The outcome last
+  applied is stored (`rules_choice`), so a choice by hand also survives a restart; saving the rules
+  applies them at once. Rules are evaluated once HA has started, when their entities are there.
 
 ## Card
 
@@ -109,6 +143,11 @@ future contributor might question.
   behavior test runs on the three kinds of thermostats.
 - **A change to the stored data or the installation goes through a beta** installed on a real
   installation before the release.
+- **The minimum Home Assistant stays as low as possible** and only rises when a Home Assistant
+  API requires it (CONTRIBUTING.md, "Supported Home Assistant versions"): a heating schedule is
+  set up once and its HA is often not updated every month; dropping it for a version number
+  would cost users more than the tests on two versions cost us. The tests run on the minimum
+  and the latest release, and every week on the beta (never blocking).
 - **One vocabulary** ([glossary.md](glossary.md)), in the UI, the docs, the code and the data.
 - **Version 1.0** once ha-chauffage works with groups of thermostats and any thermostat.
 - **A new development HA starts with a simulated week of history** (dev/sim_rooms): the

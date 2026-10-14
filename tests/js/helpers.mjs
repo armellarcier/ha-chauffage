@@ -73,8 +73,15 @@ export function fakeHass({ data, weeks, overrides, schedule, locale = FRENCH, re
     language: locale.language,
     config: { unit_system: { temperature: '°C' } },
     subscriptions: [],
+    // Rules being tried (chauffage/rules/preview): { msg, send(event), closed }
+    previews: [],
     connection: {
       subscribeMessage: (cb, msg) => {
+        if (msg.type === 'chauffage/rules/preview') {
+          const preview = { msg, send: cb, closed: false };
+          hass.previews.push(preview);
+          return Promise.resolve(() => { preview.closed = true; });
+        }
         hass.subscriptions.push(msg);
         listener = cb;
         if (data) cb(data);

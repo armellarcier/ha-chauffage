@@ -6,7 +6,8 @@ canonical; the French column is the UI and docs wording.
 | Term | French | Meaning |
 |---|---|---|
 | **Schedule** | Planning | A named weekly plan for the home, defined by the user (*Normal*, *Remote work*, *Holidays*, *Away*…): for each thermostat, a week of slots. One schedule is active at a time. |
-| **Active schedule** | Planning actif | The schedule the thermostats follow now; switched from the card, the select entity or an automation. |
+| **Active schedule** | Planning actif | The schedule the thermostats follow now; switched from the card, the select entity, an automation or the activation rules. |
+| **Activation rule** | Règle d'activation | A template and the schedule it activates while it is true, or a template that gives the schedule itself (its id or its name). The rules are in order, the first that applies wins; the **default schedule** (*planning par défaut*) is activated when none applies. A schedule chosen by hand stays until the outcome of the rules changes. |
 | **Week** | Semaine | What a schedule says for one thermostat: 7 days of slots. |
 | **Slot** | Créneau | A start time and a preset; it lasts until the next slot of the day. |
 | **Preset** | Préréglage | What a slot asks a thermostat for (*Comfort*, *Eco*, *Boost*, *Frost protection*…): a name, a color, a default temperature. For each thermostat, a preset is the climate preset with the same name when it has one, otherwise a temperature; it can be set per thermostat. It is the same idea as a climate entity's presets, extended to thermostats that have none. |

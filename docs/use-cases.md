@@ -15,7 +15,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A new installation gets one schedule (*Normal*) and the default presets in HA's language | `I/test_schedule_list.py::a_new_installation_*`, `I/test_presets.py::a_new_installation_has_the_four_default_presets` |
 | Upgrade from the package: weeks, overrides, active schedule imported; package automations turned off; repair until the package is removed | `I/test_import.py` |
 | Package data newer than the integration, unreadable parts, added during HA startup | `I/test_import.py`, `I/test_edge_cases.py::a_package_too_new_*`, `::unreadable_package_parts_are_skipped` |
-| Upgrade of the integration: stored data migrated (v1 → v2 → v3), nothing changes | `I/test_store.py`, `I/test_presets.py::storage_from_v0_2_is_migrated_without_changing_anything` |
+| Upgrade of the integration: stored data migrated (v1 → v2 → v3 → v4), nothing changes | `I/test_store.py`, `I/test_presets.py::storage_from_v0_2_is_migrated_without_changing_anything` |
 | Upgrade from v0.3: `select.chauffage_mode` becomes `select.chauffage_schedule` (an entity id chosen by the user is kept) | `I/test_entities.py::the_select_of_an_older_version_*`, `::an_entity_id_chosen_by_the_user_is_kept` |
 | Remove the integration: its data is deleted | `I/test_edge_cases.py::deleting_the_integration_deletes_its_data` |
 | The card is served by the integration and loaded on every page | `I/test_frontend.py` |
@@ -31,6 +31,22 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Names required and unique; unknown ids refused; only admins manage schedules; unsaved weeks saved first | `I/test_schedule_list.py::a_name_must_be_set_and_not_taken`, `::unknown_ids_*`, `::only_admins_manage_schedules`, `C/schedules.test.mjs::unsaved edits *`, `::a name is needed *` |
 | Activating a schedule (card, select, automation) realigns every thermostat | `I/test_schedules.py::activating_a_schedule_applies_its_weeks`, `C/card.test.mjs` (activating a schedule), `C/card-integration.test.mjs::activating a schedule sends its id` |
 | An automation activates a schedule by its stable id, even once renamed; the select's `schedule_id` attribute | `I/test_schedule_list.py::an_automation_activates_a_schedule_by_its_id_*`, `::activating_an_unknown_schedule_says_so` |
+
+## Activation rules
+
+| Use case | Test |
+|---|---|
+| The first true rule activates its schedule; the default one when none is true; without a default, the active schedule stays | `I/test_rules.py::the_first_true_rule_*`, `::the_default_schedule_*`, `::without_a_default_*` |
+| The schedule follows the entities of the rules (EDF Tempo color, #1) and the time (`now()`) | `I/test_rules.py::the_schedule_follows_the_entities_of_the_rules`, `::a_rule_on_the_time_*` |
+| A template can give the schedule itself, by its id or its name; a text that names no schedule lets the next rule decide; a schedule only named in a template can be deleted | `I/test_rules.py::a_template_can_give_the_schedule_*`, `::a_template_giving_no_known_schedule_*`, `::a_schedule_named_only_inside_a_template_*`, `C/rules.test.mjs` (a template that gives the schedule) |
+| Rules are tried as they are typed, as the integration reads them (true / false, the schedule named, the text, the error), again when their entities change; not saved; admins only; the try stops when leaving the view | `I/test_rules.py::rules_being_typed_*`, `::a_rule_being_typed_*`, `::only_admins_try_rules`, `C/rules.test.mjs` (trying the rules while typing them) |
+| A template that fails counts as false, and is shown as an error | `I/test_rules.py::a_template_that_fails_counts_as_false`, `C/rules.test.mjs::a template that fails says so` |
+| A schedule chosen by hand stays until the outcome of the rules changes, even after a restart; an outcome changed during a restart applies at start | `I/test_rules.py::a_schedule_chosen_by_hand_*`, `::rules_whose_outcome_changed_during_a_restart_*`, `C/rules.test.mjs::a schedule chosen by hand *` |
+| Saving the rules applies them at once and keeps them; no rules: the schedule is only chosen by hand | `I/test_rules.py::saving_the_rules_*`, `::without_rules_*` |
+| Invalid rules refused (not a template, empty, unknown schedule) with HA's message; only admins set them | `I/test_rules.py::invalid_rules_are_refused`, `::an_invalid_template_is_explained_to_the_card`, `::only_admins_set_the_rules`, `C/rules.test.mjs::a rule refused *`, `::users who are not admins *` |
+| A schedule used by the rules cannot be deleted | `I/test_rules.py::a_schedule_used_by_the_rules_cannot_be_deleted`, `C/schedules.test.mjs::a schedule used by the activation rules *` |
+| The *Rules* view: the rules in order, whether each one is true now, what they give; add, move, remove, default schedule, save, cancel; a template being typed survives an update (text, focus and caret, also once HA's ha-card renders asynchronously); link to try a template | `C/rules.test.mjs`, `I/test_rules.py::the_card_gets_the_rules_*` |
+| Upgrade: no rules, the schedule stays chosen by hand (stored data v3 → v4) | `I/test_store.py::version_4_adds_activation_rules_*` |
 
 ## Weeks applied (scheduler) — ×3
 
