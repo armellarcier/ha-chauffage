@@ -32,6 +32,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install pytest-homeassistant-custom-component==${{ matrix.phcc }} ${{ matrix.pins }}
+      # Through a variable: in the command, "<5" would be read by the shell as a redirection
+      - run: pip install pytest-homeassistant-custom-component==${{ matrix.phcc }} $PINS
+        env:
+          PINS: ${{ matrix.pins }}
       - run: python -c "from homeassistant.const import __version__; print('Home Assistant', __version__)"
       - run: python -m pytest -c tests/integration/pytest.ini tests/integration
