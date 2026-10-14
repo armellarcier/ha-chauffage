@@ -80,8 +80,8 @@ integration).
 
 ### Card
 
-- **History of the measured temperature** (done, unreleased: the last 7 days drawn over the
-  week): browse earlier weeks, and show it in the thermostat's more-info dialog too.
+- **History of the measured temperature** (in 0.5.0-beta.1: the last 7 days drawn over the week):
+  browse earlier weeks, and show it in the thermostat's more-info dialog too.
 - A build step (bundling), then the translations as files: one JSON file per language with ICU
   MessageFormat (plurals), as in most Home Assistant cards; more languages through contributions.
 

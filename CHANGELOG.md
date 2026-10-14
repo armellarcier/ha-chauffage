@@ -9,7 +9,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
-Nothing changes in the stored data.
+## [0.5.0-beta.1] - 2026-10-14
+
+**History of the measured temperature**, drawn over each day of the week with the setpoint
+applied. Nothing changes in the stored data.
 
 ### Added
 

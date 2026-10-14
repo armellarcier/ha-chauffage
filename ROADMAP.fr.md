@@ -86,9 +86,9 @@ ajustements (règles par thermostat ou par intégration).
 
 ### Carte
 
-- **Historique de la température mesurée** (fait, pas encore publié : les 7 derniers jours
-  tracés sur la semaine) : remonter aux semaines précédentes, et l'afficher aussi dans la
-  fenêtre de détail du thermostat.
+- **Historique de la température mesurée** (dans la 0.5.0-beta.1 : les 7 derniers jours tracés sur
+  la semaine) : remonter aux semaines précédentes, et l'afficher aussi dans la fenêtre de détail
+  du thermostat.
 - Une compilation (bundling), puis les traductions en fichiers : un fichier JSON par langue avec
   ICU MessageFormat (pluriels), comme la plupart des cartes Home Assistant ; d'autres langues via
   des contributions.
