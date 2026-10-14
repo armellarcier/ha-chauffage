@@ -12,14 +12,19 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry, engine
 from .entity import ChauffageEntity
 from .runtime import DATA, ChauffageRuntime
+
+# From Home Assistant 2025.8, an entity is attached to the device given in its device_entry
+DEVICE_ENTRY_ATTACHES = (MAJOR_VERSION, MINOR_VERSION) >= (2025, 8)
 
 
 async def async_setup_entry(
@@ -75,6 +80,11 @@ class ThermostatSensor(ChauffageEntity, SensorEntity):
             self._attr_translation_placeholders = {"thermostat": name}
         else:
             self._attr_translation_key = self.key
+            if not DEVICE_ENTRY_ATTACHES:
+                # Older Home Assistant: attached through the device's identifiers
+                self._attr_device_info = DeviceInfo(
+                    identifiers=self.device_entry.identifiers, connections=self.device_entry.connections
+                )
 
 
 class ScheduleSensor(ThermostatSensor):
