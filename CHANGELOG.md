@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.5.0-beta.2] - 2026-10-14
+
 **Activation rules**: schedules activated by themselves
 ([#1](https://github.com/armellarcier/ha-chauffage/issues/1)). **Migrates stored data** (v3 → v4:
 no rules yet, nothing changes).
@@ -281,7 +283,9 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.5.0-beta.2...HEAD
+[0.5.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.2
+[0.5.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.1
 [0.4.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.1
 [0.4.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.0
 [0.4.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.0-beta.1
