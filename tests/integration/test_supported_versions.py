@@ -21,7 +21,7 @@ def minimum() -> tuple[int, int]:
     return version(json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))["homeassistant"])
 
 
-def tested_versions() -> list[tuple[int, int]]:
+def matrix_versions() -> list[tuple[int, int]]:
     """The fixed Home Assistant versions of the CI matrix (the latest one has no `ha`)."""
     workflow = yaml.safe_load((ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8"))
     entries = workflow["jobs"]["python"]["strategy"]["matrix"]["include"]
@@ -39,9 +39,9 @@ def test_every_quarter_since_the_minimum_is_tested():
         for month in QUARTERS
         if first <= (year, month) < current_quarter
     ]
-    missing = sorted(set(expected) - set(tested_versions()))
+    missing = sorted(set(expected) - set(matrix_versions()))
     assert not missing, f"add these Home Assistant versions to the CI matrix: {missing}"
 
 
 def test_no_version_older_than_the_minimum_is_tested():
-    assert min(tested_versions()) == minimum()
+    assert min(matrix_versions()) == minimum()
