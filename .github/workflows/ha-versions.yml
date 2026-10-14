@@ -20,14 +20,15 @@ jobs:
         include:
           # pytest-homeassistant-custom-component that ships each Home Assistant, on its Python.
           # pip installs the dependencies HA does not pin at their latest version: some no longer
-          # work with an old HA and are pinned back (pins).
+          # work with an old HA and are pinned back (pins; pycares 4.9 starts a thread that the
+          # test plugin of older versions takes for a leftover).
           - { ha: "2025.10", phcc: "0.13.285", python: "3.13", pins: "pycares<5" }
           - { ha: "2025.7", phcc: "0.13.260", python: "3.13", pins: "pycares<5" }
           - { ha: "2025.4", phcc: "0.13.232", python: "3.13", pins: "pycares<5 josepy<2" }
-          - { ha: "2025.1", phcc: "0.13.201", python: "3.13", pins: "pycares<5 josepy<2" }
-          - { ha: "2024.10", phcc: "0.13.171", python: "3.12", pins: "pycares<5 josepy<2" }
-          - { ha: "2024.7", phcc: "0.13.144", python: "3.12", pins: "pycares<5 josepy<2" }
-          - { ha: "2024.4", phcc: "0.13.111", python: "3.12", pins: "pycares<5 josepy<2" }
+          - { ha: "2025.1", phcc: "0.13.201", python: "3.13", pins: "pycares<4.9 josepy<2" }
+          - { ha: "2024.10", phcc: "0.13.171", python: "3.12", pins: "pycares<4.9 josepy<2" }
+          - { ha: "2024.7", phcc: "0.13.144", python: "3.12", pins: "pycares<4.9 josepy<2" }
+          - { ha: "2024.4", phcc: "0.13.111", python: "3.12", pins: "pycares<4.9 josepy<2" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
