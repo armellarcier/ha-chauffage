@@ -81,7 +81,7 @@ scripts/test.sh          # tout (utilise Node / Python s'ils sont installés, si
 scripts/test.sh js       # la carte seulement
 scripts/test.sh integration   # l'intégration (arguments passés à pytest : scripts/test.sh integration -k ends)
 scripts/test.sh coverage      # carte et intégration avec la couverture (échoue sous le minimum)
-HA=min scripts/test.sh integration   # idem, sur le HA minimal pris en charge (hacs.json, 2025.10)
+HA=min scripts/test.sh integration   # idem, sur le HA minimal pris en charge (hacs.json, 2025.1)
 ```
 
 | Suite | Outil | Ce qui est couvert |
@@ -115,10 +115,14 @@ jusqu'à la dernière version publiée.
   `.github/workflows/tests.yml` et les README : `tests/js/release.test.mjs` vérifie qu'ils
   concordent. Si ce Home Assistant demande un autre Python, le changer aussi (le `python` du
   job, et celui de `HA=min` dans `scripts/test.sh`).
-- **2025.10 est la plus ancienne version essayée, pas une limite** : en octobre 2026, la version
-  minimale est descendue d'un an d'un coup, de 2026.9 à 2025.10 (tests de l'intégration, et la
-  carte dans un HA de développement sur cette version, `HA_VERSION=2025.10.0`). Descendre plus
-  bas s'essaie de la même façon, par grands pas, pas mois par mois.
+- **Descendre s'essaie par grands pas**, pas mois par mois : `.github/workflows/ha-versions.yml`
+  lance les tests de l'intégration sur des versions plus anciennes côte à côte (à la main depuis
+  l'onglet *Actions*, ou en modifiant sa matrice dans une pull request) ; ses commentaires disent
+  ce qui échoue sous la version minimale. La carte est ensuite essayée dans un HA de
+  développement sur la version choisie (`HA_VERSION=2025.1.0`) : la CI ne la teste que face à
+  un faux HA, pas face au vrai frontend de cette version. En octobre 2026, la version minimale
+  est passée de 2026.9 à 2025.1 ; 2024.10 demande un flux d'options et un recorder qui
+  fonctionnent autrement.
 - **Les tests tournent aux deux bouts** : la dernière version (`requirements.txt`, avancé par
   Dependabot, `.github/dependabot.yml`) et la version minimale (`requirements-min.txt`, avancé
   seulement à la main), à chaque push (`HA=min scripts/test.sh integration` en local).

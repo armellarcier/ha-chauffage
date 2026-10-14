@@ -148,8 +148,11 @@ future contributor might question.
   set up once and its HA is often not updated every month; dropping it for a version number
   would cost users more than the tests on two versions cost us. The tests run on the minimum
   and the latest release, and every week on the beta (never blocking). The first minimum
-  (2026.9) was only the version tried then; it went down to 2025.10, a year before, which passes
-  everything: no Home Assistant API sets the floor yet.
+  (2026.9) was only the version tried then; it went down to 2025.1 by replacing APIs that were
+  only conveniences (`async_entity_id_to_device`, `async_loaded_entries`,
+  `last_updated_timestamp`, `AddConfigEntryEntitiesCallback`) and attaching the sensors to the
+  thermostat's device through `device_info` before 2025.8. 2024.10 would need a second
+  options-flow code path and a recorder that behaves differently: not worth it for now.
 - **One vocabulary** ([glossary.md](glossary.md)), in the UI, the docs, the code and the data.
 - **Version 1.0** once ha-chauffage works with groups of thermostats and any thermostat.
 - **A new development HA starts with a simulated week of history** (dev/sim_rooms): the

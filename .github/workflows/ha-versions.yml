@@ -1,14 +1,14 @@
 name: Older Home Assistant versions
 
-# Tries the integration tests on Home Assistant versions older than the minimum, to see how far
-# down the minimum can go (see CONTRIBUTING.md, "Supported Home Assistant versions"). One entry
-# per version, run side by side; runs by hand from the Actions tab, or when this file, the
-# integration or its tests change (edit the matrix to try other versions). It never blocks a
-# push or a release.
+# Tries the integration tests on Home Assistant versions older than the minimum, to see whether
+# the minimum can go down (see CONTRIBUTING.md, "Supported Home Assistant versions"). One entry
+# per version, run side by side; runs by hand from the Actions tab, or when this file changes
+# (edit the matrix to try other versions). Failures are expected: it never blocks a push or a
+# release.
 on:
   workflow_dispatch:
   pull_request:
-    paths: [.github/workflows/ha-versions.yml, custom_components/**, tests/integration/**]
+    paths: [.github/workflows/ha-versions.yml]
 
 jobs:
   python:
@@ -20,15 +20,14 @@ jobs:
         include:
           # pytest-homeassistant-custom-component that ships each Home Assistant, on its Python.
           # pip installs the dependencies HA does not pin at their latest version: some no longer
-          # work with an old HA and are pinned back (pins; pycares 4.9 starts a thread that the
-          # test plugin of older versions takes for a leftover).
-          - { ha: "2025.10", phcc: "0.13.285", python: "3.13", pins: "pycares<5" }
-          - { ha: "2025.7", phcc: "0.13.260", python: "3.13", pins: "pycares<5" }
-          - { ha: "2025.4", phcc: "0.13.232", python: "3.13", pins: "pycares<5 josepy<2" }
-          - { ha: "2025.1", phcc: "0.13.201", python: "3.13", pins: "pycares<4.9 josepy<2" }
+          # work with an old HA and are pinned back (pins, as in requirements-min.txt).
+          # October 2026, what fails below the minimum (2025.1):
+          # - 2024.10: the options flow gets no config_entry (before 2024.11); the recorder only
+          #   gives the state at the start of a period covered by a recorder run;
+          # - 2024.7: the same, and the async_test_recorder fixture of the tests is missing;
+          # - 2024.4: cannot be installed (mypy-dev 1.10.0a3 is no longer on PyPI).
           - { ha: "2024.10", phcc: "0.13.171", python: "3.12", pins: "pycares<4.9 josepy<2" }
           - { ha: "2024.7", phcc: "0.13.144", python: "3.12", pins: "pycares<4.9 josepy<2" }
-          - { ha: "2024.4", phcc: "0.13.111", python: "3.12", pins: "pycares<4.9 josepy<2" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

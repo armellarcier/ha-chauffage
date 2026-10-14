@@ -44,7 +44,7 @@ jobs:
             # Fails below 97 % of the lines
             coverage: --cov=custom_components/chauffage --cov-report=term --cov-report=json:coverage.json --cov-fail-under=97
           # Minimum supported Home Assistant (hacs.json)
-          - name: Integration, HA 2025.10
+          - name: Integration, HA 2025.1
             requirements: tests/integration/requirements-min.txt
             python: "3.13"
     steps:

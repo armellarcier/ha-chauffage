@@ -76,7 +76,7 @@ scripts/test.sh          # everything (uses Node / Python if installed, Docker o
 scripts/test.sh js       # card only
 scripts/test.sh integration   # the integration (extra arguments go to pytest: scripts/test.sh integration -k ends)
 scripts/test.sh coverage      # card and integration with coverage (fails below the minimum)
-HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.json, 2025.10)
+HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.json, 2025.1)
 ```
 
 | Suite | Tool | What it covers |
@@ -107,10 +107,13 @@ minimum in `hacs.json` (also written in the READMEs) to the latest release.
   `.github/workflows/tests.yml` and the READMEs together: `tests/js/release.test.mjs` checks
   that they agree. If that Home Assistant needs another Python, change it too (the `python` of
   the job, and of `HA=min` in `scripts/test.sh`).
-- **2025.10 is the oldest version tried, not a limit**: in October 2026 the minimum went down a
-  year at once, from 2026.9 to 2025.10 (integration tests, and the card in a development HA on
-  that version, `HA_VERSION=2025.10.0`). Going further down is tried the same way, by big
-  steps, not month by month.
+- **Going down is tried by big steps**, not month by month: `.github/workflows/ha-versions.yml`
+  runs the integration tests on older versions side by side (by hand from the *Actions* tab, or
+  by editing its matrix in a pull request); its comments say what fails below the minimum. The
+  card is then tried in a development HA on the chosen version (`HA_VERSION=2025.1.0`): the CI
+  only tests it against a fake HA, not against the real frontend of that version. In October
+  2026 the minimum went from 2026.9 down to 2025.1; 2024.10 needs an options flow and a recorder
+  that work differently.
 - **The tests run on both ends**: the latest release (`requirements.txt`, moved forward by
   Dependabot, `.github/dependabot.yml`) and the minimum (`requirements-min.txt`, moved only by
   hand), on every push (`HA=min scripts/test.sh integration` locally).
