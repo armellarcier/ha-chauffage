@@ -1,2 +1,5 @@
-# Minimum supported Home Assistant (hacs.json): the integration tests also run on it
-pytest-homeassistant-custom-component==0.13.363  # Home Assistant 2026.9.0
+# Minimum supported Home Assistant (hacs.json): the integration tests also run on it, with
+# Python 3.13 (the Python of that Home Assistant)
+pytest-homeassistant-custom-component==0.13.285  # Home Assistant 2025.10.0
+# pycares 5 breaks the aiodns of that Home Assistant (installed unpinned by pip)
+pycares<5

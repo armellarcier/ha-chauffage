@@ -147,7 +147,9 @@ future contributor might question.
   API requires it (CONTRIBUTING.md, "Supported Home Assistant versions"): a heating schedule is
   set up once and its HA is often not updated every month; dropping it for a version number
   would cost users more than the tests on two versions cost us. The tests run on the minimum
-  and the latest release, and every week on the beta (never blocking).
+  and the latest release, and every week on the beta (never blocking). The first minimum
+  (2026.9) was only the version tried then; it went down to 2025.10, a year before, which passes
+  everything: no Home Assistant API sets the floor yet.
 - **One vocabulary** ([glossary.md](glossary.md)), in the UI, the docs, the code and the data.
 - **Version 1.0** once ha-chauffage works with groups of thermostats and any thermostat.
 - **A new development HA starts with a simulated week of history** (dev/sim_rooms): the

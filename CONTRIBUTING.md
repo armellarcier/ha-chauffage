@@ -76,7 +76,7 @@ scripts/test.sh          # everything (uses Node / Python if installed, Docker o
 scripts/test.sh js       # card only
 scripts/test.sh integration   # the integration (extra arguments go to pytest: scripts/test.sh integration -k ends)
 scripts/test.sh coverage      # card and integration with coverage (fails below the minimum)
-HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.json, 2026.9)
+HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.json, 2025.10)
 ```
 
 | Suite | Tool | What it covers |
@@ -93,6 +93,33 @@ run on **the three kinds of thermostats** (fixture `thermostat_kind`: `vtherm`, 
 
 The tests also run on GitHub Actions for every push and pull request
 (`.github/workflows/tests.yml`). **Run `scripts/test.sh` before publishing.**
+
+## Supported Home Assistant versions
+
+**The minimum stays as low as possible.** ha-chauffage supports every Home Assistant from the
+minimum in `hacs.json` (also written in the READMEs) to the latest release.
+
+- **The minimum only rises when a Home Assistant API requires it**: a feature or a fix needs an
+  API that older versions do not have, or an API we use is removed. Not to follow the releases,
+  nor to drop old code that still works. A rise goes into a minor version, with the reason in
+  the changelog ("Upgrading"). Change `hacs.json`, `tests/integration/requirements-min.txt` (the
+  `pytest-homeassistant-custom-component` that ships that Home Assistant), the job name in
+  `.github/workflows/tests.yml` and the READMEs together: `tests/js/release.test.mjs` checks
+  that they agree. If that Home Assistant needs another Python, change it too (the `python` of
+  the job, and of `HA=min` in `scripts/test.sh`).
+- **2025.10 is the oldest version tried, not a limit**: in October 2026 the minimum went down a
+  year at once, from 2026.9 to 2025.10 (integration tests, and the card in a development HA on
+  that version, `HA_VERSION=2025.10.0`). Going further down is tried the same way, by big
+  steps, not month by month.
+- **The tests run on both ends**: the latest release (`requirements.txt`, moved forward by
+  Dependabot, `.github/dependabot.yml`) and the minimum (`requirements-min.txt`, moved only by
+  hand), on every push (`HA=min scripts/test.sh integration` locally).
+- **The next release is tried every week**: `.github/workflows/ha-beta.yml` runs the
+  integration tests on the Home Assistant beta (on Monday, or by hand from the *Actions* tab).
+  It never blocks a push or a release; a failure warns of a coming change, to fix before the
+  release of Home Assistant if possible, without raising the minimum.
+- Code that depends on the version (an API that appeared after the minimum) checks for it and
+  keeps working on the minimum, with a test on each side.
 
 ## Demo animation
 

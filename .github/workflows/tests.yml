@@ -40,16 +40,18 @@ jobs:
         include:
           - name: Integration
             requirements: tests/integration/requirements.txt
+            python: "3.14"
             # Fails below 97 % of the lines
             coverage: --cov=custom_components/chauffage --cov-report=term --cov-report=json:coverage.json --cov-fail-under=97
           # Minimum supported Home Assistant (hacs.json)
-          - name: Integration, HA 2026.9
+          - name: Integration, HA 2025.10
             requirements: tests/integration/requirements-min.txt
+            python: "3.13"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: ${{ matrix.requirements }}
       - run: pip install -r ${{ matrix.requirements }}

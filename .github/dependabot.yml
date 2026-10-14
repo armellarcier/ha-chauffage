@@ -1,0 +1,20 @@
+# Upgrades proposed as pull requests (see CONTRIBUTING.md, "Supported Home Assistant versions").
+version: 2
+updates:
+  # Latest Home Assistant of the tests (pytest-homeassistant-custom-component pins it). The
+  # minimum one (requirements-min.txt) only moves by hand, when a Home Assistant API requires it.
+  - package-ecosystem: pip
+    directory: /tests/integration
+    exclude-paths:
+      - tests/integration/requirements-min.txt
+    schedule:
+      interval: weekly
+  # jsdom, for the card tests
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

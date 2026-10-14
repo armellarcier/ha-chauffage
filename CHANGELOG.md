@@ -9,6 +9,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- **Home Assistant 2025.10 or later** (instead of 2026.9): the integration and the card are
+  tested on it. The minimum now only rises when a Home Assistant API requires it; the tests run
+  on it, on the latest release and, every week, on the beta.
+
 ## [0.5.0-beta.2] - 2026-10-14
 
 **Activation rules**: schedules activated by themselves
