@@ -2,12 +2,13 @@ name: Older Home Assistant versions
 
 # Tries the integration tests on Home Assistant versions older than the minimum, to see how far
 # down the minimum can go (see CONTRIBUTING.md, "Supported Home Assistant versions"). One entry
-# per version, run side by side; runs by hand from the Actions tab, or when this file changes
-# (edit the matrix to try other versions). It never blocks a push or a release.
+# per version, run side by side; runs by hand from the Actions tab, or when this file, the
+# integration or its tests change (edit the matrix to try other versions). It never blocks a
+# push or a release.
 on:
   workflow_dispatch:
   pull_request:
-    paths: [.github/workflows/ha-versions.yml]
+    paths: [.github/workflows/ha-versions.yml, custom_components/**, tests/integration/**]
 
 jobs:
   python:
