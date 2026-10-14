@@ -9,6 +9,21 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-14
+
+**Fix: the card missing after a reload.** Nothing changes in the stored data.
+
+### Fixed
+
+- "Custom element doesn't exist: chauffage-programme-card" after a reload, once the card was
+  in the browser cache: it was registered before HA's frontend replaced the custom element
+  registry ([#2](https://github.com/armellarcier/ha-chauffage/issues/2)). Remove a Lovelace
+  resource added as a workaround (it is harmless if kept).
+
+### Upgrading
+
+- From 0.4.0: update from HACS, restart HA, then reload the browser page.
+
 ## [0.4.0] - 2026-10-11
 
 **Schedules defined by the user, one vocabulary**: it gathers 0.4.0-beta.1 (below) and this
@@ -214,7 +229,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.1
 [0.4.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.0
 [0.4.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.0-beta.1
 [0.3.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.3.0

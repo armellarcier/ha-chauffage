@@ -68,6 +68,11 @@ future contributor might question.
 
 - **No build step**: one JavaScript file, served by the integration and loaded on every page
   (card and more-info block). Bundling comes with the translations as files (roadmap).
+- **Loaded with `add_extra_js_url`, registered twice if needed**, not as a Lovelace resource
+  (nothing to configure, and the more-info block needs it on every page). The module is loaded
+  in parallel with HA's frontend, which replaces `customElements` with a scoped registry
+  polyfill: a card evaluated first (cached) would be unknown to it. The card defines its
+  elements again once `<home-assistant>` is defined, in the registry in place then (#2).
 - **Saves carry the revision they edited**: a save from an outdated copy is refused instead of
   overwriting someone else's changes.
 - **The card's type stays `custom:chauffage-programme-card`**: dashboards refer to it.

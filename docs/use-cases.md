@@ -19,6 +19,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Upgrade from v0.3: `select.chauffage_mode` becomes `select.chauffage_schedule` (an entity id chosen by the user is kept) | `I/test_entities.py::the_select_of_an_older_version_*`, `::an_entity_id_chosen_by_the_user_is_kept` |
 | Remove the integration: its data is deleted | `I/test_edge_cases.py::deleting_the_integration_deletes_its_data` |
 | The card is served by the integration and loaded on every page | `I/test_frontend.py` |
+| The card is found after a reload, even when it loads before HA's frontend (scoped registry) | `C/registration.test.mjs` |
 
 ## Schedules
 

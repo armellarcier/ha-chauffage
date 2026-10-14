@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.4.0';
+const VERSION = '0.4.1';
 
 const DAY_MIN = 1440;
 
@@ -2073,9 +2073,6 @@ const STYLE = `
   }
 `;
 
-// Guards: the file may be loaded twice (the integration, and a copy left in www/ by the v0.1
-// package or a dashboard resource); define things only once.
-if (!customElements.get('chauffage-programme-card')) customElements.define('chauffage-programme-card', ChauffageProgrammeCard);
 
 // =====================================================================
 //  Block added to the more-info dialog of a scheduled thermostat: current day,
@@ -2363,7 +2360,18 @@ const MORE_INFO_STYLE = `
   .row.today span { color:var(--primary-color); font-weight:700; }
 `;
 
-if (!customElements.get('chauffage-moreinfo')) customElements.define('chauffage-moreinfo', ChauffageMoreInfo);
+// Guards: the file may be loaded twice (the integration, and a copy left in www/ by the v0.1
+// package or a dashboard resource); define things only once.
+function defineElements() {
+  if (!customElements.get('chauffage-programme-card')) customElements.define('chauffage-programme-card', ChauffageProgrammeCard);
+  if (!customElements.get('chauffage-moreinfo')) customElements.define('chauffage-moreinfo', ChauffageMoreInfo);
+}
+defineElements();
+// The integration's module is loaded in parallel with HA's frontend, which replaces
+// `customElements` with a scoped registry polyfill that ignores elements defined before
+// (issue #2). The polyfill defines <home-assistant> in the registry it replaced: define the
+// elements again, in the registry in place then.
+customElements.whenDefined('home-assistant').then(defineElements);
 
 // DOM search through shadow roots
 function deepQuery(root, selector, depth = 0) {
