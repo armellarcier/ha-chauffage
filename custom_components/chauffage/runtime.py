@@ -25,6 +25,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.util import dt as dt_util
 
 from . import engine, model
+from .history import TemperatureHistory
 from .const import CONF_OVERRIDE_DURATION, CONF_USE_PRESETS, DEFAULT_OVERRIDE_DURATION, DEFAULT_USE_PRESETS
 from .store import SAVE_DELAY, ChauffageStore
 
@@ -71,6 +72,7 @@ class ChauffageRuntime:
         self._unsub_states: Callable[[], None] | None = None
         self._last_tick: datetime | None = None
         self._retry: set[str] = set()  # thermostats whose last command failed
+        self.history = TemperatureHistory(hass)  # measured temperature, for the card
 
     # ----- life cycle -----
 

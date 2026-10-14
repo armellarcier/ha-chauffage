@@ -53,6 +53,15 @@ thermostat ; la correspondance des préréglages réglée par groupe (*Confort* 
 planning pendant que le reste est en *Normal*) ; les dérogations restent par thermostat ; la
 carte édite les groupes.
 
+### Anticipation de la chauffe
+
+Atteindre la température d'un créneau à son heure de début au lieu de commencer à chauffer à ce
+moment-là : apprendre à quelle vitesse chaque pièce monte en température (à partir de l'historique
+de la température mesurée et des consignes appliquées, et de la température extérieure), puis
+suggérer des débuts plus tôt dans la carte ou anticiper la chauffe toute seule. D'ici là, la carte
+affiche la température mesurée et la consigne appliquée sur la semaine (le bouton *Historique*),
+à l'utilisateur de juger.
+
 ### Les thermostats qui changent leur consigne d'eux-mêmes
 
 Certains appareils ajustent eux-mêmes leur consigne (fenêtre ouverte, présence, sécurité) :
@@ -77,6 +86,9 @@ ajustements (règles par thermostat ou par intégration).
 
 ### Carte
 
+- **Historique de la température mesurée** (fait, pas encore publié : les 7 derniers jours
+  tracés sur la semaine) : remonter aux semaines précédentes, et l'afficher aussi dans la
+  fenêtre de détail du thermostat.
 - Une compilation (bundling), puis les traductions en fichiers : un fichier JSON par langue avec
   ICU MessageFormat (pluriels), comme la plupart des cartes Home Assistant ; d'autres langues via
   des contributions.

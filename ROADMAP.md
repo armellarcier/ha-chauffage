@@ -51,6 +51,14 @@ mapping of presets set per group (*Comfort* = 21 °C in the living room, 19 °C 
 an active schedule per group (a guest room on its own schedule while the rest is *Normal*);
 overrides stay per thermostat; the card edits groups.
 
+### Heating anticipation
+
+Reach the temperature of a slot at its start time instead of starting to heat then: learn how
+fast each room heats (from the history of the measured temperature and the setpoints applied,
+and the outdoor temperature), then suggest earlier starts in the card or start heating early by
+itself. Until then the card shows the measured temperature and the setpoint applied over the
+week (the *History* button), for the user to judge.
+
 ### Thermostats that change their setpoint by themselves
 
 Some devices adjust their own setpoint (open window, presence, safety): today it looks like a
@@ -72,6 +80,8 @@ integration).
 
 ### Card
 
+- **History of the measured temperature** (done, unreleased: the last 7 days drawn over the
+  week): browse earlier weeks, and show it in the thermostat's more-info dialog too.
 - A build step (bundling), then the translations as files: one JSON file per language with ICU
   MessageFormat (plurals), as in most Home Assistant cards; more languages through contributions.
 

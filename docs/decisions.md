@@ -78,6 +78,30 @@ future contributor might question.
 - **The card's type stays `custom:chauffage-programme-card`**: dashboards refer to it.
 - **The card is newer than the integration right after an update** (HACS replaces the files,
   HA is not restarted yet): it asks for a restart instead of breaking.
+- **The history of the measured temperature is read from HA's recorder**, not stored by the
+  integration: nothing to keep or migrate, and it works for any thermostat with a
+  `current_temperature`. Hence the last 7 days (within the recorder's default 10-day retention),
+  each weekday showing its last occurrence; one scale per thermostat for its 7 days (comparable
+  days), set by the measured temperature and the setpoints within 3° of it: a setpoint further
+  away (frost protection at night) would flatten the curve, so it stays on the edge of the bar.
+  The measured temperature is a smooth 1.5 px white line, without outline or shadow (an outline
+  left grey inside the curve): straight lines between the values, held flat until 15 minutes
+  before a change (the integration only sends changes: a straight line would invent a slope over
+  hours, steps looked aliased). The setpoint applied is a 1 px bright yellow line with a drop
+  shadow, drawn over it and the slots' handles (a dashed line was lost under the handles and where
+  the curves cross; yellow without shadow vanished on the orange of *Comfort*; a dark line was not
+  liked). No derived value (heating delay, rate) is shown: the user judges, heating anticipation
+  is on the roadmap.
+- **The integration reads that history for the card (`chauffage/history`)** instead of the card
+  calling HA's `history/history_during_period`: for a `climate` entity, HA sends every attribute
+  of every change (`climate` is a "significant" domain, so neither `significant_changes_only` nor
+  `minimal_response` reduce it, and attributes cannot be picked), 6.7 MB for a week of the
+  development HA's five thermostats, seconds on a small server or a remote connection. The
+  integration keeps only the measured and target temperatures, when one of them changes (200 kB),
+  and keeps what it read in memory: a later call only reads the last minutes. Not the
+  temperature sensors' statistics (tiny): a thermostat does not say which sensor it uses, some
+  have none, and the setpoint is only in the thermostat's attributes. The card falls back to HA's
+  history while HA has not been restarted after an update.
 
 ## Process
 

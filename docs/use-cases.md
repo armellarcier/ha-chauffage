@@ -88,6 +88,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | English / French, 12 / 24 h, decimal separator, first day of the week | `C/i18n.test.mjs` |
 | Card added but the integration is not set up: says so | `C/card-integration.test.mjs` (without the integration) |
 | Updated from HACS, Home Assistant not restarted yet (the card is newer than the running integration): asks for a restart | `C/card-integration.test.mjs` (an integration older than the card) |
+| See the temperature measured over the last 7 days over each day, with the setpoint applied and the range per slot; choice kept; then only what is new every 5 minutes; recorder unavailable: says so; HA not restarted after an update: HA's own history | `C/history.test.mjs` |
+| Show a day larger (row menu, or the name of the day with one thermostat shown): its own scale in degrees, the time, measured temperature and setpoint under the mouse or along a finger, a tap still selects a slot; hidden with the history | `C/history.test.mjs` (a day shown larger) |
 | An ended override is no longer shown, even before the integration removes it | `C/card.test.mjs::an override that has ended *` |
 
 ## More-info dialog of a thermostat
@@ -102,6 +104,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Active-schedule select (`select.chauffage_schedule`), schedule and override-end sensors (disabled by default, on the thermostat's device; attributes `preset_name`, `next_preset`…) | `I/test_entities.py` |
+| History of the measured and target temperatures for the card: only these two, the state at the start first, gaps while unavailable, what was read kept in memory, any user, no recorder | `I/test_history.py` ×3 |
 | Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
 
 ## Not covered by automated tests

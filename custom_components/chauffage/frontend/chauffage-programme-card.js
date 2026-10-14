@@ -75,6 +75,14 @@ const I18N = {
     multipleTitle: 'Turn on to show several thermostats (shortcut: Ctrl+click a thermostat)',
     all: 'All',
     allTitle: 'Show every thermostat',
+    history: 'History',
+    historyTitle: 'Show the measured temperature of the last 7 days (dashed: the setpoint applied)',
+    historyUnavailable: 'History unavailable: {message}',
+    measured: 'measured {range}°',
+    setpoint: 'setpoint {range}°',
+    showLarger: 'Show the day larger',
+    showSmaller: 'Show the day smaller',
+    readout: '{time} · {measured} · setpoint {setpoint}',
     copyWeekTo: 'Copy {name}’s week to…',
     cancel: 'Cancel',
     save: 'Save',
@@ -172,6 +180,14 @@ const I18N = {
     multipleTitle: 'Activer pour afficher plusieurs vannes (raccourci : Ctrl+clic sur une vanne)',
     all: 'Toutes',
     allTitle: 'Afficher toutes les vannes',
+    history: 'Historique',
+    historyTitle: 'Afficher la température mesurée des 7 derniers jours (pointillés : la consigne appliquée)',
+    historyUnavailable: 'Historique indisponible : {message}',
+    measured: 'mesuré {range}°',
+    setpoint: 'consigne {range}°',
+    showLarger: 'Voir la journée en grand',
+    showSmaller: 'Réduire la journée',
+    readout: '{time} · {measured} · consigne {setpoint}',
     copyWeekTo: 'Copier la semaine de {name} vers…',
     cancel: 'Annuler',
     save: 'Enregistrer',
@@ -315,9 +331,11 @@ function makeLocale(hass, configured) {
 }
 const LS_KEY = 'chauffage-programme-card:shown';
 const LS_CLIP = 'chauffage-programme-card:clip';
+const LS_HISTORY = 'chauffage-programme-card:history';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
 const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
+const ICON_ZOOM = '<svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5M7,9H12V10H7V9M9,7H10V12H9V7Z"/></svg>';
 const ICON_PASTE ='<svg viewBox="0 0 24 24"><path d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"/></svg>';
 
 const toMin = (s) => {
@@ -414,6 +432,107 @@ function durationText(min, locale = DEFAULT_LOCALE) {
 // The card reads and writes through the Chauffage integration's websocket API. The source gives
 // the data in the format the card works with: schedules by id, "HH:MM preset" slots,
 // overrides as { kind: temperature|preset, value, start, end }.
+
+// ---------- history of the measured temperature ----------
+const HISTORY_DAYS = 7;
+const HISTORY_MAX_AGE = 5 * 60000; // reloaded every 5 minutes while shown
+const RECORDER_DELAY = 60000; // the last minute is loaded again (not written by the recorder yet)
+const SETPOINT_MARGIN = 3; // °: a setpoint this close to the measured temperatures widens the scale
+const MEASURE_RAMP = 15; // minutes: a measured change after a steady time is drawn as a slope over this
+const temperatureOf = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+
+// Value of a curve ([minute, value] points, each value held until the next point) at a minute, if covered
+function curveValue(line, m) {
+  if (!line.length || m < line[0][0] || m > line[line.length - 1][0]) return null;
+  return line.filter(([at]) => at <= m).pop()[1];
+}
+
+/**
+ * Home Assistant's own history (compressed format of `history/history_during_period`: `s` state,
+ * `a` attributes, `lu` time in seconds, `lc` when different) → the rows of `chauffage/history`:
+ * [time (s), measured, target], null while the thermostat is unavailable.
+ */
+function rowsOfStates(raw) {
+  const out = {};
+  for (const [entity, states] of Object.entries(raw || {})) {
+    out[entity] = (Array.isArray(states) ? states : []).map((st) => {
+      const off = ['unavailable', 'unknown'].includes(st.s);
+      const a = st.a || {};
+      return [st.lu ?? st.lc, off ? null : temperatureOf(a.current_temperature), off ? null : temperatureOf(a.temperature)];
+    });
+  }
+  return out;
+}
+
+/**
+ * Rows of `chauffage/history` → per thermostat, per weekday (Monday = 0), its last occurrence
+ * (today until now): `current` (measured) and `target` (setpoint applied) temperature as lines of
+ * [minute, value] points (each value held until the next point), broken while the thermostat
+ * reported no value.
+ */
+function historyDays(rows, now = new Date()) {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const today = (now.getDay() + 6) % 7;
+  const out = {};
+  for (const [entity, list] of Object.entries(rows || {})) {
+    const points = (Array.isArray(list) ? list : [])
+      .map(([t, current, target]) => ({ t: t * 1000, current: temperatureOf(current), target: temperatureOf(target) }))
+      .filter((p) => Number.isFinite(p.t))
+      .sort((p, q) => p.t - q.t);
+    // One day, from `start` (midnight) to `stop` (the next midnight, or now), `end` minutes long
+    const lines = (key, start, stop, end) => {
+      const done = [];
+      let line = null;
+      const add = (m, v) => {
+        const last = line && line[line.length - 1];
+        if (v == null) {
+          if (line) done.push([...line, [Math.max(m, last[0]), last[1]]]);
+          line = null;
+        } else if (!line) {
+          line = [[m, v]];
+        } else if (v !== last[1]) {
+          // Wall-clock minutes (the slots' ones) never go back, even in the repeated hour of winter time
+          const at = Math.max(m, last[0]);
+          if (at === last[0]) line.pop();
+          if (!line.length || line[line.length - 1][1] !== v) line.push([at, v]);
+        }
+      };
+      const before = points.filter((p) => p.t <= start.getTime()).pop();
+      if (before) add(0, before[key]);
+      for (const p of points) {
+        if (p.t > start.getTime() && p.t < stop.getTime()) add(minutesOf(new Date(p.t)), p[key]);
+      }
+      if (line) {
+        const last = line[line.length - 1];
+        if (end > last[0]) line.push([end, last[1]]);
+        done.push(line);
+      }
+      return done;
+    };
+    out[entity] = [0, 1, 2, 3, 4, 5, 6].map((d) => {
+      const start = new Date(midnight);
+      start.setDate(start.getDate() - ((today - d + 7) % 7));
+      const next = new Date(start);
+      next.setDate(next.getDate() + 1);
+      const [stop, end] = d === today ? [now, minutesOf(now)] : [next, DAY_MIN];
+      return { current: lines('current', start, stop, end), target: lines('target', start, stop, end) };
+    });
+  }
+  return out;
+}
+
+// Rows already loaded + rows loaded from `since` (s), only from the start of the period (the row
+// before it kept: the value at its start)
+function mergeRows(old, fresh, since, start) {
+  const out = {};
+  for (const entity of new Set([...Object.keys(old || {}), ...Object.keys(fresh || {})])) {
+    const rows = [...((old && old[entity]) || []).filter(([t]) => t < since), ...((fresh && fresh[entity]) || [])];
+    const before = rows.filter(([t]) => t <= start).length;
+    out[entity] = rows.slice(Math.max(0, before - 1));
+  }
+  return out;
+}
 
 const integrationAvailable = (hass) => !!(hass && hass.services && hass.services.chauffage);
 const filterActive = (raw) => {
@@ -549,9 +668,14 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._overrideDrag = null;
     this._overridePending = {}; // changes sent, waiting for the integration's update
     this._overrideStamp = undefined;
+    // Measured temperature of the last 7 days, drawn over the bars: rows loaded (until a time), days drawn
+    this._zoom = null; // { climate, day } shown larger (with the history)
+    this._readTouch = false; // a finger reads the values along the bar shown larger
+    this._history = { shown: false, rows: null, until: 0, days: null, loadedAt: 0, day: null, loading: false };
     try {
       const c = JSON.parse(localStorage.getItem(LS_CLIP));
       if (c && Array.isArray(c.segs) && c.segs.length) this._clip = c;
+      this._history.shown = localStorage.getItem(LS_HISTORY) === '1';
     } catch (e) { /* ignore */ }
     this._bindEvents();
   }
@@ -628,11 +752,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (need) this._render();
     else this._updateLive();
+    this._refreshHistory();
   }
 
   connectedCallback() {
     this._timer = setInterval(() => {
       if (this._drag || this._overrideDrag) return;
+      this._refreshHistory();
       // Full redraw on a new day or during an override (it moves with the time)
       if (this._renderedDay !== todayIdx() || Object.keys(this._overrides()).length) this._render();
       else this._updateLive();
@@ -836,6 +962,172 @@ class ChauffageProgrammeCard extends HTMLElement {
     root.querySelectorAll('.now').forEach((el) => { el.style.left = `${pct(nowMin())}%`; });
   }
 
+  // ---------- history of the measured temperature ----------
+
+  // Loads the last 7 days from the recorder while the history is shown: at once when asked
+  // (`force`), on a new day, otherwise once it is older than 5 minutes
+  _refreshHistory(force = false) {
+    const h = this._history;
+    if (!h.shown || h.loading || !this._hass || !this._config) return;
+    if (!force && h.day === todayIdx() && Date.now() - h.loadedAt < HISTORY_MAX_AGE) return;
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (HISTORY_DAYS - 1));
+    // Once loaded, only what is new (from a minute before the last load)
+    const since = h.rows ? new Date(Math.max(start.getTime(), h.until - RECORDER_DELAY)) : start;
+    h.loading = true;
+    h.loadedAt = Date.now();
+    h.day = todayIdx();
+    if (!h.days) this._render(); // the button shows the loading
+    return this._fetchHistory(since, now)
+      .then((rows) => {
+        h.rows = mergeRows(h.rows, rows, since.getTime() / 1000, start.getTime() / 1000);
+        h.until = now.getTime();
+        h.days = historyDays(h.rows, now);
+      })
+      .catch((e) => { this._msg = this._loc.t('historyUnavailable', { message: (e && e.message) || e }); })
+      .then(() => {
+        h.loading = false;
+        if (h.shown && !this._drag && !this._overrideDrag) this._render();
+      });
+  }
+
+  // Rows of every thermostat of the card from the integration, which only sends the two
+  // temperatures; an integration updated but not restarted yet does not know the command:
+  // Home Assistant's own history then (every attribute: much bigger)
+  _fetchHistory(since, now) {
+    const msg = { entity_ids: this._thermostats.map((t) => t.entity), start_time: since.toISOString(), end_time: now.toISOString() };
+    return Promise.resolve()
+      .then(() => this._hass.callWS({ type: 'chauffage/history', ...msg }))
+      .catch((e) => {
+        if (!e || e.code !== 'unknown_command') throw e;
+        return this._hass.callWS({ type: 'history/history_during_period', ...msg, minimal_response: false, no_attributes: false, significant_changes_only: false })
+          .then(rowsOfStates);
+      });
+  }
+
+  _toggleHistory() {
+    const h = this._history;
+    h.shown = !h.shown;
+    if (!h.shown) this._zoom = null;
+    try { localStorage.setItem(LS_HISTORY, h.shown ? '1' : '0'); } catch (e) { /* ignore */ }
+    this._render();
+    if (h.shown) this._refreshHistory(true);
+  }
+
+  _toggleZoom(climate, day) {
+    this._zoom = this._isZoomed(climate, day) ? null : { climate, day };
+    this._render();
+  }
+
+  _historyOf(climate, day) {
+    const h = this._history;
+    return h.shown && h.days && h.days[climate] ? h.days[climate][day] : null;
+  }
+
+  _isZoomed(climate, day) {
+    const z = this._zoom;
+    return !!z && z.climate === climate && z.day === day && !!this._historyOf(climate, day);
+  }
+
+  // Scale of a bar: the measured temperatures and the setpoints close to them, of the thermostat's
+  // 7 days (comparable days), or of the day alone when it is shown larger (its details)
+  _historyScale(climate, day) {
+    const days = this._isZoomed(climate, day) ? [this._history.days[climate][day]] : this._history.days[climate];
+    const values = days.flatMap((x) => x.current.flat().map(([, v]) => v));
+    let lo = Math.min(...values);
+    let hi = Math.max(...values);
+    for (const v of days.flatMap((x) => x.target.flat().map(([, t]) => t))) {
+      if (v >= lo - SETPOINT_MARGIN && v <= hi + SETPOINT_MARGIN) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    }
+    if (hi - lo < 2) { lo = (lo + hi) / 2 - 1; hi = lo + 2; }
+    // Position (% of the bar's height, from the top) of a temperature; out of the scale: on the edge
+    return { lo, hi, y: (v) => Math.max(3, Math.min(97, 90 - ((v - lo) / (hi - lo)) * 80)) };
+  }
+
+  // Measured temperature and setpoint applied (over it); a setpoint far from the measured
+  // temperatures (frost protection at night…) stays on the edge of the bar
+  _historyHtml(climate, day) {
+    const hd = this._historyOf(climate, day);
+    if (!hd || !hd.current.length) return '';
+    const scale = this._historyScale(climate, day);
+    const y = (v) => scale.y(v).toFixed(1);
+    const steps = (lines) => lines.map((l) => l.map(([m, v], i) => {
+      if (!i) return `M${m} ${y(v)}`;
+      return y(v) === y(l[i - 1][1]) ? `H${m}` : `H${m} V${y(v)}`;
+    }).join(' ')).join(' ');
+    // Measured: straight lines between the values, held flat until MEASURE_RAMP minutes before a
+    // change (the rows only come when the value changes: no slope over hours)
+    const measured = hd.current.map((l) => l.flatMap(([m, v], i) => {
+      if (!i) return [`M${m} ${y(v)}`];
+      const [m0, v0] = l[i - 1];
+      const hold = v !== v0 && m - m0 > MEASURE_RAMP ? [`L${m - MEASURE_RAMP} ${y(v0)}`] : [];
+      return [...hold, `L${m} ${y(v)}`];
+    }).join(' ')).join(' ');
+    const target = steps(hd.target);
+    // Two layers: only the setpoint has a shadow
+    const layer = (cls, path) => `<svg class="history${cls}" viewBox="0 0 ${DAY_MIN} 100" preserveAspectRatio="none" aria-hidden="true">${path}</svg>`;
+    return layer('', `<path class="measured" d="${measured}"/>`)
+      + (target ? layer(' setpoint', `<path class="target" d="${target}"/>`) : '')
+      + (this._isZoomed(climate, day) ? this._zoomHtml(scale) : '');
+  }
+
+  // A day shown larger: a scale in degrees (a line every 1, 2 or 5°), and the readout of the values
+  // under the mouse or the finger
+  _zoomHtml({ lo, hi, y }) {
+    const step = hi - lo <= 6 ? 1 : hi - lo <= 12 ? 2 : 5;
+    const marks = [];
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) marks.push(v);
+    const axis = marks.map((v) => `<i style="top:${y(v).toFixed(1)}%"></i><span style="top:${y(v).toFixed(1)}%">${this._loc.number(v)}°</span>`).join('');
+    return `<div class="yaxis">${axis}</div><div class="cross" hidden></div><div class="readout" hidden></div>`;
+  }
+
+  // "07:00 · 18.2° · setpoint 20°": the values at a minute of a day shown with its history
+  _readoutText(climate, day, m) {
+    const hd = this._historyOf(climate, day);
+    const at = (lines) => {
+      const v = lines.map((l) => curveValue(l, m)).find((x) => x != null);
+      return v == null ? '–' : `${this._loc.number(Math.round(v * 10) / 10)}°`;
+    };
+    return this._loc.t('readout', { time: this._loc.time(m), measured: at(hd.current), setpoint: at(hd.target) });
+  }
+
+  _showReadout(bar, clientX) {
+    const climate = bar.dataset.climate;
+    const day = Number(bar.dataset.day);
+    if (!this._historyOf(climate, day)) return;
+    const m = Math.min(DAY_MIN - 1, Math.round(this._minuteAt(bar, clientX)));
+    const cross = bar.querySelector('.cross');
+    const readout = bar.querySelector('.readout');
+    cross.hidden = false;
+    readout.hidden = false;
+    cross.style.left = `${pct(m)}%`;
+    readout.style.left = `${pct(m)}%`;
+    readout.classList.toggle('left', m > DAY_MIN / 2); // stays inside the bar
+    readout.textContent = this._readoutText(climate, day, m);
+  }
+
+  _hideReadout(bar) {
+    bar.querySelectorAll('.cross, .readout').forEach((el) => { el.hidden = true; });
+  }
+
+  // " · measured 18.2–19.6° · setpoint 20°" for a slot of a day shown with its history
+  _measuredText(climate, day, start, end) {
+    const hd = this._historyOf(climate, day);
+    if (!hd) return '';
+    const fmt = (v) => this._loc.number(Math.round(v * 10) / 10);
+    const range = (lines, key) => {
+      const values = lines.flatMap((l) => [
+        curveValue(l, start), ...l.filter(([m]) => m > start && m < end).map(([, v]) => v),
+      ]).filter((v) => v != null);
+      if (!values.length) return '';
+      const [min, max] = [Math.min(...values), Math.max(...values)].map(fmt);
+      return ` · ${this._loc.t(key, { range: min === max ? min : `${min}–${max}` })}`;
+    };
+    return range(hd.current, 'measured') + range(hd.target, 'setpoint');
+  }
+
   _segInner(start, end, preset) {
     const dur = end - start;
     const compact = this._shown.length > 1;
@@ -852,7 +1144,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const p = this._preset(s.preset);
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : ''].join(' ');
-        return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}">${this._segInner(s.start, end, s.preset)}</div>`;
+        return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}${esc(this._measuredText(climate, d, s.start, end))}">${this._segInner(s.start, end, s.preset)}</div>`;
       })
       .join('');
     const handles = segs
@@ -862,7 +1154,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
     const cs = this._clipSrc;
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && cs.day === d;
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${this._overrideHtml(climate, d)}${now}</div>`;
+    const history = this._historyHtml(climate, d);
+    const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, d)}${now}</div>`;
   }
 
   // Override drawn over the schedule (only in the active schedule's tab)
@@ -896,7 +1190,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       })
       .join('');
     return `<div class="dgroup${d === todayIdx() ? ' today' : ''}">
-      <div class="day">${this._loc.daysShort[d]}</div>
+      <div class="day" data-day="${d}">${this._loc.daysShort[d]}</div>
       <div class="subs">${subs}</div>
     </div>`;
   }
@@ -918,6 +1212,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       ${item('fill-weekend', esc(t('copyToWeekend')))}
       ${item('fill-all', esc(t('copyToAll')))}
       ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
+      ${this._historyOf(m.climate, m.day) ? `<div class="sep"></div>${item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM)}` : ''}
     </div>`;
   }
 
@@ -1130,6 +1425,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <span class="chip-sep"></span>
           <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
+          <button class="chip tool${this._history.shown ? ' on' : ''}${this._history.loading ? ' loading' : ''}" data-act="history" title="${esc(tr('historyTitle'))}">${esc(tr('history'))}</button>
         </div>
         <div class="tabs">${tabs}</div>
         ${this._schedMenuHtml()}
@@ -1182,6 +1478,24 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _bindEvents() {
     const root = this.shadowRoot;
+
+    // Readout of a day shown larger: under the mouse, or along a finger sliding on the bar
+    root.addEventListener('pointerdown', (e) => {
+      const bar = e.target.closest('.bar.zoom');
+      if (bar && e.pointerType === 'touch' && !e.target.closest('.handle, .override-handle')) this._readTouch = true;
+    }, true);
+    root.addEventListener('pointermove', (e) => {
+      const bar = e.target.closest('.bar.zoom');
+      if (!bar || this._drag || this._overrideDrag) return;
+      if (e.pointerType === 'touch' && !this._readTouch) return;
+      this._showReadout(bar, e.clientX);
+    }, true);
+    const stopTouch = () => { this._readTouch = false; };
+    root.addEventListener('pointerup', stopTouch, true);
+    root.addEventListener('pointercancel', stopTouch, true);
+    root.addEventListener('pointerleave', (e) => {
+      if (e.pointerType !== 'touch' && e.target.matches && e.target.matches('.bar.zoom')) this._hideReadout(e.target);
+    }, true);
 
     root.addEventListener('pointerdown', (e) => {
       // End handle of an override
@@ -1295,6 +1609,11 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._sel = null;
         this._overrideSel = null;
         if (!e.target.closest('[data-act], .tab, .chip')) { this._render(); return; }
+      }
+      const dayName = e.target.closest('.day[data-day]');
+      if (dayName && this._shown.length === 1 && this._historyOf(this._shown[0], Number(dayName.dataset.day))) {
+        this._toggleZoom(this._shown[0], Number(dayName.dataset.day));
+        return;
       }
       const tab = e.target.closest('.tab');
       if (tab) {
@@ -1843,6 +2162,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._multiSel = !this._multiSel;
       return this._render();
     }
+    if (act === 'history') return this._toggleHistory();
+    if (act === 'zoom') return this._toggleZoom(ds.climate, Number(ds.day));
     if (act === 'show-all') {
       this._shown = this._thermostats.map((t) => t.entity);
       this._saveShown();
@@ -1955,6 +2276,29 @@ const STYLE = `
     padding:2px 6px; border-radius:4px; font-size:11px; white-space:nowrap;
     background:var(--primary-text-color); color:var(--card-background-color); }
   .handle:hover .tip, .handle.drag .tip { display:block; }
+  .chip.tool.loading { animation:chauffage-pulse 1s ease-in-out infinite; }
+  @keyframes chauffage-pulse { 50% { opacity:.4; } }
+  /* Measured temperature (white) and setpoint applied (yellow, with a shadow, over it and the
+     handles) of the last 7 days */
+  .history { position:absolute; left:0; top:0; width:100%; height:100%; z-index:2; pointer-events:none; overflow:hidden; }
+  .history path { fill:none; vector-effect:non-scaling-stroke; }
+  .history .measured { stroke:#fff; stroke-width:1.5; stroke-linejoin:round; stroke-linecap:round; shape-rendering:geometricPrecision; }
+  .history.setpoint { filter:drop-shadow(0 1px 1px rgba(0,0,0,.7)); }
+  /* A day shown larger: its scale in degrees, the readout under the mouse or the finger (the bar
+     slides with the finger instead of scrolling the page sideways) */
+  ha-card .bar.zoom { height:180px; touch-action:pan-y; }
+  .bar.zoom .seg { justify-content:flex-start; align-items:flex-start; padding-top:4px; }
+  .bar.zoom .yaxis { position:absolute; inset:0; z-index:1; pointer-events:none; }
+  .bar.zoom .yaxis i { position:absolute; left:0; right:0; border-top:1px dashed rgba(255,255,255,.35); }
+  .bar.zoom .yaxis span { position:absolute; right:4px; transform:translateY(-100%); font-size:11px; color:#fff;
+    text-shadow:0 1px 2px rgba(0,0,0,.8); }
+  .bar.zoom .cross { position:absolute; top:0; bottom:0; width:1px; z-index:4; background:rgba(255,255,255,.8); pointer-events:none; }
+  .bar.zoom .readout { position:absolute; bottom:4px; z-index:4; margin-left:6px; padding:2px 6px; border-radius:4px;
+    font-size:12px; white-space:nowrap; pointer-events:none; background:rgba(0,0,0,.75); color:#fff; }
+  .bar.zoom .readout.left { transform:translateX(-100%); margin-left:-6px; }
+  .bar.zoom [hidden] { display:none; }
+  .single .day[data-day] { cursor:pointer; }
+  .history .target { stroke:#ffe14d; stroke-width:1; }
   .now { position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; z-index:5; pointer-events:none;
     background:var(--primary-text-color); }
   .ibtn { width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center;
@@ -2452,6 +2796,6 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
   VERSION, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
-  overridePieces, overrideLabel, MORE_INFO_CFG, INTEGRATION, dataSource,
+  overridePieces, overrideLabel, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo,
 };

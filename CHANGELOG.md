@@ -9,6 +9,26 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+Nothing changes in the stored data.
+
+### Added
+
+- **History** button in the card: the temperature measured over the last 7 days, drawn over
+  each day of the week (Monday shows last Monday, today until now), with the setpoint the
+  thermostat actually applied (a yellow line over it); a slot's tooltip gives the temperatures
+  measured and the setpoints applied during it.
+  Read from Home Assistant's recorder by the integration (websocket `chauffage/history`: only
+  the two temperatures, the days already read kept in memory), only while the history is shown;
+  then every 5 minutes, only what is new.
+- A day can be shown larger, from its row menu (or by clicking the name of the day when one
+  thermostat is shown): a scale in degrees, and the time, measured temperature and setpoint
+  under the mouse, or along a finger sliding on the bar on a phone.
+
+### Upgrading
+
+- Update from HACS, restart HA, then reload the browser page (until HA is restarted, the card
+  reads HA's own history, much slower).
+
 ## [0.4.1] - 2026-10-14
 
 **Fix: the card missing after a reload.** Nothing changes in the stored data.

@@ -10,6 +10,8 @@ chauffage/presets/set        {presets, replacements}: the presets (a removed pre
                              weeks is replaced by the preset given in replacements)
 chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one thermostat
                              ({preset id: {"preset": climate preset} | {"temperature": …}}; {} = defaults)
+chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
+                             {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.util import dt as dt_util
 
 from . import model
 from .const import DOMAIN
@@ -30,7 +33,7 @@ from .runtime import DATA, ChauffageRuntime, StaleRevision
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
-                    ws_set_presets, ws_set_mapping):
+                    ws_set_presets, ws_set_mapping, ws_history):
         websocket_api.async_register_command(hass, command)
 
 
@@ -141,3 +144,24 @@ async def ws_set_presets(hass: HomeAssistant, connection: websocket_api.ActiveCo
 @websocket_api.async_response
 async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_mapping(msg["entity_id"], msg["mapping"]))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/history",
+    vol.Required("entity_ids"): [str],
+    vol.Required("start_time"): str,
+    vol.Optional("end_time"): str,
+})
+@websocket_api.async_response
+async def ws_history(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if "recorder" not in hass.config.components:
+        connection.send_error(msg["id"], "no_recorder", "The recorder is not set up: no history")
+        return
+    if (runtime := _runtime(hass, connection, msg["id"])) is None:
+        return
+    start = dt_util.parse_datetime(msg["start_time"])
+    end = dt_util.parse_datetime(msg["end_time"]) if "end_time" in msg else dt_util.utcnow()
+    if start is None or end is None:
+        connection.send_error(msg["id"], "invalid_format", "Invalid start_time or end_time")
+        return
+    connection.send_result(msg["id"], await runtime.history.read(msg["entity_ids"], start, end))

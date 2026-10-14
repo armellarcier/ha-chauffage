@@ -230,3 +230,7 @@ Ces conventions s'appliquent à tous les contributeurs, humains comme assistants
   un attribut.
 - Les changements de la carte s'essaient dans le HA de développement, sur tous les types de
   thermostats.
+- **Le mobile aussi** : la carte est utilisée dans l'application Home Assistant sur téléphone.
+  Tout fonctionne au doigt (aucune information visible seulement au survol, aucune action
+  accessible seulement à la souris ou au clavier) et sur un écran étroit (dès 360 px de large) ;
+  les changements de la carte s'essaient aussi à cette largeur dans le HA de développement.

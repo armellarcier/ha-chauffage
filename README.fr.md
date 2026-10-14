@@ -17,7 +17,8 @@ préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versati
   *Absent*…), chacun avec une semaine de 7 jours par thermostat ; un seul est actif, changé
   depuis la carte ou par des automatisations ;
 - carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : glisser les horaires,
-  copier / coller des journées, plusieurs thermostats par journée ;
+  copier / coller des journées, plusieurs thermostats par journée, voir la température mesurée
+  des 7 derniers jours tracée sur chaque journée ;
 - **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
   visible et ajustable sur la carte et dans la fenêtre de détail du thermostat,
   puis le thermostat reprend son programme.

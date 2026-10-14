@@ -213,3 +213,7 @@ These conventions apply to every contributor, human or AI assistant
 - Data read from thermostats may hold Enums (e.g. a ZHA `preset_mode`): convert them to plain
   values (`.value`) before storing them or putting them in an attribute.
 - Card changes are tried in the development HA, on every kind of thermostat.
+- **Mobile too**: the card is used in the Home Assistant app on phones. Everything works by
+  touch (no information only shown on hover, no action only reachable with a mouse or a
+  keyboard) and on a narrow screen (from 360 px wide); card changes are also tried at that width
+  in the development HA.
