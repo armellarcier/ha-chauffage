@@ -30,16 +30,19 @@ its issue when it has one.
 
 ## Next
 
-### Calendar of schedules
+### Activation rules
+
+Schedules activated by themselves, without writing an automation: an ordered list of rules
+"template → schedule", the first true one winning, a **default schedule** otherwise. A template
+can express anything (and is tried in the Developer tools); the card helps write the common
+cases, such as an entity's state: for example, following the EDF Tempo color of the day
+([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
+
+#### Calendar of schedules
 
 A year view, one row per month, with periods (days and times) colored by schedule, like the
-weekly view with its slots; a **default schedule** applies outside the periods. It also covers
-"activate *Away* until Tuesday" or "until 18:00" without writing an automation.
-
-The calendar is one source of **activation rules**: an ordered list of "condition → schedule"
-(an entity state, or a template), the first match winning, the default schedule otherwise; for
-example, following the EDF Tempo color of the day
-([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
+weekly view with its slots. Its periods are rules too. It also covers "activate *Away* until
+Tuesday" or "until 18:00".
 
 ### Groups of thermostats
 

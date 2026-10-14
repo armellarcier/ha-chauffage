@@ -31,17 +31,19 @@ idée retenue renvoie vers son issue quand elle en a une.
 
 ## Ensuite
 
-### Un calendrier des plannings
+### Des règles d'activation
+
+Des plannings qui s'activent d'eux-mêmes, sans écrire d'automatisation : une liste ordonnée de
+règles « template → planning », la première vraie l'emportant, un **planning par défaut** sinon.
+Un template peut tout exprimer (et se met au point dans les Outils de développement) ; la carte
+aide à écrire les cas courants, comme l'état d'une entité : par exemple, suivre la couleur du
+jour EDF Tempo ([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
+
+#### Un calendrier des plannings
 
 Une vue de l'année, une ligne par mois, avec des périodes (jours et heures) colorées selon le
-planning, comme la vue de la semaine avec ses créneaux ; un **planning par défaut** s'applique en
-dehors des périodes. Cela couvre aussi « activer *Absent* jusqu'à mardi » ou « jusqu'à 18:00 »
-sans écrire d'automatisation.
-
-Le calendrier est une source parmi d'autres de **règles d'activation** : une liste ordonnée
-« condition → planning » (l'état d'une entité, ou un template), la première vraie l'emportant, le
-planning par défaut sinon ; par exemple, suivre la couleur du jour EDF Tempo
-([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
+planning, comme la vue de la semaine avec ses créneaux. Ses périodes sont aussi des règles. Il
+couvre également « activer *Absent* jusqu'à mardi » ou « jusqu'à 18:00 ».
 
 ### Des groupes de thermostats
 
