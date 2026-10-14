@@ -7,7 +7,7 @@
 
 **English** · [Français](README.fr.md)
 
-![Editing schedules, an override and the active schedule, then the thermostat's more-info dialog](docs/demo.gif)
+![Editing schedules, an override and the active schedule, the thermostat's more-info dialog, then the history of the measured temperature and a day shown larger](docs/demo.gif)
 
 Weekly heating schedules for Home Assistant thermostats: thermostats without presets, with
 presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
@@ -143,6 +143,8 @@ schedules.
 custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
 custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
+dev/sim_rooms/, dev/sim_climate/    dev only: thermal model of the rooms (and a simulated week of
+                                    history for a new dev HA), a climate with standard presets
 tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
 docs/                               glossary, design decisions, use cases and their tests
 tests/fixtures/                     stored data in each past format (migration tests)
@@ -166,6 +168,11 @@ Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Card**: served by the integration and loaded on every page (card + more-info block); it
   talks to the integration over websocket (`chauffage/subscribe`, `chauffage/weeks/save`…);
   a save made from an outdated copy is refused instead of overwriting someone else's changes.
+- **History**: the card asks the integration for the measured temperature and the setpoint
+  applied over the last 7 days (`chauffage/history`); the integration reads them from HA's
+  recorder, keeps only these two values (HA's own history sends every attribute of a thermostat,
+  megabytes for a week) and keeps what it read in memory, so the card's refreshes only read the
+  last minutes.
 
 Known pitfalls (already handled, covered by tests): ZHA presets are Enums; dates with
 microseconds are rejected by Safari; `ha-card` renders asynchronously (popover positioning).

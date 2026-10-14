@@ -7,7 +7,7 @@
 
 [English](README.md) · **Français**
 
-![Édition des plannings, une dérogation et le planning actif, puis la fenêtre de détail du thermostat](docs/demo.gif)
+![Édition des plannings, une dérogation et le planning actif, la fenêtre de détail du thermostat, puis l'historique de la température mesurée et une journée en grand](docs/demo.gif)
 
 Plannings de chauffe hebdomadaires pour les thermostats de Home Assistant : sans préréglages, avec
 préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
@@ -148,6 +148,9 @@ est mieux réglé en températures (vue *Préréglages* de la carte). Voir la
 custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
 custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
 dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
+dev/sim_rooms/, dev/sim_climate/    dev uniquement : modèle thermique des pièces (et une semaine
+                                    d'historique simulée pour un HA de dev neuf), un climate à
+                                    préréglages standard
 tests/integration/, tests/js/       tests automatisés (pytest + HA en mémoire, node --test + jsdom)
 docs/                               glossaire, décisions de conception, cas d'usage et leurs tests (en anglais)
 tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
@@ -175,6 +178,11 @@ Développement : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
   fenêtre de détail) ; elle dialogue avec l'intégration par websocket (`chauffage/subscribe`,
   `chauffage/weeks/save`…) ; un enregistrement fait depuis une copie périmée est refusé au
   lieu d'écraser les modifications de quelqu'un d'autre.
+- **Historique** : la carte demande à l'intégration la température mesurée et la consigne
+  appliquée des 7 derniers jours (`chauffage/history`) ; l'intégration les lit dans le recorder
+  de HA, ne garde que ces deux valeurs (l'historique de HA envoie tous les attributs d'un
+  thermostat, des mégaoctets pour une semaine) et garde en mémoire ce qu'elle a lu : les
+  rafraîchissements de la carte ne lisent que les dernières minutes.
 
 Pièges connus (déjà gérés, couverts par des tests) : les presets ZHA sont des Enum ; Safari
 refuse les dates avec microsecondes ; `ha-card` s'affiche de façon asynchrone (placement des

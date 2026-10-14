@@ -81,8 +81,8 @@ HA=min scripts/test.sh integration   # same, on the minimum supported HA (hacs.j
 
 | Suite | Tool | What it covers |
 |---|---|---|
-| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, modes, thermostats turned off or unreachable, manual-change detection, overrides and their end, the pure logic (`engine.py`), storage and migrations, entities, services, websocket API, config / options flows, import from the v0.1 package |
-| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser), with a fake HA and integration (`tests/js/helpers.mjs`) | the card: calculations, editing the weeks, copy / paste, saving, schedules, presets, overrides, more-info |
+| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, modes, thermostats turned off or unreachable, manual-change detection, overrides and their end, the pure logic (`engine.py`), storage and migrations, entities, services, websocket API, the history read from the recorder, config / options flows, import from the v0.1 package |
+| `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser), with a fake HA and integration (`tests/js/helpers.mjs`) | the card: calculations, editing the weeks, copy / paste, saving, schedules, presets, overrides, history and a day shown larger, more-info |
 
 The Python suite runs on the latest Home Assistant and on the minimum supported one (CI and
 `HA=min`). Thermostats are plain simulated `climate.*` states and the `climate` services are
