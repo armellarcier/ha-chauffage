@@ -35,8 +35,8 @@ idée retenue renvoie vers son issue quand elle en a une.
 
 Des plannings qui s'activent d'eux-mêmes, sans écrire d'automatisation : une liste ordonnée de
 règles « template → planning », la première vraie l'emportant, un **planning par défaut** sinon.
-Un template peut tout exprimer (et se met au point dans les Outils de développement) ; la carte
-aide à écrire les cas courants, comme l'état d'une entité : par exemple, suivre la couleur du
+Un template peut tout exprimer ; il s'écrit dans le champ template de Home Assistant et se met
+au point dans les Outils de développement (pas d'éditeur maison). Par exemple, suivre la couleur du
 jour EDF Tempo ([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
 
 #### Un calendrier des plannings

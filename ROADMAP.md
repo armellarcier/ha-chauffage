@@ -34,8 +34,8 @@ its issue when it has one.
 
 Schedules activated by themselves, without writing an automation: an ordered list of rules
 "template → schedule", the first true one winning, a **default schedule** otherwise. A template
-can express anything (and is tried in the Developer tools); the card helps write the common
-cases, such as an entity's state: for example, following the EDF Tempo color of the day
+can express anything; it is written in Home Assistant's own template field and tried in the
+Developer tools (no editor of our own). For example, following the EDF Tempo color of the day
 ([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
 
 #### Calendar of schedules
