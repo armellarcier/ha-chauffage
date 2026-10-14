@@ -8,8 +8,11 @@ homeassistant:
   # packages/simulation.yaml = virtual rooms. The card is served by the integration.
   packages: !include_dir_named packages
 
+# The temperatures of the rooms (thermal model) and the week of history of a new dev HA
+sim_rooms:
+
 recorder:
-  purge_keep_days: 2
+  purge_keep_days: 10  # the card shows the last 7 days (a new dev HA starts with a simulated week)
 
 logger:
   default: warning

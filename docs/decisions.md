@@ -111,3 +111,10 @@ future contributor might question.
   installation before the release.
 - **One vocabulary** ([glossary.md](glossary.md)), in the UI, the docs, the code and the data.
 - **Version 1.0** once ha-chauffage works with groups of thermostats and any thermostat.
+- **A new development HA starts with a simulated week of history** (dev/sim_rooms): the
+  *History* of the card, the demo and any work on heating curves need days of data, and HA's
+  recorder has no API to write the past. The week is written once, through the recorder's own
+  models and thread (internal APIs, acceptable for a dev-only tool that follows HA stable), with
+  the same thermal model as the live simulation. That model has inertia everywhere (radiator,
+  air, walls, sensor) and random but plausible disturbances: regular sawtooth curves and
+  straight slopes looked fake.

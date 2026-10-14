@@ -24,8 +24,12 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
   pour une autre version ; `HA_VERSION=beta` pour tester la prochaine version de HA).
 - Le dépôt est **monté en direct** : `custom_components/chauffage/` → l'intégration et sa carte.
 - `dev/hass/packages/simulation.yaml` crée cinq pièces virtuelles : un radiateur
-  `input_boolean.radiateur_*` et une température `sensor.temperature_*` qui monte quand le
-  radiateur chauffe (les capteurs envoient une mesure chaque minute, comme de vrais capteurs).
+  `input_boolean.radiateur_*` et une température `sensor.temperature_*` (envoyée chaque minute
+  au dixième de degré, comme de vrais capteurs). L'intégration de dev
+  [`dev/sim_rooms/`](dev/sim_rooms/model.py) leur donne un modèle thermique réaliste : le
+  radiateur, l'air, les murs et le capteur ont chacun leur inertie (une pièce chauffe d'environ
+  1,7 °C par heure et refroidit d'environ 0,6 °C par heure), la température extérieure suit la
+  journée, et des occupants, des portes ouvertes et des nuages perturbent un peu chaque pièce.
   Elles couvrent **tous les types de thermostats** :
   - salon, bureau, chambre : **Versatile Thermostat** (presets, `none` après une consigne
     manuelle) ;
@@ -39,10 +43,23 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 <http://localhost:8124/chauffage-dev> avec **`dev` / `dev`** : le tableau de bord « Chauffage »
 (barre latérale) affiche la carte avec les cinq thermostats (les trois Versatile Thermostat sont
 « sur un interrupteur », températures de presets 7 / 17 / 20 / 22 °C), l'intégration
-**Chauffage** et des programmes d'exemple. Un jeton longue durée est écrit dans
-`dev/hass/.dev-token` et utilisé par `scripts/logs.sh` (pas besoin de `.env` pour le HA de dev).
-L'état est conservé dans `dev/hass/` (non versionné) ; pour repartir de zéro :
+**Chauffage** et des programmes d'exemple. **Un HA de dev neuf démarre aussi avec une semaine
+d'historique** : la semaine qui précède sa création, simulée avec le même modèle, les
+thermostats suivant les programmes d'exemple (avec un changement manuel un soir), pour que
+l'*Historique* de la carte montre tout de suite des courbes réalistes (le recorder garde
+10 jours). Un jeton longue durée est écrit dans `dev/hass/.dev-token` et utilisé par
+`scripts/logs.sh` (pas besoin de `.env` pour le HA de dev). L'état est conservé dans
+`dev/hass/` (non versionné) ; pour repartir de zéro :
 `docker compose -f dev/compose.yaml down && git clean -fdX dev/hass`.
+
+Un **second HA de dev neuf** à côté du vôtre (pour essayer quelque chose sur un HA vierge, ou
+enregistrer la démo) : un autre projet compose, son propre dossier de configuration (une copie
+des fichiers versionnés de `dev/hass`) et son port :
+
+```bash
+mkdir -p /tmp/ha-fresh/packages && cp dev/hass/configuration.yaml /tmp/ha-fresh/ && cp dev/hass/packages/simulation.yaml /tmp/ha-fresh/packages/
+DEV_HASS=/tmp/ha-fresh DEV_PORT=8125 docker compose -p ha-chauffage-fresh -f dev/compose.yaml up -d   # http://localhost:8125
+```
 
 **Boucle de travail :**
 
@@ -50,7 +67,7 @@ L'état est conservé dans `dev/hass/` (non versionné) ; pour repartir de zéro
 |---|---|
 | `custom_components/chauffage/frontend/*.js` (carte) | recharger la page du navigateur |
 | `custom_components/chauffage/*.py`, `*.json` | `docker compose -f dev/compose.yaml restart homeassistant` |
-| `dev/hass/configuration.yaml` | `docker compose -f dev/compose.yaml restart homeassistant` |
+| `dev/hass/configuration.yaml`, `dev/sim_rooms/*.py`, `dev/sim_climate/*.py` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
 `scripts/logs.sh` affiche la fin du journal (filtrée sur le projet ; `scripts/logs.sh dev 200 all`
 pour tout voir). Pour accélérer les tests de la logique temporelle, changer les températures
@@ -93,14 +110,14 @@ scripts/demo.sh      # nécessite le HA de dev démarré ; Playwright + ffmpeg d
 
 Le scénario est dans [`dev/demo/record.mjs`](dev/demo/record.mjs) : un mardi matin (horloge du
 navigateur), avec une dérogation de démo, il crée un planning *Télétravail* par copie de
-*Normal*, modifie son mardi, montre la vue *Préréglages*, active *Vacances*, puis ouvre la
-fenêtre de détail d'un thermostat, avec un curseur visible ; ensuite il remet tout en état
-(dérogation et planning créé supprimés, *Normal* de nouveau actif, modifications des semaines
-non enregistrées). Il attend les données d'exemple d'un HA de développement neuf (*Normal*,
-*Vacances*, *Absent*, noms en français) : pour garder les vôtres, enregistrer depuis un second HA
-de développement neuf (un autre projet compose) avec
-`DEMO_NETWORK=<son réseau docker> scripts/demo.sh`. À réenregistrer quand l'apparence de la carte
-change.
+*Normal*, modifie son mardi, montre la vue *Préréglages*, active *Vacances*, ouvre la fenêtre de
+détail d'un thermostat, puis montre l'*Historique* du salon et une journée en grand (en revenant
+à l'heure réelle : l'historique est réel), avec un curseur visible ; ensuite il remet tout en
+état (dérogation et planning créé supprimés, *Normal* de nouveau actif, modifications des
+semaines non enregistrées). Il attend les données d'exemple et la semaine simulée d'un HA de
+développement neuf (*Normal*, *Vacances*, *Absent*, noms en français) : enregistrer depuis un
+second HA de dev neuf (ci-dessus) avec `DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh`. La question de la réenregistrer se pose à
+chaque publication (voir « Publier une version »).
 
 ## Essayer une version sur un vrai Home Assistant
 
@@ -135,7 +152,9 @@ une version mineure peut changer l'installation ou les données (toujours migré
 automatiquement). Liste de contrôle :
 
 1. `scripts/test.sh` : tout au vert, migrations testées avec des fixtures.
-2. Réenregistrer la démo (`scripts/demo.sh`) si l'apparence de la carte a changé.
+2. **La démo : se poser la question à chaque publication.** La réenregistrer (`scripts/demo.sh`)
+   quand la carte a changé d'apparence ou qu'une fonctionnalité visible mérite d'être montrée
+   (compléter le scénario) ; pas quand les changements ne se voient pas.
 3. Mettre la version dans `custom_components/chauffage/frontend/chauffage-programme-card.js`
    (`VERSION`), `package.json` et `custom_components/chauffage/manifest.json` ; déplacer les
    entrées « Unreleased » de `CHANGELOG.md` sous la nouvelle version, avec la date et les étapes

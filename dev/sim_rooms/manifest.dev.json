@@ -1,0 +1,10 @@
+{
+  "domain": "sim_rooms",
+  "name": "Simulated rooms (ha-chauffage dev)",
+  "after_dependencies": ["recorder", "chauffage"],
+  "codeowners": [],
+  "documentation": "https://github.com/armellarcier/ha-chauffage/blob/main/CONTRIBUTING.md",
+  "iot_class": "calculated",
+  "requirements": [],
+  "version": "0.0.1"
+}

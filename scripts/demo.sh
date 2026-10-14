@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Records docs/demo.gif (the README animation) from the development HA.
 # Needs the dev HA running: docker compose -f dev/compose.yaml up -d
-# Another development HA (a fresh one, with only the sample data): DEMO_NETWORK=<its docker network>
+# A second, new development HA (CONTRIBUTING.md): DEMO_NETWORK=ha-chauffage-fresh_default
 # Everything runs in Docker (Playwright for the browser, ffmpeg for the GIF).
 set -euo pipefail
 cd "$(dirname "$0")/.."

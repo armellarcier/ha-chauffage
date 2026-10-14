@@ -1,7 +1,8 @@
 # Virtual rooms for the dev HA: each room has a heater (input_boolean, usable as the
-# underlying switch of a Versatile Thermostat "over a switch") and a temperature that rises
-# while the heater is on and drifts back towards the outdoor temperature otherwise.
-# The input_number sliders can also force a temperature by hand.
+# underlying switch of a Versatile Thermostat "over a switch") and a temperature that follows
+# it with a thermal model (dev/sim_rooms: a radiator brings a room from 17 to 20 °C in one to
+# two hours, the outdoor temperature follows the day). The input_number sliders can also force a
+# temperature by hand; the sensors report it to 0.1 °C, like real ones.
 
 input_boolean:
   radiateur_salon:
@@ -25,7 +26,7 @@ input_number:
     name: Température salon (simulée)
     min: 5
     max: 30
-    step: 0.1
+    step: 0.01
     initial: 19
     unit_of_measurement: "°C"
     mode: box
@@ -33,7 +34,7 @@ input_number:
     name: Température bureau (simulée)
     min: 5
     max: 30
-    step: 0.1
+    step: 0.01
     initial: 18
     unit_of_measurement: "°C"
     mode: box
@@ -41,7 +42,7 @@ input_number:
     name: Température chambre (simulée)
     min: 5
     max: 30
-    step: 0.1
+    step: 0.01
     initial: 17
     unit_of_measurement: "°C"
     mode: box
@@ -49,7 +50,7 @@ input_number:
     name: Température cuisine (simulée)
     min: 5
     max: 30
-    step: 0.1
+    step: 0.01
     initial: 18
     unit_of_measurement: "°C"
     mode: box
@@ -57,7 +58,7 @@ input_number:
     name: Température chambre d'amis (simulée)
     min: 5
     max: 30
-    step: 0.1
+    step: 0.01
     initial: 16
     unit_of_measurement: "°C"
     mode: box
@@ -77,7 +78,7 @@ template:
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
-        state: "{{ states('input_number.temperature_salon') }}"
+        state: "{{ states('input_number.temperature_salon') | float(0) | round(1) }}"
         # Real sensors report regularly even when the value does not change: without it,
         # Versatile Thermostat goes into safety mode after an hour (no temperature received)
         attributes:
@@ -87,7 +88,7 @@ template:
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
-        state: "{{ states('input_number.temperature_bureau') }}"
+        state: "{{ states('input_number.temperature_bureau') | float(0) | round(1) }}"
         # Real sensors report regularly even when the value does not change: without it,
         # Versatile Thermostat goes into safety mode after an hour (no temperature received)
         attributes:
@@ -97,7 +98,7 @@ template:
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
-        state: "{{ states('input_number.temperature_chambre') }}"
+        state: "{{ states('input_number.temperature_chambre') | float(0) | round(1) }}"
         # Real sensors report regularly even when the value does not change: without it,
         # Versatile Thermostat goes into safety mode after an hour (no temperature received)
         attributes:
@@ -107,7 +108,7 @@ template:
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
-        state: "{{ states('input_number.temperature_cuisine') }}"
+        state: "{{ states('input_number.temperature_cuisine') | float(0) | round(1) }}"
         attributes:
           measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température chambre d'amis
@@ -115,7 +116,7 @@ template:
         device_class: temperature
         state_class: measurement
         unit_of_measurement: "°C"
-        state: "{{ states('input_number.temperature_amis') }}"
+        state: "{{ states('input_number.temperature_amis') | float(0) | round(1) }}"
         attributes:
           measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température extérieure
@@ -128,30 +129,6 @@ template:
         # Versatile Thermostat goes into safety mode after an hour (no temperature received)
         attributes:
           measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
-
-automation:
-  - id: sim_evolution_temperatures
-    alias: "Simulation - évolution des températures"
-    mode: single
-    triggers:
-      - trigger: time_pattern
-        seconds: "/30"
-    actions:
-      - repeat:
-          for_each: [salon, bureau, chambre, cuisine, amis]
-          sequence:
-            - action: input_number.set_value
-              target:
-                entity_id: "input_number.temperature_{{ repeat.item }}"
-              data:
-                value: >-
-                  {%- set t = states('input_number.temperature_' ~ repeat.item) | float(18) -%}
-                  {%- set ext = states('input_number.temperature_exterieure') | float(8) -%}
-                  {%- if is_state('input_boolean.radiateur_' ~ repeat.item, 'on') -%}
-                    {{ [t + 0.2, 30] | min | round(1) }}
-                  {%- else -%}
-                    {{ [t - (t - ext) * 0.02, ext] | max | round(1) }}
-                  {%- endif -%}
 
 # The two other kinds of thermostats (see docs/decisions.md, "Presets"):
 # - no presets: Home Assistant's generic_thermostat (YAML: its UI flow only accepts a switch or a fan);

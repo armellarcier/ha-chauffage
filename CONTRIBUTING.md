@@ -24,9 +24,12 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 - The repository is **mounted live**: `custom_components/chauffage/` → the integration and its
   card.
 - `dev/hass/packages/simulation.yaml` creates five virtual rooms: a heater
-  `input_boolean.radiateur_*` and a temperature `sensor.temperature_*` that rises while the
-  heater is on (sensors report every minute, like real ones). They cover **every kind of
-  thermostat**:
+  `input_boolean.radiateur_*` and a temperature `sensor.temperature_*` (reported every minute
+  to 0.1 °C, like real sensors). The dev-only integration [`dev/sim_rooms/`](dev/sim_rooms/model.py)
+  gives them a realistic thermal model: the radiator, the air, the walls and the sensor each have
+  their inertia (a room heats up by about 1.7 °C an hour and cools down by about 0.6 °C an
+  hour), the outdoor temperature follows the day, and people, doors opened and clouds disturb
+  each room a little. They cover **every kind of thermostat**:
   - salon, bureau, chambre: **Versatile Thermostat** (presets, `none` on a manual setpoint);
   - cuisine: HA's **`generic_thermostat`**, without presets (declared in YAML);
   - chambre d'amis: **standard presets** (`eco`, `comfort`, `away`, `boost`, no `frost`;
@@ -38,9 +41,21 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 <http://localhost:8124/chauffage-dev> with **`dev` / `dev`**: the "Chauffage" dashboard
 (sidebar) shows the card with the five thermostats (the three Versatile Thermostat ones are
 "over a switch", preset temperatures 7 / 17 / 20 / 22 °C), the **Chauffage** integration and
-sample schedules. A long-lived token is written to `dev/hass/.dev-token` and used by
+sample schedules. **A new dev HA also starts with a week of history**: the week before its
+creation, simulated with the same model, the thermostats following the sample schedules (with
+a manual change one evening), so that the card's *History* shows realistic curves at once (the
+recorder keeps 10 days). A long-lived token is written to `dev/hass/.dev-token` and used by
 `scripts/logs.sh` (no `.env` needed for the dev HA). State is kept in `dev/hass/` (not
 versioned); to start over: `docker compose -f dev/compose.yaml down && git clean -fdX dev/hass`.
+
+A **second, new dev HA** next to yours (to try something on a clean one, or to record the demo):
+another compose project, its own configuration folder (a copy of the versioned files of
+`dev/hass`) and port:
+
+```bash
+mkdir -p /tmp/ha-fresh/packages && cp dev/hass/configuration.yaml /tmp/ha-fresh/ && cp dev/hass/packages/simulation.yaml /tmp/ha-fresh/packages/
+DEV_HASS=/tmp/ha-fresh DEV_PORT=8125 docker compose -p ha-chauffage-fresh -f dev/compose.yaml up -d   # http://localhost:8125
+```
 
 **Work loop:**
 
@@ -48,7 +63,7 @@ versioned); to start over: `docker compose -f dev/compose.yaml down && git clean
 |---|---|
 | `custom_components/chauffage/frontend/*.js` (card) | reload the browser page |
 | `custom_components/chauffage/*.py`, `*.json` | `docker compose -f dev/compose.yaml restart homeassistant` |
-| `dev/hass/configuration.yaml` | `docker compose -f dev/compose.yaml restart homeassistant` |
+| `dev/hass/configuration.yaml`, `dev/sim_rooms/*.py`, `dev/sim_climate/*.py` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
 `scripts/logs.sh` shows the end of the log (filtered on the project; `scripts/logs.sh dev 200 all`
 to see everything). To speed up testing of time-based logic, change temperatures with the
@@ -89,12 +104,14 @@ scripts/demo.sh      # needs the dev HA running; Playwright + ffmpeg in Docker
 
 The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs): on a Tuesday morning (browser
 clock) with a demo override, it creates a *Télétravail* schedule as a copy of *Normal*, edits its
-Tuesday, shows the *Presets* view, activates *Vacances*, then opens a thermostat's more-info
-dialog, with a visible cursor; then it restores everything (override and created schedule
-removed, *Normal* active again, edits of the weeks not saved). It expects the sample data of a
-new development HA (*Normal*, *Vacances*, *Absent*, French names): to keep yours, record from a
-second, fresh development HA (another compose project) with
-`DEMO_NETWORK=<its docker network> scripts/demo.sh`. Re-record it when the card's look changes.
+Tuesday, shows the *Presets* view, activates *Vacances*, opens a thermostat's more-info dialog,
+then shows the living room's *History* and one day larger (back to the real time: the history
+is real), with a visible cursor; then it restores everything (override and created schedule
+removed, *Normal* active again, edits of the weeks not saved). It expects the sample data and
+the simulated week of a new development HA (*Normal*, *Vacances*, *Absent*, French names):
+record from a second, new dev HA (above) with
+`DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh`. Whether to re-record it is a question asked
+at every release (see "Releasing").
 
 ## Trying a version on a real Home Assistant
 
@@ -126,7 +143,9 @@ Versions follow [semantic versioning](https://semver.org/); before 1.0, a minor 
 change the installation or the data (always migrated automatically). Checklist:
 
 1. `scripts/test.sh`: everything green, migrations tested with fixtures.
-2. Re-record the demo (`scripts/demo.sh`) if the card's look changed.
+2. **The demo: ask the question at every release.** Re-record it (`scripts/demo.sh`) when the
+   card looks different or a visible feature is worth showing (extend the scenario); not when
+   the changes cannot be seen.
 3. Set the version in `custom_components/chauffage/frontend/chauffage-programme-card.js`
    (`VERSION`), `package.json` and `custom_components/chauffage/manifest.json`; move the
    "Unreleased" entries of `CHANGELOG.md` under the new version, with the date and the upgrade

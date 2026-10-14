@@ -2,6 +2,9 @@
 #   docker compose -f dev/compose.yaml up -d      → http://localhost:8124
 #   docker compose -f dev/compose.yaml restart homeassistant   (a few seconds)
 #   docker compose -f dev/compose.yaml down
+# A second, new dev HA next to it (the demo, scripts/demo.sh): another compose project, its own
+# configuration folder (a copy of the versioned files of dev/hass) and port:
+#   DEV_HASS=<folder> DEV_PORT=8125 docker compose -p <name> -f dev/compose.yaml up -d
 # The repository is mounted live: custom_components/chauffage/ (integration + card) is seen
 # immediately (Python changes need a restart).
 name: ha-chauffage-dev
@@ -11,7 +14,7 @@ services:
   vtherm:
     image: alpine:3.20
     volumes:
-      - ./hass:/config
+      - ${DEV_HASS:-./hass}:/config
     environment:
       VTHERM_VERSION: ${VTHERM_VERSION:-10.5.0}
     command:
@@ -35,17 +38,23 @@ services:
       vtherm:
         condition: service_completed_successfully
     ports:
-      - "8124:8123"
+      - "${DEV_PORT:-8124}:8123"
     environment:
       TZ: Europe/Paris
     volumes:
-      - ./hass:/config
+      - ${DEV_HASS:-./hass}:/config
       - ../custom_components/chauffage:/config/custom_components/chauffage:ro
       # Dev-only climate with standard presets (a kind of thermostat to test, see sim_climate/).
       # Its manifest is manifest.dev.json in the repository: HACS wants a single manifest.json
       - ./sim_climate/__init__.py:/config/custom_components/sim_climate/__init__.py:ro
       - ./sim_climate/climate.py:/config/custom_components/sim_climate/climate.py:ro
       - ./sim_climate/manifest.dev.json:/config/custom_components/sim_climate/manifest.json:ro
+      # Dev-only thermal model of the rooms, and a week of history for a new dev HA (see sim_rooms/)
+      - ./sim_rooms/__init__.py:/config/custom_components/sim_rooms/__init__.py:ro
+      - ./sim_rooms/model.py:/config/custom_components/sim_rooms/model.py:ro
+      - ./sim_rooms/history.py:/config/custom_components/sim_rooms/history.py:ro
+      - ./sim_rooms/services.yaml:/config/custom_components/sim_rooms/services.yaml:ro
+      - ./sim_rooms/manifest.dev.json:/config/custom_components/sim_rooms/manifest.json:ro
     restart: unless-stopped
 
   # First-run setup through HA's APIs (user dev / dev, token, thermostats, dashboard,
@@ -58,5 +67,5 @@ services:
     entrypoint: ["python3", "/setup/setup.py"]
     volumes:
       - ./setup:/setup:ro
-      - ./hass:/config
+      - ${DEV_HASS:-./hass}:/config
     restart: "no"

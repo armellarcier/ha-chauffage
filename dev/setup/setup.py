@@ -11,6 +11,8 @@ already done.
   5. the Chauffage integration's config entry
   6. two more schedules (Vacances, Absent: Normal, Vacances, Absent in this order) and sample weeks for every kind of thermostat (VTherm; kitchen: generic_thermostat without
      presets; guest room: standard presets, dev/sim_climate), saved through the integration
+  7. a week of history before the creation of the dev HA, simulated with the rooms' thermal
+     model and the sample schedules (dev/sim_rooms; only on a new dev HA)
 """
 
 from __future__ import annotations
@@ -331,6 +333,12 @@ async def sample_schedules(ws: WS) -> None:
     await ws.call(type="chauffage/weeks/save", weeks=weeks)
 
 
+async def history(api: Api) -> None:
+    """The simulated week before the dev HA was created (does nothing on an existing one)."""
+    log("history: simulated week (sim_rooms.seed_history)")
+    await api.post("services/sim_rooms/seed_history")
+
+
 async def main() -> None:
     async with aiohttp.ClientSession() as session:
         await wait_for_ha(session)
@@ -342,6 +350,7 @@ async def main() -> None:
         await dashboard(ws)
         await integration(api)
         await sample_schedules(ws)
+        await history(api)
         log(f"done — http://localhost:8124/{DASHBOARD_URL} (dev / dev)")
 
 

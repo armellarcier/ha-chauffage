@@ -3,7 +3,9 @@
 // The development HA has three schedules: Normal (active), Vacances, Absent. The browser clock
 // is set to a Tuesday morning, with a demo override on the living room.
 // Scenario: create a "Télétravail" schedule as a copy of Normal and edit its Tuesday, look at
-// the presets, activate Vacances, then a thermostat's more-info dialog.
+// the presets, activate Vacances, then a thermostat's more-info dialog, and its history: the
+// temperature measured over the last days (a new development HA starts with a simulated week),
+// a day shown larger. The history is real: for it, the browser clock goes back to the real time.
 // Nothing is kept: the edits are not saved, the created schedule and the override are removed
 // and Normal is active again at the end.
 import { chromium } from 'playwright';
@@ -23,6 +25,7 @@ function nextTuesday(hh, mm) {
   return d;
 }
 const NOW = nextTuesday(10, 5);
+const REAL_NOW = Date.now();
 const OVERRIDE = {
   kind: 'temperature', value: 21.5,
   start: nextTuesday(8, 45).toISOString(), end: nextTuesday(11, 30).toISOString(),
@@ -68,6 +71,7 @@ await lp.locator(card).waitFor();
 await lp.evaluate(() => {
   localStorage.setItem('dockedSidebar', '"always_hidden"');
   localStorage.removeItem('chauffage-programme-card:shown'); // start with every thermostat shown
+  localStorage.removeItem('chauffage-programme-card:history'); // and without the history
 });
 // The override shows the thermostat's actual setpoint, so the card and the dialog agree
 OVERRIDE.value = await lp.evaluate(() =>
@@ -170,8 +174,28 @@ await pause(600);
 const block = page.locator('chauffage-moreinfo');
 if (await block.count()) await moveTo(block, { dx: 0.4, dy: 0.45 });
 await pause(2800);
-const end = (Date.now() - t0) / 1000;
 await page.keyboard.press('Escape');
+await pause(700);
+
+// The history of the living room: its last days as they were measured (back to the real time,
+// the history being real), on Normal, the schedule followed during those days
+await context.clock.setFixedTime(new Date(REAL_NOW));
+await click(page.locator(`${card} .tab`, { hasText: 'Normal' }));
+await pause(800);
+await click(page.locator(`${card} [data-act="history"]`));
+await page.locator(`${card} svg.history`).first().waitFor();
+await pause(2200);
+// Yesterday, larger: the scale in degrees, and the values along the day under the mouse
+const yesterday = (new Date(REAL_NOW).getDay() + 5) % 7;
+await click(page.locator(`${card} .day[data-day="${yesterday}"]`));
+await pause(1000);
+const zoomed = page.locator(`${card} .bar.zoom`);
+const box = await zoomed.boundingBox();
+await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.6, { steps: 20 });
+await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.6, { steps: 90 });
+// The video lags behind this script's clock by a few seconds: a longer last pause keeps the end
+await pause(5000);
+const end = (Date.now() - t0) / 1000;
 
 const video = page.video();
 await context.close();

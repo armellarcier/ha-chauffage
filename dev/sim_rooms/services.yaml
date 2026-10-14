@@ -1,0 +1,3 @@
+seed_history:
+  name: Seed the history
+  description: Writes the simulated week before the development HA was created (once).
