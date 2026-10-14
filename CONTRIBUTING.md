@@ -208,7 +208,8 @@ These conventions apply to every contributor, human or AI assistant
 - **Tests first** (see above): `tests/integration/` for the integration, `tests/js/` for the
   card.
 - **Decisions**: a choice a future contributor might question (and why it was made) goes to
-  [docs/decisions.md](docs/decisions.md); ideas and next steps go to [ROADMAP.md](ROADMAP.md).
+  [docs/decisions.md](docs/decisions.md). Requests and ideas are discussed in GitHub issues;
+  [ROADMAP.md](ROADMAP.md) holds the vision and the ideas retained, linking to their issues.
 - Data read from thermostats may hold Enums (e.g. a ZHA `preset_mode`): convert them to plain
   values (`.value`) before storing them or putting them in an attribute.
 - Card changes are tried in the development HA, on every kind of thermostat.

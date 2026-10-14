@@ -7,6 +7,10 @@ Home Assistant**, entièrement configurés depuis l'interface, dans la liste par
 Pourquoi les choses sont comme elles sont : [docs/decisions.md](docs/decisions.md) (en anglais) ;
 ce qui a changé à chaque version : [CHANGELOG.md](CHANGELOG.md) (en anglais).
 
+Cette page contient la vision et les idées retenues, dans l'ordre. Les demandes et les idées se
+discutent dans les [issues GitHub](https://github.com/armellarcier/ha-chauffage/issues) ; une
+idée retenue renvoie vers son issue quand elle en a une.
+
 ## Fait
 
 | Version | Contenu |
@@ -24,7 +28,6 @@ ce qui a changé à chaque version : [CHANGELOG.md](CHANGELOG.md) (en anglais).
    ha-chauffage s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour
    ceux-ci ; Home Assistant l'affiche une fois l'intégration installée). Le dépôt doit garder un
    seul `manifest.json` (le climate simulé du HA de développement utilise `manifest.dev.json`).
-2. Passer les éléments de la feuille de route en **issues GitHub** (cette page les résumera).
 
 ## Ensuite
 
@@ -34,6 +37,11 @@ Une vue de l'année, une ligne par mois, avec des périodes (jours et heures) co
 planning, comme la vue de la semaine avec ses créneaux ; un **planning par défaut** s'applique en
 dehors des périodes. Cela couvre aussi « activer *Absent* jusqu'à mardi » ou « jusqu'à 18:00 »
 sans écrire d'automatisation.
+
+Le calendrier est une source parmi d'autres de **règles d'activation** : une liste ordonnée
+« condition → planning » (l'état d'une entité, ou un template), la première vraie l'emportant, le
+planning par défaut sinon ; par exemple, suivre la couleur du jour EDF Tempo
+([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
 
 ### Des groupes de thermostats
 

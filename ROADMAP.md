@@ -6,6 +6,10 @@ The goal: weekly heating schedules for **any Home Assistant `climate` entity**, 
 from the UI, listed in HACS by default. Why things are the way they are:
 [docs/decisions.md](docs/decisions.md); what changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
+This page holds the vision and the ideas retained, in order. Requests and ideas are discussed in
+[GitHub issues](https://github.com/armellarcier/ha-chauffage/issues); an item retained links to
+its issue when it has one.
+
 ## Done
 
 | Version | What |
@@ -23,7 +27,6 @@ from the UI, listed in HACS by default. Why things are the way they are:
    *custom repository* (HACS shows no icon for those; Home Assistant does, once installed). The
    repository must keep a single `manifest.json` (the development HA's simulated climate uses
    `manifest.dev.json`).
-2. Move the roadmap's items to **GitHub issues** (this page then summarizes them).
 
 ## Next
 
@@ -32,6 +35,11 @@ from the UI, listed in HACS by default. Why things are the way they are:
 A year view, one row per month, with periods (days and times) colored by schedule, like the
 weekly view with its slots; a **default schedule** applies outside the periods. It also covers
 "activate *Away* until Tuesday" or "until 18:00" without writing an automation.
+
+The calendar is one source of **activation rules**: an ordered list of "condition → schedule"
+(an entity state, or a template), the first match winning, the default schedule otherwise; for
+example, following the EDF Tempo color of the day
+([#1](https://github.com/armellarcier/ha-chauffage/issues/1)).
 
 ### Groups of thermostats
 

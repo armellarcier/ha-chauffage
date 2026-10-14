@@ -222,8 +222,9 @@ Ces conventions s'appliquent à tous les contributeurs, humains comme assistants
 - **Les tests d'abord** (voir plus haut) : `tests/integration/` pour l'intégration,
   `tests/js/` pour la carte.
 - **Décisions** : un choix qu'un futur contributeur pourrait remettre en question (et sa raison)
-  va dans [docs/decisions.md](docs/decisions.md) ; les idées et prochaines étapes vont dans
-  [ROADMAP.fr.md](ROADMAP.fr.md).
+  va dans [docs/decisions.md](docs/decisions.md). Les demandes et les idées se discutent dans
+  les issues GitHub ; [ROADMAP.fr.md](ROADMAP.fr.md) contient la vision et les idées retenues,
+  avec un lien vers leurs issues.
 - Les données lues sur les thermostats peuvent contenir des Enum (par ex. un `preset_mode`
   ZHA) : les convertir en valeurs simples (`.value`) avant de les stocker ou de les mettre dans
   un attribut.
