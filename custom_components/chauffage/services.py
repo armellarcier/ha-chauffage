@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
@@ -39,7 +40,8 @@ ACTIVATE_SCHEDULE_SCHEMA = vol.Schema({vol.Required("schedule"): cv.string})
 
 
 def loaded_runtime(hass: HomeAssistant) -> ChauffageRuntime:
-    entries = hass.config_entries.async_loaded_entries(DOMAIN)
+    # async_loaded_entries: not in older Home Assistant versions
+    entries = [e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
     if not entries:
         raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_loaded")
     return entries[0].runtime_data

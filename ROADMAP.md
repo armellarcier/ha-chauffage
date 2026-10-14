@@ -89,7 +89,8 @@ integration).
   dependency bot proposing upgrades; the setup walks through VTherm's config flow field by field
   and breaks when VTherm changes it (`docker compose logs setup` shows the step).
 - An end-to-end check in CI that starts the development HA, runs the setup and checks that a
-  schedule is applied.
+  schedule is applied, and the card works in the real frontend of the minimum and latest Home
+  Assistant ([#6](https://github.com/armellarcier/ha-chauffage/issues/6)).
 - Simulated thermostats for the kinds still missing (heat / cool, a thermostat that keeps its
   preset on a manual setpoint), in the tests and the development HA.
 

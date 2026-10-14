@@ -12,18 +12,23 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.device import async_entity_id_to_device
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry, engine
 from .entity import ChauffageEntity
 from .runtime import DATA, ChauffageRuntime
 
+# From Home Assistant 2025.8, an entity is attached to the device given in its device_entry
+DEVICE_ENTRY_ATTACHES = (MAJOR_VERSION, MINOR_VERSION) >= (2025, 8)
+
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ChauffageConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
+    hass: HomeAssistant, entry: ChauffageConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     runtime = entry.runtime_data
     known: dict[str, list[ThermostatSensor]] = {}
@@ -49,6 +54,15 @@ async def async_setup_entry(
     entry.async_on_unload(runtime.async_add_listener(sync))
 
 
+def thermostat_device(hass: HomeAssistant, entity_id: str) -> dr.DeviceEntry | None:
+    """The thermostat's device, if any (as HA's async_entity_id_to_device, which older Home
+    Assistant versions do not have)."""
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is None or entry.device_id is None:
+        return None
+    return dr.async_get(hass).async_get(entry.device_id)
+
+
 class ThermostatSensor(ChauffageEntity, SensorEntity):
     _attr_entity_registry_enabled_default = False
     key: str
@@ -57,7 +71,7 @@ class ThermostatSensor(ChauffageEntity, SensorEntity):
         super().__init__(runtime)
         self.climate = climate
         self._attr_unique_id = f"{runtime.entry.entry_id}_{climate}_{self.key}"
-        self.device_entry = async_entity_id_to_device(runtime.hass, climate)
+        self.device_entry = thermostat_device(runtime.hass, climate)
         if self.device_entry is None:
             # No device to attach to: the thermostat's name goes in the entity name
             state = runtime.hass.states.get(climate)
@@ -66,6 +80,11 @@ class ThermostatSensor(ChauffageEntity, SensorEntity):
             self._attr_translation_placeholders = {"thermostat": name}
         else:
             self._attr_translation_key = self.key
+            if not DEVICE_ENTRY_ATTACHES:
+                # Older Home Assistant: attached through the device's identifiers
+                self._attr_device_info = DeviceInfo(
+                    identifiers=self.device_entry.identifiers, connections=self.device_entry.connections
+                )
 
 
 class ScheduleSensor(ThermostatSensor):

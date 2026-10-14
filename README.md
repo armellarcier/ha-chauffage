@@ -45,7 +45,9 @@ data automatically.
    The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
    the week); English and French are available, and `language: en` or `language: fr` forces one.
 
-Requires Home Assistant 2026.9 or later.
+Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Assistant API
+requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,
+on one version per quarter since, on the latest Home Assistant and, every week, on the beta.
 
 ### What the integration provides
 

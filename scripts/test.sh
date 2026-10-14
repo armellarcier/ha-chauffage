@@ -44,9 +44,9 @@ pytest_suite() {
   if [ "${HA:-}" != min ] && python3 -c 'import pytest_homeassistant_custom_component' 2>/dev/null; then
     python3 -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   else
-    local req=tests/integration/requirements.txt image=ha-chauffage-tests
-    if [ "${HA:-}" = min ]; then req=tests/integration/requirements-min.txt; image=ha-chauffage-tests-min; fi
-    docker build -q -t "$image" --build-arg REQUIREMENTS="$req" -f tests/integration/Dockerfile . >/dev/null
+    local req=tests/integration/requirements.txt image=ha-chauffage-tests python=python:3.14-slim
+    if [ "${HA:-}" = min ]; then req=tests/integration/requirements-min.txt; image=ha-chauffage-tests-min; python=python:3.13; fi
+    docker build -q -t "$image" --build-arg REQUIREMENTS="$req" --build-arg PYTHON="$python" -f tests/integration/Dockerfile . >/dev/null
     docker run --rm -v "$root:/app" -w /app "$image" python -m pytest -c "$suite/pytest.ini" "$suite" "$@"
   fi
 }

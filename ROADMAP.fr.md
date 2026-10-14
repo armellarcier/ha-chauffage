@@ -100,7 +100,8 @@ ajustements (règles par thermostat ou par intégration).
   configuration de VTherm champ par champ et casse quand VTherm le change (`docker compose logs
   setup` indique l'étape).
 - Une vérification de bout en bout en CI qui démarre le HA de développement, lance le setup et
-  vérifie qu'un planning est appliqué.
+  vérifie qu'un planning est appliqué, et que la carte marche dans le vrai frontend de la version
+  minimale et de la dernière version de Home Assistant ([#6](https://github.com/armellarcier/ha-chauffage/issues/6)).
 - Des thermostats simulés pour les types qui manquent encore (chaud / froid, un thermostat qui
   garde son préréglage après une consigne manuelle), dans les tests et le HA de développement.
 
