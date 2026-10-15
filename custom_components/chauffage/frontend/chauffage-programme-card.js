@@ -2261,16 +2261,21 @@ class ChauffageProgrammeCard extends HTMLElement {
       const own = ((st && st.attributes.preset_modes) || []).map(String)
         .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()))
         .sort((a, b) => (b === preset.id) - (a === preset.id));
-      // What "automatic" gives: the thermostat's own preset of the same name, or the preset's default
-      const auto = src.usePresets() && own.includes(preset.id)
-        ? `${t('ownPreset').toLowerCase()} ${this._loc.preset(preset.id)}`
-        : `${this._loc.number(preset.temperature ?? 19)} °C`;
-      const choice = !explicit ? 'auto' : 'preset' in explicit ? 'preset' : 'temperature';
+      // What "automatic" gives: the thermostat's own preset of the same name, then it is the first
+      // choice of the thermostat's presets (not the same as picking that preset: automatic follows
+      // the "use the thermostats' presets" option and the presets the thermostat has); otherwise
+      // the preset's default temperature, a choice of its own
+      const autoPreset = src.usePresets() && own.includes(preset.id);
+      const choice = !explicit ? (autoPreset ? 'preset' : 'auto') : 'preset' in explicit ? 'preset' : 'temperature';
       const current = this._targetOf(sel.climate, preset);
       const temp = explicit && 'temperature' in explicit ? explicit.temperature : this._presetTemperature(sel.climate, current) ?? preset.temperature ?? 19;
       const radio = (value, label) => `<label class="pv-kind"><input type="radio" name="cell-kind" value="${value}" ${choice === value ? 'checked' : ''}> ${label}</label>`;
-      body = radio('auto', esc(t('presetAuto', { value: auto })))
-        + (own.length ? radio('preset', `${esc(t('ownPreset'))} <select data-cell-preset>${own.map((p) => `<option value="${esc(p)}" ${((explicit && explicit.preset) || preset.id) === p ? 'selected' : ''}>${esc(this._loc.preset(p))}</option>`).join('')}</select>`) : '')
+      const picked = explicit && 'preset' in explicit ? explicit.preset : autoPreset ? '' : preset.id;
+      const option = (value, label) => `<option value="${esc(value)}" ${picked === value ? 'selected' : ''}>${esc(label)}</option>`;
+      const options = (autoPreset ? option('', t('presetAuto', { value: this._loc.preset(preset.id) })) : '')
+        + own.map((p) => option(p, this._loc.preset(p))).join('');
+      body = (autoPreset ? '' : radio('auto', esc(t('presetAuto', { value: `${this._loc.number(preset.temperature ?? 19)} °C` }))))
+        + (own.length ? radio('preset', `${esc(t('ownPreset'))} <select data-cell-preset>${options}</select>`) : '')
         + radio('temperature', esc(t('presetTemperature'))) + tempInput(temp);
     } else if (sel.kind === 'default') {
       title = t('defaultFor', { preset: preset.name });
@@ -2319,8 +2324,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (sel.kind === 'thermostat') {
         const mapping = { ...src.mapping(sel.climate) };
         const kind = (root.querySelector('input[name="cell-kind"]:checked') || {}).value || 'auto';
-        if (kind === 'auto') delete mapping[sel.preset];
-        else if (kind === 'preset') mapping[sel.preset] = { preset: value('[data-cell-preset]') };
+        const picked = value('[data-cell-preset]');
+        if (kind === 'auto' || (kind === 'preset' && !picked)) delete mapping[sel.preset];
+        else if (kind === 'preset') mapping[sel.preset] = { preset: picked };
         else mapping[sel.preset] = { temperature: Number(input.value) };
         await src.setMapping(sel.climate, mapping);
       } else if (sel.kind === 'default') {
@@ -2750,7 +2756,7 @@ const STYLE = `
   .cell-ed input[type=color] { width:36px; height:28px; padding:0 2px; }
   .cell-ed input[type=radio], .cell-ed input[type=checkbox] { padding:0; }
   .pv-kind { display:flex; align-items:center; gap:6px; }
-  .pv-kind select { min-width:0; }
+  .pv-kind select { flex:none; }
   .pv-temp { display:flex; align-items:center; gap:6px; }
   .pv-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
   .pv-row input[type=text] { flex:1; min-width:100px; }

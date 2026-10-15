@@ -202,11 +202,27 @@ describe('the "Presets" view', () => {
     assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
   });
 
-  test('the thermostat preset matching the column comes first in its list', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
+  const presetOptions = (card) => [...card.shadowRoot.querySelectorAll('[data-cell-preset] option')]
+    .map((o) => `${o.value}:${o.textContent}${o.selected ? ' ✓' : ''}`);
+
+  test('automatic is the first choice of the thermostat\'s presets when it is one of them', async () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    const card = open(hass);
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
-    const options = [...card.shadowRoot.querySelectorAll('[data-cell-preset] option')].map((o) => o.value);
-    assert.deepEqual(options, ['comfort', 'eco', 'away', 'boost']);
+    assert.equal(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]'), null, 'no separate "automatic"');
+    assert.ok(card.shadowRoot.querySelector('input[name="cell-kind"][value="preset"]').checked);
+    assert.deepEqual(presetOptions(card), [':Automatique (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
+
+    card.shadowRoot.querySelector('[data-cell-preset]').value = 'comfort'; // pinned, unlike automatic
+    await card._action('cell-apply', {});
+    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, comfort: { preset: 'comfort' } });
+  });
+
+  test('automatic stays a choice of its own when it gives a temperature', () => {
+    const card = open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
+    assert.match(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').parentElement.textContent, /Automatique \(7 °C\)/);
+    assert.deepEqual(presetOptions(card).map((o) => o.split(':')[0]), ['eco', 'comfort', 'away', 'boost']); // its own order
   });
 
   test('a thermostat set to a temperature for one preset', async () => {
@@ -230,6 +246,11 @@ describe('the "Presets" view', () => {
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'away';
     await card._action('cell-apply', {});
     assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset: 'away' } });
+
+    click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
+    card.shadowRoot.querySelector('[data-cell-preset]').value = ''; // automatic
+    await card._action('cell-apply', {});
+    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 } });
 
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]');
     card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').checked = true;

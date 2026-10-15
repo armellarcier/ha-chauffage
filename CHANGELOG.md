@@ -21,8 +21,9 @@ Each entry says whether the release **migrates stored data** and what to do when
   on it, on one version per quarter since, on the latest release and, every week, on the beta.
 - *Presets* view: a cell is edited in a **popover** next to it, like a slot, instead of a form
   at the bottom of the card. The presets are shown **from the coldest to the warmest** (table,
-  legend, slot popover), and a thermostat's preset named like the column comes first in its
-  list.
+  legend, slot popover). When "automatic" means the thermostat's own preset, it is the first
+  choice of the list of its presets ("Automatic (Comfort)"), instead of a separate choice that
+  repeated it.
 - Before Home Assistant 2025.8, the thermostat's sensors are attached to its device the way
   older versions allow it: the device also lists the Chauffage integration.
 
