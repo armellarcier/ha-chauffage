@@ -97,6 +97,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 |---|---|
 | Show the weeks per schedule, one or several thermostats, selection kept for the next visit | `C/card.test.mjs` (configuration, choosing thermostats), `C/interactions.test.mjs` (thermostats shown) |
 | Add a cut (double click), insert, delete, change a slot's preset, move times (drag or fields), close the editor | `C/card.test.mjs` (editing a day), `C/interactions.test.mjs` (slot editor buttons, double click, dragging, editing a slot) |
+| Move a whole slot by dragging it (same length, within its neighbors; by touch, the selected slot only) | `C/interactions.test.mjs` (dragging a whole slot) |
 | Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
 | Save, cancel; a save from an outdated copy is refused; edits in progress are not replaced by changes saved elsewhere | `C/card.test.mjs` (saving), `C/card-integration.test.mjs::a save refused *`, `C/interactions.test.mjs` (edits in progress), `I/test_api.py::saving_from_an_outdated_copy_is_refused` |
 | Open a thermostat's more-info dialog from the card | `C/card.test.mjs` (thermostat more-info dialog) |

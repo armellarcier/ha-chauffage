@@ -47,6 +47,64 @@ describe('dragging a slot boundary', () => {
   });
 });
 
+describe('dragging a whole slot', () => {
+  // Slot 1: 06:30 → 08:30 comfort, between 00:00 eco and 08:30 eco (until 17:30)
+  const drag = (card, idx, fromMinutes, toMinutes, pointerType) => {
+    const bar = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]'));
+    const seg = bar.querySelector(`.seg[data-idx="${idx}"]`);
+    const send = (type, clientX) => {
+      const e = new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX });
+      if (pointerType) Object.defineProperty(e, 'pointerType', { value: pointerType });
+      seg.dispatchEvent(e);
+    };
+    send('pointerdown', fromMinutes);
+    send('pointermove', toMinutes);
+    send('pointerup', toMinutes);
+  };
+
+  test('moves its start and its end together, snapped to the step', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    drag(card, 1, 7 * 60, 8 * 60 + 7);
+    assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '07:30 comfort', '09:30 eco', '17:30 comfort', '22:30 eco']);
+    assert.equal(card._dirty, true);
+    assert.equal($(card, '.editor'), null); // a move does not open the slot's popover
+  });
+
+  test('stays between the neighboring slots, keeping its length', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    drag(card, 1, 7 * 60, 0);
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(1, 3), ['00:15 comfort', '02:15 eco']);
+    drag(card, 1, 60, 23 * 60);
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(1, 3), ['15:15 comfort', '17:15 eco']); // next slot at 17:30
+  });
+
+  test('the first and the last slots of the day do not move', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    drag(card, 0, 3 * 60, 4 * 60);
+    drag(card, 4, 23 * 60, 22 * 60);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    assert.ok(!card._dirty);
+  });
+
+  test('a tiny move is still a click: it selects the slot', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    drag(card, 1, 7 * 60, 7 * 60 + 2);
+    $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    assert.ok($(card, '.editor'));
+  });
+
+  test('by touch, only the selected slot moves (a finger sliding over the week moves nothing)', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    drag(card, 1, 7 * 60, 8 * 60, 'touch');
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+    drag(card, 1, 7 * 60, 8 * 60, 'touch');
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(1, 3), ['07:30 comfort', '09:30 eco']);
+    assert.ok($(card, '.seg.sel[data-idx="1"]')); // still selected: it can slide again
+  });
+});
+
 describe('dragging the end of an override', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
