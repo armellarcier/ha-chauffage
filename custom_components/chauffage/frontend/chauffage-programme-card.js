@@ -105,6 +105,7 @@ const I18N = {
     ownPreset: 'Thermostat preset',
     presetTemperature: 'Temperature',
     presetAuto: 'Automatic ({value})',
+    presetAutoShort: 'Auto ({value})',
     apply: 'OK',
     viewSchedule: 'Schedule',
     viewPresets: 'Presets',
@@ -234,6 +235,7 @@ const I18N = {
     ownPreset: 'Préréglage du thermostat',
     presetTemperature: 'Température',
     presetAuto: 'Automatique ({value})',
+    presetAutoShort: 'Auto ({value})',
     apply: 'OK',
     viewSchedule: 'Planning',
     viewPresets: 'Préréglages',
@@ -2280,7 +2282,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <span>${esc(label)}</span><span class="pv-field">${field}</span></label>`;
       const picked = explicit && 'preset' in explicit ? explicit.preset : autoPreset ? '' : preset.id;
       const option = (value, label) => `<option value="${esc(value)}" ${picked === value ? 'selected' : ''}>${esc(label)}</option>`;
-      const options = (autoPreset ? option('', t('presetAuto', { value: this._loc.preset(preset.id) })) : '')
+      const options = (autoPreset ? option('', t('presetAutoShort', { value: this._loc.preset(preset.id) })) : '')
         + own.map((p) => option(p, this._loc.preset(p))).join('');
       body = `<div class="pv-choices">${
         (autoPreset ? '' : choiceRow('auto', t('presetAuto', { value: `${this._loc.number(preset.temperature ?? 19)} °C` })))
@@ -2772,9 +2774,12 @@ const STYLE = `
   .cell-ed input[type=color] { width:36px; height:30px; padding:0 2px; flex:none; }
   .cell-ed input[type=radio], .cell-ed input[type=checkbox] { padding:0; margin:0; }
   .pv-dot { width:12px; height:12px; border-radius:3px; flex:none; }
-  .pv-choices { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px 8px; }
-  .pv-choice { display:contents; cursor:pointer; }
-  .pv-field { justify-self:end; }
+  /* A choice's label stays on one line; its field takes the rest (a list too long ends in "…") */
+  .pv-choices { display:flex; flex-direction:column; gap:10px; }
+  .pv-choice { display:flex; align-items:center; gap:8px; min-height:30px; cursor:pointer; }
+  .pv-choice > span:not(.pv-field) { flex:none; white-space:nowrap; }
+  .pv-field { margin-left:auto; min-width:0; display:flex; justify-content:flex-end; }
+  .pv-field select { min-width:0; text-overflow:ellipsis; }
   .pv-choice:not(:has(input:checked)) .pv-field { opacity:.5; }
   .pv-fields { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:10px 12px; }
   .pv-fields > .pv-temp { justify-self:end; }

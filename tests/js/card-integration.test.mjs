@@ -211,7 +211,7 @@ describe('the "Presets" view', () => {
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]'), null, 'no separate "automatic"');
     assert.ok(card.shadowRoot.querySelector('input[name="cell-kind"][value="preset"]').checked);
-    assert.deepEqual(presetOptions(card), [':Automatique (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
+    assert.deepEqual(presetOptions(card), [':Auto (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
 
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'comfort'; // pinned, unlike automatic
     await card._action('cell-apply', {});
