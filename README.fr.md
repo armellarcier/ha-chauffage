@@ -126,10 +126,11 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
   en a un, sinon à la température du préréglage. C'est modifiable par thermostat : un de ses
   propres préréglages, ou une température.
 - **Tout se règle dans la carte**, vue *Préréglages* (administrateurs) : un tableau avec une
-  colonne par préréglage et une ligne par thermostat. L'en-tête de colonne est le préréglage
-  (nom, couleur, température par défaut ; ajout, suppression) ; chaque case indique ce que fait
-  ce thermostat avec lui : automatique, un de ses propres préréglages (⟲), ou sa propre
-  température (●).
+  colonne par préréglage, du plus froid au plus chaud, et une ligne par thermostat. L'en-tête
+  de colonne est le préréglage (nom, couleur, température par défaut ; ajout, suppression) ;
+  chaque case indique ce que fait ce thermostat avec lui : automatique, un de ses propres
+  préréglages (⟲), ou sa propre température (●). Un clic sur une case ouvre un popover pour la
+  modifier, comme pour les créneaux.
 - **Températures affichées** : le tableau et la légende affichent la température de chaque
   préréglage. Aucun attribut standard ne donne celle d'un préréglage propre au thermostat :
   l'intégration retient la consigne vue quand il était actif.

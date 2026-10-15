@@ -105,6 +105,7 @@ const I18N = {
     ownPreset: 'Thermostat preset',
     presetTemperature: 'Temperature',
     presetAuto: 'Automatic ({value})',
+    presetAutoShort: 'Auto ({value})',
     apply: 'OK',
     viewSchedule: 'Schedule',
     viewPresets: 'Presets',
@@ -234,6 +235,7 @@ const I18N = {
     ownPreset: 'Préréglage du thermostat',
     presetTemperature: 'Température',
     presetAuto: 'Automatique ({value})',
+    presetAutoShort: 'Auto ({value})',
     apply: 'OK',
     viewSchedule: 'Planning',
     viewPresets: 'Préréglages',
@@ -830,8 +832,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd) return;
+      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell) return;
       this._menu = null;
+      this._cell = null;
       this._schedEd = null;
       this._sel = null;
       this._overrideSel = null;
@@ -868,8 +871,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     return dataSource(this._hass);
   }
 
+  // Presets as shown (columns, legend, slot popover): from the coldest to the warmest default
+  // temperature; the integration keeps them in their own order
   _presets() {
-    return presetsOf(this._source(), this._loc);
+    return presetsOf(this._source(), this._loc).sort((a, b) => (a.temperature ?? 19) - (b.temperature ?? 19));
   }
 
   _preset(id) {
@@ -1371,25 +1376,29 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
   }
 
-  // Places the popover under the selected slot / override (or above it when there is no room).
-  // Returns false if the layout is not ready yet.
+  // Places the popover under the selected slot / override / preset cell (or above it when there
+  // is no room). Returns false if the layout is not ready yet.
   _placeEditor() {
     const root = this.shadowRoot;
     const ed = root.querySelector('.editor');
-    const seg = root.querySelector('.override.sel, .seg.sel');
+    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on');
     if (!ed || !seg) return true;
     const card = root.querySelector('ha-card').getBoundingClientRect();
-    const bar = seg.parentElement.getBoundingClientRect();
+    // A slot is clipped to its row (the popover goes under the row); a cell to the table, which
+    // may scroll sideways (the popover goes under the cell)
+    const isCell = seg.classList.contains('cell');
+    const bar = (isCell ? seg.closest('.table-wrap') : seg.parentElement).getBoundingClientRect();
     if (!card.width || !bar.width) return false;
     const sr = seg.getBoundingClientRect();
+    const row = isCell ? sr : bar;
     const w = ed.offsetWidth;
     const h = ed.offsetHeight;
     const cx = (Math.max(sr.left, bar.left) + Math.min(sr.right, bar.right)) / 2 - card.left;
     const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2));
-    let top = bar.bottom - card.top + 9;
+    let top = row.bottom - card.top + 9;
     let above = false;
-    if (bar.bottom + 9 + h > window.innerHeight && bar.top - 9 - h > 0) {
-      top = bar.top - card.top - h - 9;
+    if (row.bottom + 9 + h > window.innerHeight && row.top - 9 - h > 0) {
+      top = row.top - card.top - h - 9;
       above = true;
     }
     ed.style.left = `${left}px`;
@@ -1456,6 +1465,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (this._view === 'presets' && this._source().ready) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
         <ha-card>${this._viewsHtml()}${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+      this._schedulePlaceEditor();
       return;
     }
     if (this._view === 'rules' && this._source().ready) {
@@ -1750,6 +1760,11 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._openMoreInfo(mi.dataset.moreInfo);
         return;
       }
+      // Preset cell popover open: a click outside the popover / cells closes it
+      if (this._cell && !e.target.closest('.editor, [data-act="cell"]')) {
+        this._cell = null;
+        if (!e.target.closest('[data-act]')) { this._render(); return; }
+      }
       // Popover open: a click outside the popover / slot closes it
       if ((this._sel || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override')) {
         this._sel = null;
@@ -1839,6 +1854,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       } else if (el.hasAttribute('data-rules-default')) {
         this._editRules((d) => { d.def = el.value || null; });
         this._render();
+      } else if (el.hasAttribute('data-cell-preset')) {
+        // Picking one of the thermostat's presets means "use a thermostat preset"
+        const radio = root.querySelector('input[name="cell-kind"][value="preset"]');
+        if (radio) radio.checked = true;
       } else if (el.classList.contains('copyweek')) {
         this._copyWeek(el.value);
       } else if (el.dataset.edge) {
@@ -2226,7 +2245,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     </div>`;
   }
 
-  // Editing panel of the selected cell
+  // Popover editing the selected cell
   _cellPanelHtml() {
     const sel = this._cell;
     if (!sel) return '';
@@ -2244,39 +2263,58 @@ class ChauffageProgrammeCard extends HTMLElement {
       title = t('presetFor', { preset: preset.name, name: this._name(sel.climate) });
       const explicit = src.mapping(sel.climate)[preset.id];
       const st = this._hass.states[sel.climate];
+      // The thermostat's presets, the one named like this preset (what "automatic" uses) first
       const own = ((st && st.attributes.preset_modes) || []).map(String)
-        .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()));
-      // What "automatic" gives: the thermostat's own preset of the same name, or the preset's default
-      const auto = src.usePresets() && own.includes(preset.id)
-        ? `${t('ownPreset').toLowerCase()} ${this._loc.preset(preset.id)}`
-        : `${this._loc.number(preset.temperature ?? 19)} °C`;
-      const choice = !explicit ? 'auto' : 'preset' in explicit ? 'preset' : 'temperature';
+        .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()))
+        .sort((a, b) => (b === preset.id) - (a === preset.id));
+      // What "automatic" gives: the thermostat's own preset of the same name, then it is the first
+      // choice of the thermostat's presets (not the same as picking that preset: automatic follows
+      // the "use the thermostats' presets" option and the presets the thermostat has); otherwise
+      // the preset's default temperature, a choice of its own
+      const autoPreset = src.usePresets() && own.includes(preset.id);
+      const choice = !explicit ? (autoPreset ? 'preset' : 'auto') : 'preset' in explicit ? 'preset' : 'temperature';
       const current = this._targetOf(sel.climate, preset);
       const temp = explicit && 'temperature' in explicit ? explicit.temperature : this._presetTemperature(sel.climate, current) ?? preset.temperature ?? 19;
-      const radio = (value, label) => `<label class="pv-kind"><input type="radio" name="cell-kind" value="${value}" ${choice === value ? 'checked' : ''}> ${label}</label>`;
-      body = radio('auto', esc(t('presetAuto', { value: auto })))
-        + (own.length ? radio('preset', `${esc(t('ownPreset'))} <select data-cell-preset>${own.map((p) => `<option value="${esc(p)}" ${((explicit && explicit.preset) || preset.id) === p ? 'selected' : ''}>${esc(this._loc.preset(p))}</option>`).join('')}</select>`) : '')
-        + radio('temperature', esc(t('presetTemperature'))) + tempInput(temp);
+      // One line per choice: its radio, its label, its field (the field of a choice not picked is
+      // dimmed; using it picks the choice)
+      const choiceRow = (value, label, field = '') => `<label class="pv-choice">
+          <input type="radio" name="cell-kind" value="${value}" ${choice === value ? 'checked' : ''}>
+          <span>${esc(label)}</span><span class="pv-field">${field}</span></label>`;
+      const picked = explicit && 'preset' in explicit ? explicit.preset : autoPreset ? '' : preset.id;
+      const option = (value, label) => `<option value="${esc(value)}" ${picked === value ? 'selected' : ''}>${esc(label)}</option>`;
+      const options = (autoPreset ? option('', t('presetAutoShort', { value: this._loc.preset(preset.id) })) : '')
+        + own.map((p) => option(p, this._loc.preset(p))).join('');
+      body = `<div class="pv-choices">${
+        (autoPreset ? '' : choiceRow('auto', t('presetAuto', { value: `${this._loc.number(preset.temperature ?? 19)} °C` })))
+        + (own.length ? choiceRow('preset', t('ownPreset'), `<select data-cell-preset>${options}</select>`) : '')
+        + choiceRow('temperature', t('presetTemperature'), tempInput(temp))}</div>`;
     } else if (sel.kind === 'default') {
       title = t('defaultFor', { preset: preset.name });
-      body = `<div class="muted">${esc(t('defaultHelp'))}</div>${tempInput(preset.temperature ?? 19)}`;
+      body = `<div class="pv-fields"><span>${esc(t('presetTemperature'))}</span>${tempInput(preset.temperature ?? 19)}</div>
+        <div class="muted">${esc(t('defaultHelp'))}</div>`;
     } else {
       const isNew = sel.kind === 'new';
       title = isNew ? t('newPreset') : preset.name;
       const used = !isNew && src.usedPresets().includes(preset.id);
       const others = presets.filter((l) => l.id !== preset.id);
-      body = `<div class="pv-row">
-          <input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t('presetColor'))}">
-          <input type="text" data-cell-name value="${esc(isNew ? '' : preset.name)}" placeholder="${esc(t('presetName'))}"></div>`
-        + (isNew ? tempInput(19) : '')
-        + (!isNew && presets.length > 1 ? `<label class="pv-kind"><input type="checkbox" data-cell-delete> ${esc(t('deletePreset'))}${used
-          ? ` · ${esc(t('replaceWith'))} <select data-cell-replacement>${others.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select>` : ''}</label>` : '');
+      body = `<div class="pv-fields">
+          <span>${esc(t('presetName'))}</span>
+          <span class="pv-name"><input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t('presetColor'))}">
+            <input type="text" data-cell-name value="${esc(isNew ? '' : preset.name)}" placeholder="${esc(t('presetName'))}"></span>
+          ${isNew ? `<span>${esc(t('presetTemperature'))}</span>${tempInput(19)}` : ''}
+        </div>`
+        + (!isNew && presets.length > 1 ? `<div class="pv-delete">
+          <label class="pv-check"><input type="checkbox" data-cell-delete> ${esc(t('deletePreset'))}</label>
+          ${used ? `<label class="pv-replace">${esc(t('replaceWith'))} <select data-cell-replacement>${others.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select></label>` : ''}
+        </div>` : '');
     }
-    return `<div class="panel" data-panel="cell">
-      <div class="panel-head"><strong>${esc(title)}</strong>
-        <button class="btn icon" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
+    const dot = sel.kind === 'new' ? '' : `<i class="pv-dot" style="background:${preset.color}"></i>`;
+    // Popover, placed under the cell by _placeEditor() after rendering
+    return `<div class="editor cell-ed" data-panel="cell">
+      <div class="ed-head"><strong>${dot}${esc(title)}</strong>
+        <button class="btn icon close" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
       ${body}
-      <div class="ed-actions start"><button class="btn primary" data-act="cell-apply">${esc(t('apply'))}</button></div>
+      <div class="ed-actions pv-foot"><button class="btn primary" data-act="cell-apply">${esc(t('apply'))}</button></div>
     </div>`;
   }
 
@@ -2297,14 +2335,15 @@ class ChauffageProgrammeCard extends HTMLElement {
       return undefined;
     }
     const src = this._source();
-    const presets = this._presets().map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19 }));
+    const presets = presetsOf(src, this._loc).map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19 }));
     const value = (sel2) => { const el = root.querySelector(sel2); return el ? el.value : ''; };
     try {
       if (sel.kind === 'thermostat') {
         const mapping = { ...src.mapping(sel.climate) };
         const kind = (root.querySelector('input[name="cell-kind"]:checked') || {}).value || 'auto';
-        if (kind === 'auto') delete mapping[sel.preset];
-        else if (kind === 'preset') mapping[sel.preset] = { preset: value('[data-cell-preset]') };
+        const picked = value('[data-cell-preset]');
+        if (kind === 'auto' || (kind === 'preset' && !picked)) delete mapping[sel.preset];
+        else if (kind === 'preset') mapping[sel.preset] = { preset: picked };
         else mapping[sel.preset] = { temperature: Number(input.value) };
         await src.setMapping(sel.climate, mapping);
       } else if (sel.kind === 'default') {
@@ -2727,18 +2766,33 @@ const STYLE = `
   .rule-result { font-size:.8em; color:var(--secondary-text-color); overflow-wrap:anywhere; }
   .rule-result.error { color:var(--error-color,#db4437); }
   .rules-outcome { font-size:.9em; }
-  .panel { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--divider-color);
-    background:var(--card-background-color); display:flex; flex-direction:column; gap:8px; }
-  .panel-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .panel input, .panel select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
-    background:var(--secondary-background-color); }
-  .panel input[type=number] { width:70px; }
-  .panel input[type=color] { width:36px; height:28px; padding:0 2px; }
-  .pv-kind { display:flex; align-items:center; gap:6px; }
-  .pv-temp { display:flex; align-items:center; gap:6px; }
-  .pv-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-  .pv-row input[type=text] { flex:1; min-width:100px; }
-  .pv-row.removed { color:var(--secondary-text-color); }
+  /* Popover of a preset cell: a grid of lines (label, then its field on the right), OK at the foot */
+  .cell-ed { gap:12px; width:min(380px, calc(100% - 16px)); }
+  .cell-ed .ed-head strong { display:flex; align-items:center; gap:8px; }
+  .cell-ed select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
+    background:var(--secondary-background-color); color:var(--primary-text-color); max-width:100%; }
+  .cell-ed input[type=color] { width:36px; height:30px; padding:0 2px; flex:none; }
+  .cell-ed input[type=radio], .cell-ed input[type=checkbox] { padding:0; margin:0; }
+  .pv-dot { width:12px; height:12px; border-radius:3px; flex:none; }
+  /* A choice's label stays on one line; its field takes the rest (a list too long ends in "…") */
+  .pv-choices { display:flex; flex-direction:column; gap:10px; }
+  .pv-choice { display:flex; align-items:center; gap:8px; min-height:30px; cursor:pointer; }
+  .pv-choice > span:not(.pv-field) { flex:none; white-space:nowrap; }
+  .pv-field { margin-left:auto; min-width:0; display:flex; justify-content:flex-end; }
+  .pv-field select { min-width:0; text-overflow:ellipsis; }
+  .pv-choice:not(:has(input:checked)) .pv-field { opacity:.5; }
+  .pv-fields { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:10px 12px; }
+  .pv-fields > .pv-temp { justify-self:end; }
+  .pv-name { display:flex; align-items:center; gap:6px; }
+  .pv-name input[type=text] { flex:1; min-width:0; }
+  .pv-temp { display:flex; align-items:center; gap:4px; }
+  .pv-temp .btn.icon { padding:4px 10px; }
+  .pv-temp input { width:56px; text-align:center; }
+  .pv-delete { display:flex; flex-direction:column; gap:8px; }
+  .pv-check, .pv-replace { display:flex; align-items:center; gap:8px; }
+  .pv-replace { padding-left:21px; color:var(--secondary-text-color); }
+  .pv-delete:not(:has(input:checked)) .pv-replace { opacity:.5; }
+  .pv-foot { margin-left:0; justify-content:flex-end; padding-top:10px; border-top:1px solid var(--divider-color); }
   .missing { color:var(--secondary-text-color); padding:16px; }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:30px 60px 1fr 28px; }
