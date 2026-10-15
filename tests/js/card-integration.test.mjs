@@ -218,6 +218,19 @@ describe('the "Presets" view', () => {
     assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, comfort: { preset: 'comfort' } });
   });
 
+  test('each choice of a thermostat cell holds its own field; using the field picks the choice', () => {
+    const card = open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // set to 8°
+    const row = (value) => card.shadowRoot.querySelector(`input[name="cell-kind"][value="${value}"]`).closest('.pv-choice');
+    assert.ok(row('temperature').querySelector('[data-cell-temp]'), 'the temperature next to "Temperature"');
+    assert.ok(row('preset').querySelector('[data-cell-preset]'), 'the list next to "Thermostat preset"');
+    assert.ok(row('temperature').querySelector('input').checked);
+    const select = card.shadowRoot.querySelector('[data-cell-preset]');
+    select.value = 'eco';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.ok(row('preset').querySelector('input').checked);
+  });
+
   test('automatic stays a choice of its own when it gives a temperature', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
