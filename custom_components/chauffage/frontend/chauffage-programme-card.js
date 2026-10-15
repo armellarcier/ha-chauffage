@@ -1211,7 +1211,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
         const p = this._preset(s.preset);
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
-        const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : ''].join(' ');
+        const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : '',
+          i > 0 && i < segs.length - 1 ? 'movable' : ''].join(' ');
         return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}${esc(this._measuredText(climate, d, s.start, end))}">${this._segInner(s.start, end, s.preset)}</div>`;
       })
       .join('');
@@ -1608,6 +1609,27 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._overrideDrag = { climate, piece, el, handle: dh, bar: el.parentElement, end: piece.end, moved: false };
         return;
       }
+      // A whole slot (not the first nor the last of the day): by mouse any slot, by touch only
+      // the selected one, so that a finger sliding over the week moves nothing
+      const seg = e.target.closest('.bar > .seg');
+      if (seg) {
+        const bar = seg.parentElement;
+        const climate = bar.dataset.climate;
+        const day = Number(bar.dataset.day);
+        const idx = Number(seg.dataset.idx);
+        const segs = this._week(climate)[day];
+        if (idx < 1 || idx >= segs.length - 1) return;
+        const sel = this._sel;
+        const selected = sel && sel.climate === climate && sel.day === day && sel.idx === idx;
+        if (e.pointerType === 'touch' && !selected) return;
+        e.preventDefault();
+        seg.setPointerCapture(e.pointerId);
+        this._drag = {
+          move: true, climate, day, idx, bar, el: seg, x0: e.clientX, selected,
+          start: segs[idx].start, length: segs[idx + 1].start - segs[idx].start, moved: false,
+        };
+        return;
+      }
       const h = e.target.closest('.handle');
       if (!h) return;
       e.preventDefault();
@@ -1639,6 +1661,25 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (!d) return;
       const step = this._config.step;
       const segs = this._week(d.climate)[d.day];
+      if (d.move) {
+        // A few pixels are still a click (opens the popover)
+        if (!d.moved && Math.abs(e.clientX - d.x0) < 5) return;
+        if (!d.moved) {
+          d.moved = true;
+          d.bar.querySelectorAll(`.handle[data-idx="${d.idx}"], .handle[data-idx="${d.idx + 1}"]`)
+            .forEach((el) => el.classList.add('drag'));
+        }
+        const min = segs[d.idx - 1].start + step;
+        const max = (d.idx + 2 < segs.length ? segs[d.idx + 2].start : DAY_MIN) - step - d.length;
+        const delta = this._snap(this._minuteAt(d.bar, e.clientX) - this._minuteAt(d.bar, d.x0));
+        const m = Math.max(min, Math.min(max, d.start + delta));
+        if (m !== segs[d.idx].start) {
+          segs[d.idx].start = m;
+          segs[d.idx + 1].start = m + d.length;
+          this._layoutBar(d.bar, segs);
+        }
+        return;
+      }
       const min = segs[d.idx - 1].start + step;
       const max = (d.idx + 1 < segs.length ? segs[d.idx + 1].start : DAY_MIN) - step;
       const m = Math.max(min, Math.min(max, this._snap(this._minuteAt(d.bar, e.clientX))));
@@ -1661,6 +1702,15 @@ class ChauffageProgrammeCard extends HTMLElement {
       const d = this._drag;
       if (!d) return;
       this._drag = null;
+      if (d.move) {
+        if (!d.moved) return;
+        this._lastClick = null; // the click that follows is neither a selection nor half a double click
+        this._slotMoved = Date.now();
+        // A selected slot stays selected (by touch, it can slide again); otherwise no popover
+        if (!d.selected) this._sel = null;
+        this._commit(d.climate, d.day, d.selected ? this._week(d.climate)[d.day][d.idx].start : null);
+        return;
+      }
       if (d.moved) this._commit(d.climate, d.day, null);
       else d.el.classList.remove('drag');
     };
@@ -1738,7 +1788,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (act) { if (!act.disabled) this._action(act.dataset.act, act.dataset, act); return; }
 
       const seg = e.target.closest('.seg');
-      if (!seg) return;
+      if (!seg || Date.now() - (this._slotMoved || 0) < 300) return;
       const bar = seg.parentElement;
       const climate = bar.dataset.climate;
       const day = Number(bar.dataset.day);
@@ -2529,6 +2579,9 @@ const STYLE = `
   .seg.first.last { border-radius:6px; }
   .seg .t { font-weight:600; }
   .seg.sel { box-shadow:inset 0 0 0 3px var(--primary-text-color); z-index:1; }
+  .seg.movable { cursor:grab; }
+  .seg.movable:active { cursor:grabbing; }
+  .seg.movable.sel { touch-action:pan-y; } /* by touch, the selected slot slides sideways */
   .handle { position:absolute; top:-3px; bottom:-3px; width:18px; margin-left:-9px; z-index:2;
     cursor:ew-resize; touch-action:none; }
   .handle::after { content:''; position:absolute; left:7px; top:3px; bottom:3px; width:4px; border-radius:2px;

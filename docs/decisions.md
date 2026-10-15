@@ -136,6 +136,12 @@ future contributor might question.
   temperature sensors' statistics (tiny): a thermostat does not say which sensor it uses, some
   have none, and the setpoint is only in the thermostat's attributes. The card falls back to HA's
   history while HA has not been restarted after an update.
+- **A slot is moved whole by dragging it**, its neighbors giving or taking the time; the first
+  and the last slots of the day stay (they start or end the day). A move under 5 px is still a
+  click (the popover); a move does not select the slot (its popover would cover the row).
+  **By touch, only the selected slot moves**: a finger sliding over the
+  week (to scroll, or to read a day shown larger) must not move slots by accident; tap it, then
+  slide it.
 
 ## Process
 

@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- A slot can be **moved whole** by dragging it in the card: its start and end move together,
+  its neighbors adapt. By touch, tap the slot first, then slide it.
+
 ### Changed
 
 - **Home Assistant 2025.1 or later** (instead of 2026.9): the integration and the card are
