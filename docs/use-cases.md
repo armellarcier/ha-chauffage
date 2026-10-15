@@ -85,7 +85,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 |---|---|
 | A preset is the thermostat's own preset with the same name, else the preset's temperature (fitted to the thermostat) | `I/test_engine.py` (presets → climate presets or temperatures) |
 | Option "use the thermostats' presets" off: everything driven by temperature | `I/test_options.py::without_presets_*`, `C/interactions.test.mjs` (option off) |
-| Per thermostat: automatic, one of its own presets, or its own temperature; back to automatic | `I/test_presets.py::a_mapping_set_by_hand_is_applied`, `C/card-integration.test.mjs` (Presets view) |
+| Per thermostat: automatic, one of its own presets (the one named like the preset first), or its own temperature; back to automatic | `I/test_presets.py::a_mapping_set_by_hand_is_applied`, `C/card-integration.test.mjs` (Presets view) |
+| Presets shown from the coldest to the warmest; a cell edited in a popover, closed by a click elsewhere or Escape | `C/card-integration.test.mjs::a table of what each thermostat does *`, `::a cell is edited in a popover *` |
 | Default temperature of a preset, followed by the thermostats left in automatic | `I/test_presets.py::the_preset_s_default_temperature_follows_its_changes`, `C/card-integration.test.mjs::a preset's default temperature` |
 | Rename, recolor, add, remove a preset (a used one is replaced) | `I/test_presets.py`, `I/test_options.py::the_card_edits_the_presets`, `C/card-integration.test.mjs::renaming, adding and removing presets` |
 | Temperatures of the thermostats' own presets shown: learned while active; read from VTherm attributes | `I/test_options.py::the_temperature_of_each_preset_is_learned_*`, `C/card-integration.test.mjs::Versatile Thermostat preset temperatures *` |

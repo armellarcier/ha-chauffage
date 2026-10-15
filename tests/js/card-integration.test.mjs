@@ -142,8 +142,8 @@ describe('presets from the integration', () => {
     card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
     card._render();
     const buttons = [...card.shadowRoot.querySelectorAll('.editor [data-act="preset"]')];
-    assert.deepEqual(buttons.map((b) => b.textContent), ['Confort', 'Éco', 'Nuit']);
-    assert.equal(buttons[2].style.background, 'rgb(63, 81, 181)');
+    assert.deepEqual(buttons.map((b) => b.textContent), ['Éco', 'Nuit', 'Confort']); // from the coldest to the warmest
+    assert.equal(buttons[1].style.background, 'rgb(63, 81, 181)');
   });
 
   test('a new slot in a custom preset gets another preset', () => {
@@ -181,13 +181,32 @@ describe('the "Presets" view', () => {
   test('a table of what each thermostat does with each preset', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     const heads = [...card.shadowRoot.querySelectorAll('[data-kind="preset"]')].map((b) => b.textContent.trim());
-    assert.deepEqual(heads, ['Confort', 'Éco', 'Hors-gel']);
-    assert.deepEqual([...card.shadowRoot.querySelectorAll('[data-kind="default"]')].map((b) => b.textContent.trim()), ['20°', '17°', '7°']);
+    assert.deepEqual(heads, ['Hors-gel', 'Éco', 'Confort']); // from the coldest to the warmest
+    assert.deepEqual([...card.shadowRoot.querySelectorAll('[data-kind="default"]')].map((b) => b.textContent.trim()), ['7°', '17°', '20°']);
     assert.equal(cellText(card, 'comfort', 'climate.salon'), '⟲ 20,5°'); // preset, learned temperature
     assert.equal(cellText(card, 'eco', 'climate.salon'), '⟲ (son préréglage)'); // preset never seen active
     assert.equal(cellText(card, 'frost', 'climate.salon'), '8° ●'); // set for this thermostat
     assert.equal(cellText(card, 'comfort', 'climate.bureau'), '20°'); // no presets of its own: the preset's default
     assert.equal(card.shadowRoot.querySelector('.chips'), null); // no thermostat selection here
+  });
+
+  test('a cell is edited in a popover, closed by a click elsewhere or Escape', () => {
+    const card = open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    assert.ok(card.shadowRoot.querySelector('.editor[data-panel="cell"]'), 'a popover, like the slots\' one');
+    click(card, '.pv-key');
+    assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
+    click(card, '[data-kind="default"][data-preset="eco"]');
+    assert.ok(card.shadowRoot.querySelector('[data-panel="cell"]'));
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
+  });
+
+  test('the thermostat preset matching the column comes first in its list', () => {
+    const card = open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    const options = [...card.shadowRoot.querySelectorAll('[data-cell-preset] option')].map((o) => o.value);
+    assert.deepEqual(options, ['comfort', 'eco', 'away', 'boost']);
   });
 
   test('a thermostat set to a temperature for one preset', async () => {

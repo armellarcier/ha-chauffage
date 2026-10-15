@@ -830,8 +830,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd) return;
+      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell) return;
       this._menu = null;
+      this._cell = null;
       this._schedEd = null;
       this._sel = null;
       this._overrideSel = null;
@@ -868,8 +869,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     return dataSource(this._hass);
   }
 
+  // Presets as shown (columns, legend, slot popover): from the coldest to the warmest default
+  // temperature; the integration keeps them in their own order
   _presets() {
-    return presetsOf(this._source(), this._loc);
+    return presetsOf(this._source(), this._loc).sort((a, b) => (a.temperature ?? 19) - (b.temperature ?? 19));
   }
 
   _preset(id) {
@@ -1371,25 +1374,29 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
   }
 
-  // Places the popover under the selected slot / override (or above it when there is no room).
-  // Returns false if the layout is not ready yet.
+  // Places the popover under the selected slot / override / preset cell (or above it when there
+  // is no room). Returns false if the layout is not ready yet.
   _placeEditor() {
     const root = this.shadowRoot;
     const ed = root.querySelector('.editor');
-    const seg = root.querySelector('.override.sel, .seg.sel');
+    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on');
     if (!ed || !seg) return true;
     const card = root.querySelector('ha-card').getBoundingClientRect();
-    const bar = seg.parentElement.getBoundingClientRect();
+    // A slot is clipped to its row (the popover goes under the row); a cell to the table, which
+    // may scroll sideways (the popover goes under the cell)
+    const isCell = seg.classList.contains('cell');
+    const bar = (isCell ? seg.closest('.table-wrap') : seg.parentElement).getBoundingClientRect();
     if (!card.width || !bar.width) return false;
     const sr = seg.getBoundingClientRect();
+    const row = isCell ? sr : bar;
     const w = ed.offsetWidth;
     const h = ed.offsetHeight;
     const cx = (Math.max(sr.left, bar.left) + Math.min(sr.right, bar.right)) / 2 - card.left;
     const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2));
-    let top = bar.bottom - card.top + 9;
+    let top = row.bottom - card.top + 9;
     let above = false;
-    if (bar.bottom + 9 + h > window.innerHeight && bar.top - 9 - h > 0) {
-      top = bar.top - card.top - h - 9;
+    if (row.bottom + 9 + h > window.innerHeight && row.top - 9 - h > 0) {
+      top = row.top - card.top - h - 9;
       above = true;
     }
     ed.style.left = `${left}px`;
@@ -1456,6 +1463,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (this._view === 'presets' && this._source().ready) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
         <ha-card>${this._viewsHtml()}${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+      this._schedulePlaceEditor();
       return;
     }
     if (this._view === 'rules' && this._source().ready) {
@@ -1749,6 +1757,11 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._render();
         this._openMoreInfo(mi.dataset.moreInfo);
         return;
+      }
+      // Preset cell popover open: a click outside the popover / cells closes it
+      if (this._cell && !e.target.closest('.editor, [data-act="cell"]')) {
+        this._cell = null;
+        if (!e.target.closest('[data-act]')) { this._render(); return; }
       }
       // Popover open: a click outside the popover / slot closes it
       if ((this._sel || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override')) {
@@ -2226,7 +2239,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     </div>`;
   }
 
-  // Editing panel of the selected cell
+  // Popover editing the selected cell
   _cellPanelHtml() {
     const sel = this._cell;
     if (!sel) return '';
@@ -2244,8 +2257,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       title = t('presetFor', { preset: preset.name, name: this._name(sel.climate) });
       const explicit = src.mapping(sel.climate)[preset.id];
       const st = this._hass.states[sel.climate];
+      // The thermostat's presets, the one named like this preset (what "automatic" uses) first
       const own = ((st && st.attributes.preset_modes) || []).map(String)
-        .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()));
+        .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()))
+        .sort((a, b) => (b === preset.id) - (a === preset.id));
       // What "automatic" gives: the thermostat's own preset of the same name, or the preset's default
       const auto = src.usePresets() && own.includes(preset.id)
         ? `${t('ownPreset').toLowerCase()} ${this._loc.preset(preset.id)}`
@@ -2272,9 +2287,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         + (!isNew && presets.length > 1 ? `<label class="pv-kind"><input type="checkbox" data-cell-delete> ${esc(t('deletePreset'))}${used
           ? ` · ${esc(t('replaceWith'))} <select data-cell-replacement>${others.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select>` : ''}</label>` : '');
     }
-    return `<div class="panel" data-panel="cell">
-      <div class="panel-head"><strong>${esc(title)}</strong>
-        <button class="btn icon" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
+    // Popover, placed under the cell by _placeEditor() after rendering
+    return `<div class="editor cell-ed" data-panel="cell">
+      <div class="ed-head"><strong>${esc(title)}</strong>
+        <button class="btn icon close" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
       ${body}
       <div class="ed-actions start"><button class="btn primary" data-act="cell-apply">${esc(t('apply'))}</button></div>
     </div>`;
@@ -2297,7 +2313,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       return undefined;
     }
     const src = this._source();
-    const presets = this._presets().map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19 }));
+    const presets = presetsOf(src, this._loc).map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19 }));
     const value = (sel2) => { const el = root.querySelector(sel2); return el ? el.value : ''; };
     try {
       if (sel.kind === 'thermostat') {
@@ -2727,14 +2743,14 @@ const STYLE = `
   .rule-result { font-size:.8em; color:var(--secondary-text-color); overflow-wrap:anywhere; }
   .rule-result.error { color:var(--error-color,#db4437); }
   .rules-outcome { font-size:.9em; }
-  .panel { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--divider-color);
-    background:var(--card-background-color); display:flex; flex-direction:column; gap:8px; }
-  .panel-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .panel input, .panel select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
-    background:var(--secondary-background-color); }
-  .panel input[type=number] { width:70px; }
-  .panel input[type=color] { width:36px; height:28px; padding:0 2px; }
+  .cell-ed { gap:8px; width:min(360px, calc(100% - 16px)); }
+  .cell-ed select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
+    background:var(--secondary-background-color); max-width:100%; }
+  .cell-ed input[type=number] { width:70px; }
+  .cell-ed input[type=color] { width:36px; height:28px; padding:0 2px; }
+  .cell-ed input[type=radio], .cell-ed input[type=checkbox] { padding:0; }
   .pv-kind { display:flex; align-items:center; gap:6px; }
+  .pv-kind select { min-width:0; }
   .pv-temp { display:flex; align-items:center; gap:6px; }
   .pv-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
   .pv-row input[type=text] { flex:1; min-width:100px; }

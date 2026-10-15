@@ -123,10 +123,11 @@ and *Frost protection* 7 °C.
 - **For each thermostat**, a preset is the thermostat's own preset with the same name when it
   has one, otherwise the preset's temperature. This can be changed per thermostat: one of its
   own presets, or a temperature.
-- **Set in the card**, *Presets* view (admins): a table with one column per preset and one row
-  per thermostat. A column header is the preset (name, color, default temperature; add,
-  remove); each cell says what that thermostat does with it: automatic, one of its own presets
-  (⟲), or its own temperature (●).
+- **Set in the card**, *Presets* view (admins): a table with one column per preset, from the
+  coldest to the warmest, and one row per thermostat. A column header is the preset (name,
+  color, default temperature; add, remove); each cell says what that thermostat does with it:
+  automatic, one of its own presets (⟲), or its own temperature (●). A click on a cell opens a
+  popover to change it, as for the slots.
 - **Temperatures shown**: the table and the legend show each preset's temperature. No standard
   attribute gives the temperature of a thermostat's own preset: the integration remembers the
   setpoint seen while that preset was active.
