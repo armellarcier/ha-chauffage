@@ -20,6 +20,13 @@ idée retenue renvoie vers son issue quand elle en a une.
 | 0.3.0 | **Préréglages** (alors appelés niveaux de chauffe) pour tout thermostat à consigne de température (Versatile Thermostat, préréglages standard, sans préréglages), réglés dans la carte ; changements manuels jugés par rapport à ce qu'attend le planning ; tests sur les trois types de thermostats ; analyse fonctionnelle ([docs/use-cases.md](docs/use-cases.md)) |
 | 0.4.0 | **Plannings définis par l'utilisateur** (créés vides ou par copie, renommés, déplacés, supprimés ; identifiants stables pour les automatisations) et **un seul vocabulaire** partout ([docs/glossary.md](docs/glossary.md)) |
 
+### Des règles d'activation
+
+Fait en 0.5 (en bêta, [#1](https://github.com/armellarcier/ha-chauffage/issues/1)) : des plannings
+qui s'activent d'eux-mêmes, selon une liste ordonnée de règles écrites en templates, la première
+qui s'applique l'emportant, un planning par défaut sinon. Voir le
+[README](README.fr.md#règles-dactivation).
+
 ## À court terme
 
 1. **Liste par défaut de HACS** : demande déposée avec la 0.4.0
@@ -33,10 +40,10 @@ idée retenue renvoie vers son issue quand elle en a une.
 
 ### Un calendrier des plannings
 
-Construit sur les **règles d'activation** (fait, [#1](https://github.com/armellarcier/ha-chauffage/issues/1) :
-règles ordonnées « template → planning », voir le [changelog](CHANGELOG.md)). Une vue de l'année, une ligne par mois, avec des périodes (jours et heures) colorées selon le
-planning, comme la vue de la semaine avec ses créneaux. Ses périodes sont aussi des règles. Il
-couvre également « activer *Absent* jusqu'à mardi » ou « jusqu'à 18:00 ».
+Construit sur les [règles d'activation](#des-règles-dactivation). Une vue de l'année, une ligne
+par mois, avec des périodes (jours et heures) colorées selon le planning, comme la vue de la
+semaine avec ses créneaux. Ses périodes sont aussi des règles. Il couvre également « activer
+*Absent* jusqu'à mardi » ou « jusqu'à 18:00 ».
 
 ### Des groupes de thermostats
 
@@ -93,7 +100,8 @@ ajustements (règles par thermostat ou par intégration).
   configuration de VTherm champ par champ et casse quand VTherm le change (`docker compose logs
   setup` indique l'étape).
 - Une vérification de bout en bout en CI qui démarre le HA de développement, lance le setup et
-  vérifie qu'un planning est appliqué.
+  vérifie qu'un planning est appliqué, et que la carte marche dans le vrai frontend de la version
+  minimale et de la dernière version de Home Assistant ([#6](https://github.com/armellarcier/ha-chauffage/issues/6)).
 - Des thermostats simulés pour les types qui manquent encore (chaud / froid, un thermostat qui
   garde son préréglage après une consigne manuelle), dans les tests et le HA de développement.
 

@@ -27,6 +27,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
@@ -43,7 +44,8 @@ def async_register(hass: HomeAssistant) -> None:
 
 
 def _runtime(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg_id: int) -> ChauffageRuntime | None:
-    entries = hass.config_entries.async_loaded_entries(DOMAIN)
+    # async_loaded_entries: not in older Home Assistant versions
+    entries = [e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
     if not entries:
         connection.send_error(msg_id, "not_loaded", "The Chauffage integration is not set up")
         return None

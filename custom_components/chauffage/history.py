@@ -36,7 +36,7 @@ def _number(value: Any) -> float | None:
 
 
 def _row(state: State) -> Row:
-    time = state.last_updated_timestamp
+    time = state.last_updated.timestamp()  # last_updated_timestamp: not in older HA versions
     if state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
         return [time, None, None]
     return [time, _number(state.attributes.get("current_temperature")), _number(state.attributes.get("temperature"))]

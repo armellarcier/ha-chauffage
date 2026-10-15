@@ -36,23 +36,46 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Supported Home Assistant versions (CONTRIBUTING.md): the latest release, the minimum, one
+      # version per quarter since, and both sides of a version check in the code.
+      # test_supported_versions.py asks for the missing quarters when the latest one moves on.
       matrix:
         include:
+          # Latest release (requirements.txt, moved forward by Dependabot)
           - name: Integration
             requirements: tests/integration/requirements.txt
+            python: "3.14"
             # Fails below 97 % of the lines
             coverage: --cov=custom_components/chauffage --cov-report=term --cov-report=json:coverage.json --cov-fail-under=97
           # Minimum supported Home Assistant (hacs.json)
-          - name: Integration, HA 2026.9
+          - name: Integration, HA 2025.1
+            ha: "2025.1"
             requirements: tests/integration/requirements-min.txt
+            python: "3.13"
+          # pytest-homeassistant-custom-component that ships each Home Assistant, on its Python.
+          # pip installs the dependencies HA does not pin at their latest version: some no longer
+          # work with an older HA and are pinned back (pins, as in requirements-min.txt).
+          - { name: "Integration, HA 2025.4", ha: "2025.4", phcc: "0.13.232", python: "3.13", pins: "pycares<5 josepy<2" }
+          - { name: "Integration, HA 2025.7", ha: "2025.7", phcc: "0.13.260", python: "3.13", pins: "pycares<5" }
+          # From 2025.8, sensors are attached to the thermostat's device by device_entry (sensor.py)
+          - { name: "Integration, HA 2025.8", ha: "2025.8", phcc: "0.13.269", python: "3.13", pins: "pycares<5" }
+          - { name: "Integration, HA 2025.10", ha: "2025.10", phcc: "0.13.285", python: "3.13", pins: "pycares<5" }
+          - { name: "Integration, HA 2026.1", ha: "2026.1", phcc: "0.13.305", python: "3.13" }
+          - { name: "Integration, HA 2026.4", ha: "2026.4", phcc: "0.13.321", python: "3.14" }
+          - { name: "Integration, HA 2026.7", ha: "2026.7", phcc: "0.13.344", python: "3.14" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python }}
           cache: pip
-          cache-dependency-path: ${{ matrix.requirements }}
-      - run: pip install -r ${{ matrix.requirements }}
+          cache-dependency-path: ${{ matrix.requirements || '.github/workflows/tests.yml' }}
+      # Through variables: in the command, "<5" would be read by the shell as a redirection
+      - run: pip install ${REQUIREMENTS:+-r "$REQUIREMENTS"} ${PHCC:+pytest-homeassistant-custom-component==$PHCC} $PINS
+        env:
+          REQUIREMENTS: ${{ matrix.requirements }}
+          PHCC: ${{ matrix.phcc }}
+          PINS: ${{ matrix.pins }}
       - run: python -m pytest -c tests/integration/pytest.ini tests/integration ${{ matrix.coverage }}
       - name: Coverage percentage
         if: matrix.coverage

@@ -44,7 +44,10 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
    jour de la semaine) ; l'anglais et le français sont disponibles, et `language: en` ou
    `language: fr` en force un.
 
-Nécessite Home Assistant 2026.9 ou plus récent.
+Nécessite Home Assistant 2025.1 ou plus récent. Cette version minimale ne monte que quand une
+API de Home Assistant l'impose, dans une version mineure annoncée dans le
+[changelog](CHANGELOG.md) ; les tests tournent sur elle, sur une version par trimestre depuis,
+sur la dernière version de Home Assistant et, chaque semaine, sur la beta.
 
 ### Ce que fournit l'intégration
 
@@ -53,64 +56,110 @@ Vocabulaire : un **planning** est un programme hebdomadaire (*Normal*, *Vacances
 (*Confort*, *Éco*…) ; une **dérogation** est un changement temporaire sur un thermostat
 ([glossaire](docs/glossary.md), en anglais).
 
-- Des **plannings** : une nouvelle installation démarre avec *Normal* ; dans la carte, **+**
-  crée un planning (vide, ou copie d'un autre) et **⋮** sur l'onglet ouvert le renomme, le
-  déplace ou le supprime (administrateurs). Chaque planning a un **identifiant stable** (affiché
-  dans *Renommer…*), qui ne change jamais, même quand on le renomme.
-- Un sélecteur **Planning actif** (`select.chauffage_schedule`) : il se change depuis la carte
-  (ouvrir l'onglet du planning, puis « Activer ») ou depuis n'importe quelle automatisation.
-  Dans les automatisations, utiliser l'identifiant, qui survit à un renommage : le service
-  `chauffage.activate_schedule` et l'attribut `schedule_id` du sélecteur. Par exemple, semaines
-  paires et impaires :
-  ```yaml
-  triggers:
-    - trigger: time
-      at: "00:00:00"
-  conditions:
-    - condition: template
-      value_template: "{{ now().weekday() == 0 }}"
-  actions:
-    - action: chauffage.activate_schedule
-      data:
-        schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'semaines_impaires' }}"
-  ```
-- Des **règles d'activation**, sans écrire d'automatisation : dans la vue *Règles* de la carte
-  (administrateurs), une liste ordonnée de règles ; la première qui s'applique l'emporte, et un
-  planning par défaut est activé quand aucune ne s'applique (ou le planning actif reste). Une
-  règle est soit un template et le planning qu'il active tant qu'il est vrai (comme une condition
-  template : `true`, `on`, `yes`, `1`… ; tout autre texte est faux), soit un template qui donne
-  lui-même le planning, par son identifiant ou son nom. Par exemple, suivre la couleur du jour
-  EDF Tempo avec deux règles `{{ is_state('sensor.edf_tempo_color', 'red') }}` → *Absent* et
-  `{{ is_state('sensor.edf_tempo_color', 'white') }}` → *Jours éco*, sinon *Normal* ; ou une
-  seule règle dont le template donne le planning :
-  `{{ {'red': 'absent', 'white': 'jours_eco'}.get(states('sensor.edf_tempo_color'), 'normal') }}`.
-  Les règles sont essayées pendant la saisie : chacune montre ce que rend son template en ce
-  moment (ou son erreur) et si elle s'applique. Un planning choisi à la main reste jusqu'à ce que
-  le résultat des règles change.
-- Des **préréglages** : les créneaux utilisent les préréglages de l'intégration (par défaut
-  *Confort* 20 °C, *Éco* 17 °C, *Boost* 21 °C, *Hors-gel* 7 °C). Pour chaque thermostat, un
-  préréglage correspond à son propre préréglage du même nom s'il en a un, sinon à la température
-  du préréglage ; c'est modifiable par thermostat (un de ses propres préréglages, ou une
-  température). **Tout se règle dans la carte**, vue *Préréglages* (bouton en haut de la carte,
-  administrateurs) : un tableau avec une colonne par préréglage et une ligne par thermostat.
-  L'en-tête de colonne est le préréglage (nom, couleur ; ajout, suppression) et sa température
-  par défaut ; chaque case indique ce que fait ce thermostat avec ce préréglage : automatique, un
-  de ses propres préréglages (⟲), ou sa propre température (●).
-- Le tableau et la légende affichent la température de chaque préréglage. Pour un préréglage
-  propre au thermostat, aucun attribut standard ne la donne : l'intégration retient la consigne
-  vue quand il était actif. **Petit plus pour Versatile Thermostat** : les températures de ses
-  préréglages sont lues directement dans ses attributs (`preset_temperatures` depuis VTherm 10,
-  `comfort_temp`… avant), un parti pris pour les utilisateurs de VTherm.
-- Pour chaque thermostat programmé, deux capteurs **désactivés par défaut** (à activer depuis la
-  page de l'appareil du thermostat) : **Planning** (préréglage prévu maintenant ; attributs
-  `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`) et **Fin de
-  dérogation** (horodatage, utilisable comme déclencheur horaire).
-- Les services `chauffage.set_override` (température ou préréglage pour une durée ou jusqu'à une
-  heure), `chauffage.clear_override` et `chauffage.activate_schedule`.
-- Les options (Paramètres → Appareils et services → Chauffage → *Configurer*), un seul
-  formulaire : durée des dérogations (2 h par défaut), et *Utiliser les préréglages des
-  thermostats* (activé par défaut ; désactivé, tous les thermostats sont pilotés en température,
-  entièrement réglée dans la carte).
+#### Plannings
+
+- Une nouvelle installation démarre avec un seul planning, *Normal*.
+- Dans la carte (administrateurs), **+** crée un planning : vide, ou copie d'un autre. **⋮** sur
+  l'onglet ouvert le renomme, le déplace ou le supprime.
+- Chaque planning a un **identifiant stable**, affiché dans *Renommer…*. Il ne change jamais,
+  même quand on renomme le planning : les automatisations l'utilisent.
+
+#### Planning actif
+
+Un seul planning est actif à la fois : le sélecteur **Planning actif**
+(`select.chauffage_schedule`).
+
+- Depuis la carte : ouvrir l'onglet du planning, puis *Activer*.
+- Depuis une automatisation : le service `chauffage.activate_schedule` et l'attribut
+  `schedule_id` du sélecteur, tous deux avec l'identifiant stable.
+
+Par exemple, semaines paires et impaires :
+
+```yaml
+triggers:
+  - trigger: time
+    at: "00:00:00"
+conditions:
+  - condition: template
+    value_template: "{{ now().weekday() == 0 }}"
+actions:
+  - action: chauffage.activate_schedule
+    data:
+      schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'semaines_impaires' }}"
+```
+
+#### Règles d'activation
+
+Des plannings qui s'activent tout seuls, sans écrire d'automatisation : la vue *Règles* de la
+carte (administrateurs) contient une liste ordonnée de règles.
+
+- **La première règle qui s'applique l'emporte.** Quand aucune ne s'applique, le planning par
+  défaut est activé (ou, sans planning par défaut, le planning actif reste).
+- **Une règle est un template**, de deux façons :
+  - un template et le planning qu'il active tant qu'il est vrai. Vrai et faux se lisent comme
+    dans une condition template : `true`, `on`, `yes`, `1`… ; tout autre texte est faux ;
+  - un template qui donne lui-même le planning, par son identifiant ou son nom.
+- **Les règles sont essayées pendant la saisie** : chacune montre ce que rend son template en ce
+  moment (ou son erreur), et si elle s'applique.
+- **Un planning choisi à la main reste** jusqu'à ce que le résultat des règles change.
+
+Par exemple, suivre la couleur du jour EDF Tempo, avec deux règles et un planning par défaut :
+
+| Template | Planning |
+|---|---|
+| `{{ is_state('sensor.edf_tempo_color', 'red') }}` | *Absent* |
+| `{{ is_state('sensor.edf_tempo_color', 'white') }}` | *Jours éco* |
+| (aucune n'est vraie) | *Normal* (par défaut) |
+
+Ou une seule règle dont le template donne le planning :
+
+```jinja
+{{ {'red': 'absent', 'white': 'jours_eco'}.get(states('sensor.edf_tempo_color'), 'normal') }}
+```
+
+#### Préréglages
+
+Les créneaux demandent les préréglages de l'intégration : par défaut *Confort* 20 °C, *Éco*
+17 °C, *Boost* 21 °C et *Hors-gel* 7 °C.
+
+- **Pour chaque thermostat**, un préréglage correspond à son propre préréglage du même nom s'il
+  en a un, sinon à la température du préréglage. C'est modifiable par thermostat : un de ses
+  propres préréglages, ou une température.
+- **Tout se règle dans la carte**, vue *Préréglages* (administrateurs) : un tableau avec une
+  colonne par préréglage et une ligne par thermostat. L'en-tête de colonne est le préréglage
+  (nom, couleur, température par défaut ; ajout, suppression) ; chaque case indique ce que fait
+  ce thermostat avec lui : automatique, un de ses propres préréglages (⟲), ou sa propre
+  température (●).
+- **Températures affichées** : le tableau et la légende affichent la température de chaque
+  préréglage. Aucun attribut standard ne donne celle d'un préréglage propre au thermostat :
+  l'intégration retient la consigne vue quand il était actif.
+- **Petit plus pour Versatile Thermostat** : les températures de ses préréglages sont lues
+  directement dans ses attributs (`preset_temperatures` depuis VTherm 10, `comfort_temp`…
+  avant).
+
+#### Capteurs et services
+
+Pour chaque thermostat programmé, deux capteurs, **désactivés par défaut** (à activer depuis la
+page de l'appareil du thermostat) :
+
+- **Planning** : le préréglage prévu maintenant ; attributs `preset_name`, `target`,
+  `next_preset`, `next_preset_name`, `next_start`.
+- **Fin de dérogation** : un horodatage, utilisable comme déclencheur horaire.
+
+Services :
+
+- `chauffage.set_override` : une température ou un préréglage, pour une durée ou jusqu'à une
+  heure.
+- `chauffage.clear_override` : le thermostat reprend son planning tout de suite.
+- `chauffage.activate_schedule` : active un planning par son identifiant stable.
+
+#### Options
+
+Paramètres → Appareils et services → Chauffage → *Configurer* :
+
+- **Durée des dérogations** : 2 h par défaut.
+- **Utiliser les préréglages des thermostats** : activé par défaut. Désactivé, tous les
+  thermostats sont pilotés en température, entièrement réglée dans la carte.
 
 ### Mise à jour depuis le package (v0.1)
 

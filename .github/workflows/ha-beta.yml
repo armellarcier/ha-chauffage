@@ -1,0 +1,22 @@
+name: Home Assistant beta
+
+# The integration tests on the next Home Assistant release (beta, or the latest release between
+# two betas), every week: a failure warns of a coming breaking change. It never blocks a push or
+# a release (see CONTRIBUTING.md, "Supported Home Assistant versions").
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  python:
+    name: Integration, HA beta (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install --pre --upgrade pytest-homeassistant-custom-component
+      - run: python -c "from homeassistant.const import __version__; print('Home Assistant', __version__)"
+      - run: python -m pytest -c tests/integration/pytest.ini tests/integration

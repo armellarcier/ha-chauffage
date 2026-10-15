@@ -45,7 +45,9 @@ data automatically.
    The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
    the week); English and French are available, and `language: en` or `language: fr` forces one.
 
-Requires Home Assistant 2026.9 or later.
+Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Assistant API
+requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,
+on one version per quarter since, on the latest Home Assistant and, every week, on the beta.
 
 ### What the integration provides
 
@@ -53,60 +55,106 @@ Vocabulary: a **schedule** is a weekly plan (*Normal*, *Holidays*…) with a **w
 thermostat, made of **slots**; each slot asks for a **preset** (*Comfort*, *Eco*…); an
 **override** is a temporary change on one thermostat ([glossary](docs/glossary.md)).
 
-- **Schedules**: a new installation starts with *Normal*; in the card, **+** creates a schedule
-  (empty, or a copy of another one) and **⋮** on the open tab renames, moves or deletes it
-  (admins). Each schedule has a **stable id** (shown in *Rename…*) that never
-  changes, even when the schedule is renamed.
-- **Active schedule** select (`select.chauffage_schedule`): switch it from the card (open the
-  schedule's tab, then "Activate") or from any automation. In automations, use the id, which
-  survives a rename: the service `chauffage.activate_schedule` and the select's `schedule_id`
-  attribute. For example, odd and even weeks:
-  ```yaml
-  triggers:
-    - trigger: time
-      at: "00:00:00"
-  conditions:
-    - condition: template
-      value_template: "{{ now().weekday() == 0 }}"
-  actions:
-    - action: chauffage.activate_schedule
-      data:
-        schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'odd_weeks' }}"
-  ```
-- **Activation rules**, without writing an automation: in the card's *Rules* view (admins), an
-  ordered list of rules; the first that applies wins, and a default schedule is activated when
-  none does (or the active schedule stays). A rule is either a template and the schedule it
-  activates while the template is true (as in a template condition: `true`, `on`, `yes`, `1`…;
-  any other text is false), or a template that gives the schedule itself, by its id or its name.
-  For example, following the EDF Tempo color of the day, two rules
-  `{{ is_state('sensor.edf_tempo_color', 'red') }}` → *Away* and
-  `{{ is_state('sensor.edf_tempo_color', 'white') }}` → *Eco days*, otherwise *Normal*; or a
-  single rule whose template gives the schedule:
-  `{{ {'red': 'away', 'white': 'eco_days'}.get(states('sensor.edf_tempo_color'), 'normal') }}`.
-  Rules are tried as they are typed: each one shows what its template gives now (or its error)
-  and whether it applies. A schedule chosen by hand stays until the outcome of the rules changes.
-- **Presets**: slots use the integration's presets (by default *Comfort* 20 °C, *Eco* 17 °C,
-  *Boost* 21 °C, *Frost protection* 7 °C). For each thermostat, a preset is the thermostat's own
-  preset with the same name when it has one, otherwise the preset's temperature; this can be
-  changed per thermostat (one of its own presets, or a temperature). **Set in the card**,
-  *Presets* view (switch at the top of the card, admins): a table with one column per preset
-  and one row per thermostat. The column header is the preset (name, color; add, remove) and its
-  default temperature; each cell says what that thermostat does with that preset: automatic,
-  one of its own presets (⟲), or its own temperature (●).
-- The table and the legend show each preset's temperature. For a thermostat's own preset, no
-  standard attribute gives it: the integration remembers the setpoint seen while that preset was
-  active. **Versatile Thermostat bonus**: its preset temperatures are read directly from its
-  attributes (`preset_temperatures` since VTherm 10, `comfort_temp`… before), a deliberate extra
-  for VTherm users.
-- Per scheduled thermostat, two sensors **disabled by default** (enable them on the
-  thermostat's device page): **Schedule** (preset planned now; attributes `preset_name`,
-  `target`, `next_preset`, `next_preset_name`, `next_start`) and **Override end** (timestamp,
-  usable as a time trigger).
-- Services `chauffage.set_override` (temperature or preset for a duration or until a time),
-  `chauffage.clear_override` and `chauffage.activate_schedule`.
-- Options (Settings → Devices & services → Chauffage → *Configure*), a single form: override
-  duration (2 h by default), and *Use the thermostats' presets* (on by default; off, every
-  thermostat is driven by temperatures, all set in the card).
+#### Schedules
+
+- A new installation starts with a single schedule, *Normal*.
+- In the card (admins), **+** creates a schedule: empty, or a copy of another one. **⋮** on the
+  open tab renames, moves or deletes it.
+- Each schedule has a **stable id**, shown in *Rename…*. It never changes, even when the
+  schedule is renamed: automations use it.
+
+#### Active schedule
+
+One schedule is active at a time: the **Active schedule** select (`select.chauffage_schedule`).
+
+- From the card: open the schedule's tab, then *Activate*.
+- From an automation: the service `chauffage.activate_schedule` and the select's `schedule_id`
+  attribute, both with the stable id.
+
+For example, odd and even weeks:
+
+```yaml
+triggers:
+  - trigger: time
+    at: "00:00:00"
+conditions:
+  - condition: template
+    value_template: "{{ now().weekday() == 0 }}"
+actions:
+  - action: chauffage.activate_schedule
+    data:
+      schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'odd_weeks' }}"
+```
+
+#### Activation rules
+
+Schedules activated by themselves, without writing an automation: the card's *Rules* view
+(admins) holds an ordered list of rules.
+
+- **The first rule that applies wins.** When none does, the default schedule is activated (or,
+  without one, the active schedule stays).
+- **A rule is a template**, in one of two ways:
+  - a template and the schedule it activates while the template is true. True and false are
+    read as in a template condition: `true`, `on`, `yes`, `1`…; any other text is false;
+  - a template that gives the schedule itself, by its id or its name.
+- **Rules are tried as you type them**: each one shows what its template gives now (or its
+  error), and whether it applies.
+- **A schedule chosen by hand stays** until the outcome of the rules changes.
+
+For example, following the EDF Tempo color of the day, two rules and a default schedule:
+
+| Template | Schedule |
+|---|---|
+| `{{ is_state('sensor.edf_tempo_color', 'red') }}` | *Away* |
+| `{{ is_state('sensor.edf_tempo_color', 'white') }}` | *Eco days* |
+| (none is true) | *Normal* (default) |
+
+Or a single rule whose template gives the schedule:
+
+```jinja
+{{ {'red': 'away', 'white': 'eco_days'}.get(states('sensor.edf_tempo_color'), 'normal') }}
+```
+
+#### Presets
+
+Slots ask for the integration's presets: by default *Comfort* 20 °C, *Eco* 17 °C, *Boost* 21 °C
+and *Frost protection* 7 °C.
+
+- **For each thermostat**, a preset is the thermostat's own preset with the same name when it
+  has one, otherwise the preset's temperature. This can be changed per thermostat: one of its
+  own presets, or a temperature.
+- **Set in the card**, *Presets* view (admins): a table with one column per preset and one row
+  per thermostat. A column header is the preset (name, color, default temperature; add,
+  remove); each cell says what that thermostat does with it: automatic, one of its own presets
+  (⟲), or its own temperature (●).
+- **Temperatures shown**: the table and the legend show each preset's temperature. No standard
+  attribute gives the temperature of a thermostat's own preset: the integration remembers the
+  setpoint seen while that preset was active.
+- **Versatile Thermostat bonus**: its preset temperatures are read directly from its attributes
+  (`preset_temperatures` since VTherm 10, `comfort_temp`… before).
+
+#### Sensors and services
+
+Per scheduled thermostat, two sensors, **disabled by default** (enable them on the thermostat's
+device page):
+
+- **Schedule**: the preset planned now; attributes `preset_name`, `target`, `next_preset`,
+  `next_preset_name`, `next_start`.
+- **Override end**: a timestamp, usable as a time trigger.
+
+Services:
+
+- `chauffage.set_override`: a temperature or a preset, for a duration or until a time.
+- `chauffage.clear_override`: the thermostat resumes its schedule now.
+- `chauffage.activate_schedule`: activates a schedule by its stable id.
+
+#### Options
+
+Settings → Devices & services → Chauffage → *Configure*:
+
+- **Override duration**: 2 h by default.
+- **Use the thermostats' presets**: on by default. Off, every thermostat is driven by
+  temperatures, all set in the card.
 
 ### Upgrading from the package (v0.1)
 

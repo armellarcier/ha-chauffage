@@ -1,2 +1,8 @@
-# Minimum supported Home Assistant (hacs.json): the integration tests also run on it
-pytest-homeassistant-custom-component==0.13.363  # Home Assistant 2026.9.0
+# Minimum supported Home Assistant (hacs.json): the integration tests also run on it, with
+# Python 3.13 (the Python of its Docker image)
+pytest-homeassistant-custom-component==0.13.201  # Home Assistant 2025.1.0
+# Dependencies that pip installs at their latest version and that no longer work with that Home
+# Assistant: pycares 5 breaks its aiodns, pycares 4.9 starts a thread that its test plugin takes
+# for a leftover, josepy 2 breaks its acme
+pycares<4.9
+josepy<2

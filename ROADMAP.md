@@ -19,6 +19,12 @@ its issue when it has one.
 | 0.3.0 | **Presets** (then called heating levels) for any thermostat with a target temperature (Versatile Thermostat, standard presets, no presets), set in the card; manual changes judged against what the schedule expects; tests on the three kinds of thermostats; functional analysis ([docs/use-cases.md](docs/use-cases.md)) |
 | 0.4.0 | **Schedules defined by the user** (created empty or as a copy, renamed, moved, deleted; stable ids for automations) and **one vocabulary** everywhere ([docs/glossary.md](docs/glossary.md)) |
 
+### Activation rules
+
+Done in 0.5 (in beta, [#1](https://github.com/armellarcier/ha-chauffage/issues/1)): schedules
+activated by themselves, from an ordered list of rules written as templates, the first that
+applies winning, a default schedule otherwise. See the [README](README.md#activation-rules).
+
 ## Short term
 
 1. **HACS default list**: submitted with 0.4.0
@@ -32,10 +38,9 @@ its issue when it has one.
 
 ### Calendar of schedules
 
-Built on the **activation rules** (done, [#1](https://github.com/armellarcier/ha-chauffage/issues/1):
-ordered rules "template → schedule", see the [changelog](CHANGELOG.md)). A year view, one row per month, with periods (days and times) colored by schedule, like the
-weekly view with its slots. Its periods are rules too. It also covers "activate *Away* until
-Tuesday" or "until 18:00".
+Built on the [activation rules](#activation-rules). A year view, one row per month, with periods
+(days and times) colored by schedule, like the weekly view with its slots. Its periods are rules
+too. It also covers "activate *Away* until Tuesday" or "until 18:00".
 
 ### Groups of thermostats
 
@@ -84,7 +89,8 @@ integration).
   dependency bot proposing upgrades; the setup walks through VTherm's config flow field by field
   and breaks when VTherm changes it (`docker compose logs setup` shows the step).
 - An end-to-end check in CI that starts the development HA, runs the setup and checks that a
-  schedule is applied.
+  schedule is applied, and the card works in the real frontend of the minimum and latest Home
+  Assistant ([#6](https://github.com/armellarcier/ha-chauffage/issues/6)).
 - Simulated thermostats for the kinds still missing (heat / cool, a thermostat that keeps its
   preset on a manual setpoint), in the tests and the development HA.
 
