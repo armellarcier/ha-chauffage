@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="610" viewBox="0 0 400 610">
+  <style>
+    text { font-family: Roboto, "Segoe UI", Helvetica, Arial, sans-serif; fill: #212121; }
+    .h { font-size: 18px; font-weight: 500; }
+    .title { font-size: 17px; font-weight: 600; }
+    .sub { font-size: 12.5px; fill: #727272; }
+    .sec { font-size: 12px; fill: #727272; font-weight: 600; letter-spacing: .3px; }
+    .opt { font-size: 14px; }
+    .opt.sel { font-weight: 600; }
+    .from { font-size: 11.5px; fill: #727272; }
+    .chip { font-size: 12.5px; text-anchor: middle; }
+    .chip.on { fill: #fff; font-weight: 500; }
+    .btn { font-size: 14px; text-anchor: middle; font-weight: 500; }
+    .btn.primary { fill: #fff; }
+    .faint { font-size: 14px; font-weight: 600; fill: #9e9e9e; }
+  </style>
+  <defs>
+    <symbol id="la-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.5" height="1" fill="#43a047"/><rect x="6.5" width="2" height="1" fill="#f57c00"/>
+      <rect x="8.5" width="9" height="1" fill="#43a047"/><rect x="17.5" width="5" height="1" fill="#f57c00"/>
+      <rect x="22.5" width="1.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="bed-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.5" height="1" fill="#43a047"/><rect x="6.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="7.5" width="13.5" height="1" fill="#43a047"/><rect x="21" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="22.5" width="1.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="office-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8.5" height="1" fill="#43a047"/><rect x="8.5" width="9.5" height="1" fill="#f57c00"/>
+      <rect x="18" width="6" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="eco" viewBox="0 0 24 1" preserveAspectRatio="none"><rect width="24" height="1" fill="#43a047"/></symbol>
+    <symbol id="frost" viewBox="0 0 24 1" preserveAspectRatio="none"><rect width="24" height="1" fill="#29b6f6"/></symbol>
+    <filter id="pop" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="-2" stdDeviation="6" flood-opacity=".25"/></filter>
+  </defs>
+
+  <!-- The card behind, dimmed -->
+  <rect width="400" height="610" fill="#eef0f2"/>
+  <rect x="12" y="12" width="376" height="600" rx="12" fill="#fff" stroke="#e0e0e0"/>
+  <text class="h" x="28" y="44">Chauffage</text>
+  <text class="faint" x="28" y="90">Living room</text>
+  <text class="faint" x="28" y="128">Guest room</text>
+  <rect width="400" height="610" fill="#000" opacity=".38"/>
+
+  <!-- Sheet -->
+  <g transform="translate(0,150)">
+    <rect x="0" y="0" width="400" height="480" rx="16" fill="#fff" filter="url(#pop)"/>
+    <rect x="182" y="8" width="36" height="4" rx="2" fill="#d0d0d0"/>
+    <text class="title" x="24" y="42">Guest room</text>
+    <text class="sub" x="24" y="62">Its week for now. Schedule Normal gives it Empty room.</text>
+
+    <text class="sec" x="24" y="96">WEEK</text>
+    <text class="sec" x="372" y="96" text-anchor="end">TUESDAY</text>
+
+    <!-- Empty room (from the schedule) -->
+    <g transform="translate(0,106)">
+      <circle cx="34" cy="18" r="8" fill="none" stroke="#9e9e9e" stroke-width="2"/>
+      <text class="opt" x="52" y="17">Empty room</text><text class="from" x="52" y="31">from schedule Normal</text>
+      <use xlink:href="#eco" href="#eco" x="236" y="13" width="136" height="9"/>
+    </g>
+    <!-- Bedroom in use (selected) -->
+    <g transform="translate(0,146)">
+      <rect x="12" y="-2" width="376" height="40" rx="8" fill="#e1f5fe"/>
+      <circle cx="34" cy="18" r="8" fill="none" stroke="#03a9f4" stroke-width="2"/><circle cx="34" cy="18" r="4" fill="#03a9f4"/>
+      <text class="opt sel" x="52" y="23">Bedroom in use</text>
+      <use xlink:href="#bed-wd" href="#bed-wd" x="236" y="13" width="136" height="9"/>
+    </g>
+    <g transform="translate(0,186)">
+      <circle cx="34" cy="18" r="8" fill="none" stroke="#9e9e9e" stroke-width="2"/>
+      <text class="opt" x="52" y="23">Living area</text>
+      <use xlink:href="#la-wd" href="#la-wd" x="236" y="13" width="136" height="9"/>
+    </g>
+    <g transform="translate(0,226)">
+      <circle cx="34" cy="18" r="8" fill="none" stroke="#9e9e9e" stroke-width="2"/>
+      <text class="opt" x="52" y="23">Home office</text>
+      <use xlink:href="#office-wd" href="#office-wd" x="236" y="13" width="136" height="9"/>
+    </g>
+    <g transform="translate(0,266)">
+      <circle cx="34" cy="18" r="8" fill="none" stroke="#9e9e9e" stroke-width="2"/>
+      <text class="opt" x="52" y="23">Frost protection</text>
+      <use xlink:href="#frost" href="#frost" x="236" y="13" width="136" height="9"/>
+    </g>
+
+    <text class="sec" x="24" y="332">UNTIL</text>
+    <rect x="24" y="342" width="104" height="30" rx="15" fill="#03a9f4"/><text class="chip on" x="76" y="361">Sun 18:00 ✎</text>
+    <rect x="134" y="342" width="126" height="30" rx="15" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="197" y="361">Schedule changes</text>
+    <rect x="266" y="342" width="106" height="30" rx="15" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="319" y="361">I change it</text>
+    <text class="sub" x="24" y="394">Then back to Empty room, from schedule Normal.</text>
+
+    <rect x="196" y="410" width="84" height="36" rx="8" fill="#fff" stroke="#e0e0e0"/><text class="btn" x="238" y="433">Cancel</text>
+    <rect x="288" y="410" width="84" height="36" rx="8" fill="#03a9f4"/><text class="btn primary" x="330" y="433">Apply</text>
+  </g>
+</svg>

@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="672" viewBox="0 0 400 672">
+  <style>
+    text { font-family: Roboto, "Segoe UI", Helvetica, Arial, sans-serif; fill: #212121; }
+    .h { font-size: 18px; font-weight: 500; }
+    .tab { font-size: 13px; text-anchor: middle; }
+    .tab.on { font-weight: 600; }
+    .hint { font-size: 12.5px; fill: #727272; }
+    .tick { font-size: 10.5px; fill: #727272; text-anchor: middle; }
+    .name { font-size: 14px; font-weight: 600; }
+    .used { font-size: 12px; fill: #727272; }
+    .day { font-size: 11px; fill: #727272; }
+    .edit { font-size: 12.5px; fill: #0277bd; text-anchor: end; font-weight: 500; }
+    .new { font-size: 13px; fill: #727272; text-anchor: middle; }
+  </style>
+  <defs>
+    <symbol id="la-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.5" height="1" fill="#43a047"/><rect x="6.5" width="2" height="1" fill="#f57c00"/>
+      <rect x="8.5" width="9" height="1" fill="#43a047"/><rect x="17.5" width="5" height="1" fill="#f57c00"/>
+      <rect x="22.5" width="1.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="la-we" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8" height="1" fill="#43a047"/><rect x="8" width="15" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="bed-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.5" height="1" fill="#43a047"/><rect x="6.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="7.5" width="13.5" height="1" fill="#43a047"/><rect x="21" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="22.5" width="1.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="bed-we" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8.5" height="1" fill="#43a047"/><rect x="8.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="9.5" width="12" height="1" fill="#43a047"/><rect x="21.5" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="office-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8.5" height="1" fill="#43a047"/><rect x="8.5" width="9.5" height="1" fill="#f57c00"/>
+      <rect x="18" width="6" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="eco" viewBox="0 0 24 1" preserveAspectRatio="none"><rect width="24" height="1" fill="#43a047"/></symbol>
+    <symbol id="frost" viewBox="0 0 24 1" preserveAspectRatio="none"><rect width="24" height="1" fill="#29b6f6"/></symbol>
+    <filter id="sh" x="-10%" y="-20%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity=".22"/></filter>
+  </defs>
+
+  <rect width="400" height="672" fill="#eef0f2"/>
+  <rect x="12" y="12" width="376" height="648" rx="12" fill="#fff" stroke="#e0e0e0"/>
+  <text class="h" x="28" y="44">Chauffage</text>
+
+  <rect x="28" y="58" width="344" height="34" rx="10" fill="#f0f0f0"/>
+  <rect x="257" y="61" width="112" height="28" rx="8" fill="#fff" filter="url(#sh)"/>
+  <text class="tab" x="87" y="80">Right now</text>
+  <text class="tab" x="200" y="80">Schedules</text>
+  <text class="tab on" x="313" y="80">Weeks</text>
+
+  <text class="hint" x="28" y="114">Identical days are shown once. Tap a week to edit it.</text>
+  <g>
+    <text class="tick" x="88" y="132">0</text><text class="tick" x="156" y="132">6</text>
+    <text class="tick" x="228" y="132">12</text><text class="tick" x="300" y="132">18</text>
+    <text class="tick" x="366" y="132">24</text>
+  </g>
+
+  <!-- Living area -->
+  <g transform="translate(0,140)">
+    <text class="name" x="28" y="18">Living area</text><text class="edit" x="372" y="18">Edit</text>
+    <text class="used" x="28" y="35">Living room, Kitchen · in Normal</text>
+    <text class="day" x="28" y="53">Mon–Fri</text><use xlink:href="#la-wd" href="#la-wd" x="84" y="45" width="288" height="10"/>
+    <text class="day" x="28" y="69">Sat–Sun</text><use xlink:href="#la-we" href="#la-we" x="84" y="61" width="288" height="10"/>
+    <line x1="28" y1="84" x2="372" y2="84" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Living area (weekend) -->
+  <g transform="translate(0,226)">
+    <text class="name" x="28" y="18">Living area (weekend)</text><text class="edit" x="372" y="18">Edit</text>
+    <text class="used" x="28" y="35">Living room, Kitchen · in Holidays</text>
+    <text class="day" x="28" y="53">Every day</text><use xlink:href="#la-we" href="#la-we" x="84" y="45" width="288" height="10"/>
+    <line x1="28" y1="68" x2="372" y2="68" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Bedroom in use -->
+  <g transform="translate(0,296)">
+    <text class="name" x="28" y="18">Bedroom in use</text><text class="edit" x="372" y="18">Edit</text>
+    <text class="used" x="28" y="35">Parents' bedroom, Children's bedroom · in Normal, Holidays</text>
+    <text class="day" x="28" y="53">Mon–Fri</text><use xlink:href="#bed-wd" href="#bed-wd" x="84" y="45" width="288" height="10"/>
+    <text class="day" x="28" y="69">Sat–Sun</text><use xlink:href="#bed-we" href="#bed-we" x="84" y="61" width="288" height="10"/>
+    <text class="used" x="28" y="90" style="fill:#0277bd">Now also Guest room (chosen by hand)</text>
+    <line x1="28" y1="100" x2="372" y2="100" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Empty room -->
+  <g transform="translate(0,398)">
+    <text class="name" x="28" y="18">Empty room</text><text class="edit" x="372" y="18">Edit</text>
+    <text class="used" x="28" y="35">Guest room · in Normal, Holidays</text>
+    <text class="day" x="28" y="53">Every day</text><use xlink:href="#eco" href="#eco" x="84" y="45" width="288" height="10"/>
+    <line x1="28" y1="68" x2="372" y2="68" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Home office -->
+  <g transform="translate(0,468)">
+    <text class="name" x="28" y="18">Home office</text><text class="edit" x="372" y="18">Edit</text>
+    <text class="used" x="28" y="35">Office · in Normal</text>
+    <text class="day" x="28" y="53">Mon–Fri</text><use xlink:href="#office-wd" href="#office-wd" x="84" y="45" width="288" height="10"/>
+    <text class="day" x="28" y="69">Sat–Sun</text><use xlink:href="#eco" href="#eco" x="84" y="61" width="288" height="10"/>
+    <line x1="28" y1="84" x2="372" y2="84" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Frost protection -->
+  <g transform="translate(0,554)">
+    <text class="name" x="28" y="18">Frost protection</text><text class="edit" x="372" y="18">Edit</text>
+    <text class="used" x="28" y="35">Every thermostat · in Away</text>
+    <text class="day" x="28" y="53">Every day</text><use xlink:href="#frost" href="#frost" x="84" y="45" width="288" height="10"/>
+  </g>
+
+  <rect x="28" y="616" width="344" height="32" rx="8" fill="none" stroke="#bdbdbd" stroke-dasharray="4 3"/>
+  <text class="new" x="200" y="636">+ New named week</text>
+</svg>

@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="644" viewBox="0 0 400 644">
+  <style>
+    text { font-family: Roboto, "Segoe UI", Helvetica, Arial, sans-serif; fill: #212121; }
+    .h { font-size: 18px; font-weight: 500; }
+    .tab { font-size: 13px; text-anchor: middle; }
+    .tab.on { font-weight: 600; }
+    .chip { font-size: 12.5px; text-anchor: middle; }
+    .chip.on { fill: #fff; font-weight: 500; }
+    .bar { font-size: 12.5px; fill: #727272; }
+    .name { font-size: 14px; font-weight: 600; }
+    .edit { font-size: 12.5px; fill: #0277bd; text-anchor: end; font-weight: 500; }
+    .day { font-size: 11px; fill: #727272; }
+    .note { font-size: 12px; fill: #0277bd; }
+    .hint { font-size: 12px; fill: #727272; }
+    .mh { font-size: 11.5px; fill: #727272; }
+    .mi { font-size: 13px; }
+    .mi.sel { font-weight: 600; }
+    .mis { font-size: 11px; fill: #727272; }
+  </style>
+  <defs>
+    <symbol id="la-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.5" height="1" fill="#43a047"/><rect x="6.5" width="2" height="1" fill="#f57c00"/>
+      <rect x="8.5" width="9" height="1" fill="#43a047"/><rect x="17.5" width="5" height="1" fill="#f57c00"/>
+      <rect x="22.5" width="1.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="la-we" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8" height="1" fill="#43a047"/><rect x="8" width="15" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="bed-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.5" height="1" fill="#43a047"/><rect x="6.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="7.5" width="13.5" height="1" fill="#43a047"/><rect x="21" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="22.5" width="1.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="bed-we" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8.5" height="1" fill="#43a047"/><rect x="8.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="9.5" width="12" height="1" fill="#43a047"/><rect x="21.5" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="office-wd" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8.5" height="1" fill="#43a047"/><rect x="8.5" width="9.5" height="1" fill="#f57c00"/>
+      <rect x="18" width="6" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="eco" viewBox="0 0 24 1" preserveAspectRatio="none"><rect width="24" height="1" fill="#43a047"/></symbol>
+    <filter id="sh" x="-10%" y="-20%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity=".22"/></filter>
+    <filter id="pop" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-opacity=".28"/></filter>
+  </defs>
+
+  <rect width="400" height="644" fill="#eef0f2"/>
+  <rect x="12" y="12" width="376" height="620" rx="12" fill="#fff" stroke="#e0e0e0"/>
+  <text class="h" x="28" y="44">Chauffage</text>
+
+  <rect x="28" y="58" width="344" height="34" rx="10" fill="#f0f0f0"/>
+  <rect x="144" y="61" width="112" height="28" rx="8" fill="#fff" filter="url(#sh)"/>
+  <text class="tab" x="87" y="80">Right now</text>
+  <text class="tab on" x="200" y="80">Schedules</text>
+  <text class="tab" x="313" y="80">Weeks</text>
+
+  <!-- Schedules -->
+  <rect x="28" y="104" width="84" height="28" rx="14" fill="#03a9f4"/>
+  <circle cx="44" cy="118" r="4" fill="#fff"/><text class="chip on" x="76" y="122">Normal</text>
+  <rect x="118" y="104" width="76" height="28" rx="14" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="156" y="122">Holidays</text>
+  <rect x="200" y="104" width="60" height="28" rx="14" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="230" y="122">Away</text>
+  <rect x="266" y="104" width="32" height="28" rx="14" fill="none" stroke="#bdbdbd" stroke-dasharray="4 3"/><text class="chip" x="282" y="122" style="fill:#727272">+</text>
+
+  <rect x="28" y="142" width="344" height="30" rx="8" fill="#f0f0f0"/>
+  <circle cx="42" cy="157" r="4" fill="#43a047"/>
+  <text class="bar" x="52" y="161"><tspan font-weight="600" fill="#212121">Normal</tspan> is active · default schedule</text>
+  <text class="bar" x="362" y="161" text-anchor="end" style="font-weight:700">⋮</text>
+
+  <!-- Living area -->
+  <g transform="translate(0,184)">
+    <text class="name" x="28" y="18">Living area</text><text class="edit" x="372" y="18">Edit week</text>
+    <rect x="28" y="28" width="100" height="26" rx="13" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="78" y="45">Living room ▾</text>
+    <rect x="134" y="28" width="80" height="26" rx="13" fill="#fff" stroke="#03a9f4" stroke-width="1.5"/><text class="chip" x="174" y="45">Kitchen ▾</text>
+    <text class="day" x="28" y="74">Mon–Fri</text><use xlink:href="#la-wd" href="#la-wd" x="84" y="66" width="288" height="10"/>
+    <text class="day" x="28" y="90">Sat–Sun</text><use xlink:href="#la-we" href="#la-we" x="84" y="82" width="288" height="10"/>
+    <line x1="28" y1="102" x2="372" y2="102" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Bedroom in use -->
+  <g transform="translate(0,286)">
+    <text class="name" x="28" y="18">Bedroom in use</text><text class="edit" x="372" y="18">Edit week</text>
+    <rect x="28" y="28" width="132" height="26" rx="13" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="94" y="45">Parents' bedroom ▾</text>
+    <rect x="166" y="28" width="146" height="26" rx="13" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="239" y="45">Children's bedroom ▾</text>
+    <text class="day" x="28" y="74">Mon–Fri</text><use xlink:href="#bed-wd" href="#bed-wd" x="84" y="66" width="288" height="10"/>
+    <text class="day" x="28" y="90">Sat–Sun</text><use xlink:href="#bed-we" href="#bed-we" x="84" y="82" width="288" height="10"/>
+    <line x1="28" y1="102" x2="372" y2="102" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Empty room -->
+  <g transform="translate(0,388)">
+    <text class="name" x="28" y="18">Empty room</text><text class="edit" x="372" y="18">Edit week</text>
+    <rect x="28" y="28" width="98" height="26" rx="13" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="77" y="45">Guest room ▾</text>
+    <text class="day" x="28" y="74">Every day</text><use xlink:href="#eco" href="#eco" x="84" y="66" width="288" height="10"/>
+    <text class="note" x="28" y="96">Now on Bedroom in use: chosen by hand, until Sun 18:00</text>
+    <line x1="28" y1="106" x2="372" y2="106" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Home office -->
+  <g transform="translate(0,494)">
+    <text class="name" x="28" y="18">Home office</text><text class="edit" x="372" y="18">Edit week</text>
+    <rect x="28" y="28" width="72" height="26" rx="13" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="64" y="45">Office ▾</text>
+    <text class="day" x="28" y="74">Mon–Fri</text><use xlink:href="#office-wd" href="#office-wd" x="84" y="66" width="288" height="10"/>
+    <text class="day" x="28" y="90">Sat–Sun</text><use xlink:href="#eco" href="#eco" x="84" y="82" width="288" height="10"/>
+  </g>
+
+  <text class="hint" x="28" y="614">Tap a thermostat to choose its week in Normal.</text>
+
+  <!-- Menu open on Kitchen -->
+  <g transform="translate(134,242)">
+    <rect width="230" height="236" rx="8" fill="#fff" filter="url(#pop)"/>
+    <text class="mh" x="14" y="22">Week of Kitchen in Normal</text>
+    <line x1="0" y1="32" x2="230" y2="32" stroke="#e0e0e0"/>
+    <rect x="0" y="33" width="230" height="32" fill="#e1f5fe"/>
+    <text class="mi sel" x="14" y="54">✓  Living area</text><text class="mis" x="216" y="54" text-anchor="end">2 thermostats</text>
+    <text class="mi" x="30" y="86">Living area (weekend)</text>
+    <text class="mi" x="30" y="118">Bedroom in use</text>
+    <text class="mi" x="30" y="150">Empty room</text>
+    <text class="mi" x="30" y="182">Home office</text>
+    <line x1="0" y1="196" x2="230" y2="196" stroke="#e0e0e0"/>
+    <text class="mi" x="30" y="220">Its own week</text><text class="mis" x="216" y="220" text-anchor="end">not shared</text>
+  </g>
+</svg>
