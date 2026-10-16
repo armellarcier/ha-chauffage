@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="640" viewBox="0 0 400 640">
+  <style>
+    text { font-family: Roboto, "Segoe UI", Helvetica, Arial, sans-serif; fill: #212121; }
+    .h { font-size: 18px; font-weight: 500; }
+    .title { font-size: 17px; font-weight: 600; }
+    .sub { font-size: 12.5px; fill: #727272; }
+    .sec { font-size: 12px; fill: #727272; font-weight: 600; letter-spacing: .3px; }
+    .opt { font-size: 14px; }
+    .opt.sel { font-weight: 600; }
+    .chip { font-size: 12.5px; text-anchor: middle; }
+    .chip.on { fill: #fff; font-weight: 500; }
+    .field { font-size: 13.5px; }
+    .lbl { font-size: 11px; fill: #727272; }
+    .row { font-size: 12.5px; }
+    .nd { font-size: 12px; fill: #727272; }
+    .btn { font-size: 14px; text-anchor: middle; font-weight: 500; }
+    .btn.primary { fill: #fff; }
+    .faint { font-size: 14px; font-weight: 600; fill: #9e9e9e; }
+  </style>
+  <defs>
+    <symbol id="liv-home" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8" height="1" fill="#43a047"/><rect x="8" width="15" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="bed-lie" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8.5" height="1" fill="#43a047"/><rect x="8.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="9.5" width="12" height="1" fill="#43a047"/><rect x="21.5" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="eco" viewBox="0 0 24 1" preserveAspectRatio="none"><rect width="24" height="1" fill="#43a047"/></symbol>
+    <filter id="pop" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="-2" stdDeviation="6" flood-opacity=".25"/></filter>
+  </defs>
+
+  <rect width="400" height="640" fill="#eef0f2"/>
+  <rect x="12" y="12" width="376" height="640" rx="12" fill="#fff" stroke="#e0e0e0"/>
+  <text class="h" x="28" y="44">Chauffage</text>
+  <text class="faint" x="28" y="90">Living room</text>
+  <rect width="400" height="640" fill="#000" opacity=".38"/>
+
+  <g transform="translate(0,110)">
+    <rect x="0" y="0" width="400" height="560" rx="16" fill="#fff" filter="url(#pop)"/>
+    <rect x="182" y="8" width="36" height="4" rx="2" fill="#d0d0d0"/>
+    <text class="title" x="24" y="42">Change days</text>
+    <text class="sub" x="24" y="62">For some dates, on top of the active schedule.</text>
+
+    <text class="sec" x="24" y="94">WHERE</text>
+    <rect x="24" y="104" width="104" height="30" rx="15" fill="#03a9f4"/><text class="chip on" x="76" y="123">Whole home</text>
+    <rect x="134" y="104" width="112" height="30" rx="15" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="190" y="123">Thermostats…</text>
+
+    <text class="sec" x="24" y="162">WHEN</text>
+    <rect x="24" y="172" width="168" height="40" rx="8" fill="#fff" stroke="#e0e0e0"/>
+    <text class="lbl" x="34" y="186">From</text><text class="field" x="34" y="204">Thu 11 Nov</text>
+    <rect x="204" y="172" width="168" height="40" rx="8" fill="#fff" stroke="#e0e0e0"/>
+    <text class="lbl" x="214" y="186">To</text><text class="field" x="214" y="204">Thu 11 Nov</text>
+
+    <text class="sec" x="24" y="240">LIVE THEM</text>
+    <rect x="12" y="248" width="376" height="40" rx="8" fill="#e1f5fe"/>
+    <circle cx="34" cy="268" r="8" fill="none" stroke="#03a9f4" stroke-width="2"/><circle cx="34" cy="268" r="4" fill="#03a9f4"/>
+    <text class="opt sel" x="52" y="273">Like a</text>
+    <rect x="104" y="255" width="96" height="26" rx="13" fill="#fff" stroke="#03a9f4"/><text class="chip" x="152" y="273">Sunday ▾</text>
+    <circle cx="34" cy="308" r="8" fill="none" stroke="#9e9e9e" stroke-width="2"/>
+    <text class="opt" x="52" y="313">With a named day</text>
+    <rect x="186" y="295" width="96" height="26" rx="13" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="234" y="313" style="fill:#9e9e9e">Choose ▾</text>
+
+    <text class="sec" x="24" y="350">EACH ROOM FOLLOWS ITS OWN SUNDAY</text>
+    <g transform="translate(0,360)">
+      <text class="row" x="24" y="14">Living room, Kitchen</text><text class="nd" x="24" y="29">Living · at home</text>
+      <use xlink:href="#liv-home" href="#liv-home" x="236" y="10" width="136" height="9"/>
+    </g>
+    <g transform="translate(0,398)">
+      <text class="row" x="24" y="14">Bedrooms</text><text class="nd" x="24" y="29">Bedroom · lie-in</text>
+      <use xlink:href="#bed-lie" href="#bed-lie" x="236" y="10" width="136" height="9"/>
+    </g>
+    <g transform="translate(0,436)">
+      <text class="row" x="24" y="14">Office, Guest room</text><text class="nd" x="24" y="29">Empty</text>
+      <use xlink:href="#eco" href="#eco" x="236" y="10" width="136" height="9"/>
+    </g>
+
+    <rect x="196" y="484" width="84" height="36" rx="8" fill="#fff" stroke="#e0e0e0"/><text class="btn" x="238" y="507">Cancel</text>
+    <rect x="288" y="484" width="84" height="36" rx="8" fill="#03a9f4"/><text class="btn primary" x="330" y="507">Apply</text>
+  </g>
+</svg>
