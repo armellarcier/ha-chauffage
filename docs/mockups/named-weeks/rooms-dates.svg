@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="640" viewBox="0 0 400 640">
+  <style>
+    text { font-family: Roboto, "Segoe UI", Helvetica, Arial, sans-serif; fill: #212121; }
+    .h { font-size: 18px; font-weight: 500; }
+    .title { font-size: 17px; font-weight: 600; }
+    .sub { font-size: 12.5px; fill: #727272; }
+    .sec { font-size: 12px; fill: #727272; font-weight: 600; letter-spacing: .3px; }
+    .opt { font-size: 14px; }
+    .opt.sel { font-weight: 600; }
+    .chip { font-size: 12.5px; text-anchor: middle; }
+    .chip.on { fill: #fff; font-weight: 500; }
+    .field { font-size: 13.5px; }
+    .lbl { font-size: 11px; fill: #727272; }
+    .row { font-size: 13px; font-weight: 500; }
+    .nd { font-size: 12px; }
+    .btn { font-size: 14px; text-anchor: middle; font-weight: 500; }
+    .btn.primary { fill: #fff; }
+    .faint { font-size: 14px; font-weight: 600; fill: #9e9e9e; }
+  </style>
+  <defs>
+    <symbol id="guests" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="7.5" height="1" fill="#43a047"/><rect x="7.5" width="2" height="1" fill="#f57c00"/>
+      <rect x="9.5" width="8.5" height="1" fill="#43a047"/><rect x="18" width="5" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="showers" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="7" height="1" fill="#43a047"/><rect x="7" width="1.5" height="1" fill="#e53935"/>
+      <rect x="8.5" width="11.5" height="1" fill="#43a047"/><rect x="20" width="1" height="1" fill="#e53935"/>
+      <rect x="21" width="3" height="1" fill="#43a047"/>
+    </symbol>
+    <filter id="pop" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="-2" stdDeviation="6" flood-opacity=".25"/></filter>
+  </defs>
+
+  <rect width="400" height="640" fill="#eef0f2"/>
+  <rect x="12" y="12" width="376" height="640" rx="12" fill="#fff" stroke="#e0e0e0"/>
+  <text class="h" x="28" y="44">Chauffage</text>
+  <text class="faint" x="28" y="90">Guest room</text>
+  <rect width="400" height="640" fill="#000" opacity=".38"/>
+
+  <g transform="translate(0,110)">
+    <rect x="0" y="0" width="400" height="560" rx="16" fill="#fff" filter="url(#pop)"/>
+    <rect x="182" y="8" width="36" height="4" rx="2" fill="#d0d0d0"/>
+    <text class="title" x="24" y="42">Change days</text>
+    <text class="sub" x="24" y="62">For some dates, on top of the active schedule.</text>
+
+    <text class="sec" x="24" y="94">WHERE</text>
+    <rect x="24" y="104" width="100" height="30" rx="15" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="74" y="123">Whole home</text>
+    <rect x="130" y="104" width="214" height="30" rx="15" fill="#03a9f4"/><text class="chip on" x="237" y="123">Guest room, Basement bathroom</text>
+
+    <text class="sec" x="24" y="162">WHEN</text>
+    <rect x="24" y="172" width="168" height="40" rx="8" fill="#fff" stroke="#e0e0e0"/>
+    <text class="lbl" x="34" y="186">From</text><text class="field" x="34" y="204">Fri 12 Nov</text>
+    <rect x="204" y="172" width="168" height="40" rx="8" fill="#fff" stroke="#e0e0e0"/>
+    <text class="lbl" x="214" y="186">To</text><text class="field" x="214" y="204">Sun 14 Nov</text>
+
+    <text class="sec" x="24" y="240">LIVE THEM</text>
+    <circle cx="34" cy="268" r="8" fill="none" stroke="#9e9e9e" stroke-width="2"/>
+    <text class="opt" x="52" y="273">Like a</text>
+    <rect x="104" y="255" width="96" height="26" rx="13" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="152" y="273" style="fill:#9e9e9e">Sunday ▾</text>
+    <rect x="12" y="290" width="376" height="40" rx="8" fill="#e1f5fe"/>
+    <circle cx="34" cy="310" r="8" fill="none" stroke="#03a9f4" stroke-width="2"/><circle cx="34" cy="310" r="4" fill="#03a9f4"/>
+    <text class="opt sel" x="52" y="315">With one of each room's days</text>
+
+    <g transform="translate(0,346)">
+      <text class="row" x="24" y="16">Guest room</text>
+      <rect x="170" y="2" width="120" height="24" rx="12" fill="#fff" stroke="#03a9f4"/><text class="nd" x="182" y="18">Guests ▾</text>
+      <use xlink:href="#guests" href="#guests" x="24" y="34" width="348" height="9"/>
+    </g>
+    <g transform="translate(0,400)">
+      <text class="row" x="24" y="16">Basement bathroom</text>
+      <rect x="170" y="2" width="120" height="24" rx="12" fill="#fff" stroke="#03a9f4"/><text class="nd" x="182" y="18">Showers ▾</text>
+      <use xlink:href="#showers" href="#showers" x="24" y="34" width="348" height="9"/>
+    </g>
+    <text class="sub" x="24" y="470">Each ▾ lists the days of that room only.</text>
+
+    <rect x="196" y="488" width="84" height="36" rx="8" fill="#fff" stroke="#e0e0e0"/><text class="btn" x="238" y="511">Cancel</text>
+    <rect x="288" y="488" width="84" height="36" rx="8" fill="#03a9f4"/><text class="btn primary" x="330" y="511">Apply</text>
+  </g>
+</svg>

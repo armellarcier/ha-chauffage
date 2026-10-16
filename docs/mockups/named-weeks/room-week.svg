@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="672" viewBox="0 0 400 672">
+  <style>
+    text { font-family: Roboto, "Segoe UI", Helvetica, Arial, sans-serif; fill: #212121; }
+    .h { font-size: 18px; font-weight: 500; }
+    .tab { font-size: 13px; text-anchor: middle; }
+    .tab.on { font-weight: 600; }
+    .chip { font-size: 12.5px; text-anchor: middle; }
+    .chip.on { fill: #fff; font-weight: 500; }
+    .bar { font-size: 12.5px; fill: #727272; }
+    .name { font-size: 14px; font-weight: 600; }
+    .prop { font-size: 11.5px; fill: #727272; }
+    .day { font-size: 11.5px; fill: #727272; }
+    .day.today { fill: #0288d1; font-weight: 700; }
+    .nd { font-size: 11.5px; }
+    .hint { font-size: 12px; fill: #727272; }
+  </style>
+  <defs>
+    <symbol id="liv-work" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.5" height="1" fill="#43a047"/><rect x="6.5" width="2" height="1" fill="#f57c00"/>
+      <rect x="8.5" width="9" height="1" fill="#43a047"/><rect x="17.5" width="5" height="1" fill="#f57c00"/>
+      <rect x="22.5" width="1.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="liv-home" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8" height="1" fill="#43a047"/><rect x="8" width="15" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="leo-school" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6.25" height="1" fill="#43a047"/><rect x="6.25" width="1" height="1" fill="#f57c00"/>
+      <rect x="7.25" width="13.25" height="1" fill="#43a047"/><rect x="20.5" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="22" width="2" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="leo-lie" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="9.5" height="1" fill="#43a047"/><rect x="9.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="10.5" width="10" height="1" fill="#43a047"/><rect x="20.5" width="2.5" height="1" fill="#f57c00"/>
+      <rect x="23" width="1" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="emma-school" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="7" height="1" fill="#43a047"/><rect x="7" width="1" height="1" fill="#f57c00"/>
+      <rect x="8" width="11.5" height="1" fill="#43a047"/><rect x="19.5" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="21" width="3" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="emma-wed" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="7.5" height="1" fill="#43a047"/><rect x="7.5" width="1" height="1" fill="#f57c00"/>
+      <rect x="8.5" width="3.5" height="1" fill="#43a047"/><rect x="12" width="9" height="1" fill="#f57c00"/>
+      <rect x="21" width="3" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="emma-lie" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="8.5" height="1" fill="#43a047"/><rect x="8.5" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="10" width="9.5" height="1" fill="#43a047"/><rect x="19.5" width="1.5" height="1" fill="#f57c00"/>
+      <rect x="21" width="3" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="office-uf" viewBox="0 0 24 1" preserveAspectRatio="none">
+      <rect x="0" width="6" height="1" fill="#43a047"/><rect x="6" width="10.5" height="1" fill="#f57c00"/>
+      <rect x="16.5" width="7.5" height="1" fill="#43a047"/>
+    </symbol>
+    <symbol id="eco" viewBox="0 0 24 1" preserveAspectRatio="none"><rect width="24" height="1" fill="#43a047"/></symbol>
+    <filter id="sh" x="-10%" y="-20%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity=".22"/></filter>
+  </defs>
+
+  <rect width="400" height="672" fill="#eef0f2"/>
+  <rect x="12" y="12" width="376" height="648" rx="12" fill="#fff" stroke="#e0e0e0"/>
+  <text class="h" x="28" y="44">Chauffage</text>
+
+  <rect x="28" y="58" width="344" height="34" rx="10" fill="#f0f0f0"/>
+  <rect x="144" y="61" width="112" height="28" rx="8" fill="#fff" filter="url(#sh)"/>
+  <text class="tab" x="87" y="80">Right now</text>
+  <text class="tab on" x="200" y="80">Schedules</text>
+  <text class="tab" x="313" y="80">Days</text>
+
+  <rect x="28" y="104" width="84" height="28" rx="14" fill="#03a9f4"/>
+  <circle cx="44" cy="118" r="4" fill="#fff"/><text class="chip on" x="76" y="122">Normal</text>
+  <rect x="118" y="104" width="60" height="28" rx="14" fill="#fff" stroke="#e0e0e0"/><text class="chip" x="148" y="122">Away</text>
+  <rect x="184" y="104" width="32" height="28" rx="14" fill="none" stroke="#bdbdbd" stroke-dasharray="4 3"/><text class="chip" x="200" y="122" style="fill:#727272">+</text>
+
+  <rect x="28" y="142" width="344" height="30" rx="8" fill="#f0f0f0"/>
+  <circle cx="42" cy="157" r="4" fill="#43a047"/>
+  <text class="bar" x="52" y="161"><tspan font-weight="600" fill="#212121">Normal</tspan> is active · each room with its own days</text>
+
+  <!-- Living room -->
+  <g transform="translate(0,184)">
+    <text class="name" x="28" y="18">Living room</text><text class="prop" x="372" y="18" text-anchor="end">radiators, 35 m²</text>
+    <g transform="translate(0,26)"><text class="day today" x="28" y="15">Mon–Fri</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">Working day ▾</text>
+      <use xlink:href="#liv-work" href="#liv-work" x="208" y="6" width="164" height="10"/></g>
+    <g transform="translate(0,54)"><text class="day" x="28" y="15">Sat–Sun</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">At home ▾</text>
+      <use xlink:href="#liv-home" href="#liv-home" x="208" y="6" width="164" height="10"/></g>
+    <line x1="28" y1="86" x2="372" y2="86" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Léo -->
+  <g transform="translate(0,274)">
+    <text class="name" x="28" y="18">Léo's room</text><text class="prop" x="372" y="18" text-anchor="end">convector, north side</text>
+    <g transform="translate(0,26)"><text class="day today" x="28" y="15">Mon–Fri</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">School day ▾</text>
+      <use xlink:href="#leo-school" href="#leo-school" x="208" y="6" width="164" height="10"/></g>
+    <g transform="translate(0,54)"><text class="day" x="28" y="15">Sat–Sun</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">Lie-in ▾</text>
+      <use xlink:href="#leo-lie" href="#leo-lie" x="208" y="6" width="164" height="10"/></g>
+    <line x1="28" y1="86" x2="372" y2="86" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Emma -->
+  <g transform="translate(0,364)">
+    <text class="name" x="28" y="18">Emma's room</text><text class="prop" x="372" y="18" text-anchor="end">radiator, south side</text>
+    <g transform="translate(0,26)"><text class="day today" x="28" y="15">Mon–Tue</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">School day ▾</text>
+      <use xlink:href="#emma-school" href="#emma-school" x="208" y="6" width="164" height="10"/></g>
+    <g transform="translate(0,54)"><text class="day" x="28" y="15">Wed</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">Wednesday ▾</text>
+      <use xlink:href="#emma-wed" href="#emma-wed" x="208" y="6" width="164" height="10"/></g>
+    <g transform="translate(0,82)"><text class="day" x="28" y="15">Thu–Fri</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">School day ▾</text>
+      <use xlink:href="#emma-school" href="#emma-school" x="208" y="6" width="164" height="10"/></g>
+    <g transform="translate(0,110)"><text class="day" x="28" y="15">Sat–Sun</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">Lie-in ▾</text>
+      <use xlink:href="#emma-lie" href="#emma-lie" x="208" y="6" width="164" height="10"/></g>
+    <line x1="28" y1="142" x2="372" y2="142" stroke="#e0e0e0"/>
+  </g>
+
+  <!-- Office -->
+  <g transform="translate(0,510)">
+    <text class="name" x="28" y="18">Office</text><text class="prop" x="372" y="18" text-anchor="end">underfloor: slow, starts early</text>
+    <g transform="translate(0,26)"><text class="day today" x="28" y="15">Mon–Tue</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">Remote work ▾</text>
+      <use xlink:href="#office-uf" href="#office-uf" x="208" y="6" width="164" height="10"/></g>
+    <g transform="translate(0,54)"><text class="day" x="28" y="15">Wed–Sun</text>
+      <rect x="80" y="0" width="120" height="22" rx="11" fill="#fff" stroke="#e0e0e0"/><text class="nd" x="92" y="15">Empty ▾</text>
+      <use xlink:href="#eco" href="#eco" x="208" y="6" width="164" height="10"/></g>
+  </g>
+
+  <text class="hint" x="28" y="616">The ▾ lists only the days of that room. Identical days</text>
+  <text class="hint" x="28" y="632">in a row are grouped; another day on one of them splits it.</text>
+</svg>
