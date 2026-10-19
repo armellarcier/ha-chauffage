@@ -30,6 +30,72 @@ describe('configuration and loading', () => {
   });
 });
 
+describe('today', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-16T10:00:00+02:00') })); // a Friday
+  afterEach(() => mock.timers.reset());
+
+  test('today stands out among the days and thermostats: its whole row is tinted, with a border on each side, thicker on the left', () => {
+    const card = createCard(fakeHass());
+    const today = card.shadowRoot.querySelectorAll('.dgroup.today');
+    assert.equal(today.length, 1);
+    assert.equal(today[0].querySelector('.day').dataset.day, '4');
+    assert.equal(today[0].querySelectorAll('.bar').length, 2); // every thermostat of the day
+    const row = card.shadowRoot.querySelector('style').textContent.match(/\.dgroup\.today \{([^}]*)\}/);
+    assert.ok(row);
+    assert.match(row[1], /border:1px solid var\(--primary-color\)/);
+    assert.match(row[1], /border-left-width:4px/);
+    assert.match(row[1], /border-top-width:0/);
+    assert.match(row[1], /border-bottom-width:0/);
+    assert.match(row[1], /background:color-mix\(in srgb, var\(--primary-color\)/);
+  });
+
+  test('the current time is one line across all the thermostats of today, whatever their number', () => {
+    const card = createCard(fakeHass());
+    const today = card.shadowRoot.querySelector('.dgroup.today');
+    assert.equal(today.querySelectorAll('.bar .now').length, 2);
+    assert.equal(card.shadowRoot.querySelectorAll('.now').length, 2); // today only
+    // Each line reaches the next bar, even when the bars are thinner than their row (3 thermostats
+    // or more: 24 px bars in 28 px rows, 5 px apart)
+    const css = card.shadowRoot.querySelector('style').textContent;
+    const reach = (side, edge) => Number(css.match(new RegExp(`\\.sub:not\\(:${side}-child\\) \\.now \\{[^}]*${edge}:-(\\d+)px`))[1]);
+    assert.ok(reach('first', 'top') + 3 >= 2 + 5 + 2);
+    assert.ok(reach('last', 'bottom') + 3 >= 2 + 5 + 2);
+  });
+
+  test('the names of the days and of the thermostats are aligned against their bars', () => {
+    const card = createCard(fakeHass());
+    const css = card.shadowRoot.querySelector('style').textContent;
+    assert.match(css, /\.day \{[^}]*text-align:right/);
+    assert.match(css, /\.name \{[^}]*text-align:right/);
+  });
+
+  test('the column of the thermostat names is as wide as the longest name shown, up to a maximum', () => {
+    const card = createCard(fakeHass());
+    // Every cell of the column (and the scale above it) holds the names shown, invisible: each row
+    // sizes its column on the longest one, so all rows have the same column
+    const cells = [...card.shadowRoot.querySelectorAll('.scale .name, .sub .name')];
+    assert.equal(cells.length, 1 + 7 * 2);
+    for (const cell of cells) {
+      const sizer = cell.querySelector('.sizer');
+      assert.equal(sizer.getAttribute('aria-hidden'), 'true');
+      assert.deepEqual([...sizer.children].map((s) => s.textContent), ['Salon', 'Bureau']);
+    }
+    const css = card.shadowRoot.querySelector('style').textContent;
+    assert.match(css, /\.multi \.sub \{ grid-template-columns:fit-content\(100px\) 1fr 28px; \}/);
+    assert.match(css, /\.multi \.scale \{ grid-template-columns:36px fit-content\(100px\) 1fr 28px; \}/);
+  });
+
+  test('the current time line has a triangle at each end, like a playhead, in the accent color with a light shadow', () => {
+    const card = createCard(fakeHass());
+    const css = card.shadowRoot.querySelector('style').textContent;
+    const line = css.match(/\n {2}\.now \{([^}]*)\}/)[1];
+    assert.match(line, /color:var\(--accent-color/);
+    assert.match(line, /filter:drop-shadow\(/);
+    assert.match(css, /\.sub:first-child \.now::before \{[^}]*border-top:\d+px solid/); // pointing down
+    assert.match(css, /\.sub:last-child \.now::after \{[^}]*border-bottom:\d+px solid/); // pointing up
+  });
+});
+
 describe('activating a schedule', () => {
   const bar = (card) => card.shadowRoot.querySelector('.schedule-bar');
   const tab = (card, schedule) => card.shadowRoot.querySelector(`.tab[data-schedule="${schedule}"]`);

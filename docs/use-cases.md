@@ -97,6 +97,9 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Show the weeks per schedule, one or several thermostats, selection kept for the next visit | `C/card.test.mjs` (configuration, choosing thermostats), `C/interactions.test.mjs` (thermostats shown) |
+| Find today at a glance among the days and thermostats: its whole row is tinted, with a border on each side, thicker on the left | `C/card.test.mjs` (today) |
+| See the current time as one line across today's thermostats, whatever their number, with a triangle at each end | `C/card.test.mjs` (today) |
+| Names of the days and of the thermostats aligned against their bars, the names column as wide as the longest name shown (up to a maximum) | `C/card.test.mjs` (today) |
 | Add a cut (double click), insert, delete, change a slot's preset, move times (drag or fields), close the editor | `C/card.test.mjs` (editing a day), `C/interactions.test.mjs` (slot editor buttons, double click, dragging, editing a slot) |
 | Move a whole slot by dragging it (same length, within its neighbors; by touch, the selected slot only) | `C/interactions.test.mjs` (dragging a whole slot) |
 | Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
