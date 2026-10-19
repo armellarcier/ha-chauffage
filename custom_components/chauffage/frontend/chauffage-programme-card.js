@@ -1257,7 +1257,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const m = this._menu;
         const open = m && m.climate === climate && m.day === d;
         return `<div class="sub">
-          ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}</div>` : ''}
+          ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
           ${this._barHtml(climate, segs, d, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
         </div>`;
@@ -1537,7 +1537,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         <div class="tabs">${tabs}</div>
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}
-        <div class="scale"><div></div>${multi ? '<div></div>' : ''}<div class="ticks">${ticks}</div><div></div></div>
+        <div class="scale"><div></div>${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}<div class="ticks">${ticks}</div><div></div></div>
         ${days}
         ${this._menuHtml()}
         ${this._editorHtml()}
@@ -2374,6 +2374,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<span class="mi-link" data-more-info="${esc(climate)}" title="${esc(this._loc.t('openThermostat'))}">${esc(this._name(climate))}</span>`;
   }
 
+  // The names shown, invisible, in every cell of the names column: each row sizes the column on
+  // the longest one, so that all rows (separate grids) have the same column
+  _nameSizer() {
+    return `<span class="sizer" aria-hidden="true">${this._shown.map((c) => `<span>${esc(this._name(c))}</span>`).join('')}</span>`;
+  }
+
   // Plain click: shows only this thermostat. "Plusieurs" mode or Ctrl/Shift+click: adds / removes it.
   _toggleShown(climate, additive) {
     const order = this._thermostats.map((t) => t.entity);
@@ -2586,13 +2592,23 @@ const STYLE = `
 
   /* Grid: day | (name) | bar | tools */
   .scale { display:grid; grid-template-columns:36px 1fr 28px; gap:8px; align-items:center; }
-  .multi .scale { grid-template-columns:36px 100px 1fr 28px; }
+  .multi .scale { grid-template-columns:36px fit-content(100px) 1fr 28px; }
   .dgroup { display:grid; grid-template-columns:36px 1fr; gap:8px; align-items:center; margin:7px 0; }
   .multi .dgroup { padding-top:7px; border-top:1px solid var(--divider-color); }
+  /* Today stands out among the days and thermostats: its whole row is tinted, with a border on
+     each side, thicker on the left. Wider than the row (negative margin, padding minus the
+     border) so that its content stays aligned with the other days */
+  .dgroup.today { margin-left:-8px; margin-right:-8px; padding:5px 7px 5px 4px; border-radius:6px;
+    border:1px solid var(--primary-color); border-left-width:4px; border-top-width:0; border-bottom-width:0;
+    background:rgba(3,169,244,.12); background:color-mix(in srgb, var(--primary-color) 12%, transparent); }
+  .multi .dgroup.today { padding-top:7px; padding-bottom:7px; }
+  .multi .dgroup.today + .dgroup { border-top-color:transparent; }
   .subs { display:flex; flex-direction:column; gap:5px; }
   .sub { display:grid; grid-template-columns:1fr 28px; gap:8px; align-items:center; }
-  .multi .sub { grid-template-columns:100px 1fr 28px; }
-  .name { font-size:.78em; color:var(--secondary-text-color); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .multi .sub { grid-template-columns:fit-content(100px) 1fr 28px; }
+  .name { font-size:.78em; color:var(--secondary-text-color); overflow:hidden; white-space:nowrap; text-align:right; }
+  .name .mi-link { display:block; overflow:hidden; text-overflow:ellipsis; }
+  .sizer, .sizer span { display:block; height:0; visibility:hidden; }
   .mi-link { cursor:pointer; }
   .mi-link:hover { color:var(--primary-color); text-decoration:underline; }
   .chip-open { display:inline-flex; vertical-align:-2px; margin-left:4px; padding:1px; border-radius:4px; opacity:.6; cursor:pointer; }
@@ -2603,7 +2619,7 @@ const STYLE = `
   .ticks span { position:absolute; transform:translateX(-50%); }
   .ticks span:first-child { transform:none; }
   .ticks span:last-child { transform:translateX(-100%); }
-  .day { font-size:.9em; color:var(--secondary-text-color); }
+  .day { font-size:.9em; color:var(--secondary-text-color); text-align:right; }
   .dgroup.today .day { color:var(--primary-color); font-weight:700; }
   .bar { position:relative; height:38px; border-radius:6px; background:var(--secondary-background-color);
     user-select:none; -webkit-user-select:none; }
@@ -2652,8 +2668,17 @@ const STYLE = `
   .bar.zoom [hidden] { display:none; }
   .single .day[data-day] { cursor:pointer; }
   .history .target { stroke:#ffe14d; stroke-width:1; }
+  /* The current time: one line across the thermostats of the day, each bar's line reaching the
+     next bar (up to 9 px away: 24 px bars in 28 px rows, 5 px apart), with a triangle at each
+     end, like a playhead */
   .now { position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; z-index:5; pointer-events:none;
-    background:var(--primary-text-color); }
+    color:var(--accent-color, #ff9800); background:currentColor; filter:drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+  .sub:not(:first-child) .now { top:-10px; }
+  .sub:not(:last-child) .now { bottom:-10px; }
+  .sub:first-child .now::before, .sub:last-child .now::after { content:''; position:absolute; left:50%; margin-left:-5px;
+    border-left:5px solid transparent; border-right:5px solid transparent; }
+  .sub:first-child .now::before { top:0; border-top:6px solid; }
+  .sub:last-child .now::after { bottom:0; border-bottom:6px solid; }
   .ibtn { width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center;
     border:1px solid var(--divider-color); border-radius:6px; background:var(--card-background-color);
     color:var(--secondary-text-color); cursor:pointer; }
@@ -2795,9 +2820,9 @@ const STYLE = `
   .pv-foot { margin-left:0; justify-content:flex-end; padding-top:10px; border-top:1px solid var(--divider-color); }
   .missing { color:var(--secondary-text-color); padding:16px; }
   @media (max-width:500px) {
-    .multi .scale { grid-template-columns:30px 60px 1fr 28px; }
+    .multi .scale { grid-template-columns:30px fit-content(60px) 1fr 28px; }
     .dgroup { grid-template-columns:30px 1fr; }
-    .multi .sub { grid-template-columns:60px 1fr 28px; }
+    .multi .sub { grid-template-columns:fit-content(60px) 1fr 28px; }
     .sub { grid-template-columns:1fr 28px; }
     .scale { grid-template-columns:30px 1fr 28px; }
   }

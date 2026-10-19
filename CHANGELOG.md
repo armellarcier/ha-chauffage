@@ -24,6 +24,15 @@ Each entry says whether the release **migrates stored data** and what to do when
   legend, slot popover). When "automatic" means the thermostat's own preset, it is the first
   choice of the list of its presets ("Auto (Comfort)"), instead of a separate choice that
   repeated it.
+- **Today stands out** in the card, to find it at a glance among the days and thermostats: its
+  whole row is tinted in the accent color, with a border on each side, thicker on the left
+  ([#12](https://github.com/armellarcier/ha-chauffage/issues/12)).
+- The current time is **one line across all the thermostats** of today, even from three
+  thermostats on (it was broken between the bars), with a triangle at each end, like a playhead,
+  in the theme's accent color with a light shadow.
+- The names of the days and of the thermostats are aligned against their bars (to the right),
+  and the column of the names is only as wide as the longest name shown (100 px at most, 60 px
+  on a phone).
 - Before Home Assistant 2025.8, the thermostat's sensors are attached to its device the way
   older versions allow it: the device also lists the Chauffage integration.
 
