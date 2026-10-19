@@ -9,6 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
+**History, activation rules, and a card easier to read**: it gathers 0.5.0-beta.1 (the history
+of the measured temperature) and 0.5.0-beta.2 (activation rules), below, and the changes here.
+**Migrates stored data** automatically (v3 → v4, in 0.5.0-beta.2: no rules yet, nothing
+changes). Home Assistant 2025.1 or later.
+
 ### Added
 
 - A slot can be **moved whole** by dragging it in the card: its start and end move together,
@@ -29,12 +36,17 @@ Each entry says whether the release **migrates stored data** and what to do when
   ([#12](https://github.com/armellarcier/ha-chauffage/issues/12)).
 - The current time is **one line across all the thermostats** of today, even from three
   thermostats on (it was broken between the bars), with a triangle at each end, like a playhead,
-  in the theme's accent color with a light shadow.
+  with a light shadow.
 - The names of the days and of the thermostats are aligned against their bars (to the right),
   and the column of the names is only as wide as the longest name shown (100 px at most, 60 px
   on a phone).
 - Before Home Assistant 2025.8, the thermostat's sensors are attached to its device the way
   older versions allow it: the device also lists the Chauffage integration.
+
+### Upgrading
+
+- From 0.4.x or a 0.5.0 beta: update from HACS, restart HA, then reload the browser page. The
+  stored data is migrated by itself; nothing else to do.
 
 ## [0.5.0-beta.2] - 2026-10-14
 
@@ -310,7 +322,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.5.0-beta.2...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0
 [0.5.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.2
 [0.5.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.1
 [0.4.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.4.1

@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.5.0-beta.2';
+const VERSION = '0.5.0';
 
 const DAY_MIN = 1440;
 
