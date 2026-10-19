@@ -85,11 +85,12 @@ describe('today', () => {
     assert.match(css, /\.multi \.scale \{ grid-template-columns:36px fit-content\(100px\) 1fr 28px; \}/);
   });
 
-  test('the current time line has a triangle at each end, like a playhead, in the accent color with a light shadow', () => {
+  test('the current time line has a triangle at each end, like a playhead, in the text color with a light shadow', () => {
     const card = createCard(fakeHass());
     const css = card.shadowRoot.querySelector('style').textContent;
     const line = css.match(/\n {2}\.now \{([^}]*)\}/)[1];
-    assert.match(line, /color:var\(--accent-color/);
+    // Not the accent color: orange by default, like the default Confort preset
+    assert.match(line, /color:var\(--primary-text-color\)/);
     assert.match(line, /filter:drop-shadow\(/);
     assert.match(css, /\.sub:first-child \.now::before \{[^}]*border-top:\d+px solid/); // pointing down
     assert.match(css, /\.sub:last-child \.now::after \{[^}]*border-bottom:\d+px solid/); // pointing up

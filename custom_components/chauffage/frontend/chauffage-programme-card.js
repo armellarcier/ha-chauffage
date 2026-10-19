@@ -2672,7 +2672,7 @@ const STYLE = `
      next bar (up to 9 px away: 24 px bars in 28 px rows, 5 px apart), with a triangle at each
      end, like a playhead */
   .now { position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; z-index:5; pointer-events:none;
-    color:var(--accent-color, #ff9800); background:currentColor; filter:drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+    color:var(--primary-text-color); background:currentColor; filter:drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
   .sub:not(:first-child) .now { top:-10px; }
   .sub:not(:last-child) .now { bottom:-10px; }
   .sub:first-child .now::before, .sub:last-child .now::after { content:''; position:absolute; left:50%; margin-left:-5px;
