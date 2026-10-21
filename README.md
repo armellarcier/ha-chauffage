@@ -35,7 +35,8 @@ data automatically.
 1. In HACS: ⋮ → *Custom repositories* → `https://github.com/armellarcier/ha-chauffage`, type
    *Integration*; then install **ha-chauffage** and restart Home Assistant.
 2. Settings → Devices & services → *Add integration* → **Chauffage**.
-3. Add the card to a dashboard (it is served by the integration: no resource to add):
+3. Add the card to a dashboard (it is served by the integration: no resource to add): *Add card*
+   → **Heating schedules**, or in YAML:
    ```yaml
    type: custom:chauffage-programme-card
    thermostats:
@@ -44,6 +45,8 @@ data automatically.
    ```
    The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
    the week); English and French are available, and `language: en` or `language: fr` forces one.
+   The thermostats, their names and the other options can also be set from the card's visual
+   editor (Edit card); `language` is only set in YAML.
 
 Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Assistant API
 requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,

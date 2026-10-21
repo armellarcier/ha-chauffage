@@ -29,5 +29,6 @@ test('the card loaded before the frontend replaces the registry is registered ag
 
   assert.equal(scoped.get('chauffage-programme-card'), native.get('chauffage-programme-card'));
   assert.equal(scoped.get('chauffage-moreinfo'), native.get('chauffage-moreinfo'));
+  assert.equal(scoped.get('chauffage-programme-card-editor'), native.get('chauffage-programme-card-editor'));
   globalThis.customElements = native;
 });

@@ -242,6 +242,36 @@ describe('choosing the displayed thermostats', () => {
   });
 });
 
+describe('names of the thermostats', () => {
+  const chip = (card, climate) => card.shadowRoot.querySelector(`.chip[data-climate="${climate}"]`).firstChild.textContent.trim();
+  // Like HA from 2025.10: the name of the card's config (text, or pieces such as the area) made
+  // into the name shown, as the Tile card does
+  const withNames = (hass) => Object.assign(hass, {
+    formatEntityName: (st, name) => {
+      if (typeof name === 'string') return name;
+      if (Array.isArray(name)) return name.map((p) => (p.type === 'area' ? 'Rez-de-chaussée' : st.attributes.friendly_name)).join(' ');
+      return st.attributes.friendly_name;
+    },
+  });
+
+  test('a thermostat is shown with its own name, or the name given in the card', () => {
+    const card = createCard(fakeHass(), { thermostats: [{ entity: 'climate.salon', name: 'Séjour' }, 'climate.bureau'] });
+    assert.equal(chip(card, 'climate.salon'), 'Séjour');
+    assert.equal(chip(card, 'climate.bureau'), 'Bureau');
+  });
+
+  test('a name made of pieces (area, device, entity) is shown as Home Assistant makes it', () => {
+    const card = createCard(withNames(fakeHass()), { thermostats: [{ entity: 'climate.salon', name: [{ type: 'area' }, { type: 'entity' }] }, 'climate.bureau'] });
+    assert.equal(chip(card, 'climate.salon'), 'Rez-de-chaussée Salon');
+    assert.equal(chip(card, 'climate.bureau'), 'Bureau');
+  });
+
+  test('before Home Assistant 2025.10, a name made of pieces shows the thermostat\'s own name', () => {
+    const card = createCard(fakeHass(), { thermostats: [{ entity: 'climate.salon', name: [{ type: 'area' }, { type: 'entity' }] }] });
+    assert.equal(chip(card, 'climate.salon'), 'Salon');
+  });
+});
+
 describe('thermostat more-info dialog', () => {
   let received;
   const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
