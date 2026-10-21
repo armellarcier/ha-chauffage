@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-21
+
+**A visual editor for the card**, and a better place in the *Add card* dialog. Does not migrate
+stored data. Home Assistant 2025.1 or later.
+
 ### Added
 
 - The card has a **visual editor** (dashboard → Edit card), laid out like Home Assistant's own
@@ -18,15 +23,21 @@ Each entry says whether the release **migrates stored data** and what to do when
   does not show (such as `language`) are kept. In a sections view, the *Layout* tab can now
   resize the card (#10).
 - Names made of pieces are shown as Home Assistant's own cards show them (from 2025.10).
-- In the *Add card* dialog: a live preview (every thermostat, the first one shown), a link to the documentation, the name in the
-  language of Home Assistant, the card suggested for a thermostat (*By entity* tab, Home
-  Assistant 2026.6 or later), and a new card starts with the thermostats that already have a
-  schedule (all of them before any schedule).
+- In the *Add card* dialog: a live preview (every thermostat, the first one shown), a link to
+  the documentation, the name in the language of Home Assistant, the card suggested for a
+  thermostat (*By entity* tab, Home Assistant 2026.6 or later), and a new card starts with the
+  thermostats that already have a schedule (all of them before any schedule).
 
 ### Fixed
 
 - *Rules* view: **Save** is only enabled when the rules have changed, and is disabled again
   once they are saved, so it is clear whether they are saved (#16).
+
+### Upgrading
+
+- From 0.5.0: update from HACS, restart HA, then reload the browser page. Cards written in YAML
+  keep working as they are; `language` is still read from YAML but no longer offered in the
+  visual editor.
 
 ## [0.5.0] - 2026-10-19
 
@@ -341,7 +352,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.1
 [0.5.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0
 [0.5.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.2
 [0.5.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.1
