@@ -37,8 +37,8 @@ future contributor might question.
   set for a day during the first comfort slot must still hold when the next eco slot starts. A
   thermostat going back on its own (VTherm leaving safety mode) does not end it either.
 - **Holding the slot's preset past the next slots is done from the card**, not by hand: the
-  override popover changes the override's value (a preset, or a temperature), and the
-  integration sends it to the thermostat. Picking the slot's preset on the thermostat is read as
+  override popover, and the block in the thermostat's more-info dialog, change the override's
+  value (a preset, or a temperature), and the integration sends it to the thermostat. Picking the slot's preset on the thermostat is read as
   "back to the schedule". The card sends what the preset means on that thermostat (its climate
   preset, or a temperature), so the stored format of overrides does not change; on a thermostat
   without presets, "Comfort" picked in the card shows as its temperature.

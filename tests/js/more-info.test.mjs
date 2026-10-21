@@ -1,5 +1,5 @@
 // "Schedule" block injected into a thermostat's more-info dialog.
-import { fakeHass, cleanup } from './helpers.mjs';
+import { fakeHass, cleanup, integrationData } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -47,5 +47,42 @@ describe('more-info block', () => {
     const msg = hass.events.at(-1);
     assert.equal(msg.type, 'chauffage/override/set');
     assert.equal(new Date(msg.override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+  });
+
+  // What the integration says each preset means on this thermostat (here: no climate presets)
+  const withTargets = () => {
+    const data = integrationData({ overrides: { 'climate.salon': override } });
+    data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { temperature: 17 } } };
+    return fakeHass({ data });
+  };
+
+  test('a preset picked in the block becomes the override, until the same end', () => {
+    const hass = withTargets();
+    const el = block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
+    const msg = hass.events.at(-1);
+    assert.equal(msg.type, 'chauffage/override/set');
+    assert.deepEqual(msg.override, { ...override, kind: 'temperature', value: 20 });
+  });
+
+  test('a temperature typed in the block becomes the override', () => {
+    const hass = withTargets();
+    const el = block(hass, 'climate.salon');
+    const input = el.shadowRoot.querySelector('input[data-override-temperature]');
+    assert.equal(input.value, '21.5');
+    input.value = '22';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.deepEqual(hass.events.at(-1).override, { ...override, kind: 'temperature', value: 22 });
+  });
+
+  test('a temperature being typed survives an update of the thermostat', () => {
+    const hass = withTargets();
+    const el = block(hass, 'climate.salon');
+    const input = el.shadowRoot.querySelector('input[data-override-temperature]');
+    input.focus();
+    input.value = '2';
+    const salon = hass.states['climate.salon'];
+    el.hass = { ...hass, states: { ...hass.states, 'climate.salon': { ...salon, attributes: { ...salon.attributes, current_temperature: 20.1 } } } };
+    assert.equal(el.shadowRoot.querySelector('input[data-override-temperature]').value, '2');
   });
 });

@@ -740,6 +740,32 @@ function presetsOf(src, loc) {
   return src.presets().map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature }));
 }
 const presetOf = (presets, id, loc) => presets.find((p) => p.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
+// From the coldest to the warmest
+const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => (a.temperature ?? 19) - (b.temperature ?? 19));
+
+// The value of an override, in the card's popover and the more-info block: one of the presets
+// (what it means on this thermostat, as the integration says: `targets`), or a temperature (the
+// thermostat's setpoint while the override is a preset). Returns { presets, temperature } HTML.
+function overrideValueHtml(d, src, climate, attrs, loc) {
+  const targets = src.targets(climate);
+  const presets = sortedPresets(src, loc).filter((l) => targets[l.id]).map((l) => {
+    const [[kind, value]] = Object.entries(targets[l.id]);
+    const on = d.kind === kind && d.value === value;
+    return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
+  }).join('');
+  const value = d.kind === 'temperature' ? d.value : attrs.temperature;
+  const temperature = `<label>${esc(loc.t('presetTemperature'))} <input type="number" data-override-temperature
+    step="${attrs.target_temp_step || 0.5}" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 30}" value="${value ?? ''}"> ${esc(loc.unit)}</label>`;
+  return { presets: `<div class="presets">${presets}</div>`, temperature };
+}
+
+// The override `d` set to a preset (what it means on this thermostat), until the same end
+function overrideWithPreset(d, src, climate, preset) {
+  const target = src.targets(climate)[preset];
+  if (!target) return null;
+  const [[kind, value]] = Object.entries(target);
+  return { ...d, kind, value };
+}
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
 // Another preset for a new slot: comfort ↔ eco when they exist, otherwise the next preset
@@ -973,7 +999,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   // Presets as shown (columns, legend, slot popover): from the coldest to the warmest default
   // temperature; the integration keeps them in their own order
   _presets() {
-    return presetsOf(this._source(), this._loc).sort((a, b) => (a.temperature ?? 19) - (b.temperature ?? 19));
+    return sortedPresets(this._source(), this._loc);
   }
 
   _preset(id) {
@@ -1445,26 +1471,16 @@ class ChauffageProgrammeCard extends HTMLElement {
       : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
     const remaining = Math.max(0, Math.round((endsAt - today) / 60000));
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
-    // The value: one of the presets (what it means on this thermostat), or a temperature
-    const targets = this._source().targets(climate);
-    const presets = this._presets().filter((l) => targets[l.id]).map((l) => {
-      const [[kind, value]] = Object.entries(targets[l.id]);
-      const on = d.kind === kind && d.value === value;
-      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
-    }).join('');
     const attrs = (this._hass.states[climate] || {}).attributes || {};
-    const temperature = d.kind === 'temperature' ? d.value : attrs.temperature;
+    const value = overrideValueHtml(d, this._source(), climate, attrs, this._loc);
     return `<div class="editor override-ed">
       <div class="ed-head">
         <strong>${this._moreInfoLink(climate)} · ${esc(t('temporarySetpoint'))}</strong>
         <span class="override-value">${esc(this._overrideLabel(d))}</span>
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>
-      <div class="presets">${presets}</div>
-      <div class="ed-head">
-        <label>${esc(t('presetTemperature'))} <input type="number" data-override-temperature
-          step="${attrs.target_temp_step || 0.5}" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 30}" value="${temperature ?? ''}"> ${esc(this._loc.unit)}</label>
-      </div>
+      ${value.presets}
+      <div class="ed-head">${value.temperature}</div>
       <div class="ed-head">
         <label>${esc(t('until'))} <input type="time" data-override-end step="${this._config.step * 60}" value="${hmOf(endsAt)}"></label>
         <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}</span>
@@ -2624,10 +2640,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (act === 'override-del') return this._sendOverride(c, null);
       if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.end).getTime() + Number(ds.min) * 60000));
       if (act === 'override-preset') {
-        const target = this._source().targets(c)[ds.preset];
-        if (!target) return;
-        const [[kind, value]] = Object.entries(target);
-        return this._sendOverride(c, { ...d, kind, value });
+        const changed = overrideWithPreset(d, this._source(), c, ds.preset);
+        return changed && this._sendOverride(c, changed);
       }
     }
     if (act === 'view') {
@@ -3014,6 +3028,8 @@ class ChauffageMoreInfo extends HTMLElement {
     const key = [s[this._entity], weeks, overrides, schedule, Math.floor(Date.now() / 60000), this._loc.signature];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
+    const focused = this.shadowRoot.activeElement;
+    if (focused && focused.matches('input')) return; // nor while a value is typed in
     this._key = key;
     this._render();
   }
@@ -3105,12 +3121,16 @@ class ChauffageMoreInfo extends HTMLElement {
       const dayLabel = endsAt.toDateString() === new Date().toDateString()
         ? t('today') : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
       const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
+      const attrs = (this._hass.states[this._entity] || {}).attributes || {};
+      const value = overrideValueHtml(d, dataSource(this._hass), this._entity, attrs, this._loc);
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc))}</span>
           <label>${esc(t('until'))} <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
           <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}</span>
         </div>
+        ${value.presets}
+        <div class="line">${value.temperature}</div>
         <div class="btns">
           ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
           <button class="danger" data-del>${esc(t('resume'))}</button>
@@ -3151,11 +3171,20 @@ class ChauffageMoreInfo extends HTMLElement {
     const d = this._currentOverride();
     if (!d) return;
     if (b.hasAttribute('data-del')) return this._send(null);
+    if (b.dataset.act === 'override-preset') {
+      const changed = overrideWithPreset(d, dataSource(this._hass), this._entity, b.dataset.preset);
+      return changed && this._send(changed);
+    }
     this._setEnd(new Date(parseDate(d.end).getTime() + Number(b.dataset.min) * 60000));
   }
 
   _onChange(e) {
     const el = e.target;
+    if (el.hasAttribute('data-override-temperature') && el.value !== '') {
+      const d = this._currentOverride();
+      if (d) this._send({ ...d, kind: 'temperature', value: Number(el.value) });
+      return;
+    }
     if (!el.hasAttribute('data-end') || !el.value) return;
     // Next occurrence of this time (today, otherwise tomorrow)
     const endsAt = new Date();
@@ -3236,8 +3265,12 @@ const MORE_INFO_STYLE = `
     background:var(--primary-text-color); color:var(--card-background-color); }
   .override-handle:hover .tip, .override-handle.drag .tip { display:block; }
   .line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
-  input[type=time] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
+  input[type=time], input[type=number] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--card-background-color); color:var(--primary-text-color); }
+  input[type=number] { width:5em; }
+  .presets { display:flex; flex-wrap:wrap; gap:6px; }
+  .presets button { border:0; color:#fff; padding:6px 10px; opacity:.5; }
+  .presets button.on { opacity:1; box-shadow:0 0 0 2px var(--primary-text-color); }
   .bar.big + .today-lbl { margin-top:8px; }
   .now { position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; z-index:3; pointer-events:none;
     background:var(--primary-text-color); }

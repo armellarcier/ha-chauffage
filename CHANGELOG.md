@@ -13,9 +13,9 @@ Does not migrate stored data; overrides in progress are kept.
 
 ### Added
 
-- The override popover in the card changes the override's **value**: one of the presets, or a
-  temperature, until the same end. The thermostat follows. This is the way to keep the current
-  preset past the next slots (#19).
+- The override's **value** can be changed in the card's override popover and in the
+  thermostat's more-info dialog: one of the presets, or a temperature, until the same end. The
+  thermostat follows. This is the way to keep the current preset past the next slots (#19).
 
 ### Fixed
 
@@ -30,7 +30,8 @@ Does not migrate stored data; overrides in progress are kept.
 
 - Picking the slot's preset by hand during an override now **resumes the schedule**. To keep
   that preset past the next slots, change the override's value in the card's override popover
-  (or use the `chauffage.set_override` service), then extend it.
+  or the thermostat's more-info dialog (or use the `chauffage.set_override` service), then
+  extend it.
 
 ## [0.5.1] - 2026-10-21
 

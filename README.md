@@ -20,7 +20,7 @@ presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_the
   days, several thermostats per day, open a thermostat's more-info dialog from the schedule, see
   the temperature measured over the last 7 days drawn over each day;
 - **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
-  shown and adjustable on the card (its end, and its value: a preset or a temperature) and in
+  shown and adjustable (its end, and its value: a preset or a temperature) on the card and in
   the thermostat's more-info dialog, then the thermostat falls back to its schedule. Going back
   to the slot's preset by hand resumes the schedule at once.
 

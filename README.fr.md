@@ -20,7 +20,7 @@ préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versati
   copier / coller des journées, plusieurs thermostats par journée, voir la température mesurée
   des 7 derniers jours tracée sur chaque journée ;
 - **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
-  visible et ajustable sur la carte (sa fin, et sa valeur : un préréglage ou une température)
+  visible et ajustable (sa fin, et sa valeur : un préréglage ou une température) sur la carte
   et dans la fenêtre de détail du thermostat, puis le thermostat reprend son programme.
   Revenir à la main au préréglage du créneau reprend le programme tout de suite.
 
