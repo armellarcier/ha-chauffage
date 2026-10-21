@@ -34,6 +34,13 @@ def end_of(override: dict):
     return dt_util.parse_datetime(override["end"])
 
 
+def card_choice(bench: Bench, entity_id: str, preset: str) -> dict:
+    """What the card sends for a preset picked in the override popover: what that preset means
+    on this thermostat (its climate preset, or a temperature), as the integration tells the card."""
+    ((kind, value),) = bench.runtime.targets_of(entity_id)[preset].items()
+    return {"kind": kind, "value": value}
+
+
 # ----- detection -----
 
 async def test_a_setpoint_changed_by_hand_creates_a_2_hour_override(bench: Bench):
@@ -117,45 +124,37 @@ async def test_going_back_to_the_scheduled_preset_by_hand_ends_the_override(benc
     override instead of resuming the schedule."""
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
+    await bench.manual_setpoint("climate.bureau", 19)
     bench.thermostat("climate.salon", "eco", context=CTX_USER)  # the slot's preset, picked by hand
     await bench.hass.async_block_till_done()
-    assert bench.overrides() == {}
+    assert set(bench.overrides()) == {"climate.bureau"}
     assert bench.applied() == {}  # already as the schedule wants it
 
 
-async def test_going_back_to_the_scheduled_preset_ends_only_that_thermostat_s_override(bench: Bench):
+async def test_the_thermostat_going_back_to_the_slot_s_preset_by_itself_keeps_the_override(bench: Bench):
+    """Only a user resumes the schedule (not VTherm leaving its safety mode, for example)."""
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
-    await bench.manual_setpoint("climate.bureau", 19)
-    bench.thermostat("climate.salon", "eco", context=CTX_USER)
+    bench.thermostat("climate.salon", "eco")  # no user: the thermostat itself
     await bench.hass.async_block_till_done()
-    assert set(bench.overrides()) == {"climate.bureau"}
-
-
-async def test_an_override_to_the_slot_s_preset_lasts_until_its_end(bench: Bench):
-    """Set from the card or a service to keep the current preset past the next slots: only a
-    change on the thermostat itself can end it early."""
-    await start(bench)
-    override = bench.runtime.new_override("preset", "eco", minutes=24 * 60)
-    await bench.set_override("climate.salon", override)
-    bench.thermostat("climate.salon", "eco", context=CTX_USER, current_temperature=19.5)  # reports again
-    await bench.hass.async_block_till_done()
-    await bench.go_to("17:30")  # the comfort slot starts
-    assert bench.applied() == {}
-    assert bench.overrides()["climate.salon"] == override
+    assert "climate.salon" in bench.overrides()
 
 
 async def test_a_slot_with_the_override_s_preset_does_not_end_it(bench: Bench):
     """Comfort, eco, comfort, eco: an override to comfort set for the whole day during the first
-    comfort slot still holds when the second eco slot starts."""
+    comfort slot still holds when the second eco slot starts, and when the thermostat reports
+    again."""
     await bench.go_to("10:00")
     bench.thermostat("climate.salon", "comfort")
     await bench.setup()
     await bench.save_weeks({"climate.salon": {"normal": every_day(
         ("00:00", "comfort"), ("11:00", "eco"), ("12:00", "comfort"), ("13:00", "eco"))}})
     bench.applied()
-    override = bench.runtime.new_override("preset", "comfort", minutes=24 * 60)
+    comfort = card_choice(bench, "climate.salon", "comfort")
+    override = bench.runtime.new_override(comfort["kind"], comfort["value"], minutes=24 * 60)
     await bench.set_override("climate.salon", override)
+    bench.thermostat("climate.salon", "comfort", context=CTX_USER, current_temperature=19.5)  # reports again
+    await bench.hass.async_block_till_done()
 
     for slot in ("11:00", "12:00", "13:00"):
         await bench.go_to(slot)
@@ -165,18 +164,11 @@ async def test_a_slot_with_the_override_s_preset_does_not_end_it(bench: Bench):
 
 # ----- changing an override's value from the card -----
 
-def card_choice(bench: Bench, preset: str) -> dict:
-    """What the card sends for a preset picked in the override popover: what that preset means
-    on this thermostat (its climate preset, or a temperature), as the integration tells the card."""
-    ((kind, value),) = bench.runtime.targets_of("climate.salon")[preset].items()
-    return {"kind": kind, "value": value}
-
-
 async def test_changing_the_override_s_value_from_the_card_drives_the_thermostat(bench: Bench):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
     o = bench.overrides()["climate.salon"]
-    comfort = card_choice(bench, "comfort")
+    comfort = card_choice(bench, "climate.salon", "comfort")
     await bench.set_override("climate.salon", {**o, **comfort})
     assert bench.applied() == {"climate.salon": "comfort"}
     assert bench.overrides()["climate.salon"] == {**o, **comfort}  # same end
@@ -206,7 +198,7 @@ async def test_an_override_changed_to_the_slot_s_preset_from_the_card_holds_thro
 
     bench.hass.services.async_register("climate", "set_preset_mode", answering)
     o = bench.overrides()["climate.salon"]
-    comfort = card_choice(bench, "comfort")
+    comfort = card_choice(bench, "climate.salon", "comfort")
     await bench.set_override("climate.salon", {**o, **comfort, "end": (end_of(o) + timedelta(hours=22)).isoformat()})
     assert bench.applied() == {"climate.salon": "comfort"}
 

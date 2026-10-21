@@ -2,7 +2,8 @@
 
 chauffage/subscribe          everything the card needs, then again after every change
 chauffage/weeks/save         {weeks, revision}: refused ("stale") if edited elsewhere meanwhile
-chauffage/override/set       {entity_id, override | null}: extend or remove an override
+chauffage/override/set       {entity_id, override | null}: change (value, end) or remove an override;
+                             a new value is sent to the thermostat
 chauffage/schedule/activate  {schedule}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
                              or a copy), rename, move, delete (see model.plan_schedules)
@@ -33,7 +34,7 @@ from homeassistant.util import dt as dt_util
 
 from . import model
 from .const import DOMAIN
-from .runtime import DATA, ChauffageRuntime, StaleRevision
+from .runtime import DATA, ChauffageRuntime, StaleRevision, ThermostatFailed
 
 
 @callback
@@ -54,7 +55,8 @@ def _runtime(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
 
 async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any],
                action: Callable[[ChauffageRuntime], Awaitable[Any]]) -> None:
-    """Runs a change and answers with its result, or the error ("stale", "invalid_format")."""
+    """Runs a change and answers with its result, or the error ("stale", "invalid_format",
+    "thermostat_failed")."""
     if (runtime := _runtime(hass, connection, msg["id"])) is None:
         return
     try:
@@ -64,6 +66,9 @@ async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
         return
     except model.InvalidData as err:
         connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+    except ThermostatFailed as err:
+        connection.send_error(msg["id"], "thermostat_failed", f"{err} did not answer")
         return
     connection.send_result(msg["id"], result)
 

@@ -31,10 +31,20 @@ future contributor might question.
 - **A manual change is judged against what the schedule expects**: on a thermostat driven by
   temperature, any other setpoint is an override; the thermostat reaching the expected
   temperature is not.
-- **An override only ends at its end, when it is removed, or when a manual change on the
-  thermostat goes back to the slot's preset** (issue #19). A slot change never ends it, even to
-  a slot with the override's value: an override set for a day during the first comfort slot
-  must still hold when the next eco slot starts.
+- **An override only ends at its end, when it is removed, or when a user's change on the
+  thermostat goes back to what the slot expects** (issue #19: no "Comfort in Comfort"
+  override). A slot change never ends it, even to a slot with the override's value: an override
+  set for a day during the first comfort slot must still hold when the next eco slot starts. A
+  thermostat going back on its own (VTherm leaving safety mode) does not end it either.
+- **Holding the slot's preset past the next slots is done from the card**, not by hand: the
+  override popover changes the override's value (a preset, or a temperature), and the
+  integration sends it to the thermostat. Picking the slot's preset on the thermostat is read as
+  "back to the schedule". The card sends what the preset means on that thermostat (its climate
+  preset, or a temperature), so the stored format of overrides does not change; on a thermostat
+  without presets, "Comfort" picked in the card shows as its temperature.
+- **One way to set an override's value on the thermostat** (`runtime.set_override`), for the
+  card and the `set_override` service: a new override or a new value is sent unless the
+  thermostat already has it (a manual change); a new end alone is not.
 - **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
   realigned at once. A command that was not delivered is sent again every minute. Commands are
   spaced out (Zigbee networks).

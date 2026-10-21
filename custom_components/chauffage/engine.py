@@ -226,13 +226,17 @@ def targets(
 
 # ----- manual changes -----
 
+RESUME = ("resume", None)  # a user went back to what the schedule expects
+
+
 def manual_change(
     before: Thermostat, after: Thermostat, *, by_user: bool, expected: Target | None = None
 ) -> tuple[str, Any] | None:
     """Override created by a change that is neither the integration's nor an automation's
-    (the caller excludes those), as (kind, value), or None.
+    (the caller excludes those), as (kind, value), RESUME, or None.
 
-    Judged against what the schedule expects (`expected`):
+    A user going back to what the schedule expects resumes it (RESUME: the override, if any,
+    ends). Otherwise, judged against what the schedule expects (`expected`):
     - temperature expected: any new setpoint that differs from it is a temperature override; a
       preset picked by a user is a preset override; a preset the thermostat sets by itself
       (VTherm safety mode…) is not an override;
@@ -244,6 +248,11 @@ def manual_change(
     if after.state in IGNORED_STATES or before.state in ("unavailable", "unknown"):
         return None
     manual = is_manual_preset(after.preset)
+    if expected is not None and by_user and satisfied(expected, after) and (
+        after.preset != before.preset
+        or (expected.kind == "temperature" and not same_temperature(after.temperature, before.temperature, after))
+    ):
+        return RESUME
     if expected is not None and expected.kind == "temperature":
         if after.preset != before.preset and not manual:
             return ("preset", after.preset) if by_user else None

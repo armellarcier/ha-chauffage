@@ -219,6 +219,21 @@ def test_a_setpoint_change_keeping_the_preset_is_the_preset_s_temperature():
     assert engine.manual_change(heat("comfort", 20.0), heat("comfort", 21.0), by_user=True, expected=expected) is None
 
 
+def test_a_user_going_back_to_what_the_schedule_expects_resumes_it():
+    """Issue #19: not a "Comfort in Comfort" override. Only a user's change: a thermostat going
+    back on its own (VTherm leaving safety mode) leaves the override alone."""
+    eco = engine.Target("preset", "eco")
+    assert engine.manual_change(heat("none", 21.5), heat("eco", 17.0), by_user=True, expected=eco) == engine.RESUME
+    assert engine.manual_change(heat("none", 21.5), heat("eco", 17.0), by_user=False, expected=eco) is None
+    # The slot's preset temperature edited (VTherm): still that preset, nothing to resume
+    assert engine.manual_change(heat("eco", 17.0), heat("eco", 18.0), by_user=True, expected=eco) is None
+    seventeen = engine.Target("temperature", 17.0)
+    assert engine.manual_change(plain(21.5), plain(17.0), by_user=True, expected=seventeen) == engine.RESUME
+    assert engine.manual_change(plain(21.5), plain(17.0), by_user=False, expected=seventeen) is None
+    # Something else changed (an attribute), the setpoint did not
+    assert engine.manual_change(plain(17.0), plain(17.0), by_user=True, expected=seventeen) is None
+
+
 # ----- preset data -----
 
 def test_default_presets_are_named_in_the_language_and_keep_unknown_ones():

@@ -20,8 +20,9 @@ presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_the
   days, several thermostats per day, open a thermostat's more-info dialog from the schedule, see
   the temperature measured over the last 7 days drawn over each day;
 - **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
-  shown and adjustable on the card and in the thermostat's more-info dialog, then the
-  thermostat falls back to its schedule.
+  shown and adjustable on the card (its end, and its value: a preset or a temperature) and in
+  the thermostat's more-info dialog, then the thermostat falls back to its schedule. Going back
+  to the slot's preset by hand resumes the schedule at once.
 
 > The project's name is French (*chauffage* = heating); the integration and the card speak
 > English and French.
@@ -227,7 +228,8 @@ Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
   a schedule is activated and when weeks are saved. Thermostats with an active override, turned
   off or unavailable are left alone; an unreachable valve does not stop the others.
 - **Manual changes**: a setpoint changed by hand (the thermostat switches to preset `none`) or
-  a preset picked by a user becomes a temporary override. Changes made by the integration itself
+  a preset picked by a user becomes a temporary override; a user going back to what the slot
+  expects ends it instead. Changes made by the integration itself
   (its own context) or by an automation are ignored.
 - **Card**: served by the integration and loaded on every page (card + more-info block); it
   talks to the integration over websocket (`chauffage/subscribe`, `chauffage/weeks/save`…);

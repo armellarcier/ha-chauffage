@@ -9,6 +9,29 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+Does not migrate stored data; overrides in progress are kept.
+
+### Added
+
+- The override popover in the card changes the override's **value**: one of the presets, or a
+  temperature, until the same end. The thermostat follows. This is the way to keep the current
+  preset past the next slots (#19).
+
+### Fixed
+
+- Going back to the slot's preset on the thermostat, by hand, during an override no longer
+  creates an override to that same preset ("Comfort in Comfort"): it ends the override and the
+  thermostat follows its schedule again (#19). On a thermostat without presets, setting the
+  slot's temperature by hand also ends it (the override was kept, showing the old setpoint).
+- Changing an override's value through the websocket API (`chauffage/override/set`) now sets
+  the thermostat to it, or answers `thermostat_failed`; it was only recorded.
+
+### Upgrading
+
+- Picking the slot's preset by hand during an override now **resumes the schedule**. To keep
+  that preset past the next slots, change the override's value in the card's override popover
+  (or use the `chauffage.set_override` service), then extend it.
+
 ## [0.5.1] - 2026-10-21
 
 **A visual editor for the card**, and a better place in the *Add card* dialog. Does not migrate

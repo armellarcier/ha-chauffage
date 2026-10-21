@@ -79,6 +79,18 @@ async def test_overrides_and_active_schedule_from_the_card(bench: Bench, ws_clie
     assert bench.overrides() == {}
     assert bench.applied() == {"climate.salon": "eco"}
 
+
+async def test_an_override_s_new_value_on_a_thermostat_that_does_not_answer(bench: Bench, ws_client):
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21)
+    client = await ws_client(bench.hass)
+    o = bench.overrides()["climate.salon"]
+    bench.unreachable.add("climate.salon")
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "thermostat_failed"
+    assert bench.overrides()["climate.salon"] == o
+
     await client.send_json_auto_id({"type": "chauffage/schedule/activate", "schedule": "away"})
     assert (await client.receive_json())["success"]
     assert bench.runtime.data["active_schedule"] == "away"

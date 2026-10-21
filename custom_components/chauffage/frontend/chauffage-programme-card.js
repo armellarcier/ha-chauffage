@@ -1131,6 +1131,14 @@ class ChauffageProgrammeCard extends HTMLElement {
       el.textContent = this._liveText(el.parentElement.dataset.climate);
     });
     root.querySelectorAll('.now').forEach((el) => { el.style.left = `${pct(nowMin())}%`; });
+    // Override to a preset: the temperature field shows the thermostat's setpoint (not while typed in)
+    const input = root.querySelector('.override-ed input[data-override-temperature]');
+    const sel = this._overrideSel && this._overrides()[this._overrideSel.climate];
+    if (input && sel && sel.kind !== 'temperature' && root.activeElement !== input) {
+      const st = this._hass.states[this._overrideSel.climate];
+      const temperature = st && st.attributes.temperature;
+      input.value = temperature ?? '';
+    }
   }
 
   // ---------- history of the measured temperature ----------
@@ -1437,11 +1445,25 @@ class ChauffageProgrammeCard extends HTMLElement {
       : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
     const remaining = Math.max(0, Math.round((endsAt - today) / 60000));
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
+    // The value: one of the presets (what it means on this thermostat), or a temperature
+    const targets = this._source().targets(climate);
+    const presets = this._presets().filter((l) => targets[l.id]).map((l) => {
+      const [[kind, value]] = Object.entries(targets[l.id]);
+      const on = d.kind === kind && d.value === value;
+      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
+    }).join('');
+    const attrs = (this._hass.states[climate] || {}).attributes || {};
+    const temperature = d.kind === 'temperature' ? d.value : attrs.temperature;
     return `<div class="editor override-ed">
       <div class="ed-head">
         <strong>${this._moreInfoLink(climate)} · ${esc(t('temporarySetpoint'))}</strong>
         <span class="override-value">${esc(this._overrideLabel(d))}</span>
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
+      </div>
+      <div class="presets">${presets}</div>
+      <div class="ed-head">
+        <label>${esc(t('presetTemperature'))} <input type="number" data-override-temperature
+          step="${attrs.target_temp_step || 0.5}" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 30}" value="${temperature ?? ''}"> ${esc(this._loc.unit)}</label>
       </div>
       <div class="ed-head">
         <label>${esc(t('until'))} <input type="time" data-override-end step="${this._config.step * 60}" value="${hmOf(endsAt)}"></label>
@@ -1969,6 +1991,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         endsAt.setMinutes(this._snap(toMin(el.value)));
         if (endsAt <= new Date()) endsAt.setDate(endsAt.getDate() + 1);
         this._setOverrideEnd(this._overrideSel.climate, endsAt);
+      } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
+        const c = this._overrideSel.climate;
+        const d = this._overrides()[c];
+        if (d) this._sendOverride(c, { ...d, kind: 'temperature', value: Number(el.value) });
       }
     });
   }
@@ -2597,6 +2623,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
       if (act === 'override-del') return this._sendOverride(c, null);
       if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.end).getTime() + Number(ds.min) * 60000));
+      if (act === 'override-preset') {
+        const target = this._source().targets(c)[ds.preset];
+        if (!target) return;
+        const [[kind, value]] = Object.entries(target);
+        return this._sendOverride(c, { ...d, kind, value });
+      }
     }
     if (act === 'view') {
       this._view = ds.view;
