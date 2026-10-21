@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- *Rules* view: **Save** is only enabled when the rules have changed, and is disabled again
+  once they are saved, so it is clear whether they are saved (#16).
+
 ## [0.5.0] - 2026-10-19
 
 **History, activation rules, and a card easier to read**: it gathers 0.5.0-beta.1 (the history

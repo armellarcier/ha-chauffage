@@ -396,6 +396,8 @@ const toHM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m %
 const pct = (m) => ((m / DAY_MIN) * 100).toFixed(3);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = (x) => JSON.parse(JSON.stringify(x));
+// An activation rule as the integration reads it (no schedule: the template gives it)
+const plainRule = (r) => ({ template: r.template, schedule: r.schedule || null });
 // HA dates: microseconds truncated to milliseconds (Safari rejects more than 3 decimals)
 const parseDate = (s) => new Date(String(s).replace(/(\.\d{3})\d+/, '$1'));
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
@@ -1835,9 +1837,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e) => {
       if (e.target.hasAttribute('data-rule-template')) {
-        const first = !this._rulesDraft;
+        const before = !!this._rulesDraft;
         this._editRules((d) => { d.rules[Number(e.target.dataset.ruleTemplate)].template = e.target.value; });
-        if (first) this._render(); // shows Cancel and "unsaved"; the text and the caret are kept
+        // Shows or hides Cancel, Save and "unsaved"; the text and the caret are kept
+        if (before !== !!this._rulesDraft) this._render();
         this._syncPreview();
         return;
       }
@@ -2119,7 +2122,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const actions = editable ? `<div class="ed-actions start">
         <button class="btn" data-act="rule-add">${esc(t('ruleAdd'))}</button>
         ${this._rulesDraft ? `<button class="btn" data-act="rules-cancel">${esc(t('cancel'))}</button>` : ''}
-        <button class="btn primary" data-act="rules-save">${esc(t('save'))}</button></div>` : '';
+        <button class="btn primary" data-act="rules-save"${this._rulesDraft ? '' : ' disabled'}>${esc(t('save'))}</button></div>` : '';
     return `<div class="rules-view">
       <div class="muted">${esc(t('rulesIntro'))} <a class="rules-try" href="/developer-tools/template" target="_top">${esc(t('rulesTry'))}</a></div>
       ${rules.length ? rows : `<div class="rules-empty muted">${esc(t('rulesEmpty'))}</div>`}
@@ -2137,7 +2140,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!this._hass) return;
     const src = this._source();
     const rules = this._view === 'rules' && src.ready && src.editable && this._hass.connection
-      ? this._rulesShown().rules.map((r) => ({ template: r.template, schedule: r.schedule || null })) : [];
+      ? this._rulesShown().rules.map(plainRule) : [];
     const key = JSON.stringify(rules);
     if (key === this._previewKey) return;
     this._previewKey = key;
@@ -2163,11 +2166,14 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._previewSub = null;
   }
 
-  // Edits the draft of the rules (created from the integration's on the first change)
+  // Edits the draft of the rules (created from the integration's on the first change; dropped
+  // when the edits are undone, so that nothing is left to save)
   _editRules(change) {
     const draft = this._rulesShown();
     change(draft);
-    this._rulesDraft = draft;
+    const src = this._source();
+    const state = (rules, def) => JSON.stringify([rules.map(plainRule), def || null]);
+    this._rulesDraft = state(draft.rules, draft.def) !== state(src.rules(), src.defaultSchedule()) ? draft : null;
     this._msg = '';
   }
 
@@ -2187,7 +2193,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const { rules, def } = this._rulesShown();
       try {
         await this._source().setRules(
-          rules.filter((r) => r.template.trim()).map((r) => ({ template: r.template.trim(), schedule: r.schedule || null })), def || null);
+          rules.filter((r) => r.template.trim()).map((r) => plainRule({ ...r, template: r.template.trim() })), def || null);
         this._rulesDraft = null;
         this._msg = this._loc.t('saved');
       } catch (err) {
