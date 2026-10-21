@@ -4,7 +4,7 @@
 import { fakeHass, fakeIntegrationHass, createCard, cleanup, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay, ChauffageProgrammeCard } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
@@ -308,9 +308,7 @@ describe('error messages', () => {
 });
 
 describe('dashboard editor helpers', () => {
-  test('a new card lists the first thermostats; its size grows with them', () => {
-    const stub = ChauffageProgrammeCard.getStubConfig(fakeHass());
-    assert.deepEqual(stub.thermostats, ['climate.salon', 'climate.bureau']);
+  test('the size of the card grows with the thermostats shown', () => {
     const card = createCard(fakeHass(), { show: 'all' });
     assert.equal(card.getCardSize(), 4 + 7 * 2);
   });

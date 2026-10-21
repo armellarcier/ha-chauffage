@@ -146,6 +146,20 @@ const I18N = {
     rulesByHand: '{schedule} was chosen by hand: it stays until the rules change.',
     integrationMissing: 'The Chauffage integration is not set up: add it in Settings → Devices & services.',
     restartNeeded: 'Chauffage was updated: restart Home Assistant to finish the update.',
+    // The card in HA's "Add card" dialog
+    cardName: 'Heating schedules',
+    cardDescription: 'Weekly heating schedules, several thermostats per day',
+    // Visual editor of the card
+    editorThermostats: 'Thermostats (required)',
+    editorThermostat: 'Thermostat',
+    editorEdit: 'Edit',
+    editorRemove: 'Remove',
+    editorBack: 'Back',
+    editorShownAs: 'Shown as “{name}”',
+    editorName: 'Name (optional)',
+    editorNameDefault: 'Leave empty to use “{name}”',
+    editorShowAll: 'Show every thermostat at first',
+    editorStep: 'Time step (minutes)',
   },
   fr: {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
@@ -276,6 +290,20 @@ const I18N = {
     rulesByHand: '{schedule} a été choisi à la main : il reste jusqu’à ce que les règles changent.',
     integrationMissing: 'L’intégration Chauffage n’est pas configurée : ajoutez-la dans Paramètres → Appareils et services.',
     restartNeeded: 'Chauffage a été mis à jour : redémarrez Home Assistant pour terminer la mise à jour.',
+    // The card in HA's "Add card" dialog
+    cardName: 'Plannings de chauffe',
+    cardDescription: 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée',
+    // Visual editor of the card
+    editorThermostats: 'Thermostats (obligatoire)',
+    editorThermostat: 'Thermostat',
+    editorEdit: 'Modifier',
+    editorRemove: 'Retirer',
+    editorBack: 'Retour',
+    editorShownAs: 'Affiché « {name} »',
+    editorName: 'Nom (facultatif)',
+    editorNameDefault: 'Laisser vide pour « {name} »',
+    editorShowAll: 'Afficher tous les thermostats au départ',
+    editorStep: 'Pas des horaires (minutes)',
   },
 };
 
@@ -586,6 +614,22 @@ function mergeRows(old, fresh, since, start) {
   return out;
 }
 
+// Home Assistant from a given release on ("2025.11.0b3" and "2025.12.0.dev…" count as their
+// release); false when the version is unknown
+function haAtLeast(hass, year, month) {
+  const m = /^(\d+)\.(\d+)/.exec((hass && hass.config && hass.config.version) || '');
+  return !!m && (Number(m[1]) > year || (Number(m[1]) === year && Number(m[2]) >= month));
+}
+
+// Name shown for a thermostat: the `name` of the card's config (text, or pieces such as the
+// area and the entity, as in HA's own cards) made by HA (from 2025.10); before, a text name or
+// the thermostat's own name
+function thermostatName(hass, entity, name) {
+  const st = hass && hass.states[entity];
+  if (st && hass.formatEntityName) return hass.formatEntityName(st, name === '' ? undefined : name) || entity;
+  return (typeof name === 'string' && name) || (st && st.attributes.friendly_name) || entity;
+}
+
 const integrationAvailable = (hass) => !!(hass && hass.services && hass.services.chauffage);
 const filterActive = (raw) => {
   const out = {};
@@ -744,8 +788,24 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._bindEvents();
   }
 
-  static getStubConfig(hass) {
-    return { thermostats: Object.keys(hass.states).filter((e) => e.startsWith('climate.')).slice(0, 3) };
+  static getConfigElement() {
+    return document.createElement('chauffage-programme-card-editor');
+  }
+
+  // A new card (Add card dialog): the thermostats that already have a schedule in Chauffage,
+  // otherwise every thermostat
+  static async getStubConfig(hass) {
+    const climates = Object.keys(hass.states).filter((e) => e.startsWith('climate.'));
+    let src = dataSource(hass);
+    if (src.available && !src.ready) {
+      await new Promise((resolve) => {
+        const stop = INTEGRATION.listen(() => { stop(); resolve(); });
+        setTimeout(() => { stop(); resolve(); }, 2000);
+      });
+      src = dataSource(hass);
+    }
+    const scheduled = Object.keys(src.weeks()).filter((e) => hass.states[e]);
+    return { thermostats: scheduled.length ? scheduled : climates };
   }
 
   setConfig(config) {
@@ -760,12 +820,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._thermostats = config.thermostats.map((t) => (typeof t === 'string' ? { entity: t } : t));
     // The more-info block uses the same entities as the card
     for (const k of Object.keys(MORE_INFO_CFG)) MORE_INFO_CFG[k] = this._config[k];
-    const all = this._thermostats.map((t) => t.entity);
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { /* ignore */ }
-    const fromSaved = Array.isArray(saved) ? all.filter((e) => saved.includes(e)) : [];
-    const fromConfig = config.show === 'all' ? all : Array.isArray(config.show) ? all.filter((e) => config.show.includes(e)) : [all[0]];
-    this._shown = fromSaved.length ? fromSaved : fromConfig.length ? fromConfig : [all[0]];
+    this._shown = this._initialShown();
     this._schedule = null;
     if (this._hass) this._render();
   }
@@ -824,7 +879,43 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._refreshHistory();
   }
 
+  // Thermostats shown at first: those chosen last on this device, else the config's `show`.
+  // A preview (Add card dialog, card editor) shows what its config says.
+  _initialShown() {
+    const all = this._thermostats.map((t) => t.entity);
+    const show = this._config.show;
+    let saved = null;
+    this._shownForPreview = this._isPreview();
+    if (!this._shownForPreview) {
+      try { saved = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { /* ignore */ }
+    }
+    const fromSaved = Array.isArray(saved) ? all.filter((e) => saved.includes(e)) : [];
+    const fromConfig = show === 'all' ? all : Array.isArray(show) ? all.filter((e) => show.includes(e)) : [all[0]];
+    return fromSaved.length ? fromSaved : fromConfig.length ? fromConfig : [all[0]];
+  }
+
+  // HA sets `preview` on the cards it previews (suggestions, card editor), after their config;
+  // the cards of the "By card" list are not marked, but shown in its <hui-card-picker>
+  _isPreview() {
+    const root = this.getRootNode && this.getRootNode();
+    return !!this._previewed || !!(root && root.host && root.host.localName === 'hui-card-picker');
+  }
+
+  get preview() { return !!this._previewed; }
+
+  set preview(value) {
+    this._previewed = !!value;
+    this._previewChanged();
+  }
+
+  _previewChanged() {
+    if (!this._config || this._isPreview() === this._shownForPreview) return;
+    this._shown = this._initialShown();
+    if (this._hass) this._render();
+  }
+
   connectedCallback() {
+    this._previewChanged();
     this._timer = setInterval(() => {
       if (this._drag || this._overrideDrag) return;
       this._refreshHistory();
@@ -865,6 +956,12 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   getCardSize() {
     return 4 + 7 * this._shown.length;
+  }
+
+  // Sections view: as wide as the section by default; narrower than half of it, the bars
+  // of the week can no longer be read (#10)
+  getGridOptions() {
+    return { columns: 'full', min_columns: 6 };
   }
 
   // ---------- data ----------
@@ -919,8 +1016,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _name(entity) {
     const t = this._thermostats.find((x) => x.entity === entity);
-    const st = this._hass.states[entity];
-    return (t && t.name) || (st && st.attributes.friendly_name) || entity;
+    return thermostatName(this._hass, entity, t && t.name);
   }
 
   _focusClimate() {
@@ -1580,6 +1676,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _saveShown() {
+    if (this._isPreview()) return; // trying it in a preview does not change the dashboards
     try { localStorage.setItem(LS_KEY, JSON.stringify(this._shown)); } catch (e) { /* ignore */ }
   }
 
@@ -3121,11 +3218,250 @@ const MORE_INFO_STYLE = `
   .row.today span { color:var(--primary-color); font-weight:700; }
 `;
 
+// =====================================================================
+//  Visual editor of the card (dashboard → edit card), laid out like Home Assistant's own card
+//  editors (Entities, Tile…): one row per thermostat (drag handle, picker, remove, edit); the
+//  edit button opens the thermostat's page, with its optional name. Built on HA's elements
+//  (<ha-entity-picker>, <ha-sortable>, <ha-form>…), already loaded in the card editor dialog.
+//  Options it does not show (written in YAML, like `language`) are kept as they are.
+// =====================================================================
+
+const EDITOR_STEPS = [5, 10, 15, 30];
+const MDI = {
+  drag: 'M21,11H3V9H21V11M21,13H3V15H21V13Z',
+  close: 'M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z',
+  pencil: 'M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z',
+};
+const EDITOR_CSS = `
+  h3 { margin: 0 0 8px; font-size: 1em; font-weight: 500; }
+  .thermostat { display: flex; align-items: center; gap: 4px; }
+  .thermostat + .thermostat { margin-top: 8px; }
+  .handle { cursor: move; padding: 8px 4px; color: var(--secondary-text-color); display: flex; }
+  .picker { flex: 1; min-width: 0; }
+  .picker ha-entity-picker { display: block; }
+  .custom-name { font-size: .85em; color: var(--secondary-text-color); padding: 2px 0 0 12px; }
+  .add { display: block; margin: 12px 0 24px; }
+  .header { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; font-size: 1.1em; }
+`;
+
+class ChauffageProgrammeCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._editing = null; // index of the thermostat whose page is open
+    this._built = null; // what the DOM shows: rebuilt only when it changes (keeps the focus)
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  setConfig(config) {
+    this._config = config;
+    this._render();
+  }
+
+  _thermostats() {
+    return ((this._config && this._config.thermostats) || []).map((t) => (typeof t === 'string' ? { entity: t } : { ...t }));
+  }
+
+  _defaultName(entity) {
+    return entity ? thermostatName(this._hass, entity) : '';
+  }
+
+  // Name shown under a row: only a name of the card's config that changes the thermostat's own
+  _shownName(t) {
+    const shown = t.name ? thermostatName(this._hass, t.entity, t.name) : null;
+    return shown !== this._defaultName(t.entity) ? shown : null;
+  }
+
+  // HA's own name field (entity_name selector, from 2025.11): text, or pieces such as the area
+  _haNameField() {
+    return haAtLeast(this._hass, 2025, 11);
+  }
+
+  _render() {
+    if (!this._config) return;
+    const thermostats = this._thermostats();
+    if (this._editing !== null && !thermostats[this._editing]) this._editing = null;
+    const loc = makeLocale(this._hass);
+    // The thermostat's page keeps its form while its fields change; the list is rebuilt
+    const shape = JSON.stringify(this._editing !== null
+      ? ['page', this._editing, loc.signature, this._haNameField()]
+      : ['list', thermostats, thermostats.map((t) => this._shownName(t)), loc.signature]);
+    if (shape !== this._built) {
+      this._built = shape;
+      this.shadowRoot.replaceChildren();
+      const style = document.createElement('style');
+      style.textContent = EDITOR_CSS;
+      this.shadowRoot.appendChild(style);
+      if (this._editing !== null) this._buildPage(loc);
+      else this._buildList(loc, thermostats);
+    }
+    for (const el of this.shadowRoot.querySelectorAll('ha-entity-picker, ha-form')) el.hass = this._hass;
+    if (this._editing !== null) {
+      const t = thermostats[this._editing];
+      this._page.data = this._haNameField()
+        ? { entity: t.entity, ...(t.name !== undefined ? { name: t.name } : {}) }
+        : { entity: t.entity, name: typeof t.name === 'string' ? t.name : '' };
+    } else {
+      const c = this._config;
+      this._options.data = { show_all: c.show === 'all', step: String(c.step || 15) };
+    }
+  }
+
+  _button(cls, label, path, onClick) {
+    const b = document.createElement('ha-icon-button');
+    b.className = cls;
+    b.label = label;
+    b.path = path;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  _picker(cls, onChange) {
+    const p = document.createElement('ha-entity-picker');
+    p.className = cls;
+    p.includeDomains = ['climate'];
+    p.addEventListener('value-changed', (e) => {
+      e.stopPropagation();
+      onChange(e.detail.value);
+    });
+    return p;
+  }
+
+  _buildList(loc, thermostats) {
+    const title = document.createElement('h3');
+    title.textContent = loc.t('editorThermostats');
+    const sortable = document.createElement('ha-sortable');
+    sortable.setAttribute('handle-selector', '.handle');
+    sortable.addEventListener('item-moved', (e) => {
+      e.stopPropagation();
+      const list = this._thermostats();
+      list.splice(e.detail.newIndex, 0, list.splice(e.detail.oldIndex, 1)[0]);
+      this._setThermostats(list);
+    });
+    const container = document.createElement('div');
+    thermostats.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'thermostat';
+      const handle = document.createElement('div');
+      handle.className = 'handle';
+      const icon = document.createElement('ha-svg-icon');
+      icon.path = MDI.drag;
+      handle.appendChild(icon);
+      const cell = document.createElement('div');
+      cell.className = 'picker';
+      const picker = this._picker('', (entity) => {
+        const list = this._thermostats();
+        if (entity) list[i].entity = entity;
+        else list.splice(i, 1);
+        this._setThermostats(list);
+      });
+      picker.value = t.entity;
+      picker.hideClearIcon = true;
+      cell.appendChild(picker);
+      const shown = this._shownName(t);
+      if (shown) {
+        const name = document.createElement('div');
+        name.className = 'custom-name';
+        name.textContent = loc.t('editorShownAs', { name: shown });
+        cell.appendChild(name);
+      }
+      row.append(handle, cell,
+        this._button('remove', loc.t('editorRemove'), MDI.close, () => {
+          const list = this._thermostats();
+          list.splice(i, 1);
+          this._setThermostats(list);
+        }),
+        this._button('edit', loc.t('editorEdit'), MDI.pencil, () => {
+          this._editing = i;
+          this._render();
+        }));
+      container.appendChild(row);
+    });
+    sortable.appendChild(container);
+    const add = this._picker('add', (entity) => {
+      if (!entity) return;
+      add.value = '';
+      this._setThermostats([...this._thermostats(), { entity }]);
+    });
+    add.setAttribute('add-button', '');
+    const options = document.createElement('ha-form');
+    options.className = 'options';
+    options.schema = [
+      { name: 'show_all', selector: { boolean: {} } },
+      { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) })) } } },
+    ];
+    options.computeLabel = (s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name]);
+    options.addEventListener('value-changed', (e) => {
+      e.stopPropagation();
+      const config = { ...this._config };
+      if (e.detail.value.show_all) config.show = 'all';
+      else if (config.show === 'all') delete config.show;
+      const step = Number(e.detail.value.step);
+      if (step && step !== 15) config.step = step;
+      else delete config.step;
+      this._emit(config);
+    });
+    this._options = options;
+    this.shadowRoot.append(title, sortable, add, options);
+  }
+
+  _buildPage(loc) {
+    const header = document.createElement('div');
+    header.className = 'header';
+    const back = document.createElement('ha-icon-button-prev');
+    back.label = loc.t('editorBack');
+    back.addEventListener('click', () => {
+      this._editing = null;
+      this._render();
+    });
+    const title = document.createElement('span');
+    title.textContent = loc.t('editorThermostat');
+    header.append(back, title);
+    const form = document.createElement('ha-form');
+    form.schema = [
+      { name: 'entity', required: true, selector: { entity: { domain: 'climate' } } },
+      this._haNameField()
+        ? { name: 'name', selector: { entity_name: {} }, context: { entity: 'entity' } }
+        : { name: 'name', selector: { text: {} } },
+    ];
+    form.computeLabel = (s) => loc.t(s.name === 'name' ? 'editorName' : 'editorThermostat');
+    form.computeHelper = (s) => (s.name === 'name' && !this._haNameField() ? loc.t('editorNameDefault', { name: this._defaultName(form.data && form.data.entity) }) : undefined);
+    form.addEventListener('value-changed', (e) => {
+      e.stopPropagation();
+      const list = this._thermostats();
+      const t = list[this._editing];
+      if (e.detail.value.entity) t.entity = e.detail.value.entity;
+      const name = e.detail.value.name;
+      if (name === undefined || name === '' || (Array.isArray(name) && !name.length)) delete t.name;
+      else t.name = name;
+      this._setThermostats(list);
+    });
+    this._page = form;
+    this.shadowRoot.append(header, form);
+  }
+
+  // A thermostat without a name nor other option is written as its entity id alone
+  _setThermostats(list) {
+    this._emit({ ...this._config, thermostats: list.map((t) => (Object.keys(t).length === 1 ? t.entity : t)) });
+  }
+
+  _emit(config) {
+    this._config = config;
+    this._render();
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
+  }
+}
+
 // Guards: the file may be loaded twice (the integration, and a copy left in www/ by the v0.1
 // package or a dashboard resource); define things only once.
 function defineElements() {
   if (!customElements.get('chauffage-programme-card')) customElements.define('chauffage-programme-card', ChauffageProgrammeCard);
   if (!customElements.get('chauffage-moreinfo')) customElements.define('chauffage-moreinfo', ChauffageMoreInfo);
+  if (!customElements.get('chauffage-programme-card-editor')) customElements.define('chauffage-programme-card-editor', ChauffageProgrammeCardEditor);
 }
 defineElements();
 // The integration's module is loaded in parallel with HA's frontend, which replaces
@@ -3199,13 +3535,23 @@ if (!window.__chauffageMoreInfoListener) {
   });
 }
 
+function pickerLocale() {
+  const lang = (typeof document !== 'undefined' && document.documentElement.lang) || (typeof navigator !== 'undefined' && navigator.language);
+  return makeLocale(null, lang);
+}
+
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === 'chauffage-programme-card')) window.customCards.push({
   type: 'chauffage-programme-card',
-  name: resolveLanguage(null, typeof navigator !== 'undefined' && navigator.language) === 'fr' ? 'Plannings de chauffe' : 'Heating schedules',
-  description: resolveLanguage(null, typeof navigator !== 'undefined' && navigator.language) === 'fr'
-    ? 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée'
-    : 'Weekly heating schedules, several thermostats per day',
+  // Read when the dialog opens: in the language of HA's interface (the lang of the page)
+  get name() { return pickerLocale().t('cardName'); },
+  get description() { return pickerLocale().t('cardDescription'); },
+  preview: true,
+  documentationURL: 'https://github.com/armellarcier/ha-chauffage#readme',
+  // "By entity" tab (HA 2026.6+): the card for the thermostat chosen
+  getEntitySuggestion: (hass, entityId) => (entityId.startsWith('climate.')
+    ? { config: { type: 'custom:chauffage-programme-card', thermostats: [entityId] } }
+    : null),
 });
 
 console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;border-radius:3px 0 0 3px', 'background:#555;color:#fff;border-radius:0 3px 3px 0');
@@ -3214,5 +3560,5 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 export {
   VERSION, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
   overridePieces, overrideLabel, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
-  ChauffageProgrammeCard, ChauffageMoreInfo,
+  ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor,
 };

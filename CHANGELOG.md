@@ -9,6 +9,20 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- The card has a **visual editor** (dashboard → Edit card), laid out like Home Assistant's own
+  cards: the thermostats (reordered by dragging), an optional name for each one (from Home
+  Assistant 2025.11, HA's name field: text, or pieces such as the area and the device), showing
+  them all at first, and the time step, without writing YAML. Options written in YAML that it
+  does not show (such as `language`) are kept. In a sections view, the *Layout* tab can now
+  resize the card (#10).
+- Names made of pieces are shown as Home Assistant's own cards show them (from 2025.10).
+- In the *Add card* dialog: a live preview (every thermostat, the first one shown), a link to the documentation, the name in the
+  language of Home Assistant, the card suggested for a thermostat (*By entity* tab, Home
+  Assistant 2026.6 or later), and a new card starts with the thermostats that already have a
+  schedule (all of them before any schedule).
+
 ### Fixed
 
 - *Rules* view: **Save** is only enabled when the rules have changed, and is disabled again

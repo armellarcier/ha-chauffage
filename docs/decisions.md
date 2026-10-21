@@ -142,6 +142,25 @@ future contributor might question.
   **By touch, only the selected slot moves**: a finger sliding over the
   week (to scroll, or to read a day shown larger) must not move slots by accident; tap it, then
   slide it.
+- **The visual editor follows HA's own card editors** (Entities, Tile): one row per thermostat
+  (drag handle, picker, remove, edit), the edit button opening the thermostat's page with its
+  optional name. It is built on HA's elements (`ha-entity-picker`, `ha-sortable`, `ha-form`),
+  already loaded in the card editor dialog. It also gives the card the *Layout* tab of sections
+  views (#10).
+- **Names as HA's cards have them**: `name` is text or pieces (area, device, entity…), chosen
+  with HA's `entity_name` selector and shown with `hass.formatEntityName`, like the Tile card,
+  so a name made of pieces follows a renamed area or device. Both are recent (formatting in
+  2025.10, the field in 2025.11) and the card supports 2025.1: it checks for them (the function
+  on `hass`, the version for the field, which is loaded lazily and cannot be detected) and,
+  before, offers a text field and shows a text name or the thermostat's own one.
+- **`language` is only set in YAML**: the card follows the user's profile (language and
+  formats), like every HA card, none of which offers that option. It also forces the more-info
+  block of every card. It stays readable for the configurations that use it.
+- **A preview shows what its config says**, not the thermostats last chosen on the device
+  (kept for the next visit, shared by the cards): in the *Add card* dialog every thermostat is
+  there but only the first is shown, and in the card editor the *show every thermostat* switch
+  is seen. A choice made in a preview is not kept. HA marks the cards it previews (`preview`)
+  except in the *By card* list, recognized by its `hui-card-picker`.
 
 ## Process
 

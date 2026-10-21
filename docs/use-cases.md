@@ -20,6 +20,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Remove the integration: its data is deleted | `I/test_edge_cases.py::deleting_the_integration_deletes_its_data` |
 | The card is served by the integration and loaded on every page | `I/test_frontend.py` |
 | The card is found after a reload, even when it loads before HA's frontend (scoped registry) | `C/registration.test.mjs` |
+| Set up the card from the dashboard's visual editor, laid out like HA's own cards: thermostats added, replaced, removed, reordered; an optional name on each thermostat's page (HA's name field from 2025.11, text before), shown under its row when it changes the name; showing them all, time step; options written in YAML kept (`language`), defaults left out; resized in a sections view (#10) | `C/editor.test.mjs` |
+| Add the card from HA's *Add card* dialog: live preview, every thermostat but only the first one shown (not the selection of this device), documentation link, name in HA's language; suggested for a thermostat (*By entity*); starts with the thermostats that have a schedule, or all of them | `C/card-picker.test.mjs` |
 
 ## Schedules
 
@@ -96,7 +98,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 
 | Use case | Test |
 |---|---|
-| Show the weeks per schedule, one or several thermostats, selection kept for the next visit | `C/card.test.mjs` (configuration, choosing thermostats), `C/interactions.test.mjs` (thermostats shown) |
+| Show the weeks per schedule, one or several thermostats, selection kept for the next visit (not by a preview: Add card dialog, card editor, where the config's `show` is seen) | `C/card.test.mjs` (configuration, choosing thermostats), `C/interactions.test.mjs` (thermostats shown) |
 | Find today at a glance among the days and thermostats: its whole row is tinted, with a border on each side, thicker on the left | `C/card.test.mjs` (today) |
 | See the current time as one line across today's thermostats, whatever their number, with a triangle at each end | `C/card.test.mjs` (today) |
 | Names of the days and of the thermostats aligned against their bars, the names column as wide as the longest name shown (up to a maximum) | `C/card.test.mjs` (today) |
@@ -105,6 +107,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
 | Save, cancel; a save from an outdated copy is refused; edits in progress are not replaced by changes saved elsewhere | `C/card.test.mjs` (saving), `C/card-integration.test.mjs::a save refused *`, `C/interactions.test.mjs` (edits in progress), `I/test_api.py::saving_from_an_outdated_copy_is_refused` |
 | Open a thermostat's more-info dialog from the card | `C/card.test.mjs` (thermostat more-info dialog) |
+| A thermostat shown with its own name or the card's; a name made of pieces (area, device) as HA makes it (2025.10+), its own name before | `C/card.test.mjs` (names of the thermostats) |
 | Error messages (save, override, schedule, presets) | `C/interactions.test.mjs` (error messages) |
 | English / French, 12 / 24 h, decimal separator, first day of the week | `C/i18n.test.mjs` |
 | Card added but the integration is not set up: says so | `C/card-integration.test.mjs` (without the integration) |

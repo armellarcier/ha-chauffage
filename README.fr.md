@@ -33,7 +33,7 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
    type *Intégration* ; installer **ha-chauffage** puis redémarrer Home Assistant.
 2. Paramètres → Appareils et services → *Ajouter une intégration* → **Chauffage**.
 3. Ajouter la carte à un tableau de bord (elle est servie par l'intégration : aucune ressource à
-   ajouter) :
+   ajouter) : *Ajouter une carte* → **Plannings de chauffe**, ou en YAML :
    ```yaml
    type: custom:chauffage-programme-card
    thermostats:
@@ -43,6 +43,8 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
    La carte suit la langue et les formats de l'utilisateur (12 / 24 h, séparateur décimal, premier
    jour de la semaine) ; l'anglais et le français sont disponibles, et `language: en` ou
    `language: fr` en force un.
+   Les thermostats, leurs noms et les autres options se règlent aussi dans l'éditeur visuel de la
+   carte (Modifier la carte) ; `language` se règle seulement en YAML.
 
 Nécessite Home Assistant 2025.1 ou plus récent. Cette version minimale ne monte que quand une
 API de Home Assistant l'impose, dans une version mineure annoncée dans le
