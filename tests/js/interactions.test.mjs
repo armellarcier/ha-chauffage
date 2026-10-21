@@ -228,7 +228,7 @@ describe('the override popover in the card', () => {
   // What the integration says each preset means on this thermostat (here: no climate presets)
   const withTargets = () => {
     const data = integrationData({ overrides: { 'climate.salon': override } });
-    data.targets = { 'climate.salon': { comfort: { kind: 'temperature', value: 20 }, eco: { kind: 'temperature', value: 17 } } };
+    data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { temperature: 17 } } };
     return fakeHass({ data });
   };
 

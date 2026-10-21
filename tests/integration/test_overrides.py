@@ -165,11 +165,18 @@ async def test_a_slot_with_the_override_s_preset_does_not_end_it(bench: Bench):
 
 # ----- changing an override's value from the card -----
 
+def card_choice(bench: Bench, preset: str) -> dict:
+    """What the card sends for a preset picked in the override popover: what that preset means
+    on this thermostat (its climate preset, or a temperature), as the integration tells the card."""
+    ((kind, value),) = bench.runtime.targets_of("climate.salon")[preset].items()
+    return {"kind": kind, "value": value}
+
+
 async def test_changing_the_override_s_value_from_the_card_drives_the_thermostat(bench: Bench):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
     o = bench.overrides()["climate.salon"]
-    comfort = bench.runtime.targets_of("climate.salon")["comfort"]  # what the card sends
+    comfort = card_choice(bench, "comfort")
     await bench.set_override("climate.salon", {**o, **comfort})
     assert bench.applied() == {"climate.salon": "comfort"}
     assert bench.overrides()["climate.salon"] == {**o, **comfort}  # same end
@@ -199,7 +206,7 @@ async def test_an_override_changed_to_the_slot_s_preset_from_the_card_holds_thro
 
     bench.hass.services.async_register("climate", "set_preset_mode", answering)
     o = bench.overrides()["climate.salon"]
-    comfort = bench.runtime.targets_of("climate.salon")["comfort"]
+    comfort = card_choice(bench, "comfort")
     await bench.set_override("climate.salon", {**o, **comfort, "end": (end_of(o) + timedelta(hours=22)).isoformat()})
     assert bench.applied() == {"climate.salon": "comfort"}
 
