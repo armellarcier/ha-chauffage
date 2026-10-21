@@ -31,6 +31,10 @@ future contributor might question.
 - **A manual change is judged against what the schedule expects**: on a thermostat driven by
   temperature, any other setpoint is an override; the thermostat reaching the expected
   temperature is not.
+- **An override only ends at its end, when it is removed, or when a manual change on the
+  thermostat goes back to the slot's preset** (issue #19). A slot change never ends it, even to
+  a slot with the override's value: an override set for a day during the first comfort slot
+  must still hold when the next eco slot starts.
 - **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
   realigned at once. A command that was not delivered is sent again every minute. Commands are
   spaced out (Zigbee networks).

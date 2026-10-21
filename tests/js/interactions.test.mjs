@@ -1,7 +1,7 @@
 // Pointer and form interactions of the card and of the more-info block: dragging slots and
 // override ends, row menu, copying a week, time fields, popovers, injection into the dialog,
 // error messages.
-import { fakeHass, fakeIntegrationHass, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -223,6 +223,34 @@ describe('the override popover in the card', () => {
     input.value = '18:00';
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T16:00:00.000Z');
+  });
+
+  // What the integration says each preset means on this thermostat (here: no climate presets)
+  const withTargets = () => {
+    const data = integrationData({ overrides: { 'climate.salon': override } });
+    data.targets = { 'climate.salon': { comfort: { kind: 'temperature', value: 20 }, eco: { kind: 'temperature', value: 17 } } };
+    return fakeHass({ data });
+  };
+
+  test('a preset picked in the popover becomes the override, until the same end', () => {
+    const hass = withTargets();
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    $(card, '.override-ed [data-override-preset="comfort"]').click();
+    const sent = hass.events.at(-1);
+    assert.equal(sent.type, 'chauffage/override/set');
+    assert.deepEqual(sent.override, { ...override, kind: 'temperature', value: 20 });
+  });
+
+  test('a temperature typed in the popover becomes the override', () => {
+    const hass = withTargets();
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-temperature]');
+    assert.equal(input.value, '21.5');
+    input.value = '22';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.deepEqual(hass.events.at(-1).override, { ...override, kind: 'temperature', value: 22 });
   });
 });
 
