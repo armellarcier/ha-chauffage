@@ -45,7 +45,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Saving the rules applies them at once and keeps them; no rules: the schedule is only chosen by hand | `I/test_rules.py::saving_the_rules_*`, `::without_rules_*` |
 | Invalid rules refused (not a template, empty, unknown schedule) with HA's message; only admins set them | `I/test_rules.py::invalid_rules_are_refused`, `::an_invalid_template_is_explained_to_the_card`, `::only_admins_set_the_rules`, `C/rules.test.mjs::a rule refused *`, `::users who are not admins *` |
 | A schedule used by the rules cannot be deleted | `I/test_rules.py::a_schedule_used_by_the_rules_cannot_be_deleted`, `C/schedules.test.mjs::a schedule used by the activation rules *` |
-| The *Rules* view: the rules in order, whether each one is true now, what they give; add, move, remove, default schedule, save, cancel; a template being typed survives an update (text, focus and caret, also once HA's ha-card renders asynchronously); link to try a template | `C/rules.test.mjs`, `I/test_rules.py::the_card_gets_the_rules_*` |
+| The *Rules* view: the rules in order, whether each one is true now, what they give; add, move, remove, default schedule, save, cancel; Save only enabled while the rules differ from the saved ones (#16); a template being typed survives an update (text, focus and caret, also once HA's ha-card renders asynchronously); link to try a template | `C/rules.test.mjs`, `I/test_rules.py::the_card_gets_the_rules_*` |
 | Upgrade: no rules, the schedule stays chosen by hand (stored data v3 → v4) | `I/test_store.py::version_4_adds_activation_rules_*` |
 
 ## Weeks applied (scheduler) — ×3

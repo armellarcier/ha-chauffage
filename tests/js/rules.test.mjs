@@ -149,6 +149,31 @@ describe('editing the rules', () => {
     assert.ok(!$(card, '[data-act="rules-cancel"]'), 'nothing left to cancel');
   });
 
+  test('nothing to save while the rules are not changed (#16)', () => {
+    const card = openRules(fakeHass({ data: withRules() }));
+    assert.ok($(card, '[data-act="rules-save"]').disabled);
+    type($$(card, '.rule textarea')[0], '{{ true }}');
+    assert.ok(!$(card, '[data-act="rules-save"]').disabled);
+  });
+
+  test('a change undone by hand leaves nothing to save', () => {
+    const card = openRules(fakeHass({ data: withRules() }));
+    const area = $$(card, '.rule textarea')[0];
+    type(area, '{{ true }}');
+    type($$(card, '.rule textarea')[0], RED.template);
+    assert.ok($(card, '[data-act="rules-save"]').disabled);
+    assert.ok(!$(card, '[data-act="rules-cancel"]'));
+    assert.doesNotMatch($(card, '.msg').textContent, /non enregistr/i);
+  });
+
+  test('once saved, the save button says there is nothing left to save (#16)', async () => {
+    const card = openRules(fakeHass({ data: withRules() }));
+    type($$(card, '.rule textarea')[0], '{{ true }}');
+    await card._action('rules-save', {});
+    assert.ok($(card, '[data-act="rules-save"]').disabled);
+    assert.match($(card, '.msg').textContent, /Enregistré/);
+  });
+
   test('users who are not admins see the rules without editing them', () => {
     const hass = fakeHass({ data: withRules() });
     hass.user = { is_admin: false };
