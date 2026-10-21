@@ -31,6 +31,15 @@ future contributor might question.
 - **A manual change is judged against what the schedule expects**: on a thermostat driven by
   temperature, any other setpoint is an override; the thermostat reaching the expected
   temperature is not.
+- **An override departs from the schedule, now: it is never planned.** It starts when it is
+  made (a change on the thermostat, in the card or the more-info dialog, or `set_override`
+  called at that moment) and lasts until its end; its stored `start` is when it was made, not a
+  start to wait for. What is decided in advance ("tomorrow from 8:00 to 18:00, the children's
+  bedrooms on frost protection") is part of the plan, so it belongs to the schedules (activation
+  rules, the coming calendar of schedules, issue #13), not to overrides. Hence **one override per
+  thermostat at most**: a new change replaces it, there is no stack of overrides and no override
+  waiting to start. An automation calling `set_override` at 8:00 is consistent with this: it
+  departs from the schedule at 8:00.
 - **An override only ends at its end, when it is removed, or when a user's change on the
   thermostat goes back to what the slot expects** (issue #19: no "Comfort in Comfort"
   override). A slot change never ends it, even to a slot with the override's value: an override

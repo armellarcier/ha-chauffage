@@ -11,7 +11,7 @@ canonical; the French column is the UI and docs wording.
 | **Week** | Semaine | What a schedule says for one thermostat: 7 days of slots. |
 | **Slot** | Créneau | A start time and a preset; it lasts until the next slot of the day. |
 | **Preset** | Préréglage | What a slot asks a thermostat for (*Comfort*, *Eco*, *Boost*, *Frost protection*…): a name, a color, a default temperature. For each thermostat, a preset is the climate preset with the same name when it has one, otherwise a temperature; it can be set per thermostat. It is the same idea as a climate entity's presets, extended to thermostats that have none. |
-| **Override** | Dérogation | A temporary setpoint or preset on one thermostat, usually set by hand on the thermostat; it ends by itself and the thermostat resumes its schedule. |
+| **Override** | Dérogation | A departure from the schedule on one thermostat, decided now: a setpoint or preset until an end, usually set by hand on the thermostat. It is never planned (what is decided in advance belongs to the schedules), and a thermostat has one at most: a new one replaces it. It ends by itself and the thermostat resumes its schedule. |
 | **History** | Historique | What happened, not what is planned: the temperature measured and the setpoint applied by each thermostat over the last 7 days, read from Home Assistant's recorder and drawn over the days of the week (each day shows its last occurrence). |
 
 ## Former words
