@@ -759,6 +759,21 @@ function overrideValueHtml(d, src, climate, attrs, loc) {
   return { presets: `<div class="presets">${presets}</div>`, temperature };
 }
 
+const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
+
+// A field being typed in, again after a redraw: its text and the focus (again once ha-card, a
+// Lit component rendered asynchronously, shows its content)
+function restoreTyped(root, selector, value) {
+  const input = root.querySelector(selector);
+  if (!input) return;
+  input.value = value;
+  input.focus();
+  const card = root.querySelector('ha-card');
+  if (card && card.updateComplete instanceof Promise) {
+    card.updateComplete.then(() => { if (input.isConnected) input.focus(); });
+  }
+}
+
 // The override `d` set to a preset (what it means on this thermostat), until the same end
 function overrideWithPreset(d, src, climate, preset) {
   const target = src.targets(climate)[preset];
@@ -1554,9 +1569,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     const area = this.shadowRoot.activeElement;
     const rule = area && area.hasAttribute && area.hasAttribute('data-rule-template')
       && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
+    const temperature = area && area.matches && area.matches(OVERRIDE_TEMPERATURE) ? area.value : null;
     this._draw();
     if (typing) this._restoreSchedName(typing.value, typing.focused);
     if (rule) this._restoreRuleCaret(rule);
+    if (temperature !== null) restoreTyped(this.shadowRoot, `.override-ed ${OVERRIDE_TEMPERATURE}`, temperature);
     this._syncPreview();
   }
 
@@ -3028,8 +3045,6 @@ class ChauffageMoreInfo extends HTMLElement {
     const key = [s[this._entity], weeks, overrides, schedule, Math.floor(Date.now() / 60000), this._loc.signature];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
-    const focused = this.shadowRoot.activeElement;
-    if (focused && focused.matches('input')) return; // nor while a value is typed in
     this._key = key;
     this._render();
   }
@@ -3094,6 +3109,9 @@ class ChauffageMoreInfo extends HTMLElement {
     const t = this._loc.t;
     const { schedule, week } = this._week();
     if (!week) { this.shadowRoot.innerHTML = ''; this.style.display = 'none'; return; }
+    // A temperature being typed survives the redraw (a new state of the thermostat, every minute)
+    const focused = this.shadowRoot.activeElement;
+    const typed = focused && focused.matches(OVERRIDE_TEMPERATURE) ? focused.value : null;
     this.style.display = '';
     const today = todayIdx();
     const d = this._currentOverride();
@@ -3163,6 +3181,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const det = this.shadowRoot.querySelector('details');
     det.open = !!this._weekOpen;
     det.addEventListener('toggle', () => { this._weekOpen = det.open; });
+    if (typed !== null) restoreTyped(this.shadowRoot, OVERRIDE_TEMPERATURE, typed);
   }
 
   _onClick(e) {

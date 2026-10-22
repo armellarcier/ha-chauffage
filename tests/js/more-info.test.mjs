@@ -83,6 +83,16 @@ describe('more-info block', () => {
     input.value = '2';
     const salon = hass.states['climate.salon'];
     el.hass = { ...hass, states: { ...hass.states, 'climate.salon': { ...salon, attributes: { ...salon.attributes, current_temperature: 20.1 } } } };
-    assert.equal(el.shadowRoot.querySelector('input[data-override-temperature]').value, '2');
+    const after = el.shadowRoot.querySelector('input[data-override-temperature]');
+    assert.equal(after.value, '2');
+    assert.equal(el.shadowRoot.activeElement, after);
+  });
+
+  test('an override ended elsewhere is no longer shown, even while a field has the focus', () => {
+    const hass = withTargets();
+    const el = block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('input[data-override-temperature]').focus();
+    hass.push(integrationData({ overrides: {} }));
+    assert.match(text(el), /Suit le planning/);
   });
 });

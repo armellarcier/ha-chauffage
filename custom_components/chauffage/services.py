@@ -68,7 +68,7 @@ def async_register(hass: HomeAssistant) -> None:
         kind = "temperature" if "temperature" in call.data else "preset"
         override = runtime.new_override(kind, call.data[kind], call.data.get("duration"), end)
         try:
-            await runtime.set_override(entity_id, override)
+            await runtime.set_override(entity_id, override, send="always")
         except ThermostatFailed as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="thermostat_failed", translation_placeholders={"entity_id": entity_id}

@@ -391,12 +391,15 @@ class ChauffageRuntime:
         if outcome is not None and (changed or force):
             await self.activate_schedule(outcome)
 
-    async def set_override(self, entity_id: str, override: dict[str, Any] | None) -> None:
+    async def set_override(self, entity_id: str, override: dict[str, Any] | None, *, send: str = "new value") -> None:
         """Create / change / extend (override) or remove (None) a thermostat's override.
 
-        A new override, or a new value, is sent to the thermostat unless it already has it (a
-        manual change); a new end alone is not. ThermostatFailed, and nothing recorded, if the
-        thermostat could not be reached."""
+        A temperature is fitted to the thermostat (limits, step). `send` says what is sent to the
+        thermostat, unless it already has it:
+        - "new value" (the card): a new override or a new value; a new end alone is not;
+        - "always" (the service): the value, even if the override already had it;
+        - "never" (a change by hand: the thermostat set it itself).
+        ThermostatFailed, and nothing recorded, if the thermostat could not be reached."""
         if override is None:
             if self.data["overrides"].pop(entity_id, None) is None:
                 return
@@ -404,11 +407,14 @@ class ChauffageRuntime:
             await self.apply(resumed=entity_id)
             return
         override = model.normalize_override(override)
+        current = thermostat(self.hass.states.get(entity_id))
+        if override["kind"] == "temperature" and current is not None:
+            override["value"] = engine.fit_temperature(override["value"], current)
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
-        current = thermostat(self.hass.states.get(entity_id))
-        if new_value and (current is None or not engine.satisfied(target, current)):
+        wanted = send == "always" or (send == "new value" and new_value)
+        if wanted and (current is None or not engine.satisfied(target, current)):
             service, data = (
                 ("set_temperature", {"temperature": target.value}) if target.kind == "temperature"
                 else ("set_preset_mode", {"preset_mode": target.value})
@@ -525,4 +531,6 @@ class ChauffageRuntime:
                 self.entry.async_create_task(self.hass, self.set_override(new.entity_id, None), "chauffage resume")
             return
         override = self.new_override(*change)
-        self.entry.async_create_task(self.hass, self.set_override(new.entity_id, override), "chauffage override")
+        self.entry.async_create_task(
+            self.hass, self.set_override(new.entity_id, override, send="never"), "chauffage override"
+        )

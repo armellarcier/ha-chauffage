@@ -253,6 +253,18 @@ describe('the override popover in the card', () => {
     assert.deepEqual(hass.events.at(-1).override, { ...override, kind: 'temperature', value: 22 });
   });
 
+  test('a temperature being typed in the popover survives a redraw of the card', () => {
+    const card = createCard(withTargets(), { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-temperature]');
+    input.focus();
+    input.value = '2';
+    card._render(); // every 30 s during an override, or another thermostat's override changed
+    const after = $(card, '.override-ed input[data-override-temperature]');
+    assert.equal(after.value, '2');
+    assert.equal(card.shadowRoot.activeElement, after);
+  });
+
   test('with a preset, the temperature field shows the thermostat\'s setpoint, even once it answers', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': { ...override, kind: 'preset', value: 'eco' } } });
     const salon = (temperature) => ({ ...hass.states['climate.salon'], attributes: { ...hass.states['climate.salon'].attributes, temperature } });

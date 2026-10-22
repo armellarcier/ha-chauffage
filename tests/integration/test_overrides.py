@@ -5,7 +5,7 @@ from enum import Enum
 
 import pytest
 
-from conftest import CTX_AUTOMATION, CTX_USER, Bench, every_day, KINDS
+from conftest import CTX_AUTOMATION, CTX_USER, MANUAL_PRESET, Bench, every_day, KINDS
 from homeassistant.util import dt as dt_util
 
 
@@ -162,7 +162,30 @@ async def test_a_slot_with_the_override_s_preset_does_not_end_it(bench: Bench):
         assert bench.overrides()["climate.salon"] == override, slot
 
 
+async def test_the_override_of_a_change_by_hand_is_only_recorded(bench: Bench):
+    """Review of #21: the thermostat set it itself. Even if it changed again before the
+    override is recorded (two quick changes), nothing is sent back: that would undo the second
+    change."""
+    await start(bench)
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 21.5)  # already the second change
+    await bench.runtime.set_override("climate.salon", bench.runtime.new_override("temperature", 21), send="never")
+    assert bench.temperature_calls == []
+    assert bench.overrides()["climate.salon"]["value"] == 21
+
+
 # ----- changing an override's value from the card -----
+
+async def test_an_override_s_temperature_is_fitted_to_the_thermostat(bench: Bench):
+    """Its limits (5 – 30 °C) and its step (0.5 °C), as for the slots."""
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21.5)
+    o = bench.overrides()["climate.salon"]
+    await bench.set_override("climate.salon", {**o, "value": 35})
+    assert bench.temperature_calls[-1] == ("climate.salon", 30)
+    assert bench.overrides()["climate.salon"]["value"] == 30
+    await bench.set_override("climate.salon", {**o, "value": 21.3})
+    assert bench.temperature_calls[-1] == ("climate.salon", 21.5)
+    assert bench.overrides()["climate.salon"]["value"] == 21.5
 
 async def test_changing_the_override_s_value_from_the_card_drives_the_thermostat(bench: Bench):
     await start(bench)

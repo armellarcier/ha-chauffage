@@ -54,9 +54,13 @@ future contributor might question.
   "back to the schedule". The card sends what the preset means on that thermostat (its climate
   preset, or a temperature), so the stored format of overrides does not change; on a thermostat
   without presets, "Comfort" picked in the card shows as its temperature.
-- **One way to set an override's value on the thermostat** (`runtime.set_override`), for the
-  card and the `set_override` service: a new override or a new value is sent unless the
-  thermostat already has it (a manual change); a new end alone is not.
+- **One way to set an override's value on the thermostat** (`runtime.set_override`), which
+  fits a temperature to the thermostat (limits, step) as for the slots, and never sends what the
+  thermostat already has. The caller says what to send: the card, a new override or a new value
+  (a new end alone is not sent, so it works on an unreachable thermostat); the `set_override`
+  service, the value every time (an automation setting it again puts a thermostat that lost it
+  back); a change by hand, nothing (the thermostat set it itself: sending it back could undo a
+  second change made meanwhile).
 - **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
   realigned at once. A command that was not delivered is sent again every minute. Commands are
   spaced out (Zigbee networks).
