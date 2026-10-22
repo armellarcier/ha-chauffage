@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.6.0-beta.2] - 2026-10-22
+
+**A temporary setpoint set from the card**, and what follows an override shown
+([#19](https://github.com/armellarcier/ha-chauffage/issues/19)). Does not migrate stored data.
+
 ### Added
 
 - A temporary setpoint can be **set from the card** (the menu of today's row, *Temporary
@@ -396,7 +401,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.2...HEAD
+[0.6.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.2
 [0.6.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.1
 [0.5.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.1
 [0.5.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0
