@@ -47,6 +47,8 @@ const I18N = {
     remaining: '{duration} left',
     duration: '{h}h {mm}',
     deleteAndResume: 'Delete · resume the schedule',
+    thenSchedule: 'then {preset} (schedule)',
+    newOverride: 'Temporary setpoint…',
     resume: 'Resume the schedule',
     activeSchedule: 'Active schedule',
     activeScheduleBar: 'Active schedule: <strong>{schedule}</strong>',
@@ -191,6 +193,8 @@ const I18N = {
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
     deleteAndResume: 'Supprimer · reprendre le planning',
+    thenSchedule: 'puis {preset} (planning)',
+    newOverride: 'Consigne temporaire…',
     resume: 'Reprendre le planning',
     activeSchedule: 'Planning actif',
     activeScheduleBar: 'Planning actif : <strong>{schedule}</strong>',
@@ -707,6 +711,7 @@ function dataSource(hass) {
       return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...(revision != null ? { revision } : {}) });
     },
     setOverride: (climate, override) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override }),
+    overrideDuration: () => (d && d.override_duration) || 120, // minutes, an option of the integration
     activateSchedule: (id) => hass.callWS({ type: 'chauffage/schedule/activate', schedule: id }),
     // Create, rename, move, delete schedules: [{ id, name? } | { name, copy_of? }]
     setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
@@ -750,13 +755,19 @@ function overrideValueHtml(d, src, climate, attrs, loc) {
   const targets = src.targets(climate);
   const presets = sortedPresets(src, loc).filter((l) => targets[l.id]).map((l) => {
     const [[kind, value]] = Object.entries(targets[l.id]);
-    const on = d.kind === kind && d.value === value;
+    const on = !!d && d.kind === kind && d.value === value;
     return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
   }).join('');
-  const value = d.kind === 'temperature' ? d.value : attrs.temperature;
+  const value = d && d.kind === 'temperature' ? d.value : attrs.temperature;
   const temperature = `<label>${esc(loc.t('presetTemperature'))} <input type="number" data-override-temperature
     step="${attrs.target_temp_step || 0.5}" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 30}" value="${value ?? ''}"> ${esc(loc.unit)}</label>`;
   return { presets: `<div class="presets">${presets}</div>`, temperature };
+}
+
+// "then Eco (schedule)": what the thermostat goes back to at the override's end
+function thenText(src, climate, d, loc) {
+  const preset = presetAt(activeWeek(src, climate), parseDate(d.end));
+  return preset ? loc.t('thenSchedule', { preset: presetOf(presetsOf(src, loc), preset, loc).name }) : '';
 }
 
 const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
@@ -775,12 +786,39 @@ function restoreTyped(root, selector, value) {
   }
 }
 
-// The override `d` set to a preset (what it means on this thermostat), until the same end
+// A new override from now, for the override duration (an option of the integration)
+function newOverride(src, kind, value) {
+  const start = new Date();
+  return { kind, value, start: start.toISOString(), end: new Date(start.getTime() + src.overrideDuration() * 60000).toISOString() };
+}
+
+// The saved week of a thermostat in the active schedule, as parsed days (null without one)
+function activeWeek(src, climate) {
+  const week = (src.weeks()[climate] || {})[src.activeSchedule()];
+  return Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null;
+}
+
+// The preset of the slot running at `date`, in a week of parsed days
+function presetAt(week, date) {
+  const segs = (week && week[(date.getDay() + 6) % 7]) || [];
+  const minute = date.getHours() * 60 + date.getMinutes();
+  let preset = segs.length ? segs[0].preset : null;
+  for (const s of segs) if (s.start <= minute) preset = s.preset;
+  return preset;
+}
+
+// The override `d` set to a preset (what it means on this thermostat), until the same end; a new
+// override without `d`
 function overrideWithPreset(d, src, climate, preset) {
   const target = src.targets(climate)[preset];
   if (!target) return null;
   const [[kind, value]] = Object.entries(target);
-  return { ...d, kind, value };
+  return d ? { ...d, kind, value } : newOverride(src, kind, value);
+}
+
+// The override `d` set to a temperature, until the same end; a new override without `d`
+function overrideWithTemperature(d, src, value) {
+  return d ? { ...d, kind: 'temperature', value } : newOverride(src, 'temperature', value);
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
@@ -1435,6 +1473,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       ${item('fill-all', esc(t('copyToAll')))}
       ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
       ${this._historyOf(m.climate, m.day) ? `<div class="sep"></div>${item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM)}` : ''}
+      ${m.day === todayIdx() ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
     </div>`;
   }
 
@@ -1477,29 +1516,33 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _overrideEditorHtml() {
-    const { climate } = this._overrideSel;
+    const { climate, create } = this._overrideSel;
     const d = this._overrides()[climate];
-    if (!d || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
+    // Without an override: closed (it ended), unless opened to set one (today's row menu)
+    if ((!d && !create) || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
     const t = this._loc.t;
+    const attrs = (this._hass.states[climate] || {}).attributes || {};
+    const value = overrideValueHtml(d, this._source(), climate, attrs, this._loc);
+    const head = `<div class="ed-head">
+        <strong>${this._moreInfoLink(climate)} · ${esc(t('temporarySetpoint'))}</strong>
+        ${d ? `<span class="override-value">${esc(this._overrideLabel(d))}</span>` : ''}
+        <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
+      </div>
+      ${value.presets}
+      <div class="ed-head">${value.temperature}</div>`;
+    if (!d) return `<div class="editor override-ed">${head}</div>`;
     const endsAt = parseDate(d.end);
     const today = new Date();
     const dayLabel = endsAt.toDateString() === today.toDateString() ? t('today')
       : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
     const remaining = Math.max(0, Math.round((endsAt - today) / 60000));
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
-    const attrs = (this._hass.states[climate] || {}).attributes || {};
-    const value = overrideValueHtml(d, this._source(), climate, attrs, this._loc);
+    const then = thenText(this._source(), climate, d, this._loc);
     return `<div class="editor override-ed">
-      <div class="ed-head">
-        <strong>${this._moreInfoLink(climate)} · ${esc(t('temporarySetpoint'))}</strong>
-        <span class="override-value">${esc(this._overrideLabel(d))}</span>
-        <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
-      </div>
-      ${value.presets}
-      <div class="ed-head">${value.temperature}</div>
+      ${head}
       <div class="ed-head">
         <label>${esc(t('until'))} <input type="time" data-override-end step="${this._config.step * 60}" value="${hmOf(endsAt)}"></label>
-        <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}</span>
+        <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
       </div>
       <div class="ed-actions start">
         ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
@@ -1533,7 +1576,10 @@ class ChauffageProgrammeCard extends HTMLElement {
   _placeEditor() {
     const root = this.shadowRoot;
     const ed = root.querySelector('.editor');
-    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on');
+    // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
+    const sel = this._overrideSel;
+    const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${todayIdx()}"] .now`);
+    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on') || now;
     if (!ed || !seg) return true;
     const card = root.querySelector('ha-card').getBoundingClientRect();
     // A slot is clipped to its row (the popover goes under the row); a cell to the table, which
@@ -2021,8 +2067,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._setOverrideEnd(this._overrideSel.climate, endsAt);
       } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
         const c = this._overrideSel.climate;
-        const d = this._overrides()[c];
-        if (d) this._sendOverride(c, { ...d, kind: 'temperature', value: Number(el.value) });
+        this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), Number(el.value)));
       }
     });
   }
@@ -2645,16 +2690,21 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._menu = null;
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
+    if (act === 'override-new') { // today's row menu: set a temporary setpoint
+      this._sel = null;
+      this._overrideSel = { climate: ds.climate, create: true };
+      return this._render();
+    }
     if (act.startsWith('override-')) {
       const c = this._overrideSel && this._overrideSel.climate;
       const d = c && this._overrides()[c];
-      if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
-      if (act === 'override-del') return this._sendOverride(c, null);
-      if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.end).getTime() + Number(ds.min) * 60000));
-      if (act === 'override-preset') {
+      if (act === 'override-preset' && c) {
         const changed = overrideWithPreset(d, this._source(), c, ds.preset);
         return changed && this._sendOverride(c, changed);
       }
+      if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
+      if (act === 'override-del') return this._sendOverride(c, null);
+      if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.end).getTime() + Number(ds.min) * 60000));
     }
     if (act === 'view') {
       this._view = ds.view;
@@ -3075,10 +3125,8 @@ class ChauffageMoreInfo extends HTMLElement {
 
   _week() {
     const src = dataSource(this._hass);
-    const weeks = src.weeks();
     const schedule = src.activeSchedule();
-    const week = weeks[this._entity] && weeks[this._entity][schedule];
-    return { schedule: schedule && src.scheduleName(schedule), week: Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null };
+    return { schedule: schedule && src.scheduleName(schedule), week: activeWeek(src, this._entity) };
   }
 
   _bar(segs, piece, showNow, big) {
@@ -3127,20 +3175,22 @@ class ChauffageMoreInfo extends HTMLElement {
 
     let status;
     let endDay = '';
+    const attrs = (this._hass.states[this._entity] || {}).attributes || {};
     if (d) {
+      this._creating = false;
+      const value = overrideValueHtml(d, dataSource(this._hass), this._entity, attrs, this._loc);
       const endsAt = parseDate(d.end);
       const remaining = Math.max(0, Math.round((endsAt - new Date()) / 60000));
       const lastPiece = pieces.find((p) => p.isLast);
       const dayLabel = endsAt.toDateString() === new Date().toDateString()
         ? t('today') : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
       const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
-      const attrs = (this._hass.states[this._entity] || {}).attributes || {};
-      const value = overrideValueHtml(d, dataSource(this._hass), this._entity, attrs, this._loc);
+      const then = thenText(dataSource(this._hass), this._entity, d, this._loc);
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc))}</span>
           <label>${esc(t('until'))} <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
-          <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}</span>
+          <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>
         ${value.presets}
         <div class="line">${value.temperature}</div>
@@ -3155,7 +3205,13 @@ class ChauffageMoreInfo extends HTMLElement {
           ${this._bar(week[lastPiece.day], lastPiece, false, true)}`;
       }
     } else {
-      status = `<div class="status"><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}</div>`;
+      // "Temporary setpoint…" unfolds the same controls, to set one
+      const value = this._creating ? overrideValueHtml(null, dataSource(this._hass), this._entity, attrs, this._loc) : null;
+      status = `<div class="status${value ? ' derogation' : ''}">
+        <div class="line"><span><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}</span>
+          <button data-new-override>${esc(t('newOverride'))}</button></div>
+        ${value ? `${value.presets}<div class="line">${value.temperature}</div>` : ''}
+      </div>`;
     }
 
     const rows = this._loc.dayOrder.map((day) => `<div class="row${day === today ? ' today' : ''}">
@@ -3182,21 +3238,21 @@ class ChauffageMoreInfo extends HTMLElement {
   _onClick(e) {
     const b = e.target.closest('button');
     if (!b || !this._hass) return;
+    if (b.hasAttribute('data-new-override')) { this._creating = !this._creating; return this._render(); }
     const d = this._currentOverride();
-    if (!d) return;
-    if (b.hasAttribute('data-del')) return this._send(null);
     if (b.dataset.act === 'override-preset') {
       const changed = overrideWithPreset(d, dataSource(this._hass), this._entity, b.dataset.preset);
       return changed && this._send(changed);
     }
+    if (!d) return;
+    if (b.hasAttribute('data-del')) return this._send(null);
     this._setEnd(new Date(parseDate(d.end).getTime() + Number(b.dataset.min) * 60000));
   }
 
   _onChange(e) {
     const el = e.target;
     if (el.hasAttribute('data-override-temperature') && el.value !== '') {
-      const d = this._currentOverride();
-      if (d) this._send({ ...d, kind: 'temperature', value: Number(el.value) });
+      this._send(overrideWithTemperature(this._currentOverride(), dataSource(this._hass), Number(el.value)));
       return;
     }
     if (!el.hasAttribute('data-end') || !el.value) return;

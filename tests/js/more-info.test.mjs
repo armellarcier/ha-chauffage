@@ -50,8 +50,8 @@ describe('more-info block', () => {
   });
 
   // What the integration says each preset means on this thermostat (here: no climate presets)
-  const withTargets = () => {
-    const data = integrationData({ overrides: { 'climate.salon': override } });
+  const withTargets = (overrides = { 'climate.salon': override }) => {
+    const data = integrationData({ overrides });
     data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { temperature: 17 } } };
     return fakeHass({ data });
   };
@@ -86,6 +86,32 @@ describe('more-info block', () => {
     const after = el.shadowRoot.querySelector('input[data-override-temperature]');
     assert.equal(after.value, '2');
     assert.equal(el.shadowRoot.activeElement, after);
+  });
+
+  test('with an override: what the thermostat goes back to at its end', () => {
+    const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
+    assert.match(text(el), /puis Éco \(planning\)/); // 11:30: the 08:30 eco slot
+  });
+
+  test('without an override, "Temporary setpoint…" then a preset creates one, for the override duration', () => {
+    const hass = withTargets({});
+    const el = block(hass, 'climate.salon');
+    assert.equal(el.shadowRoot.querySelector('.presets'), null); // folded until asked
+    el.shadowRoot.querySelector('[data-new-override]').click();
+    el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
+    const msg = hass.events.at(-1);
+    assert.equal(msg.type, 'chauffage/override/set');
+    assert.deepEqual(msg.override, { kind: 'temperature', value: 20, start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+  });
+
+  test('without an override, a temperature typed creates one', () => {
+    const hass = withTargets({});
+    const el = block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-new-override]').click();
+    const input = el.shadowRoot.querySelector('input[data-override-temperature]');
+    input.value = '22';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.deepEqual(hass.events.at(-1).override, { kind: 'temperature', value: 22, start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
   });
 
   test('an override ended elsewhere is no longer shown, even while a field has the focus', () => {

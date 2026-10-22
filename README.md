@@ -21,7 +21,8 @@ presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_the
   the temperature measured over the last 7 days drawn over each day;
 - **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
   shown and adjustable (its end, and its value: a preset or a temperature) on the card and in
-  the thermostat's more-info dialog, then the thermostat falls back to its schedule. Going back
+  the thermostat's more-info dialog, which can also set one, then the thermostat falls back to
+  its schedule. Going back
   to the slot's preset or setpoint, even with the thermostat's knob, resumes the schedule at once.
 
 > The project's name is French (*chauffage* = heating); the integration and the card speak

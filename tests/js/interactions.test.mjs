@@ -226,11 +226,30 @@ describe('the override popover in the card', () => {
   });
 
   // What the integration says each preset means on this thermostat (here: no climate presets)
-  const withTargets = () => {
-    const data = integrationData({ overrides: { 'climate.salon': override } });
+  const withTargets = (overrides = { 'climate.salon': override }) => {
+    const data = integrationData({ overrides });
     data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { temperature: 17 } } };
     return fakeHass({ data });
   };
+
+  test('the popover says what the thermostat goes back to at the end', () => {
+    const card = createCard(withTargets(), { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    assert.match($(card, '.override-ed').textContent, /puis Éco \(planning\)/); // 11:30: the 08:30 eco slot
+  });
+
+  test('without an override, today\'s row menu sets a temporary setpoint, for the override duration', () => {
+    const hass = withTargets({});
+    const card = createCard(hass, { show: ['climate.salon'] });
+    card._openMenu('climate.salon', 1, 0, 0); // Tuesday: not today
+    assert.equal($(card, '.menu [data-act="override-new"]'), null);
+    card._openMenu('climate.salon', 0, 0, 0); // Monday: today
+    $(card, '.menu [data-act="override-new"]').click();
+    $(card, '.override-ed .presets [data-preset="comfort"]').click();
+    const sent = hass.events.at(-1);
+    assert.equal(sent.type, 'chauffage/override/set');
+    assert.deepEqual(sent.override, { kind: 'temperature', value: 20, start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+  });
 
   test('a preset picked in the popover becomes the override, until the same end', () => {
     const hass = withTargets();

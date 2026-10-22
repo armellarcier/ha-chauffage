@@ -80,6 +80,21 @@ async def test_overrides_and_active_schedule_from_the_card(bench: Bench, ws_clie
     assert bench.applied() == {"climate.salon": "eco"}
 
 
+async def test_an_override_created_from_the_card(bench: Bench, ws_client):
+    """The card sends UTC times (JavaScript's toISOString)."""
+    await start(bench)  # 10:00, eco
+    client = await ws_client(bench.hass)
+    override = {"kind": "temperature", "value": 22, "start": "2026-10-12T08:00:00.000Z", "end": "2026-10-12T10:00:00.000Z"}
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": override})
+    assert (await client.receive_json())["success"]
+    assert bench.temperature_calls == [("climate.salon", 22.0)]
+    await bench.go_to("11:59")
+    assert "climate.salon" in bench.overrides()
+    await bench.go_to("12:00")  # 10:00 UTC
+    assert bench.overrides() == {}
+    assert bench.applied() == {"climate.salon": "eco"}
+
+
 async def test_an_override_s_new_value_on_a_thermostat_that_does_not_answer(bench: Bench, ws_client):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21)

@@ -56,9 +56,12 @@ future contributor might question.
   override's value: an override set for a day during the first comfort slot must still hold
   when the next eco slot starts.
 - **Holding the slot's preset past the next slots is done from the card**, not by hand: the
-  override popover, and the block in the thermostat's more-info dialog, change the override's
-  value (a preset, or a temperature), and the integration sends it to the thermostat. Picking the slot's preset on the thermostat is read as
-  "back to the schedule". The card sends what the preset means on that thermostat (its climate
+  override popover (opened on an override, or from today's row menu, "Temporary setpoint…"),
+  and the block in the thermostat's more-info dialog, create an override or change its value (a
+  preset, or a temperature), and the integration sends it to the thermostat. Picking the slot's
+  preset on the thermostat is read as "back to the schedule". Both show what the thermostat
+  goes back to at the end ("then Eco (schedule)"), so that an override reads as a departure
+  from the schedule. The card sends what the preset means on that thermostat (its climate
   preset, or a temperature), so the stored format of overrides does not change; on a thermostat
   without presets, "Comfort" picked in the card shows as its temperature.
 - **One way to set an override's value on the thermostat** (`runtime.set_override`), which

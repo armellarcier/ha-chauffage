@@ -9,6 +9,20 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- A temporary setpoint can be **set from the card** (the menu of today's row, *Temporary
+  setpoint…*) and from the thermostat's more-info dialog, with no override yet: a preset or a
+  temperature, for the override duration. That is the way to keep the current preset past the
+  next slots (#19).
+- The override popover and the more-info dialog say what the thermostat goes back to at the
+  override's end: "then Eco (schedule)".
+
+### Changed
+
+- On a thermostat driven by temperatures, editing the temperature of the preset it is on (a
+  VTherm preset picked by hand) is no longer an override, as when the slot expects a preset.
+
 ## [0.6.0-beta.1] - 2026-10-22
 
 **Overrides: back to the schedule by hand, and their value changed from the card**

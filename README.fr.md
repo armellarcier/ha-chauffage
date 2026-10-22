@@ -21,7 +21,8 @@ préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versati
   des 7 derniers jours tracée sur chaque journée ;
 - **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
   visible et ajustable (sa fin, et sa valeur : un préréglage ou une température) sur la carte
-  et dans la fenêtre de détail du thermostat, puis le thermostat reprend son programme.
+  et dans la fenêtre de détail du thermostat, qui peuvent aussi en créer une, puis le
+  thermostat reprend son programme.
   Revenir au préréglage ou à la consigne du créneau, même avec la molette du thermostat,
   reprend le programme tout de suite.
 
