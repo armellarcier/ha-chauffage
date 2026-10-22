@@ -9,7 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
-Does not migrate stored data; overrides in progress are kept.
+## [0.6.0-beta.1] - 2026-10-22
+
+**Overrides: back to the schedule by hand, and their value changed from the card**
+([#19](https://github.com/armellarcier/ha-chauffage/issues/19)). Does not migrate stored data;
+overrides in progress are kept.
 
 ### Added
 
@@ -378,7 +382,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.1...HEAD
+[0.6.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.1
 [0.5.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.1
 [0.5.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0
 [0.5.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.2
