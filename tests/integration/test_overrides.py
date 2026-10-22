@@ -202,7 +202,7 @@ async def test_the_override_of_a_change_by_hand_is_only_recorded(bench: Bench):
     change."""
     await start(bench)
     bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 21.5)  # already the second change
-    await bench.runtime.set_override("climate.salon", bench.runtime.new_override("temperature", 21), send="never")
+    bench.runtime.record_override("climate.salon", bench.runtime.new_override("temperature", 21))
     assert bench.temperature_calls == []
     assert bench.overrides()["climate.salon"]["value"] == 21
 

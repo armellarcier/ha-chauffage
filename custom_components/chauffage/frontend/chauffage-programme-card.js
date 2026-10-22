@@ -761,12 +761,13 @@ function overrideValueHtml(d, src, climate, attrs, loc) {
 
 const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
 
-// A field being typed in, again after a redraw: its text and the focus (again once ha-card, a
-// Lit component rendered asynchronously, shows its content)
+// A field being typed in, again after a redraw: its text (if any) and the focus, again once
+// ha-card (a Lit component rendered asynchronously) shows its content; before that, the field
+// cannot take the focus
 function restoreTyped(root, selector, value) {
   const input = root.querySelector(selector);
   if (!input) return;
-  input.value = value;
+  if (value != null) input.value = value;
   input.focus();
   const card = root.querySelector('ha-card');
   if (card && card.updateComplete instanceof Promise) {
@@ -1593,18 +1594,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
-  // The name field of the schedule menus: its text, and the focus once ha-card (a Lit component,
-  // rendered asynchronously) shows its content; before that, the field cannot take the focus
+  // The name field of the schedule menus: its text, and the focus
   _restoreSchedName(value, focus) {
-    const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
-    if (!input) return;
-    if (value != null) input.value = value;
-    if (!focus) return;
-    input.focus();
-    const card = this.shadowRoot.querySelector('ha-card');
-    if (card && card.updateComplete instanceof Promise) {
-      card.updateComplete.then(() => { if (input.isConnected) input.focus(); });
-    }
+    const selector = '.sched-menu input[data-sched-name]';
+    if (focus) return restoreTyped(this.shadowRoot, selector, value);
+    const input = this.shadowRoot.querySelector(selector);
+    if (input && value != null) input.value = value;
   }
 
   _draw() {

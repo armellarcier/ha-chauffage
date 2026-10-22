@@ -391,15 +391,14 @@ class ChauffageRuntime:
         if outcome is not None and (changed or force):
             await self.activate_schedule(outcome)
 
-    async def set_override(self, entity_id: str, override: dict[str, Any] | None, *, send: str = "new value") -> None:
-        """Create / change / extend (override) or remove (None) a thermostat's override.
+    async def set_override(self, entity_id: str, override: dict[str, Any] | None, *, resend: bool = False) -> None:
+        """Create / change / extend (override) or remove (None) a thermostat's override, from the
+        card or the service.
 
-        A temperature is fitted to the thermostat (limits, step). `send` says what is sent to the
-        thermostat, unless it already has it:
-        - "new value" (the card): a new override or a new value; a new end alone is not;
-        - "always" (the service): the value, even if the override already had it;
-        - "never" (a change by hand: the thermostat set it itself).
-        ThermostatFailed, and nothing recorded, if the thermostat could not be reached."""
+        A temperature is fitted to the thermostat (limits, step). A new override or a new value
+        is sent to the thermostat unless it already has it; a new end alone is not, unless
+        `resend` (the service: an automation setting it again puts back a thermostat that lost
+        it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached."""
         if override is None:
             if self.data["overrides"].pop(entity_id, None) is None:
                 return
@@ -413,8 +412,7 @@ class ChauffageRuntime:
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
-        wanted = send == "always" or (send == "new value" and new_value)
-        if wanted and (current is None or not engine.satisfied(target, current)):
+        if (new_value or resend) and (current is None or not engine.satisfied(target, current)):
             service, data = (
                 ("set_temperature", {"temperature": target.value}) if target.kind == "temperature"
                 else ("set_preset_mode", {"preset_mode": target.value})
@@ -422,6 +420,13 @@ class ChauffageRuntime:
             if not await self.call_climate(service, entity_id, data):
                 raise ThermostatFailed(entity_id)
         self.data["overrides"][entity_id] = override
+        self._changed()
+
+    @callback
+    def record_override(self, entity_id: str, override: dict[str, Any]) -> None:
+        """The override of a change by hand, only recorded: the thermostat set it itself, and
+        sending it back could undo a second change made meanwhile."""
+        self.data["overrides"][entity_id] = model.normalize_override(override)
         self._changed()
 
     def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
@@ -538,7 +543,4 @@ class ChauffageRuntime:
             if new.entity_id in self.data["overrides"]:
                 self.entry.async_create_task(self.hass, self.set_override(new.entity_id, None), "chauffage resume")
             return
-        override = self.new_override(*change)
-        self.entry.async_create_task(
-            self.hass, self.set_override(new.entity_id, override, send="never"), "chauffage override"
-        )
+        self.record_override(new.entity_id, self.new_override(*change))

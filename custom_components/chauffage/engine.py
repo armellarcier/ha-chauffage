@@ -254,22 +254,18 @@ def manual_change(
     before: Thermostat, after: Thermostat, *, by_user: bool, expected: Target | None = None,
     preset_temperature: float | None = None, override: Target | None = None,
 ) -> tuple[str, Any] | None:
-    """Override created by a change that is neither the integration's nor an automation's
-    (the caller excludes those), as (kind, value), RESUME, or None.
+    """What a change that is neither the integration's nor an automation's (the caller excludes
+    those) means: an override as (kind, value), RESUME, or None. docs/decisions.md, "Scheduling".
 
-    Going back to what the schedule expects (`back_to`; `preset_temperature`: what the expected
-    preset gives on this thermostat) resumes it (RESUME: the override, if any, ends), with the
-    same rules as overrides: a preset picked by a user, or a setpoint changed by a user or on
-    the device. Not when the override (`override`) already has that value: the thermostat
-    comes back to it (an override holding the slot's value past the next slots).
-    Otherwise, judged against what the schedule expects (`expected`):
-    - temperature expected: any new setpoint that differs from it is a temperature override; a
-      preset picked by a user is a preset override; a preset the thermostat sets by itself
-      (VTherm safety mode…) is not an override;
-    - preset expected (or nothing known): the thermostat switches to its manual preset (VTherm:
-      "none") on a setpoint changed by hand → temperature override; a preset picked by a user →
-      preset override. A setpoint change that keeps the preset is that preset's own
-      temperature (VTherm preset temperatures): not an override.
+    Two gestures count: a preset picked by a user (not one the thermostat sets by itself, such
+    as VTherm's safety mode), and a setpoint changed by a user or on the device (the thermostat
+    on its manual preset: VTherm "none", none for the others). A setpoint change that keeps the
+    preset is that preset's own temperature (VTherm preset temperatures): nothing.
+    - Back to what the slot gives (`back_to`; `preset_temperature`: what the expected preset
+      gives on this thermostat): RESUME, the override, if any, ends. Not when the override
+      (`override`) already has that value: the thermostat comes back to it (an override holding
+      the slot's value past the next slots).
+    - Otherwise: an override to that preset, or to that setpoint.
     """
     if after.state in IGNORED_STATES or before.state in ("unavailable", "unknown"):
         return None
@@ -278,24 +274,12 @@ def manual_change(
     setpoint = manual and (
         after.preset != before.preset or not same_temperature(after.temperature, before.temperature, after)
     )
-    if expected is not None and (picked or setpoint) and back_to(expected, after, preset_temperature):
+    if not picked and not (setpoint and after.temperature is not None):
+        return None
+    if expected is not None and back_to(expected, after, preset_temperature):
         held = override is not None and override.kind == expected.kind and (
             override.value == expected.value
             or (expected.kind == "temperature" and same_temperature(override.value, expected.value, after))
         )
         return None if held else RESUME
-    if expected is not None and expected.kind == "temperature":
-        if after.preset != before.preset and not manual:
-            return ("preset", after.preset) if by_user else None
-        if after.temperature is None or same_temperature(after.temperature, expected.value, after):
-            return None
-        if after.temperature != before.temperature or after.preset != before.preset:
-            return "temperature", after.temperature
-        return None
-    if manual and after.temperature is not None and (
-        after.temperature != before.temperature or after.preset != before.preset
-    ):
-        return "temperature", after.temperature
-    if not manual and after.preset != before.preset and by_user:
-        return "preset", after.preset
-    return None
+    return ("preset", after.preset) if picked else ("temperature", after.temperature)

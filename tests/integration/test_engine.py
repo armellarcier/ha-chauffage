@@ -211,6 +211,8 @@ def test_temperature_expected_manual_changes():
     assert engine.manual_change(heat("safety", 7.0), heat("none", 20.0), by_user=False, expected=expected) == engine.RESUME
     # A preset picked by a user
     assert engine.manual_change(heat("none", 20.0), heat("boost", 22.0), by_user=True, expected=expected) == ("preset", "boost")
+    # Then that preset's own temperature edited (VTherm): still that preset, as when a preset is expected
+    assert engine.manual_change(heat("boost", 22.0), heat("boost", 23.0), by_user=True, expected=expected) is None
 
 
 def test_a_setpoint_change_keeping_the_preset_is_the_preset_s_temperature():
