@@ -131,13 +131,47 @@ async def test_going_back_to_the_scheduled_preset_by_hand_ends_the_override(benc
     assert bench.applied() == {}  # already as the schedule wants it
 
 
-async def test_the_thermostat_going_back_to_the_slot_s_preset_by_itself_keeps_the_override(bench: Bench):
-    """Only a user resumes the schedule (not VTherm leaving its safety mode, for example)."""
+async def test_the_thermostat_switching_back_to_the_slot_s_preset_by_itself_keeps_the_override(bench: Bench):
+    """A preset picked by the thermostat itself is not a user's choice (VTherm leaving its safety
+    mode, for example), as for preset overrides."""
+    bench.needs("vtherm", "standard")
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
     bench.thermostat("climate.salon", "eco")  # no user: the thermostat itself
     await bench.hass.async_block_till_done()
     assert "climate.salon" in bench.overrides()
+
+
+async def test_the_knob_turned_back_to_what_the_slot_gives_ends_the_override(bench: Bench):
+    """Review of #21: a setpoint changed on the thermostat itself (its knob, no user in Home
+    Assistant) is an override, so going back to what the slot gives ends it, as from Home
+    Assistant. With presets, that is the temperature of the slot's preset on this thermostat,
+    and the thermostat gets its preset back."""
+    await start(bench)  # eco slot: 17 °C
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 21.5)  # the knob
+    await bench.hass.async_block_till_done()
+    assert "climate.salon" in bench.overrides()
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 17)  # the knob, back
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+    assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "eco"})
+
+
+async def test_a_thermostat_coming_back_by_itself_to_a_held_slot_value_keeps_the_override(bench: Bench):
+    """The slot's value held from the card past the next slots, on a VTherm mapped to
+    temperatures: leaving its safety mode, it comes back to that value, which ends nothing."""
+    bench.needs("vtherm")
+    await start(bench)
+    await bench.runtime.set_mapping("climate.salon", {"eco": {"temperature": 17}})
+    bench.thermostat("climate.salon", "none", 17)  # as the schedule set it
+    await bench.hass.async_block_till_done()
+    hold = bench.runtime.new_override("temperature", 17, minutes=24 * 60)
+    await bench.set_override("climate.salon", hold)
+    bench.thermostat("climate.salon", "safety", 7)  # no temperature received
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "none", 17)  # back
+    await bench.hass.async_block_till_done()
+    assert bench.overrides()["climate.salon"] == hold
 
 
 async def test_a_slot_with_the_override_s_preset_does_not_end_it(bench: Bench):

@@ -19,10 +19,12 @@ Does not migrate stored data; overrides in progress are kept.
 
 ### Fixed
 
-- Going back to the slot's preset on the thermostat, by hand, during an override no longer
-  creates an override to that same preset ("Comfort in Comfort"): it ends the override and the
-  thermostat follows its schedule again (#19). On a thermostat without presets, setting the
-  slot's temperature by hand also ends it (the override was kept, showing the old setpoint).
+- Going back to the slot's preset on the thermostat during an override no longer creates an
+  override to that same preset ("Comfort in Comfort"): it ends the override and the thermostat
+  follows its schedule again (#19). Turning the thermostat's knob back to what the slot gives
+  also ends it, on every kind of thermostat: the slot's temperature, or the temperature of the
+  slot's preset on this thermostat (the thermostat then gets its preset back). The override
+  was kept, showing the old setpoint and holding back the next slots until its end.
 - Changing an override's value through the websocket API (`chauffage/override/set`) now sets
   the thermostat to it, or answers `thermostat_failed`; it was only recorded.
 

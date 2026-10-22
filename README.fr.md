@@ -22,7 +22,8 @@ préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versati
 - **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
   visible et ajustable (sa fin, et sa valeur : un préréglage ou une température) sur la carte
   et dans la fenêtre de détail du thermostat, puis le thermostat reprend son programme.
-  Revenir à la main au préréglage du créneau reprend le programme tout de suite.
+  Revenir au préréglage ou à la consigne du créneau, même avec la molette du thermostat,
+  reprend le programme tout de suite.
 
 ## Installation
 
@@ -237,8 +238,9 @@ Développement : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
   Les thermostats en dérogation, éteints ou indisponibles ne sont pas touchés ; une vanne
   injoignable ne bloque pas les autres.
 - **Changements manuels** : une consigne changée à la main (le thermostat passe en preset
-  `none`) ou un préréglage choisi par un utilisateur devient une dérogation temporaire ; un
-  utilisateur qui revient à ce que prévoit le créneau la termine. Les
+  `none`) ou un préréglage choisi par un utilisateur devient une dérogation temporaire ;
+  revenir de la même façon à ce que donne le créneau (son préréglage, ou une consigne à la
+  température de ce préréglage sur ce thermostat) la termine. Les
   changements faits par l'intégration elle-même (son propre contexte) ou par une automatisation
   sont ignorés.
 - **Carte** : servie par l'intégration et chargée sur toutes les pages (carte + bloc de la

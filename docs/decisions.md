@@ -43,11 +43,18 @@ future contributor might question.
   what the slot expects ends it, see below). There is no stack of overrides and no override
   waiting to start. An automation calling `set_override` at 8:00 is consistent with this: it
   departs from the schedule at 8:00.
-- **An override only ends at its end, when it is removed, or when a user's change on the
-  thermostat goes back to what the slot expects** (issue #19: no "Comfort in Comfort"
-  override). A slot change never ends it, even to a slot with the override's value: an override
-  set for a day during the first comfort slot must still hold when the next eco slot starts. A
-  thermostat going back on its own (VTherm leaving safety mode) does not end it either.
+- **An override only ends at its end, when it is removed, or when a change on the thermostat
+  goes back to what the slot gives** (issue #19: no "Comfort in Comfort" override). Going back
+  follows the same rules as creating an override, the same on every kind of thermostat: a
+  preset picked by a user (not by the thermostat itself, such as VTherm leaving its safety
+  mode), or a setpoint changed by a user or on the device (its knob). "What the slot gives" is
+  measured on the thermostat: its preset, or a manual setpoint at the temperature of that
+  preset on this thermostat (published by VTherm, otherwise the last one read while on that
+  preset), not the default temperature of the ha-chauffage preset. Not when the override
+  already has that value: the thermostat coming back to it by itself does not end an override
+  held past the next slots. A slot change never ends an override, even to a slot with the
+  override's value: an override set for a day during the first comfort slot must still hold
+  when the next eco slot starts.
 - **Holding the slot's preset past the next slots is done from the card**, not by hand: the
   override popover, and the block in the thermostat's more-info dialog, change the override's
   value (a preset, or a temperature), and the integration sends it to the thermostat. Picking the slot's preset on the thermostat is read as

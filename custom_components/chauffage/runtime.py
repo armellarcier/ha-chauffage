@@ -523,7 +523,15 @@ class ChauffageRuntime:
             return
         after = thermostat(new)
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
-        change = engine.manual_change(thermostat(old), after, by_user=context.user_id is not None, expected=expected)
+        preset_temperature = engine.preset_temperature(
+            dict(new.attributes), expected.value, self.data["preset_temperatures"].get(new.entity_id, {})
+        ) if expected is not None and expected.kind == "preset" else None
+        current = self.data["overrides"].get(new.entity_id)
+        change = engine.manual_change(
+            thermostat(old), after, by_user=context.user_id is not None, expected=expected,
+            preset_temperature=preset_temperature,
+            override=engine.Target(current["kind"], current["value"]) if current else None,
+        )
         if change is None:
             return
         if change == engine.RESUME:

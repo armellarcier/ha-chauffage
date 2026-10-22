@@ -226,17 +226,43 @@ def targets(
 
 # ----- manual changes -----
 
-RESUME = ("resume", None)  # a user went back to what the schedule expects
+RESUME = ("resume", None)  # back to what the schedule expects
+
+
+def preset_temperature(attributes: dict[str, Any], preset: str, learned: dict[str, Any]) -> float | None:
+    """Temperature a thermostat's own preset gives: Versatile Thermostat publishes them
+    (preset_temperatures: {"eco_temp": …} since its version 10, eco_temp… before), otherwise
+    the one last read while the thermostat was on that preset (`learned`)."""
+    published = attributes.get("preset_temperatures")
+    key = f"{preset}_temp"
+    value = published.get(key) if isinstance(published, dict) else attributes.get(key)
+    return temperature_value(learned.get(preset) if value is None else value)
+
+
+def back_to(expected: Target, thermostat: Thermostat, preset_temperature: float | None = None) -> bool:
+    """The thermostat does what the slot asks: its preset (or its temperature), or a manual
+    setpoint at the temperature that preset gives on this thermostat."""
+    if satisfied(expected, thermostat):
+        return True
+    return (
+        expected.kind == "preset" and is_manual_preset(thermostat.preset)
+        and same_temperature(thermostat.temperature, preset_temperature, thermostat)
+    )
 
 
 def manual_change(
-    before: Thermostat, after: Thermostat, *, by_user: bool, expected: Target | None = None
+    before: Thermostat, after: Thermostat, *, by_user: bool, expected: Target | None = None,
+    preset_temperature: float | None = None, override: Target | None = None,
 ) -> tuple[str, Any] | None:
     """Override created by a change that is neither the integration's nor an automation's
     (the caller excludes those), as (kind, value), RESUME, or None.
 
-    A user going back to what the schedule expects resumes it (RESUME: the override, if any,
-    ends). Otherwise, judged against what the schedule expects (`expected`):
+    Going back to what the schedule expects (`back_to`; `preset_temperature`: what the expected
+    preset gives on this thermostat) resumes it (RESUME: the override, if any, ends), with the
+    same rules as overrides: a preset picked by a user, or a setpoint changed by a user or on
+    the device. Not when the override (`override`) already has that value: the thermostat
+    comes back to it (an override holding the slot's value past the next slots).
+    Otherwise, judged against what the schedule expects (`expected`):
     - temperature expected: any new setpoint that differs from it is a temperature override; a
       preset picked by a user is a preset override; a preset the thermostat sets by itself
       (VTherm safety mode…) is not an override;
@@ -248,11 +274,16 @@ def manual_change(
     if after.state in IGNORED_STATES or before.state in ("unavailable", "unknown"):
         return None
     manual = is_manual_preset(after.preset)
-    if expected is not None and by_user and satisfied(expected, after) and (
-        after.preset != before.preset
-        or (expected.kind == "temperature" and not same_temperature(after.temperature, before.temperature, after))
-    ):
-        return RESUME
+    picked = after.preset != before.preset and not manual and by_user
+    setpoint = manual and (
+        after.preset != before.preset or not same_temperature(after.temperature, before.temperature, after)
+    )
+    if expected is not None and (picked or setpoint) and back_to(expected, after, preset_temperature):
+        held = override is not None and override.kind == expected.kind and (
+            override.value == expected.value
+            or (expected.kind == "temperature" and same_temperature(override.value, expected.value, after))
+        )
+        return None if held else RESUME
     if expected is not None and expected.kind == "temperature":
         if after.preset != before.preset and not manual:
             return ("preset", after.preset) if by_user else None
