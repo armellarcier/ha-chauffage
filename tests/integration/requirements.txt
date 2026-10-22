@@ -1,2 +1,2 @@
 # In-memory Home Assistant for the tests (also pins the tested HA version)
-pytest-homeassistant-custom-component==0.13.372
+pytest-homeassistant-custom-component==0.13.373
