@@ -19,9 +19,10 @@ Vocabulary: docs/glossary.md.
         shown_at:            ISO datetime a card last showed it (None: not yet)
         kept_unlisted:       True: driven although no card shows it (answered in its repair),
                              until a card shows it again
-    cards:           {card id: {"thermostats": [climate entity id, …], "seen_at": ISO datetime}},
+    cards:           {card id: {"thermostats": [climate entity id, …], "seen_at": ISO datetime,
+                                "instance": id of the card as drawn, "duplicated_at"?: ISO datetime}},
                      what each card showed when it was last displayed (its id is written in its
-                     configuration by the card editor)
+                     configuration by the card editor; two cards sharing it: duplicated)
     renamed:         {former climate entity id: current one}: a thermostat renamed in Home
                      Assistant, for the cards whose configuration still holds the former id
     overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",

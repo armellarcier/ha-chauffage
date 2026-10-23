@@ -28,6 +28,8 @@ left, shows up paused in the card's *Thermostats* view, to forget or resume.
   paused, kept or forgotten; a thermostat whose entity is gone can be forgotten. For this, each
   card tells the integration which thermostats it shows, with a hidden `card_id` that the card
   editor adds to its configuration.
+- A card duplicated in the dashboard (with its hidden id) is recognized: no false repair, and
+  its editor offers to give it its own id.
 - A thermostat **renamed** in Home Assistant (its entity id) keeps its schedule, override and
   entities; a card whose configuration still holds the former id shows it under the new one.
 - A *Thermostats* view in the card: every thermostat Chauffage schedules, paused or not, and the

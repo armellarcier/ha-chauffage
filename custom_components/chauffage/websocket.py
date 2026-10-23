@@ -21,8 +21,9 @@ chauffage/rules/preview      {rules}: tries rules being typed, as the integratio
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not driven) or resume a scheduled
                              thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
-chauffage/card/declare       {card_id?, thermostats}: the thermostats a card shows, sent when it is
-                             displayed (any user); a repair proposes to pause one no card shows
+chauffage/card/declare       {card_id?, instance?, thermostats}: the thermostats a card shows, sent
+                             when it is displayed (any user); a repair proposes to pause one no
+                             card shows
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -182,13 +183,14 @@ async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.Activ
 @websocket_api.websocket_command({
     vol.Required("type"): "chauffage/card/declare",
     vol.Optional("card_id"): vol.Any(None, str),
+    vol.Optional("instance"): str,
     vol.Required("thermostats"): [str],
 })
 @callback
 def ws_declare_card(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if (runtime := _runtime(hass, connection, msg["id"])) is None:
         return
-    runtime.declare_card(msg.get("card_id"), msg["thermostats"])
+    runtime.declare_card(msg.get("card_id"), msg["thermostats"], msg.get("instance"))
     connection.send_result(msg["id"])
 
 

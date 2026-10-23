@@ -55,6 +55,9 @@ DATA, TICK = "data", "tick"
 # An active thermostat no card has shown for this long, while others were shown, is proposed to
 # be paused (a card deleted, or written in YAML without an id)
 UNSHOWN = timedelta(days=7)
+# Two cards drawn at the same time declaring different lists under one id: a card duplicated with
+# its configuration (and its hidden id)
+SAME_TIME = timedelta(minutes=1)
 
 
 class StaleRevision(Exception):
@@ -245,6 +248,10 @@ class ChauffageRuntime:
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
             "renamed": self.data["renamed"],
+            "duplicated_cards": sorted(
+                card_id for card_id, card in self.data["cards"].items()
+                if self._duplicated(card.get("duplicated_at"), dt_util.now())
+            ),
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
@@ -325,10 +332,11 @@ class ChauffageRuntime:
 
     # ----- cards -----
 
-    def declare_card(self, card_id: str | None, thermostats: list[str]) -> None:
-        """A card shows these thermostats (its id: None for a card without one, YAML). A
-        thermostat it no longer shows, that no other card shows, is proposed to be paused;
-        so is one not shown for UNSHOWN while others were (safety net)."""
+    def declare_card(self, card_id: str | None, thermostats: list[str], instance: str | None = None) -> None:
+        """A card shows these thermostats (its id: None for a card without one, YAML; its
+        instance: the card as drawn on one page). A thermostat it no longer shows, that no other
+        card shows, is proposed to be paused; so is one not shown for UNSHOWN while others were
+        (safety net). An id two cards share (duplicated) proposes nothing: its lists add up."""
         now = dt_util.now()
         renamed = self.data["renamed"]
         thermostats = [renamed.get(entity_id, entity_id) for entity_id in thermostats]
@@ -337,8 +345,18 @@ class ChauffageRuntime:
                 t.update(shown_at=now.isoformat(), kept_unlisted=False)
                 repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
         if card_id is not None:
-            before = self.data["cards"].get(card_id, {}).get("thermostats", [])
-            self.data["cards"][card_id] = {"thermostats": list(thermostats), "seen_at": now.isoformat()}
+            card = self.data["cards"].get(card_id, {})
+            before = card.get("thermostats", [])
+            duplicated_at = card.get("duplicated_at")
+            if (instance and card.get("instance") not in (None, instance) and set(before) != set(thermostats)
+                    and now - dt_util.parse_datetime(card["seen_at"]) < SAME_TIME):
+                duplicated_at = now.isoformat()
+            duplicated = self._duplicated(duplicated_at, now)
+            self.data["cards"][card_id] = {
+                "thermostats": list(dict.fromkeys([*before, *thermostats])) if duplicated else list(thermostats),
+                "seen_at": now.isoformat(), "instance": instance,
+                **({"duplicated_at": duplicated_at} if duplicated else {}),
+            }
             shown = {e for card in self.data["cards"].values() for e in card["thermostats"]}
             for entity_id in set(before) - shown:
                 self._unlisted(entity_id)
@@ -348,6 +366,10 @@ class ChauffageRuntime:
             elif now - dt_util.parse_datetime(t["shown_at"]) > UNSHOWN:
                 self._unlisted(entity_id)
         self._changed()
+
+    @staticmethod
+    def _duplicated(duplicated_at: str | None, now: datetime) -> bool:
+        return duplicated_at is not None and now - dt_util.parse_datetime(duplicated_at) < UNSHOWN
 
     def keep_unlisted(self, entity_id: str) -> None:
         """Driven although no card shows it, until a card shows it again (answer to its repair)."""

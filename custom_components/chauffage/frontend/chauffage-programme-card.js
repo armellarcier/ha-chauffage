@@ -167,6 +167,8 @@ const I18N = {
     cardDescription: 'Weekly heating schedules, several thermostats per day',
     // Visual editor of the card
     editorThermostats: 'Thermostats (required)',
+    duplicateCard: 'This card shares its id with another card (a card duplicated): Chauffage cannot tell which thermostats each one shows.',
+    newCardId: 'Give this card its own id',
     editorThermostat: 'Thermostat',
     editorEdit: 'Edit',
     editorRemove: 'Remove',
@@ -327,6 +329,8 @@ const I18N = {
     cardDescription: 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée',
     // Visual editor of the card
     editorThermostats: 'Thermostats (obligatoire)',
+    duplicateCard: 'Cette carte partage son identifiant avec une autre carte (une carte dupliquée) : Chauffage ne peut pas savoir quels thermostats chacune affiche.',
+    newCardId: 'Donner un identifiant propre à cette carte',
     editorThermostat: 'Thermostat',
     editorEdit: 'Modifier',
     editorRemove: 'Retirer',
@@ -741,7 +745,10 @@ function dataSource(hass) {
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
     renamed: () => (d && d.renamed) || {},
-    declareCard: (cardId, thermostats) => hass.callWS({ type: 'chauffage/card/declare', ...(cardId ? { card_id: cardId } : {}), thermostats }),
+    declareCard: (cardId, thermostats, instance) =>
+      hass.callWS({ type: 'chauffage/card/declare', ...(cardId ? { card_id: cardId } : {}), instance, thermostats }),
+    // Card ids two cards share (a card duplicated with its configuration)
+    duplicatedCards: () => (d && d.duplicated_cards) || [],
     // Saves against the revision of each thermostat sent (null: not scheduled when loaded);
     // an older integration only has the global one
     perThermostat: !!(d && d.thermostats),
@@ -1033,7 +1040,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const key = JSON.stringify([this._config.card_id, thermostats]);
     if (key === this._declared) return;
     this._declared = key;
-    src.declareCard(this._config.card_id, thermostats).catch((e) => console.warn('ha-chauffage: declaring the card', e));
+    if (!this._instance) this._instance = newCardId(); // this card as drawn: tells duplicates apart
+    src.declareCard(this._config.card_id, thermostats, this._instance).catch((e) => console.warn('ha-chauffage: declaring the card', e));
   }
 
   // Thermostats shown at first: those chosen last on this device, else the config's `show`.
@@ -3551,6 +3559,11 @@ const MDI = {
   pencil: 'M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z',
 };
 const EDITOR_CSS = `
+  .duplicate-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 12px;
+    border-radius: 8px; background: rgba(var(--rgb-warning-color, 255, 166, 0), .15); }
+  .duplicate-note span { flex: 1 1 200px; }
+  .duplicate-note button { font: inherit; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--divider-color);
+    background: var(--card-background-color); color: var(--primary-text-color); cursor: pointer; }
   h3 { margin: 0 0 8px; font-size: 1em; font-weight: 500; }
   .thermostat { display: flex; align-items: center; gap: 4px; }
   .thermostat + .thermostat { margin-top: 8px; }
@@ -3607,7 +3620,7 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     // The thermostat's page keeps its form while its fields change; the list is rebuilt
     const shape = JSON.stringify(this._editing !== null
       ? ['page', this._editing, loc.signature, this._haNameField()]
-      : ['list', thermostats, thermostats.map((t) => this._shownName(t)), loc.signature]);
+      : ['list', thermostats, thermostats.map((t) => this._shownName(t)), loc.signature, this._duplicated()]);
     if (shape !== this._built) {
       this._built = shape;
       this.shadowRoot.replaceChildren();
@@ -3649,7 +3662,23 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     return p;
   }
 
+  // Another card has this card's id (HA's "Duplicate" copies it with the configuration)
+  _duplicated() {
+    return !!(this._hass && this._config.card_id && dataSource(this._hass).duplicatedCards().includes(this._config.card_id));
+  }
+
   _buildList(loc, thermostats) {
+    if (this._duplicated()) {
+      const note = document.createElement('div');
+      note.className = 'duplicate-note';
+      const text = document.createElement('span');
+      text.textContent = loc.t('duplicateCard');
+      const button = document.createElement('button');
+      button.textContent = loc.t('newCardId');
+      button.addEventListener('click', () => this._emit({ ...this._config, card_id: newCardId() }));
+      note.append(text, button);
+      this.shadowRoot.appendChild(note);
+    }
     const title = document.createElement('h3');
     title.textContent = loc.t('editorThermostats');
     const sortable = document.createElement('ha-sortable');

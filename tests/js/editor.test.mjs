@@ -2,7 +2,7 @@
 // editors: one row per thermostat (drag handle, picker, remove, edit), the edit button opening
 // that thermostat's page (its optional name). HA's elements (<ha-entity-picker>, <ha-form>…)
 // are not loaded in the tests: the tests send the events they send.
-import { fakeHass, ChauffageProgrammeCard } from './helpers.mjs';
+import { fakeHass, integrationData, ChauffageProgrammeCard } from './helpers.mjs';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -10,9 +10,9 @@ const ENGLISH = { language: 'en', time_format: 'language', number_format: 'langu
 const TYPE = 'custom:chauffage-programme-card';
 
 // The minimum supported Home Assistant, unless a test says otherwise
-function editorFor(config, { locale, version = '2025.1.0', formatEntityName } = {}) {
+function editorFor(config, { locale, version = '2025.1.0', formatEntityName, data } = {}) {
   const editor = ChauffageProgrammeCard.getConfigElement();
-  const hass = fakeHass(locale ? { locale } : {});
+  const hass = fakeHass({ ...(locale ? { locale } : {}), ...(data ? { data } : {}) });
   hass.config.version = version;
   if (formatEntityName) hass.formatEntityName = formatEntityName;
   editor.hass = hass;
@@ -41,6 +41,16 @@ describe('visual editor: the card id', () => {
     assert.equal(editorFor({ type: TYPE, thermostats: ['climate.salon'] }).$('[data-card-id]'), null, 'not shown');
     value($('.add'), 'climate.bureau');
     assert.match(changes.at(-1).card_id, /^[a-z0-9]{8,}$/);
+  });
+
+  test('an id another card shares (a card duplicated) is said, with a button to give this card its own', () => {
+    const data = { ...integrationData(), duplicated_cards: ['abc123xyz'] };
+    const { $, changes } = editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'abc123xyz' }, { data });
+    assert.match($('.duplicate-note').textContent, /une autre carte/);
+    $('.duplicate-note button').click();
+    assert.match(changes.at(-1).card_id, /^[a-z0-9]{8,}$/);
+    assert.notEqual(changes.at(-1).card_id, 'abc123xyz');
+    assert.equal(editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'other' }, { data }).$('.duplicate-note'), null);
   });
 
   test('an existing card id is kept', () => {

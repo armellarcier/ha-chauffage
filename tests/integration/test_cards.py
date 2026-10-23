@@ -237,3 +237,56 @@ async def test_a_forgotten_thermostat_s_repairs_are_closed(bench: Bench):
     await bench.runtime.forget("climate.grenier")
     await bench.hass.async_block_till_done()
     assert issue(bench, MISSING) is None
+
+
+# ----- a card duplicated with its id -----
+
+async def test_a_card_duplicated_with_its_id_is_recognized(bench: Bench):
+    """HA's "Duplicate" copies the card's configuration, its id too: two cards shown at the same
+    time declare different lists under one id. No repair from that."""
+    await start(bench)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="a")
+    bench.runtime.declare_card("c1", ["climate.bureau"], instance="b")
+    await bench.hass.async_block_till_done()
+    assert issue(bench, UNLISTED) is None
+    assert bench.runtime.snapshot()["duplicated_cards"] == ["c1"]
+
+
+async def test_the_same_card_showing_fewer_thermostats_is_not_a_duplicate(bench: Bench):
+    """Edited: the card is drawn again (a new instance), a while later."""
+    await start(bench)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="a")
+    await bench.advance(2)
+    bench.runtime.declare_card("c1", ["climate.bureau"], instance="b")
+    await bench.hass.async_block_till_done()
+    assert issue(bench, UNLISTED) is not None
+    assert bench.runtime.snapshot()["duplicated_cards"] == []
+
+
+async def test_one_card_declaring_again_is_not_a_duplicate(bench: Bench):
+    await start(bench)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="a")
+    bench.runtime.declare_card("c1", ["climate.bureau"], instance="a")
+    await bench.hass.async_block_till_done()
+    assert issue(bench, UNLISTED) is not None
+    assert bench.runtime.snapshot()["duplicated_cards"] == []
+
+
+async def test_a_duplicated_id_is_forgotten_after_a_week(bench: Bench):
+    """Once one of the cards got its own id, the other one declares alone."""
+    await start(bench)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="a")
+    bench.runtime.declare_card("c1", ["climate.bureau"], instance="b")
+    await bench.go_to("10:00", day=8)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="c")
+    assert bench.runtime.snapshot()["duplicated_cards"] == []
+
+
+async def test_the_card_sends_its_instance(bench: Bench, ws_client):
+    await start(bench)
+    client = await ws_client(bench.hass)
+    for instance, thermostats in (("a", ["climate.salon", "climate.bureau"]), ("b", ["climate.bureau"])):
+        await client.send_json_auto_id({"type": "chauffage/card/declare", "card_id": "c1", "instance": instance,
+                                        "thermostats": thermostats})
+        assert (await client.receive_json())["success"]
+    assert bench.runtime.snapshot()["duplicated_cards"] == ["c1"]

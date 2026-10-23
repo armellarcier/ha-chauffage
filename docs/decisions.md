@@ -187,6 +187,11 @@ thermostat it loaded.
   deleted, written in YAML without an id, duplicated with its id), when an active thermostat
   has not been shown for days while others have (relative, so that nobody opening a dashboard
   for a week flags nothing). Paused thermostats raise none: they drive nothing.
+- **A card duplicated with its id is recognized**: HA's *Duplicate* copies the configuration,
+  the hidden `card_id` too. Each card as drawn sends an instance id with its declaration; two
+  instances declaring different lists under one id within a minute are two cards: no repair from
+  that id for a week (its lists add up, the safety net still works), and its editor offers to give
+  the card its own id. Telling them apart by their place in the dashboard was too fragile.
 - **A repair for a thermostat whose entity is gone** from HA: forget it, or keep it (an entity
   made again with the same id).
 - **A renamed `climate` entity is followed**: the integration listens to the entity registry

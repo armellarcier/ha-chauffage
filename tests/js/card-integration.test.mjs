@@ -359,7 +359,20 @@ describe('the "Presets" view', () => {
 });
 
 describe('the card declares the thermostats it shows (#27)', () => {
-  const declarations = (hass) => hass.declarations;
+  // Without the instance (tested on its own)
+  const declarations = (hass) => hass.declarations.map(({ instance: _, ...msg }) => msg);
+
+  test('with the instance of the card as drawn: the same for one card, another for another', () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass, { card_id: 'abc123xyz' });
+    card.setConfig({ thermostats: ['climate.bureau'], card_id: 'abc123xyz' });
+    card.hass = hass;
+    createCard(hass, { card_id: 'abc123xyz' });
+    const [first, second, other] = hass.declarations.map((m) => m.instance);
+    assert.match(first, /^[a-z0-9]{8,}$/);
+    assert.equal(second, first);
+    assert.notEqual(other, first);
+  });
 
   test('once displayed, with its id', () => {
     const hass = fakeIntegrationHass();
