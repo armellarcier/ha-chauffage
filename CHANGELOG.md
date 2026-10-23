@@ -19,7 +19,9 @@ thermostats.
 - A thermostat can be **paused**: Chauffage keeps its weeks but no longer drives it, until it is
   resumed (realigned at once). A *Scheduling* switch per thermostat, in the settings of its
   device page, pauses and resumes it, from an automation too. No override can be set on a paused
-  thermostat; its sensors are unavailable.
+  thermostat; its sensors are unavailable. The card shows a paused thermostat (on its chip, a
+  notice with *Resume*, its rows dimmed) and pauses or resumes it from a row's menu; its weeks
+  stay editable. The more-info block says it is paused.
 - A thermostat can be **forgotten** (websocket `chauffage/thermostat/forget`, for the card): its
   data is dropped and it is no longer driven.
 

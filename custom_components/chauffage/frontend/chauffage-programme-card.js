@@ -50,6 +50,12 @@ const I18N = {
     thenSchedule: 'then {preset} (schedule)',
     newOverride: 'Temporary setpoint…',
     resume: 'Resume the schedule',
+    paused: 'Paused',
+    pausedNote: '{name} is paused: Chauffage does not drive it.',
+    pausedInfo: 'Paused: Chauffage does not drive it.',
+    resumeShort: 'Resume',
+    resumeScheduling: 'Resume scheduling',
+    pauseScheduling: 'Pause scheduling',
     activeSchedule: 'Active schedule',
     activeScheduleBar: 'Active schedule: <strong>{schedule}</strong>',
     noActiveSchedule: 'No active schedule',
@@ -196,6 +202,12 @@ const I18N = {
     thenSchedule: 'puis {preset} (planning)',
     newOverride: 'Consigne temporaire…',
     resume: 'Reprendre le planning',
+    paused: 'En pause',
+    pausedNote: '{name} est en pause : Chauffage ne le pilote pas.',
+    pausedInfo: 'En pause : Chauffage ne le pilote pas.',
+    resumeShort: 'Reprendre',
+    resumeScheduling: 'Reprendre la programmation',
+    pauseScheduling: 'Mettre en pause',
     activeSchedule: 'Planning actif',
     activeScheduleBar: 'Planning actif : <strong>{schedule}</strong>',
     noActiveSchedule: 'Aucun planning actif',
@@ -684,7 +696,7 @@ function dataSource(hass) {
     ready: !!d,
     revision: d ? d.revision : null,
     stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides), schedule: d.active_schedule,
-      rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]) } : {},
+      rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]), thermostats: JSON.stringify(d.thermostats) } : {},
     schedules: () => schedules.map((s) => s.id),
     scheduleName: (id) => (schedules.find((s) => s.id === id) || { name: id }).name,
     activeSchedule: () => (d ? d.active_schedule : null),
@@ -700,6 +712,9 @@ function dataSource(hass) {
       return out;
     },
     overrides: () => ({ ...(d ? d.overrides : {}) }),
+    // A paused thermostat is kept but not driven (docs/decisions.md, "Scheduled thermostats")
+    paused: (climate) => !!(d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].paused),
+    setPaused: (climate, paused) => hass.callWS({ type: 'chauffage/thermostat/set', entity_id: climate, paused }),
     saveWeeks: (weeks, revision) => {
       const out = {};
       for (const [climate, bySchedule] of Object.entries(weeks)) {
@@ -938,6 +953,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     const scheduleStamp = src.stamps.schedule;
     if (scheduleStamp !== this._scheduleState && !this._drag && !this._overrideDrag) {
       this._scheduleState = scheduleStamp;
+      need = true;
+    }
+    // A thermostat paused or resumed (switch, another card): redraw its notice and rows
+    if (src.stamps.thermostats !== this._thermostatsStamp && !this._drag && !this._overrideDrag) {
+      this._thermostatsStamp = src.stamps.thermostats;
       need = true;
     }
     // Activation rules changed, or one became true or false: redraw the "Rules" view
@@ -1198,6 +1218,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (st.state === 'off') return this._loc.t('off');
     const parts = [];
     if (a.current_temperature != null) parts.push(`${this._loc.number(a.current_temperature)}°`);
+    if (this._source().paused(climate)) return [...parts, this._loc.t('paused')].join(' · ');
     const d = this._overrides()[climate];
     if (d) parts.push(`⏱ ${this._overrideLabel(d)} → ${this._loc.time(minutesOf(parseDate(d.end)))}`);
     else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) parts.push(this._loc.t('manual'));
@@ -1411,12 +1432,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       .slice(1)
       .map((s, j) => `<div class="handle" data-idx="${j + 1}" style="left:${pct(s.start)}%"><span class="tip">${this._loc.time(s.start)}</span></div>`)
       .join('');
-    const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
+    const paused = this._source().paused(climate);
+    const now = showNow && !paused ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
     const cs = this._clipSrc;
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && cs.day === d;
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, d)}${now}</div>`;
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, d)}${now}</div>`;
   }
 
   // Override drawn over the schedule (only in the active schedule's tab)
@@ -1455,6 +1477,25 @@ class ChauffageProgrammeCard extends HTMLElement {
     </div>`;
   }
 
+  // A notice per paused thermostat shown, with a button to resume it (admins)
+  _pausedNotesHtml() {
+    const src = this._source();
+    return this._shown.filter((climate) => src.paused(climate)).map((climate) => `<div class="paused-note">
+        <span>${esc(this._loc.t('pausedNote', { name: this._name(climate) }))}</span>
+        ${src.editable ? `<button class="btn" data-act="resume" data-climate="${esc(climate)}">${esc(this._loc.t('resumeShort'))}</button>` : ''}
+      </div>`).join('');
+  }
+
+  async _setPaused(climate, paused) {
+    this._render();
+    try {
+      await this._source().setPaused(climate, paused);
+    } catch (e) {
+      this._msg = this._loc.t('error', { message: e.message || e.code || e });
+      this._render();
+    }
+  }
+
   _menuHtml() {
     const m = this._menu;
     if (!m) return '';
@@ -1462,6 +1503,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const item = (act, label, icon = '', disabled = false) =>
       `<button class="mi" data-act="${act}" ${ref} ${disabled ? 'disabled' : ''}>${icon}<span>${label}</span></button>`;
     const t = this._loc.t;
+    const src = this._source();
+    const paused = src.paused(m.climate);
     const paste = this._clip ? `${esc(t('paste'))} <small>${esc(this._clip.label)}</small>` : esc(t('paste'));
     return `<div class="menu" style="top:${m.top}px;right:${m.right}px">
       <div class="mh">${esc(this._name(m.climate))} · ${this._loc.days[m.day]}</div>
@@ -1473,7 +1516,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       ${item('fill-all', esc(t('copyToAll')))}
       ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
       ${this._historyOf(m.climate, m.day) ? `<div class="sep"></div>${item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM)}` : ''}
-      ${m.day === todayIdx() ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
+      ${m.day === todayIdx() && !paused ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
+      ${src.editable ? `<div class="sep"></div>${paused ? item('resume', esc(t('resumeScheduling'))) : item('pause', esc(t('pauseScheduling')))}` : ''}
     </div>`;
   }
 
@@ -1683,7 +1727,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const chips = this._thermostats
       .map((t) => {
         const on = this._shown.includes(t.entity);
-        return `<button class="chip${on ? ' on' : ''}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="${esc(tr('openThermostat'))}">${ICON_OPEN}</span></button>`;
+        const paused = src.paused(t.entity) ? ' paused' : '';
+        return `<button class="chip${on ? ' on' : ''}${paused}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="${esc(tr('openThermostat'))}">${ICON_OPEN}</span></button>`;
       })
       .join('');
     const editable = src.editable;
@@ -1728,6 +1773,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
           <button class="chip tool${this._history.shown ? ' on' : ''}${this._history.loading ? ' loading' : ''}" data-act="history" title="${esc(tr('historyTitle'))}">${esc(tr('history'))}</button>
         </div>
+        ${this._pausedNotesHtml()}
         <div class="tabs">${tabs}</div>
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}
@@ -2690,6 +2736,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._menu = null;
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
+    if (act === 'pause' || act === 'resume') return this._setPaused(ds.climate, act === 'pause');
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._sel = null;
       this._overrideSel = { climate: ds.climate, create: true };
@@ -2774,6 +2821,11 @@ const STYLE = `
   .chip .live { color:var(--secondary-text-color); font-size:.9em; margin-left:2px; }
   .chip.on { background:var(--primary-color); border-color:var(--primary-color); color:var(--text-primary-color,#fff); }
   .chip.on .live { color:inherit; opacity:.85; }
+  .chip.paused .live { font-style:italic; }
+  .paused-note { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-top:8px; padding:6px 10px;
+    border-radius:8px; background:rgba(127,127,127,.12); color:var(--secondary-text-color); font-size:.9em; }
+  .paused-note span { flex:1 1 180px; }
+  .bar.paused .seg { opacity:.45; }
   .chip-sep { width:1px; align-self:stretch; margin:2px 2px; background:var(--divider-color); }
   .chip.tool { border-style:dashed; color:var(--secondary-text-color); background:transparent; }
   .chip.tool.on { border-style:solid; border-color:var(--primary-color); color:var(--primary-color); }
@@ -3084,10 +3136,10 @@ class ChauffageMoreInfo extends HTMLElement {
     if (src.available && !this._unlisten) {
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
     }
-    const { weeks, overrides, schedule } = src.stamps;
+    const { weeks, overrides, schedule, thermostats } = src.stamps;
     if (this._key && overrides !== this._key[2]) this._pending = undefined;
     // Redraw only when relevant data changed (or every new minute)
-    const key = [s[this._entity], weeks, overrides, schedule, Math.floor(Date.now() / 60000), this._loc.signature];
+    const key = [s[this._entity], weeks, overrides, schedule, thermostats, Math.floor(Date.now() / 60000), this._loc.signature];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
     this._key = key;
@@ -3204,6 +3256,10 @@ class ChauffageMoreInfo extends HTMLElement {
         endDay = `<div class="today-lbl">${this._loc.days[lastPiece.day]}</div>
           ${this._bar(week[lastPiece.day], lastPiece, false, true)}`;
       }
+    } else if (dataSource(this._hass).paused(this._entity)) {
+      this._creating = false;
+      status = `<div class="status"><div class="line"><span class="muted">${esc(t('pausedInfo'))}</span>
+        ${dataSource(this._hass).editable ? `<button data-resume>${esc(t('resumeShort'))}</button>` : ''}</div></div>`;
     } else {
       // "Temporary setpoint…" unfolds the same controls, to set one
       const value = this._creating ? overrideValueHtml(null, dataSource(this._hass), this._entity, attrs, this._loc) : null;
@@ -3239,6 +3295,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const b = e.target.closest('button');
     if (!b || !this._hass) return;
     if (b.hasAttribute('data-new-override')) { this._creating = !this._creating; return this._render(); }
+    if (b.hasAttribute('data-resume')) return dataSource(this._hass).setPaused(this._entity, false);
     const d = this._currentOverride();
     if (b.dataset.act === 'override-preset') {
       const changed = overrideWithPreset(d, dataSource(this._hass), this._entity, b.dataset.preset);
