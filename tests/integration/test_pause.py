@@ -40,6 +40,25 @@ async def test_a_paused_thermostat_is_not_driven(bench: Bench):
     assert bench.applied() == {"climate.bureau": "comfort"}
 
 
+async def test_a_thermostat_paused_during_a_realignment_is_sent_nothing_more(bench: Bench):
+    """Realigning several thermostats takes a while (a pause between two): one paused meanwhile
+    is skipped, and not retried if its command would have failed."""
+    await start(bench)
+    bench.unreachable.add("climate.bureau")
+    send = bench.runtime.call_climate
+
+    async def pause_bureau_first(service, entity_id, data):
+        if entity_id == "climate.salon":
+            await bench.runtime.set_paused("climate.bureau", True)
+        return await send(service, entity_id, data)
+
+    bench.runtime.call_climate = pause_bureau_first
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "comfort"}
+    await bench.advance(1)
+    assert bench.applied() == {}
+
+
 async def test_a_paused_thermostat_keeps_its_weeks_and_its_values(bench: Bench):
     await start(bench)
     await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 19.5}})

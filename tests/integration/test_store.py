@@ -57,10 +57,11 @@ def test_version_4_adds_activation_rules_and_none_are_set():
     assert (v4["rules"], v4["default_schedule"], v4["rules_choice"]) == ([], None, None)
 
 
-def test_version_5_keeps_each_thermostat_s_data_together_and_none_is_paused():
-    """docs/decisions.md, "Scheduled thermostats": the thermostats with weeks or values of the
-    presets set by hand are scheduled, active; nothing changes for them on upgrade. No card has
-    declared its thermostats yet."""
+def test_version_5_keeps_each_thermostat_s_data_together_and_pauses_those_without_weeks():
+    """docs/decisions.md, "Scheduled thermostats": nothing changes on upgrade. A thermostat with
+    weeks is scheduled, active; one with only values of the presets set by hand was not driven
+    (left behind once removed from the card, #27): it is kept, paused. No card has declared its
+    thermostats yet."""
     v4 = fixture(4)["data"]
     week = v4["weeks"]["climate.salon"]
     v4 = {**v4, "mappings": {"climate.salon": {"eco": {"temperature": 16.5}}, "climate.bureau": {"eco": {"preset": "eco"}}},
@@ -71,7 +72,8 @@ def test_version_5_keeps_each_thermostat_s_data_together_and_none_is_paused():
     assert v5["thermostats"] == {
         "climate.salon": {**unseen, "weeks": week, "mapping": {"eco": {"temperature": 16.5}},
                           "preset_temperatures": {"eco": 17.0}},
-        "climate.bureau": {**unseen, "weeks": {}, "mapping": {"eco": {"preset": "eco"}}, "preset_temperatures": {}},
+        "climate.bureau": {**unseen, "paused": True, "weeks": {}, "mapping": {"eco": {"preset": "eco"}},
+                           "preset_temperatures": {}},
     }
     assert (v5["cards"], v5["renamed"]) == ({}, {})
     assert (v5["overrides"], v5["revision"]) == (v4["overrides"], v4["revision"])

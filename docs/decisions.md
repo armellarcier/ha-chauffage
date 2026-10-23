@@ -197,8 +197,9 @@ thermostat it loaded.
 - **Stored per thermostat** (`thermostats: {climate: {paused, weeks, mapping,
   preset_temperatures, revision, shown_at}}`), and per card (`cards: {card_id: {thermostats,
   seen_at}}`, a declaration replacing the card's list). The overrides stay apart: short-lived, a
-  release may drop them. Migrated from the current keys, every thermostat active: nothing changes
-  on upgrade. Ready for groups of thermostats (roadmap), whose weeks would be owned by a group.
+  release may drop them. Migrated from the current keys, nothing changing on upgrade: a
+  thermostat with weeks is active; one with only values of the presets was not driven (left
+  behind when it was removed from the card), it is kept, paused. Ready for groups of thermostats (roadmap), whose weeks would be owned by a group.
 
 ## Card
 

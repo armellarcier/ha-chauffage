@@ -47,13 +47,15 @@ def _v3_to_v4(data: dict[str, Any], language: str) -> dict[str, Any]:
 
 def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
     """Scheduled thermostats (#27): the weeks, mappings and learned temperatures of each
-    thermostat are kept together; every thermostat with weeks or a mapping is scheduled, active.
-    No card has declared its thermostats yet."""
+    thermostat are kept together. A thermostat with weeks is scheduled, active; one with only a
+    mapping was not driven (left behind once removed from the card): kept, paused. No card has
+    declared its thermostats yet."""
     data = dict(data)
     weeks, mappings = data.pop("weeks", {}), data.pop("mappings", {})
     temperatures = data.pop("preset_temperatures", {})
     data["thermostats"] = {
-        entity_id: model.new_thermostat(weeks.get(entity_id), mappings.get(entity_id), temperatures.get(entity_id))
+        entity_id: {**model.new_thermostat(weeks.get(entity_id), mappings.get(entity_id), temperatures.get(entity_id)),
+                    "paused": not weeks.get(entity_id)}
         for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]
     }
     data["cards"], data["renamed"] = {}, {}

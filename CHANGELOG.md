@@ -12,7 +12,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 **Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).
 **Migrates stored data** (version 5): the weeks, values of the presets and learned temperatures
 of each thermostat are kept together. Nothing to do when upgrading; nothing changes for the
-thermostats.
+thermostats. A thermostat removed from the card earlier, of which only values of the presets were
+left, shows up paused in the card's *Thermostats* view, to forget or resume.
 
 ### Added
 

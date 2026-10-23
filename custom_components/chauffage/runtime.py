@@ -632,6 +632,8 @@ class ChauffageRuntime:
             for i, (entity_id, target) in enumerate(todo):
                 if i and self.pause:
                     await asyncio.sleep(self.pause)
+                if entity_id not in self.thermostats or self.is_paused(entity_id):
+                    continue  # paused or forgotten meanwhile
                 if target.kind == "preset":
                     done = await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
                 else:
@@ -682,6 +684,8 @@ class ChauffageRuntime:
         self._learn(new)
         if old is None or new is None:
             return
+        if not self.thermostats[new.entity_id]["weeks"]:
+            return  # nothing planned yet (a mapping set before its weeks): changes are its own
         if old.state in engine.IGNORED_STATES and new.state not in engine.IGNORED_STATES:
             # Turned back on, or back online: the thermostat may have missed slot changes
             self.entry.async_create_task(self.hass, self.apply(include={new.entity_id}), "chauffage catch up")

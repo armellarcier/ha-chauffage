@@ -66,6 +66,31 @@ async def test_a_copy_of_the_weeks_made_before_a_thermostat_was_forgotten_cannot
     assert "climate.salon" not in bench.runtime.thermostats
 
 
+async def test_a_thermostat_without_weeks_turns_no_change_by_hand_into_an_override(bench: Bench):
+    """Values of the presets set before its weeks are saved schedule a thermostat, but nothing
+    is planned for it yet: a setpoint changed by hand is its own."""
+    await start(bench)
+    bench.thermostat("climate.chambre", "eco")
+    await bench.runtime.set_mapping("climate.chambre", {"comfort": {"temperature": 19.5}})
+    await bench.hass.async_block_till_done()
+    await bench.manual_setpoint("climate.chambre", 22)
+    assert "climate.chambre" not in bench.overrides()
+
+
+async def test_a_thermostat_forgotten_during_a_realignment_is_sent_nothing_more(bench: Bench):
+    await start(bench)
+    send = bench.runtime.call_climate
+
+    async def forget_bureau_first(service, entity_id, data):
+        if entity_id == "climate.salon" and "climate.bureau" in bench.runtime.thermostats:
+            await bench.runtime.forget("climate.bureau")
+        return await send(service, entity_id, data)
+
+    bench.runtime.call_climate = forget_bureau_first
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
 async def test_only_a_scheduled_thermostat_can_be_forgotten(bench: Bench):
     await start(bench)
     with pytest.raises(model.InvalidData):
