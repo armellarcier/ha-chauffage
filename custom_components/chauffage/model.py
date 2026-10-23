@@ -20,6 +20,8 @@ Vocabulary: docs/glossary.md.
     cards:           {card id: {"thermostats": [climate entity id, …], "seen_at": ISO datetime}},
                      what each card showed when it was last displayed (its id is written in its
                      configuration by the card editor)
+    renamed:         {former climate entity id: current one}: a thermostat renamed in Home
+                     Assistant, for the cards whose configuration still holds the former id
     overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
                                           "start": ISO datetime, "end": ISO datetime}}
     revision:        increases on every change of the schedules or weeks; the card saves against
@@ -148,7 +150,7 @@ def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] 
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
     schedules = make_schedules(schedule_names)
     return {"schedules": schedules, "active_schedule": schedules[0]["id"], "presets": default_presets(language),
-            "thermostats": {}, "cards": {}, "overrides": {}, "revision": 0,
+            "thermostats": {}, "cards": {}, "renamed": {}, "overrides": {}, "revision": 0,
             "rules": [], "default_schedule": None, "rules_choice": None}
 
 

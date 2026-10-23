@@ -42,3 +42,7 @@ PACKAGE_OVERRIDES = "sensor.derogations_chauffage"
 PACKAGE_MODE = "input_select.mode_chauffage"
 PACKAGE_AUTOMATIONS = ("chauffage_programmes_hebdo", "chauffage_derogation_manuelle")  # unique ids
 PACKAGE_DATA_VERSION = 1  # newest package data version the import understands
+
+# Keys of the entities of each scheduled thermostat (unique id: <entry>_<climate>_<key>)
+SCHEDULE_KEY, OVERRIDE_END_KEY, SCHEDULING_KEY = "schedule", "override_end", "scheduling"
+THERMOSTAT_ENTITIES = {SCHEDULE_KEY: "sensor", OVERRIDE_END_KEY: "sensor", SCHEDULING_KEY: "switch"}

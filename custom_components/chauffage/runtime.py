@@ -38,7 +38,14 @@ from homeassistant.util import dt as dt_util
 
 from . import engine, model, repairs
 from .history import TemperatureHistory
-from .const import CONF_OVERRIDE_DURATION, CONF_USE_PRESETS, DEFAULT_OVERRIDE_DURATION, DEFAULT_USE_PRESETS
+from .const import (
+    CONF_OVERRIDE_DURATION,
+    CONF_USE_PRESETS,
+    DEFAULT_OVERRIDE_DURATION,
+    DEFAULT_USE_PRESETS,
+    DOMAIN,
+    THERMOSTAT_ENTITIES,
+)
 from .store import SAVE_DELAY, ChauffageStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,9 +113,11 @@ class ChauffageRuntime:
         else:
             @callback
             def started(_event: Event) -> None:
+                self._unsubs.remove(unsub)  # a one-time listener is gone once called
                 self.entry.async_create_task(self.hass, self._started(), "chauffage realign")
 
-            self._unsubs.append(self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started))
+            unsub = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started)
+            self._unsubs.append(unsub)
 
     async def _started(self) -> None:
         # Thermostats whose entity is gone; the rules: their entities are not all there before
@@ -235,6 +244,7 @@ class ChauffageRuntime:
             "rules": self.data["rules"],
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
+            "renamed": self.data["renamed"],
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
@@ -305,6 +315,8 @@ class ChauffageRuntime:
         thermostat it no longer shows, that no other card shows, is proposed to be paused;
         so is one not shown for UNSHOWN while others were (safety net)."""
         now = dt_util.now()
+        renamed = self.data["renamed"]
+        thermostats = [renamed.get(entity_id, entity_id) for entity_id in thermostats]
         for entity_id in thermostats:
             if (t := self.thermostats.get(entity_id)) is not None:
                 t.update(shown_at=now.isoformat(), kept_unlisted=False)
@@ -339,9 +351,41 @@ class ChauffageRuntime:
 
     @callback
     def _registry_updated(self, event: Event) -> None:
-        if event.data.get("action") == "remove" and event.data.get("entity_id") in self.thermostats:
-            entity_id = event.data["entity_id"]
+        action, entity_id = event.data.get("action"), event.data.get("entity_id")
+        if action == "remove" and entity_id in self.thermostats:
             repairs.raise_issue(self.hass, repairs.MISSING, entity_id, {"entity_id": entity_id})
+        elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
+            self._renamed(event.data["old_entity_id"], entity_id)
+
+    @callback
+    def _renamed(self, old: str, new: str) -> None:
+        """A thermostat renamed in Home Assistant: its data, override and cards move to the new
+        id, its entities keep their ids and settings (their unique ids follow), and the entry is
+        reloaded to attach them to the new id. A new revision: a card's copy of the weeks holds
+        the former id."""
+        self.thermostats[new] = self.thermostats.pop(old)
+        if old in self.data["overrides"]:
+            self.data["overrides"][new] = self.data["overrides"].pop(old)
+        for card in self.data["cards"].values():
+            card["thermostats"] = [new if e == old else e for e in card["thermostats"]]
+        renamed = self.data["renamed"]
+        for former, current in list(renamed.items()):
+            if current == old:
+                renamed[former] = new
+        renamed[old] = new
+        renamed.pop(new, None)  # renamed back
+        repairs.close_issue(self.hass, repairs.UNLISTED, old)
+        repairs.close_issue(self.hass, repairs.MISSING, old)
+        registry = er.async_get(self.hass)
+        # Exact unique ids: climate.salon_bas's also start with "<entry>_climate.salon_"
+        for key, platform in THERMOSTAT_ENTITIES.items():
+            unique_id = f"{self.entry.entry_id}_{{}}_{key}"
+            entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id.format(old))
+            if entity_id:
+                registry.async_update_entity(entity_id, new_unique_id=unique_id.format(new))
+        self.data["revision"] += 1
+        # Not notified: the entities of the former id would be removed; the reload saves the data
+        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
 
     async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:
         """New list of presets; a removed preset is replaced in the weeks by the preset given

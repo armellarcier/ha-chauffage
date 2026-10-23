@@ -56,7 +56,7 @@ def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
         entity_id: model.new_thermostat(weeks.get(entity_id), mappings.get(entity_id), temperatures.get(entity_id))
         for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]
     }
-    data["cards"] = {}
+    data["cards"], data["renamed"] = {}, {}
     return data
 
 

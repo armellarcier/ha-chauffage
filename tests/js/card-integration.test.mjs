@@ -1,6 +1,6 @@
 // The card's exchanges with the Chauffage integration (websocket API): subscription, saves,
 // overrides, schedules, presets; and the card without the integration.
-import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -366,6 +366,37 @@ describe('the card declares the thermostats it shows (#27)', () => {
     const hass = fakeIntegrationHass({ data: null });
     createCard(hass);
     assert.deepEqual(declarations(hass), []);
+  });
+});
+
+describe('a thermostat renamed in Home Assistant', () => {
+  // climate.salon renamed climate.sejour: the card's configuration still holds the former id
+  const renamed = () => {
+    const data = integrationData({ weeks: { 'climate.sejour': { Normal: Array(7).fill(WEEKDAY) } } });
+    return { ...data, renamed: { 'climate.salon': 'climate.sejour' } };
+  };
+  const hassOf = () => {
+    const hass = fakeIntegrationHass({ data: renamed() });
+    hass.states['climate.sejour'] = hass.states['climate.salon'];
+    delete hass.states['climate.salon'];
+    return hass;
+  };
+
+  test('is shown under its new id, with its weeks', () => {
+    const card = createCard(hassOf());
+    const chips = [...card.shadowRoot.querySelectorAll('.chip[data-climate]')].map((c) => c.dataset.climate);
+    assert.deepEqual(chips, ['climate.sejour', 'climate.bureau']);
+    assert.deepEqual(day(card, 'climate.sejour', 0), WEEKDAY);
+    assert.match(card.shadowRoot.querySelector('.chip[data-climate="climate.sejour"]').textContent, /Salon/);
+  });
+
+  test('is declared under its new id, and saved under it', async () => {
+    const hass = hassOf();
+    const card = createCard(hass);
+    assert.deepEqual(hass.declarations.at(-1).thermostats, ['climate.sejour', 'climate.bureau']);
+    card._split('climate.sejour', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(Object.keys(lastCall(hass).weeks).sort(), ['climate.bureau', 'climate.sejour']);
   });
 });
 

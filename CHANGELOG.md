@@ -27,10 +27,17 @@ thermostats.
   paused, kept or forgotten; a thermostat whose entity is gone can be forgotten. For this, each
   card tells the integration which thermostats it shows, with a hidden `card_id` that the card
   editor adds to its configuration.
+- A thermostat **renamed** in Home Assistant (its entity id) keeps its schedule, override and
+  entities; a card whose configuration still holds the former id shows it under the new one.
 - A *Thermostats* view in the card: every thermostat Chauffage schedules, paused or not, and the
   ones no longer in this card, to pause, resume or **forget** (after a confirmation): a forgotten
   thermostat's data is dropped and it is no longer driven. A thermostat this card shows cannot be
   forgotten from it.
+
+### Fixed
+
+- Reloading the integration after Home Assistant has started no longer logs "Unable to remove
+  unknown job listener".
 
 ### Changed
 

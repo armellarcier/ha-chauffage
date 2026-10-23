@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry, engine
+from .const import OVERRIDE_END_KEY, SCHEDULE_KEY
 from .entity import ThermostatEntity, async_follow_thermostats
 
 
@@ -39,7 +40,7 @@ class ThermostatSensor(ThermostatEntity, SensorEntity):
 
 
 class ScheduleSensor(ThermostatSensor):
-    key = "schedule"
+    key = SCHEDULE_KEY
     update_on_tick = True
     _attr_device_class = SensorDeviceClass.ENUM
 
@@ -68,7 +69,7 @@ class ScheduleSensor(ThermostatSensor):
 
 
 class OverrideEndSensor(ThermostatSensor):
-    key = "override_end"
+    key = OVERRIDE_END_KEY
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     @property

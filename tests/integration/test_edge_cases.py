@@ -51,6 +51,23 @@ async def test_thermostats_are_realigned_once_home_assistant_has_started(bench: 
     assert bench.applied() == {"climate.salon": "eco"}
 
 
+async def test_reloading_after_home_assistant_has_started_logs_no_error(bench: Bench, hass_storage, caplog):
+    """Set up during startup, then reloaded (options changed, a thermostat renamed): the
+    listener of the end of the startup is already gone."""
+    hass_storage["chauffage"] = json.loads((FIXTURES / "store-v5.json").read_text(encoding="utf-8"))
+    await bench.go_to("10:00")
+    bench.hass.set_state(CoreState.starting)
+    bench.entry = MockConfigEntry(domain="chauffage")
+    bench.entry.add_to_hass(bench.hass)
+    assert await bench.hass.config_entries.async_setup(bench.entry.entry_id)
+    bench.hass.set_state(CoreState.running)
+    bench.hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await bench.hass.async_block_till_done()
+    assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert "Unable to remove unknown job listener" not in caplog.text
+
+
 async def test_deleting_the_integration_deletes_its_data(bench: Bench, hass_storage):
     await start(bench)
     await bench.advance(1)  # delayed save

@@ -73,5 +73,5 @@ def test_version_5_keeps_each_thermostat_s_data_together_and_none_is_paused():
                           "preset_temperatures": {"eco": 17.0}},
         "climate.bureau": {**unseen, "weeks": {}, "mapping": {"eco": {"preset": "eco"}}, "preset_temperatures": {}},
     }
-    assert v5["cards"] == {}
+    assert (v5["cards"], v5["renamed"]) == ({}, {})
     assert (v5["overrides"], v5["revision"]) == (v4["overrides"], v4["revision"])

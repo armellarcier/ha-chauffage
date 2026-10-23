@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry
+from .const import SCHEDULING_KEY
 from .entity import ThermostatEntity, async_follow_thermostats
 
 
@@ -23,7 +24,7 @@ async def async_setup_entry(
 
 
 class SchedulingSwitch(ThermostatEntity, SwitchEntity):
-    key = "scheduling"
+    key = SCHEDULING_KEY
     _attr_entity_category = EntityCategory.CONFIG
 
     @property

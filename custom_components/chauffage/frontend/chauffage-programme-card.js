@@ -740,6 +740,7 @@ function dataSource(hass) {
     setPaused: (climate, paused) => hass.callWS({ type: 'chauffage/thermostat/set', entity_id: climate, paused }),
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
+    renamed: () => (d && d.renamed) || {},
     declareCard: (cardId, thermostats) => hass.callWS({ type: 'chauffage/card/declare', ...(cardId ? { card_id: cardId } : {}), thermostats }),
     saveWeeks: (weeks, revision) => {
       const out = {};
@@ -938,7 +939,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       step: 15,
       ...config,
     };
-    this._thermostats = config.thermostats.map((t) => (typeof t === 'string' ? { entity: t } : t));
+    // Copies: a renamed thermostat's id is replaced in them (see _followRenames)
+    this._thermostats = config.thermostats.map((t) => (typeof t === 'string' ? { entity: t } : { ...t }));
     // The more-info block uses the same entities as the card
     for (const k of Object.keys(MORE_INFO_CFG)) MORE_INFO_CFG[k] = this._config[k];
     this._shown = this._initialShown();
@@ -962,6 +964,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       // Data pushed by the integration: same checks as a hass update
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
     }
+    if (this._followRenames(src)) need = true;
     const stamp = src.stamps.weeks;
     if ((stamp !== this._stamp || !this._data) && !this._dirty && !this._drag) {
       this._load();
@@ -1004,6 +1007,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     else this._updateLive();
     this._refreshHistory();
     this._declare(src);
+  }
+
+  // A thermostat renamed in Home Assistant: the configuration still holds its former id
+  _followRenames(src) {
+    const renamed = src.renamed();
+    let changed = false;
+    for (const t of this._thermostats) {
+      if (renamed[t.entity]) { t.entity = renamed[t.entity]; changed = true; }
+    }
+    if (changed) this._shown = this._shown.map((e) => renamed[e] || e);
+    return changed;
   }
 
   // Tells the integration which thermostats this card shows, once displayed and again when they
