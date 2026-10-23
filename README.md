@@ -141,6 +141,10 @@ and *Frost protection* 7 °C.
 
 #### Entities and services
 
+A thermostat is **scheduled** once it is in a card. It stays scheduled when it is removed from a
+card (another card may show it): Settings → Repairs then proposes to pause it, keep driving it or
+forget it. The card's *Thermostats* view lists every scheduled thermostat.
+
 Per scheduled thermostat, on the thermostat's device page:
 
 - **Scheduling**, a switch in its settings: off, the thermostat is **paused**. Chauffage keeps

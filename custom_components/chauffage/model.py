@@ -14,6 +14,12 @@ Vocabulary: docs/glossary.md.
                              preset means for this thermostat, only what was set by hand: the
                              rest is engine.default_target
         preset_temperatures: {climate preset: temperature} last seen on the thermostat
+        shown_at:            ISO datetime a card last showed it (None: not yet)
+        kept_unlisted:       True: driven although no card shows it (answered in its repair),
+                             until a card shows it again
+    cards:           {card id: {"thermostats": [climate entity id, …], "seen_at": ISO datetime}},
+                     what each card showed when it was last displayed (its id is written in its
+                     configuration by the card editor)
     overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
                                           "start": ISO datetime, "end": ISO datetime}}
     revision:        increases on every change of the schedules or weeks; the card saves against
@@ -136,13 +142,13 @@ def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] 
                    preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
     """A scheduled thermostat, active."""
     return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
-            "preset_temperatures": preset_temperatures or {}}
+            "preset_temperatures": preset_temperatures or {}, "shown_at": None, "kept_unlisted": False}
 
 
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
     schedules = make_schedules(schedule_names)
     return {"schedules": schedules, "active_schedule": schedules[0]["id"], "presets": default_presets(language),
-            "thermostats": {}, "overrides": {}, "revision": 0,
+            "thermostats": {}, "cards": {}, "overrides": {}, "revision": 0,
             "rules": [], "default_schedule": None, "rules_choice": None}
 
 

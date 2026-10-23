@@ -325,6 +325,50 @@ describe('the "Presets" view', () => {
   });
 });
 
+describe('the card declares the thermostats it shows (#27)', () => {
+  const declarations = (hass) => hass.declarations;
+
+  test('once displayed, with its id', () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass, { card_id: 'abc123xyz' });
+    hass.push(INTEGRATION_DATA());
+    card.hass = hass;
+    assert.deepEqual(declarations(hass), [
+      { type: 'chauffage/card/declare', card_id: 'abc123xyz', thermostats: ['climate.salon', 'climate.bureau'] },
+    ]);
+  });
+
+  test('again when its thermostats change', () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass, { card_id: 'abc123xyz' });
+    card.setConfig({ thermostats: ['climate.bureau'], card_id: 'abc123xyz' });
+    card.hass = hass;
+    assert.deepEqual(declarations(hass).map((m) => m.thermostats), [['climate.salon', 'climate.bureau'], ['climate.bureau']]);
+  });
+
+  test('a card without an id (written in YAML) declares its thermostats without one', () => {
+    const hass = fakeIntegrationHass();
+    createCard(hass);
+    assert.deepEqual(declarations(hass), [{ type: 'chauffage/card/declare', thermostats: ['climate.salon', 'climate.bureau'] }]);
+  });
+
+  test('a preview declares nothing (the dashboard is not saved)', () => {
+    const hass = fakeIntegrationHass();
+    const card = document.createElement('chauffage-programme-card');
+    card.preview = true;
+    card.setConfig({ thermostats: ['climate.salon'], card_id: 'abc123xyz' });
+    document.body.appendChild(card);
+    card.hass = hass;
+    assert.deepEqual(declarations(hass), []);
+  });
+
+  test('nothing before the data of the integration arrives', () => {
+    const hass = fakeIntegrationHass({ data: null });
+    createCard(hass);
+    assert.deepEqual(declarations(hass), []);
+  });
+});
+
 describe('an integration older than the card', () => {
   // Right after an update from HACS, before Home Assistant restarts: the new card's file is
   // served, but the running integration still sends the former format

@@ -696,6 +696,13 @@ const INTEGRATION = {
   },
 };
 
+// A card's hidden id, written in its configuration: the integration knows which thermostats each
+// card shows (docs/decisions.md, "Scheduled thermostats"). Not crypto.randomUUID: Home Assistant
+// is often reached over plain http, where it does not exist.
+function newCardId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
 function dataSource(hass) {
   const available = integrationAvailable(hass);
   if (available) INTEGRATION.connect(hass);
@@ -733,6 +740,7 @@ function dataSource(hass) {
     setPaused: (climate, paused) => hass.callWS({ type: 'chauffage/thermostat/set', entity_id: climate, paused }),
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
+    declareCard: (cardId, thermostats) => hass.callWS({ type: 'chauffage/card/declare', ...(cardId ? { card_id: cardId } : {}), thermostats }),
     saveWeeks: (weeks, revision) => {
       const out = {};
       for (const [climate, bySchedule] of Object.entries(weeks)) {
@@ -918,7 +926,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       src = dataSource(hass);
     }
     const scheduled = Object.keys(src.weeks()).filter((e) => hass.states[e]);
-    return { thermostats: scheduled.length ? scheduled : climates };
+    return { thermostats: scheduled.length ? scheduled : climates, card_id: newCardId() };
   }
 
   setConfig(config) {
@@ -995,6 +1003,18 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (need) this._render();
     else this._updateLive();
     this._refreshHistory();
+    this._declare(src);
+  }
+
+  // Tells the integration which thermostats this card shows, once displayed and again when they
+  // change; not from a preview (the dashboard may not be saved)
+  _declare(src) {
+    if (!src.ready || this._isPreview()) return;
+    const thermostats = this._thermostats.map((t) => t.entity);
+    const key = JSON.stringify([this._config.card_id, thermostats]);
+    if (key === this._declared) return;
+    this._declared = key;
+    src.declareCard(this._config.card_id, thermostats).catch((e) => console.warn('ha-chauffage: declaring the card', e));
   }
 
   // Thermostats shown at first: those chosen last on this device, else the config's `show`.
@@ -3713,6 +3733,7 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
   }
 
   _emit(config) {
+    if (!config.card_id) config = { ...config, card_id: newCardId() };
     this._config = config;
     this._render();
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));

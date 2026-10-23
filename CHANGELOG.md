@@ -22,6 +22,11 @@ thermostats.
   thermostat; its sensors are unavailable. The card shows a paused thermostat (on its chip, a
   notice with *Resume*, its rows dimmed) and pauses or resumes it from a row's menu; its weeks
   stay editable. The more-info block says it is paused.
+- **Repairs** (Settings → Repairs): a thermostat Chauffage still drives that no card shows any
+  more (removed from the cards that showed it, or not shown for a week while others were) can be
+  paused, kept or forgotten; a thermostat whose entity is gone can be forgotten. For this, each
+  card tells the integration which thermostats it shows, with a hidden `card_id` that the card
+  editor adds to its configuration.
 - A *Thermostats* view in the card: every thermostat Chauffage schedules, paused or not, and the
   ones no longer in this card, to pause, resume or **forget** (after a confirmation): a forgotten
   thermostat's data is dropped and it is no longer driven. A thermostat this card shows cannot be

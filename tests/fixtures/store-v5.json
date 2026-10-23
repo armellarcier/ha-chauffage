@@ -1,6 +1,7 @@
 {
   "data": {
     "active_schedule": "normal",
+    "cards": {},
     "default_schedule": null,
     "overrides": {
       "climate.salon": {
@@ -243,7 +244,9 @@
           ]
         },
         "mapping": {},
-        "preset_temperatures": {}
+        "preset_temperatures": {},
+        "shown_at": null,
+        "kept_unlisted": false
       }
     }
   },

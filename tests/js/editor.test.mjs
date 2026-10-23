@@ -30,8 +30,25 @@ function editorFor(config, { locale, version = '2025.1.0', formatEntityName } = 
   // What <ha-form> sends when a field changes: the whole data, with that field changed
   const formChange = (form, patch) => value(form, { ...form.data, ...patch });
   const edit = (i) => rows()[i].querySelector('.edit').click();
-  return { editor, changes, $, $$, rows, value, formChange, edit, last: () => changes.at(-1) };
+  // The last config sent, without its hidden card id (tested on its own)
+  const last = () => { const { card_id: _, ...config } = changes.at(-1); return config; };
+  return { editor, changes, $, $$, rows, value, formChange, edit, last };
 }
+
+describe('visual editor: the card id', () => {
+  test('a change gives the card a hidden id, for the integration to know which thermostats it shows', () => {
+    const { $, value, changes } = editorFor({ type: TYPE, thermostats: ['climate.salon'] });
+    assert.equal(editorFor({ type: TYPE, thermostats: ['climate.salon'] }).$('[data-card-id]'), null, 'not shown');
+    value($('.add'), 'climate.bureau');
+    assert.match(changes.at(-1).card_id, /^[a-z0-9]{8,}$/);
+  });
+
+  test('an existing card id is kept', () => {
+    const { $, value, changes } = editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'abc123xyz' });
+    value($('.add'), 'climate.bureau');
+    assert.equal(changes.at(-1).card_id, 'abc123xyz');
+  });
+});
 
 describe('visual editor: the thermostats', () => {
   test('the card offers a visual editor instead of YAML only', () => {

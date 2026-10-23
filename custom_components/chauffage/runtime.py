@@ -4,7 +4,9 @@
 - full realignment when HA starts, a schedule is activated or the weeks are saved;
 - a manual change on a scheduled thermostat becomes a temporary override;
 - activation rules: their templates are tracked, and a change of their outcome activates a
-  schedule (a schedule chosen by hand stays until then).
+  schedule (a schedule chosen by hand stays until then);
+- the cards declare the thermostats they show: a repair proposes to pause an active thermostat
+  no card shows any more, another one to forget a thermostat whose entity is gone (repairs.py).
 
 The integration calls services with its own contexts: state changes carrying one of them are
 its own (not manual changes).
@@ -30,10 +32,11 @@ from homeassistant.helpers.event import (
     async_track_template_result,
     async_track_time_change,
 )
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
-from . import engine, model
+from . import engine, model, repairs
 from .history import TemperatureHistory
 from .const import CONF_OVERRIDE_DURATION, CONF_USE_PRESETS, DEFAULT_OVERRIDE_DURATION, DEFAULT_USE_PRESETS
 from .store import SAVE_DELAY, ChauffageStore
@@ -42,6 +45,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
 DATA, TICK = "data", "tick"
+# An active thermostat no card has shown for this long, while others were shown, is proposed to
+# be paused (a card deleted, or written in YAML without an id)
+UNSHOWN = timedelta(days=7)
 
 
 class StaleRevision(Exception):
@@ -91,6 +97,7 @@ class ChauffageRuntime:
     async def async_start(self) -> None:
         self._last_tick = dt_util.now()  # the realignment below covers the time before
         self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
+        self._unsubs.append(self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self._registry_updated))
         self._track_thermostats()
         for entity_id in self.active:
             self._learn(self.hass.states.get(entity_id))
@@ -104,7 +111,10 @@ class ChauffageRuntime:
             self._unsubs.append(self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started))
 
     async def _started(self) -> None:
-        # The rules wait for HA to have started: their entities are not all there before
+        # Thermostats whose entity is gone; the rules: their entities are not all there before
+        for entity_id in self.thermostats:
+            if self.hass.states.get(entity_id) is None and er.async_get(self.hass).async_get(entity_id) is None:
+                repairs.raise_issue(self.hass, repairs.MISSING, entity_id, {"entity_id": entity_id})
         self._track_rules()
         await self.follow_rules()
         await self.apply(force=True)
@@ -265,6 +275,7 @@ class ChauffageRuntime:
         if paused:
             self.data["overrides"].pop(entity_id, None)
             self._retry.discard(entity_id)
+            repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
         self._track_thermostats()
         self._changed()
         if not paused:
@@ -278,9 +289,59 @@ class ChauffageRuntime:
             raise model.InvalidData(f"not scheduled: {entity_id}")
         self.data["overrides"].pop(entity_id, None)
         self._retry.discard(entity_id)
+        for card in self.data["cards"].values():
+            if entity_id in card["thermostats"]:
+                card["thermostats"].remove(entity_id)
+        repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
+        repairs.close_issue(self.hass, repairs.MISSING, entity_id)
         self.data["revision"] += 1
         self._track_thermostats()
         self._changed()
+
+    # ----- cards -----
+
+    def declare_card(self, card_id: str | None, thermostats: list[str]) -> None:
+        """A card shows these thermostats (its id: None for a card without one, YAML). A
+        thermostat it no longer shows, that no other card shows, is proposed to be paused;
+        so is one not shown for UNSHOWN while others were (safety net)."""
+        now = dt_util.now()
+        for entity_id in thermostats:
+            if (t := self.thermostats.get(entity_id)) is not None:
+                t.update(shown_at=now.isoformat(), kept_unlisted=False)
+                repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
+        if card_id is not None:
+            before = self.data["cards"].get(card_id, {}).get("thermostats", [])
+            self.data["cards"][card_id] = {"thermostats": list(thermostats), "seen_at": now.isoformat()}
+            shown = {e for card in self.data["cards"].values() for e in card["thermostats"]}
+            for entity_id in set(before) - shown:
+                self._unlisted(entity_id)
+        for entity_id, t in self.thermostats.items():
+            if t["shown_at"] is None:
+                t["shown_at"] = now.isoformat()  # counted from now (never shown since the upgrade)
+            elif now - dt_util.parse_datetime(t["shown_at"]) > UNSHOWN:
+                self._unlisted(entity_id)
+        self._changed()
+
+    def keep_unlisted(self, entity_id: str) -> None:
+        """Driven although no card shows it, until a card shows it again (answer to its repair)."""
+        if (t := self.thermostats.get(entity_id)) is not None:
+            t["kept_unlisted"] = True
+            self._changed()
+        repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
+
+    def _unlisted(self, entity_id: str) -> None:
+        t = self.thermostats.get(entity_id)
+        if t is None or t["paused"] or t["kept_unlisted"]:
+            return
+        state = self.hass.states.get(entity_id)
+        repairs.raise_issue(self.hass, repairs.UNLISTED, entity_id,
+                            {"name": state.name if state else entity_id, "entity_id": entity_id})
+
+    @callback
+    def _registry_updated(self, event: Event) -> None:
+        if event.data.get("action") == "remove" and event.data.get("entity_id") in self.thermostats:
+            entity_id = event.data["entity_id"]
+            repairs.raise_issue(self.hass, repairs.MISSING, entity_id, {"entity_id": entity_id})
 
     async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:
         """New list of presets; a removed preset is replaced in the weeks by the preset given

@@ -99,6 +99,7 @@ def from_package(hass: HomeAssistant) -> dict[str, Any]:
         # The package's VTherm presets become presets with the same ids (see store._v1_to_v2)
         "presets": model.default_presets(hass.config.language or "en", model.used_presets(weeks)),
         "thermostats": {entity_id: model.new_thermostat(by_schedule) for entity_id, by_schedule in weeks.items()},
+        "cards": {},
         "overrides": overrides,
         "revision": 0,
         "rules": [],

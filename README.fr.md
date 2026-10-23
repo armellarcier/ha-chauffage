@@ -145,6 +145,11 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
 
 #### Entités et services
 
+Un thermostat est **programmé** dès qu'il est dans une carte. Il le reste quand on le retire d'une
+carte (une autre carte peut l'afficher) : Paramètres → Réparations propose alors de le mettre en
+pause, de continuer à le piloter ou de l'oublier. La vue *Thermostats* de la carte liste tous les
+thermostats programmés.
+
 Pour chaque thermostat programmé, sur la page de l'appareil du thermostat :
 
 - **Programmation**, un interrupteur dans ses paramètres : éteint, le thermostat est **en

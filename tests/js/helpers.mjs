@@ -54,7 +54,8 @@ export const INTEGRATION_DATA = () => integrationData();
 
 /**
  * Home Assistant with the integration set up: two thermostats, and the integration's data.
- * `hass.events` records the websocket commands; `hass.push(data)` sends an update to the card;
+ * `hass.events` records the websocket commands; `hass.declarations` the thermostats the cards
+ * said they show (chauffage/card/declare); `hass.push(data)` sends an update to the card;
  * `reply(msg)` answers (or throws for) a command.
  */
 export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FRENCH, reply } = {}) {
@@ -63,6 +64,7 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FR
   INTEGRATION.listeners.clear();
   if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, language: locale.language });
   const events = [];
+  const declarations = [];
   let listener = null;
   const hass = {
     states: {
@@ -70,6 +72,7 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FR
       'climate.bureau': { state: 'heat', attributes: { friendly_name: 'Bureau', current_temperature: 19, preset_mode: 'comfort' }, last_updated: '1' },
     },
     events,
+    declarations,
     services: { chauffage: { set_override: {}, clear_override: {} } },
     locale,
     language: locale.language,
@@ -91,6 +94,7 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FR
       },
     },
     callWS: async (msg) => {
+      if (msg.type === 'chauffage/card/declare') { declarations.push(msg); return null; }
       events.push(msg);
       if (reply) return reply(msg);
       if (msg.type === 'chauffage/weeks/save') return { revision: msg.revision + 1 };
