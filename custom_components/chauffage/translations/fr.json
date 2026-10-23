@@ -112,6 +112,7 @@
   "exceptions": {
     "not_loaded": { "message": "L'intégration Chauffage n'est pas configurée." },
     "not_scheduled": { "message": "{entity_id} n'a pas de planning." },
+    "paused": { "message": "{entity_id} est en pause : reprenez-le pour créer une dérogation." },
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
     "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." }
   }

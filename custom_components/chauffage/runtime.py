@@ -258,6 +258,23 @@ class ChauffageRuntime:
         self._changed()
         await self.apply(force=True)
 
+    async def set_paused(self, entity_id: str, paused: bool) -> None:
+        """Pause (kept, not driven, its override dropped and the thermostat left as it is) or
+        resume (realigned at once)."""
+        if entity_id not in self.thermostats:
+            raise model.InvalidData(f"not scheduled: {entity_id}")
+        if self.is_paused(entity_id) == paused:
+            return
+        self.thermostats[entity_id]["paused"] = paused
+        if paused:
+            self.data["overrides"].pop(entity_id, None)
+            self._retry.discard(entity_id)
+        self._track_thermostats()
+        self._changed()
+        if not paused:
+            self._learn(self.hass.states.get(entity_id))
+            await self.apply(include={entity_id})
+
     async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:
         """New list of presets; a removed preset is replaced in the weeks by the preset given
         in `replacements` (it must exist), and its mappings are dropped."""
@@ -431,7 +448,10 @@ class ChauffageRuntime:
         A temperature is fitted to the thermostat (limits, step). A new override or a new value
         is sent to the thermostat unless it already has it; a new end alone is not, unless
         `resend` (the service: an automation setting it again puts back a thermostat that lost
-        it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached."""
+        it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached; none
+        on a paused thermostat."""
+        if override is not None and self.is_paused(entity_id):
+            raise model.InvalidData(f"paused: {entity_id}")
         if override is None:
             if self.data["overrides"].pop(entity_id, None) is None:
                 return

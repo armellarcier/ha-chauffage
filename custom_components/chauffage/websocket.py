@@ -16,6 +16,8 @@ chauffage/rules/set          {rules, default_schedule}: the activation rules ([{
                              the schedule when none applies (or null)
 chauffage/rules/preview      {rules}: tries rules being typed, as the integration would, then again
                              when their entities change: {results, texts, errors}, one per rule
+chauffage/thermostat/set     {entity_id, paused}: pause (kept, not driven) or resume a scheduled
+                             thermostat
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -40,7 +42,7 @@ from .runtime import DATA, ChauffageRuntime, StaleRevision, ThermostatFailed
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
-                    ws_set_presets, ws_set_mapping, ws_set_rules, ws_preview_rules, ws_history):
+                    ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_set_rules, ws_preview_rules, ws_history):
         websocket_api.async_register_command(hass, command)
 
 
@@ -156,6 +158,17 @@ async def ws_set_presets(hass: HomeAssistant, connection: websocket_api.ActiveCo
 @websocket_api.async_response
 async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_mapping(msg["entity_id"], msg["mapping"]))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/thermostat/set",
+    vol.Required("entity_id"): str,
+    vol.Required("paused"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    await _run(hass, connection, msg, lambda runtime: runtime.set_paused(msg["entity_id"], msg["paused"]))
 
 
 @websocket_api.websocket_command({

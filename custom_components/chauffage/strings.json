@@ -112,6 +112,7 @@
   "exceptions": {
     "not_loaded": { "message": "The Chauffage integration is not set up." },
     "not_scheduled": { "message": "{entity_id} has no schedule." },
+    "paused": { "message": "{entity_id} is paused: resume it to set an override." },
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
     "unknown_schedule": { "message": "There is no schedule with the id {schedule}." }
   }
