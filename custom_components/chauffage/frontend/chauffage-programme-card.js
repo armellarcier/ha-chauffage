@@ -56,6 +56,14 @@ const I18N = {
     resumeShort: 'Resume',
     resumeScheduling: 'Resume scheduling',
     pauseScheduling: 'Pause scheduling',
+    viewThermostats: 'Thermostats',
+    thermostatsHint: 'Chauffage drives the scheduled thermostats; a card only shows them. A paused thermostat keeps its weeks.',
+    scheduled: 'Scheduled',
+    notInCard: 'Not in this card',
+    pauseShort: 'Pause',
+    forget: 'Forget…',
+    forgetText: '{name} will no longer be scheduled. Its weeks and settings will be deleted.',
+    forgetConfirm: 'Forget it',
     activeSchedule: 'Active schedule',
     activeScheduleBar: 'Active schedule: <strong>{schedule}</strong>',
     noActiveSchedule: 'No active schedule',
@@ -208,6 +216,14 @@ const I18N = {
     resumeShort: 'Reprendre',
     resumeScheduling: 'Reprendre la programmation',
     pauseScheduling: 'Mettre en pause',
+    viewThermostats: 'Thermostats',
+    thermostatsHint: 'Chauffage pilote les thermostats programmés ; une carte ne fait que les afficher. Un thermostat en pause garde ses semaines.',
+    scheduled: 'Programmé',
+    notInCard: 'Pas dans cette carte',
+    pauseShort: 'Mettre en pause',
+    forget: 'Oublier…',
+    forgetText: '{name} ne sera plus programmé. Ses semaines et ses réglages seront supprimés.',
+    forgetConfirm: "L'oublier",
     activeSchedule: 'Planning actif',
     activeScheduleBar: 'Planning actif : <strong>{schedule}</strong>',
     noActiveSchedule: 'Aucun planning actif',
@@ -715,6 +731,8 @@ function dataSource(hass) {
     // A paused thermostat is kept but not driven (docs/decisions.md, "Scheduled thermostats")
     paused: (climate) => !!(d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].paused),
     setPaused: (climate, paused) => hass.callWS({ type: 'chauffage/thermostat/set', entity_id: climate, paused }),
+    scheduled: () => Object.keys((d && d.thermostats) || {}),
+    forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
     saveWeeks: (weeks, revision) => {
       const out = {};
       for (const [climate, bySchedule] of Object.entries(weeks)) {
@@ -1706,6 +1724,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._schedulePlaceEditor();
       return;
     }
+    if (this._view === 'thermostats' && this._source().ready) {
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
+        <ha-card>${this._viewsHtml()}${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+      return;
+    }
     if (this._view === 'rules' && this._source().ready) {
       const msg = this._msg || (this._rulesDraft ? tr('unsaved') : '');
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
@@ -2289,9 +2312,9 @@ class ChauffageProgrammeCard extends HTMLElement {
   // "Schedule | Presets | Rules" switch
   _viewsHtml() {
     const t = this._loc.t;
-    const view = ['presets', 'rules'].includes(this._view) ? this._view : 'schedule';
+    const view = ['presets', 'rules', 'thermostats'].includes(this._view) ? this._view : 'schedule';
     const button = (v, label) => `<button class="view${view === v ? ' on' : ''}" data-act="view" data-view="${v}">${esc(t(label))}</button>`;
-    return `<div class="views">${button('schedule', 'viewSchedule')}${button('presets', 'viewPresets')}${button('rules', 'viewRules')}</div>`;
+    return `<div class="views">${button('schedule', 'viewSchedule')}${button('presets', 'viewPresets')}${button('rules', 'viewRules')}${button('thermostats', 'viewThermostats')}</div>`;
   }
 
   // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
@@ -2447,6 +2470,42 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   // Table: one column per preset (header: the preset, then its default temperature), one row per
   // thermostat; each cell says what that thermostat does with that preset
+  // Every scheduled thermostat: this card's first, then the others (another card, or none)
+  _thermostatsViewHtml() {
+    const t = this._loc.t;
+    const src = this._source();
+    const inCard = this._thermostats.map((th) => th.entity);
+    const scheduled = src.scheduled();
+    const others = scheduled.filter((c) => !inCard.includes(c)).sort((a, b) => this._name(a).localeCompare(this._name(b)));
+    const rows = [...inCard.filter((c) => scheduled.includes(c)), ...others].map((climate) => {
+      const paused = src.paused(climate);
+      const here = inCard.includes(climate);
+      const asking = this._forgetAsk === climate;
+      const btn = (act, label, cls = '') => `<button class="btn${cls}" data-act="${act}" data-climate="${esc(climate)}">${esc(t(label))}</button>`;
+      const buttons = !src.editable ? '' : asking
+        ? `${btn('thermostat-forget-cancel', 'cancel')}${btn('thermostat-forget-confirm', 'forgetConfirm', ' danger')}`
+        : `${paused ? btn('resume', 'resumeShort') : btn('pause', 'pauseShort')}${here ? '' : btn('thermostat-forget', 'forget')}`;
+      return `<div class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}">
+        <div class="th-name">${esc(this._name(climate))}
+          <span class="th-state">${esc(t(paused ? 'paused' : 'scheduled'))}${here ? '' : ` · ${esc(t('notInCard'))}`}</span></div>
+        <div class="th-btns">${buttons}</div>
+        ${asking ? `<div class="th-ask">${esc(t('forgetText', { name: this._name(climate) }))}</div>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div>${rows}</div>`;
+  }
+
+  async _forget(climate) {
+    this._forgetAsk = null;
+    this._render();
+    try {
+      await this._source().forget(climate);
+    } catch (e) {
+      this._msg = this._loc.t('error', { message: e.message || e.code || e });
+      this._render();
+    }
+  }
+
   _presetsViewHtml() {
     const t = this._loc.t;
     const src = this._source();
@@ -2737,6 +2796,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
     if (act === 'pause' || act === 'resume') return this._setPaused(ds.climate, act === 'pause');
+    if (act === 'thermostat-forget' || act === 'thermostat-forget-cancel') {
+      this._forgetAsk = act === 'thermostat-forget' ? ds.climate : null;
+      return this._render();
+    }
+    if (act === 'thermostat-forget-confirm') return this._forget(ds.climate);
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._sel = null;
       this._overrideSel = { climate: ds.climate, create: true };
@@ -2826,6 +2890,13 @@ const STYLE = `
     border-radius:8px; background:rgba(127,127,127,.12); color:var(--secondary-text-color); font-size:.9em; }
   .paused-note span { flex:1 1 180px; }
   .bar.paused .seg { opacity:.45; }
+  .th-hint { color:var(--secondary-text-color); font-size:.9em; margin-bottom:8px; }
+  .th-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:8px 0; border-top:1px solid var(--divider-color); }
+  .th-name { flex:1 1 160px; }
+  .th-state { display:block; color:var(--secondary-text-color); font-size:.85em; }
+  .th-row.paused .th-state { font-style:italic; }
+  .th-btns { display:flex; flex-wrap:wrap; gap:6px; }
+  .th-ask { flex-basis:100%; color:var(--secondary-text-color); font-size:.9em; }
   .chip-sep { width:1px; align-self:stretch; margin:2px 2px; background:var(--divider-color); }
   .chip.tool { border-style:dashed; color:var(--secondary-text-color); background:transparent; }
   .chip.tool.on { border-style:solid; border-color:var(--primary-color); color:var(--primary-color); }

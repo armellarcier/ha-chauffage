@@ -22,8 +22,10 @@ thermostats.
   thermostat; its sensors are unavailable. The card shows a paused thermostat (on its chip, a
   notice with *Resume*, its rows dimmed) and pauses or resumes it from a row's menu; its weeks
   stay editable. The more-info block says it is paused.
-- A thermostat can be **forgotten** (websocket `chauffage/thermostat/forget`, for the card): its
-  data is dropped and it is no longer driven.
+- A *Thermostats* view in the card: every thermostat Chauffage schedules, paused or not, and the
+  ones no longer in this card, to pause, resume or **forget** (after a confirmation): a forgotten
+  thermostat's data is dropped and it is no longer driven. A thermostat this card shows cannot be
+  forgotten from it.
 
 ### Changed
 
