@@ -47,7 +47,11 @@ pytest_suite() {
     local req=tests/integration/requirements.txt image=ha-chauffage-tests python=python:3.14-slim
     if [ "${HA:-}" = min ]; then req=tests/integration/requirements-min.txt; image=ha-chauffage-tests-min; python=python:3.13; fi
     docker build -q -t "$image" --build-arg REQUIREMENTS="$req" --build-arg PYTHON="$python" -f tests/integration/Dockerfile . >/dev/null
-    docker run --rm -v "$root:/app" -w /app "$image" python -m pytest -c "$suite/pytest.ini" "$suite" "$@"
+    # Runs on a copy inside the container: reading the mounted repository from Docker Desktop
+    # (Windows, macOS) makes the suite about 5 times slower
+    docker run --rm -v "$root:/src:ro" -w /app "$image" sh -c \
+      'tar -C /src --exclude=./.git --exclude=./dev/hass --exclude=./node_modules --exclude=./.claude -cf - . | tar -xf - && exec python -m pytest "$@"' \
+      sh -c "$suite/pytest.ini" "$suite" "$@"
   fi
 }
 
