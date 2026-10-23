@@ -1,9 +1,10 @@
-"""Per-thermostat sensors (disabled by default), attached to the thermostat's device.
+"""Per-thermostat sensors (disabled by default, unavailable while it is paused), attached to the
+thermostat's device.
 
 - schedule: preset planned now; attributes: next preset and its start time;
 - override end: when the current override ends (empty without override).
 
-Created and removed with the scheduled thermostats: no list of thermostats to maintain.
+Created and removed with the scheduled thermostats (entity.async_follow_thermostats).
 """
 
 from __future__ import annotations
@@ -12,79 +13,29 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry, engine
-from .entity import ChauffageEntity
-from .runtime import DATA, ChauffageRuntime
-
-# From Home Assistant 2025.8, an entity is attached to the device given in its device_entry
-DEVICE_ENTRY_ATTACHES = (MAJOR_VERSION, MINOR_VERSION) >= (2025, 8)
+from .entity import ThermostatEntity, async_follow_thermostats
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ChauffageConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    runtime = entry.runtime_data
-    known: dict[str, list[ThermostatSensor]] = {}
-
-    @callback
-    def sync(reason: str = DATA) -> None:
-        if reason != DATA:
-            return
-        scheduled = set(runtime.thermostats)
-        new = []
-        for climate in sorted(scheduled - set(known)):
-            known[climate] = [ScheduleSensor(runtime, climate), OverrideEndSensor(runtime, climate)]
-            new += known[climate]
-        if new:
-            async_add_entities(new)
-        registry = er.async_get(hass)
-        for climate in set(known) - scheduled:
-            for entity in known.pop(climate):
-                if entity.entity_id and registry.async_get(entity.entity_id):
-                    registry.async_remove(entity.entity_id)
-
-    sync()
-    entry.async_on_unload(runtime.async_add_listener(sync))
+    async_follow_thermostats(
+        hass, entry, async_add_entities,
+        lambda runtime, climate: [ScheduleSensor(runtime, climate), OverrideEndSensor(runtime, climate)],
+    )
 
 
-def thermostat_device(hass: HomeAssistant, entity_id: str) -> dr.DeviceEntry | None:
-    """The thermostat's device, if any (as HA's async_entity_id_to_device, which older Home
-    Assistant versions do not have)."""
-    entry = er.async_get(hass).async_get(entity_id)
-    if entry is None or entry.device_id is None:
-        return None
-    return dr.async_get(hass).async_get(entry.device_id)
-
-
-class ThermostatSensor(ChauffageEntity, SensorEntity):
+class ThermostatSensor(ThermostatEntity, SensorEntity):
     _attr_entity_registry_enabled_default = False
-    key: str
 
-    def __init__(self, runtime: ChauffageRuntime, climate: str) -> None:
-        super().__init__(runtime)
-        self.climate = climate
-        self._attr_unique_id = f"{runtime.entry.entry_id}_{climate}_{self.key}"
-        self.device_entry = thermostat_device(runtime.hass, climate)
-        if self.device_entry is None:
-            # No device to attach to: the thermostat's name goes in the entity name
-            state = runtime.hass.states.get(climate)
-            name = state.name if state else climate
-            self._attr_translation_key = f"{self.key}_of"
-            self._attr_translation_placeholders = {"thermostat": name}
-        else:
-            self._attr_translation_key = self.key
-            if not DEVICE_ENTRY_ATTACHES:
-                # Older Home Assistant: attached through the device's identifiers
-                self._attr_device_info = DeviceInfo(
-                    identifiers=self.device_entry.identifiers, connections=self.device_entry.connections
-                )
+    @property
+    def available(self) -> bool:
+        """Nothing is planned for a paused thermostat."""
+        return not self.runtime.is_paused(self.climate)
 
 
 class ScheduleSensor(ThermostatSensor):

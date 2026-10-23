@@ -15,7 +15,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A new installation gets one schedule (*Normal*) and the default presets in HA's language | `I/test_schedule_list.py::a_new_installation_*`, `I/test_presets.py::a_new_installation_has_the_four_default_presets` |
 | Upgrade from the package: weeks, overrides, active schedule imported; package automations turned off; repair until the package is removed | `I/test_import.py` |
 | Package data newer than the integration, unreadable parts, added during HA startup | `I/test_import.py`, `I/test_edge_cases.py::a_package_too_new_*`, `::unreadable_package_parts_are_skipped` |
-| Upgrade of the integration: stored data migrated (v1 → v2 → v3 → v4), nothing changes | `I/test_store.py`, `I/test_presets.py::storage_from_v0_2_is_migrated_without_changing_anything` |
+| Upgrade of the integration: stored data migrated (v1 → v2 → v3 → v4 → v5, each thermostat's data kept together, none paused), nothing changes | `I/test_store.py`, `I/test_presets.py::storage_from_v0_2_is_migrated_without_changing_anything` |
 | Upgrade from v0.3: `select.chauffage_mode` becomes `select.chauffage_schedule` (an entity id chosen by the user is kept) | `I/test_entities.py::the_select_of_an_older_version_*`, `::an_entity_id_chosen_by_the_user_is_kept` |
 | Remove the integration: its data is deleted | `I/test_edge_cases.py::deleting_the_integration_deletes_its_data` |
 | The card is served by the integration and loaded on every page | `I/test_frontend.py` |
@@ -66,6 +66,14 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Commands are spaced out (Zigbee network) | `I/test_edge_cases.py::thermostats_are_sent_one_after_the_other` |
 | A thermostat without a week in the active schedule is left alone | `I/test_schedules.py::a_thermostat_without_a_week_in_the_schedule_is_left_alone` |
 | ZHA Enum presets | `I/test_schedules.py::an_enum_preset_is_compared_correctly`, `I/test_overrides.py::an_enum_preset_does_not_break_detection` |
+
+## Pausing a thermostat — ×3
+
+| Use case | Test |
+|---|---|
+| Pause a scheduled thermostat (card, *Scheduling* switch, automation): kept (weeks, values of the presets), not driven, its changes by hand are not overrides, its override is dropped and the thermostat left as it is; still paused after a restart (#27) | `I/test_pause.py::a_paused_thermostat_*`, `::a_change_by_hand_on_a_paused_thermostat_*`, `::pausing_drops_the_current_override`, `I/test_entities.py::turning_the_scheduling_switch_off_*` |
+| Resume it: realigned at once, watched again | `I/test_pause.py::resuming_realigns_the_thermostat_at_once` |
+| No override on a paused thermostat (card, service); its weeks can still be saved, which does not resume it; only a scheduled thermostat can be paused | `I/test_pause.py::no_override_*`, `::the_weeks_of_a_paused_thermostat_*`, `::only_a_scheduled_thermostat_*`, `::the_card_pauses_and_resumes_a_thermostat` |
 
 ## Overrides — ×3
 
@@ -130,9 +138,9 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 
 | Use case | Test |
 |---|---|
-| Active-schedule select (`select.chauffage_schedule`), schedule and override-end sensors (disabled by default, on the thermostat's device; attributes `preset_name`, `next_preset`…) | `I/test_entities.py` |
+| Active-schedule select (`select.chauffage_schedule`), schedule and override-end sensors (disabled by default, on the thermostat's device; attributes `preset_name`, `next_preset`…; unavailable while paused), *Scheduling* switch per thermostat (a configuration entity, enabled, on the thermostat's device; off: paused) | `I/test_entities.py` |
 | History of the measured and target temperatures for the card: only these two, the state at the start first, gaps while unavailable, what was read kept in memory, any user, no recorder | `I/test_history.py` ×3 |
-| Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
+| Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings, pause; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
 
 ## Not covered by automated tests
 

@@ -143,10 +143,16 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
   directement dans ses attributs (`preset_temperatures` depuis VTherm 10, `comfort_temp`…
   avant).
 
-#### Capteurs et services
+#### Entités et services
 
-Pour chaque thermostat programmé, deux capteurs, **désactivés par défaut** (à activer depuis la
-page de l'appareil du thermostat) :
+Pour chaque thermostat programmé, sur la page de l'appareil du thermostat :
+
+- **Programmation**, un interrupteur dans ses paramètres : éteint, le thermostat est **en
+  pause**. Chauffage garde ses semaines mais ne le pilote plus (rien n'est envoyé, pas de
+  dérogation), jusqu'à ce qu'on le rallume. Pratique pour une pièce gérée à la main quelques
+  jours, ou à la fin de la saison de chauffe.
+
+et deux capteurs, **désactivés par défaut** (indisponibles pendant la pause) :
 
 - **Planning** : le préréglage prévu maintenant ; attributs `preset_name`, `target`,
   `next_preset`, `next_preset_name`, `next_start`.

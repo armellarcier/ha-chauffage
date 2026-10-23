@@ -38,6 +38,10 @@
         "state_attributes": { "schedule_id": { "name": "Schedule id" } }
       }
     },
+    "switch": {
+      "scheduling": { "name": "Scheduling" },
+      "scheduling_of": { "name": "{thermostat} scheduling" }
+    },
     "sensor": {
       "schedule": {
         "name": "Schedule",

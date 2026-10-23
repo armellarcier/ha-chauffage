@@ -139,10 +139,15 @@ and *Frost protection* 7 °C.
 - **Versatile Thermostat bonus**: its preset temperatures are read directly from its attributes
   (`preset_temperatures` since VTherm 10, `comfort_temp`… before).
 
-#### Sensors and services
+#### Entities and services
 
-Per scheduled thermostat, two sensors, **disabled by default** (enable them on the thermostat's
-device page):
+Per scheduled thermostat, on the thermostat's device page:
+
+- **Scheduling**, a switch in its settings: off, the thermostat is **paused**. Chauffage keeps
+  its weeks but no longer drives it (nothing sent, no override), until it is turned back on.
+  Handy for a room run by hand for a few days, or at the end of the heating season.
+
+and two sensors, **disabled by default** (unavailable while the thermostat is paused):
 
 - **Schedule**: the preset planned now; attributes `preset_name`, `target`, `next_preset`,
   `next_preset_name`, `next_start`.

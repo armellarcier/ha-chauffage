@@ -9,6 +9,18 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+**Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).
+**Migrates stored data** (version 5): the weeks, values of the presets and learned temperatures
+of each thermostat are kept together. Nothing to do when upgrading; nothing changes for the
+thermostats.
+
+### Added
+
+- A thermostat can be **paused**: Chauffage keeps its weeks but no longer drives it, until it is
+  resumed (realigned at once). A *Scheduling* switch per thermostat, in the settings of its
+  device page, pauses and resumes it, from an automation too. No override can be set on a paused
+  thermostat; its sensors are unavailable.
+
 ## [0.6.0-beta.2] - 2026-10-22
 
 **A temporary setpoint set from the card**, and what follows an override shown
