@@ -241,15 +241,11 @@ class ChauffageRuntime:
         return self.thermostats.setdefault(entity_id, model.new_thermostat())
 
     async def save_weeks(self, weeks: Any, revision: int | None = None) -> None:
+        """The weeks of the thermostats sent; the others keep theirs: a thermostat a card does
+        not show stays scheduled (#27), only forget() drops it."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
-        normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
-        for entity_id in set(self.thermostats) - set(normalized):
-            if self.thermostats[entity_id]["mapping"]:
-                self.thermostats[entity_id].update(weeks={}, preset_temperatures={})
-            else:
-                del self.thermostats[entity_id]
-        for entity_id, by_schedule in normalized.items():
+        for entity_id, by_schedule in model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids).items():
             self._scheduled(entity_id)["weeks"] = by_schedule
         self.data["revision"] += 1
         self._track_thermostats()
@@ -274,6 +270,17 @@ class ChauffageRuntime:
         if not paused:
             self._learn(self.hass.states.get(entity_id))
             await self.apply(include={entity_id})
+
+    async def forget(self, entity_id: str) -> None:
+        """No longer scheduled: its data, override and entities are dropped, the thermostat left
+        as it is. A new revision: a card's copy that still holds it must reload before saving."""
+        if self.thermostats.pop(entity_id, None) is None:
+            raise model.InvalidData(f"not scheduled: {entity_id}")
+        self.data["overrides"].pop(entity_id, None)
+        self._retry.discard(entity_id)
+        self.data["revision"] += 1
+        self._track_thermostats()
+        self._changed()
 
     async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:
         """New list of presets; a removed preset is replaced in the weeks by the preset given

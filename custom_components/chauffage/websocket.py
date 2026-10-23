@@ -18,6 +18,7 @@ chauffage/rules/preview      {rules}: tries rules being typed, as the integratio
                              when their entities change: {results, texts, errors}, one per rule
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not driven) or resume a scheduled
                              thermostat
+chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -42,7 +43,7 @@ from .runtime import DATA, ChauffageRuntime, StaleRevision, ThermostatFailed
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
-                    ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_set_rules, ws_preview_rules, ws_history):
+                    ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat, ws_set_rules, ws_preview_rules, ws_history):
         websocket_api.async_register_command(hass, command)
 
 
@@ -169,6 +170,13 @@ async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveCo
 @websocket_api.async_response
 async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_paused(msg["entity_id"], msg["paused"]))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "chauffage/thermostat/forget", vol.Required("entity_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_forget_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    await _run(hass, connection, msg, lambda runtime: runtime.forget(msg["entity_id"]))
 
 
 @websocket_api.websocket_command({

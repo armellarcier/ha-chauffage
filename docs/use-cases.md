@@ -67,11 +67,13 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A thermostat without a week in the active schedule is left alone | `I/test_schedules.py::a_thermostat_without_a_week_in_the_schedule_is_left_alone` |
 | ZHA Enum presets | `I/test_schedules.py::an_enum_preset_is_compared_correctly`, `I/test_overrides.py::an_enum_preset_does_not_break_detection` |
 
-## Pausing a thermostat — ×3
+## Scheduled thermostats: pausing, forgetting — ×3
 
 | Use case | Test |
 |---|---|
 | Pause a scheduled thermostat (card, *Scheduling* switch, automation): kept (weeks, values of the presets), not driven, its changes by hand are not overrides, its override is dropped and the thermostat left as it is; still paused after a restart (#27) | `I/test_pause.py::a_paused_thermostat_*`, `::a_change_by_hand_on_a_paused_thermostat_*`, `::pausing_drops_the_current_override`, `I/test_entities.py::turning_the_scheduling_switch_off_*` |
+| A thermostat a card does not send keeps its schedule: removed from a card, or shown by another one (#27) | `I/test_thermostats.py::a_thermostat_a_card_does_not_send_keeps_its_schedule` |
+| Forget a thermostat (card): its weeks, values of the presets, learned temperatures, override and entities are dropped; a copy of the weeks made before cannot bring it back; admins only | `I/test_thermostats.py`, `I/test_entities.py::entities_follow_the_scheduled_thermostats`, `I/test_options.py::what_was_learned_on_a_forgotten_thermostat_*` |
 | Resume it: realigned at once, watched again | `I/test_pause.py::resuming_realigns_the_thermostat_at_once` |
 | No override on a paused thermostat (card, service); its weeks can still be saved, which does not resume it; only a scheduled thermostat can be paused | `I/test_pause.py::no_override_*`, `::the_weeks_of_a_paused_thermostat_*`, `::only_a_scheduled_thermostat_*`, `::the_card_pauses_and_resumes_a_thermostat` |
 
@@ -83,7 +85,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A preset picked by a user is an override (thermostats with presets) | `I/test_overrides.py::a_preset_picked_by_a_user_creates_an_override` |
 | Changes made by an automation, or by the integration itself (and the thermostat's answer), are not overrides | `I/test_overrides.py::a_change_made_by_an_automation_*`, `::a_change_made_by_the_integration_itself_*`, `::the_thermostat_answering_the_schedule_*` |
 | VTherm safety mode in and out is not an override; a user's choice during it is | `I/test_overrides.py::safety_mode_*`, `::slot_changes_are_still_sent_during_safety_mode`, `::a_preset_picked_by_a_user_during_safety_mode_*` |
-| Only scheduled thermostats are watched, added or removed without configuration | `I/test_overrides.py::a_thermostat_without_a_schedule_is_not_watched`, `::a_thermostat_added_*`, `I/test_use_cases.py::a_thermostat_removed_from_the_schedules_*` |
+| Only scheduled thermostats are watched, added without configuration (put in a card), no longer watched once forgotten | `I/test_overrides.py::a_thermostat_without_a_schedule_is_not_watched`, `::a_thermostat_added_*`, `I/test_thermostats.py::a_forgotten_thermostat_*` |
 | During an override: slot changes and realignments leave it alone; a new manual change restarts it | `I/test_overrides.py::a_slot_change_does_not_overwrite_an_override`, `::a_forced_realignment_*`, `::a_new_manual_change_restarts_the_2_hours` |
 | Going back to what the slot gives ends the override (issue #19), only that thermostat's, and creates none: a preset picked by a user, or a setpoint changed by a user or on the device (knob), at the temperature of the slot's preset on this thermostat; a preset set by the thermostat itself does not; nor a thermostat coming back by itself to an override that holds the slot's value; an override set to the slot's preset lasts until its end, through later slots with the same preset and the thermostat reporting again | `I/test_overrides.py::going_back_to_the_scheduled_preset_*`, `::the_knob_turned_back_*`, `::the_thermostat_switching_back_*_by_itself_*`, `::a_thermostat_coming_back_by_itself_to_a_held_slot_value_*`, `::picking_the_scheduled_preset_by_hand_is_not_an_override`, `::a_slot_with_the_override_s_preset_does_not_end_it`, `I/test_engine.py::going_back_to_what_the_schedule_expects_resumes_it`, `::a_manual_setpoint_at_the_temperature_of_the_slot_s_preset_*`, `::an_override_already_at_what_the_slot_gives_is_kept`, `::the_temperature_of_a_thermostat_s_own_preset` |
 | End of an override: the schedule resumes, without a new override; ended while HA was stopped | `I/test_overrides.py::when_the_override_ends_*`, `::resuming_the_schedule_*`, `I/test_use_cases.py::an_override_that_ended_while_home_assistant_was_stopped` |

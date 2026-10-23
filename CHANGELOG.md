@@ -20,6 +20,14 @@ thermostats.
   resumed (realigned at once). A *Scheduling* switch per thermostat, in the settings of its
   device page, pauses and resumes it, from an automation too. No override can be set on a paused
   thermostat; its sensors are unavailable.
+- A thermostat can be **forgotten** (websocket `chauffage/thermostat/forget`, for the card): its
+  data is dropped and it is no longer driven.
+
+### Changed
+
+- Saving the weeks no longer unschedules the thermostats a card does not send: a thermostat
+  removed from a card, or shown by another card, keeps its schedule (#27). Stopping it is done
+  by pausing or forgetting it.
 
 ## [0.6.0-beta.2] - 2026-10-22
 

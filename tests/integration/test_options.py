@@ -97,10 +97,13 @@ async def test_preset_and_mapping_changes_need_an_admin(bench: Bench, ws_client,
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
 
 
-async def test_without_schedules_nothing_is_learned(bench: Bench):
+async def test_what_was_learned_on_a_forgotten_thermostat_is_dropped(bench: Bench):
     await bench.go_to("10:00")
     bench.thermostat("climate.cuisine", "eco")
     await bench.setup()
     await bench.save_weeks({"climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
-    await bench.save_weeks({})
+    assert bench.runtime.preset_temperatures == {"climate.cuisine": {"eco": 17.0}}
+    await bench.runtime.forget("climate.cuisine")
+    bench.thermostat("climate.cuisine", "comfort")
+    await bench.hass.async_block_till_done()
     assert bench.runtime.preset_temperatures == {}

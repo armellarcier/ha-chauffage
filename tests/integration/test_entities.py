@@ -84,13 +84,17 @@ async def test_the_override_end_sensor(bench: Bench):
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
-async def test_sensors_follow_the_thermostats_in_the_weeks(bench: Bench):
+async def test_entities_follow_the_scheduled_thermostats(bench: Bench):
     await start(bench)
     bench.thermostat("climate.bureau", "eco", friendly_name="Bureau")
     await bench.save_weeks({**WEEKS, "climate.bureau": {"normal": every_day(("00:00", "eco"))}})
     assert bench.hass.states.get("sensor.bureau_schedule").state == "eco"
-    await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
-    assert er.async_get(bench.hass).async_get("sensor.salon_schedule") is None
+    await bench.runtime.forget("climate.salon")
+    await bench.hass.async_block_till_done()
+    registry = er.async_get(bench.hass)
+    assert registry.async_get("sensor.salon_schedule") is None
+    assert registry.async_get("switch.salon_scheduling") is None
+    assert registry.async_get("switch.bureau_scheduling") is not None
 
 
 async def test_sensors_are_attached_to_the_thermostat_s_device(bench: Bench):
