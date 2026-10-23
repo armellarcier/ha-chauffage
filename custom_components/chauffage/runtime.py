@@ -48,6 +48,10 @@ class StaleRevision(Exception):
     """Weeks or schedules saved from an outdated copy (edited elsewhere in the meantime)."""
 
 
+class ThermostatFailed(Exception):
+    """The thermostat could not be set to an override's value."""
+
+
 def thermostat(state: State | None) -> engine.Thermostat | None:
     if state is None:
         return None
@@ -387,14 +391,41 @@ class ChauffageRuntime:
         if outcome is not None and (changed or force):
             await self.activate_schedule(outcome)
 
-    async def set_override(self, entity_id: str, override: dict[str, Any] | None) -> None:
-        """Create / extend (override) or remove (None) a thermostat's override."""
+    async def set_override(self, entity_id: str, override: dict[str, Any] | None, *, resend: bool = False) -> None:
+        """Create / change / extend (override) or remove (None) a thermostat's override, from the
+        card or the service.
+
+        A temperature is fitted to the thermostat (limits, step). A new override or a new value
+        is sent to the thermostat unless it already has it; a new end alone is not, unless
+        `resend` (the service: an automation setting it again puts back a thermostat that lost
+        it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached."""
         if override is None:
             if self.data["overrides"].pop(entity_id, None) is None:
                 return
             self._changed()
             await self.apply(resumed=entity_id)
             return
+        override = model.normalize_override(override)
+        current = thermostat(self.hass.states.get(entity_id))
+        if override["kind"] == "temperature" and current is not None:
+            override["value"] = engine.fit_temperature(override["value"], current)
+        target = engine.Target(override["kind"], override["value"])
+        before = self.data["overrides"].get(entity_id)
+        new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
+        if (new_value or resend) and (current is None or not engine.satisfied(target, current)):
+            service, data = (
+                ("set_temperature", {"temperature": target.value}) if target.kind == "temperature"
+                else ("set_preset_mode", {"preset_mode": target.value})
+            )
+            if not await self.call_climate(service, entity_id, data):
+                raise ThermostatFailed(entity_id)
+        self.data["overrides"][entity_id] = override
+        self._changed()
+
+    @callback
+    def record_override(self, entity_id: str, override: dict[str, Any]) -> None:
+        """The override of a change by hand, only recorded: the thermostat set it itself, and
+        sending it back could undo a second change made meanwhile."""
         self.data["overrides"][entity_id] = model.normalize_override(override)
         self._changed()
 
@@ -497,8 +528,19 @@ class ChauffageRuntime:
             return
         after = thermostat(new)
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
-        change = engine.manual_change(thermostat(old), after, by_user=context.user_id is not None, expected=expected)
+        preset_temperature = engine.preset_temperature(
+            dict(new.attributes), expected.value, self.data["preset_temperatures"].get(new.entity_id, {})
+        ) if expected is not None and expected.kind == "preset" else None
+        current = self.data["overrides"].get(new.entity_id)
+        change = engine.manual_change(
+            thermostat(old), after, by_user=context.user_id is not None, expected=expected,
+            preset_temperature=preset_temperature,
+            override=engine.Target(current["kind"], current["value"]) if current else None,
+        )
         if change is None:
             return
-        override = self.new_override(*change)
-        self.entry.async_create_task(self.hass, self.set_override(new.entity_id, override), "chauffage override")
+        if change == engine.RESUME:
+            if new.entity_id in self.data["overrides"]:
+                self.entry.async_create_task(self.hass, self.set_override(new.entity_id, None), "chauffage resume")
+            return
+        self.record_override(new.entity_id, self.new_override(*change))

@@ -204,19 +204,64 @@ def test_temperature_expected_manual_changes():
     expected = engine.Target("temperature", 20.0)
     # A new setpoint, by a user or on the device itself
     assert engine.manual_change(plain(20.0), plain(22.0), by_user=False, expected=expected) == ("temperature", 22.0)
-    # The thermostat reaching what the schedule expects is not an override
-    assert engine.manual_change(plain(17.0), plain(20.0), by_user=False, expected=expected) is None
-    # VTherm mapped to temperatures: safety mode in and out
+    # The thermostat reaching what the schedule expects is not an override: back to the schedule
+    assert engine.manual_change(plain(17.0), plain(20.0), by_user=False, expected=expected) == engine.RESUME
+    # VTherm mapped to temperatures: safety mode in (not an override) and out (back to the schedule)
     assert engine.manual_change(heat("none", 20.0), heat("safety", 7.0), by_user=False, expected=expected) is None
-    assert engine.manual_change(heat("safety", 7.0), heat("none", 20.0), by_user=False, expected=expected) is None
+    assert engine.manual_change(heat("safety", 7.0), heat("none", 20.0), by_user=False, expected=expected) == engine.RESUME
     # A preset picked by a user
     assert engine.manual_change(heat("none", 20.0), heat("boost", 22.0), by_user=True, expected=expected) == ("preset", "boost")
+    # Then that preset's own temperature edited (VTherm): still that preset, as when a preset is expected
+    assert engine.manual_change(heat("boost", 22.0), heat("boost", 23.0), by_user=True, expected=expected) is None
 
 
 def test_a_setpoint_change_keeping_the_preset_is_the_preset_s_temperature():
     """VTherm preset temperatures: editing the comfort temperature is not an override."""
     expected = engine.Target("preset", "comfort")
     assert engine.manual_change(heat("comfort", 20.0), heat("comfort", 21.0), by_user=True, expected=expected) is None
+
+
+def test_going_back_to_what_the_schedule_expects_resumes_it():
+    """Issue #19: not a "Comfort in Comfort" override. As for overrides: a preset only when a
+    user picks it (not VTherm leaving its safety mode), a setpoint by a user or on the device."""
+    eco = engine.Target("preset", "eco")
+    assert engine.manual_change(heat("none", 21.5), heat("eco", 17.0), by_user=True, expected=eco) == engine.RESUME
+    assert engine.manual_change(heat("none", 21.5), heat("eco", 17.0), by_user=False, expected=eco) is None
+    # The slot's preset temperature edited (VTherm): still that preset, nothing to resume
+    assert engine.manual_change(heat("eco", 17.0), heat("eco", 18.0), by_user=True, expected=eco) is None
+    seventeen = engine.Target("temperature", 17.0)
+    assert engine.manual_change(plain(21.5), plain(17.0), by_user=True, expected=seventeen) == engine.RESUME
+    assert engine.manual_change(plain(21.5), plain(17.0), by_user=False, expected=seventeen) == engine.RESUME
+    # Something else changed (an attribute), the setpoint did not
+    assert engine.manual_change(plain(17.0), plain(17.0), by_user=True, expected=seventeen) is None
+
+
+def test_a_manual_setpoint_at_the_temperature_of_the_slot_s_preset_resumes_the_schedule():
+    """What the slot gives on this thermostat: the temperature of its own preset, not the
+    default temperature of the ha-chauffage preset (only used without that climate preset)."""
+    eco = engine.Target("preset", "eco")
+    knob = (heat("none", 21.5), heat("none", 17.0))
+    assert engine.manual_change(*knob, by_user=False, expected=eco, preset_temperature=17.0) == engine.RESUME
+    assert engine.manual_change(*knob, by_user=False, expected=eco, preset_temperature=16.0) == ("temperature", 17.0)
+    assert engine.manual_change(*knob, by_user=False, expected=eco) == ("temperature", 17.0)  # not known
+
+
+def test_an_override_already_at_what_the_slot_gives_is_kept():
+    """Held from the card past the next slots: the thermostat coming back to it by itself
+    (VTherm mapped to temperatures leaving its safety mode) does not end it."""
+    seventeen = engine.Target("temperature", 17.0)
+    back = (heat("safety", 7.0), heat("none", 17.0))
+    assert engine.manual_change(*back, by_user=False, expected=seventeen, override=seventeen) is None
+    assert engine.manual_change(*back, by_user=False, expected=seventeen, override=engine.Target("temperature", 22.0)) == engine.RESUME
+
+
+def test_the_temperature_of_a_thermostat_s_own_preset():
+    """Versatile Thermostat publishes them (preset_temperatures since its version 10, eco_temp…
+    before); otherwise the one last read while the thermostat was on that preset."""
+    assert engine.preset_temperature({"preset_temperatures": {"eco_temp": 16.0}}, "eco", {"eco": 17.0}) == 16.0
+    assert engine.preset_temperature({"eco_temp": 16.5}, "eco", {}) == 16.5
+    assert engine.preset_temperature({}, "eco", {"eco": 17.0}) == 17.0
+    assert engine.preset_temperature({}, "eco", {}) is None
 
 
 # ----- preset data -----

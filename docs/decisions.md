@@ -31,6 +31,46 @@ future contributor might question.
 - **A manual change is judged against what the schedule expects**: on a thermostat driven by
   temperature, any other setpoint is an override; the thermostat reaching the expected
   temperature is not.
+- **An override departs from the schedule, now: it is never planned.** Its first source is a
+  change made by hand on the thermostat: someone in the room wants something else than the
+  schedule, at that moment. The card, the more-info dialog and `set_override` called at that
+  moment are other ways to say the same thing. It lasts until its end; its stored `start` is
+  when it was made, not a start to wait for. What is decided in advance ("tomorrow from 8:00 to
+  18:00, the children's bedrooms on frost protection") is part of the plan, so it belongs to the
+  schedules (activation rules, the coming calendar of schedules, issue #13), not to overrides.
+  Hence **one override per thermostat at most**: a change by hand on a thermostat that already
+  has an override means the user changed their mind, so it replaces the override (going back to
+  what the slot expects ends it, see below). There is no stack of overrides and no override
+  waiting to start. An automation calling `set_override` at 8:00 is consistent with this: it
+  departs from the schedule at 8:00.
+- **An override only ends at its end, when it is removed, or when a change on the thermostat
+  goes back to what the slot gives** (issue #19: no "Comfort in Comfort" override). Going back
+  follows the same rules as creating an override, the same on every kind of thermostat: a
+  preset picked by a user (not by the thermostat itself, such as VTherm leaving its safety
+  mode), or a setpoint changed by a user or on the device (its knob). "What the slot gives" is
+  measured on the thermostat: its preset, or a manual setpoint at the temperature of that
+  preset on this thermostat (published by VTherm, otherwise the last one read while on that
+  preset), not the default temperature of the ha-chauffage preset. Not when the override
+  already has that value: the thermostat coming back to it by itself does not end an override
+  held past the next slots. A slot change never ends an override, even to a slot with the
+  override's value: an override set for a day during the first comfort slot must still hold
+  when the next eco slot starts.
+- **Holding the slot's preset past the next slots is done from the card**, not by hand: the
+  override popover (opened on an override, or from today's row menu, "Temporary setpoint…"),
+  and the block in the thermostat's more-info dialog, create an override or change its value (a
+  preset, or a temperature), and the integration sends it to the thermostat. Picking the slot's
+  preset on the thermostat is read as "back to the schedule". Both show what the thermostat
+  goes back to at the end ("then Eco (schedule)"), so that an override reads as a departure
+  from the schedule. The card sends what the preset means on that thermostat (its climate
+  preset, or a temperature), so the stored format of overrides does not change; on a thermostat
+  without presets, "Comfort" picked in the card shows as its temperature.
+- **One way to set an override's value on the thermostat** (`runtime.set_override`), which
+  fits a temperature to the thermostat (limits, step) as for the slots, and never sends what the
+  thermostat already has. The caller says what to send: the card, a new override or a new value
+  (a new end alone is not sent, so it works on an unreachable thermostat); the `set_override`
+  service, the value every time (an automation setting it again puts a thermostat that lost it
+  back); a change by hand, nothing (the thermostat set it itself: sending it back could undo a
+  second change made meanwhile).
 - **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
   realigned at once. A command that was not delivered is sent again every minute. Commands are
   spaced out (Zigbee networks).

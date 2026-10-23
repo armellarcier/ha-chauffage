@@ -1,7 +1,7 @@
 // Pointer and form interactions of the card and of the more-info block: dragging slots and
 // override ends, row menu, copying a week, time fields, popovers, injection into the dialog,
 // error messages.
-import { fakeHass, fakeIntegrationHass, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -223,6 +223,75 @@ describe('the override popover in the card', () => {
     input.value = '18:00';
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T16:00:00.000Z');
+  });
+
+  // What the integration says each preset means on this thermostat (here: no climate presets)
+  const withTargets = (overrides = { 'climate.salon': override }) => {
+    const data = integrationData({ overrides });
+    data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { temperature: 17 } } };
+    return fakeHass({ data });
+  };
+
+  test('the popover says what the thermostat goes back to at the end', () => {
+    const card = createCard(withTargets(), { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    assert.match($(card, '.override-ed').textContent, /puis Éco \(planning\)/); // 11:30: the 08:30 eco slot
+  });
+
+  test('without an override, today\'s row menu sets a temporary setpoint, for the override duration', () => {
+    const hass = withTargets({});
+    const card = createCard(hass, { show: ['climate.salon'] });
+    card._openMenu('climate.salon', 1, 0, 0); // Tuesday: not today
+    assert.equal($(card, '.menu [data-act="override-new"]'), null);
+    card._openMenu('climate.salon', 0, 0, 0); // Monday: today
+    $(card, '.menu [data-act="override-new"]').click();
+    $(card, '.override-ed .presets [data-preset="comfort"]').click();
+    const sent = hass.events.at(-1);
+    assert.equal(sent.type, 'chauffage/override/set');
+    assert.deepEqual(sent.override, { kind: 'temperature', value: 20, start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+  });
+
+  test('a preset picked in the popover becomes the override, until the same end', () => {
+    const hass = withTargets();
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    $(card, '.override-ed .presets [data-preset="comfort"]').click();
+    const sent = hass.events.at(-1);
+    assert.equal(sent.type, 'chauffage/override/set');
+    assert.deepEqual(sent.override, { ...override, kind: 'temperature', value: 20 });
+  });
+
+  test('a temperature typed in the popover becomes the override', () => {
+    const hass = withTargets();
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-temperature]');
+    assert.equal(input.value, '21.5');
+    input.value = '22';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.deepEqual(hass.events.at(-1).override, { ...override, kind: 'temperature', value: 22 });
+  });
+
+  test('a temperature being typed in the popover survives a redraw of the card', () => {
+    const card = createCard(withTargets(), { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-temperature]');
+    input.focus();
+    input.value = '2';
+    card._render(); // every 30 s during an override, or another thermostat's override changed
+    const after = $(card, '.override-ed input[data-override-temperature]');
+    assert.equal(after.value, '2');
+    assert.equal(card.shadowRoot.activeElement, after);
+  });
+
+  test('with a preset, the temperature field shows the thermostat\'s setpoint, even once it answers', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, kind: 'preset', value: 'eco' } } });
+    const salon = (temperature) => ({ ...hass.states['climate.salon'], attributes: { ...hass.states['climate.salon'].attributes, temperature } });
+    hass.states = { ...hass.states, 'climate.salon': salon(21.5) };
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    card.hass = { ...hass, states: { ...hass.states, 'climate.salon': salon(17) } };  // the thermostat answers
+    assert.equal($(card, '.override-ed input[data-override-temperature]').value, '17');
   });
 });
 

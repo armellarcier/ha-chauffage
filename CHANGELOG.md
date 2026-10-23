@@ -9,6 +9,55 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.6.0-beta.2] - 2026-10-22
+
+**A temporary setpoint set from the card**, and what follows an override shown
+([#19](https://github.com/armellarcier/ha-chauffage/issues/19)). Does not migrate stored data.
+
+### Added
+
+- A temporary setpoint can be **set from the card** (the menu of today's row, *Temporary
+  setpoint…*) and from the thermostat's more-info dialog, with no override yet: a preset or a
+  temperature, for the override duration. That is the way to keep the current preset past the
+  next slots (#19).
+- The override popover and the more-info dialog say what the thermostat goes back to at the
+  override's end: "then Eco (schedule)".
+
+### Changed
+
+- On a thermostat driven by temperatures, editing the temperature of the preset it is on (a
+  VTherm preset picked by hand) is no longer an override, as when the slot expects a preset.
+
+## [0.6.0-beta.1] - 2026-10-22
+
+**Overrides: back to the schedule by hand, and their value changed from the card**
+([#19](https://github.com/armellarcier/ha-chauffage/issues/19)). Does not migrate stored data;
+overrides in progress are kept.
+
+### Added
+
+- The override's **value** can be changed in the card's override popover and in the
+  thermostat's more-info dialog: one of the presets, or a temperature, until the same end. The
+  thermostat follows. This is the way to keep the current preset past the next slots (#19).
+
+### Fixed
+
+- Going back to the slot's preset on the thermostat during an override no longer creates an
+  override to that same preset ("Comfort in Comfort"): it ends the override and the thermostat
+  follows its schedule again (#19). Turning the thermostat's knob back to what the slot gives
+  also ends it, on every kind of thermostat: the slot's temperature, or the temperature of the
+  slot's preset on this thermostat (the thermostat then gets its preset back). The override
+  was kept, showing the old setpoint and holding back the next slots until its end.
+- Changing an override's value through the websocket API (`chauffage/override/set`) now sets
+  the thermostat to it, or answers `thermostat_failed`; it was only recorded.
+
+### Upgrading
+
+- Picking the slot's preset by hand during an override now **resumes the schedule**. To keep
+  that preset past the next slots, change the override's value in the card's override popover
+  or the thermostat's more-info dialog (or use the `chauffage.set_override` service), then
+  extend it.
+
 ## [0.5.1] - 2026-10-21
 
 **A visual editor for the card**, and a better place in the *Add card* dialog. Does not migrate
@@ -352,7 +401,9 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.2...HEAD
+[0.6.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.2
+[0.6.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.1
 [0.5.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.1
 [0.5.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0
 [0.5.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.0-beta.2
