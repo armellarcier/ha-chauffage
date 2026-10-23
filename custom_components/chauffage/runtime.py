@@ -232,7 +232,7 @@ class ChauffageRuntime:
             "schedules": self.data["schedules"],
             "active_schedule": self.data["active_schedule"],
             "presets": self.data["presets"],
-            "thermostats": {e: {"paused": t["paused"]} for e, t in self.thermostats.items()},
+            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"]} for e, t in self.thermostats.items()},
             "mappings": self.mappings,
             "targets": {e: self.targets_of(e) for e in self.thermostats},
             "weeks": self.weeks,
@@ -256,17 +256,32 @@ class ChauffageRuntime:
 
     # ----- writing -----
 
+    def _weeks_changed(self, entity_ids: Any) -> None:
+        """New revisions for these thermostats: a copy of their weeks made before is outdated."""
+        for entity_id in entity_ids:
+            self.thermostats[entity_id]["revision"] += 1
+
     def _scheduled(self, entity_id: str) -> dict[str, Any]:
         """The thermostat's data; a thermostat the card brings is scheduled, active."""
         return self.thermostats.setdefault(entity_id, model.new_thermostat())
 
-    async def save_weeks(self, weeks: Any, revision: int | None = None) -> None:
+    async def save_weeks(self, weeks: Any, revision: int | None = None,
+                         revisions: dict[str, int | None] | None = None) -> None:
         """The weeks of the thermostats sent; the others keep theirs: a thermostat a card does
-        not show stays scheduled (#27), only forget() drops it."""
+        not show stays scheduled (#27), only forget() drops it. Saved against the revision of
+        each thermostat sent (`revisions`; None: not scheduled when the copy was made), or the
+        global one (`revision`, older cards). StaleRevision if one of them changed."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
-        for entity_id, by_schedule in model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids).items():
+        normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
+        if revisions is not None:
+            for entity_id in normalized:
+                current = self.thermostats.get(entity_id, {}).get("revision")
+                if revisions.get(entity_id) != current:
+                    raise StaleRevision
+        for entity_id, by_schedule in normalized.items():
             self._scheduled(entity_id)["weeks"] = by_schedule
+        self._weeks_changed(normalized)
         self.data["revision"] += 1
         self._track_thermostats()
         for entity_id in self.active:
@@ -364,6 +379,7 @@ class ChauffageRuntime:
         reloaded to attach them to the new id. A new revision: a card's copy of the weeks holds
         the former id."""
         self.thermostats[new] = self.thermostats.pop(old)
+        self._weeks_changed([new])
         if old in self.data["overrides"]:
             self.data["overrides"][new] = self.data["overrides"].pop(old)
         for card in self.data["cards"].values():
@@ -412,6 +428,7 @@ class ChauffageRuntime:
                     by_schedule[schedule_id] = model.normalize_week(
                         [[[start, replacements.get(preset, preset)] for start, preset in day] for day in week]
                     )
+            self._weeks_changed(self.thermostats)
             self.data["revision"] += 1
         for t in self.thermostats.values():
             for preset_id in removed:
@@ -451,6 +468,7 @@ class ChauffageRuntime:
                 elif source in weeks:
                     weeks[schedule_id] = copy.deepcopy(weeks[source])
         self.data["schedules"] = schedules
+        self._weeks_changed(self.thermostats)
         self.data["revision"] += 1
         self._changed()
         return copy.deepcopy(schedules)

@@ -1,7 +1,9 @@
 """Websocket API used by the card (vocabulary: docs/glossary.md).
 
 chauffage/subscribe          everything the card needs, then again after every change
-chauffage/weeks/save         {weeks, revision}: refused ("stale") if edited elsewhere meanwhile
+chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
+                             the revision of each ({climate: revision | null}), or the global one
+                             (older cards); refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set       {entity_id, override | null}: change (value, end) or remove an override;
                              a new value is sent to the thermostat
 chauffage/schedule/activate  {schedule}: activate a schedule (same as the select entity)
@@ -99,13 +101,15 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     vol.Required("type"): "chauffage/weeks/save",
     vol.Required("weeks"): dict,
     vol.Optional("revision"): int,
+    vol.Optional("revisions"): {str: vol.Any(None, int)},
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    async def save(runtime: ChauffageRuntime) -> dict[str, int]:
-        await runtime.save_weeks(msg["weeks"], msg.get("revision"))
-        return {"revision": runtime.data["revision"]}
+    async def save(runtime: ChauffageRuntime) -> dict[str, Any]:
+        await runtime.save_weeks(msg["weeks"], msg.get("revision"), msg.get("revisions"))
+        return {"revision": runtime.data["revision"],
+                "revisions": {e: runtime.thermostats[e]["revision"] for e in msg["weeks"] if e in runtime.thermostats}}
 
     await _run(hass, connection, msg, save)
 

@@ -41,7 +41,7 @@ async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_clien
     week = [[["00:00", "comfort"]]] * 7
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}}, "revision": 1})
     reply = await client.receive_json()
-    assert reply["success"] and reply["result"] == {"revision": 2}
+    assert reply["success"] and reply["result"]["revision"] == 2
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "comfort"}
 

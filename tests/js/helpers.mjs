@@ -39,8 +39,8 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
     schedules,
     active_schedule: idOf(schedule),
     presets: PRESETS(language),
-    // The scheduled thermostats; `paused`: the ones paused
-    thermostats: Object.fromEntries(Object.keys(out).map((climate) => [climate, { paused: paused.includes(climate) }])),
+    // The scheduled thermostats; `paused`: the ones paused; each saved against its revision
+    thermostats: Object.fromEntries(Object.keys(out).map((climate) => [climate, { paused: paused.includes(climate), revision: 7 }])),
     mappings: {},
     targets: {},
     weeks: out,
@@ -65,6 +65,7 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FR
   if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, language: locale.language });
   const events = [];
   const declarations = [];
+  let globalRevision = data ? data.revision : 4;
   let listener = null;
   const hass = {
     states: {
@@ -97,7 +98,12 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FR
       if (msg.type === 'chauffage/card/declare') { declarations.push(msg); return null; }
       events.push(msg);
       if (reply) return reply(msg);
-      if (msg.type === 'chauffage/weeks/save') return { revision: msg.revision + 1 };
+      if (msg.type === 'chauffage/weeks/save') {
+        // Like the integration: a new revision for each thermostat saved, and the global one
+        globalRevision += 1;
+        const revisions = Object.fromEntries(Object.keys(msg.weeks).map((c) => [c, ((msg.revisions || {})[c] ?? 0) + 1]));
+        return { revision: globalRevision, revisions };
+      }
       if (msg.type === 'chauffage/schedules/set') {
         // Like the integration: kept ids keep their names, new schedules get an id from their name
         const names = Object.fromEntries((data || integrationData()).schedules.map((s) => [s.id, s.name]));

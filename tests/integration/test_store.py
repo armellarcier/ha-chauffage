@@ -68,7 +68,7 @@ def test_version_5_keeps_each_thermostat_s_data_together_and_pauses_those_withou
           "preset_temperatures": {"climate.salon": {"eco": 17.0}}}
     v5 = migrate(v4, 4)
     assert not {"weeks", "mappings", "preset_temperatures"} & set(v5)
-    unseen = {"paused": False, "shown_at": None, "kept_unlisted": False}
+    unseen = {"paused": False, "revision": 0, "shown_at": None, "kept_unlisted": False}
     assert v5["thermostats"] == {
         "climate.salon": {**unseen, "weeks": week, "mapping": {"eco": {"temperature": 16.5}},
                           "preset_temperatures": {"eco": 17.0}},

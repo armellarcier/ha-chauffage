@@ -35,6 +35,9 @@ left, shows up paused in the card's *Thermostats* view, to forget or resume.
   thermostat's data is dropped and it is no longer driven. A thermostat this card shows cannot be
   forgotten from it.
 
+- Saving the weeks only sends the thermostats changed, each against its own revision: two cards
+  (or two people) editing different thermostats no longer refuse each other's save.
+
 ### Fixed
 
 - Reloading the integration after Home Assistant has started no longer logs "Unable to remove

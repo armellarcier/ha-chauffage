@@ -742,7 +742,11 @@ function dataSource(hass) {
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
     renamed: () => (d && d.renamed) || {},
     declareCard: (cardId, thermostats) => hass.callWS({ type: 'chauffage/card/declare', ...(cardId ? { card_id: cardId } : {}), thermostats }),
-    saveWeeks: (weeks, revision) => {
+    // Saves against the revision of each thermostat sent (null: not scheduled when loaded);
+    // an older integration only has the global one
+    perThermostat: !!(d && d.thermostats),
+    revisionOf: (climate) => (d && d.thermostats && d.thermostats[climate] ? d.thermostats[climate].revision : null),
+    saveWeeks: (weeks, revision, revisions) => {
       const out = {};
       for (const [climate, bySchedule] of Object.entries(weeks)) {
         out[climate] = {};
@@ -750,7 +754,8 @@ function dataSource(hass) {
           if (ids.has(id)) out[climate][id] = week.map((day) => day.map((s) => s.split(' ')));
         }
       }
-      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...(revision != null ? { revision } : {}) });
+      const against = revisions ? { revisions } : (revision != null ? { revision } : {});
+      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...against });
     },
     setOverride: (climate, override) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override }),
     overrideDuration: () => (d && d.override_duration) || 120, // minutes, an option of the integration
@@ -1148,6 +1153,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     this._data = {};
     this._revision = src.revision;
+    this._revisions = {};
     for (const [climate, bySchedule] of Object.entries(src.weeks())) {
       if (!bySchedule || typeof bySchedule !== 'object') continue;
       this._data[climate] = {};
@@ -1155,7 +1161,18 @@ class ChauffageProgrammeCard extends HTMLElement {
         if (!Array.isArray(week)) continue;
         this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i]));
       }
+      this._revisions[climate] = src.revisionOf(climate);
     }
+    this._loadedWeeks = this._serialized();
+  }
+
+  // {climate: JSON of its weeks}, to send only the thermostats changed
+  _serialized() {
+    const out = {};
+    for (const [climate, bySchedule] of Object.entries(this._data)) {
+      out[climate] = JSON.stringify(Object.fromEntries(Object.entries(bySchedule).map(([s, week]) => [s, week.map(serializeDay)])));
+    }
+    return out;
   }
 
   _week(climate, schedule = this._schedule) {
@@ -1241,14 +1258,18 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   async _save() {
-    const out = {};
-    for (const [climate, bySchedule] of Object.entries(this._data)) {
-      out[climate] = {};
-      for (const [schedule, week] of Object.entries(bySchedule)) out[climate][schedule] = week.map(serializeDay);
-    }
+    const src = this._source();
+    const now = this._serialized();
+    // Only the thermostats changed, each against its revision (another card may edit the others)
+    const changed = Object.keys(now).filter((c) => !src.perThermostat || now[c] !== (this._loadedWeeks || {})[c]);
+    const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
+    const revisions = src.perThermostat
+      ? Object.fromEntries(changed.map((c) => [c, (this._revisions || {})[c] ?? null])) : null;
     try {
-      const result = await this._source().saveWeeks(out, this._revision);
+      const result = await src.saveWeeks(out, this._revision, revisions);
       if (result && result.revision != null) this._revision = result.revision;
+      if (result && result.revisions) Object.assign(this._revisions, result.revisions);
+      this._loadedWeeks = now;
       this._dirty = false;
       this._msg = this._loc.t('saved');
       this._render();

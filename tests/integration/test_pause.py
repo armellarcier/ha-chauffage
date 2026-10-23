@@ -139,10 +139,10 @@ async def test_the_card_pauses_and_resumes_a_thermostat(bench: Bench, ws_client)
     client = await ws_client(bench.hass)
     await client.send_json_auto_id({"type": "chauffage/subscribe"})
     assert (await client.receive_json())["success"]
-    assert (await client.receive_json())["event"]["thermostats"]["climate.salon"] == {"paused": False}
+    assert (await client.receive_json())["event"]["thermostats"]["climate.salon"]["paused"] is False
 
     await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": True})
-    assert (await client.receive_json())["event"]["thermostats"]["climate.salon"] == {"paused": True}
+    assert (await client.receive_json())["event"]["thermostats"]["climate.salon"]["paused"] is True
     assert (await client.receive_json())["success"]
     assert bench.runtime.is_paused("climate.salon")
 

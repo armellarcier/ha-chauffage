@@ -247,7 +247,8 @@
         "mapping": {},
         "preset_temperatures": {},
         "shown_at": null,
-        "kept_unlisted": false
+        "kept_unlisted": false,
+        "revision": 0
       }
     }
   },

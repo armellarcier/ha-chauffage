@@ -111,3 +111,61 @@ async def test_the_card_forgets_a_thermostat(bench: Bench, ws_client):
     await reader.send_json_auto_id({"type": "chauffage/thermostat/forget", "entity_id": "climate.bureau"})
     assert not (await reader.receive_json())["success"]
     assert "climate.bureau" in bench.runtime.thermostats
+
+
+# ----- revisions per thermostat: several cards editing the weeks -----
+
+def revision(bench: Bench, entity_id: str) -> int:
+    return bench.runtime.snapshot()["thermostats"][entity_id]["revision"]
+
+
+async def test_two_cards_editing_different_thermostats_do_not_get_in_each_other_s_way(bench: Bench):
+    await start(bench)
+    salon, bureau = revision(bench, "climate.salon"), revision(bench, "climate.bureau")
+    await bench.runtime.save_weeks({"climate.salon": {"normal": every_day(("00:00", "comfort"))}}, revisions={"climate.salon": salon})
+    await bench.runtime.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "frost"))}}, revisions={"climate.bureau": bureau})
+    assert bench.runtime.weeks["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
+    assert bench.runtime.weeks["climate.bureau"]["normal"][0] == [["00:00", "frost"]]
+    assert revision(bench, "climate.bureau") == bureau + 1
+
+
+async def test_two_copies_of_the_same_thermostat_cannot_overwrite_each_other(bench: Bench):
+    await start(bench)
+    salon = revision(bench, "climate.salon")
+    await bench.runtime.save_weeks({"climate.salon": {"normal": every_day(("00:00", "comfort"))}}, revisions={"climate.salon": salon})
+    with pytest.raises(StaleRevision):
+        await bench.runtime.save_weeks({"climate.salon": {"normal": every_day(("00:00", "frost"))}}, revisions={"climate.salon": salon})
+    assert bench.runtime.weeks["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
+
+
+async def test_a_new_schedule_changes_every_thermostat_s_revision(bench: Bench):
+    """A copy made before has no week for it: saving it must not drop the new schedule's week."""
+    await start(bench)
+    salon = revision(bench, "climate.salon")
+    await bench.set_schedules([{"id": "normal"}, {"id": "away"}, {"id": "holiday"}, {"name": "Guests"}])
+    with pytest.raises(StaleRevision):
+        await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": salon})
+
+
+async def test_a_thermostat_scheduled_meanwhile_by_another_card_is_not_overwritten(bench: Bench):
+    """The copy did not know it (no revision): another card scheduled it in the meantime."""
+    await start(bench)
+    bench.thermostat("climate.cuisine", "eco")
+    await bench.save_weeks({"climate.cuisine": SALON})
+    with pytest.raises(StaleRevision):
+        await bench.runtime.save_weeks({"climate.cuisine": BUREAU}, revisions={"climate.cuisine": None})
+
+
+async def test_the_card_saves_with_the_revisions_of_the_thermostats_it_sends(bench: Bench, ws_client):
+    await start(bench)
+    client = await ws_client(bench.hass)
+    salon = revision(bench, "climate.salon")
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": SALON},
+                                    "revisions": {"climate.salon": salon}})
+    response = await client.receive_json()
+    assert response["success"]
+    assert response["result"]["revisions"] == {"climate.salon": salon + 1}
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": SALON},
+                                    "revisions": {"climate.salon": salon}})
+    response = await client.receive_json()
+    assert not response["success"] and response["error"]["code"] == "stale"

@@ -14,6 +14,8 @@ Vocabulary: docs/glossary.md.
                              preset means for this thermostat, only what was set by hand: the
                              rest is engine.default_target
         preset_temperatures: {climate preset: temperature} last seen on the thermostat
+        revision:            increases on every change of its weeks: a card saves against it, so
+                             that two cards cannot overwrite each other's changes
         shown_at:            ISO datetime a card last showed it (None: not yet)
         kept_unlisted:       True: driven although no card shows it (answered in its repair),
                              until a card shows it again
@@ -144,7 +146,8 @@ def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] 
                    preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
     """A scheduled thermostat, active."""
     return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
-            "preset_temperatures": preset_temperatures or {}, "shown_at": None, "kept_unlisted": False}
+            "preset_temperatures": preset_temperatures or {}, "revision": 0, "shown_at": None,
+            "kept_unlisted": False}
 
 
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
