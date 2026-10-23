@@ -33,6 +33,13 @@ applies winning, a default schedule otherwise. See the [README](README.md#activa
    *custom repository* (HACS shows no icon for those; Home Assistant does, once installed). The
    repository must keep a single `manifest.json` (the development HA's simulated climate uses
    `manifest.dev.json`).
+2. **Scheduled thermostats**
+   ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)): the integration keeps the
+   list of thermostats it drives, the cards only show them (several cards, a thermostat in
+   several). A thermostat is paused without losing anything (a *Scheduling* switch per
+   thermostat), a repair proposes to pause it when no card shows it any more, a renamed
+   `climate` is followed. Just as simple: adding a thermostat in a card schedules it. See
+   [docs/decisions.md](docs/decisions.md#scheduled-thermostats).
 
 ## Next
 

@@ -138,6 +138,68 @@ future contributor might question.
   applied is stored (`rules_choice`), so a choice by hand also survives a restart; saving the rules
   applies them at once. Rules are evaluated once HA has started, when their entities are there.
 
+## Scheduled thermostats
+
+Being worked on ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)): until it is
+released, a thermostat is scheduled as long as it has weeks, and the card saves the weeks of every
+thermostat it loaded.
+
+- **The integration keeps the list of scheduled thermostats; the cards only show them.** A card
+  saved the weeks of every thermostat, so the thermostats in its configuration did not say which
+  ones were driven: one removed from the card stayed driven (#27). A card cannot decide either:
+  a user may have several cards (one per floor), a thermostat may be in two of them, and
+  removing one from every card does not mean its schedule should be lost. Like HA's entities,
+  hidden (not shown) is not disabled (not running). This follows the Scheduler component (the
+  integration owns the schedules, which can be disabled, the cards show and filter them) and
+  Climate Scheduler (entities picked to be scheduled, a schedule turned off without losing it).
+- **A scheduled thermostat is stored data, not a device or an entity**: a `climate` entity and
+  what Chauffage knows about it (weeks, values of the presets, learned temperatures, paused or
+  not, the cards that show it), by its entity id. It is seen in HA through the entities made for
+  it (a switch, two sensors), attached to the thermostat's device like HA's own helpers; a
+  device of ours per thermostat would double the devices and put the living room's settings
+  somewhere else than the living room's thermostat.
+- **Adding a thermostat in a card schedules it**, active, with the default week: no list to
+  fill in, no step before the card works.
+- **Paused: kept, not driven.** A paused thermostat keeps everything; Chauffage sends it
+  nothing, does not turn manual changes into overrides and drops its current override; its
+  sensors are unavailable. Resuming realigns it at once. Paused is not *off*: off is the
+  thermostat turned off by someone, which Chauffage already respects; paused is Chauffage not
+  driving, whatever the thermostat does (a room run by hand for a few days, the end of the
+  heating season, a test). **Forgetting** it is another action, which drops its data.
+- **A switch per scheduled thermostat (*Scheduling*)**, on: active, off: paused. A configuration
+  entity (`entity_category: config`), enabled by default: on the device's page with its
+  settings, in automations, not in the generated *Overview* dashboard nor exposed to Assist. No
+  service for pausing (the switch is enough), none for forgetting (dropping data is chosen in a
+  repair or the card).
+- **In the card, a paused thermostat stays**, marked paused with a *Resume* button; its weeks
+  can still be edited (to prepare the return), saving does not resume it; no override can be
+  set on it.
+- **Each card declares the thermostats it shows** (`chauffage/card/declare`), when it is first
+  shown, not in a preview: HA tells a card its configuration, not when the dashboard is saved.
+  A Lovelace card has no id, so the visual editor writes a hidden `card_id` in its
+  configuration. The integration does not read the dashboards: their storage is internal to
+  Lovelace, and YAML or generated dashboards would be missed.
+- **A repair proposes to pause an active thermostat no card shows any more**, with a menu:
+  pause, keep driving, forget; it closes by itself when a card declares the thermostat again
+  (a dialog cancelled, the thermostat added back). A repair waits for an answer in
+  *Settings → Repairs*, instead of a question asked while the card is edited. Raised when a
+  card declares its list without a thermostat that no other card has; as a safety net (a card
+  deleted, written in YAML without an id, duplicated with its id), when an active thermostat
+  has not been shown for days while others have (relative, so that nobody opening a dashboard
+  for a week flags nothing). Paused thermostats raise none: they drive nothing.
+- **A repair for a thermostat whose entity is gone** from HA: forget it, or keep it (an entity
+  made again with the same id).
+- **A renamed `climate` entity is followed**: the integration listens to the entity registry
+  and moves the thermostat's data, its declared cards and its entities to the new id; the card
+  uses the new id the integration gives for one still in its configuration.
+- **Saves send the weeks of the thermostats edited**, each with its own revision: two cards
+  showing the same thermostat cannot overwrite each other, and do not block the others.
+- **Stored per thermostat** (`thermostats: {climate: {paused, weeks, mapping,
+  preset_temperatures, revision, shown_at}}`), and per card (`cards: {card_id: {thermostats,
+  seen_at}}`, a declaration replacing the card's list). The overrides stay apart: short-lived, a
+  release may drop them. Migrated from the current keys, every thermostat active: nothing changes
+  on upgrade. Ready for groups of thermostats (roadmap), whose weeks would be owned by a group.
+
 ## Card
 
 - **No build step**: one JavaScript file, served by the integration and loaded on every page
