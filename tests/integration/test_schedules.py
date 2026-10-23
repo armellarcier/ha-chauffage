@@ -137,5 +137,5 @@ async def test_the_weeks_survive_a_restart(bench: Bench, hass_storage):
     await start(bench, "10:00")
     await bench.advance(1)  # delayed save
     stored = hass_storage["chauffage"]["data"]
-    assert stored["weeks"]["climate.salon"]["normal"][0] == WEEKDAY
+    assert stored["thermostats"]["climate.salon"]["weeks"]["normal"][0] == WEEKDAY
     assert stored["revision"] == 1

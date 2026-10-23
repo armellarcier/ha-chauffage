@@ -16,7 +16,7 @@ from homeassistant.helpers.storage import Store
 from . import model
 from .const import DOMAIN
 
-STORAGE_VERSION = 4
+STORAGE_VERSION = 5
 STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
@@ -45,7 +45,20 @@ def _v3_to_v4(data: dict[str, Any], language: str) -> dict[str, Any]:
     return {**data, "rules": [], "default_schedule": None, "rules_choice": None}
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4}
+def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """Scheduled thermostats (#27): the weeks, mappings and learned temperatures of each
+    thermostat are kept together; every thermostat with weeks or a mapping is scheduled, active."""
+    data = dict(data)
+    weeks, mappings = data.pop("weeks", {}), data.pop("mappings", {})
+    temperatures = data.pop("preset_temperatures", {})
+    data["thermostats"] = {
+        entity_id: model.new_thermostat(weeks.get(entity_id), mappings.get(entity_id), temperatures.get(entity_id))
+        for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]
+    }
+    return data
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5}
 
 
 class ChauffageStore(Store[dict[str, Any]]):

@@ -196,7 +196,7 @@ async def test_unreadable_package_parts_are_skipped(bench: Bench):
                                            "climate.bureau": "nonsense"}})
     hass.states.async_set("input_select.mode_chauffage", "Normal", {"options": ["Normal"]})
     await bench.setup(schedules=None)  # no automation service: the package automations cannot be turned off (logged)
-    assert list(bench.runtime.data["weeks"]) == ["climate.salon"]
+    assert list(bench.runtime.weeks) == ["climate.salon"]
     assert bench.runtime.data["overrides"] == {}
 
 

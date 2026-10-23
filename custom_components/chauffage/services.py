@@ -50,7 +50,7 @@ def loaded_runtime(hass: HomeAssistant) -> ChauffageRuntime:
 
 def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
     runtime = loaded_runtime(hass)
-    if entity_id not in runtime.data["weeks"]:
+    if entity_id not in runtime.thermostats:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="not_scheduled", translation_placeholders={"entity_id": entity_id}
         )

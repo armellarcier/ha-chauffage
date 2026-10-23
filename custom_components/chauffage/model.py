@@ -5,11 +5,15 @@ Vocabulary: docs/glossary.md.
     active_schedule: "normal"
     presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
                      "temperature" is the default for thermostats driven by temperatures
-    mappings:        {climate entity id: {preset id: {"preset": "comfort"} | {"temperature": 20.5}}}
-                     what a preset means for one thermostat, only what was set by hand: the rest
-                     is engine.default_target
-    weeks:           {climate entity id: {schedule id: [7 days, Monday first]}}
-                     a day is a list of [start "HH:MM", preset id] slots, the first one at "00:00"
+    thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
+                     (docs/decisions.md, "Scheduled thermostats"):
+        paused:              True: kept, not driven
+        weeks:               {schedule id: [7 days, Monday first]}; a day is a list of
+                             [start "HH:MM", preset id] slots, the first one at "00:00"
+        mapping:             {preset id: {"preset": "comfort"} | {"temperature": 20.5}}, what a
+                             preset means for this thermostat, only what was set by hand: the
+                             rest is engine.default_target
+        preset_temperatures: {climate preset: temperature} last seen on the thermostat
     overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
                                           "start": ISO datetime, "end": ISO datetime}}
     revision:        increases on every change of the schedules or weeks; the card saves against
@@ -128,10 +132,17 @@ def used_presets(weeks: dict[str, Any]) -> list[str]:
     return seen
 
 
+def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] | None = None,
+                   preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
+    """A scheduled thermostat, active."""
+    return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
+            "preset_temperatures": preset_temperatures or {}}
+
+
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
     schedules = make_schedules(schedule_names)
     return {"schedules": schedules, "active_schedule": schedules[0]["id"], "presets": default_presets(language),
-            "mappings": {}, "weeks": {}, "overrides": {}, "revision": 0,
+            "thermostats": {}, "overrides": {}, "revision": 0,
             "rules": [], "default_schedule": None, "rules_choice": None}
 
 

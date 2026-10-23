@@ -3,7 +3,7 @@
 - schedule: preset planned now; attributes: next preset and its start time;
 - override end: when the current override ends (empty without override).
 
-Created and removed with the weeks: no list of thermostats to maintain.
+Created and removed with the scheduled thermostats: no list of thermostats to maintain.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ async def async_setup_entry(
     def sync(reason: str = DATA) -> None:
         if reason != DATA:
             return
-        scheduled = set(runtime.data["weeks"])
+        scheduled = set(runtime.thermostats)
         new = []
         for climate in sorted(scheduled - set(known)):
             known[climate] = [ScheduleSensor(runtime, climate), OverrideEndSensor(runtime, climate)]

@@ -52,7 +52,7 @@ async def test_saving_from_an_outdated_copy_is_refused(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}, "revision": 0})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "stale"
-    assert bench.runtime.data["weeks"] == SCHEDULES
+    assert bench.runtime.weeks == SCHEDULES
 
 
 async def test_invalid_schedules_are_refused(bench: Bench, ws_client):
