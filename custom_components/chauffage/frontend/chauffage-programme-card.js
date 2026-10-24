@@ -822,12 +822,15 @@ function overrideWithTemperature(d, src, value) {
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
-// Another preset for a new slot: comfort ↔ eco when they exist, otherwise the next preset
-function otherPreset(presets, id) {
+// Another preset for a new slot, unlike `id` and `next` (the preset after it): comfort ↔ eco when
+// they exist, otherwise the next preset in the list; undefined when there is none
+function otherPreset(presets, id, next) {
   const ids = presets.map((p) => p.id);
-  if (id === 'comfort' && ids.includes('eco')) return 'eco';
-  if (id !== 'comfort' && ids.includes('comfort')) return 'comfort';
-  return ids[(ids.indexOf(id) + 1) % ids.length] || id;
+  const free = (c) => c !== id && c !== next;
+  const pair = id === 'comfort' ? 'eco' : 'comfort';
+  if (ids.includes(pair) && free(pair)) return pair;
+  const i = ids.indexOf(id);
+  return [...ids.slice(i + 1), ...ids.slice(0, i + 1)].find(free);
 }
 
 class ChauffageProgrammeCard extends HTMLElement {
@@ -2607,7 +2610,16 @@ class ChauffageProgrammeCard extends HTMLElement {
     const s = segs[idx];
     const end = idx < segs.length - 1 ? segs[idx + 1].start : DAY_MIN;
     if (m < s.start + step || m > end - step) return;
-    segs.splice(idx + 1, 0, { start: m, preset: otherPreset(this._presets(), s.preset) });
+    const next = segs[idx + 1]?.preset;
+    const preset = otherPreset(this._presets(), s.preset, next);
+    if (preset) segs.splice(idx + 1, 0, { start: m, preset });
+    else {
+      // Only the next slot's preset is left: like "Insert a slot", go back to this slot's preset
+      // halfway, so that the new slot does not merge with the next one
+      const back = this._snap((m + end) / 2);
+      if (!next || back - m < step || end - back < step) return;
+      segs.splice(idx + 1, 0, { start: m, preset: next }, { start: back, preset: s.preset });
+    }
     this._commit(climate, day, m);
   }
 
@@ -2752,7 +2764,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const m1 = this._snap(s.start + (end - s.start) / 3);
       const m2 = this._snap(s.start + (2 * (end - s.start)) / 3);
       if (m1 <= s.start || m2 >= end || m2 <= m1 || m1 - s.start < step) return;
-      segs.splice(idx + 1, 0, { start: m1, preset: otherPreset(this._presets(), s.preset) }, { start: m2, preset: s.preset });
+      segs.splice(idx + 1, 0, { start: m1, preset: otherPreset(this._presets(), s.preset) ?? s.preset }, { start: m2, preset: s.preset });
       this._commit(climate, day, m1);
     } else if (act === 'delete') {
       if (segs.length === 1) return;

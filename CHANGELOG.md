@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- A double click on a slot always adds a slot: its preset differs from the next slot's, so it no
+  longer merges with it and only moves its start (#25).
+
 ## [0.6.0-beta.2] - 2026-10-22
 
 **A temporary setpoint set from the card**, and what follows an override shown
