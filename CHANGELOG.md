@@ -19,6 +19,11 @@ Each entry says whether the release **migrates stored data** and what to do when
   thermostat (as in the card); another value is still one of the thermostat's own presets.
   Overrides in progress are kept (they show their value, as before).
 
+### Fixed
+
+- A double click on a slot always adds a slot: its preset differs from the next slot's, so it no
+  longer merges with it and only moves its start (#25).
+
 ### Upgrading
 
 - Automations calling `chauffage.set_override` with `preset: eco` (`comfort`, `boost`, `frost`, or

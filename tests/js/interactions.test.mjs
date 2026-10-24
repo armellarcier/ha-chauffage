@@ -453,13 +453,13 @@ describe('slot editor buttons', () => {
 });
 
 describe('double click on a slot', () => {
-  test('adds a cut where the slot was clicked', () => {
+  test('adds a slot where the slot was clicked, without moving the next one', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     const bar = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]'));
     bar.querySelector('.seg[data-idx="2"]').dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 12 * 60 }));
     const again = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]')).querySelector('.seg[data-idx="2"]');
     again.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 12 * 60 }));
-    assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 4), ['08:30 eco', '12:00 comfort']);
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '12:00 boost', '17:30 comfort']);
   });
 });
 
