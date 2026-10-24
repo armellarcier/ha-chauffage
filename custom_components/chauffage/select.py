@@ -48,4 +48,4 @@ class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         schedule_id = next(s["id"] for s in self.runtime.data["schedules"] if s["name"] == option)
-        await self.runtime.activate_schedule(schedule_id)
+        await self.runtime.activate_schedule(schedule_id, source="entity")

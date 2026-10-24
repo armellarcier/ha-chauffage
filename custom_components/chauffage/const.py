@@ -33,6 +33,11 @@ DEFAULT_SCHEDULES = {
     "fr": ["Normal"],
 }
 
+# Events, for automations (data: README, "Events")
+EVENT_OVERRIDE_STARTED = f"{DOMAIN}_override_started"
+EVENT_OVERRIDE_ENDED = f"{DOMAIN}_override_ended"
+EVENT_SCHEDULE_ACTIVATED = f"{DOMAIN}_schedule_activated"
+
 # The active-schedule select entity (same id whatever the language: automations refer to it)
 SCHEDULE_ENTITY = "select.chauffage_schedule"
 
