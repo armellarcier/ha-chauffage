@@ -28,6 +28,12 @@ describe('configuration and loading', () => {
     const card = createCard(fakeHass({ schedule: 'Absent' }));
     assert.equal(card._schedule, 'away');
   });
+
+  test('a thermostat listed twice is shown once (#39)', () => {
+    const card = createCard(fakeHass(), { thermostats: ['climate.salon', 'climate.bureau', { entity: 'climate.salon', name: 'Séjour' }] });
+    assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);
+    assert.equal(card.shadowRoot.querySelectorAll('.chip[data-climate="climate.salon"]').length, 1);
+  });
 });
 
 describe('today', () => {
@@ -260,6 +266,15 @@ describe('choosing the displayed thermostats', () => {
     click(chip(card, 'climate.bureau'), { ctrlKey: true });
     assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
   });
+
+  test('a chip only names its thermostat, with a mark when it has a temporary setpoint (#39)', () => {
+    const override = { kind: 'preset', value: 'boost', preset: 'boost', start: new Date(Date.now() - 600000).toISOString(), end: new Date(Date.now() + 3600000).toISOString() };
+    const card = createCard(fakeHass({ overrides: { 'climate.bureau': override } }));
+    const text = (id) => chip(card, id).textContent.replace(/\s+/g, ' ').trim();
+    assert.equal(text('climate.salon'), 'Salon'); // no temperature nor preset: the "Now" view says it
+    assert.equal(text('climate.bureau'), 'Bureau ⏱');
+    assert.equal(card.shadowRoot.querySelector('.chip-open'), null);
+  });
 });
 
 describe('names of the thermostats', () => {
@@ -297,13 +312,6 @@ describe('thermostat more-info dialog', () => {
   const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
   beforeEach(() => { received = null; document.addEventListener('hass-more-info', intercept); });
   afterEach(() => document.removeEventListener('hass-more-info', intercept));
-
-  test('the chip icon opens the thermostat without changing the selection', () => {
-    const card = createCard(fakeHass());
-    card.shadowRoot.querySelector('.chip[data-climate="climate.bureau"] .chip-open').click();
-    assert.equal(received, 'climate.bureau');
-    assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
-  });
 
   test('the row name opens the thermostat', () => {
     const card = createCard(fakeHass());

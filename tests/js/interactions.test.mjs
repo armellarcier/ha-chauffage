@@ -167,6 +167,35 @@ describe('row menu', () => {
     $(card, '.legend').click();
     assert.equal($(card, '.menu'), null);
   });
+
+  test('it holds what can be done with the day only', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').click();
+    const acts = [...card.shadowRoot.querySelectorAll('.menu [data-act]')].map((b) => b.dataset.act);
+    assert.deepEqual(acts, ['copy-day', 'paste-day', 'fill-weekdays', 'fill-weekend', 'fill-all']);
+  });
+
+  test('it opens upwards when there is no room below it in the window', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const button = $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="6"]');
+    // The card from 0 to 2000 px, the button at 700–728 px, a 768 px high window, a 300 px menu
+    $(card, 'ha-card').getBoundingClientRect = () => ({ top: 0, bottom: 2000, left: 0, right: 800, width: 800, height: 2000 });
+    button.getBoundingClientRect = () => ({ top: 700, bottom: 728, left: 760, right: 788, width: 28, height: 28 });
+    const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return this.classList.contains('menu') ? 300 : 0; } });
+    try {
+      window.innerHeight = 768;
+      button.click();
+      assert.equal($(card, '.menu').style.top, `${700 - 4 - 300}px`);
+      $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="6"]').click(); // closes it
+      button.getBoundingClientRect = () => ({ top: 100, bottom: 128, left: 760, right: 788, width: 28, height: 28 });
+      $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').getBoundingClientRect = button.getBoundingClientRect;
+      $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').click();
+      assert.equal($(card, '.menu').style.top, `${128 + 4}px`);
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', height);
+    }
+  });
 });
 
 describe('editing a slot', () => {
@@ -238,17 +267,10 @@ describe('the override popover in the card', () => {
     assert.match($(card, '.override-ed').textContent, /puis Éco \(planning\)/); // 11:30: the 08:30 eco slot
   });
 
-  test('without an override, today\'s row menu sets a temporary setpoint, for the override duration', () => {
-    const hass = withTargets({});
-    const card = createCard(hass, { show: ['climate.salon'] });
-    card._openMenu('climate.salon', 1, 0, 0); // Tuesday: not today
-    assert.equal($(card, '.menu [data-act="override-new"]'), null);
+  test('a new temporary setpoint is set from the "Now" view, not from today\'s row menu (#39)', () => {
+    const card = createCard(withTargets({}), { show: ['climate.salon'] });
     card._openMenu('climate.salon', 0, 0, 0); // Monday: today
-    $(card, '.menu [data-act="override-new"]').click();
-    $(card, '.override-ed .presets [data-preset="comfort"]').click();
-    const sent = hass.events.at(-1);
-    assert.equal(sent.type, 'chauffage/override/set');
-    assert.deepEqual(sent.override, { kind: 'temperature', value: 20, preset: 'comfort', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+    assert.equal($(card, '.menu [data-act="override-new"]'), null);
   });
 
   test('a preset picked in the popover becomes the override, until the same end', () => {
@@ -483,6 +505,29 @@ describe('edits in progress', () => {
       weeks: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
     $(card, '[data-act="cancel"]').click();
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 frost']);
+  });
+
+  test('a bar says there are unsaved changes, with Cancel and Save, and stays in sight (#39)', () => {
+    const card = createCard(fakeIntegrationHass(), { show: ['climate.salon'] });
+    assert.equal($(card, '.savebar'), null); // nothing changed: no bar, no disabled buttons
+    assert.equal($(card, '[data-act="save"]'), null);
+    card._split('climate.salon', 0, 12 * 60);
+    const bar = $(card, '.savebar');
+    assert.match(bar.textContent, /Modifications non enregistrées/);
+    assert.ok(bar.querySelector('[data-act="cancel"]'));
+    assert.ok(bar.querySelector('[data-act="save"]'));
+    // After the weeks, sticky (CSS): it stays at the bottom of the window while the card scrolls
+    assert.ok(bar.compareDocumentPosition($(card, '.dgroup')) & Node.DOCUMENT_POSITION_PRECEDING);
+    bar.querySelector('[data-act="cancel"]').click();
+    assert.equal($(card, '.savebar'), null);
+  });
+});
+
+describe('the hint under the weeks', () => {
+  test('speaks of the mouse, or of the finger on a touch screen', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    assert.match($(card, '.hint .mouse').textContent, /Clic sur une plage pour la modifier/);
+    assert.match($(card, '.hint .touch').textContent, /Toucher une plage pour la modifier/);
   });
 });
 

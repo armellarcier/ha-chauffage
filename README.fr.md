@@ -16,12 +16,15 @@ préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versati
 - des **plannings** que vous créez, dupliquez et nommez (*Normal*, *Télétravail*, *Vacances*,
   *Absent*…), chacun avec une semaine de 7 jours par thermostat ; un seul est actif, changé
   depuis la carte ou par des automatisations ;
-- carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : glisser les horaires,
-  copier / coller des journées, plusieurs thermostats par journée, voir la température mesurée
-  des 7 derniers jours tracée sur chaque journée ;
+- carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : une vue *Maintenant* (ce
+  que fait chaque thermostat, pourquoi et jusqu'à quand, une consigne temporaire en un geste),
+  glisser les horaires, copier / coller des journées, plusieurs thermostats par journée, ouvrir la
+  fenêtre de détail d'un thermostat depuis la carte, voir la température mesurée des 7 derniers
+  jours tracée sur chaque journée ; pensée aussi pour le téléphone ;
 - **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
   visible et ajustable (sa fin, et sa valeur : un préréglage ou une température) sur la carte
-  et dans la fenêtre de détail du thermostat, qui peuvent aussi en créer une, puis le
+  et dans la fenêtre de détail du thermostat, qui peuvent aussi en créer une (la carte depuis sa
+  vue *Maintenant*), puis le
   thermostat reprend son programme.
   Revenir au préréglage ou à la consigne du créneau, même avec la molette du thermostat,
   reprend le programme tout de suite.
@@ -151,8 +154,9 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
 
 Un thermostat est **programmé** dès qu'il est dans une carte. Il le reste quand on le retire d'une
 carte (une autre carte peut l'afficher), jusqu'à ce qu'on l'oublie. En pause, il reste programmé : il
-garde ses semaines, mais Chauffage ne le pilote plus. La vue *Thermostats* de la carte liste tous
-les thermostats programmés, en pause ou non, y compris ceux qui ne sont dans aucune carte. Si son
+garde ses semaines, mais Chauffage ne le pilote plus. La vue *Maintenant* de la carte met en pause et
+reprend les thermostats de la carte, et liste les autres thermostats programmés, en pause ou non, y
+compris ceux qui ne sont dans aucune carte. Si son
 entité est supprimée de Home Assistant, Paramètres → Réparations propose de l'oublier.
 
 Tout ce que sait Chauffage se voit et s'utilise dans Home Assistant, sans la carte : sur les pages

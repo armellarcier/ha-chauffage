@@ -9,6 +9,41 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+A rework of the card for everyday use and phones
+([#39](https://github.com/armellarcier/ha-chauffage/issues/39)). **Does not migrate stored data.**
+
+### Added
+
+- A **Now** view, first in the card: for each thermostat, the measured temperature, what it does
+  (preset and setpoint), why and until when ("Normal · Eco until 17:30, then Comfort",
+  "Temporary setpoint until 11:30, then Eco"), today's bar with the current time; a temporary
+  setpoint, *Pause* and *Resume* from its line. The scheduled thermostats not in the card follow
+  (pause, resume, forget). The card opens on the last of *Now* / *Schedule* chosen on the device.
+- Unsaved edits of the weeks show a bar with *Cancel* and *Save*, kept at the bottom of the window
+  while scrolling.
+
+### Changed
+
+- The *Thermostats* view is replaced by *Now*.
+- The views are tabs across the top of the card, easier to hit with a finger.
+- The row menu (⋮) only holds what can be done with the day (copy, paste, fill, show larger);
+  *Temporary setpoint* and *Pause* moved to *Now*. It opens upwards when there is no room below.
+- The chips only name the thermostats, with a mark when one is paused, off or on a temporary
+  setpoint: they no longer wrap or move when the temperature changes. The more-info dialog opens
+  from the names (rows, *Now*, popovers).
+- On a phone, with several thermostats, the day's name is above its rows and the scale shows
+  every 6 hours: the bars get the width. The hint speaks of tapping on a touch screen.
+- A slot too short for its time or name no longer shows a piece of it (`06:`).
+- French texts: *thermostat* instead of *vanne*; *Tous* instead of *Toutes*.
+
+### Fixed
+
+- A thermostat listed twice in the card's configuration is shown once.
+
+### Upgrading
+
+Nothing to do: update, then reload the page.
+
 ## [0.6.0-beta.5] - 2026-10-24
 
 What ha-chauffage knows is shown in Home Assistant itself, to see and use it in dashboards,

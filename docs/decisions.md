@@ -183,8 +183,7 @@ future contributor might question.
   set on it.
 - **The cards do not tell the integration what they show.** Removing a thermostat from a card
   does not stop its schedule: it is paused or forgotten on purpose, from its switch or the
-  card's *Thermostats* view, which lists every scheduled thermostat and marks the ones not in
-  this card; the card editor says so when a scheduled thermostat is removed. Detecting a
+  card's *Now* view, which lists the thermostats of the card, then the other scheduled ones; the card editor says so when a scheduled thermostat is removed. Detecting a
   thermostat no card shows any more was tried (each card declared its list under a hidden id,
   and a repair proposed to pause a thermostat no card showed) and dropped: a Lovelace card has no
   id, and the cases piled up (a card duplicated with its id, YAML cards without one, previews,
@@ -343,6 +342,21 @@ dashboards, automations, scripts and by voice without the card
   there but only the first is shown, and in the card editor the *show every thermostat* switch
   is seen. A choice made in a preview is not kept. HA marks the cards it previews (`preview`)
   except in the *By card* list, recognized by its `hui-card-picker`.
+- **What a thermostat does now has one place: the *Now* view** (#39). The weeks are edited
+  rarely; "why is this room heating, until when, and can I change it for now?" is asked every
+  day, often on a phone. Before, the answer was spread over the chips, today's row (far down
+  with several thermostats) and the more-info dialog, and a temporary setpoint was in the menu
+  of today's row only. So *Now* comes first in the views, holds the thermostat's own actions
+  (temporary setpoint, pause, resume), and the row menu only what can be done with a day. The
+  chips no longer show temperatures: their length changed with the state, so they wrapped and
+  moved the card. *Now* replaces the *Thermostats* view (pause, resume, forget), which listed
+  the same thermostats without their state. The default view stays *Schedule*, the card's
+  purpose; the last of *Now* / *Schedule* chosen is kept per device, so a phone can open on
+  *Now*.
+- **Unsaved edits are said where the user is**: a bar sticky at the bottom of the window, not
+  disabled buttons at the foot of a card several screens long (edits of Monday, Save after
+  Sunday). A switch of schedule tab keeps the edits (they are saved together), and the bar
+  stays.
 
 ## Process
 

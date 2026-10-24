@@ -16,12 +16,13 @@ presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_the
 - **schedules** you create, duplicate and name (*Normal*, *Remote work*, *Holidays*,
   *Away*…), each with a 7-day week per thermostat; one is active, switched from the card or by
   automations;
-- visual Lovelace editor card (`custom:chauffage-programme-card`): drag time slots, copy / paste
-  days, several thermostats per day, open a thermostat's more-info dialog from the schedule, see
-  the temperature measured over the last 7 days drawn over each day;
+- visual Lovelace editor card (`custom:chauffage-programme-card`): a *Now* view (what each
+  thermostat does, why and until when, a temporary setpoint in one tap), drag time slots, copy /
+  paste days, several thermostats per day, open a thermostat's more-info dialog from the card, see
+  the temperature measured over the last 7 days drawn over each day; made for phones too;
 - **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
   shown and adjustable (its end, and its value: a preset or a temperature) on the card and in
-  the thermostat's more-info dialog, which can also set one, then the thermostat falls back to
+  the thermostat's more-info dialog, which can both set one (the card from its *Now* view), then the thermostat falls back to
   its schedule. Going back
   to the slot's preset or setpoint, even with the thermostat's knob, resumes the schedule at once.
 
@@ -147,8 +148,9 @@ and *Frost protection* 7 °C.
 
 A thermostat is **scheduled** once it is in a card. It stays scheduled when it is removed from a
 card (another card may show it), until it is forgotten. Paused, it is still scheduled: it keeps
-its weeks, but Chauffage no longer controls it. The card's *Thermostats* view lists every
-scheduled thermostat, paused or not, the ones in no card too. If its entity is deleted from Home
+its weeks, but Chauffage no longer controls it. The card's *Now* view pauses and resumes the
+thermostats of the card, and lists the other scheduled ones, paused or not, the ones in no card
+too. If its entity is deleted from Home
 Assistant, Settings → Repairs proposes to forget it.
 
 Everything Chauffage knows can be seen and used in Home Assistant, without the card: on the

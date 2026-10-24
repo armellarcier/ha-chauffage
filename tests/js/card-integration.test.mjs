@@ -262,6 +262,8 @@ describe('the "Presets" view', () => {
     assert.equal(cellText(card, 'frost', 'climate.salon'), '8° ●'); // set for this thermostat
     assert.equal(cellText(card, 'comfort', 'climate.bureau'), '20°'); // no presets of its own: the preset's default
     assert.equal(card.shadowRoot.querySelector('.chips'), null); // no thermostat selection here
+    // The glossary's words: a thermostat, not a valve (#39)
+    assert.match(card.shadowRoot.querySelector('.pv-key').textContent, /suit un préréglage du thermostat/);
   });
 
   test('a cell is edited in a popover, closed by a click elsewhere or Escape', () => {

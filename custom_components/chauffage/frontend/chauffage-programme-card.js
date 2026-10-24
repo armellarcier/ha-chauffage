@@ -25,6 +25,7 @@ const I18N = {
     off: 'off',
     manual: 'manual',
     hint: 'Drag a handle to move a time · Click a slot to edit it · Double-click to add a cut',
+    hintTouch: 'Drag a handle to move a time · Tap a slot to edit it · Double-tap to add a cut',
     open: 'Open {name}',
     openThermostat: 'Open the thermostat',
     copyPaste: 'Copy / paste…',
@@ -56,9 +57,9 @@ const I18N = {
     renamedNote: '{former} was renamed {entity} in Home Assistant: edit the card to use its new id.',
     pausedInfo: 'Paused: Chauffage does not control it.',
     resumeShort: 'Resume',
-    resumeControl: 'Resume control',
-    pauseControl: 'Pause control',
-    viewThermostats: 'Thermostats',
+    viewNow: 'Now',
+    overrideUntil: 'Temporary setpoint until {time}',
+    otherThermostats: 'Other scheduled thermostats',
     thermostatsHint: 'Chauffage controls the scheduled thermostats; a card only shows them. A paused thermostat stays scheduled: it keeps its weeks, but is not controlled.',
     controlled: 'Controlled',
     notInCard: 'Not in this card',
@@ -193,6 +194,7 @@ const I18N = {
     off: 'arrêt',
     manual: 'manuel',
     hint: 'Glisser une poignée pour déplacer un horaire · Clic sur une plage pour la modifier · Double-clic pour ajouter une coupure',
+    hintTouch: 'Glisser une poignée pour déplacer un horaire · Toucher une plage pour la modifier · Toucher deux fois pour ajouter une coupure',
     open: 'Ouvrir {name}',
     openThermostat: 'Ouvrir le thermostat',
     copyPaste: 'Copier / coller…',
@@ -201,7 +203,7 @@ const I18N = {
     copyToWeekdays: 'Copier vers Lun–Ven',
     copyToWeekend: 'Copier vers Sam–Dim',
     copyToAll: 'Copier vers tous les jours',
-    copyToOthers: 'Copier vers les autres vannes',
+    copyToOthers: 'Copier vers les autres thermostats',
     from: 'de',
     to: 'à',
     close: 'Fermer (Échap)',
@@ -224,9 +226,9 @@ const I18N = {
     renamedNote: '{former} a été renommé {entity} dans Home Assistant : modifiez la carte pour utiliser son nouvel identifiant.',
     pausedInfo: 'En pause : Chauffage ne le pilote pas.',
     resumeShort: 'Reprendre',
-    resumeControl: 'Reprendre le pilotage',
-    pauseControl: 'Mettre en pause',
-    viewThermostats: 'Thermostats',
+    viewNow: 'Maintenant',
+    overrideUntil: 'Consigne temporaire jusqu\'à {time}',
+    otherThermostats: 'Autres thermostats programmés',
     thermostatsHint: "Chauffage pilote les thermostats programmés ; une carte ne fait que les afficher. Un thermostat en pause reste programmé : il garde ses semaines, mais n'est pas piloté.",
     controlled: 'Piloté',
     notInCard: 'Pas dans cette carte',
@@ -259,9 +261,9 @@ const I18N = {
     nameRequired: 'Donnez un nom au planning.',
     nameTaken: 'Ce nom est déjà utilisé.',
     multiple: 'Plusieurs',
-    multipleTitle: 'Activer pour afficher plusieurs vannes (raccourci : Ctrl+clic sur une vanne)',
-    all: 'Toutes',
-    allTitle: 'Afficher toutes les vannes',
+    multipleTitle: 'Activer pour afficher plusieurs thermostats (raccourci : Ctrl+clic sur un thermostat)',
+    all: 'Tous',
+    allTitle: 'Afficher tous les thermostats',
     history: 'Historique',
     historyTitle: 'Afficher la température mesurée des 7 derniers jours (pointillés : la consigne appliquée)',
     historyUnavailable: 'Historique indisponible : {message}',
@@ -274,7 +276,7 @@ const I18N = {
     cancel: 'Annuler',
     save: 'Enregistrer',
     unsaved: 'Modifications non enregistrées',
-    destinations: { weekdays: 'Lun–Ven', weekend: 'Sam–Dim', all: 'tous les jours', others: 'les autres vannes' },
+    destinations: { weekdays: 'Lun–Ven', weekend: 'Sam–Dim', all: 'tous les jours', others: 'les autres thermostats' },
     dayCopiedTo: '{name} · {day} copié vers {destination}',
     weekCopiedTo: 'Semaine de {source} copiée vers {target} · {schedule}',
     copied: 'Copié : {label}',
@@ -299,8 +301,8 @@ const I18N = {
     presetDefaults: 'Par défaut',
     defaultFor: '{preset} · par défaut',
     defaultHelp: 'Utilisée par les thermostats en automatique qui n\'ont pas de préréglage du même nom.',
-    keyPreset: 'suit un préréglage de la vanne',
-    keyCustom: 'réglé pour cette vanne',
+    keyPreset: 'suit un préréglage du thermostat',
+    keyCustom: 'réglé pour ce thermostat',
     keyDefault: 'défaut du préréglage',
     addPreset: 'Ajouter un préréglage',
     newPreset: 'Nouveau préréglage',
@@ -458,8 +460,8 @@ function makeLocale(hass, configured) {
 const LS_KEY = 'chauffage-programme-card:shown';
 const LS_CLIP = 'chauffage-programme-card:clip';
 const LS_HISTORY = 'chauffage-programme-card:history';
+const LS_VIEW = 'chauffage-programme-card:view';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
-const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
 const ICON_ZOOM = '<svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5M7,9H12V10H7V9M9,7H10V12H9V7Z"/></svg>';
 const ICON_PASTE ='<svg viewBox="0 0 24 24"><path d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"/></svg>';
@@ -885,6 +887,21 @@ function thenText(src, climate, d, loc) {
   return preset ? loc.t('thenSchedule', { preset: presetOf(presetsOf(src, loc), preset, loc).name }) : '';
 }
 
+// What the schedule does now, until when, and what comes next: "Eco until 17:30, then Comfort"
+// (`plan` computed by the integration, like the schedule sensor: the next different preset, maybe
+// on another day); '' without one
+function planText(plan, presetName, loc) {
+  if (!plan || !plan.preset) return '';
+  const current = presetName(plan.preset);
+  const start = plan.next_start ? parseDate(plan.next_start) : null;
+  if (!start) return loc.t('allWeek', { current });
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const day = start.toDateString() === tomorrow.toDateString() ? loc.t('tomorrow') : loc.days[(start.getDay() + 6) % 7].toLowerCase();
+  const values = { current, time: loc.time(minutesOf(start)), next: presetName(plan.next_preset) };
+  return start.toDateString() === new Date().toDateString() ? loc.t('untilThen', values) : loc.t('untilDayThen', { ...values, day });
+}
+
 const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
 
 // A field being typed in, again after a redraw: its text (if any) and the focus, again once
@@ -986,6 +1003,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       const c = JSON.parse(localStorage.getItem(LS_CLIP));
       if (c && Array.isArray(c.segs) && c.segs.length) this._clip = c;
       this._history.shown = localStorage.getItem(LS_HISTORY) === '1';
+      // The last of "Now" / "Schedule" chosen on this device (a phone may open on "Now")
+      if (localStorage.getItem(LS_VIEW) === 'now') this._view = 'now';
     } catch (e) { /* ignore */ }
     this._bindEvents();
   }
@@ -1019,7 +1038,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       step: 15,
       ...config,
     };
-    this._configured = config.thermostats.map((t) => (typeof t === 'string' ? { entity: t } : { ...t }));
+    // A thermostat listed twice is shown once (its first entry)
+    this._configured = config.thermostats.map((t) => (typeof t === 'string' ? { entity: t } : { ...t }))
+      .filter((t, i, list) => list.findIndex((o) => o.entity === t.entity) === i);
     // Without the thermostats renamed in Home Assistant (see _setAside)
     this._thermostats = this._configured;
     this._asideKey = '';
@@ -1088,6 +1109,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       const active = this._activeSchedule();
       this._schedule = this._schedules().includes(active) ? active : this._schedules()[0];
       need = true;
+    }
+    // "Now": a thermostat of the card changed (temperature measured, setpoint, preset)
+    const live = this._view === 'now' ? this._thermostats.map((t) => (hass.states[t.entity] || {}).last_updated).join(' ') : null;
+    if (live !== this._liveKey) {
+      this._liveKey = live;
+      if (live !== null && !this._overrideDrag) need = true;
     }
     if (need) this._render();
     else this._updateLive();
@@ -1366,25 +1393,20 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   // ---------- rendering ----------
 
-  _liveText(climate) {
+  // A chip only names its thermostat (what it does is in the "Now" view), with a mark when it is
+  // missing, off, paused or on a temporary setpoint: short, so that the chips do not move
+  _chipMark(climate) {
     const st = this._hass.states[climate];
     if (!st) return '?';
-    const a = st.attributes;
-    if (st.state === 'off') return this._loc.t('off');
-    const parts = [];
-    if (a.current_temperature != null) parts.push(`${this._loc.number(a.current_temperature)}°`);
-    if (this._source().paused(climate)) return [...parts, this._loc.t('paused')].join(' · ');
-    const d = this._overrides()[climate];
-    if (d) parts.push(`⏱ ${this._overrideLabel(d)} → ${this._loc.time(minutesOf(parseDate(d.end)))}`);
-    else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) parts.push(this._loc.t('manual'));
-    else if (a.preset_mode) parts.push(this._loc.preset(a.preset_mode));
-    return parts.join(' · ');
+    if (this._source().paused(climate)) return this._loc.t('paused');
+    if (this._overrides()[climate]) return '⏱';
+    return st.state === 'off' ? this._loc.t('off') : '';
   }
 
   _updateLive() {
     const root = this.shadowRoot;
     root.querySelectorAll('.chip[data-climate] .live').forEach((el) => {
-      el.textContent = this._liveText(el.parentElement.dataset.climate);
+      el.textContent = this._chipMark(el.parentElement.dataset.climate);
     });
     root.querySelectorAll('.now').forEach((el) => { el.style.left = `${pct(nowMin())}%`; });
     // Override to a preset: the temperature field shows the thermostat's setpoint (not while typed in)
@@ -1671,9 +1693,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     const item = (act, label, icon = '', disabled = false) =>
       `<button class="mi" data-act="${act}" ${ref} ${disabled ? 'disabled' : ''}>${icon}<span>${label}</span></button>`;
     const t = this._loc.t;
-    const src = this._source();
-    const paused = src.paused(m.climate);
     const paste = this._clip ? `${esc(t('paste'))} <small>${esc(this._clip.label)}</small>` : esc(t('paste'));
+    // What can be done with this day; the thermostat's own actions (temporary setpoint, pause)
+    // are in the "Now" view
     return `<div class="menu" style="top:${m.top}px;right:${m.right}px">
       <div class="mh">${esc(this._name(m.climate))} · ${this._loc.days[m.day]}</div>
       ${item('copy-day', esc(t('copyDay')), ICON_COPY)}
@@ -1684,20 +1706,39 @@ class ChauffageProgrammeCard extends HTMLElement {
       ${item('fill-all', esc(t('copyToAll')))}
       ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
       ${this._historyOf(m.climate, m.day) ? `<div class="sep"></div>${item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM)}` : ''}
-      ${m.day === todayIdx() && !paused ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
-      ${src.editable ? `<div class="sep"></div>${paused ? item('resume', esc(t('resumeControl'))) : item('pause', esc(t('pauseControl')))}` : ''}
     </div>`;
   }
 
-  _openMenu(climate, day, top, right) {
+  // `top`: under the button or the pointer; `above` (optional): where the menu ends when it opens
+  // upwards, because there is no room for it below in the window
+  _openMenu(climate, day, top, right, above) {
     const m = this._menu;
     this._menu = m && m.climate === climate && m.day === day ? null : { climate, day, top, right };
     this._render();
+    const menu = this._menu;
+    if (!menu || above == null) return;
+    // Measured once ha-card (a Lit component, rendered asynchronously) shows its content
+    const place = () => {
+      const el = this._menu === menu && this.shadowRoot.querySelector('.menu');
+      if (!el || !el.offsetHeight) return false;
+      const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
+      const h = el.offsetHeight;
+      if (card.top + top + h > window.innerHeight && card.top + above - h >= 0) {
+        menu.top = above - h;
+        el.style.top = `${menu.top}px`;
+      }
+      return true;
+    };
+    if (place()) return;
+    const card = this.shadowRoot.querySelector('ha-card');
+    const ready = card && card.updateComplete instanceof Promise ? card.updateComplete : Promise.resolve();
+    ready.then(() => requestAnimationFrame(place));
   }
 
   _editorHtml() {
     const t = this._loc.t;
-    const hint = `<div class="hint">${esc(t('hint'))}</div>`;
+    // In the words of a mouse, or of a finger on a touch screen (CSS)
+    const hint = `<div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`;
     if (this._overrideSel) return hint + this._overrideEditorHtml();
     if (!this._sel || !this._shown.includes(this._sel.climate)) { this._sel = null; return hint; }
     const { climate, day, idx } = this._sel;
@@ -1728,10 +1769,13 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _overrideEditorHtml() {
+    if (!this._overrideSel) return '';
     const { climate, create } = this._overrideSel;
     const d = this._overrides()[climate];
-    // Without an override: closed (it ended), unless opened to set one (today's row menu)
-    if ((!d && !create) || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
+    // Without an override: closed (it ended), unless opened to set one (a line of "Now"); "Now"
+    // shows every thermostat of the card, the weeks the ones chosen
+    const visible = this._view === 'now' ? this._thermostats.some((th) => th.entity === climate) : this._shown.includes(climate);
+    if ((!d && !create) || !visible) { this._overrideSel = null; return ''; }
     const t = this._loc.t;
     const attrs = (this._hass.states[climate] || {}).attributes || {};
     const value = overrideValueHtml(d, this._source(), climate, attrs, this._loc);
@@ -1791,13 +1835,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
     const sel = this._overrideSel;
     const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${todayIdx()}"] .now`);
-    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on') || now;
+    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on, .now-row.sel [data-act="override-new"]') || now;
     if (!ed || !seg) return true;
     const card = root.querySelector('ha-card').getBoundingClientRect();
     // A slot is clipped to its row (the popover goes under the row); a cell to the table, which
-    // may scroll sideways (the popover goes under the cell)
-    const isCell = seg.classList.contains('cell');
-    const bar = (isCell ? seg.closest('.table-wrap') : seg.parentElement).getBoundingClientRect();
+    // may scroll sideways (the popover goes under the cell); a line of "Now": under its button
+    const isCell = seg.classList.contains('cell') || !!seg.closest('.now-row');
+    const bar = (isCell ? seg.closest('.table-wrap, .now-view') : seg.parentElement).getBoundingClientRect();
     if (!card.width || !bar.width) return false;
     const sr = seg.getBoundingClientRect();
     const row = isCell ? sr : bar;
@@ -1880,9 +1924,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._schedulePlaceEditor();
       return;
     }
-    if (this._view === 'thermostats' && this._source().ready) {
+    if (this._view === 'now' && this._source().ready) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-        <ha-card>${this._viewsHtml()}${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+        <ha-card>${this._viewsHtml()}${this._nowViewHtml()}${this._overrideEditorHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+      this._schedulePlaceEditor();
       return;
     }
     if (this._view === 'rules' && this._source().ready) {
@@ -1911,7 +1956,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .map((t) => {
         const on = this._shown.includes(t.entity);
         const paused = src.paused(t.entity) ? ' paused' : '';
-        return `<button class="chip${on ? ' on' : ''}${paused}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._liveText(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="${esc(tr('openThermostat'))}">${ICON_OPEN}</span></button>`;
+        return `<button class="chip${on ? ' on' : ''}${paused}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._chipMark(t.entity))}</span></button>`;
       })
       .join('');
     const editable = src.editable;
@@ -1919,7 +1964,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}${icon ? ' with-icon' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}${esc(this._scheduleName(m))}</button>${
         editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
       .join('') + (editable ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
-    const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
+    const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span${h % 6 ? ' class="minor"' : ''} style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
     const days = this._loc.dayOrder.map((d) => this._dayHtml(d, d === today && this._schedule === active)).join('');
 
@@ -1947,7 +1992,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>${STYLE}</style>
-      <ha-card class="${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}">
+      <ha-card class="${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}">
         ${this._viewsHtml()}
         <div class="chips">
           ${chips}
@@ -1971,11 +2016,14 @@ class ChauffageProgrammeCard extends HTMLElement {
             <select class="copyweek" title="${esc(tr('copyWeekTo', { name: this._name(focus) }))}">
               <option value="">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</option>${copyWeek}
             </select>
-            <button class="btn" data-act="cancel" ${this._dirty ? '' : 'disabled'}>${esc(tr('cancel'))}</button>
-            <button class="btn primary" data-act="save" ${this._dirty ? '' : 'disabled'}>${esc(tr('save'))}</button>
           </div>
         </div>
-        <div class="msg">${esc(this._msg)}${this._msg && this._dirty ? ' · ' : ''}${this._dirty ? `<span class="dirty">${esc(tr('unsaved'))}</span>` : ''}</div>
+        <div class="msg">${esc(this._msg)}</div>
+        ${this._dirty ? `<div class="savebar">
+          <span class="dirty">${esc(tr('unsaved'))}</span>
+          <button class="btn" data-act="cancel">${esc(tr('cancel'))}</button>
+          <button class="btn primary" data-act="save">${esc(tr('save'))}</button>
+        </div>` : ''}
       </ha-card>`;
     this._schedulePlaceEditor();
   }
@@ -2159,7 +2207,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       e.preventDefault();
       const card = root.querySelector('ha-card').getBoundingClientRect();
       this._menu = null;
-      this._openMenu(bar.dataset.climate, Number(bar.dataset.day), e.clientY - card.top + 4, Math.max(8, card.right - e.clientX - 8));
+      this._openMenu(bar.dataset.climate, Number(bar.dataset.day), e.clientY - card.top + 4, Math.max(8, card.right - e.clientX - 8), e.clientY - card.top - 4);
     });
 
     root.addEventListener('click', (e) => {
@@ -2463,12 +2511,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     return { temperature: preset.temperature ?? 19 };
   }
 
-  // "Schedule | Presets | Rules" switch
+  // "Now | Schedule | Presets | Rules" switch
   _viewsHtml() {
     const t = this._loc.t;
-    const view = ['presets', 'rules', 'thermostats'].includes(this._view) ? this._view : 'schedule';
+    const view = ['now', 'presets', 'rules'].includes(this._view) ? this._view : 'schedule';
     const button = (v, label) => `<button class="view${view === v ? ' on' : ''}" data-act="view" data-view="${v}">${esc(t(label))}</button>`;
-    return `<div class="views">${button('schedule', 'viewSchedule')}${button('presets', 'viewPresets')}${button('rules', 'viewRules')}${button('thermostats', 'viewThermostats')}</div>`;
+    return `<div class="views">${button('now', 'viewNow')}${button('schedule', 'viewSchedule')}${button('presets', 'viewPresets')}${button('rules', 'viewRules')}</div>`;
   }
 
   // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
@@ -2622,29 +2670,97 @@ class ChauffageProgrammeCard extends HTMLElement {
     return this._render();
   }
 
-  // Every scheduled thermostat: this card's first, then the others (another card, or none)
-  _thermostatsViewHtml() {
+  // The "Now" view: for each thermostat of the card, what it does now, why and until when, today,
+  // a temporary setpoint and pausing at hand; then the scheduled thermostats this card does not
+  // show (another card, or none): pause, resume, forget
+  _nowViewHtml() {
     const t = this._loc.t;
     const src = this._source();
+    const active = this._activeSchedule();
+    const head = active ? t('activeScheduleBar', { schedule: esc(this._scheduleName(active)) }) : esc(t('noActiveSchedule'));
+    const rows = this._thermostats.map(({ entity }) => this._nowRowHtml(entity, active)).join('');
     const inCard = this._thermostats.map((th) => th.entity);
-    const scheduled = src.scheduled();
-    const others = scheduled.filter((c) => !inCard.includes(c)).sort((a, b) => this._name(a).localeCompare(this._name(b)));
-    const rows = [...inCard.filter((c) => scheduled.includes(c)), ...others].map((climate) => {
+    const others = src.scheduled().filter((c) => !inCard.includes(c)).sort((a, b) => this._name(a).localeCompare(this._name(b)));
+    const otherRows = others.map((climate) => {
       const paused = src.paused(climate);
-      const here = inCard.includes(climate);
       const asking = this._forgetAsk === climate;
       const btn = (act, label, cls = '') => `<button class="btn${cls}" data-act="${act}" data-climate="${esc(climate)}">${esc(t(label))}</button>`;
       const buttons = !src.editable ? '' : asking
         ? `${btn('thermostat-forget-cancel', 'cancel')}${btn('thermostat-forget-confirm', 'forgetConfirm', ' danger')}`
-        : `${paused ? btn('resume', 'resumeShort') : btn('pause', 'pauseShort')}${here ? '' : btn('thermostat-forget', 'forget')}`;
+        : `${paused ? btn('resume', 'resumeShort') : btn('pause', 'pauseShort')}${btn('thermostat-forget', 'forget')}`;
       return `<div class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}">
         <div class="th-name">${esc(this._name(climate))}
-          <span class="th-state">${esc(t(paused ? 'paused' : 'controlled'))}${here ? '' : ` · ${esc(t('notInCard'))}`}</span></div>
+          <span class="th-state">${esc(t(paused ? 'paused' : 'controlled'))} · ${esc(t('notInCard'))}</span></div>
         <div class="th-btns">${buttons}</div>
         ${asking ? `<div class="th-ask">${esc(t('forgetText', { name: this._name(climate) }))}</div>` : ''}
       </div>`;
     }).join('');
-    return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div>${rows}</div>`;
+    return `<div class="now-view">
+      <div class="now-head">${head}</div>
+      ${rows}
+      ${others.length ? `<div class="now-others"><div class="now-title">${esc(t('otherThermostats'))}</div>
+        <div class="th-hint">${esc(t('thermostatsHint'))}</div>${otherRows}</div>` : ''}
+    </div>`;
+  }
+
+  // A thermostat's line in "Now": name, measured temperature, what it does (preset and setpoint),
+  // why and until when, today's bar, actions
+  _nowRowHtml(climate, active) {
+    const t = this._loc.t;
+    const src = this._source();
+    const st = this._hass.states[climate];
+    const a = (st && st.attributes) || {};
+    const paused = src.paused(climate);
+    const d = paused ? null : this._overrides()[climate];
+    const plan = paused ? null : src.planned(climate);
+    const setpoint = a.temperature != null ? ` · ${this._loc.number(a.temperature)}°` : '';
+    let state;
+    let why;
+    if (!st) {
+      state = '<span class="now-preset">?</span>';
+      why = '';
+    } else if (d) {
+      const end = parseDate(d.end);
+      const time = end.toDateString() === new Date().toDateString() ? this._loc.time(minutesOf(end))
+        : `${this._loc.time(minutesOf(end))} (${this._loc.days[(end.getDay() + 6) % 7].toLowerCase()})`;
+      const then = thenText(src, climate, d, this._loc);
+      state = `<span class="now-preset override-value">⏱ ${esc(this._overrideLabel(d))}${esc(setpoint)}</span>`;
+      why = `${t('overrideUntil', { time })}${then ? `, ${then}` : ''}`;
+    } else {
+      let name;
+      let color = 'transparent';
+      if (st.state === 'off') name = t('off');
+      else if (plan && plan.preset) ({ name, color } = this._preset(plan.preset));
+      else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) name = t('manual');
+      else name = a.preset_mode ? this._loc.preset(a.preset_mode) : '';
+      state = `<span class="now-preset"><i style="background:${color}"></i>${esc(name)}${esc(setpoint)}</span>`;
+      const follow = planText(plan, (id) => this._preset(id).name, this._loc);
+      why = paused ? t('pausedInfo') : [active && plan ? this._scheduleName(active) : '', follow].filter(Boolean).join(' · ');
+    }
+    // Today as it is applied: the saved week of the active schedule, with the override over it
+    const today = todayIdx();
+    const segs = (activeWeek(src, climate) || [])[today] || [];
+    const bar = segs.map((s, i) => {
+      const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
+      return `<div class="now-seg" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${this._preset(s.preset).color}"></div>`;
+    }).join('');
+    const piece = d && overridePieces(d).find((p) => p.day === today);
+    const override = piece ? `<div class="override-piece" style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%"></div>` : '';
+    const now = paused ? '' : `<div class="now" style="left:${pct(nowMin())}%"></div>`;
+    const btn = (act, label, cls = '') => `<button class="btn${cls}" data-act="${act}" data-climate="${esc(climate)}">${esc(label)}</button>`;
+    const buttons = [
+      st && !paused ? btn('override-new', t('newOverride')) : '',
+      src.editable ? (paused ? btn('resume', t('resumeShort')) : btn('pause', t('pauseShort'))) : '',
+    ].join('');
+    const sel = this._overrideSel && this._overrideSel.climate === climate;
+    const measured = a.current_temperature != null ? `${this._loc.number(a.current_temperature)}°` : '';
+    return `<div class="now-row${paused ? ' paused' : ''}${sel ? ' sel' : ''}" data-climate="${esc(climate)}">
+      <div class="now-name">${this._moreInfoLink(climate)}</div>
+      <div class="now-temp">${measured}</div>
+      <div class="now-what">${state}<span class="now-why">${esc(why)}</span></div>
+      <div class="now-bar${paused ? ' paused' : ''}"><div class="now-segs">${bar}</div>${override}${now}</div>
+      ${buttons ? `<div class="now-btns">${buttons}</div>` : ''}
+    </div>`;
   }
 
   _forget(climate) {
@@ -2947,7 +3063,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'menu') {
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
       const b = el.getBoundingClientRect();
-      return this._openMenu(ds.climate, Number(ds.day), b.bottom - card.top + 4, card.right - b.right);
+      return this._openMenu(ds.climate, Number(ds.day), b.bottom - card.top + 4, card.right - b.right, b.top - card.top - 4);
     }
     this._menu = null;
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
@@ -2958,7 +3074,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       return this._render();
     }
     if (act === 'thermostat-forget-confirm') return this._forget(ds.climate);
-    if (act === 'override-new') { // today's row menu: set a temporary setpoint
+    if (act === 'override-new') { // a thermostat's line in "Now": set or change a temporary setpoint
       this._sel = null;
       this._overrideSel = { climate: ds.climate, create: true };
       return this._render();
@@ -2977,7 +3093,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'view') {
       this._view = ds.view;
       this._cell = null;
+      this._sel = null;
+      this._overrideSel = null;
       this._msg = '';
+      if (ds.view === 'now' || ds.view === 'schedule') {
+        try { localStorage.setItem(LS_VIEW, ds.view); } catch (e) { /* ignore */ }
+      }
       return this._render();
     }
     if (act === 'cell' || act.startsWith('cell-')) return this._cellAction(act, ds);
@@ -3038,7 +3159,7 @@ const STYLE = `
   select, input, button { font:inherit; color:var(--primary-text-color); }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
   .chip { border:1px solid var(--divider-color); background:var(--card-background-color); border-radius:16px;
-    padding:4px 10px; cursor:pointer; font-size:.88em; }
+    padding:6px 12px; cursor:pointer; font-size:.88em; }
   .chip .live { color:var(--secondary-text-color); font-size:.9em; margin-left:2px; }
   .chip.on { background:var(--primary-color); border-color:var(--primary-color); color:var(--text-primary-color,#fff); }
   .chip.on .live { color:inherit; opacity:.85; }
@@ -3105,9 +3226,6 @@ const STYLE = `
   .sizer, .sizer span { display:block; height:0; visibility:hidden; }
   .mi-link { cursor:pointer; }
   .mi-link:hover { color:var(--primary-color); text-decoration:underline; }
-  .chip-open { display:inline-flex; vertical-align:-2px; margin-left:4px; padding:1px; border-radius:4px; opacity:.6; cursor:pointer; }
-  .chip-open:hover { opacity:1; background:rgba(127,127,127,.25); }
-  .chip-open svg { width:13px; height:13px; fill:currentColor; }
 
   .ticks { position:relative; height:16px; font-size:11px; color:var(--secondary-text-color); }
   .ticks span { position:absolute; transform:translateX(-50%); }
@@ -3127,6 +3245,14 @@ const STYLE = `
   .seg.last { border-radius:0 6px 6px 0; }
   .seg.first.last { border-radius:6px; }
   .seg .t { font-weight:600; }
+  /* A label that does not fit is hidden (a time) or ends in "…" (a name), never cut into
+     meaningless pieces such as "06:" */
+  .seg { container-type:inline-size; }
+  .seg .l { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  @container (max-width:38px) { .seg .t { visibility:hidden; } }
+  @container (max-width:44px) { .seg .l { visibility:hidden; } }
+  .h12 .seg .t { white-space:nowrap; }
+  @container (max-width:56px) { .h12 .seg .t { visibility:hidden; } }
   .seg.sel { box-shadow:inset 0 0 0 3px var(--primary-text-color); z-index:1; }
   .seg.movable { cursor:grab; }
   .seg.movable:active { cursor:grabbing; }
@@ -3242,14 +3368,47 @@ const STYLE = `
   .copyweek { padding:6px 8px; border-radius:8px; border:1px solid var(--divider-color);
     background:var(--card-background-color); max-width:260px; }
   .msg { min-height:1.2em; margin-top:6px; font-size:.85em; color:var(--secondary-text-color); text-align:right; }
-  .msg .dirty { color:var(--warning-color,#ff9800); }
+  .dirty { color:var(--warning-color,#ff9800); }
+  /* Unsaved edits of the weeks: a bar at the foot of the card, kept at the bottom of the window
+     while the card scrolls */
+  .savebar { position:sticky; bottom:0; z-index:8; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end;
+    gap:8px; margin:10px -16px -16px; padding:10px 16px; border-top:1px solid var(--divider-color);
+    background:var(--ha-card-background, var(--card-background-color)); box-shadow:0 -4px 12px rgba(0,0,0,.15);
+    border-radius:0 0 var(--ha-card-border-radius,12px) var(--ha-card-border-radius,12px); }
+  .savebar .dirty { margin-right:auto; font-size:.9em; }
   .loading { color:var(--secondary-text-color); }
-  .views { display:flex; justify-content:flex-end; gap:2px; margin:-6px 0 8px; }
-  .view { border:1px solid var(--divider-color); background:transparent; padding:3px 10px; cursor:pointer;
-    font-size:.82em; color:var(--secondary-text-color); }
-  .view:first-child { border-radius:12px 0 0 12px; }
-  .view:last-child { border-radius:0 12px 12px 0; }
-  .view.on { background:var(--primary-color); border-color:var(--primary-color); color:var(--text-primary-color,#fff); }
+  /* Views: tabs across the top of the card, unlike the schedules' segmented switch */
+  .views { display:flex; margin:-12px -16px 12px; padding:0 8px; box-shadow:inset 0 -1px var(--divider-color);
+    overflow-x:auto; scrollbar-width:none; }
+  .view { flex:1 1 auto; min-height:40px; padding:8px; border:0; border-bottom:2px solid transparent;
+    background:transparent; cursor:pointer; font-size:.9em; white-space:nowrap; color:var(--secondary-text-color); }
+  .view:hover { color:var(--primary-text-color); }
+  .view.on { color:var(--primary-color); border-bottom-color:var(--primary-color); font-weight:500; }
+  /* "Now": a line per thermostat */
+  .now-head { font-size:.9em; color:var(--secondary-text-color); margin-bottom:4px; }
+  .now-head strong { color:var(--primary-text-color); }
+  .now-row { display:grid; grid-template-columns:1fr auto; gap:6px 12px; align-items:center; padding:10px 0;
+    border-top:1px solid var(--divider-color); }
+  .now-row.sel { margin:0 -8px; padding:10px 8px; border-radius:8px;
+    background:rgba(3,169,244,.08); background:color-mix(in srgb, var(--primary-color) 8%, transparent); }
+  .now-name { font-weight:500; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .now-temp { grid-row:span 2; font-size:1.6em; font-weight:300; font-variant-numeric:tabular-nums; }
+  .now-what { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:.88em; min-width:0; }
+  .now-preset { display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border-radius:10px; font-weight:500;
+    background:var(--secondary-background-color); white-space:nowrap; }
+  .now-preset i { width:10px; height:10px; border-radius:3px; flex:none; }
+  .now-why { color:var(--secondary-text-color); }
+  .now-row.paused .now-why { font-style:italic; }
+  .now-bar { grid-column:1 / -1; position:relative; height:10px; }
+  .now-segs { position:absolute; inset:0; overflow:hidden; border-radius:5px; background:var(--secondary-background-color); }
+  .now-seg { position:absolute; top:0; bottom:0; }
+  .now-bar.paused .now-segs { opacity:.45; }
+  .now-bar .now { top:-4px; bottom:-4px; }
+  .now-bar .override-piece { position:absolute; top:-2px; bottom:-2px; z-index:3; box-sizing:border-box; border:2px solid #fff;
+    border-radius:4px; background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
+  .now-btns { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:6px; }
+  .now-others { margin-top:16px; }
+  .now-title { font-weight:500; margin-bottom:4px; }
   .table-wrap { overflow-x:auto; }
   .pv-table { border-collapse:collapse; width:100%; font-size:.9em; }
   .pv-table th, .pv-table td { padding:2px; text-align:center; white-space:nowrap; }
@@ -3315,11 +3474,22 @@ const STYLE = `
   .missing { color:var(--secondary-text-color); padding:16px; }
   .missing .btn { margin-top:12px; }
   @media (max-width:500px) {
-    .multi .scale { grid-template-columns:30px fit-content(60px) 1fr 28px; }
+    .multi .scale { grid-template-columns:fit-content(60px) 1fr 28px; }
     .dgroup { grid-template-columns:30px 1fr; }
     .multi .sub { grid-template-columns:fit-content(60px) 1fr 28px; }
     .sub { grid-template-columns:1fr 28px; }
     .scale { grid-template-columns:30px 1fr 28px; }
+    /* Several thermostats: the day's name above its rows, so that the bars get the width */
+    .multi .scale > div:first-child { display:none; }
+    .multi .dgroup { grid-template-columns:1fr; gap:4px; }
+    .multi .day { text-align:left; font-weight:500; }
+    .ticks .minor { display:none; }
+  }
+  /* On a touch screen, the hint speaks of a finger */
+  .hint .touch { display:none; }
+  @media (hover:none) {
+    .hint .mouse { display:none; }
+    .hint .touch { display:inline; }
   }
 `;
 
@@ -3447,23 +3617,8 @@ class ChauffageMoreInfo extends HTMLElement {
     this._pieces = pieces;
     const pieceFor = (day) => pieces.find((p) => p.day === day);
 
-    // What the schedule does now, until when, and what comes next (computed by the integration,
-    // like the schedule sensor: the next different preset, maybe on another day)
     const segs = week[today];
-    const plan = dataSource(this._hass).planned(this._entity);
-    let followText = '';
-    if (plan && plan.preset) {
-      const current = this._preset(plan.preset).name;
-      const start = plan.next_start ? parseDate(plan.next_start) : null;
-      if (!start) followText = t('allWeek', { current });
-      else {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const day = start.toDateString() === tomorrow.toDateString() ? t('tomorrow') : this._loc.days[(start.getDay() + 6) % 7].toLowerCase();
-        const values = { current, time: this._loc.time(minutesOf(start)), next: this._preset(plan.next_preset).name };
-        followText = start.toDateString() === new Date().toDateString() ? t('untilThen', values) : t('untilDayThen', { ...values, day });
-      }
-    }
+    const followText = planText(dataSource(this._hass).planned(this._entity), (id) => this._preset(id).name, this._loc);
 
     let status;
     let endDay = '';
