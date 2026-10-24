@@ -213,7 +213,7 @@ class ChauffageRuntime:
         return {entity_id: t["mapping"] for entity_id, t in self.thermostats.items() if t["mapping"]}
 
     @property
-    def preset_temperatures(self) -> dict[str, dict[str, float]]:
+    def learned_temperatures(self) -> dict[str, dict[str, float]]:
         return {entity_id: t["preset_temperatures"] for entity_id, t in self.thermostats.items() if t["preset_temperatures"]}
 
     def preset_temperature(self, state: State, preset: str) -> float | None:
@@ -223,10 +223,10 @@ class ChauffageRuntime:
         return engine.preset_temperature(dict(state.attributes), preset, learned)
 
     def temperatures_of(self, state: State | None) -> dict[str, float]:
-        """{own preset: temperature} of a known thermostat, for its presets and the learned ones."""
-        if state is None or state.entity_id not in self.thermostats:
+        """{own preset: temperature} of a thermostat, for its presets and the learned ones."""
+        if state is None:
             return {}
-        learned = self.thermostats[state.entity_id]["preset_temperatures"]
+        learned = self.thermostats.get(state.entity_id, {}).get("preset_temperatures", {})
         temperatures = {p: self.preset_temperature(state, p) for p in {*thermostat(state).presets, *learned}}
         return {p: t for p, t in temperatures.items() if t is not None}
 
@@ -268,8 +268,10 @@ class ChauffageRuntime:
             "targets": {e: self.targets_of(e) for e in self.scheduled},
             "weeks": self.weeks,
             "overrides": self.data["overrides"],
+            # Every thermostat, those the card shows before they are scheduled too
             "preset_temperatures": {
-                e: temperatures for e in self.thermostats if (temperatures := self.temperatures_of(self.hass.states.get(e)))
+                state.entity_id: temperatures for state in self.hass.states.async_all("climate")
+                if (temperatures := self.temperatures_of(state))
             },
             "use_presets": self.use_presets,
             "revision": self.data["revision"],
@@ -695,7 +697,7 @@ class ChauffageRuntime:
     def _track_thermostats(self) -> None:
         if self._unsub_states:
             self._unsub_states()
-        entities = self.active
+        entities = list(self.scheduled)
         self._unsub_states = (
             async_track_state_change_event(self.hass, entities, self._state_changed) if entities else None
         )
@@ -721,7 +723,8 @@ class ChauffageRuntime:
         before = self.temperatures_of(old)
         if not self._learn(new) and before != self.temperatures_of(new):
             self._notify()  # published by the thermostat: the card shows them
-        if old is None or new is None:
+        # Paused thermostats are followed for their preset temperatures only
+        if old is None or new is None or self.is_paused(new.entity_id):
             return
         if old.state in engine.IGNORED_STATES and new.state not in engine.IGNORED_STATES:
             # Turned back on, or back online: the thermostat may have missed slot changes
