@@ -341,6 +341,7 @@ class ChauffageRuntime:
         for card in self.data["cards"].values():
             if entity_id in card["thermostats"]:
                 card["thermostats"].remove(entity_id)
+        self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
         repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
         repairs.close_issue(self.hass, repairs.MISSING, entity_id)
         self.data["revision"] += 1

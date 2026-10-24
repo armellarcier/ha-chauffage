@@ -161,6 +161,14 @@ async def test_renamed_twice(bench: Bench):
     assert bench.runtime.snapshot()["renamed"] == {"climate.salon": "climate.living", "climate.sejour": "climate.living"}
 
 
+async def test_a_forgotten_thermostat_is_no_longer_where_its_former_ids_lead(bench: Bench):
+    """A card holding the former id would set it aside forever, pointing to nothing."""
+    await start(bench)
+    await rename(bench)
+    await bench.runtime.forget("climate.sejour")
+    assert bench.runtime.snapshot()["renamed"] == {}
+
+
 async def test_a_rename_is_not_an_entity_gone(bench: Bench):
     await start(bench)
     await rename(bench)
