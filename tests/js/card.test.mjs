@@ -1,5 +1,5 @@
 // Behavior of the custom:chauffage-programme-card card.
-import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, PRESETS, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -144,6 +144,26 @@ describe('editing a day', () => {
     card._split('climate.bureau', 0, 12 * 60);
     assert.deepEqual(day(card, 'climate.bureau', 0), ['00:00 eco', '12:00 comfort']);
     assert.equal(card._dirty, true);
+  });
+
+  test('a cut never moves the next slot: its preset differs from both neighbors', () => {
+    const card = createCard(fakeHass());
+    card._split('climate.salon', 0, 12 * 60); // in 08:30 eco, before 17:30 comfort
+    assert.deepEqual(day(card, 'climate.salon', 0),
+      ['00:00 eco', '06:30 comfort', '08:30 eco', '12:00 boost', '17:30 comfort', '22:30 eco']);
+  });
+
+  test('with two presets, a cut adds a slot of the other one, then goes back to the slot\'s preset', () => {
+    const card = createCard(fakeHass({ data: { ...integrationData(), presets: PRESETS().slice(0, 2) } }));
+    card._split('climate.salon', 0, 12 * 60); // 08:30 eco until 17:30 comfort
+    assert.deepEqual(day(card, 'climate.salon', 0),
+      ['00:00 eco', '06:30 comfort', '08:30 eco', '12:00 comfort', '14:45 eco', '17:30 comfort', '22:30 eco']);
+  });
+
+  test('with two presets, a cut without room to go back to the slot\'s preset is refused', () => {
+    const card = createCard(fakeHass({ data: { ...integrationData(), presets: PRESETS().slice(0, 2) } }));
+    card._split('climate.salon', 0, 17 * 60 + 15); // 15 min before 17:30 comfort
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
 
   test('a cut too close to an existing slot is refused', () => {

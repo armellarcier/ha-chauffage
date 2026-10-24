@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- A double click on a slot always adds a slot: its preset differs from the next slot's, so it no
+  longer merges with it and only moves its start (#25).
+
 ## [0.6.0-beta.3] - 2026-10-24
 
 **Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).
