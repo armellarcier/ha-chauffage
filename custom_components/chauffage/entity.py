@@ -93,7 +93,7 @@ def async_follow_thermostats(
 
     @callback
     def sync(reason: str = DATA) -> None:
-        if reason != DATA:
+        if reason != DATA or runtime.reloading:
             return
         scheduled = set(runtime.scheduled)
         new = []

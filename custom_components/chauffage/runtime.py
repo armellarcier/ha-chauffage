@@ -101,6 +101,9 @@ class ChauffageRuntime:
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
         self._unsub_rules: Callable[[], None] | None = None
         self.rule_results: list[Any] = []  # each rule now (see render_rule)
+        # A thermostat renamed: the entry reloads to attach its entities to the new id, which
+        # follow it meanwhile (their unique ids moved); nothing to add or remove until then
+        self.reloading = False
 
     # ----- life cycle -----
 
@@ -456,7 +459,8 @@ class ChauffageRuntime:
             if entity_id:
                 registry.async_update_entity(entity_id, new_unique_id=unique_id.format(new))
         self.data["revision"] += 1
-        # Not notified: the entities of the former id would be removed; the reload saves the data
+        # Not notified: the entities wait for the reload (see reloading), which saves the data
+        self.reloading = True
         self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
 
     async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:

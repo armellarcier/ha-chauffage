@@ -74,6 +74,22 @@ async def test_its_entities_keep_their_ids_and_settings(bench: Bench):
     assert registry.async_get_entity_id("switch", "chauffage", f"{bench.entry.entry_id}_climate.salon_scheduling") is None
 
 
+async def test_its_entities_are_kept_through_a_change_made_before_the_reload(bench: Bench, monkeypatch, caplog):
+    """The entry is reloaded to attach the entities to the new id; a change meanwhile (a card
+    displayed) must neither remove them nor make them again."""
+    await start(bench)
+    registry = er.async_get(bench.hass)
+    reloads = []
+    monkeypatch.setattr(bench.hass.config_entries, "async_schedule_reload", reloads.append)
+    await rename(bench)
+    assert reloads == [bench.entry.entry_id]
+    bench.runtime.declare_card("c1", ["climate.sejour"])  # before the reload
+    await bench.hass.async_block_till_done()
+    assert registry.async_get("sensor.salon_schedule") is not None
+    assert registry.async_get("switch.salon_scheduling") is not None
+    assert "does not generate unique IDs" not in caplog.text
+
+
 async def test_the_entities_of_a_thermostat_with_a_longer_id_stay_where_they_are(bench: Bench):
     """climate.salon renamed: climate.salon_bas's entities start with the same text."""
     await start(bench)
