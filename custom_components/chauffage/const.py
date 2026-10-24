@@ -43,9 +43,12 @@ PACKAGE_MODE = "input_select.mode_chauffage"
 PACKAGE_AUTOMATIONS = ("chauffage_programmes_hebdo", "chauffage_derogation_manuelle")  # unique ids
 PACKAGE_DATA_VERSION = 1  # newest package data version the import understands
 
-# Keys of the entities of each scheduled thermostat, and their platforms
-SCHEDULE_KEY, OVERRIDE_END_KEY, CONTROL_KEY = "schedule", "override_end", "control"
-THERMOSTAT_ENTITIES = {SCHEDULE_KEY: "sensor", OVERRIDE_END_KEY: "sensor", CONTROL_KEY: "switch"}
+# Keys of the entities of each scheduled thermostat, and their platforms. The planned preset
+# sensor keeps its former key, "schedule": its unique id, so existing entity ids do not change
+PLANNED_PRESET_KEY, OVERRIDE_KEY, OVERRIDE_END_KEY, CONTROL_KEY = "schedule", "override", "override_end", "control"
+THERMOSTAT_ENTITIES = {
+    PLANNED_PRESET_KEY: "sensor", OVERRIDE_KEY: "binary_sensor", OVERRIDE_END_KEY: "sensor", CONTROL_KEY: "switch",
+}
 
 
 def thermostat_unique_id(entry_id: str, climate: str, key: str) -> str:

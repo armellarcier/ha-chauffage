@@ -35,34 +35,54 @@
     "select": {
       "active_schedule": {
         "name": "Planning actif",
-        "state_attributes": { "schedule_id": { "name": "Identifiant du planning" } }
+        "state_attributes": {
+          "schedule_id": { "name": "Identifiant du planning" },
+          "rules_choice": { "name": "Planning donné par les règles" }
+        }
       }
     },
     "switch": {
       "control": { "name": "Pilotage" },
-      "control_of": { "name": "Pilotage {thermostat}" }
+      "control_of": { "name": "Pilotage {thermostat}" },
+      "schedule": { "name": "Planning {schedule}" }
     },
-    "sensor": {
-      "schedule": {
-        "name": "Planning",
-        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
+    "binary_sensor": {
+      "override": {
+        "name": "Dérogation",
         "state_attributes": {
-          "preset_name": { "name": "Nom du préréglage" },
-          "target": { "name": "Consigne" },
-          "next_preset": { "name": "Préréglage suivant" },
-          "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début de la plage suivante" }
+          "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
         }
       },
-      "schedule_of": {
-        "name": "Planning {thermostat}",
+      "override_of": {
+        "name": "Dérogation {thermostat}",
+        "state_attributes": {
+          "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
+        }
+      }
+    },
+    "sensor": {
+      "planned_preset": {
+        "name": "Préréglage prévu",
         "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
         "state_attributes": {
           "preset_name": { "name": "Nom du préréglage" },
           "target": { "name": "Consigne" },
           "next_preset": { "name": "Préréglage suivant" },
           "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début de la plage suivante" }
+          "next_start": { "name": "Début de la plage suivante" },
+          "temperatures": { "name": "Températures des préréglages" }
+        }
+      },
+      "planned_preset_of": {
+        "name": "Préréglage prévu {thermostat}",
+        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
+        "state_attributes": {
+          "preset_name": { "name": "Nom du préréglage" },
+          "target": { "name": "Consigne" },
+          "next_preset": { "name": "Préréglage suivant" },
+          "next_preset_name": { "name": "Nom du préréglage suivant" },
+          "next_start": { "name": "Début de la plage suivante" },
+          "temperatures": { "name": "Températures des préréglages" }
         }
       },
       "override_end": {

@@ -1,13 +1,18 @@
 """Entities: active-schedule select, per-thermostat sensors and Control switch."""
 
 import pytest
-from homeassistant.const import EntityCategory
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from conftest import WEEKDAY, Bench, every_day
+from conftest import KINDS, WEEKDAY, Bench, every_day
 
 WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": every_day(("00:00", "frost"))}}
+
+
+@pytest.fixture(params=KINDS)
+def thermostat_kind(request) -> str:
+    """Every behavior test runs on each kind of thermostat (VTherm, standard presets, none)."""
+    return request.param
 
 
 async def start(bench: Bench) -> None:
@@ -52,29 +57,76 @@ async def test_an_entity_id_chosen_by_the_user_is_kept(bench: Bench):
     assert bench.hass.states.get("select.chauffage_schedule") is None
 
 
-async def test_thermostat_sensors_are_disabled_by_default(bench: Bench):
+async def test_the_planned_preset_and_override_sensors_are_enabled_by_default(bench: Bench):
+    """The device page shows what Chauffage plans and whether there is an override; the override
+    end, "Unknown" most of the time, stays disabled (docs/decisions.md, "Entities")."""
     await start(bench)
     registry = er.async_get(bench.hass)
-    entry = registry.async_get("sensor.salon_schedule")
-    assert entry is not None and entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
-    assert bench.hass.states.get("sensor.salon_schedule") is None
+    assert registry.async_get("sensor.salon_planned_preset").disabled_by is None
+    assert registry.async_get("binary_sensor.salon_override").disabled_by is None
+    end = registry.async_get("sensor.salon_override_end")
+    assert end is not None and end.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert bench.hass.states.get("sensor.salon_override_end") is None
 
 
-@pytest.mark.usefixtures("entity_registry_enabled_by_default")
-async def test_the_schedule_sensor_shows_the_planned_preset_and_the_next_slot(bench: Bench):
+async def test_the_planned_preset_sensor_shows_the_planned_preset_and_the_next_slot(bench: Bench):
     await start(bench)
-    state = bench.hass.states.get("sensor.salon_schedule")
+    state = bench.hass.states.get("sensor.salon_planned_preset")
     assert state.state == "eco"
     assert state.attributes["next_preset"] == "comfort"
     assert state.attributes["next_start"].startswith("2026-10-12T17:30")
     await bench.go_to("17:30")
-    assert bench.hass.states.get("sensor.salon_schedule").state == "comfort"
+    assert bench.hass.states.get("sensor.salon_planned_preset").state == "comfort"
     await bench.activate_schedule("Away")
-    assert bench.hass.states.get("sensor.salon_schedule").state == "frost"
+    assert bench.hass.states.get("sensor.salon_planned_preset").state == "frost"
 
 
-@pytest.mark.usefixtures("entity_registry_enabled_by_default")
-async def test_the_override_end_sensor(bench: Bench):
+async def test_the_planned_preset_sensor_gives_the_temperature_of_each_preset_on_the_thermostat(bench: Bench):
+    """The temperature the thermostat has at each preset: its own preset's (learned while on it,
+    published by Versatile Thermostat), else the preset's; unknown ones are left out."""
+    await start(bench)
+    temperatures = bench.hass.states.get("sensor.salon_planned_preset").attributes["temperatures"]
+    expected = {
+        "vtherm": {"eco": 17.0},  # on eco now (learned); comfort, boost, frost not known yet
+        "standard": {"eco": 17.0, "frost": 7.0},  # no frost preset of its own: a temperature
+        "plain": {"comfort": 20.0, "eco": 17.0, "boost": 21.0, "frost": 7.0},
+    }
+    assert temperatures == expected[bench.kind]
+
+
+async def test_the_planned_preset_sensor_reads_the_temperatures_versatile_thermostat_publishes(bench: Bench):
+    bench.needs("vtherm")
+    await start(bench)
+    bench.thermostat("climate.salon", "eco", friendly_name="Salon",
+                     preset_temperatures={"comfort_temp": 19.5, "eco_temp": 16.5, "boost_temp": 22, "frost_temp": 8})
+    await bench.hass.async_block_till_done()
+    temperatures = bench.hass.states.get("sensor.salon_planned_preset").attributes["temperatures"]
+    assert temperatures == {"comfort": 19.5, "eco": 16.5, "boost": 22.0, "frost": 8.0}
+
+
+async def test_the_override_sensor_is_on_while_the_thermostat_has_an_override(bench: Bench):
+    await start(bench)
+    assert bench.hass.states.get("binary_sensor.salon_override").state == "off"
+    await bench.manual_setpoint("climate.salon", 21.5)
+    state = bench.hass.states.get("binary_sensor.salon_override")
+    assert state.state == "on"
+    assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)
+    assert state.attributes["end"] == "2026-10-12T12:00:00+02:00"
+    await bench.go_to("12:00")
+    assert bench.hass.states.get("binary_sensor.salon_override").state == "off"
+
+
+async def test_the_override_sensor_names_the_preset_an_override_was_set_to(bench: Bench):
+    await start(bench)
+    await bench.hass.services.async_call(
+        "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True
+    )
+    await bench.hass.async_block_till_done()
+    state = bench.hass.states.get("binary_sensor.salon_override")
+    assert state.state == "on" and state.attributes["preset"] == "boost"
+
+
+async def test_the_override_end_sensor(bench: Bench, entity_registry_enabled_by_default):
     await start(bench)
     assert bench.hass.states.get("sensor.salon_override_end").state == "unknown"
     await bench.manual_setpoint("climate.salon", 21.5)
@@ -83,16 +135,39 @@ async def test_the_override_end_sensor(bench: Bench):
     assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)
 
 
-@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_the_planned_preset_sensor_of_an_existing_installation_keeps_its_id_and_is_enabled(bench: Bench):
+    """Called *Schedule* and disabled by default before: its id is kept (automations use it), and
+    it is enabled once, unless the user disabled it."""
+    entry = MockConfigEntry(domain="chauffage", title="Chauffage", version=1, minor_version=1)
+    entry.add_to_hass(bench.hass)
+    registry = er.async_get(bench.hass)
+    for climate, disabled_by in (("salon", er.RegistryEntryDisabler.INTEGRATION),
+                                 ("bureau", er.RegistryEntryDisabler.USER)):
+        registry.async_get_or_create("sensor", "chauffage", f"{entry.entry_id}_climate.{climate}_schedule",
+                                     suggested_object_id=f"{climate}_schedule", config_entry=entry,
+                                     disabled_by=disabled_by)
+    bench.thermostat("climate.salon", "eco")
+    bench.thermostat("climate.bureau", "eco")
+    await bench.go_to("10:00")
+    await bench.setup(entry=entry)
+    await bench.save_weeks({**WEEKS, "climate.bureau": WEEKS["climate.salon"]})
+    assert bench.hass.states.get("sensor.salon_schedule").state == "eco"
+    assert registry.async_get("sensor.salon_planned_preset") is None
+    assert registry.async_get("sensor.bureau_schedule").disabled_by is er.RegistryEntryDisabler.USER
+    assert entry.minor_version == 2
+
+
 async def test_entities_follow_the_scheduled_thermostats(bench: Bench):
     await start(bench)
     bench.thermostat("climate.bureau", "eco", friendly_name="Bureau")
     await bench.save_weeks({**WEEKS, "climate.bureau": {"normal": every_day(("00:00", "eco"))}})
-    assert bench.hass.states.get("sensor.bureau_schedule").state == "eco"
+    assert bench.hass.states.get("sensor.bureau_planned_preset").state == "eco"
+    assert bench.hass.states.get("binary_sensor.bureau_override").state == "off"
     await bench.runtime.forget("climate.salon")
     await bench.hass.async_block_till_done()
     registry = er.async_get(bench.hass)
-    assert registry.async_get("sensor.salon_schedule") is None
+    assert registry.async_get("sensor.salon_planned_preset") is None
+    assert registry.async_get("binary_sensor.salon_override") is None
     assert registry.async_get("switch.salon_control") is None
     assert registry.async_get("switch.bureau_control") is not None
 
@@ -101,12 +176,10 @@ async def test_a_forgotten_thermostat_s_disabled_sensors_leave_the_registry(benc
     """Disabled by default, they are never added to HA: no registry entry left behind."""
     await start(bench)
     registry = er.async_get(bench.hass)
-    assert registry.async_get("sensor.salon_schedule").disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert registry.async_get("sensor.salon_override_end").disabled_by is er.RegistryEntryDisabler.INTEGRATION
     await bench.runtime.forget("climate.salon")
     await bench.hass.async_block_till_done()
-    assert registry.async_get("sensor.salon_schedule") is None
     assert registry.async_get("sensor.salon_override_end") is None
-    assert registry.async_get("switch.salon_control") is None
 
 
 async def test_sensors_are_attached_to_the_thermostat_s_device(bench: Bench):
@@ -118,17 +191,22 @@ async def test_sensors_are_attached_to_the_thermostat_s_device(bench: Bench):
     er.async_get(bench.hass).async_get_or_create("climate", "test", "valve", suggested_object_id="salon",
                                                  device_id=device.id)
     await start(bench)
-    entry = er.async_get(bench.hass).async_get("sensor.vanne_salon_schedule")
-    assert entry is not None and entry.device_id == device.id
+    registry = er.async_get(bench.hass)
+    for entity_id in ("sensor.vanne_salon_planned_preset", "binary_sensor.vanne_salon_override",
+                      "switch.vanne_salon_control"):
+        entry = registry.async_get(entity_id)
+        assert entry is not None and entry.device_id == device.id
 
 
 # ----- Control switch (docs/decisions.md, "Scheduled thermostats") -----
 
-async def test_each_scheduled_thermostat_has_a_control_switch_on_its_settings(bench: Bench):
+async def test_each_scheduled_thermostat_has_a_control_switch_among_its_main_entities(bench: Bench):
+    """Not a configuration entity: pausing is an everyday action, offered with the device's main
+    triggers, conditions and actions in the automation editor, and to Assist."""
     await start(bench)
     entry = er.async_get(bench.hass).async_get("switch.salon_control")
     assert entry is not None and entry.disabled_by is None
-    assert entry.entity_category is EntityCategory.CONFIG
+    assert entry.entity_category is None
     assert bench.hass.states.get("switch.salon_control").state == "on"
 
 
@@ -150,27 +228,13 @@ async def test_the_control_switch_shows_a_pause_made_from_the_card(bench: Bench)
     assert bench.hass.states.get("switch.salon_control").state == "off"
 
 
-@pytest.mark.usefixtures("entity_registry_enabled_by_default")
-async def test_the_sensors_of_a_paused_thermostat_are_unavailable(bench: Bench):
+async def test_the_sensors_of_a_paused_thermostat_are_unavailable(bench: Bench, entity_registry_enabled_by_default):
     await start(bench)
     await bench.runtime.set_paused("climate.salon", True)
     await bench.hass.async_block_till_done()
-    assert bench.hass.states.get("sensor.salon_schedule").state == "unavailable"
-    assert bench.hass.states.get("sensor.salon_override_end").state == "unavailable"
+    for entity_id in ("sensor.salon_planned_preset", "binary_sensor.salon_override", "sensor.salon_override_end"):
+        assert bench.hass.states.get(entity_id).state == "unavailable"
     assert bench.hass.states.get("switch.salon_control").state == "off"  # the switch stays usable
     await bench.runtime.set_paused("climate.salon", False)
     await bench.hass.async_block_till_done()
-    assert bench.hass.states.get("sensor.salon_schedule").state == "eco"
-
-
-async def test_the_control_switch_is_attached_to_the_thermostat_s_device(bench: Bench):
-    other = MockConfigEntry(domain="test")
-    other.add_to_hass(bench.hass)
-    device = dr.async_get(bench.hass).async_get_or_create(
-        config_entry_id=other.entry_id, identifiers={("test", "valve")}, name="Vanne salon"
-    )
-    er.async_get(bench.hass).async_get_or_create("climate", "test", "valve", suggested_object_id="salon",
-                                                 device_id=device.id)
-    await start(bench)
-    entry = er.async_get(bench.hass).async_get("switch.vanne_salon_control")
-    assert entry is not None and entry.device_id == device.id
+    assert bench.hass.states.get("sensor.salon_planned_preset").state == "eco"

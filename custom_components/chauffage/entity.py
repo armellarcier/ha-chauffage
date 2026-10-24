@@ -3,7 +3,7 @@ thermostat's device and created and removed with the scheduled thermostats."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
@@ -59,7 +59,8 @@ class ChauffageEntity(Entity):
 class ThermostatEntity(ChauffageEntity):
     """An entity of one scheduled thermostat, on its device (else named after it)."""
 
-    key: str
+    key: str  # in its unique id
+    name_key: str | None = None  # its translation key, when not the key
 
     def __init__(self, runtime: ChauffageRuntime, climate: str) -> None:
         super().__init__(runtime)
@@ -70,10 +71,10 @@ class ThermostatEntity(ChauffageEntity):
             # No device to attach to: the thermostat's name goes in the entity name
             state = runtime.hass.states.get(climate)
             name = state.name if state else climate
-            self._attr_translation_key = f"{self.key}_of"
+            self._attr_translation_key = f"{self.name_key or self.key}_of"
             self._attr_translation_placeholders = {"thermostat": name}
         else:
-            self._attr_translation_key = self.key
+            self._attr_translation_key = self.name_key or self.key
             if not DEVICE_ENTRY_ATTACHES:
                 # Older Home Assistant: attached through the device's identifiers
                 self._attr_device_info = DeviceInfo(
@@ -81,32 +82,50 @@ class ThermostatEntity(ChauffageEntity):
                 )
 
 
+class ThermostatSensorEntity(ThermostatEntity):
+    """What Chauffage plans or holds for a thermostat: meaningless, so unavailable, while it is
+    paused (Home Assistant's convention)."""
+
+    @property
+    def available(self) -> bool:
+        return not self.runtime.is_paused(self.climate)
+
+
 @callback
-def async_follow_thermostats(
+def async_follow(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback,
-    make: Callable[[ChauffageRuntime, str], list[ThermostatEntity]],
+    ids: Callable[[ChauffageRuntime], Iterable[str]], make: Callable[[ChauffageRuntime, str], list[Entity]],
 ) -> None:
-    """Entities made by `make` for each scheduled thermostat, removed when it is forgotten: no
-    list of thermostats to maintain."""
+    """Entities made by `make` for each id `ids` gives (scheduled thermostats, schedules), removed
+    when it goes: no list to maintain."""
     runtime: ChauffageRuntime = entry.runtime_data
-    known: dict[str, list[ThermostatEntity]] = {}
+    known: dict[str, list[Entity]] = {}
 
     @callback
     def sync(reason: str = DATA) -> None:
         if reason != DATA or runtime.reloading:
             return
-        scheduled = set(runtime.scheduled)
+        current = set(ids(runtime))
         new = []
-        for climate in sorted(scheduled - set(known)):
-            known[climate] = make(runtime, climate)
-            new += known[climate]
+        for key in sorted(current - set(known)):
+            known[key] = make(runtime, key)
+            new += known[key]
         if new:
             async_add_entities(new)
         registry = er.async_get(hass)
-        for climate in set(known) - scheduled:
-            for entity in known.pop(climate):
+        for key in set(known) - current:
+            for entity in known.pop(key):
                 if entity.entity_id and registry.async_get(entity.entity_id):
                     registry.async_remove(entity.entity_id)
 
     sync()
     entry.async_on_unload(runtime.async_add_listener(sync))
+
+
+@callback
+def async_follow_thermostats(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback,
+    make: Callable[[ChauffageRuntime, str], list[ThermostatEntity]],
+) -> None:
+    """Entities made by `make` for each scheduled thermostat, removed when it is forgotten."""
+    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.scheduled, make)

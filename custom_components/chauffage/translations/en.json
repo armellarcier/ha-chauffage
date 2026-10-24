@@ -35,34 +35,54 @@
     "select": {
       "active_schedule": {
         "name": "Active schedule",
-        "state_attributes": { "schedule_id": { "name": "Schedule id" } }
+        "state_attributes": {
+          "schedule_id": { "name": "Schedule id" },
+          "rules_choice": { "name": "Schedule the rules give" }
+        }
       }
     },
     "switch": {
       "control": { "name": "Control" },
-      "control_of": { "name": "{thermostat} control" }
+      "control_of": { "name": "{thermostat} control" },
+      "schedule": { "name": "{schedule} schedule" }
     },
-    "sensor": {
-      "schedule": {
-        "name": "Schedule",
-        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
+    "binary_sensor": {
+      "override": {
+        "name": "Override",
         "state_attributes": {
-          "preset_name": { "name": "Preset name" },
-          "target": { "name": "Target" },
-          "next_preset": { "name": "Next preset" },
-          "next_preset_name": { "name": "Next preset name" },
-          "next_start": { "name": "Next slot start" }
+          "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
         }
       },
-      "schedule_of": {
-        "name": "{thermostat} schedule",
+      "override_of": {
+        "name": "{thermostat} override",
+        "state_attributes": {
+          "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
+        }
+      }
+    },
+    "sensor": {
+      "planned_preset": {
+        "name": "Planned preset",
         "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
         "state_attributes": {
           "preset_name": { "name": "Preset name" },
           "target": { "name": "Target" },
           "next_preset": { "name": "Next preset" },
           "next_preset_name": { "name": "Next preset name" },
-          "next_start": { "name": "Next slot start" }
+          "next_start": { "name": "Next slot start" },
+          "temperatures": { "name": "Temperatures of the presets" }
+        }
+      },
+      "planned_preset_of": {
+        "name": "{thermostat} planned preset",
+        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
+        "state_attributes": {
+          "preset_name": { "name": "Preset name" },
+          "target": { "name": "Target" },
+          "next_preset": { "name": "Next preset" },
+          "next_preset_name": { "name": "Next preset name" },
+          "next_start": { "name": "Next slot start" },
+          "temperatures": { "name": "Temperatures of the presets" }
         }
       },
       "override_end": {

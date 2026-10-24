@@ -1,13 +1,12 @@
 """Per-thermostat switch, *Control*: on, Chauffage controls the thermostat; off, it is paused
-(kept, not controlled). A configuration entity on the thermostat's device (docs/decisions.md,
-"Scheduled thermostats"); pausing from the card or an automation is the same thing."""
+(kept, not controlled). A plain entity on the thermostat's device, not a setting: pausing is an
+everyday action (docs/decisions.md, "Entities"); pausing from the card is the same thing."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -25,7 +24,6 @@ async def async_setup_entry(
 
 class ControlSwitch(ThermostatEntity, SwitchEntity):
     key = CONTROL_KEY
-    _attr_entity_category = EntityCategory.CONFIG
 
     @property
     def is_on(self) -> bool:

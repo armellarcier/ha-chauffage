@@ -257,6 +257,18 @@ class ChauffageRuntime:
                 out[preset_id] = target.as_dict()
         return out
 
+    def preset_temperatures_of(self, entity_id: str) -> dict[str, float]:
+        """{preset id: temperature} on a thermostat: its own for a temperature, the one its own
+        preset gives (published, else learned) for a climate preset; unknown ones left out."""
+        state = self.hass.states.get(entity_id)
+        out = {}
+        for preset_id, target in self.targets_of(entity_id).items():
+            if "temperature" in target:
+                out[preset_id] = target["temperature"]
+            elif state is not None and (temperature := self.preset_temperature(state, target["preset"])) is not None:
+                out[preset_id] = temperature
+        return out
+
     def snapshot(self) -> dict[str, Any]:
         """Everything the card needs."""
         return {
