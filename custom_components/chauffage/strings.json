@@ -35,43 +35,63 @@
     "select": {
       "active_schedule": {
         "name": "Active schedule",
-        "state_attributes": { "schedule_id": { "name": "Schedule id" } }
+        "state_attributes": {
+          "schedule_id": { "name": "Schedule id" },
+          "rules_choice": { "name": "Schedule from the rules" }
+        }
       }
     },
     "switch": {
       "control": { "name": "Control" },
-      "control_of": { "name": "{thermostat} control" }
+      "control_of": { "name": "{thermostat} control" },
+      "schedule": { "name": "{schedule} schedule" }
     },
-    "sensor": {
-      "schedule": {
-        "name": "Schedule",
-        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
+    "binary_sensor": {
+      "override": {
+        "name": "Override",
         "state_attributes": {
-          "preset_name": { "name": "Preset name" },
-          "target": { "name": "Target" },
-          "next_preset": { "name": "Next preset" },
-          "next_preset_name": { "name": "Next preset name" },
-          "next_start": { "name": "Next slot start" }
+          "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
         }
       },
-      "schedule_of": {
-        "name": "{thermostat} schedule",
+      "override_of": {
+        "name": "{thermostat} override",
+        "state_attributes": {
+          "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
+        }
+      }
+    },
+    "sensor": {
+      "planned_preset": {
+        "name": "Planned preset",
         "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
         "state_attributes": {
           "preset_name": { "name": "Preset name" },
           "target": { "name": "Target" },
           "next_preset": { "name": "Next preset" },
           "next_preset_name": { "name": "Next preset name" },
-          "next_start": { "name": "Next slot start" }
+          "next_start": { "name": "Next slot start" },
+          "temperatures": { "name": "Preset temperatures" }
+        }
+      },
+      "planned_preset_of": {
+        "name": "{thermostat} planned preset",
+        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
+        "state_attributes": {
+          "preset_name": { "name": "Preset name" },
+          "target": { "name": "Target" },
+          "next_preset": { "name": "Next preset" },
+          "next_preset_name": { "name": "Next preset name" },
+          "next_start": { "name": "Next slot start" },
+          "temperatures": { "name": "Preset temperatures" }
         }
       },
       "override_end": {
         "name": "Override end",
-        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" } }
+        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
       },
       "override_end_of": {
         "name": "{thermostat} override end",
-        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" } }
+        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
       }
     }
   },
@@ -123,6 +143,18 @@
       "fields": {
         "schedule": { "name": "Schedule id", "description": "The schedule's id, shown in the card (schedule menu, Rename)." }
       }
+    },
+    "get_schedules": {
+      "name": "Get schedules",
+      "description": "Gives the schedules (id, name, switch), the active one, and the one the activation rules give, for scripts."
+    },
+    "get_week": {
+      "name": "Get week",
+      "description": "Gives each thermostat's week in a schedule (the active one by default): each day's slots, with their start, end and preset, for scripts.",
+      "fields": {
+        "entity_id": { "name": "Thermostats", "description": "Scheduled thermostats." },
+        "schedule": { "name": "Schedule id", "description": "The schedule's id (default: the active schedule)." }
+      }
     }
   },
   "exceptions": {
@@ -130,6 +162,7 @@
     "not_scheduled": { "message": "{entity_id} has no schedule." },
     "paused": { "message": "{entity_id} is paused: resume it to set an override." },
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
-    "unknown_schedule": { "message": "There is no schedule with the id {schedule}." }
+    "unknown_schedule": { "message": "There is no schedule with the id {schedule}." },
+    "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." }
   }
 }

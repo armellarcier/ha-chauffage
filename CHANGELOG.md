@@ -9,6 +9,33 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+What ha-chauffage knows is shown in Home Assistant itself, to see and use it in dashboards,
+automations, scripts and by voice without the card
+([#31](https://github.com/armellarcier/ha-chauffage/issues/31)). **Does not migrate stored
+data**; Home Assistant reloads the integration once after the upgrade (see *Upgrading*).
+
+### Added
+
+- A **switch per schedule** on the *Chauffage* device (`switch.chauffage_schedule_<id>`, *Holidays
+  schedule* / *Planning Vacances*): on for the active schedule, turning one on activates it; the
+  active one is not turned off, another one is turned on. The card shows on a schedule's tab the
+  icon chosen for its switch in Home Assistant.
+- Per thermostat, an **Override** binary sensor, enabled: on while it has an override, with its
+  kind, value, preset and end.
+- The **Planned preset** sensor's `temperatures` attribute: each preset's temperature on this
+  thermostat.
+- The active-schedule select's `rules_choice` attribute: the schedule the activation rules give.
+- Events `chauffage_override_started`, `chauffage_override_ended`, `chauffage_schedule_activated`,
+  saying where they came from.
+- Services with a response for scripts: `chauffage.get_schedules`, `chauffage.get_week`.
+
+### Changed
+
+- The **Schedule** sensor is now **Planned preset** (dashboards show the new name), enabled by
+  default; its entity id does not change.
+- The **Control** switch is a plain entity, no longer a setting: it is among the device's main
+  triggers, conditions and actions in the automation editor, and new ones are exposed to Assist.
+
 ### Fixed
 
 - A page left open while ha-chauffage is updated no longer keeps the former card: Home
@@ -17,6 +44,13 @@ Each entry says whether the release **migrates stored data** and what to do when
   ([#36](https://github.com/armellarcier/ha-chauffage/issues/36)). The same message shows when
   an older copy of the card is loaded first by a Lovelace resource: remove that resource. Works
   from the next update on: reload the page once after installing this one.
+
+### Upgrading
+
+- The planned preset sensors, disabled by default until now, are enabled once (Home Assistant
+  reloads the integration 30 s after starting); one you disabled yourself stays disabled.
+- Control switches made before keep their Assist exposure (not exposed); expose them in Settings
+  → Voice assistants → Expose if you want to pause a room by voice.
 
 ## [0.6.0-beta.4] - 2026-10-24
 

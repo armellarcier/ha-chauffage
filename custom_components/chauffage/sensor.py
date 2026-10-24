@@ -1,8 +1,9 @@
-"""Per-thermostat sensors (disabled by default, unavailable while it is paused), attached to the
-thermostat's device.
+"""Per-thermostat sensors (unavailable while it is paused), attached to the thermostat's device.
 
-- schedule: preset planned now; attributes: next preset and its start time;
-- override end: when the current override ends (empty without override).
+- planned preset (enabled by default): the preset planned now; attributes: the next preset and
+  its start time, the temperature of each preset on this thermostat;
+- override end (disabled by default: the override binary sensor carries the end): when the
+  current override ends (unknown without override).
 
 Created and removed with the scheduled thermostats (entity.async_follow_thermostats).
 """
@@ -17,8 +18,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry, engine
-from .const import OVERRIDE_END_KEY, SCHEDULE_KEY
-from .entity import ThermostatEntity, async_follow_thermostats
+from .const import OVERRIDE_END_KEY, PLANNED_PRESET_KEY
+from .entity import ThermostatSensorEntity, async_follow_thermostats
 
 
 async def async_setup_entry(
@@ -26,21 +27,13 @@ async def async_setup_entry(
 ) -> None:
     async_follow_thermostats(
         hass, entry, async_add_entities,
-        lambda runtime, climate: [ScheduleSensor(runtime, climate), OverrideEndSensor(runtime, climate)],
+        lambda runtime, climate: [PlannedPresetSensor(runtime, climate), OverrideEndSensor(runtime, climate)],
     )
 
 
-class ThermostatSensor(ThermostatEntity, SensorEntity):
-    _attr_entity_registry_enabled_default = False
-
-    @property
-    def available(self) -> bool:
-        """Nothing is planned for a paused thermostat."""
-        return not self.runtime.is_paused(self.climate)
-
-
-class ScheduleSensor(ThermostatSensor):
-    key = SCHEDULE_KEY
+class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
+    key = PLANNED_PRESET_KEY
+    name_key = "planned_preset"
     update_on_tick = True
     _attr_device_class = SensorDeviceClass.ENUM
 
@@ -65,23 +58,21 @@ class ScheduleSensor(ThermostatSensor):
             "next_preset": next_preset,
             "next_preset_name": self._name(next_preset),
             "next_start": next_start.isoformat() if next_start else None,
+            "temperatures": self.runtime.preset_temperatures_of(self.climate),
         }
 
 
-class OverrideEndSensor(ThermostatSensor):
+class OverrideEndSensor(ThermostatSensorEntity, SensorEntity):
     key = OVERRIDE_END_KEY
     _attr_device_class = SensorDeviceClass.TIMESTAMP
-
-    @property
-    def _override(self) -> dict[str, Any] | None:
-        return self.runtime.data["overrides"].get(self.climate)
+    _attr_entity_registry_enabled_default = False
 
     @property
     def native_value(self) -> datetime | None:
-        override = self._override
-        return engine.parse_datetime(override["end"]) if override else None
+        end = self.runtime.override_info(self.climate)["end"]
+        return engine.parse_datetime(end) if end else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        override = self._override or {}
-        return {"kind": override.get("kind"), "value": override.get("value")}
+        info = self.runtime.override_info(self.climate)
+        return {key: info[key] for key in ("kind", "value", "preset")}

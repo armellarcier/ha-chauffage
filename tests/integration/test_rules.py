@@ -112,6 +112,18 @@ async def test_a_schedule_chosen_by_hand_stays_until_the_outcome_of_the_rules_ch
     assert active(bench) == "away"
 
 
+async def test_the_select_says_which_schedule_the_rules_give(bench: Bench):
+    """No "resume the rules" service: an automation can activate the schedule the rules give."""
+    await start(bench, "blue")
+    assert bench.hass.states.get("select.chauffage_schedule").attributes["rules_choice"] is None
+    await set_rules(bench, [RED], "normal")
+    await bench.activate_schedule("Holiday")
+    state = bench.hass.states.get("select.chauffage_schedule")
+    assert (state.state, state.attributes["rules_choice"]) == ("Holiday", "normal")
+    await tempo(bench, "red")
+    assert bench.hass.states.get("select.chauffage_schedule").attributes["rules_choice"] == "away"
+
+
 async def test_a_schedule_chosen_by_hand_survives_a_restart(bench: Bench):
     await start(bench, "blue")
     await set_rules(bench, [RED], "normal")

@@ -43,3 +43,18 @@ activate_schedule:
       example: normal
       selector:
         text:
+
+get_schedules:
+
+get_week:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: climate
+          multiple: true
+    schedule:
+      example: normal
+      selector:
+        text:

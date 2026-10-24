@@ -109,7 +109,7 @@ async def test_activating_the_active_schedule_again_changes_nothing(bench: Bench
 async def test_unknown_schedules_duplicate_or_no_presets_are_refused(bench: Bench):
     await start(bench)
     with pytest.raises(model.InvalidData):
-        await bench.runtime.activate_schedule("unknown")
+        await bench.runtime.activate_schedule("unknown", source="card")
     presets = [dict(p) for p in bench.runtime.data["presets"]]
     with pytest.raises(model.InvalidData):
         await bench.runtime.set_presets(presets + [presets[0]])

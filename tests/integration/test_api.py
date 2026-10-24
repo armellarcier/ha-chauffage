@@ -218,6 +218,54 @@ async def test_set_override_with_a_preset_and_clear_override(bench: Bench):
     assert bench.applied() == {"climate.salon": "eco"}
 
 
+async def respond(bench: Bench, service: str, **data) -> dict:
+    """A service with a response, as a script calls it (response_variable)."""
+    return await bench.hass.services.async_call("chauffage", service, data, blocking=True, return_response=True)
+
+
+async def test_a_script_reads_the_schedules(bench: Bench):
+    await start(bench)
+    await bench.runtime.set_rules([{"template": "{{ false }}", "schedule": "away"}], "holiday")
+    await bench.activate_schedule("Normal")  # chosen by hand over the rules
+    assert await respond(bench, "get_schedules") == {
+        "schedules": [
+            {"id": "normal", "name": "Normal", "entity_id": "switch.chauffage_schedule_normal"},
+            {"id": "away", "name": "Away", "entity_id": "switch.chauffage_schedule_away"},
+            {"id": "holiday", "name": "Holiday", "entity_id": "switch.chauffage_schedule_holiday"},
+        ],
+        "active_schedule": "normal",
+        "rules_choice": "holiday",
+        "default_schedule": "holiday",
+    }
+
+
+async def test_a_script_reads_the_week_of_thermostats(bench: Bench):
+    """As Home Assistant's schedule.get_schedule: by thermostat, then by day, each slot until the
+    next one (the last one until the end of the day)."""
+    await start(bench)
+    bench.thermostat("climate.bureau", "eco")
+    await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco")), "away": every_day(("00:00", "frost"))}})
+    response = await respond(bench, "get_week", entity_id=["climate.salon", "climate.bureau"])
+    salon = response["climate.salon"]
+    assert salon["schedule"] == "normal"
+    assert salon["monday"][:2] == [{"start": "00:00", "end": "06:30", "preset": "eco"},
+                                   {"start": "06:30", "end": "08:30", "preset": "comfort"}]
+    assert salon["sunday"][-1] == {"start": "22:30", "end": "24:00", "preset": "eco"}
+    away = await respond(bench, "get_week", entity_id="climate.bureau", schedule="away")
+    assert away == {"climate.bureau": {"schedule": "away", **{
+        day: [{"start": "00:00", "end": "24:00", "preset": "frost"}]
+        for day in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    }}}
+
+
+async def test_reading_the_week_of_an_unknown_thermostat_or_schedule_says_so(bench: Bench):
+    await start(bench)
+    with pytest.raises(ServiceValidationError, match="climate.cuisine"):
+        await respond(bench, "get_week", entity_id="climate.cuisine")
+    with pytest.raises(ServiceValidationError, match="holidays"):
+        await respond(bench, "get_week", entity_id="climate.salon", schedule="holidays")
+
+
 async def test_services_refuse_thermostats_without_a_schedule(bench: Bench):
     await start(bench)
     with pytest.raises(ServiceValidationError):

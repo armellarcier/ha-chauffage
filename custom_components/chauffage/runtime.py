@@ -44,7 +44,11 @@ from .const import (
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
     DOMAIN,
+    EVENT_OVERRIDE_ENDED,
+    EVENT_OVERRIDE_STARTED,
+    EVENT_SCHEDULE_ACTIVATED,
     THERMOSTAT_ENTITIES,
+    schedule_unique_id,
     thermostat_unique_id,
 )
 from .store import SAVE_DELAY, ChauffageStore
@@ -259,6 +263,13 @@ class ChauffageRuntime:
                 out[preset_id] = target.as_dict()
         return out
 
+    def preset_temperatures_of(self, entity_id: str) -> dict[str, float]:
+        """{preset id: temperature} on a thermostat: its own for a temperature, the one its own
+        preset gives (published, else learned) for a climate preset; unknown ones left out."""
+        own = self.temperatures_of(self.hass.states.get(entity_id))
+        temperatures = {p: t.get("temperature", own.get(t.get("preset"))) for p, t in self.targets_of(entity_id).items()}
+        return {p: t for p, t in temperatures.items() if t is not None}
+
     def snapshot(self) -> dict[str, Any]:
         """Everything the card needs."""
         return {
@@ -284,7 +295,15 @@ class ChauffageRuntime:
             "renamed": self.data["renamed"],
             "planned": self.planned_presets(),
             "version": self.version,
+            "schedule_entities": self.schedule_entities(),
         }
+
+    def schedule_entities(self) -> dict[str, str]:
+        """{schedule id: entity id of its switch}: the card shows the icon chosen for it in HA."""
+        registry = er.async_get(self.hass)
+        entities = {s: registry.async_get_entity_id("switch", DOMAIN, schedule_unique_id(self.entry.entry_id, s))
+                    for s in self.schedule_ids}
+        return {s: entity_id for s, entity_id in entities.items() if entity_id}
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
         """(preset now, next preset, its start) for a thermostat in the active schedule."""
@@ -355,7 +374,7 @@ class ChauffageRuntime:
             return
         self.thermostats[entity_id]["paused"] = paused
         if paused:
-            self.data["overrides"].pop(entity_id, None)
+            self._drop_override(entity_id, "paused")
             self._retry.discard(entity_id)
         self._track_thermostats()
         self._changed()
@@ -368,7 +387,7 @@ class ChauffageRuntime:
         as it is. A new revision: a card's copy that still holds it must reload before saving."""
         if self.thermostats.pop(entity_id, None) is None:
             raise model.InvalidData(f"not scheduled: {entity_id}")
-        self.data["overrides"].pop(entity_id, None)
+        self._drop_override(entity_id, "forgotten")
         self._retry.discard(entity_id)
         self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
         repairs.close_missing(self.hass, entity_id)
@@ -392,6 +411,8 @@ class ChauffageRuntime:
             repairs.close_missing(self.hass, entity_id)  # made again with the same id
         elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
             self._renamed(event.data["old_entity_id"], entity_id)
+        if action != "remove" and entity_id.startswith("switch.") and entity_id in self.schedule_entities().values():
+            self._notify()  # a schedule's switch registered or renamed: the cards show its icon
 
     @callback
     def _renamed(self, old: str, new: str) -> None:
@@ -411,7 +432,7 @@ class ChauffageRuntime:
                 if entity_id := registry.async_get_entity_id(platform, DOMAIN, unique_id(new, key)):
                     registry.async_remove(entity_id)
             repairs.close_missing(self.hass, new)
-        self.data["overrides"].pop(new, None)
+        self._drop_override(new, "forgotten")
         self.thermostats[new] = self.thermostats.pop(old)
         self._weeks_changed([new])
         if old in self.data["overrides"]:
@@ -505,13 +526,18 @@ class ChauffageRuntime:
         self._changed()
         return copy.deepcopy(schedules)
 
-    async def activate_schedule(self, schedule_id: str) -> None:
+    async def activate_schedule(self, schedule_id: str, *, source: str) -> None:
+        """`source` (card, entity, service, rules) is told in the chauffage_schedule_activated event."""
         if schedule_id not in self.schedule_ids:
             raise model.InvalidData(f"unknown schedule: {schedule_id}")
         if schedule_id == self.data["active_schedule"]:
             return
-        self.data["active_schedule"] = schedule_id
+        previous, self.data["active_schedule"] = self.data["active_schedule"], schedule_id
         self._changed()
+        self.hass.bus.async_fire(EVENT_SCHEDULE_ACTIVATED, {
+            "schedule": schedule_id, "schedule_name": self.schedule_name(schedule_id),
+            "previous_schedule": previous, "source": source,
+        })
         await self.apply(force=True)
 
     # ----- activation rules -----
@@ -601,11 +627,13 @@ class ChauffageRuntime:
         elif notify:
             self._notify(DATA)
         if outcome is not None and (changed or force):
-            await self.activate_schedule(outcome)
+            await self.activate_schedule(outcome, source="rules")
 
-    async def set_override(self, entity_id: str, override: dict[str, Any] | None, *, resend: bool = False) -> None:
+    async def set_override(self, entity_id: str, override: dict[str, Any] | None, *, source: str,
+                           resend: bool = False) -> None:
         """Create / change / extend (override) or remove (None) a thermostat's override, from the
-        card or the service.
+        card or the service (`source`, told in the events; "thermostat" for a change on it back to
+        the schedule).
 
         A temperature is fitted to the thermostat (limits, step). A new override or a new value
         is sent to the thermostat unless it already has it; a new end alone is not, unless
@@ -615,7 +643,7 @@ class ChauffageRuntime:
         if override is not None and self.is_paused(entity_id):
             raise ThermostatPaused(f"paused: {entity_id}")
         if override is None:
-            if self.data["overrides"].pop(entity_id, None) is None:
+            if not self._drop_override(entity_id, source):
                 return
             self._changed()
             await self.apply(resumed=entity_id)
@@ -634,15 +662,41 @@ class ChauffageRuntime:
             )
             if not await self.call_climate(service, entity_id, data):
                 raise ThermostatFailed(entity_id)
-        self.data["overrides"][entity_id] = override
+        self._keep_override(entity_id, override, source)
         self._changed()
 
     @callback
     def record_override(self, entity_id: str, override: dict[str, Any]) -> None:
         """The override of a change by hand, only recorded: the thermostat set it itself, and
         sending it back could undo a second change made meanwhile."""
-        self.data["overrides"][entity_id] = model.normalize_override(override)
+        self._keep_override(entity_id, model.normalize_override(override), "thermostat")
         self._changed()
+
+    def override_info(self, entity_id: str) -> dict[str, Any]:
+        """A thermostat's override as automations see it (sensor, event): kind, value, the preset
+        it was set to, its end in local time (None without override)."""
+        override = self.data["overrides"].get(entity_id) or {}
+        end = engine.parse_datetime(override.get("end"))
+        return {key: override.get(key) for key in ("kind", "value", "preset")} | {
+            "end": dt_util.as_local(end).isoformat() if end else None,
+        }
+
+    @callback
+    def _keep_override(self, entity_id: str, override: dict[str, Any], source: str) -> None:
+        """Records an override; a new one, or a new value, is told (an end alone is not)."""
+        before = self.data["overrides"].get(entity_id)
+        self.data["overrides"][entity_id] = override
+        if before is None or any(before.get(key) != override.get(key) for key in ("kind", "value", "preset")):
+            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED,
+                                     {"entity_id": entity_id, **self.override_info(entity_id), "source": source})
+
+    @callback
+    def _drop_override(self, entity_id: str, reason: str) -> bool:
+        """Removes a thermostat's override, and tells why; False if it had none."""
+        if self.data["overrides"].pop(entity_id, None) is None:
+            return False
+        self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason})
+        return True
 
     def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
         start = dt_util.now().replace(microsecond=0)
@@ -707,11 +761,13 @@ class ChauffageRuntime:
     async def _tick(self, now: datetime) -> None:
         ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
         since, self._last_tick = self._last_tick, dt_util.now()
-        await self.apply(ended=ended, since=since)
+        # Dropped before the slots are applied (which takes a while): one set again meanwhile is a
+        # new override, sent to the thermostat
+        for entity_id in ended:
+            self._drop_override(entity_id, "expired")
         if ended:
-            for entity_id in ended:
-                self.data["overrides"].pop(entity_id, None)
             self._changed()
+        await self.apply(ended=ended, since=since)
         self._notify(TICK)
 
     # ----- manual changes -----
@@ -771,6 +827,7 @@ class ChauffageRuntime:
             return
         if change == engine.RESUME:
             if new.entity_id in self.data["overrides"]:
-                self.entry.async_create_task(self.hass, self.set_override(new.entity_id, None), "chauffage resume")
+                resume = self.set_override(new.entity_id, None, source="thermostat")
+                self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
         self.record_override(new.entity_id, self.new_override(*change))

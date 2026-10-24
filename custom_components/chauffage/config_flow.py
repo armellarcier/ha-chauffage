@@ -31,7 +31,7 @@ class ChauffageConfigFlow(ConfigFlow, domain=DOMAIN):
     """Creates the integration's only entry (single_config_entry in the manifest)."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2  # 2: the planned preset sensors enabled (__init__.async_migrate_entry)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         try:

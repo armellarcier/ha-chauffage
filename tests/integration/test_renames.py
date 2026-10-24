@@ -63,12 +63,14 @@ async def test_a_renamed_thermostat_stays_paused(bench: Bench):
 async def test_its_entities_keep_their_ids_and_settings(bench: Bench):
     await start(bench)
     registry = er.async_get(bench.hass)
-    registry.async_update_entity("sensor.salon_schedule", disabled_by=None)  # enabled by the user
+    registry.async_update_entity("sensor.salon_override_end", disabled_by=None)  # enabled by the user
     await rename(bench)
     await bench.hass.async_block_till_done()
     switch = registry.async_get("switch.salon_control")
     assert switch is not None and switch.unique_id.endswith("climate.sejour_control")
-    sensor = registry.async_get("sensor.salon_schedule")
+    override = registry.async_get("binary_sensor.salon_override")
+    assert override is not None and override.unique_id.endswith("climate.sejour_override")
+    sensor = registry.async_get("sensor.salon_override_end")
     assert sensor is not None and sensor.disabled_by is None
     assert bench.hass.states.get("switch.salon_control").state == "on"
     assert registry.async_get_entity_id("switch", "chauffage", f"{bench.entry.entry_id}_climate.salon_control") is None
@@ -85,8 +87,8 @@ async def test_its_entities_are_kept_through_a_change_made_before_the_reload(ben
     assert reloads == [bench.entry.entry_id]
     await bench.runtime.set_mapping("climate.sejour", {"comfort": {"temperature": 19.5}})  # before the reload
     await bench.hass.async_block_till_done()
-    assert registry.async_get("sensor.salon_schedule") is not None
-    assert registry.async_get("switch.salon_control") is not None
+    for entity_id in ("sensor.salon_planned_preset", "binary_sensor.salon_override", "switch.salon_control"):
+        assert registry.async_get(entity_id) is not None
     assert "does not generate unique IDs" not in caplog.text
 
 

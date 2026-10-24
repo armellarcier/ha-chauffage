@@ -33,6 +33,11 @@ DEFAULT_SCHEDULES = {
     "fr": ["Normal"],
 }
 
+# Events, for automations (data: README, "Events")
+EVENT_OVERRIDE_STARTED = f"{DOMAIN}_override_started"
+EVENT_OVERRIDE_ENDED = f"{DOMAIN}_override_ended"
+EVENT_SCHEDULE_ACTIVATED = f"{DOMAIN}_schedule_activated"
+
 # The active-schedule select entity (same id whatever the language: automations refer to it)
 SCHEDULE_ENTITY = "select.chauffage_schedule"
 
@@ -43,11 +48,19 @@ PACKAGE_MODE = "input_select.mode_chauffage"
 PACKAGE_AUTOMATIONS = ("chauffage_programmes_hebdo", "chauffage_derogation_manuelle")  # unique ids
 PACKAGE_DATA_VERSION = 1  # newest package data version the import understands
 
-# Keys of the entities of each scheduled thermostat, and their platforms
-SCHEDULE_KEY, OVERRIDE_END_KEY, CONTROL_KEY = "schedule", "override_end", "control"
-THERMOSTAT_ENTITIES = {SCHEDULE_KEY: "sensor", OVERRIDE_END_KEY: "sensor", CONTROL_KEY: "switch"}
+# Keys of the entities of each scheduled thermostat, and their platforms. The planned preset
+# sensor keeps its former key, "schedule": its unique id, so existing entity ids do not change
+PLANNED_PRESET_KEY, OVERRIDE_KEY, OVERRIDE_END_KEY, CONTROL_KEY = "schedule", "override", "override_end", "control"
+THERMOSTAT_ENTITIES = {
+    PLANNED_PRESET_KEY: "sensor", OVERRIDE_KEY: "binary_sensor", OVERRIDE_END_KEY: "sensor", CONTROL_KEY: "switch",
+}
 
 
 def thermostat_unique_id(entry_id: str, climate: str, key: str) -> str:
     """The unique id of a scheduled thermostat's entity."""
     return f"{entry_id}_{climate}_{key}"
+
+
+def schedule_unique_id(entry_id: str, schedule_id: str) -> str:
+    """The unique id of a schedule's switch."""
+    return f"{entry_id}_schedule_{schedule_id}"

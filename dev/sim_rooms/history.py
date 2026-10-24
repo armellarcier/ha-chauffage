@@ -71,7 +71,7 @@ def _setpoints(hass: HomeAssistant) -> Callable[[str, datetime], tuple[str, floa
     runtime = entries[0].runtime_data
     data = runtime.data
     presets = {p["id"]: p.get("temperature") for p in data["presets"]}
-    learned = runtime.preset_temperatures
+    learned = runtime.learned_temperatures
 
     def at(entity_id: str, t: datetime) -> tuple[str, float]:
         week = runtime.weeks.get(entity_id, {}).get(data["active_schedule"]) or [[["00:00", "eco"]]] * 7

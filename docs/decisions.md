@@ -153,7 +153,7 @@ future contributor might question.
 - **A scheduled thermostat is stored data, not a device or an entity**: a `climate` entity and
   what Chauffage knows about it (weeks, values of the presets, learned temperatures, paused or
   not), by its entity id. It is seen in HA through the entities made for
-  it (a switch, two sensors), attached to the thermostat's device like HA's own helpers; a
+  it (a switch, three sensors), attached to the thermostat's device like HA's own helpers; a
   device of ours per thermostat would double the devices and put the living room's settings
   somewhere else than the living room's thermostat. A thermostat without a device (a
   `generic_thermostat` written in YAML) gets entities without a device, named after it, as HA
@@ -175,8 +175,7 @@ future contributor might question.
 - **A switch per scheduled thermostat (*Control*, *Pilotage*)**, on: controlled, off: paused. Not
   *Scheduling* (*Programmation*): a paused thermostat is still scheduled (it keeps its weeks), so
   a switch named after the schedule read "off" on a thermostat the card lists as scheduled. A
-  configuration entity (`entity_category: config`), enabled by default: on the device's page with
-  its settings, in automations, not in the generated *Overview* dashboard nor exposed to Assist.
+  plain entity since 0.6 (see "Entities"), a configuration entity before.
   No service for pausing (the switch is enough), none for forgetting (dropping data is chosen in
   the card, or in the repair of an entity gone).
 - **In the card, a paused thermostat stays**, marked paused with a *Resume* button; its weeks
@@ -214,6 +213,72 @@ future contributor might question.
   showed for it); one with only values of the presets was not controlled (left behind when it was
   removed from the card), they are kept and it is still not scheduled. Ready for groups of
   thermostats (roadmap), whose weeks would be owned by a group.
+
+## Entities
+
+What ha-chauffage knows is shown in Home Assistant itself, so that it can be seen and used in
+dashboards, automations, scripts and by voice without the card
+([#31](https://github.com/armellarcier/ha-chauffage/issues/31)).
+
+- **Entities hold no state of their own.** The stored data stays the only state (the active
+  schedule, the weeks, the overrides, the paused thermostats); entities show it and change it
+  through the same methods as the card (`activate_schedule`, `set_paused`…). The select and the
+  schedule switches cannot disagree.
+- **Home Assistant's own building blocks**: an entity's name and icon are customized in Home
+  Assistant (entity registry), not stored by ha-chauffage. The card reads the icon chosen for a
+  schedule's switch (`hass.entities`) and shows it on the schedule's tab; no icon by default (the
+  same icon on every tab would only take room). The schedule's name in ha-chauffage stays the
+  reference: a name changed in Home Assistant only applies in Home Assistant.
+- **The *Control* switch is a plain entity**, not a configuration one: pausing a thermostat is
+  an everyday action, not a setting. Home Assistant marks the device triggers, conditions and
+  actions of configuration entities as secondary, and does not expose them to Assist. Switches
+  made before keep the Assist exposure chosen then (Home Assistant stores it when it first sees
+  an entity): said in the README rather than changed behind the user's back.
+- **One switch per schedule** (*Holidays schedule*, *Planning Vacances*), on the *Chauffage*
+  device, beside the select (kept, to pick among all at once): a schedule becomes something
+  that can be turned on from a dashboard button, a scene or by voice. Radio buttons: turning one
+  on activates it and turns the previous one off. **The active one cannot be turned off**: there
+  is always an active schedule, and turning it off would not say which one to activate; the
+  service is refused with a message that says to turn another one on (a silent refusal looked
+  like a bug). Named "*<name>* schedule", not "*<name>* active": "turn on the Holidays schedule"
+  reads naturally by voice, the state says whether it is active; and not to be confused with the
+  per-thermostat *Control* switch, which says **whether** a thermostat follows its weeks, a
+  schedule switch says **which** weeks are read. Entity id `switch.chauffage_schedule_<id>`
+  whatever the language and the name (automations and docs refer to it, like
+  `select.chauffage_schedule`); unique id from the schedule's id, so a rename keeps it and its
+  name follows the schedule's.
+- **No entity per preset** (a temperature `number` per thermostat and preset): thermostats ×
+  presets would make many entities, and on a thermostat with presets of its own the temperature
+  belongs to the thermostat. The *Planned preset* sensor gives them in its `temperatures`
+  attribute (not `targets`: the sensor already has `target`, what a preset means, a preset or a
+  temperature).
+- **The *Schedule* sensor became *Planned preset***: it shows a preset, and would have been
+  confused with the schedule switches. Its unique id does not change, so existing entity ids
+  and automations are kept.
+- **Enabled by default: *Planned preset* and *Override*** (a binary sensor, simpler in
+  automations than a timestamp, its attributes carrying the end). The device page then shows
+  what ha-chauffage plans and whether there is an override, and the device's logbook reads like
+  the history of its decisions; the cost is a few more entities in the generated *Overview*
+  dashboard. The *Override end* sensor stays disabled by default: "Unknown" most of the time
+  looks like an error; kept for those who want the end as a state. Installations from before
+  enable *Planned preset* once (config entry 1.2), unless the user disabled it.
+- **On a paused thermostat the sensors are unavailable**, Home Assistant's convention for a
+  value that has no meaning.
+- **No "resume the rules" service.** Rules are never disabled: a schedule chosen by hand stays
+  until their outcome changes, then they take over again by themselves. The select's
+  `rules_choice` attribute shows what they give, and an automation can activate it.
+- **Events, not more entities, for what happens**: `chauffage_override_started` /
+  `_ended`, `chauffage_schedule_activated`. They make visible what was not (a manual change
+  turned into an override) and are the base for device triggers later. Who started an override
+  (`source`: thermostat, card, service) is kept apart from why it ended (`reason`: expired,
+  thermostat, card, service, paused, forgotten). An override whose end alone changes is not
+  started again (the binary sensor carries the end). No logbook descriptions of our own: the
+  entities' changes are already in the logbook, the events would repeat them.
+- **Services with a response for structured data** (`get_schedules`, `get_week`) instead of
+  more entities. `get_week` answers as Home Assistant's `schedule.get_schedule` does: by entity,
+  then by day name, each slot with its start and end.
+- **Override ends in local time** in the binary sensor and the events, whoever set them (the
+  card sends UTC): automations read one format.
 
 ## Card
 

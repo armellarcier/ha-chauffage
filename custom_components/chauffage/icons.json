@@ -5,11 +5,16 @@
     },
     "switch": {
       "control": { "default": "mdi:play-circle-outline", "state": { "off": "mdi:pause-circle-outline" } },
-      "control_of": { "default": "mdi:play-circle-outline", "state": { "off": "mdi:pause-circle-outline" } }
+      "control_of": { "default": "mdi:play-circle-outline", "state": { "off": "mdi:pause-circle-outline" } },
+      "schedule": { "default": "mdi:calendar-check", "state": { "off": "mdi:calendar-blank-outline" } }
+    },
+    "binary_sensor": {
+      "override": { "default": "mdi:timer-off-outline", "state": { "on": "mdi:timer-cog-outline" } },
+      "override_of": { "default": "mdi:timer-off-outline", "state": { "on": "mdi:timer-cog-outline" } }
     },
     "sensor": {
-      "schedule": { "default": "mdi:calendar-clock" },
-      "schedule_of": { "default": "mdi:calendar-clock" },
+      "planned_preset": { "default": "mdi:calendar-clock" },
+      "planned_preset_of": { "default": "mdi:calendar-clock" },
       "override_end": { "default": "mdi:timer-cog-outline" },
       "override_end_of": { "default": "mdi:timer-cog-outline" }
     }
@@ -17,6 +22,8 @@
   "services": {
     "set_override": { "service": "mdi:timer-plus-outline" },
     "clear_override": { "service": "mdi:calendar-sync" },
-    "activate_schedule": { "service": "mdi:calendar-check" }
+    "activate_schedule": { "service": "mdi:calendar-check" },
+    "get_schedules": { "service": "mdi:calendar-multiple" },
+    "get_week": { "service": "mdi:calendar-week" }
   }
 }
