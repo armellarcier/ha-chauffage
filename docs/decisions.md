@@ -157,7 +157,9 @@ thermostat it loaded.
   not, the cards that show it), by its entity id. It is seen in HA through the entities made for
   it (a switch, two sensors), attached to the thermostat's device like HA's own helpers; a
   device of ours per thermostat would double the devices and put the living room's settings
-  somewhere else than the living room's thermostat.
+  somewhere else than the living room's thermostat. A thermostat without a device (a
+  `generic_thermostat` written in YAML) gets entities without a device, named after it, as HA
+  does for any entity without one; not the *Chauffage* service device.
 - **Adding a thermostat in a card schedules it**, active, with the default week: no list to
   fill in, no step before the card works.
 - **Paused: kept, not driven.** A paused thermostat keeps everything; Chauffage sends it
