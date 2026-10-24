@@ -97,6 +97,18 @@ async def test_entities_follow_the_scheduled_thermostats(bench: Bench):
     assert registry.async_get("switch.bureau_scheduling") is not None
 
 
+async def test_a_forgotten_thermostat_s_disabled_sensors_leave_the_registry(bench: Bench):
+    """Disabled by default, they are never added to HA: no registry entry left behind."""
+    await start(bench)
+    registry = er.async_get(bench.hass)
+    assert registry.async_get("sensor.salon_schedule").disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    await bench.runtime.forget("climate.salon")
+    await bench.hass.async_block_till_done()
+    assert registry.async_get("sensor.salon_schedule") is None
+    assert registry.async_get("sensor.salon_override_end") is None
+    assert registry.async_get("switch.salon_scheduling") is None
+
+
 async def test_sensors_are_attached_to_the_thermostat_s_device(bench: Bench):
     other = MockConfigEntry(domain="test")
     other.add_to_hass(bench.hass)

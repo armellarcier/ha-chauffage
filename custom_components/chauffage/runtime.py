@@ -223,11 +223,12 @@ class ChauffageRuntime:
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
         """What each preset means for a thermostat (mapping set by hand, else the default)."""
-        plan = self.plan()
+        presets = {preset["id"]: preset for preset in self.data["presets"]}
+        mapping = self.thermostats.get(entity_id, {}).get("mapping") or None
         current = thermostat(self.hass.states.get(entity_id))
         out = {}
-        for preset_id in plan.presets:
-            target = engine.resolve(preset_id, plan.presets, plan.mappings.get(entity_id), current, plan.use_presets)
+        for preset_id in presets:
+            target = engine.resolve(preset_id, presets, mapping, current, self.use_presets)
             if target:
                 out[preset_id] = target.as_dict()
         return out
