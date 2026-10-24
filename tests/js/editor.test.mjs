@@ -2,7 +2,7 @@
 // editors: one row per thermostat (drag handle, picker, remove, edit), the edit button opening
 // that thermostat's page (its optional name). HA's elements (<ha-entity-picker>, <ha-form>…)
 // are not loaded in the tests: the tests send the events they send.
-import { fakeHass, ChauffageProgrammeCard } from './helpers.mjs';
+import { fakeHass, integrationData, ChauffageProgrammeCard } from './helpers.mjs';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -10,9 +10,9 @@ const ENGLISH = { language: 'en', time_format: 'language', number_format: 'langu
 const TYPE = 'custom:chauffage-programme-card';
 
 // The minimum supported Home Assistant, unless a test says otherwise
-function editorFor(config, { locale, version = '2025.1.0', formatEntityName } = {}) {
+function editorFor(config, { locale, version = '2025.1.0', formatEntityName, data } = {}) {
   const editor = ChauffageProgrammeCard.getConfigElement();
-  const hass = fakeHass(locale ? { locale } : {});
+  const hass = fakeHass({ ...(locale ? { locale } : {}), ...(data ? { data } : {}) });
   hass.config.version = version;
   if (formatEntityName) hass.formatEntityName = formatEntityName;
   editor.hass = hass;
@@ -30,8 +30,47 @@ function editorFor(config, { locale, version = '2025.1.0', formatEntityName } = 
   // What <ha-form> sends when a field changes: the whole data, with that field changed
   const formChange = (form, patch) => value(form, { ...form.data, ...patch });
   const edit = (i) => rows()[i].querySelector('.edit').click();
-  return { editor, changes, $, $$, rows, value, formChange, edit, last: () => changes.at(-1) };
+  return { editor, hass, changes, $, $$, rows, value, formChange, edit, last: () => changes.at(-1) };
 }
+
+describe('visual editor: what Chauffage schedules', () => {
+  test('the configuration holds the thermostats shown, nothing hidden', () => {
+    const { $, value, last } = editorFor({ type: TYPE, thermostats: ['climate.salon'] });
+    value($('.add'), 'climate.bureau');
+    assert.deepEqual(last(), { type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] });
+  });
+
+  test('a scheduled thermostat removed from the card is said to stay scheduled, and where to pause or forget it', () => {
+    const { rows, $, $$, value } = editorFor({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] });
+    assert.equal($('.removed-note'), null);
+    rows()[1].querySelector('.remove').click(); // the bureau: not scheduled
+    assert.equal($('.removed-note'), null);
+    rows()[0].querySelector('.remove').click(); // the salon: scheduled
+    const note = $$('.removed-note').map((n) => n.textContent).join(' ');
+    assert.match(note, /Salon/);
+    assert.match(note, /toujours programmé/);
+    assert.match(note, /Thermostats/);
+    value($('.add'), 'climate.salon'); // added back
+    assert.equal($('.removed-note'), null);
+  });
+
+  test('a thermostat renamed in Home Assistant is said under its row, with a button to use its new id', () => {
+    const data = { ...integrationData(), renamed: { 'climate.salon': 'climate.sejour' } };
+    const { editor, hass, $, last } = editorFor({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] }, { data });
+    delete hass.states['climate.salon'];
+    editor.setConfig({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] });
+    assert.match($('.renamed-note').textContent, /climate\.sejour/);
+    $('.renamed-note button').click();
+    assert.deepEqual(last().thermostats, ['climate.sejour', 'climate.bureau']);
+    assert.equal($('.renamed-note'), null);
+  });
+
+  test('no notice for an id a thermostat has again', () => {
+    const data = { ...integrationData(), renamed: { 'climate.salon': 'climate.sejour' } };
+    const { $ } = editorFor({ type: TYPE, thermostats: ['climate.salon'] }, { data });
+    assert.equal($('.renamed-note'), null);
+  });
+});
 
 describe('visual editor: the thermostats', () => {
   test('the card offers a visual editor instead of YAML only', () => {

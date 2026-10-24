@@ -38,6 +38,10 @@
         "state_attributes": { "schedule_id": { "name": "Schedule id" } }
       }
     },
+    "switch": {
+      "control": { "name": "Control" },
+      "control_of": { "name": "{thermostat} control" }
+    },
     "sensor": {
       "schedule": {
         "name": "Schedule",
@@ -75,6 +79,18 @@
     "package_installed": {
       "title": "Remove the ha-chauffage package",
       "description": "The Chauffage integration now schedules your thermostats; the package's automations have been turned off. To finish: delete `packages/chauffage/` and `www/chauffage/` from your configuration folder, remove the `/local/chauffage/chauffage-loader.js` line from `frontend: extra_module_url` and the three `sensor.*_chauffage` lines from `recorder: exclude` in `configuration.yaml`, then restart Home Assistant. In your own automations, replace `input_select.mode_chauffage` with `{schedule_entity}`."
+    },
+    "missing": {
+      "title": "Scheduled thermostat {entity_id} is gone",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{entity_id} is gone",
+            "description": "Chauffage schedules {entity_id}, but this entity no longer exists in Home Assistant. If it was renamed or replaced, add the new thermostat to a card.",
+            "menu_options": { "forget": "Forget it (delete its weeks)", "keep": "Keep it (the entity will come back)" }
+          }
+        }
+      }
     }
   },
   "selector": {
@@ -112,6 +128,7 @@
   "exceptions": {
     "not_loaded": { "message": "The Chauffage integration is not set up." },
     "not_scheduled": { "message": "{entity_id} has no schedule." },
+    "paused": { "message": "{entity_id} is paused: resume it to set an override." },
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
     "unknown_schedule": { "message": "There is no schedule with the id {schedule}." }
   }

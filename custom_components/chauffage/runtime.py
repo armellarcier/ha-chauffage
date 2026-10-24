@@ -4,7 +4,9 @@
 - full realignment when HA starts, a schedule is activated or the weeks are saved;
 - a manual change on a scheduled thermostat becomes a temporary override;
 - activation rules: their templates are tracked, and a change of their outcome activates a
-  schedule (a schedule chosen by hand stays until then).
+  schedule (a schedule chosen by hand stays until then);
+- scheduled thermostats: kept whatever the cards show, paused or forgotten on purpose; a repair
+  proposes to forget one whose entity is gone (repairs.py), a renamed one is followed.
 
 The integration calls services with its own contexts: state changes carrying one of them are
 its own (not manual changes).
@@ -30,12 +32,21 @@ from homeassistant.helpers.event import (
     async_track_template_result,
     async_track_time_change,
 )
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
-from . import engine, model
+from . import engine, model, repairs
 from .history import TemperatureHistory
-from .const import CONF_OVERRIDE_DURATION, CONF_USE_PRESETS, DEFAULT_OVERRIDE_DURATION, DEFAULT_USE_PRESETS
+from .const import (
+    CONF_OVERRIDE_DURATION,
+    CONF_USE_PRESETS,
+    DEFAULT_OVERRIDE_DURATION,
+    DEFAULT_USE_PRESETS,
+    DOMAIN,
+    THERMOSTAT_ENTITIES,
+    thermostat_unique_id,
+)
 from .store import SAVE_DELAY, ChauffageStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +61,10 @@ class StaleRevision(Exception):
 
 class ThermostatFailed(Exception):
     """The thermostat could not be set to an override's value."""
+
+
+class ThermostatPaused(model.InvalidData):
+    """An override asked for a paused thermostat."""
 
 
 def thermostat(state: State | None) -> engine.Thermostat | None:
@@ -74,9 +89,6 @@ class ChauffageRuntime:
         self.entry = entry
         self.store = store
         self.data = data
-        # Temperature last seen for each preset of each thermostat (no standard attribute gives
-        # it): shown by the card. Not in older stored data.
-        data.setdefault("preset_temperatures", {})
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
         self._own_contexts: deque[str] = deque(maxlen=500)
         self._lock = asyncio.Lock()
@@ -88,26 +100,35 @@ class ChauffageRuntime:
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
         self._unsub_rules: Callable[[], None] | None = None
         self.rule_results: list[Any] = []  # each rule now (see render_rule)
+        # A thermostat renamed: the entry reloads to attach its entities to the new id, which
+        # follow it meanwhile (their unique ids moved); nothing to add or remove until then
+        self.reloading = False
 
     # ----- life cycle -----
 
     async def async_start(self) -> None:
         self._last_tick = dt_util.now()  # the realignment below covers the time before
         self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
+        self._unsubs.append(self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self._registry_updated))
         self._track_thermostats()
-        for entity_id in self.data["weeks"]:
+        for entity_id in self.active:
             self._learn(self.hass.states.get(entity_id))
         if self.hass.state is CoreState.running:
             self.entry.async_create_task(self.hass, self._started(), "chauffage realign")
         else:
             @callback
             def started(_event: Event) -> None:
+                self._unsubs.remove(unsub)  # a one-time listener is gone once called
                 self.entry.async_create_task(self.hass, self._started(), "chauffage realign")
 
-            self._unsubs.append(self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started))
+            unsub = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started)
+            self._unsubs.append(unsub)
 
     async def _started(self) -> None:
-        # The rules wait for HA to have started: their entities are not all there before
+        # Thermostats whose entity is gone; the rules: their entities are not all there before
+        for entity_id in self.scheduled:
+            if self.hass.states.get(entity_id) is None and er.async_get(self.hass).async_get(entity_id) is None:
+                repairs.raise_missing(self.hass, entity_id)
         self._track_rules()
         await self.follow_rules()
         await self.apply(force=True)
@@ -158,12 +179,50 @@ class ChauffageRuntime:
     def preset_ids(self) -> set[str]:
         return {preset["id"] for preset in self.data["presets"]}
 
+    @property
+    def presets_by_id(self) -> dict[str, dict[str, Any]]:
+        """The presets by id, in their order."""
+        return {preset["id"]: preset for preset in self.data["presets"]}
+
+    @property
+    def thermostats(self) -> dict[str, dict[str, Any]]:
+        """The thermostats Chauffage knows (model.py): the scheduled ones, and those with only
+        values of the presets, set before their weeks."""
+        return self.data["thermostats"]
+
+    @property
+    def scheduled(self) -> dict[str, dict[str, Any]]:
+        """The scheduled thermostats, those with weeks, paused ones included."""
+        return {entity_id: t for entity_id, t in self.thermostats.items() if t["weeks"]}
+
+    @property
+    def active(self) -> list[str]:
+        """The scheduled thermostats Chauffage controls (not paused)."""
+        return [entity_id for entity_id, t in self.scheduled.items() if not t["paused"]]
+
+    def is_paused(self, entity_id: str) -> bool:
+        return self.thermostats.get(entity_id, {}).get("paused", False)
+
+    @property
+    def weeks(self) -> dict[str, dict[str, Any]]:
+        """{thermostat: {schedule id: week}}, the thermostats' own dictionaries."""
+        return {entity_id: t["weeks"] for entity_id, t in self.scheduled.items()}
+
+    @property
+    def mappings(self) -> dict[str, dict[str, Any]]:
+        return {entity_id: t["mapping"] for entity_id, t in self.thermostats.items() if t["mapping"]}
+
+    @property
+    def preset_temperatures(self) -> dict[str, dict[str, float]]:
+        return {entity_id: t["preset_temperatures"] for entity_id, t in self.thermostats.items() if t["preset_temperatures"]}
+
     def plan(self) -> engine.Plan:
+        """What the active thermostats follow: paused ones are left out."""
         return engine.Plan(
-            self.data["weeks"],
+            {entity_id: self.thermostats[entity_id]["weeks"] for entity_id in self.active},
             self.data["active_schedule"],
-            {preset["id"]: preset for preset in self.data["presets"]},
-            self.data["mappings"],
+            self.presets_by_id,
+            self.mappings,
             self.data["overrides"],
             self.use_presets,
         )
@@ -174,11 +233,12 @@ class ChauffageRuntime:
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
         """What each preset means for a thermostat (mapping set by hand, else the default)."""
-        plan = self.plan()
+        presets = self.presets_by_id
+        mapping = self.thermostats.get(entity_id, {}).get("mapping") or None
         current = thermostat(self.hass.states.get(entity_id))
         out = {}
-        for preset_id in plan.presets:
-            target = engine.resolve(preset_id, plan.presets, plan.mappings.get(entity_id), current, plan.use_presets)
+        for preset_id in presets:
+            target = engine.resolve(preset_id, presets, mapping, current, self.use_presets)
             if target:
                 out[preset_id] = target.as_dict()
         return out
@@ -189,40 +249,157 @@ class ChauffageRuntime:
             "schedules": self.data["schedules"],
             "active_schedule": self.data["active_schedule"],
             "presets": self.data["presets"],
-            "mappings": self.data["mappings"],
-            "targets": {e: self.targets_of(e) for e in self.data["weeks"]},
-            "weeks": self.data["weeks"],
+            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"]} for e, t in self.scheduled.items()},
+            "mappings": self.mappings,
+            "targets": {e: self.targets_of(e) for e in self.scheduled},
+            "weeks": self.weeks,
             "overrides": self.data["overrides"],
-            "preset_temperatures": self.data["preset_temperatures"],
+            "preset_temperatures": self.preset_temperatures,
             "use_presets": self.use_presets,
             "revision": self.data["revision"],
             "override_duration": self.override_duration,
             "rules": self.data["rules"],
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
+            "renamed": self.data["renamed"],
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
         """(preset now, next preset, its start) for a thermostat in the active schedule."""
-        week = self.data["weeks"].get(entity_id, {}).get(self.data["active_schedule"])
+        week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
         if not week:
             return None, None, None
         return engine.current_and_next(week, now or dt_util.now())
 
     # ----- writing -----
 
-    async def save_weeks(self, weeks: Any, revision: int | None = None) -> None:
+    def _weeks_changed(self, entity_ids: Any) -> None:
+        """New revisions for these thermostats: a copy of their weeks made before is outdated."""
+        for entity_id in entity_ids:
+            self.thermostats[entity_id]["revision"] += 1
+
+    def _thermostat(self, entity_id: str) -> dict[str, Any]:
+        """The thermostat's data, made for a thermostat the card brings: scheduled, active, once
+        it has weeks."""
+        return self.thermostats.setdefault(entity_id, model.new_thermostat())
+
+    async def save_weeks(self, weeks: Any, revision: int | None = None,
+                         revisions: dict[str, int | None] | None = None) -> None:
+        """The weeks of the thermostats sent; the others keep theirs: a thermostat a card does
+        not show stays scheduled (#27), only forget() drops it. A thermostat keeps its weeks in
+        the schedules not sent, and gets the week of a new schedule in those it had none in: a
+        scheduled thermostat has a week in every schedule. Saved against the revision of each
+        thermostat sent (`revisions`; None: not scheduled when the copy was made), or the global
+        one (`revision`, older cards). StaleRevision if one of them changed."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
-        self.data["weeks"] = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
-        for entity_id in set(self.data["preset_temperatures"]) - set(self.data["weeks"]):
-            del self.data["preset_temperatures"][entity_id]
+        normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
+        if any(self._renamed_to(entity_id) for entity_id in normalized):
+            raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
+        if revisions is not None:
+            scheduled = self.scheduled
+            for entity_id in normalized:
+                current = scheduled.get(entity_id, {}).get("revision")
+                if revisions.get(entity_id) != current:
+                    raise StaleRevision
+        schedule_ids = [schedule["id"] for schedule in self.data["schedules"]]
+        preset_ids = list(self.presets_by_id)
+        for entity_id, by_schedule in normalized.items():
+            t = self._thermostat(entity_id)
+            t["weeks"] = model.complete_weeks({**t["weeks"], **by_schedule}, schedule_ids, preset_ids)
+        self._weeks_changed(normalized)
         self.data["revision"] += 1
         self._track_thermostats()
-        for entity_id in self.data["weeks"]:
+        for entity_id in self.active:
             self._learn(self.hass.states.get(entity_id))
         self._changed()
         await self.apply(force=True)
+
+    async def set_paused(self, entity_id: str, paused: bool) -> None:
+        """Pause (kept, not controlled, its override dropped and the thermostat left as it is) or
+        resume (realigned at once)."""
+        if entity_id not in self.scheduled:
+            raise model.InvalidData(f"not scheduled: {entity_id}")
+        if self.is_paused(entity_id) == paused:
+            return
+        self.thermostats[entity_id]["paused"] = paused
+        if paused:
+            self.data["overrides"].pop(entity_id, None)
+            self._retry.discard(entity_id)
+        self._track_thermostats()
+        self._changed()
+        if not paused:
+            self._learn(self.hass.states.get(entity_id))
+            await self.apply(include={entity_id})
+
+    async def forget(self, entity_id: str) -> None:
+        """No longer scheduled: its data, override and entities are dropped, the thermostat left
+        as it is. A new revision: a card's copy that still holds it must reload before saving."""
+        if self.thermostats.pop(entity_id, None) is None:
+            raise model.InvalidData(f"not scheduled: {entity_id}")
+        self.data["overrides"].pop(entity_id, None)
+        self._retry.discard(entity_id)
+        self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
+        repairs.close_missing(self.hass, entity_id)
+        self.data["revision"] += 1
+        self._track_thermostats()
+        self._changed()
+
+    def _renamed_to(self, entity_id: str) -> str | None:
+        """The new id of a thermostat renamed from this one, unless the id is taken again."""
+        current = self.data["renamed"].get(entity_id)
+        if current is None or entity_id in self.thermostats or self.hass.states.get(entity_id) is not None:
+            return None
+        return current
+
+    @callback
+    def _registry_updated(self, event: Event) -> None:
+        action, entity_id = event.data.get("action"), event.data.get("entity_id")
+        if action == "remove" and entity_id in self.scheduled:
+            repairs.raise_missing(self.hass, entity_id)
+        elif action == "create" and entity_id in self.scheduled:
+            repairs.close_missing(self.hass, entity_id)  # made again with the same id
+        elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
+            self._renamed(event.data["old_entity_id"], entity_id)
+
+    @callback
+    def _renamed(self, old: str, new: str) -> None:
+        """A thermostat renamed in Home Assistant: its data and override move to the new id
+        (`renamed` tells the cards still holding the former one), its entities keep their ids and
+        settings (their unique ids follow), and the entry is reloaded to attach them to the new
+        id. A new revision: a card's copy of the weeks holds
+        the former id. Data still held under the new id (an entity gone, kept in its repair) is
+        dropped with its entities: the renamed thermostat is the one that exists."""
+        registry = er.async_get(self.hass)
+        # Exact unique ids: climate.salon_bas's also start with "<entry>_climate.salon_"
+        def unique_id(climate: str, key: str) -> str:
+            return thermostat_unique_id(self.entry.entry_id, climate, key)
+
+        if self.thermostats.pop(new, None) is not None:
+            for key, platform in THERMOSTAT_ENTITIES.items():
+                if entity_id := registry.async_get_entity_id(platform, DOMAIN, unique_id(new, key)):
+                    registry.async_remove(entity_id)
+            repairs.close_missing(self.hass, new)
+        self.data["overrides"].pop(new, None)
+        self.thermostats[new] = self.thermostats.pop(old)
+        self._weeks_changed([new])
+        if old in self.data["overrides"]:
+            self.data["overrides"][new] = self.data["overrides"].pop(old)
+        renamed = self.data["renamed"]
+        for former, current in list(renamed.items()):
+            if current == old:
+                renamed[former] = new
+        renamed[old] = new
+        renamed.pop(new, None)  # renamed back
+        repairs.close_missing(self.hass, old)
+        for key, platform in THERMOSTAT_ENTITIES.items():
+            entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id(old, key))
+            if entity_id:
+                registry.async_update_entity(entity_id, new_unique_id=unique_id(new, key))
+        self.data["revision"] += 1
+        # Not notified: the entities wait for the reload (see reloading), which saves the data
+        self.reloading = True
+        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
 
     async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:
         """New list of presets; a removed preset is replaced in the weeks by the preset given
@@ -239,20 +416,23 @@ class ChauffageRuntime:
             raise model.InvalidData("at least one preset is needed")
         removed = self.preset_ids - taken
         replacements = replacements or {}
-        used = set(model.used_presets(self.data["weeks"]))
+        used = set(model.used_presets(self.weeks))
         for preset_id in removed & used:
             if replacements.get(preset_id) not in taken:
                 raise model.InvalidData(f"{preset_id} is used in the weeks: choose a replacement")
         if removed & used:
-            for by_schedule in self.data["weeks"].values():
+            # Only the thermostats that used a removed preset: the others' weeks do not change
+            affected = {e: w for e, w in self.weeks.items() if removed & set(model.used_presets({e: w}))}
+            for by_schedule in affected.values():
                 for schedule_id, week in by_schedule.items():
                     by_schedule[schedule_id] = model.normalize_week(
                         [[[start, replacements.get(preset, preset)] for start, preset in day] for day in week]
                     )
+            self._weeks_changed(affected)
             self.data["revision"] += 1
-        for mapping in self.data["mappings"].values():
+        for t in self.thermostats.values():
             for preset_id in removed:
-                mapping.pop(preset_id, None)
+                t["mapping"].pop(preset_id, None)
         self.data["presets"] = new_presets
         self._changed()
         await self.apply(force=True)
@@ -260,17 +440,18 @@ class ChauffageRuntime:
     async def set_mapping(self, entity_id: str, mapping: Any) -> None:
         """Mapping set by hand for one thermostat ({} = defaults only)."""
         normalized = model.normalize_mapping(mapping, self.preset_ids)
-        if normalized:
-            self.data["mappings"][entity_id] = normalized
+        if normalized or entity_id in self.scheduled:
+            self._thermostat(entity_id)["mapping"] = normalized
         else:
-            self.data["mappings"].pop(entity_id, None)
+            self.thermostats.pop(entity_id, None)  # not scheduled: nothing left to keep
         self._changed()
         await self.apply(force=True)
 
     async def set_schedules(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
         """Create (empty or a copy), rename, move and delete schedules (see model.plan_schedules).
-        An empty schedule puts every scheduled thermostat in eco (or the first preset) all week.
-        The active schedule and its weeks do not change: the thermostats are not touched."""
+        An empty schedule puts every scheduled thermostat in eco (or the first preset) all week:
+        each keeps a week in every schedule. The active schedule and its weeks do not change: the
+        thermostats are not touched."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
         schedules, created = model.plan_schedules(items, self.data["schedules"], self.data["active_schedule"])
@@ -278,16 +459,16 @@ class ChauffageRuntime:
         in_rules = ({rule["schedule"] for rule in self.data["rules"]} | {self.data["default_schedule"]}) - {None}
         if in_rules - kept:
             raise model.InvalidData(f"used by the activation rules: {sorted(in_rules - kept)}")
-        preset_ids = [preset["id"] for preset in self.data["presets"]]
-        fill = "eco" if "eco" in preset_ids else preset_ids[0]
-        for weeks in self.data["weeks"].values():
+        preset_ids = list(self.presets_by_id)
+        for weeks in self.weeks.values():
             for schedule_id in set(weeks) - kept:
                 del weeks[schedule_id]
             for schedule_id, source in created.items():
-                if source is None:
-                    weeks[schedule_id] = [[["00:00", fill]] for _ in range(7)]
-                elif source in weeks:
-                    weeks[schedule_id] = copy.deepcopy(weeks[source])
+                weeks[schedule_id] = copy.deepcopy(weeks[source]) if source in weeks else model.empty_week(preset_ids)
+        # Renamed or moved: no week changes. Created or deleted: every thermostat's weeks do (a
+        # schedule deleted then created again may take the same id)
+        if created or self.schedule_ids - kept:
+            self._weeks_changed(self.scheduled)
         self.data["schedules"] = schedules
         self.data["revision"] += 1
         self._changed()
@@ -398,7 +579,10 @@ class ChauffageRuntime:
         A temperature is fitted to the thermostat (limits, step). A new override or a new value
         is sent to the thermostat unless it already has it; a new end alone is not, unless
         `resend` (the service: an automation setting it again puts back a thermostat that lost
-        it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached."""
+        it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached; none
+        on a paused thermostat."""
+        if override is not None and self.is_paused(entity_id):
+            raise ThermostatPaused(f"paused: {entity_id}")
         if override is None:
             if self.data["overrides"].pop(entity_id, None) is None:
                 return
@@ -452,11 +636,10 @@ class ChauffageRuntime:
     async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None,
                     since: datetime | None = None, include: set[str] | None = None) -> None:
         async with self._lock:
-            weeks = self.data["weeks"]
             todo = engine.targets(
                 self.plan(),
                 dt_util.now(),
-                {e: t for e in weeks if (t := thermostat(self.hass.states.get(e)))},
+                {e: t for e in self.active if (t := thermostat(self.hass.states.get(e)))},
                 force=force,
                 resumed=resumed,
                 ended=ended or (),
@@ -468,6 +651,8 @@ class ChauffageRuntime:
             for i, (entity_id, target) in enumerate(todo):
                 if i and self.pause:
                     await asyncio.sleep(self.pause)
+                if entity_id not in self.thermostats or self.is_paused(entity_id):
+                    continue  # paused or forgotten meanwhile
                 if target.kind == "preset":
                     done = await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
                 else:
@@ -494,7 +679,7 @@ class ChauffageRuntime:
     def _track_thermostats(self) -> None:
         if self._unsub_states:
             self._unsub_states()
-        entities = list(self.data["weeks"])
+        entities = self.active
         self._unsub_states = (
             async_track_state_change_event(self.hass, entities, self._state_changed) if entities else None
         )
@@ -505,9 +690,9 @@ class ChauffageRuntime:
         current = thermostat(state)
         if current is None or current.state in engine.IGNORED_STATES or current.temperature is None:
             return
-        if engine.is_manual_preset(current.preset):
+        if engine.is_manual_preset(current.preset) or state.entity_id not in self.thermostats:
             return
-        known = self.data["preset_temperatures"].setdefault(state.entity_id, {})
+        known = self.thermostats[state.entity_id]["preset_temperatures"]
         if known.get(current.preset) != current.temperature:
             known[current.preset] = current.temperature
             self._changed()
@@ -529,7 +714,7 @@ class ChauffageRuntime:
         after = thermostat(new)
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
         preset_temperature = engine.preset_temperature(
-            dict(new.attributes), expected.value, self.data["preset_temperatures"].get(new.entity_id, {})
+            dict(new.attributes), expected.value, self.thermostats[new.entity_id]["preset_temperatures"]
         ) if expected is not None and expected.kind == "preset" else None
         current = self.data["overrides"].get(new.entity_id)
         change = engine.manual_change(

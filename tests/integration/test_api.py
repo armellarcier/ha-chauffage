@@ -28,7 +28,7 @@ async def test_subscribe_sends_everything_then_every_change(bench: Bench, ws_cli
     assert (await client.receive_json())["success"]
     first = (await client.receive_json())["event"]
     assert [m["id"] for m in first["schedules"]] == ["normal", "away", "holiday"]
-    assert first["weeks"] == SCHEDULES
+    assert first["weeks"]["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
     assert (first["active_schedule"], first["revision"], first["override_duration"]) == ("normal", 1, 120)
 
     await bench.activate_schedule("Away")
@@ -41,7 +41,7 @@ async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_clien
     week = [[["00:00", "comfort"]]] * 7
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}}, "revision": 1})
     reply = await client.receive_json()
-    assert reply["success"] and reply["result"] == {"revision": 2}
+    assert reply["success"] and reply["result"]["revision"] == 2
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "comfort"}
 
@@ -52,7 +52,7 @@ async def test_saving_from_an_outdated_copy_is_refused(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}, "revision": 0})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "stale"
-    assert bench.runtime.data["weeks"] == SCHEDULES
+    assert bench.runtime.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
 
 
 async def test_invalid_schedules_are_refused(bench: Bench, ws_client):
@@ -182,3 +182,17 @@ async def test_services_refuse_thermostats_without_a_schedule(bench: Bench):
             "chauffage", "set_override", {"entity_id": "climate.cuisine", "preset": "boost"}, blocking=True
         )
 
+
+
+async def test_a_subscription_goes_on_after_the_integration_is_reloaded(bench: Bench, ws_client):
+    """Options changed, a thermostat renamed: the integration is reloaded under the open cards."""
+    await start(bench)
+    client = await ws_client(bench.hass)
+    await client.send_json_auto_id({"type": "chauffage/subscribe"})
+    assert (await client.receive_json())["success"]
+    await client.receive_json()
+    assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert (await client.receive_json())["event"]["active_schedule"] == "normal"  # sent again
+    await bench.activate_schedule("Away")
+    assert (await client.receive_json())["event"]["active_schedule"] == "away"

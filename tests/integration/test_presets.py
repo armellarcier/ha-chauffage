@@ -42,8 +42,8 @@ async def test_storage_from_v0_2_is_migrated_without_changing_anything(bench: Be
     await bench.setup()
     data = bench.runtime.data
     assert [p["id"] for p in data["presets"]] == ["comfort", "eco", "boost", "frost"]
-    assert data["mappings"] == {}
-    assert data["weeks"]["climate.salon"]["normal"][0] == WEEKDAY
+    assert bench.runtime.mappings == {}
+    assert bench.runtime.weeks["climate.salon"]["normal"][0] == WEEKDAY
     assert bench.runtime.targets_of("climate.salon")["comfort"] == {"preset": "comfort"}
 
 
@@ -58,7 +58,7 @@ async def test_a_mapping_set_by_hand_is_applied(bench: Bench):
     await bench.runtime.set_mapping("climate.bureau", {})
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.bureau": "comfort"}
-    assert "climate.bureau" not in bench.runtime.data["mappings"]
+    assert "climate.bureau" not in bench.runtime.mappings
 
 
 async def test_the_preset_s_default_temperature_follows_its_changes(bench: Bench):
@@ -90,7 +90,7 @@ async def test_removing_a_preset_used_in_the_weeks_needs_a_replacement(bench: Be
     revision = bench.runtime.data["revision"]
     await bench.runtime.set_presets(without_comfort, {"comfort": "boost"})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.data["weeks"]["climate.salon"]["normal"][0][1] == ["06:30", "boost"]
+    assert bench.runtime.weeks["climate.salon"]["normal"][0][1] == ["06:30", "boost"]
     assert bench.runtime.data["revision"] == revision + 1  # the card reloads its copy
     assert bench.applied() == {"climate.bureau": "boost"}
 
@@ -99,7 +99,7 @@ async def test_removing_a_preset_drops_its_mappings(bench: Bench):
     await start(bench)
     await bench.runtime.set_mapping("climate.bureau", {"frost": {"temperature": 8}})
     await bench.runtime.set_presets([p for p in presets(bench) if p["id"] != "frost"])
-    assert bench.runtime.data["mappings"]["climate.bureau"] == {}
+    assert bench.runtime.thermostats["climate.bureau"]["mapping"] == {}
 
 
 async def test_weeks_with_an_unknown_preset_are_refused(bench: Bench):

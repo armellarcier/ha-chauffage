@@ -213,7 +213,7 @@ describe('saving', () => {
     const [msg] = hass.events;
     assert.equal(msg.type, 'chauffage/weeks/save');
     assert.deepEqual(msg.weeks['climate.bureau'].normal[0], [['00:00', 'eco'], ['12:00', 'comfort']]);
-    assert.deepEqual(msg.weeks['climate.salon'].normal[0], WEEKDAY.map((s) => s.split(' ')));
+    assert.equal(msg.weeks['climate.salon'], undefined, 'not changed: not sent');
     assert.equal(card._dirty, false);
   });
 
