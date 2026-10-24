@@ -3,6 +3,10 @@
     "select": {
       "active_schedule": { "default": "mdi:home-thermometer" }
     },
+    "switch": {
+      "scheduling": { "default": "mdi:calendar-sync", "state": { "off": "mdi:calendar-remove" } },
+      "scheduling_of": { "default": "mdi:calendar-sync", "state": { "off": "mdi:calendar-remove" } }
+    },
     "sensor": {
       "schedule": { "default": "mdi:calendar-clock" },
       "schedule_of": { "default": "mdi:calendar-clock" },

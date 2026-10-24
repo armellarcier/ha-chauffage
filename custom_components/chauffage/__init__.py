@@ -2,7 +2,7 @@
 
 The config entry owns the stored data (.storage/chauffage) and the scheduler (runtime.py);
 the select entity changes the active schedule, sensors show each thermostat's schedule and
-override; the card talks to the integration through the websocket API (websocket.py) and is
+override, a switch per thermostat pauses it; the card talks to the integration through the websocket API (websocket.py) and is
 served by the integration (frontend.py).
 """
 
@@ -20,7 +20,7 @@ from .const import DEFAULT_SCHEDULES, DOMAIN, SCHEDULE_ENTITY
 from .runtime import ChauffageRuntime
 from .store import ChauffageStore
 
-PLATFORMS = [Platform.SELECT, Platform.SENSOR]
+PLATFORMS = [Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type ChauffageConfigEntry = ConfigEntry[ChauffageRuntime]
@@ -59,6 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     entry.runtime_data = runtime
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await runtime.async_start()
+    websocket.async_attach_subscribers(hass, runtime)  # cards open during a reload
 
     schedule_entity = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_schedule")
     importer.async_update_package_issue(hass, schedule_entity)

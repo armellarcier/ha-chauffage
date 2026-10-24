@@ -27,7 +27,7 @@ const SALON = { 'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, 
  * The data pushed by the integration (`chauffage/subscribe`). Shortcuts: `weeks` by schedule
  * name with "HH:MM preset" slots, `schedule` = name of the active schedule.
  */
-export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Normal', language = 'fr' } = {}) {
+export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Normal', language = 'fr', paused = [] } = {}) {
   const schedules = SCHEDULES();
   const idOf = (name) => schedules.find((s) => s.name === name).id;
   const out = {};
@@ -39,6 +39,8 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
     schedules,
     active_schedule: idOf(schedule),
     presets: PRESETS(language),
+    // The scheduled thermostats; `paused`: the ones paused; each saved against its revision
+    thermostats: Object.fromEntries(Object.keys(out).map((climate) => [climate, { paused: paused.includes(climate), revision: 7 }])),
     mappings: {},
     targets: {},
     weeks: out,
@@ -55,12 +57,13 @@ export const INTEGRATION_DATA = () => integrationData();
  * `hass.events` records the websocket commands; `hass.push(data)` sends an update to the card;
  * `reply(msg)` answers (or throws for) a command.
  */
-export function fakeHass({ data, weeks, overrides, schedule, locale = FRENCH, reply } = {}) {
+export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FRENCH, reply } = {}) {
   INTEGRATION.connection = null; // one subscription per page: reset between tests
   INTEGRATION.data = null;
   INTEGRATION.listeners.clear();
-  if (data === undefined) data = integrationData({ weeks, overrides, schedule, language: locale.language });
+  if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, language: locale.language });
   const events = [];
+  let globalRevision = data ? data.revision : 4;
   let listener = null;
   const hass = {
     states: {
@@ -91,7 +94,12 @@ export function fakeHass({ data, weeks, overrides, schedule, locale = FRENCH, re
     callWS: async (msg) => {
       events.push(msg);
       if (reply) return reply(msg);
-      if (msg.type === 'chauffage/weeks/save') return { revision: msg.revision + 1 };
+      if (msg.type === 'chauffage/weeks/save') {
+        // Like the integration: a new revision for each thermostat saved, and the global one
+        globalRevision += 1;
+        const revisions = Object.fromEntries(Object.keys(msg.weeks).map((c) => [c, ((msg.revisions || {})[c] ?? 0) + 1]));
+        return { revision: globalRevision, revisions };
+      }
       if (msg.type === 'chauffage/schedules/set') {
         // Like the integration: kept ids keep their names, new schedules get an id from their name
         const names = Object.fromEntries((data || integrationData()).schedules.map((s) => [s.id, s.name]));

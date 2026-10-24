@@ -51,6 +51,23 @@ async def test_thermostats_are_realigned_once_home_assistant_has_started(bench: 
     assert bench.applied() == {"climate.salon": "eco"}
 
 
+async def test_reloading_after_home_assistant_has_started_logs_no_error(bench: Bench, hass_storage, caplog):
+    """Set up during startup, then reloaded (options changed, a thermostat renamed): the
+    listener of the end of the startup is already gone."""
+    hass_storage["chauffage"] = json.loads((FIXTURES / "store-v5.json").read_text(encoding="utf-8"))
+    await bench.go_to("10:00")
+    bench.hass.set_state(CoreState.starting)
+    bench.entry = MockConfigEntry(domain="chauffage")
+    bench.entry.add_to_hass(bench.hass)
+    assert await bench.hass.config_entries.async_setup(bench.entry.entry_id)
+    bench.hass.set_state(CoreState.running)
+    bench.hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await bench.hass.async_block_till_done()
+    assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert "Unable to remove unknown job listener" not in caplog.text
+
+
 async def test_deleting_the_integration_deletes_its_data(bench: Bench, hass_storage):
     await start(bench)
     await bench.advance(1)  # delayed save
@@ -108,10 +125,9 @@ async def test_removing_an_override_that_does_not_exist_changes_nothing(bench: B
     assert bench.runtime.data["revision"] == revision
 
 
-async def test_a_thermostat_without_a_week_in_the_active_schedule_has_no_planned_preset(bench: Bench):
+async def test_a_thermostat_not_scheduled_has_no_planned_preset(bench: Bench):
     await start(bench)
-    await bench.activate_schedule("Away")  # no "away" schedule
-    assert bench.runtime.planned("climate.salon") == (None, None, None)
+    assert bench.runtime.planned("climate.cuisine") == (None, None, None)
 
 
 # ----- services: errors -----
@@ -196,7 +212,7 @@ async def test_unreadable_package_parts_are_skipped(bench: Bench):
                                            "climate.bureau": "nonsense"}})
     hass.states.async_set("input_select.mode_chauffage", "Normal", {"options": ["Normal"]})
     await bench.setup(schedules=None)  # no automation service: the package automations cannot be turned off (logged)
-    assert list(bench.runtime.data["weeks"]) == ["climate.salon"]
+    assert list(bench.runtime.weeks) == ["climate.salon"]
     assert bench.runtime.data["overrides"] == {}
 
 

@@ -1,6 +1,7 @@
-"""Entities: active-schedule select, per-thermostat sensors."""
+"""Entities: active-schedule select, per-thermostat sensors and Scheduling switch."""
 
 import pytest
+from homeassistant.const import EntityCategory
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -83,13 +84,29 @@ async def test_the_override_end_sensor(bench: Bench):
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
-async def test_sensors_follow_the_thermostats_in_the_weeks(bench: Bench):
+async def test_entities_follow_the_scheduled_thermostats(bench: Bench):
     await start(bench)
     bench.thermostat("climate.bureau", "eco", friendly_name="Bureau")
     await bench.save_weeks({**WEEKS, "climate.bureau": {"normal": every_day(("00:00", "eco"))}})
     assert bench.hass.states.get("sensor.bureau_schedule").state == "eco"
-    await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
-    assert er.async_get(bench.hass).async_get("sensor.salon_schedule") is None
+    await bench.runtime.forget("climate.salon")
+    await bench.hass.async_block_till_done()
+    registry = er.async_get(bench.hass)
+    assert registry.async_get("sensor.salon_schedule") is None
+    assert registry.async_get("switch.salon_scheduling") is None
+    assert registry.async_get("switch.bureau_scheduling") is not None
+
+
+async def test_a_forgotten_thermostat_s_disabled_sensors_leave_the_registry(bench: Bench):
+    """Disabled by default, they are never added to HA: no registry entry left behind."""
+    await start(bench)
+    registry = er.async_get(bench.hass)
+    assert registry.async_get("sensor.salon_schedule").disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    await bench.runtime.forget("climate.salon")
+    await bench.hass.async_block_till_done()
+    assert registry.async_get("sensor.salon_schedule") is None
+    assert registry.async_get("sensor.salon_override_end") is None
+    assert registry.async_get("switch.salon_scheduling") is None
 
 
 async def test_sensors_are_attached_to_the_thermostat_s_device(bench: Bench):
@@ -102,4 +119,58 @@ async def test_sensors_are_attached_to_the_thermostat_s_device(bench: Bench):
                                                  device_id=device.id)
     await start(bench)
     entry = er.async_get(bench.hass).async_get("sensor.vanne_salon_schedule")
+    assert entry is not None and entry.device_id == device.id
+
+
+# ----- Scheduling switch (docs/decisions.md, "Scheduled thermostats") -----
+
+async def test_each_scheduled_thermostat_has_a_scheduling_switch_on_its_settings(bench: Bench):
+    await start(bench)
+    entry = er.async_get(bench.hass).async_get("switch.salon_scheduling")
+    assert entry is not None and entry.disabled_by is None
+    assert entry.entity_category is EntityCategory.CONFIG
+    assert bench.hass.states.get("switch.salon_scheduling").state == "on"
+
+
+async def test_turning_the_scheduling_switch_off_pauses_the_thermostat(bench: Bench):
+    await start(bench)
+    await bench.hass.services.async_call("switch", "turn_off", {"entity_id": "switch.salon_scheduling"}, blocking=True)
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.is_paused("climate.salon")
+    assert bench.hass.states.get("switch.salon_scheduling").state == "off"
+    await bench.hass.services.async_call("switch", "turn_on", {"entity_id": "switch.salon_scheduling"}, blocking=True)
+    await bench.hass.async_block_till_done()
+    assert not bench.runtime.is_paused("climate.salon")
+
+
+async def test_the_scheduling_switch_shows_a_pause_made_from_the_card(bench: Bench):
+    await start(bench)
+    await bench.runtime.set_paused("climate.salon", True)
+    await bench.hass.async_block_till_done()
+    assert bench.hass.states.get("switch.salon_scheduling").state == "off"
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_the_sensors_of_a_paused_thermostat_are_unavailable(bench: Bench):
+    await start(bench)
+    await bench.runtime.set_paused("climate.salon", True)
+    await bench.hass.async_block_till_done()
+    assert bench.hass.states.get("sensor.salon_schedule").state == "unavailable"
+    assert bench.hass.states.get("sensor.salon_override_end").state == "unavailable"
+    assert bench.hass.states.get("switch.salon_scheduling").state == "off"  # the switch stays usable
+    await bench.runtime.set_paused("climate.salon", False)
+    await bench.hass.async_block_till_done()
+    assert bench.hass.states.get("sensor.salon_schedule").state == "eco"
+
+
+async def test_the_scheduling_switch_is_attached_to_the_thermostat_s_device(bench: Bench):
+    other = MockConfigEntry(domain="test")
+    other.add_to_hass(bench.hass)
+    device = dr.async_get(bench.hass).async_get_or_create(
+        config_entry_id=other.entry_id, identifiers={("test", "valve")}, name="Vanne salon"
+    )
+    er.async_get(bench.hass).async_get_or_create("climate", "test", "valve", suggested_object_id="salon",
+                                                 device_id=device.id)
+    await start(bench)
+    entry = er.async_get(bench.hass).async_get("switch.vanne_salon_scheduling")
     assert entry is not None and entry.device_id == device.id

@@ -5,11 +5,20 @@ Vocabulary: docs/glossary.md.
     active_schedule: "normal"
     presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
                      "temperature" is the default for thermostats driven by temperatures
-    mappings:        {climate entity id: {preset id: {"preset": "comfort"} | {"temperature": 20.5}}}
-                     what a preset means for one thermostat, only what was set by hand: the rest
-                     is engine.default_target
-    weeks:           {climate entity id: {schedule id: [7 days, Monday first]}}
-                     a day is a list of [start "HH:MM", preset id] slots, the first one at "00:00"
+    thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
+                     (docs/decisions.md, "Scheduled thermostats"):
+        paused:              True: kept, not driven
+        weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
+                             scheduled ({}: not scheduled); a day is a list of
+                             [start "HH:MM", preset id] slots, the first one at "00:00"
+        mapping:             {preset id: {"preset": "comfort"} | {"temperature": 20.5}}, what a
+                             preset means for this thermostat, only what was set by hand: the
+                             rest is engine.default_target
+        preset_temperatures: {climate preset: temperature} last seen on the thermostat
+        revision:            increases on every change of its weeks: a card saves against it, so
+                             that two cards cannot overwrite each other's changes
+    renamed:         {former climate entity id: current one}: a thermostat renamed in Home
+                     Assistant, for the cards whose configuration still holds the former id
     overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
                                           "start": ISO datetime, "end": ISO datetime}}
     revision:        increases on every change of the schedules or weeks; the card saves against
@@ -128,10 +137,30 @@ def used_presets(weeks: dict[str, Any]) -> list[str]:
     return seen
 
 
+def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] | None = None,
+                   preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
+    """A scheduled thermostat, active."""
+    return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
+            "preset_temperatures": preset_temperatures or {}, "revision": 0}
+
+
+def empty_week(preset_ids: list[str]) -> list[list[list[str]]]:
+    """The week of a new schedule: eco all week (or the first preset, without eco)."""
+    fill = "eco" if "eco" in preset_ids else preset_ids[0]
+    return [[["00:00", fill]] for _ in range(7)]
+
+
+def complete_weeks(weeks: dict[str, Any], schedule_ids: list[str], preset_ids: list[str]) -> dict[str, Any]:
+    """A scheduled thermostat's weeks, one per schedule: a schedule it has none in gets the week of
+    a new schedule (docs/decisions.md, "Scheduled thermostats")."""
+    return {schedule_id: weeks[schedule_id] if schedule_id in weeks else empty_week(preset_ids)
+            for schedule_id in schedule_ids}
+
+
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
     schedules = make_schedules(schedule_names)
     return {"schedules": schedules, "active_schedule": schedules[0]["id"], "presets": default_presets(language),
-            "mappings": {}, "weeks": {}, "overrides": {}, "revision": 0,
+            "thermostats": {}, "renamed": {}, "overrides": {}, "revision": 0,
             "rules": [], "default_schedule": None, "rules_choice": None}
 
 

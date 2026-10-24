@@ -38,6 +38,10 @@
         "state_attributes": { "schedule_id": { "name": "Identifiant du planning" } }
       }
     },
+    "switch": {
+      "scheduling": { "name": "Programmation" },
+      "scheduling_of": { "name": "Programmation {thermostat}" }
+    },
     "sensor": {
       "schedule": {
         "name": "Planning",
@@ -75,6 +79,18 @@
     "package_installed": {
       "title": "Retirer le package ha-chauffage",
       "description": "L'intégration Chauffage programme désormais vos thermostats ; les automatisations du package ont été désactivées. Pour terminer : supprimez `packages/chauffage/` et `www/chauffage/` de votre dossier de configuration, retirez la ligne `/local/chauffage/chauffage-loader.js` de `frontend: extra_module_url` et les trois lignes `sensor.*_chauffage` de `recorder: exclude` dans `configuration.yaml`, puis redémarrez Home Assistant. Dans vos propres automatisations, remplacez `input_select.mode_chauffage` par `{schedule_entity}`."
+    },
+    "missing": {
+      "title": "Le thermostat programmé {entity_id} a disparu",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{entity_id} a disparu",
+            "description": "Chauffage programme {entity_id}, mais cette entité n'existe plus dans Home Assistant. S'il a été renommé ou remplacé, ajoutez le nouveau thermostat dans une carte.",
+            "menu_options": { "forget": "L'oublier (supprimer ses semaines)", "keep": "Le garder (l'entité va revenir)" }
+          }
+        }
+      }
     }
   },
   "selector": {
@@ -112,6 +128,7 @@
   "exceptions": {
     "not_loaded": { "message": "L'intégration Chauffage n'est pas configurée." },
     "not_scheduled": { "message": "{entity_id} n'a pas de planning." },
+    "paused": { "message": "{entity_id} est en pause : reprenez-le pour créer une dérogation." },
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
     "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." }
   }

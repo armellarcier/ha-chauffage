@@ -9,6 +9,51 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+**Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).
+**Migrates stored data** (version 5): the weeks, values of the presets and learned temperatures
+of each thermostat are kept together. Nothing to do when upgrading; nothing changes for the
+thermostats. A thermostat removed from the card earlier, of which only values of the presets were
+left, keeps them and is still not scheduled, until it gets weeks again. A scheduled thermostat
+gets a week in every schedule: eco all week in those it had none in, what the card showed.
+
+### Added
+
+- A thermostat can be **paused**: Chauffage keeps its weeks but no longer drives it, until it is
+  resumed (realigned at once). A *Scheduling* switch per thermostat, in the settings of its
+  device page, pauses and resumes it, from an automation too. No override can be set on a paused
+  thermostat; its sensors are unavailable. The card shows a paused thermostat (on its chip, a
+  notice with *Resume*, its rows dimmed) and pauses or resumes it from a row's menu; its weeks
+  stay editable. The more-info block says it is paused.
+- A *Thermostats* view in the card: every thermostat Chauffage schedules, paused or not, and the
+  ones no longer in this card, to pause, resume or **forget** (after a confirmation): a forgotten
+  thermostat's data is dropped and it is no longer driven. A thermostat this card shows cannot be
+  forgotten from it. The card editor says when a thermostat removed from the card is still
+  scheduled, and where to pause or forget it.
+- A **repair** (Settings → Repairs) proposes to forget a scheduled thermostat whose entity is gone
+  from Home Assistant, or to keep it; it closes by itself when an entity is made again with that id.
+- A thermostat **renamed** in Home Assistant (its entity id) keeps its schedule, override and
+  entities. A card whose configuration still holds the former id shows a notice with the new
+  one, and the card editor offers to use it.
+
+- Saving the weeks only sends the thermostats changed, each against its own revision: two cards
+  (or two people) editing different thermostats no longer refuse each other's save.
+
+### Fixed
+
+- Reloading the integration after Home Assistant has started no longer logs "Unable to remove
+  unknown job listener".
+- The cards open in the browser keep receiving the integration's data after it is reloaded
+  (options changed): they no longer need the page to be reloaded.
+
+### Changed
+
+- Saving the weeks no longer unschedules the thermostats a card does not send: a thermostat
+  removed from a card, or shown by another card, keeps its schedule (#27). Stopping it is done
+  by pausing or forgetting it.
+- A scheduled thermostat has a week in every schedule (eco all week where none was saved, as the
+  card showed it): activating a schedule it had no week in now drives it, instead of leaving it
+  as it was. Deleting a schedule no longer unschedules a thermostat whose only week it held.
+
 ## [0.6.0-beta.2] - 2026-10-22
 
 **A temporary setpoint set from the card**, and what follows an override shown

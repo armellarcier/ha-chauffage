@@ -41,13 +41,13 @@ async def test_without_presets_every_thermostat_is_driven_by_temperature(bench: 
 
 async def test_the_temperature_of_each_preset_is_learned_while_it_is_active(bench: Bench):
     await start(bench)
-    assert bench.runtime.data["preset_temperatures"]["climate.salon"] == {"eco": 17.0}
+    assert bench.runtime.preset_temperatures["climate.salon"] == {"eco": 17.0}
     bench.thermostat("climate.salon", "comfort", 20.5)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.data["preset_temperatures"]["climate.salon"] == {"eco": 17.0, "comfort": 20.5}
+    assert bench.runtime.preset_temperatures["climate.salon"] == {"eco": 17.0, "comfort": 20.5}
     # A manual setpoint (preset "none") is not a preset's temperature
     await bench.manual_setpoint("climate.salon", 23)
-    assert bench.runtime.data["preset_temperatures"]["climate.salon"]["comfort"] == 20.5
+    assert bench.runtime.preset_temperatures["climate.salon"]["comfort"] == 20.5
 
 
 async def test_learned_temperatures_are_given_to_the_card(bench: Bench):
@@ -82,7 +82,7 @@ async def test_the_card_edits_the_presets(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/presets/set", "presets": presets, "replacements": {"comfort": "nuit"}})
     assert (await client.receive_json())["success"]
     assert [lv["id"] for lv in bench.runtime.data["presets"]] == ["eco", "boost", "frost", "nuit"]
-    assert bench.runtime.data["weeks"]["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
+    assert bench.runtime.weeks["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
 
 
 @pytest.mark.parametrize("command", [
@@ -97,10 +97,13 @@ async def test_preset_and_mapping_changes_need_an_admin(bench: Bench, ws_client,
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
 
 
-async def test_without_schedules_nothing_is_learned(bench: Bench):
+async def test_what_was_learned_on_a_forgotten_thermostat_is_dropped(bench: Bench):
     await bench.go_to("10:00")
     bench.thermostat("climate.cuisine", "eco")
     await bench.setup()
     await bench.save_weeks({"climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
-    await bench.save_weeks({})
-    assert bench.runtime.data["preset_temperatures"] == {}
+    assert bench.runtime.preset_temperatures == {"climate.cuisine": {"eco": 17.0}}
+    await bench.runtime.forget("climate.cuisine")
+    bench.thermostat("climate.cuisine", "comfort")
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.preset_temperatures == {}

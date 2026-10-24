@@ -1,7 +1,10 @@
 """Websocket API used by the card (vocabulary: docs/glossary.md).
 
-chauffage/subscribe          everything the card needs, then again after every change
-chauffage/weeks/save         {weeks, revision}: refused ("stale") if edited elsewhere meanwhile
+chauffage/subscribe          everything the card needs, then again after every change (and after
+                             the integration is reloaded)
+chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
+                             the revision of each ({climate: revision | null}), or the global one
+                             (older cards); refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set       {entity_id, override | null}: change (value, end) or remove an override;
                              a new value is sent to the thermostat
 chauffage/schedule/activate  {schedule}: activate a schedule (same as the select entity)
@@ -16,6 +19,9 @@ chauffage/rules/set          {rules, default_schedule}: the activation rules ([{
                              the schedule when none applies (or null)
 chauffage/rules/preview      {rules}: tries rules being typed, as the integration would, then again
                              when their entities change: {results, texts, errors}, one per rule
+chauffage/thermostat/set     {entity_id, paused}: pause (kept, not driven) or resume a scheduled
+                             thermostat
+chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -40,7 +46,8 @@ from .runtime import DATA, ChauffageRuntime, StaleRevision, ThermostatFailed
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
-                    ws_set_presets, ws_set_mapping, ws_set_rules, ws_preview_rules, ws_history):
+                    ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat,
+                    ws_set_rules, ws_preview_rules, ws_history):
         websocket_api.async_register_command(hass, command)
 
 
@@ -73,33 +80,80 @@ async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
     connection.send_result(msg["id"], result)
 
 
+SUBSCRIBERS = f"{DOMAIN}_subscribers"
+
+
+class _Subscriber:
+    """A card subscribed to the data: it follows the runtime of the moment, so that it goes on
+    receiving after the integration is reloaded (options changed, a thermostat renamed)."""
+
+    def __init__(self, connection: websocket_api.ActiveConnection, msg_id: int) -> None:
+        self.connection, self.msg_id = connection, msg_id
+        self.runtime: ChauffageRuntime | None = None
+        self._unsub: Callable[[], None] | None = None
+
+    @callback
+    def attach(self, runtime: ChauffageRuntime) -> None:
+        self.detach()
+        self.runtime = runtime
+        self._unsub = runtime.async_add_listener(self._changed)
+        self.send()
+
+    @callback
+    def detach(self) -> None:
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+
+    @callback
+    def _changed(self, reason: str) -> None:
+        if reason == DATA:
+            self.send()
+
+    @callback
+    def send(self) -> None:
+        self.connection.send_message(websocket_api.event_message(self.msg_id, self.runtime.snapshot()))
+
+
+@callback
+def async_attach_subscribers(hass: HomeAssistant, runtime: ChauffageRuntime) -> None:
+    """The cards subscribed before a reload follow the new runtime, and get its data at once."""
+    for subscriber in hass.data.get(SUBSCRIBERS, ()):
+        subscriber.attach(runtime)
+
+
 @websocket_api.websocket_command({vol.Required("type"): "chauffage/subscribe"})
 @callback
 def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if (runtime := _runtime(hass, connection, msg["id"])) is None:
         return
+    subscriber = _Subscriber(connection, msg["id"])
+    subscribers: set[_Subscriber] = hass.data.setdefault(SUBSCRIBERS, set())
+    subscribers.add(subscriber)
 
     @callback
-    def forward(reason: str) -> None:
-        if reason == DATA:
-            connection.send_message(websocket_api.event_message(msg["id"], runtime.snapshot()))
+    def unsubscribe() -> None:
+        subscribers.discard(subscriber)
+        subscriber.detach()
 
-    connection.subscriptions[msg["id"]] = runtime.async_add_listener(forward)
+    connection.subscriptions[msg["id"]] = unsubscribe
     connection.send_result(msg["id"])
-    connection.send_message(websocket_api.event_message(msg["id"], runtime.snapshot()))
+    subscriber.attach(runtime)
 
 
 @websocket_api.websocket_command({
     vol.Required("type"): "chauffage/weeks/save",
     vol.Required("weeks"): dict,
     vol.Optional("revision"): int,
+    vol.Optional("revisions"): {str: vol.Any(None, int)},
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    async def save(runtime: ChauffageRuntime) -> dict[str, int]:
-        await runtime.save_weeks(msg["weeks"], msg.get("revision"))
-        return {"revision": runtime.data["revision"]}
+    async def save(runtime: ChauffageRuntime) -> dict[str, Any]:
+        await runtime.save_weeks(msg["weeks"], msg.get("revision"), msg.get("revisions"))
+        return {"revision": runtime.data["revision"],
+                "revisions": {e: t["revision"] for e, t in runtime.scheduled.items() if e in msg["weeks"]}}
 
     await _run(hass, connection, msg, save)
 
@@ -156,6 +210,24 @@ async def ws_set_presets(hass: HomeAssistant, connection: websocket_api.ActiveCo
 @websocket_api.async_response
 async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_mapping(msg["entity_id"], msg["mapping"]))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/thermostat/set",
+    vol.Required("entity_id"): str,
+    vol.Required("paused"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    await _run(hass, connection, msg, lambda runtime: runtime.set_paused(msg["entity_id"], msg["paused"]))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "chauffage/thermostat/forget", vol.Required("entity_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_forget_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    await _run(hass, connection, msg, lambda runtime: runtime.forget(msg["entity_id"]))
 
 
 @websocket_api.websocket_command({
