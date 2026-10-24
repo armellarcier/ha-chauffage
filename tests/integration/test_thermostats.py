@@ -2,6 +2,7 @@
 purpose (docs/decisions.md, "Scheduled thermostats", #27)."""
 
 import pytest
+from homeassistant.helpers import issue_registry as ir
 
 from conftest import Bench, every_day, KINDS
 from custom_components.chauffage import model
@@ -66,9 +67,32 @@ async def test_a_copy_of_the_weeks_made_before_a_thermostat_was_forgotten_cannot
     assert "climate.salon" not in bench.runtime.thermostats
 
 
+async def test_values_of_the_presets_set_before_its_weeks_do_not_schedule_a_thermostat(bench: Bench):
+    """Kept for when its weeks are saved, but nothing is planned: no switch, no repair, nothing
+    to pause; its weeks schedule it, active."""
+    await start(bench)
+    bench.thermostat("climate.chambre", "eco")
+    await bench.runtime.set_mapping("climate.chambre", {"comfort": {"temperature": 19.5}})
+    await bench.hass.async_block_till_done()
+    assert "climate.chambre" not in bench.runtime.snapshot()["thermostats"]
+    assert bench.runtime.snapshot()["mappings"]["climate.chambre"] == {"comfort": {"temperature": 19.5}}
+    assert bench.hass.states.get("switch.chambre_scheduling") is None
+    with pytest.raises(model.InvalidData):
+        await bench.runtime.set_paused("climate.chambre", True)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau", "climate.chambre"])
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"])
+    await bench.hass.async_block_till_done()
+    assert ir.async_get(bench.hass).async_get_issue("chauffage", "unlisted_climate.chambre") is None
+
+    await bench.runtime.save_weeks({"climate.chambre": SALON}, revisions={"climate.chambre": None})
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.snapshot()["thermostats"]["climate.chambre"]["paused"] is False
+    assert bench.hass.states.get("switch.chambre_scheduling") is not None
+
+
 async def test_a_thermostat_without_weeks_turns_no_change_by_hand_into_an_override(bench: Bench):
-    """Values of the presets set before its weeks are saved schedule a thermostat, but nothing
-    is planned for it yet: a setpoint changed by hand is its own."""
+    """Values of the presets set before its weeks are saved: nothing is planned for it yet, a
+    setpoint changed by hand is its own."""
     await start(bench)
     bench.thermostat("climate.chambre", "eco")
     await bench.runtime.set_mapping("climate.chambre", {"comfort": {"temperature": 19.5}})

@@ -89,6 +89,19 @@ async def test_no_repair_while_another_card_shows_it(bench: Bench):
     assert issue(bench, UNLISTED) is None
 
 
+async def test_no_repair_while_a_card_without_an_id_shows_it(bench: Bench):
+    """A card written in YAML has no id: the integration does not keep its list, but a
+    thermostat it showed lately is still shown. Removed from it too, the safety net finds it."""
+    await start(bench)
+    await declare(bench, None, "climate.salon")
+    await declare(bench, "c1", "climate.salon", "climate.bureau")
+    await declare(bench, "c1", "climate.bureau")
+    assert issue(bench, UNLISTED) is None
+    await bench.go_to("10:00", day=8)
+    await declare(bench, "c1", "climate.bureau")
+    assert issue(bench, UNLISTED) is not None
+
+
 async def test_no_repair_for_a_paused_thermostat(bench: Bench):
     await start(bench)
     await bench.runtime.set_paused("climate.salon", True)

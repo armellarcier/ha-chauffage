@@ -17,6 +17,8 @@ Vocabulary: docs/glossary.md.
         revision:            increases on every change of its weeks: a card saves against it, so
                              that two cards cannot overwrite each other's changes
         shown_at:            ISO datetime a card last showed it (None: not yet)
+        shown_without_id_at: ISO datetime a card without an id (YAML) last showed it: its list
+                             is not kept, a card removing the thermostat must not flag it
         kept_unlisted:       True: driven although no card shows it (answered in its repair),
                              until a card shows it again
     cards:           {card id: {"thermostats": [climate entity id, …], "seen_at": ISO datetime,
@@ -148,7 +150,7 @@ def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] 
     """A scheduled thermostat, active."""
     return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
             "preset_temperatures": preset_temperatures or {}, "revision": 0, "shown_at": None,
-            "kept_unlisted": False}
+            "shown_without_id_at": None, "kept_unlisted": False}
 
 
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:

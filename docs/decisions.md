@@ -161,7 +161,11 @@ thermostat it loaded.
   `generic_thermostat` written in YAML) gets entities without a device, named after it, as HA
   does for any entity without one; not the *Chauffage* service device.
 - **Adding a thermostat in a card schedules it**, active, with the default week: no list to
-  fill in, no step before the card works.
+  fill in, no step before the card works. **A scheduled thermostat is one with weeks**: values
+  of the presets set first are kept for it, but schedule nothing (no switch, no repair, nothing
+  to pause), as the weeks alone say what is driven. A default week the card only draws for a
+  thermostat already scheduled (a schedule it has no week in) is not sent until edited: it would
+  refuse the save if another card changed that thermostat.
 - **Paused: kept, not driven.** A paused thermostat keeps everything; Chauffage sends it
   nothing, does not turn manual changes into overrides and drops its current override; its
   sensors are unavailable. Resuming realigns it at once. Paused is not *off*: off is the
@@ -191,7 +195,10 @@ thermostat it loaded.
   card declares its list without a thermostat that no other card has; as a safety net (a card
   deleted, written in YAML without an id, duplicated with its id), when an active thermostat
   has not been shown for days while others have (relative, so that nobody opening a dashboard
-  for a week flags nothing). Paused thermostats raise none: they drive nothing.
+  for a week flags nothing). Paused thermostats raise none: they drive nothing. A card without
+  an id keeps no list, but the time it last showed each thermostat is kept: one it showed within
+  the week raises no repair when another card stops showing it (the safety net finds it once
+  that card stops too).
 - **A card duplicated with its id is recognized**: HA's *Duplicate* copies the configuration,
   the hidden `card_id` too. Each card as drawn sends an instance id with its declaration; two
   instances declaring different lists under one id within a minute are two cards: no repair from
@@ -214,11 +221,11 @@ thermostat it loaded.
 - **Saves send the weeks of the thermostats edited**, each with its own revision: two cards
   showing the same thermostat cannot overwrite each other, and do not block the others.
 - **Stored per thermostat** (`thermostats: {climate: {paused, weeks, mapping,
-  preset_temperatures, revision, shown_at}}`), and per card (`cards: {card_id: {thermostats,
+  preset_temperatures, revision, shown_at, shown_without_id_at}}`), and per card (`cards: {card_id: {thermostats,
   seen_at}}`, a declaration replacing the card's list). The overrides stay apart: short-lived, a
   release may drop them. Migrated from the current keys, nothing changing on upgrade: a
   thermostat with weeks is active; one with only values of the presets was not driven (left
-  behind when it was removed from the card), it is kept, paused. Ready for groups of thermostats (roadmap), whose weeks would be owned by a group.
+  behind when it was removed from the card), they are kept and it is still not scheduled. Ready for groups of thermostats (roadmap), whose weeks would be owned by a group.
 
 ## Card
 

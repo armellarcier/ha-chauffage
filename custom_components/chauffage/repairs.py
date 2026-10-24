@@ -74,7 +74,7 @@ class UnlistedFlow(ThermostatFlow):
 
     async def async_step_pause(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         runtime = self._runtime
-        if self.entity_id in runtime.thermostats:
+        if self.entity_id in runtime.scheduled:
             await runtime.set_paused(self.entity_id, True)
         return self.async_create_entry(data={})
 

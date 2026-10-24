@@ -95,7 +95,7 @@ def async_follow_thermostats(
     def sync(reason: str = DATA) -> None:
         if reason != DATA:
             return
-        scheduled = set(runtime.thermostats)
+        scheduled = set(runtime.scheduled)
         new = []
         for climate in sorted(scheduled - set(known)):
             known[climate] = make(runtime, climate)

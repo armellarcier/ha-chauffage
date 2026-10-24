@@ -156,7 +156,7 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
     async def save(runtime: ChauffageRuntime) -> dict[str, Any]:
         await runtime.save_weeks(msg["weeks"], msg.get("revision"), msg.get("revisions"))
         return {"revision": runtime.data["revision"],
-                "revisions": {e: runtime.thermostats[e]["revision"] for e in msg["weeks"] if e in runtime.thermostats}}
+                "revisions": {e: t["revision"] for e, t in runtime.scheduled.items() if e in msg["weeks"]}}
 
     await _run(hass, connection, msg, save)
 

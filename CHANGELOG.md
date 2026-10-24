@@ -13,7 +13,7 @@ Each entry says whether the release **migrates stored data** and what to do when
 **Migrates stored data** (version 5): the weeks, values of the presets and learned temperatures
 of each thermostat are kept together. Nothing to do when upgrading; nothing changes for the
 thermostats. A thermostat removed from the card earlier, of which only values of the presets were
-left, shows up paused in the card's *Thermostats* view, to forget or resume.
+left, keeps them and is still not scheduled, until it gets weeks again.
 
 ### Added
 
@@ -27,7 +27,8 @@ left, shows up paused in the card's *Thermostats* view, to forget or resume.
   more (removed from the cards that showed it, or not shown for a week while others were) can be
   paused, kept or forgotten; a thermostat whose entity is gone can be forgotten. For this, each
   card tells the integration which thermostats it shows, with a hidden `card_id` that the card
-  editor adds to its configuration.
+  editor adds to its configuration. A thermostat a card without an id (written in YAML) showed
+  lately raises no repair when another card stops showing it.
 - A card duplicated in the dashboard (with its hidden id) is recognized: no false repair, and
   its editor offers to give it its own id.
 - A thermostat **renamed** in Home Assistant (its entity id) keeps its schedule, override and
