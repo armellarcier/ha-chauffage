@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.6.0-beta.3] - 2026-10-24
+
 **Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).
 **Migrates stored data** (version 5): the weeks, values of the presets and learned temperatures
 of each thermostat are kept together. Nothing to do when upgrading; nothing changes for the
@@ -446,7 +448,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.2...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.3...HEAD
+[0.6.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.3
 [0.6.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.2
 [0.6.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.1
 [0.5.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.5.1
