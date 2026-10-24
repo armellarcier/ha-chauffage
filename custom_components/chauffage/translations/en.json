@@ -39,8 +39,8 @@
       }
     },
     "switch": {
-      "scheduling": { "name": "Scheduling" },
-      "scheduling_of": { "name": "{thermostat} scheduling" }
+      "control": { "name": "Control" },
+      "control_of": { "name": "{thermostat} control" }
     },
     "sensor": {
       "schedule": {

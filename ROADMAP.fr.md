@@ -37,9 +37,9 @@ qui s'applique l'emportant, un planning par défaut sinon. Voir le
    seul `manifest.json` (le climate simulé du HA de développement utilise `manifest.dev.json`).
 2. **Thermostats programmés**
    ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)) : l'intégration tient la
-   liste des thermostats qu'elle pilote, les cartes ne font que les afficher (plusieurs cartes,
-   un thermostat dans plusieurs). Un thermostat se met en pause sans rien perdre (un switch
-   *Programmation* par thermostat, ou depuis la carte), un `climate` renommé est suivi. Toujours
+   liste des thermostats qu'elle programme, les cartes ne font que les afficher (plusieurs cartes,
+   un thermostat dans plusieurs). Un thermostat se met en pause sans rien perdre (un interrupteur
+   *Pilotage* par thermostat, ou depuis la carte), un `climate` renommé est suivi. Toujours
    aussi simple : ajouter un thermostat dans une carte le programme. Voir [docs/decisions.md](docs/decisions.md#scheduled-thermostats).
 
 ## Ensuite

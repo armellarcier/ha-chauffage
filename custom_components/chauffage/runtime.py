@@ -197,7 +197,7 @@ class ChauffageRuntime:
 
     @property
     def active(self) -> list[str]:
-        """The scheduled thermostats Chauffage drives (not paused)."""
+        """The scheduled thermostats Chauffage controls (not paused)."""
         return [entity_id for entity_id, t in self.scheduled.items() if not t["paused"]]
 
     def is_paused(self, entity_id: str) -> bool:
@@ -316,7 +316,7 @@ class ChauffageRuntime:
         await self.apply(force=True)
 
     async def set_paused(self, entity_id: str, paused: bool) -> None:
-        """Pause (kept, not driven, its override dropped and the thermostat left as it is) or
+        """Pause (kept, not controlled, its override dropped and the thermostat left as it is) or
         resume (realigned at once)."""
         if entity_id not in self.scheduled:
             raise model.InvalidData(f"not scheduled: {entity_id}")

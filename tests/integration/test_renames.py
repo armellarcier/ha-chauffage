@@ -66,12 +66,12 @@ async def test_its_entities_keep_their_ids_and_settings(bench: Bench):
     registry.async_update_entity("sensor.salon_schedule", disabled_by=None)  # enabled by the user
     await rename(bench)
     await bench.hass.async_block_till_done()
-    switch = registry.async_get("switch.salon_scheduling")
-    assert switch is not None and switch.unique_id.endswith("climate.sejour_scheduling")
+    switch = registry.async_get("switch.salon_control")
+    assert switch is not None and switch.unique_id.endswith("climate.sejour_control")
     sensor = registry.async_get("sensor.salon_schedule")
     assert sensor is not None and sensor.disabled_by is None
-    assert bench.hass.states.get("switch.salon_scheduling").state == "on"
-    assert registry.async_get_entity_id("switch", "chauffage", f"{bench.entry.entry_id}_climate.salon_scheduling") is None
+    assert bench.hass.states.get("switch.salon_control").state == "on"
+    assert registry.async_get_entity_id("switch", "chauffage", f"{bench.entry.entry_id}_climate.salon_control") is None
 
 
 async def test_its_entities_are_kept_through_a_change_made_before_the_reload(bench: Bench, monkeypatch, caplog):
@@ -86,7 +86,7 @@ async def test_its_entities_are_kept_through_a_change_made_before_the_reload(ben
     await bench.runtime.set_mapping("climate.sejour", {"comfort": {"temperature": 19.5}})  # before the reload
     await bench.hass.async_block_till_done()
     assert registry.async_get("sensor.salon_schedule") is not None
-    assert registry.async_get("switch.salon_scheduling") is not None
+    assert registry.async_get("switch.salon_control") is not None
     assert "does not generate unique IDs" not in caplog.text
 
 
@@ -96,10 +96,10 @@ async def test_the_entities_of_a_thermostat_with_a_longer_id_stay_where_they_are
     bench.thermostat("climate.salon_bas", "eco", friendly_name="Salon bas")
     await bench.save_weeks({"climate.salon": SALON, "climate.salon_bas": SALON})
     registry = er.async_get(bench.hass)
-    before = registry.async_get("switch.salon_bas_scheduling").unique_id
+    before = registry.async_get("switch.salon_bas_control").unique_id
     await rename(bench)
-    assert registry.async_get("switch.salon_bas_scheduling").unique_id == before
-    assert registry.async_get("switch.salon_scheduling").unique_id.endswith("climate.sejour_scheduling")
+    assert registry.async_get("switch.salon_bas_control").unique_id == before
+    assert registry.async_get("switch.salon_control").unique_id.endswith("climate.sejour_control")
     assert bench.runtime.weeks["climate.salon_bas"]["normal"] == SALON["normal"]
 
 
@@ -116,14 +116,14 @@ async def test_renamed_to_the_id_of_a_thermostat_whose_entity_is_gone(bench: Ben
     await bench.manual_setpoint("climate.sejour", 22)
     bench.hass.states.async_remove("climate.sejour")
     await bench.hass.async_block_till_done()
-    assert registry.async_get("switch.sejour_scheduling") is not None
+    assert registry.async_get("switch.sejour_control") is not None
 
     await rename(bench)
     assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
     assert "climate.sejour" not in bench.overrides()
-    assert registry.async_get("switch.sejour_scheduling") is None
-    switch = registry.async_get("switch.salon_scheduling")
-    assert switch is not None and switch.unique_id.endswith("climate.sejour_scheduling")
+    assert registry.async_get("switch.sejour_control") is None
+    switch = registry.async_get("switch.salon_control")
+    assert switch is not None and switch.unique_id.endswith("climate.sejour_control")
 
 
 async def test_renamed_back(bench: Bench):
@@ -134,7 +134,7 @@ async def test_renamed_back(bench: Bench):
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await bench.hass.async_block_till_done()
     assert bench.runtime.weeks["climate.salon"]["normal"] == SALON["normal"]
-    assert er.async_get(bench.hass).async_get("switch.salon_scheduling").unique_id.endswith("climate.salon_scheduling")
+    assert er.async_get(bench.hass).async_get("switch.salon_control").unique_id.endswith("climate.salon_control")
 
 
 async def test_the_cards_learn_the_new_id(bench: Bench):

@@ -19,7 +19,7 @@ chauffage/rules/set          {rules, default_schedule}: the activation rules ([{
                              the schedule when none applies (or null)
 chauffage/rules/preview      {rules}: tries rules being typed, as the integration would, then again
                              when their entities change: {results, texts, errors}, one per rule
-chauffage/thermostat/set     {entity_id, paused}: pause (kept, not driven) or resume a scheduled
+chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled
                              thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,

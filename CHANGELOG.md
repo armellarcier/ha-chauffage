@@ -18,15 +18,15 @@ gets a week in every schedule: eco all week in those it had none in, what the ca
 
 ### Added
 
-- A thermostat can be **paused**: Chauffage keeps its weeks but no longer drives it, until it is
-  resumed (realigned at once). A *Scheduling* switch per thermostat, in the settings of its
+- A thermostat can be **paused**: Chauffage keeps its weeks but no longer controls it, until it is
+  resumed (realigned at once). A *Control* switch per thermostat, in the settings of its
   device page, pauses and resumes it, from an automation too. No override can be set on a paused
   thermostat; its sensors are unavailable. The card shows a paused thermostat (on its chip, a
   notice with *Resume*, its rows dimmed) and pauses or resumes it from a row's menu; its weeks
   stay editable. The more-info block says it is paused.
 - A *Thermostats* view in the card: every thermostat Chauffage schedules, paused or not, and the
   ones no longer in this card, to pause, resume or **forget** (after a confirmation): a forgotten
-  thermostat's data is dropped and it is no longer driven. A thermostat this card shows cannot be
+  thermostat's data is dropped and it is no longer controlled. A thermostat this card shows cannot be
   forgotten from it. The card editor says when a thermostat removed from the card is still
   scheduled, and where to pause or forget it.
 - A **repair** (Settings → Repairs) proposes to forget a scheduled thermostat whose entity is gone
@@ -51,7 +51,7 @@ gets a week in every schedule: eco all week in those it had none in, what the ca
   removed from a card, or shown by another card, keeps its schedule (#27). Stopping it is done
   by pausing or forgetting it.
 - A scheduled thermostat has a week in every schedule (eco all week where none was saved, as the
-  card showed it): activating a schedule it had no week in now drives it, instead of leaving it
+  card showed it): activating a schedule it had no week in now controls it, instead of leaving it
   as it was. Deleting a schedule no longer unschedules a thermostat whose only week it held.
 
 ## [0.6.0-beta.2] - 2026-10-22

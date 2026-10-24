@@ -143,14 +143,14 @@ and *Frost protection* 7 °C.
 
 A thermostat is **scheduled** once it is in a card. It stays scheduled when it is removed from a
 card (another card may show it), until it is forgotten. Paused, it is still scheduled: it keeps
-its weeks, but Chauffage no longer drives it. The card's *Thermostats* view lists every
+its weeks, but Chauffage no longer controls it. The card's *Thermostats* view lists every
 scheduled thermostat, paused or not, the ones in no card too. If its entity is deleted from Home
 Assistant, Settings → Repairs proposes to forget it.
 
 Per scheduled thermostat, on the thermostat's device page:
 
-- **Scheduling**, a switch in its settings: off, the thermostat is **paused**. Chauffage keeps
-  its weeks but no longer drives it (nothing sent, no override), until it is turned back on.
+- **Control**, a switch in its settings: off, the thermostat is **paused**. Chauffage keeps
+  its weeks but no longer controls it (nothing sent, no override), until it is turned back on.
   Handy for a room run by hand for a few days, or at the end of the heating season.
 
 and two sensors, **disabled by default** (unavailable while the thermostat is paused):

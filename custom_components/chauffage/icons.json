@@ -4,8 +4,8 @@
       "active_schedule": { "default": "mdi:home-thermometer" }
     },
     "switch": {
-      "scheduling": { "default": "mdi:calendar-sync", "state": { "off": "mdi:calendar-remove" } },
-      "scheduling_of": { "default": "mdi:calendar-sync", "state": { "off": "mdi:calendar-remove" } }
+      "control": { "default": "mdi:play-circle-outline", "state": { "off": "mdi:pause-circle-outline" } },
+      "control_of": { "default": "mdi:play-circle-outline", "state": { "off": "mdi:pause-circle-outline" } }
     },
     "sensor": {
       "schedule": { "default": "mdi:calendar-clock" },

@@ -39,8 +39,8 @@
       }
     },
     "switch": {
-      "scheduling": { "name": "Programmation" },
-      "scheduling_of": { "name": "Programmation {thermostat}" }
+      "control": { "name": "Pilotage" },
+      "control_of": { "name": "Pilotage {thermostat}" }
     },
     "sensor": {
       "schedule": {

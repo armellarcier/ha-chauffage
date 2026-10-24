@@ -35,8 +35,8 @@ applies winning, a default schedule otherwise. See the [README](README.md#activa
    `manifest.dev.json`).
 2. **Scheduled thermostats**
    ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)): the integration keeps the
-   list of thermostats it drives, the cards only show them (several cards, a thermostat in
-   several). A thermostat is paused without losing anything (a *Scheduling* switch per
+   list of thermostats it schedules, the cards only show them (several cards, a thermostat in
+   several). A thermostat is paused without losing anything (a *Control* switch per
    thermostat, or from the card), a renamed `climate` is followed. Just as simple: adding a
    thermostat in a card schedules it. See [docs/decisions.md](docs/decisions.md#scheduled-thermostats).
 

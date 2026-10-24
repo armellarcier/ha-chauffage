@@ -7,7 +7,7 @@ Vocabulary: docs/glossary.md.
                      "temperature" is the default for thermostats driven by temperatures
     thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
                      (docs/decisions.md, "Scheduled thermostats"):
-        paused:              True: kept, not driven
+        paused:              True: kept, not controlled
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
                              [start "HH:MM", preset id] slots, the first one at "00:00"

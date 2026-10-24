@@ -153,7 +153,7 @@ entité est supprimée de Home Assistant, Paramètres → Réparations propose d
 
 Pour chaque thermostat programmé, sur la page de l'appareil du thermostat :
 
-- **Programmation**, un interrupteur dans ses paramètres : éteint, le thermostat est **en
+- **Pilotage**, un interrupteur dans ses paramètres : éteint, le thermostat est **en
   pause**. Chauffage garde ses semaines mais ne le pilote plus (rien n'est envoyé, pas de
   dérogation), jusqu'à ce qu'on le rallume. Pratique pour une pièce gérée à la main quelques
   jours, ou à la fin de la saison de chauffe.

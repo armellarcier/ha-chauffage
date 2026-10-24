@@ -142,8 +142,8 @@ future contributor might question.
 
 - **The integration keeps the list of scheduled thermostats; the cards only show them.** A card
   saved the weeks of every thermostat, so the thermostats in its configuration did not say which
-  ones were driven: one removed from the card stayed driven (#27). A card cannot decide either:
-  a user may have several cards (one per floor), a thermostat may be in two of them, and
+  ones were controlled: one removed from the card stayed controlled (#27). A card cannot decide
+  either: a user may have several cards (one per floor), a thermostat may be in two of them, and
   removing one from every card does not mean its schedule should be lost. Like HA's entities,
   hidden (not shown) is not disabled (not running). This follows the Scheduler component (the
   integration owns the schedules, which can be disabled, the cards show and filter them) and
@@ -163,18 +163,20 @@ future contributor might question.
   schedule was a state nobody chose (the card only drew a default week for it): saves had to
   tell a week drawn from a week edited, and deleting a schedule could unschedule a thermostat
   without a word. Values of the presets set first are kept for it, but schedule nothing (no
-  switch, nothing to pause), as the weeks alone say what is driven.
-- **Paused: kept, not driven.** A paused thermostat keeps everything; Chauffage sends it
-  nothing, does not turn manual changes into overrides and drops its current override; its
+  switch, nothing to pause), as the weeks alone say what is scheduled.
+- **Paused: still scheduled, not controlled.** A paused thermostat keeps everything; Chauffage
+  sends it nothing, does not turn manual changes into overrides and drops its current override; its
   sensors are unavailable. Resuming realigns it at once. Paused is not *off*: off is the
   thermostat turned off by someone, which Chauffage already respects; paused is Chauffage not
-  driving, whatever the thermostat does (a room run by hand for a few days, the end of the
+  controlling it, whatever the thermostat does (a room run by hand for a few days, the end of the
   heating season, a test). **Forgetting** it is another action, which drops its data.
-- **A switch per scheduled thermostat (*Scheduling*)**, on: active, off: paused. A configuration
-  entity (`entity_category: config`), enabled by default: on the device's page with its
-  settings, in automations, not in the generated *Overview* dashboard nor exposed to Assist. No
-  service for pausing (the switch is enough), none for forgetting (dropping data is chosen in the
-  card, or in the repair of an entity gone).
+- **A switch per scheduled thermostat (*Control*, *Pilotage*)**, on: controlled, off: paused. Not
+  *Scheduling* (*Programmation*): a paused thermostat is still scheduled (it keeps its weeks), so
+  a switch named after the schedule read "off" on a thermostat the card lists as scheduled. A
+  configuration entity (`entity_category: config`), enabled by default: on the device's page with
+  its settings, in automations, not in the generated *Overview* dashboard nor exposed to Assist.
+  No service for pausing (the switch is enough), none for forgetting (dropping data is chosen in
+  the card, or in the repair of an entity gone).
 - **In the card, a paused thermostat stays**, marked paused with a *Resume* button; its weeks
   can still be edited (to prepare the return), saving does not resume it; no override can be
   set on it.
@@ -207,7 +209,7 @@ future contributor might question.
   preset_temperatures, revision}}`). The overrides stay apart: short-lived, a release may drop
   them. Migrated from the current keys, nothing changing on upgrade: a thermostat with weeks is
   active, and gets the week of a new schedule in the schedules it had none in (what the card
-  showed for it); one with only values of the presets was not driven (left behind when it was
+  showed for it); one with only values of the presets was not controlled (left behind when it was
   removed from the card), they are kept and it is still not scheduled. Ready for groups of
   thermostats (roadmap), whose weeks would be owned by a group.
 

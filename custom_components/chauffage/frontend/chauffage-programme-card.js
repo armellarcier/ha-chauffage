@@ -51,15 +51,15 @@ const I18N = {
     newOverride: 'Temporary setpoint…',
     resume: 'Resume the schedule',
     paused: 'Paused',
-    pausedNote: '{name} is paused: Chauffage does not drive it.',
+    pausedNote: '{name} is paused: Chauffage does not control it.',
     renamedNote: '{former} was renamed {entity} in Home Assistant: edit the card to use its new id.',
-    pausedInfo: 'Paused: Chauffage does not drive it.',
+    pausedInfo: 'Paused: Chauffage does not control it.',
     resumeShort: 'Resume',
-    resumeScheduling: 'Resume scheduling',
-    pauseScheduling: 'Pause scheduling',
+    resumeControl: 'Resume control',
+    pauseControl: 'Pause control',
     viewThermostats: 'Thermostats',
-    thermostatsHint: 'Chauffage drives the scheduled thermostats; a card only shows them. A paused thermostat keeps its weeks.',
-    scheduled: 'Scheduled',
+    thermostatsHint: 'Chauffage controls the scheduled thermostats; a card only shows them. A paused thermostat stays scheduled: it keeps its weeks, but is not controlled.',
+    controlled: 'Controlled',
     notInCard: 'Not in this card',
     pauseShort: 'Pause',
     forget: 'Forget…',
@@ -168,7 +168,7 @@ const I18N = {
     cardDescription: 'Weekly heating schedules, several thermostats per day',
     // Visual editor of the card
     editorThermostats: 'Thermostats (required)',
-    editorRemovedScheduled: '{name} is still scheduled: Chauffage keeps driving it. Pause or forget it from the Thermostats view of the card.',
+    editorRemovedScheduled: '{name} is still scheduled: Chauffage keeps controlling it. Pause or forget it from the Thermostats view of the card.',
     editorRenamed: 'Renamed {entity} in Home Assistant.',
     editorUseNewId: 'Use the new id',
     editorThermostat: 'Thermostat',
@@ -219,11 +219,11 @@ const I18N = {
     renamedNote: '{former} a été renommé {entity} dans Home Assistant : modifiez la carte pour utiliser son nouvel identifiant.',
     pausedInfo: 'En pause : Chauffage ne le pilote pas.',
     resumeShort: 'Reprendre',
-    resumeScheduling: 'Reprendre la programmation',
-    pauseScheduling: 'Mettre en pause',
+    resumeControl: 'Reprendre le pilotage',
+    pauseControl: 'Mettre en pause',
     viewThermostats: 'Thermostats',
-    thermostatsHint: 'Chauffage pilote les thermostats programmés ; une carte ne fait que les afficher. Un thermostat en pause garde ses semaines.',
-    scheduled: 'Programmé',
+    thermostatsHint: "Chauffage pilote les thermostats programmés ; une carte ne fait que les afficher. Un thermostat en pause reste programmé : il garde ses semaines, mais n'est pas piloté.",
+    controlled: 'Piloté',
     notInCard: 'Pas dans cette carte',
     pauseShort: 'Mettre en pause',
     forget: 'Oublier…',
@@ -1623,7 +1623,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
       ${this._historyOf(m.climate, m.day) ? `<div class="sep"></div>${item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM)}` : ''}
       ${m.day === todayIdx() && !paused ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
-      ${src.editable ? `<div class="sep"></div>${paused ? item('resume', esc(t('resumeScheduling'))) : item('pause', esc(t('pauseScheduling')))}` : ''}
+      ${src.editable ? `<div class="sep"></div>${paused ? item('resume', esc(t('resumeControl'))) : item('pause', esc(t('pauseControl')))}` : ''}
     </div>`;
   }
 
@@ -2578,7 +2578,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         : `${paused ? btn('resume', 'resumeShort') : btn('pause', 'pauseShort')}${here ? '' : btn('thermostat-forget', 'forget')}`;
       return `<div class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}">
         <div class="th-name">${esc(this._name(climate))}
-          <span class="th-state">${esc(t(paused ? 'paused' : 'scheduled'))}${here ? '' : ` · ${esc(t('notInCard'))}`}</span></div>
+          <span class="th-state">${esc(t(paused ? 'paused' : 'controlled'))}${here ? '' : ` · ${esc(t('notInCard'))}`}</span></div>
         <div class="th-btns">${buttons}</div>
         ${asking ? `<div class="th-ask">${esc(t('forgetText', { name: this._name(climate) }))}</div>` : ''}
       </div>`;

@@ -32,7 +32,7 @@ describe('the "Thermostats" view', () => {
     const card = open(setup());
     const rows = [...card.shadowRoot.querySelectorAll('.th-row')].map((r) => r.dataset.climate);
     assert.deepEqual(rows, ['climate.salon', 'climate.bureau', 'climate.cuisine']);
-    assert.match(text(row(card, 'climate.salon')), /Salon.*Programmé/);
+    assert.match(text(row(card, 'climate.salon')), /Salon.*Piloté/);
     assert.doesNotMatch(text(row(card, 'climate.salon')), /Pas dans cette carte/);
     assert.match(text(row(card, 'climate.cuisine')), /Cuisine.*En pause.*Pas dans cette carte/);
   });
@@ -81,6 +81,6 @@ describe('the "Thermostats" view', () => {
   test('in English', () => {
     const card = open(setup({ locale: { language: 'en' } }));
     assert.match(text(row(card, 'climate.cuisine')), /Cuisine.*Paused.*Not in this card/);
-    assert.match(text(row(card, 'climate.salon')), /Scheduled/);
+    assert.match(text(row(card, 'climate.salon')), /Controlled/);
   });
 });

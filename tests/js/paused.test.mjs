@@ -28,7 +28,7 @@ describe('a paused thermostat in the card', () => {
     assert.doesNotMatch(q(card, '.chip[data-climate="climate.bureau"] .live').textContent, /pause/);
   });
 
-  test('a notice says Chauffage does not drive it, with a button to resume it', () => {
+  test('a notice says Chauffage does not control it, with a button to resume it', () => {
     const hass = pausedSalon();
     const card = createCard(hass);
     const notes = [...card.shadowRoot.querySelectorAll('.paused-note')];
@@ -98,7 +98,7 @@ describe('a paused thermostat in the card', () => {
   test('in English', () => {
     const card = createCard(pausedSalon({ locale: { language: 'en' } }));
     assert.match(q(card, '.chip[data-climate="climate.salon"] .live').textContent, /Paused/);
-    assert.match(text(q(card, '.paused-note')), /Salon is paused: Chauffage does not drive it\. Resume/);
+    assert.match(text(q(card, '.paused-note')), /Salon is paused: Chauffage does not control it\. Resume/);
   });
 });
 

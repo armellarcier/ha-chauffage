@@ -48,7 +48,7 @@ def _v3_to_v4(data: dict[str, Any], language: str) -> dict[str, Any]:
 def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
     """Scheduled thermostats (#27): the weeks, mappings and learned temperatures of each
     thermostat are kept together. A thermostat with weeks is scheduled, active; one with only a
-    mapping was not driven (left behind once removed from the card): kept, still not scheduled.
+    mapping was not controlled (left behind once removed from the card): kept, still not scheduled.
     A scheduled thermostat has a week in every schedule: one it had none in gets the week of a
     new schedule, eco all week, what the card showed for it."""
     data = dict(data)

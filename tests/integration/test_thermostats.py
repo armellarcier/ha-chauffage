@@ -102,14 +102,14 @@ async def test_values_of_the_presets_set_before_its_weeks_do_not_schedule_a_ther
     await bench.hass.async_block_till_done()
     assert "climate.chambre" not in bench.runtime.snapshot()["thermostats"]
     assert bench.runtime.snapshot()["mappings"]["climate.chambre"] == {"comfort": {"temperature": 19.5}}
-    assert bench.hass.states.get("switch.chambre_scheduling") is None
+    assert bench.hass.states.get("switch.chambre_control") is None
     with pytest.raises(model.InvalidData):
         await bench.runtime.set_paused("climate.chambre", True)
 
     await bench.runtime.save_weeks({"climate.chambre": SALON}, revisions={"climate.chambre": None})
     await bench.hass.async_block_till_done()
     assert bench.runtime.snapshot()["thermostats"]["climate.chambre"]["paused"] is False
-    assert bench.hass.states.get("switch.chambre_scheduling") is not None
+    assert bench.hass.states.get("switch.chambre_control") is not None
 
 
 async def test_values_of_the_presets_cleared_before_its_weeks_leave_nothing_behind(bench: Bench):
