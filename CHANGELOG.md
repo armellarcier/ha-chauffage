@@ -9,6 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.6.0-beta.4] - 2026-10-24
+
+Overrides keep their preset's name, the more-info block says until when the planned preset
+really lasts, and the card shows the preset temperatures the integration compares setpoints with.
+**Does not migrate stored data.** Restart Home Assistant after updating (the card and the
+integration change together); see *Upgrading* for automations calling `chauffage.set_override`.
+
 ### Changed
 
 - The temperature of a thermostat's own preset shown by the card (legend, *Presets* view) is
@@ -479,7 +486,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.3...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.4...HEAD
+[0.6.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.4
 [0.6.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.3
 [0.6.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.2
 [0.6.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.1
