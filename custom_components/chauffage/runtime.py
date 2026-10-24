@@ -672,16 +672,23 @@ class ChauffageRuntime:
         self._keep_override(entity_id, model.normalize_override(override), "thermostat")
         self._changed()
 
+    def override_info(self, entity_id: str) -> dict[str, Any]:
+        """A thermostat's override as automations see it (sensor, event): kind, value, the preset
+        it was set to, its end in local time (None without override)."""
+        override = self.data["overrides"].get(entity_id) or {}
+        end = engine.parse_datetime(override.get("end"))
+        return {key: override.get(key) for key in ("kind", "value", "preset")} | {
+            "end": dt_util.as_local(end).isoformat() if end else None,
+        }
+
     @callback
     def _keep_override(self, entity_id: str, override: dict[str, Any], source: str) -> None:
         """Records an override; a new one, or a new value, is told (an end alone is not)."""
         before = self.data["overrides"].get(entity_id)
         self.data["overrides"][entity_id] = override
-        what = ("kind", "value", "preset")
-        if before is None or any(before.get(key) != override.get(key) for key in what):
-            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {
-                "entity_id": entity_id, **{key: override.get(key) for key in (*what, "end")}, "source": source,
-            })
+        if before is None or any(before.get(key) != override.get(key) for key in ("kind", "value", "preset")):
+            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED,
+                                     {"entity_id": entity_id, **self.override_info(entity_id), "source": source})
 
     @callback
     def _drop_override(self, entity_id: str, reason: str) -> bool:

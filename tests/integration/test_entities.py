@@ -126,6 +126,15 @@ async def test_the_override_sensor_names_the_preset_an_override_was_set_to(bench
     assert state.state == "on" and state.attributes["preset"] == "boost"
 
 
+async def test_the_override_sensor_gives_the_end_in_local_time_whoever_set_it(bench: Bench):
+    """The card sends its ends in UTC: automations read the same format from every source."""
+    await start(bench)
+    await bench.set_override("climate.salon", {"kind": "temperature", "value": 21, "start": "2026-10-12T08:00:00Z",
+                                               "end": "2026-10-12T10:00:00.250Z"})
+    end = bench.hass.states.get("binary_sensor.salon_override").attributes["end"]
+    assert end == "2026-10-12T12:00:00.250000+02:00"
+
+
 async def test_the_override_end_sensor(bench: Bench, entity_registry_enabled_by_default):
     await start(bench)
     assert bench.hass.states.get("sensor.salon_override_end").state == "unknown"

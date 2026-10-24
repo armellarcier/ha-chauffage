@@ -31,5 +31,4 @@ class OverrideSensor(ThermostatSensorEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        override = self.runtime.data["overrides"].get(self.climate) or {}
-        return {key: override.get(key) for key in ("kind", "value", "preset", "end")}
+        return self.runtime.override_info(self.climate)
