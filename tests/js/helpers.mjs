@@ -27,7 +27,7 @@ const SALON = { 'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, 
  * The data pushed by the integration (`chauffage/subscribe`). Shortcuts: `weeks` by schedule
  * name with "HH:MM preset" slots, `schedule` = name of the active schedule.
  */
-export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Normal', language = 'fr', paused = [] } = {}) {
+export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Normal', language = 'fr', paused = [], planned = {} } = {}) {
   const schedules = SCHEDULES();
   const idOf = (name) => schedules.find((s) => s.name === name).id;
   const out = {};
@@ -48,6 +48,8 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
     revision: 4,
     override_duration: 120,
     use_presets: true,
+    // What each thermostat follows now and the next different preset (computed by the integration)
+    planned,
   };
 }
 export const INTEGRATION_DATA = () => integrationData();
@@ -57,11 +59,11 @@ export const INTEGRATION_DATA = () => integrationData();
  * `hass.events` records the websocket commands; `hass.push(data)` sends an update to the card;
  * `reply(msg)` answers (or throws for) a command.
  */
-export function fakeHass({ data, weeks, overrides, schedule, paused, locale = FRENCH, reply } = {}) {
+export function fakeHass({ data, weeks, overrides, schedule, paused, planned, locale = FRENCH, reply } = {}) {
   INTEGRATION.connection = null; // one subscription per page: reset between tests
   INTEGRATION.data = null;
   INTEGRATION.listeners.clear();
-  if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, language: locale.language });
+  if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, planned, language: locale.language });
   const events = [];
   let globalRevision = data ? data.revision : 4;
   let listener = null;

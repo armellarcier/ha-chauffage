@@ -7,6 +7,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from conftest import WEEKDAY, Bench, every_day
+from custom_components.chauffage.websocket import _Subscriber
 
 SCHEDULES = {"climate.salon": {"normal": [WEEKDAY] * 7}}
 
@@ -33,6 +34,35 @@ async def test_subscribe_sends_everything_then_every_change(bench: Bench, ws_cli
 
     await bench.activate_schedule("Away")
     assert (await client.receive_json())["event"]["active_schedule"] == "away"
+
+
+async def test_the_card_is_told_until_when_the_preset_lasts_and_what_comes_next(bench: Bench, ws_client):
+    """The same answer as the schedule sensor: the next different preset, even on another day."""
+    await start(bench)
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 5 + [[["00:00", "eco"]]] * 2}})
+    await bench.go_to("23:00", day=4)  # Friday evening, a weekend on eco
+    client = await ws_client(bench.hass)
+    await client.send_json_auto_id({"type": "chauffage/subscribe"})
+    assert (await client.receive_json())["success"]
+    planned = (await client.receive_json())["event"]["planned"]["climate.salon"]
+    assert planned["preset"] == "eco" and planned["next_preset"] == "comfort"
+    assert planned["next_start"].startswith("2026-10-19T06:30")  # Monday
+
+
+async def test_the_card_is_told_when_the_planned_preset_changes_not_every_minute(bench: Bench):
+    class Connection:  # the card's websocket (a real one is closed by its heartbeat as the clock jumps)
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+
+        def send_message(self, message: dict) -> None:
+            self.sent.append(message["event"]["planned"]["climate.salon"])
+
+    await start(bench)
+    card = Connection()
+    _Subscriber(card, 1).attach(bench.runtime)
+    await bench.go_to("10:01")  # nothing changes: nothing sent
+    await bench.go_to("17:30")
+    assert [(p["preset"], p["next_preset"]) for p in card.sent] == [("eco", "comfort"), ("comfort", "eco")]
 
 
 async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_client):

@@ -9,6 +9,14 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- The more-info block says until when the planned preset really lasts and what comes next, as
+  the schedule sensor does: "Eco until 06:30 (tomorrow), then Comfort" instead of "Eco until
+  midnight", and never "Eco until 17:30, then Eco"
+  ([#24](https://github.com/armellarcier/ha-chauffage/issues/24)). The integration computes it
+  and sends it to the cards.
+
 ## [0.6.0-beta.3] - 2026-10-24
 
 **Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).

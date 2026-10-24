@@ -127,7 +127,19 @@ describe('the more-info block in English', () => {
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
     el.entity = 'climate.salon';
-    el.hass = fakeHass({ locale: { language: 'en-US', time_format: 'language', number_format: 'language', first_weekday: 'language' } });
+    el.hass = fakeHass({ locale: { language: 'en-US', time_format: 'language', number_format: 'language', first_weekday: 'language' },
+      planned: { 'climate.salon': { preset: 'eco', next_preset: 'comfort', next_start: '2026-10-12T17:30:00+02:00' } } });
     assert.match(el.shadowRoot.textContent.replace(/\s+/g, ' '), /Follows the schedule: Eco until 5:30\s?PM, then Comfort/);
+  });
+
+  test('a next preset on another day, and none all week', () => {
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.salon';
+    const english = { language: 'en-GB', time_format: 'language', number_format: 'language', first_weekday: 'language' };
+    el.hass = fakeHass({ locale: english, planned: { 'climate.salon': { preset: 'eco', next_preset: 'comfort', next_start: '2026-10-13T06:30:00+02:00' } } });
+    assert.match(el.shadowRoot.textContent.replace(/\s+/g, ' '), /Follows the schedule: Eco until 06:30 \(tomorrow\), then Comfort/);
+    el.hass = fakeHass({ locale: english, planned: { 'climate.salon': { preset: 'eco', next_preset: null, next_start: null } } });
+    assert.match(el.shadowRoot.textContent.replace(/\s+/g, ' '), /Follows the schedule: Eco all week/);
   });
 });

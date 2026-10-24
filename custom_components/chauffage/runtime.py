@@ -262,6 +262,7 @@ class ChauffageRuntime:
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
             "renamed": self.data["renamed"],
+            "planned": self.planned_presets(),
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
@@ -270,6 +271,15 @@ class ChauffageRuntime:
         if not week:
             return None, None, None
         return engine.current_and_next(week, now or dt_util.now())
+
+    def planned_presets(self) -> dict[str, dict[str, Any]]:
+        """What each scheduled thermostat follows now, and the next different preset."""
+        out = {}
+        for entity_id in self.scheduled:
+            current, next_preset, next_start = self.planned(entity_id)
+            out[entity_id] = {"preset": current, "next_preset": next_preset,
+                              "next_start": next_start.isoformat() if next_start else None}
+        return out
 
     # ----- writing -----
 

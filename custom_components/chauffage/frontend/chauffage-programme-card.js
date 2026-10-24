@@ -44,6 +44,7 @@ const I18N = {
     dragToChangeEnd: 'Drag to change the end',
     until: 'until',
     today: 'today',
+    tomorrow: 'tomorrow',
     remaining: '{duration} left',
     duration: '{h}h {mm}',
     deleteAndResume: 'Delete · resume the schedule',
@@ -113,7 +114,8 @@ const I18N = {
     schedule: 'Schedule',
     followsSchedule: 'Follows the schedule:',
     untilThen: '{current} until {time}, then {next}',
-    untilMidnight: '{current} until midnight',
+    untilDayThen: '{current} until {time} ({day}), then {next}',
+    allWeek: '{current} all week',
     todayTitle: 'Today',
     week: 'Week',
     stale: 'These schedules were changed elsewhere in the meantime: cancel to reload them, then redo your changes.',
@@ -208,6 +210,7 @@ const I18N = {
     dragToChangeEnd: 'Glisser pour changer la fin',
     until: 'jusqu\'à',
     today: 'aujourd\'hui',
+    tomorrow: 'demain',
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
     deleteAndResume: 'Supprimer · reprendre le planning',
@@ -277,7 +280,8 @@ const I18N = {
     schedule: 'Planning',
     followsSchedule: 'Suit le planning :',
     untilThen: '{current} jusqu\'à {time}, puis {next}',
-    untilMidnight: '{current} jusqu\'à minuit',
+    untilDayThen: '{current} jusqu\'à {time} ({day}), puis {next}',
+    allWeek: '{current} toute la semaine',
     todayTitle: 'Aujourd\'hui',
     week: 'Semaine',
     stale: 'Ces plannings ont été modifiés ailleurs entre-temps : annulez pour les recharger, puis refaites vos modifications.',
@@ -781,6 +785,8 @@ function makeDataSource(hass, available) {
     setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
     presets: () => (d && d.presets) || [],
     targets: (climate) => (d && d.targets && d.targets[climate]) || {},
+    // What a thermostat follows now and the next different preset: { preset, next_preset, next_start }
+    planned: (climate) => (d && d.planned && d.planned[climate]) || null,
     // Presets and mappings are set from the card by admins (the integration refuses the others)
     editable: !!d && (!hass.user || !!hass.user.is_admin),
     mapping: (climate) => (d && d.mappings && d.mappings[climate]) || {},
@@ -3373,16 +3379,23 @@ class ChauffageMoreInfo extends HTMLElement {
     this._pieces = pieces;
     const pieceFor = (day) => pieces.find((p) => p.day === day);
 
-    // Current / next slot
+    // What the schedule does now, until when, and what comes next (computed by the integration,
+    // like the schedule sensor: the next different preset, maybe on another day)
     const segs = week[today];
-    const now = nowMin();
-    let idx = 0;
-    segs.forEach((s, i) => { if (s.start <= now) idx = i; });
-    const current = this._preset(segs[idx].preset).name;
-    const next = segs[idx + 1];
-    const followText = next
-      ? t('untilThen', { current, time: this._loc.time(next.start), next: this._preset(next.preset).name })
-      : t('untilMidnight', { current });
+    const plan = dataSource(this._hass).planned(this._entity);
+    let followText = '';
+    if (plan && plan.preset) {
+      const current = this._preset(plan.preset).name;
+      const start = plan.next_start ? parseDate(plan.next_start) : null;
+      if (!start) followText = t('allWeek', { current });
+      else {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const day = start.toDateString() === tomorrow.toDateString() ? t('tomorrow') : this._loc.days[(start.getDay() + 6) % 7].toLowerCase();
+        const values = { current, time: this._loc.time(minutesOf(start)), next: this._preset(plan.next_preset).name };
+        followText = start.toDateString() === new Date().toDateString() ? t('untilThen', values) : t('untilDayThen', { ...values, day });
+      }
+    }
 
     let status;
     let endDay = '';
