@@ -260,10 +260,7 @@ class ChauffageRuntime:
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
             "renamed": self.data["renamed"],
-            "duplicated_cards": sorted(
-                card_id for card_id, card in self.data["cards"].items()
-                if self._duplicated(card.get("duplicated_at"), dt_util.now())
-            ),
+            "duplicated_cards": self._duplicated_cards(dt_util.now()),
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
@@ -356,8 +353,11 @@ class ChauffageRuntime:
         """A card shows these thermostats (its id: None for a card without one, YAML; its
         instance: the card as drawn on one page). A thermostat it no longer shows, that no other
         card shows, is proposed to be paused; so is one not shown for UNSHOWN while others were
-        (safety net). An id two cards share (duplicated) proposes nothing: its lists add up."""
+        (safety net). An id two cards share (duplicated) proposes nothing: its lists add up. Saved;
+        the cards are only sent their data again when one turns out duplicated (or no longer is):
+        nothing else they get changes."""
         now = dt_util.now()
+        duplicated_before = self._duplicated_cards(now)
         thermostats = list(dict.fromkeys(self._renamed_to(e) or e for e in thermostats))
         # A card not seen for UNSHOWN (deleted, or given its own id) no longer counts
         cards = self.data["cards"]
@@ -391,7 +391,9 @@ class ChauffageRuntime:
                 t["shown_at"] = now.isoformat()  # counted from now (never shown since the upgrade)
             elif now - dt_util.parse_datetime(t["shown_at"]) > UNSHOWN:
                 self._unlisted(entity_id)
-        self._changed()
+        self.store.async_delay_save(lambda: self.data, SAVE_DELAY)
+        if self._duplicated_cards(now) != duplicated_before:
+            self._notify(DATA)
 
     def _renamed_to(self, entity_id: str) -> str | None:
         """The new id of a thermostat renamed from this one, unless the id is taken again."""
@@ -399,6 +401,11 @@ class ChauffageRuntime:
         if current is None or entity_id in self.thermostats or self.hass.states.get(entity_id) is not None:
             return None
         return current
+
+    def _duplicated_cards(self, now: datetime) -> list[str]:
+        """Card ids two cards share (a card duplicated with its configuration)."""
+        return sorted(card_id for card_id, card in self.data["cards"].items()
+                      if self._duplicated(card.get("duplicated_at"), now))
 
     @staticmethod
     def _duplicated(duplicated_at: str | None, now: datetime) -> bool:

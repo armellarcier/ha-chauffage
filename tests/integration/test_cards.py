@@ -70,6 +70,22 @@ async def test_a_card_declares_the_thermostats_it_shows(bench: Bench, ws_client)
     assert issue(bench, UNLISTED) is None
 
 
+async def test_a_card_displayed_is_saved_without_sending_the_cards_their_data_again(bench: Bench, hass_storage):
+    """Every dashboard opened declares its cards: the data the cards get does not change, unless
+    a card turns out duplicated."""
+    await start(bench)
+    reasons = []
+    bench.runtime.async_add_listener(lambda reason: reason == "data" and reasons.append(reason))
+    await declare(bench, "c1", "climate.salon", "climate.bureau")
+    await declare(bench, "c1", "climate.bureau")
+    assert reasons == []
+    await bench.advance(1)  # delayed save
+    assert hass_storage["chauffage"]["data"]["cards"]["c1"]["thermostats"] == ["climate.bureau"]
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="a")
+    bench.runtime.declare_card("c1", ["climate.bureau"], instance="b")
+    assert reasons == ["data"]
+
+
 async def test_a_thermostat_removed_from_the_only_card_showing_it_raises_a_repair(bench: Bench):
     await start(bench)
     await declare(bench, "c1", "climate.salon", "climate.bureau")
