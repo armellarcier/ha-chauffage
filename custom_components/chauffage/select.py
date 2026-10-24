@@ -1,6 +1,6 @@
 """Select entity: the active schedule. Its options are the schedules' names; the `schedule_id`
 attribute gives the active schedule's stable id, for automations (with the
-chauffage.activate_schedule service)."""
+chauffage.activate_schedule service), `rules_choice` the one the activation rules give."""
 
 from __future__ import annotations
 
@@ -38,8 +38,13 @@ class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
         return self.runtime.schedule_name(self.runtime.data["active_schedule"])
 
     @property
-    def extra_state_attributes(self) -> dict[str, str]:
-        return {"schedule_id": self.runtime.data["active_schedule"]}
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        return {
+            "schedule_id": self.runtime.data["active_schedule"],
+            # What the activation rules give (None without rules): a schedule chosen by hand stays
+            # until it changes, an automation can activate it at once
+            "rules_choice": self.runtime.data["rules_choice"],
+        }
 
     async def async_select_option(self, option: str) -> None:
         schedule_id = next(s["id"] for s in self.runtime.data["schedules"] if s["name"] == option)

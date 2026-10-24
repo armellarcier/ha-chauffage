@@ -54,3 +54,8 @@ THERMOSTAT_ENTITIES = {
 def thermostat_unique_id(entry_id: str, climate: str, key: str) -> str:
     """The unique id of a scheduled thermostat's entity."""
     return f"{entry_id}_{climate}_{key}"
+
+
+def schedule_unique_id(entry_id: str, schedule_id: str) -> str:
+    """The unique id of a schedule's switch."""
+    return f"{entry_id}_schedule_{schedule_id}"

@@ -45,6 +45,7 @@ from .const import (
     DEFAULT_USE_PRESETS,
     DOMAIN,
     THERMOSTAT_ENTITIES,
+    schedule_unique_id,
     thermostat_unique_id,
 )
 from .store import SAVE_DELAY, ChauffageStore
@@ -293,7 +294,15 @@ class ChauffageRuntime:
             "rule_results": self.rule_results,
             "renamed": self.data["renamed"],
             "planned": self.planned_presets(),
+            "schedule_entities": self.schedule_entities(),
         }
+
+    def schedule_entities(self) -> dict[str, str]:
+        """{schedule id: entity id of its switch}: the card shows the icon chosen for it in HA."""
+        registry = er.async_get(self.hass)
+        entities = {s: registry.async_get_entity_id("switch", DOMAIN, schedule_unique_id(self.entry.entry_id, s))
+                    for s in self.schedule_ids}
+        return {s: entity_id for s, entity_id in entities.items() if entity_id}
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
         """(preset now, next preset, its start) for a thermostat in the active schedule."""
