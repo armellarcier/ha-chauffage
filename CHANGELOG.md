@@ -21,6 +21,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- The more-info block says until when the planned preset really lasts and what comes next, as
+  the schedule sensor does: "Eco until 06:30 (tomorrow), then Comfort" instead of "Eco until
+  midnight", and never "Eco until 17:30, then Eco"
+  ([#24](https://github.com/armellarcier/ha-chauffage/issues/24)). The integration computes it
+  and sends it to the cards.
 - A double click on a slot always adds a slot: its preset differs from the next slot's, so it no
   longer merges with it and only moves its start (#25).
 

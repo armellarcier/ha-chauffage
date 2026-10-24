@@ -11,15 +11,34 @@ function block(hass, entity) {
   return el;
 }
 const text = (el) => el.shadowRoot.textContent.replace(/\s+/g, ' ');
+const planned = (preset, next, start) => ({ preset, next_preset: next, next_start: start });
 const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
 
 describe('more-info block', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') })); // Monday
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  test('without override: current and next slot', () => {
-    const el = block(fakeHass(), 'climate.salon');
+  test('without override: until when the preset lasts, and what comes next', () => {
+    const el = block(fakeHass({ planned: { 'climate.salon': planned('eco', 'comfort', '2026-10-12T17:30:00+02:00') } }), 'climate.salon');
     assert.match(text(el), /Suit le planning : Éco jusqu'à 17:30, puis Confort/);
+  });
+
+  test('the preset goes on the next day: until when it really lasts, not until midnight', () => {
+    mock.timers.setTime(new Date('2026-10-12T23:00:00+02:00').getTime());
+    const el = block(fakeHass({ planned: { 'climate.salon': planned('eco', 'comfort', '2026-10-13T06:30:00+02:00') } }), 'climate.salon');
+    assert.match(text(el), /Suit le planning : Éco jusqu'à 06:30 \(demain\), puis Confort/);
+    assert.doesNotMatch(text(el), /minuit/);
+  });
+
+  test('a weekend on one preset: the day it ends is named', () => {
+    mock.timers.setTime(new Date('2026-10-16T23:00:00+02:00').getTime()); // Friday
+    const el = block(fakeHass({ planned: { 'climate.salon': planned('eco', 'comfort', '2026-10-19T06:30:00+02:00') } }), 'climate.salon');
+    assert.match(text(el), /Suit le planning : Éco jusqu'à 06:30 \(lundi\), puis Confort/);
+  });
+
+  test('the same preset all week', () => {
+    const el = block(fakeHass({ planned: { 'climate.salon': planned('eco', null, null) } }), 'climate.salon');
+    assert.match(text(el), /Suit le planning : Éco toute la semaine/);
   });
 
   test('the title shows the name of the active schedule, not its id', () => {

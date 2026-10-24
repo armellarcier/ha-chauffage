@@ -1,7 +1,7 @@
 """Websocket API used by the card (vocabulary: docs/glossary.md).
 
-chauffage/subscribe          everything the card needs, then again after every change (and after
-                             the integration is reloaded)
+chauffage/subscribe          everything the card needs, then again after every change, when a
+                             planned preset changes, and after the integration is reloaded
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
@@ -91,6 +91,7 @@ class _Subscriber:
         self.connection, self.msg_id = connection, msg_id
         self.runtime: ChauffageRuntime | None = None
         self._unsub: Callable[[], None] | None = None
+        self._planned: dict[str, Any] | None = None  # as last sent
 
     @callback
     def attach(self, runtime: ChauffageRuntime) -> None:
@@ -107,12 +108,15 @@ class _Subscriber:
 
     @callback
     def _changed(self, reason: str) -> None:
-        if reason == DATA:
+        # Every minute (TICK): only when a planned preset changed
+        if reason == DATA or self.runtime.planned_presets() != self._planned:
             self.send()
 
     @callback
     def send(self) -> None:
-        self.connection.send_message(websocket_api.event_message(self.msg_id, self.runtime.snapshot()))
+        snapshot = self.runtime.snapshot()
+        self._planned = snapshot["planned"]
+        self.connection.send_message(websocket_api.event_message(self.msg_id, snapshot))
 
 
 @callback
