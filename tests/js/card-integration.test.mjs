@@ -185,8 +185,7 @@ describe('presets from the integration', () => {
   });
 
   test('the legend shows the presets and what they mean for the thermostat', () => {
-    const hass = fakeIntegrationHass({ data: withPresets() });
-    hass.states['climate.salon'].attributes.eco_temp = 16; // VTherm preset temperature
+    const hass = fakeIntegrationHass({ data: { ...withPresets(), preset_temperatures: { 'climate.salon': { eco: 16 } } } });
     const card = createCard(hass, { show: ['climate.salon'] });
     const legend = card.shadowRoot.querySelector('.legend').textContent.replace(/\s+/g, ' ');
     assert.match(legend, /Confort 20,5°/);
@@ -359,9 +358,10 @@ describe('the "Presets" view', () => {
     assert.deepEqual(lastCall(hass).replacements, { comfort: 'eco' });
   });
 
-  test('Versatile Thermostat preset temperatures are read from its attributes (VTherm 10+)', () => {
-    const hass = fakeIntegrationHass({ data: data() });
-    hass.states['climate.salon'].attributes.preset_temperatures = { eco_temp: 16.5, comfort_temp: 19 };
+  test('a preset\'s temperature on a thermostat is the one the integration compares setpoints with', () => {
+    const hass = fakeIntegrationHass({ data: { ...data(), preset_temperatures: { 'climate.salon': { eco: 16.5, comfort: 19 } } } });
+    // The card does not read the thermostat's attributes itself
+    hass.states['climate.salon'].attributes.preset_temperatures = { eco_temp: 15, comfort_temp: 18 };
     const card = open(hass);
     assert.equal(cellText(card, 'eco', 'climate.salon'), '⟲ 16,5°');
     assert.equal(cellText(card, 'comfort', 'climate.salon'), '⟲ 19°');

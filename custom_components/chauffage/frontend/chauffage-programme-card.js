@@ -785,7 +785,7 @@ function makeDataSource(hass, available) {
     editable: !!d && (!hass.user || !!hass.user.is_admin),
     mapping: (climate) => (d && d.mappings && d.mappings[climate]) || {},
     usePresets: () => !d || d.use_presets !== false,
-    learned: (climate, preset) => ((d && d.preset_temperatures && d.preset_temperatures[climate]) || {})[preset],
+    presetTemperature: (climate, preset) => ((d && d.preset_temperatures && d.preset_temperatures[climate]) || {})[preset],
     usedPresets: () => {
       const used = new Set();
       for (const bySchedule of Object.values(d ? d.weeks : {})) {
@@ -2374,20 +2374,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._render();
   }
 
-  // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one
-  // Versatile Thermostat shows (comfort_temp… attributes: a deliberate extra for VTherm users),
-  // otherwise the one last seen while that preset was active (learned by the integration)
+  // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one the
+  // integration computes (published by Versatile Thermostat, else learned), the same it compares
+  // a manual setpoint with
   _presetTemperature(climate, target) {
     if ('temperature' in target) return target.temperature;
-    const st = this._hass.states[climate];
-    // VTherm 10+: preset_temperatures: {comfort_temp: …}; older versions: comfort_temp attributes
-    const attrs = (st && st.attributes) || {};
-    const key = `${target.preset}_temp`;
-    const vtherm = attrs.preset_temperatures && typeof attrs.preset_temperatures === 'object'
-      ? attrs.preset_temperatures[key] : attrs[key];
-    if (typeof vtherm === 'number') return vtherm;
-    const learned = this._source().learned(climate, target.preset);
-    return typeof learned === 'number' ? learned : null;
+    const temperature = this._source().presetTemperature(climate, target.preset);
+    return typeof temperature === 'number' ? temperature : null;
   }
 
   // What a preset means for a thermostat: its mapping (as computed by the integration), else

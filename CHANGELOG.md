@@ -9,6 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- The temperature of a thermostat's own preset shown by the card (legend, *Presets* view) is
+  computed by the integration, the same it compares a manual setpoint with to end an override
+  ([#22](https://github.com/armellarcier/ha-chauffage/issues/22)). Nothing changes for users;
+  restart Home Assistant after updating, as for every release.
+
 ## [0.6.0-beta.3] - 2026-10-24
 
 **Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).

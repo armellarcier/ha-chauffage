@@ -89,7 +89,9 @@ future contributor might question.
 - **A preset used in the weeks cannot simply be removed**: another one takes its place.
 - **Temperatures of the thermostats' own presets** are learned while each preset is active (no
   standard attribute gives them); Versatile Thermostat's are read from its attributes, a
-  deliberate extra for its users.
+  deliberate extra for its users. The integration computes them and sends them to the card
+  ([#22](https://github.com/armellarcier/ha-chauffage/issues/22)): what the card shows is what a
+  manual setpoint is compared with, from one copy of the logic.
 
 ## Schedules
 
