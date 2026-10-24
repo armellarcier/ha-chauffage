@@ -87,6 +87,29 @@ async def test_the_entities_of_a_thermostat_with_a_longer_id_stay_where_they_are
     assert bench.runtime.weeks["climate.salon_bas"] == SALON
 
 
+async def test_renamed_to_the_id_of_a_thermostat_whose_entity_is_gone(bench: Bench):
+    """climate.sejour was scheduled, then its entity deleted (its repair answered "keep"): the
+    renamed thermostat is the one that exists, its data and entities win; the former ones go."""
+    await bench.go_to("10:00")
+    registry = er.async_get(bench.hass)
+    registry.async_get_or_create("climate", "test", "salon", suggested_object_id="salon")
+    bench.thermostat("climate.salon", "eco", friendly_name="Salon")
+    bench.thermostat("climate.sejour", "eco", friendly_name="Séjour")
+    await bench.setup()
+    await bench.save_weeks({"climate.salon": SALON, "climate.sejour": {"normal": every_day(("00:00", "frost"))}})
+    await bench.manual_setpoint("climate.sejour", 22)
+    bench.hass.states.async_remove("climate.sejour")
+    await bench.hass.async_block_till_done()
+    assert registry.async_get("switch.sejour_scheduling") is not None
+
+    await rename(bench)
+    assert bench.runtime.weeks["climate.sejour"] == SALON
+    assert "climate.sejour" not in bench.overrides()
+    assert registry.async_get("switch.sejour_scheduling") is None
+    switch = registry.async_get("switch.salon_scheduling")
+    assert switch is not None and switch.unique_id.endswith("climate.sejour_scheduling")
+
+
 async def test_renamed_back(bench: Bench):
     await start(bench)
     await rename(bench)

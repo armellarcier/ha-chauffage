@@ -426,7 +426,17 @@ class ChauffageRuntime:
         """A thermostat renamed in Home Assistant: its data, override and cards move to the new
         id, its entities keep their ids and settings (their unique ids follow), and the entry is
         reloaded to attach them to the new id. A new revision: a card's copy of the weeks holds
-        the former id."""
+        the former id. Data still held under the new id (an entity gone, kept in its repair) is
+        dropped with its entities: the renamed thermostat is the one that exists."""
+        registry = er.async_get(self.hass)
+        # Exact unique ids: climate.salon_bas's also start with "<entry>_climate.salon_"
+        unique_ids = [(platform, f"{self.entry.entry_id}_{{}}_{key}") for key, platform in THERMOSTAT_ENTITIES.items()]
+        if self.thermostats.pop(new, None) is not None:
+            for platform, unique_id in unique_ids:
+                if entity_id := registry.async_get_entity_id(platform, DOMAIN, unique_id.format(new)):
+                    registry.async_remove(entity_id)
+            repairs.close_issue(self.hass, repairs.MISSING, new)
+        self.data["overrides"].pop(new, None)
         self.thermostats[new] = self.thermostats.pop(old)
         self._weeks_changed([new])
         if old in self.data["overrides"]:
@@ -441,10 +451,7 @@ class ChauffageRuntime:
         renamed.pop(new, None)  # renamed back
         repairs.close_issue(self.hass, repairs.UNLISTED, old)
         repairs.close_issue(self.hass, repairs.MISSING, old)
-        registry = er.async_get(self.hass)
-        # Exact unique ids: climate.salon_bas's also start with "<entry>_climate.salon_"
-        for key, platform in THERMOSTAT_ENTITIES.items():
-            unique_id = f"{self.entry.entry_id}_{{}}_{key}"
+        for platform, unique_id in unique_ids:
             entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id.format(old))
             if entity_id:
                 registry.async_update_entity(entity_id, new_unique_id=unique_id.format(new))
