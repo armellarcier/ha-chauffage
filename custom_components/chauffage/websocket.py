@@ -91,6 +91,7 @@ class _Subscriber:
         self.connection, self.msg_id = connection, msg_id
         self.runtime: ChauffageRuntime | None = None
         self._unsub: Callable[[], None] | None = None
+        self._planned: dict[str, Any] | None = None  # as last sent
 
     @callback
     def attach(self, runtime: ChauffageRuntime) -> None:
@@ -107,7 +108,7 @@ class _Subscriber:
 
     @callback
     def _changed(self, reason: str) -> None:
-        # Every minute, only when a planned preset changed
+        # Every minute (TICK): only when a planned preset changed
         if reason == DATA or self.runtime.planned_presets() != self._planned:
             self.send()
 
