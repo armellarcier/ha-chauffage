@@ -16,6 +16,8 @@ Each entry says whether the release **migrates stored data** and what to do when
   midnight", and never "Eco until 17:30, then Eco"
   ([#24](https://github.com/armellarcier/ha-chauffage/issues/24)). The integration computes it
   and sends it to the cards.
+- A double click on a slot always adds a slot: its preset differs from the next slot's, so it no
+  longer merges with it and only moves its start (#25).
 
 ## [0.6.0-beta.3] - 2026-10-24
 
