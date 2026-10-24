@@ -281,6 +281,8 @@ class ChauffageRuntime:
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
+        if any(self._renamed_to(entity_id) for entity_id in normalized):
+            raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
         if revisions is not None:
             for entity_id in normalized:
                 current = self.thermostats.get(entity_id, {}).get("revision")
@@ -338,8 +340,12 @@ class ChauffageRuntime:
         card shows, is proposed to be paused; so is one not shown for UNSHOWN while others were
         (safety net). An id two cards share (duplicated) proposes nothing: its lists add up."""
         now = dt_util.now()
-        renamed = self.data["renamed"]
-        thermostats = [renamed.get(entity_id, entity_id) for entity_id in thermostats]
+        thermostats = list(dict.fromkeys(self._renamed_to(e) or e for e in thermostats))
+        # A card not seen for UNSHOWN (deleted, or given its own id) no longer counts
+        cards = self.data["cards"]
+        for gone in [c for c, card in cards.items() if c != card_id
+                     and now - dt_util.parse_datetime(card["seen_at"]) > UNSHOWN]:
+            del cards[gone]
         for entity_id in thermostats:
             if (t := self.thermostats.get(entity_id)) is not None:
                 t.update(shown_at=now.isoformat(), kept_unlisted=False)
@@ -366,6 +372,13 @@ class ChauffageRuntime:
             elif now - dt_util.parse_datetime(t["shown_at"]) > UNSHOWN:
                 self._unlisted(entity_id)
         self._changed()
+
+    def _renamed_to(self, entity_id: str) -> str | None:
+        """The new id of a thermostat renamed from this one, unless the id is taken again."""
+        current = self.data["renamed"].get(entity_id)
+        if current is None or entity_id in self.thermostats or self.hass.states.get(entity_id) is not None:
+            return None
+        return current
 
     @staticmethod
     def _duplicated(duplicated_at: str | None, now: datetime) -> bool:

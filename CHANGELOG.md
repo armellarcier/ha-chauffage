@@ -31,7 +31,8 @@ left, shows up paused in the card's *Thermostats* view, to forget or resume.
 - A card duplicated in the dashboard (with its hidden id) is recognized: no false repair, and
   its editor offers to give it its own id.
 - A thermostat **renamed** in Home Assistant (its entity id) keeps its schedule, override and
-  entities; a card whose configuration still holds the former id shows it under the new one.
+  entities. A card whose configuration still holds the former id shows a notice with the new
+  one, and the card editor offers to use it.
 - A *Thermostats* view in the card: every thermostat Chauffage schedules, paused or not, and the
   ones no longer in this card, to pause, resume or **forget** (after a confirmation): a forgotten
   thermostat's data is dropped and it is no longer driven. A thermostat this card shows cannot be
@@ -44,6 +45,8 @@ left, shows up paused in the card's *Thermostats* view, to forget or resume.
 
 - Reloading the integration after Home Assistant has started no longer logs "Unable to remove
   unknown job listener".
+- The cards open in the browser keep receiving the integration's data after it is reloaded
+  (options changed): they no longer need the page to be reloaded.
 
 ### Changed
 

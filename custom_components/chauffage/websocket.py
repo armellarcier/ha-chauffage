@@ -1,6 +1,7 @@
 """Websocket API used by the card (vocabulary: docs/glossary.md).
 
-chauffage/subscribe          everything the card needs, then again after every change
+chauffage/subscribe          everything the card needs, then again after every change (and after
+                             the integration is reloaded)
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
@@ -82,20 +83,65 @@ async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
     connection.send_result(msg["id"], result)
 
 
+SUBSCRIBERS = f"{DOMAIN}_subscribers"
+
+
+class _Subscriber:
+    """A card subscribed to the data: it follows the runtime of the moment, so that it goes on
+    receiving after the integration is reloaded (options changed, a thermostat renamed)."""
+
+    def __init__(self, connection: websocket_api.ActiveConnection, msg_id: int) -> None:
+        self.connection, self.msg_id = connection, msg_id
+        self.runtime: ChauffageRuntime | None = None
+        self._unsub: Callable[[], None] | None = None
+
+    @callback
+    def attach(self, runtime: ChauffageRuntime) -> None:
+        self.detach()
+        self.runtime = runtime
+        self._unsub = runtime.async_add_listener(self._changed)
+        self.send()
+
+    @callback
+    def detach(self) -> None:
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+
+    @callback
+    def _changed(self, reason: str) -> None:
+        if reason == DATA:
+            self.send()
+
+    @callback
+    def send(self) -> None:
+        self.connection.send_message(websocket_api.event_message(self.msg_id, self.runtime.snapshot()))
+
+
+@callback
+def async_attach_subscribers(hass: HomeAssistant, runtime: ChauffageRuntime) -> None:
+    """The cards subscribed before a reload follow the new runtime, and get its data at once."""
+    for subscriber in hass.data.get(SUBSCRIBERS, ()):
+        subscriber.attach(runtime)
+
+
 @websocket_api.websocket_command({vol.Required("type"): "chauffage/subscribe"})
 @callback
 def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if (runtime := _runtime(hass, connection, msg["id"])) is None:
         return
+    subscriber = _Subscriber(connection, msg["id"])
+    subscribers: set[_Subscriber] = hass.data.setdefault(SUBSCRIBERS, set())
+    subscribers.add(subscriber)
 
     @callback
-    def forward(reason: str) -> None:
-        if reason == DATA:
-            connection.send_message(websocket_api.event_message(msg["id"], runtime.snapshot()))
+    def unsubscribe() -> None:
+        subscribers.discard(subscriber)
+        subscriber.detach()
 
-    connection.subscriptions[msg["id"]] = runtime.async_add_listener(forward)
+    connection.subscriptions[msg["id"]] = unsubscribe
     connection.send_result(msg["id"])
-    connection.send_message(websocket_api.event_message(msg["id"], runtime.snapshot()))
+    subscriber.attach(runtime)
 
 
 @websocket_api.websocket_command({

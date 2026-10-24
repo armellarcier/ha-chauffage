@@ -182,3 +182,17 @@ async def test_services_refuse_thermostats_without_a_schedule(bench: Bench):
             "chauffage", "set_override", {"entity_id": "climate.cuisine", "preset": "boost"}, blocking=True
         )
 
+
+
+async def test_a_subscription_goes_on_after_the_integration_is_reloaded(bench: Bench, ws_client):
+    """Options changed, a thermostat renamed: the integration is reloaded under the open cards."""
+    await start(bench)
+    client = await ws_client(bench.hass)
+    await client.send_json_auto_id({"type": "chauffage/subscribe"})
+    assert (await client.receive_json())["success"]
+    await client.receive_json()
+    assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert (await client.receive_json())["event"]["active_schedule"] == "normal"  # sent again
+    await bench.activate_schedule("Away")
+    assert (await client.receive_json())["event"]["active_schedule"] == "away"

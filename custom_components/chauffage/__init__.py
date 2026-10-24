@@ -59,6 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     entry.runtime_data = runtime
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await runtime.async_start()
+    websocket.async_attach_subscribers(hass, runtime)  # cards open during a reload
 
     schedule_entity = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_schedule")
     importer.async_update_package_issue(hass, schedule_entity)

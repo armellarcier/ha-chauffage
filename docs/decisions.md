@@ -176,6 +176,9 @@ thermostat it loaded.
   set on it.
 - **Each card declares the thermostats it shows** (`chauffage/card/declare`), when it is first
   shown, not in a preview: HA tells a card its configuration, not when the dashboard is saved.
+  HA marks a preview (the card editor's) after giving it `hass`, so a card declares a moment
+  later, once it knows; a card in the card editor dialog never declares. A card not seen for a
+  week (deleted, or given its own id) no longer counts.
   A Lovelace card has no id, so the visual editor writes a hidden `card_id` in its
   configuration. The integration does not read the dashboards: their storage is internal to
   Lovelace, and YAML or generated dashboards would be missed.
@@ -191,12 +194,21 @@ thermostat it loaded.
   the hidden `card_id` too. Each card as drawn sends an instance id with its declaration; two
   instances declaring different lists under one id within a minute are two cards: no repair from
   that id for a week (its lists add up, the safety net still works), and its editor offers to give
-  the card its own id. Telling them apart by their place in the dashboard was too fragile.
+  the card its own id. Telling them apart by their place in the dashboard was too fragile. A card
+  drawn again in the page under its id (its dashboard edited and saved) keeps the instance of that
+  id; only a second card drawn at the same time under it gets another one.
 - **A repair for a thermostat whose entity is gone** from HA: forget it, or keep it (an entity
   made again with the same id).
-- **A renamed `climate` entity is followed**: the integration listens to the entity registry
-  and moves the thermostat's data, its declared cards and its entities to the new id; the card
-  uses the new id the integration gives for one still in its configuration.
+- **A renamed `climate` entity is followed by the integration**, as HA's helpers follow their
+  source entity: it listens to the entity registry and moves the thermostat's data, its declared
+  cards and its entities to the new id. **Not by the card**: like HA's own cards, a card does not
+  change what its configuration says by itself. A thermostat of its configuration renamed is set
+  aside with a notice giving the new id, and the card editor offers to use it. Replacing it
+  silently showed a thermostat the configuration does not name, and went wrong once an id was
+  given to another entity (salon renamed, then chambre renamed salon). An id an entity has again
+  is that entity, never the renamed one; weeks saved under a former id are refused (reload).
+- **A card's subscription survives a reload of the integration** (options changed, a thermostat
+  renamed): the cards open in the page follow the new runtime and get its data at once.
 - **Saves send the weeks of the thermostats edited**, each with its own revision: two cards
   showing the same thermostat cannot overwrite each other, and do not block the others.
 - **Stored per thermostat** (`thermostats: {climate: {paused, weeks, mapping,

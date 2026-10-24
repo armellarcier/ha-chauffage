@@ -148,3 +148,35 @@ async def test_a_copy_of_the_weeks_made_before_a_rename_must_be_reloaded(bench: 
     await rename(bench)
     with pytest.raises(StaleRevision):
         await bench.runtime.save_weeks({"climate.salon": SALON}, revision)
+
+
+async def test_saving_weeks_under_a_former_id_is_refused(bench: Bench):
+    """A card not edited since the rename: the weeks would schedule an id no entity has."""
+    from custom_components.chauffage.runtime import StaleRevision
+
+    await start(bench)
+    await rename(bench)
+    with pytest.raises(StaleRevision):
+        await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": None})
+    assert "climate.salon" not in bench.runtime.thermostats
+
+
+async def test_a_former_id_given_to_another_entity_is_that_entity(bench: Bench):
+    """climate.salon renamed climate.sejour, then a new climate.salon: a card showing
+    climate.salon shows the new one, not climate.sejour."""
+    await start(bench)
+    bench.runtime.declare_card("c1", ["climate.salon"])
+    await rename(bench)
+    bench.thermostat("climate.salon", "eco", friendly_name="Salon neuf")
+    bench.runtime.declare_card("c1", ["climate.salon"])
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.data["cards"]["c1"]["thermostats"] == ["climate.salon"]
+    assert ir.async_get(bench.hass).async_get_issue("chauffage", "unlisted_climate.sejour") is not None
+
+
+async def test_two_ids_of_one_card_now_the_same_thermostat_count_once(bench: Bench):
+    """climate.salon renamed climate.sejour; a card holding both."""
+    await start(bench)
+    await rename(bench)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.sejour"])
+    assert bench.runtime.data["cards"]["c1"]["thermostats"] == ["climate.sejour"]

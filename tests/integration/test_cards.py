@@ -290,3 +290,16 @@ async def test_the_card_sends_its_instance(bench: Bench, ws_client):
                                         "thermostats": thermostats})
         assert (await client.receive_json())["success"]
     assert bench.runtime.snapshot()["duplicated_cards"] == ["c1"]
+
+
+async def test_a_card_not_seen_for_a_week_no_longer_counts(bench: Bench):
+    """A card deleted, or one that got its own id: what it showed no longer keeps the
+    thermostats from a repair."""
+    await start(bench)
+    await declare(bench, "gone", "climate.salon", "climate.bureau")
+    await declare(bench, "c1", "climate.salon", "climate.bureau")
+    await bench.go_to("10:00", day=9)
+    await declare(bench, "c1", "climate.salon", "climate.bureau")
+    await declare(bench, "c1", "climate.bureau")
+    assert issue(bench, UNLISTED) is not None
+    assert set(bench.runtime.data["cards"]) == {"c1"}

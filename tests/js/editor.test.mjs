@@ -32,7 +32,7 @@ function editorFor(config, { locale, version = '2025.1.0', formatEntityName, dat
   const edit = (i) => rows()[i].querySelector('.edit').click();
   // The last config sent, without its hidden card id (tested on its own)
   const last = () => { const { card_id: _, ...config } = changes.at(-1); return config; };
-  return { editor, changes, $, $$, rows, value, formChange, edit, last };
+  return { editor, hass, changes, $, $$, rows, value, formChange, edit, last };
 }
 
 describe('visual editor: the card id', () => {
@@ -51,6 +51,23 @@ describe('visual editor: the card id', () => {
     assert.match(changes.at(-1).card_id, /^[a-z0-9]{8,}$/);
     assert.notEqual(changes.at(-1).card_id, 'abc123xyz');
     assert.equal(editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'other' }, { data }).$('.duplicate-note'), null);
+  });
+
+  test('a thermostat renamed in Home Assistant is said under its row, with a button to use its new id', () => {
+    const data = { ...integrationData(), renamed: { 'climate.salon': 'climate.sejour' } };
+    const { editor, hass, $, last } = editorFor({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'], card_id: 'abc123xyz' }, { data });
+    delete hass.states['climate.salon'];
+    editor.setConfig({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'], card_id: 'abc123xyz' });
+    assert.match($('.renamed-note').textContent, /climate\.sejour/);
+    $('.renamed-note button').click();
+    assert.deepEqual(last().thermostats, ['climate.sejour', 'climate.bureau']);
+    assert.equal($('.renamed-note'), null);
+  });
+
+  test('no notice for an id a thermostat has again', () => {
+    const data = { ...integrationData(), renamed: { 'climate.salon': 'climate.sejour' } };
+    const { $ } = editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'abc123xyz' }, { data });
+    assert.equal($('.renamed-note'), null);
   });
 
   test('an existing card id is kept', () => {
