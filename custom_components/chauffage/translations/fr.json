@@ -143,6 +143,18 @@
       "fields": {
         "schedule": { "name": "Identifiant du planning", "description": "L'identifiant du planning, affiché dans la carte (menu du planning, Renommer)." }
       }
+    },
+    "get_schedules": {
+      "name": "Lire les plannings",
+      "description": "Donne les plannings (identifiant, nom, interrupteur), le planning actif et celui que donnent les règles d'activation, pour les scripts."
+    },
+    "get_week": {
+      "name": "Lire une semaine",
+      "description": "Donne la semaine de thermostats dans un planning (le planning actif par défaut) : les créneaux de chaque jour, avec leur début, leur fin et leur préréglage, pour les scripts.",
+      "fields": {
+        "entity_id": { "name": "Thermostats", "description": "Des thermostats qui ont un planning." },
+        "schedule": { "name": "Identifiant du planning", "description": "L'identifiant du planning (par défaut : le planning actif)." }
+      }
     }
   },
   "exceptions": {

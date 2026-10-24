@@ -4,6 +4,9 @@ chauffage.set_override       sets a thermostat's temperature or preset for a whi
                              resumes at the end), like a manual change
 chauffage.clear_override     ends it now: the thermostat resumes its schedule
 chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
+chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
+chauffage.get_week           (response) the week of thermostats in a schedule, as HA's
+                             schedule.get_schedule gives its schedules
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
@@ -38,6 +41,8 @@ SET_OVERRIDE_SCHEMA = vol.All(
 )
 CLEAR_OVERRIDE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
 ACTIVATE_SCHEDULE_SCHEMA = vol.Schema({vol.Required("schedule"): cv.string})
+GET_WEEK_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids, vol.Optional("schedule"): cv.string})
+DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
 def loaded_runtime(hass: HomeAssistant) -> ChauffageRuntime:
@@ -95,6 +100,35 @@ def async_register(hass: HomeAssistant) -> None:
             )
         await runtime.activate_schedule(schedule, source="service")
 
+    async def get_schedules(call: ServiceCall) -> ServiceResponse:
+        runtime = loaded_runtime(hass)
+        entities = runtime.schedule_entities()
+        return {
+            "schedules": [{"id": s["id"], "name": s["name"], "entity_id": entities.get(s["id"])}
+                          for s in runtime.data["schedules"]],
+            **{key: runtime.data[key] for key in ("active_schedule", "rules_choice", "default_schedule")},
+        }
+
+    async def get_week(call: ServiceCall) -> ServiceResponse:
+        runtime = loaded_runtime(hass)
+        schedule = call.data.get("schedule", runtime.data["active_schedule"])
+        if schedule not in runtime.schedule_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="unknown_schedule", translation_placeholders={"schedule": schedule}
+            )
+        response = {}
+        for entity_id in call.data[ATTR_ENTITY_ID]:
+            week = runtime_for(hass, entity_id).weeks[entity_id][schedule]
+            response[entity_id] = {"schedule": schedule} | {
+                name: [{"start": start, "end": next_start, "preset": preset}
+                       for (start, preset), next_start in zip(day, [s for s, _ in day[1:]] + ["24:00"])]
+                for name, day in zip(DAYS, week)
+            }
+        return response
+
     hass.services.async_register(DOMAIN, "set_override", set_override, schema=SET_OVERRIDE_SCHEMA)
     hass.services.async_register(DOMAIN, "clear_override", clear_override, schema=CLEAR_OVERRIDE_SCHEMA)
     hass.services.async_register(DOMAIN, "activate_schedule", activate_schedule, schema=ACTIVATE_SCHEDULE_SCHEMA)
+    hass.services.async_register(DOMAIN, "get_schedules", get_schedules, supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(DOMAIN, "get_week", get_week, schema=GET_WEEK_SCHEMA,
+                                 supports_response=SupportsResponse.ONLY)
