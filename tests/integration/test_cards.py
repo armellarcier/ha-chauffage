@@ -300,14 +300,30 @@ async def test_one_card_declaring_again_is_not_a_duplicate(bench: Bench):
     assert bench.runtime.snapshot()["duplicated_cards"] == []
 
 
-async def test_a_duplicated_id_is_forgotten_after_a_week(bench: Bench):
-    """Once one of the cards got its own id, the other one declares alone."""
+async def test_a_duplicated_id_is_forgotten_a_day_after_it_was_last_seen_twice(bench: Bench):
+    """Once one of the cards got its own id, the other one declares alone: within a day, its
+    editor no longer says it is duplicated, and a thermostat removed from it raises a repair."""
     await start(bench)
     bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="a")
     bench.runtime.declare_card("c1", ["climate.bureau"], instance="b")
-    await bench.go_to("10:00", day=8)
+    await bench.go_to("10:00", day=2)
     bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="c")
     assert bench.runtime.snapshot()["duplicated_cards"] == []
+    await declare(bench, "c1", "climate.bureau")
+    assert issue(bench, UNLISTED) is not None
+
+
+async def test_a_duplicated_id_seen_twice_again_stays_duplicated(bench: Bench):
+    """Both copies drawn again (the page reloaded): still two cards."""
+    await start(bench)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="a")
+    bench.runtime.declare_card("c1", ["climate.bureau"], instance="b")
+    await bench.go_to("09:00", day=2)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="c")
+    bench.runtime.declare_card("c1", ["climate.bureau"], instance="d")
+    await bench.go_to("08:00", day=3)
+    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"], instance="e")
+    assert bench.runtime.snapshot()["duplicated_cards"] == ["c1"]
 
 
 async def test_the_card_sends_its_instance(bench: Bench, ws_client):

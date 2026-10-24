@@ -203,7 +203,7 @@ thermostat it loaded.
 - **A card duplicated with its id is recognized**: HA's *Duplicate* copies the configuration,
   the hidden `card_id` too. Each card as drawn sends an instance id with its declaration; two
   instances declaring different lists under one id within a minute are two cards: no repair from
-  that id for a week (its lists add up, the safety net still works), and its editor offers to give
+  that id for a day after they were last drawn together, renewed each time they are (its lists add up, the safety net still works), and its editor offers to give
   the card its own id. Telling them apart by their place in the dashboard was too fragile. A card
   drawn again in the page under its id (its dashboard edited and saved) keeps the instance of that
   id; only a second card drawn at the same time under it gets another one.

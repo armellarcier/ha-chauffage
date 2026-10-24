@@ -58,6 +58,9 @@ UNSHOWN = timedelta(days=7)
 # Two cards drawn at the same time declaring different lists under one id: a card duplicated with
 # its configuration (and its hidden id)
 SAME_TIME = timedelta(minutes=1)
+# A card id two cards share stays duplicated this long after they were last drawn together:
+# both copies drawn again renew it, one of them given its own id ends it soon
+DUPLICATED = timedelta(days=1)
 
 
 class StaleRevision(Exception):
@@ -399,7 +402,7 @@ class ChauffageRuntime:
 
     @staticmethod
     def _duplicated(duplicated_at: str | None, now: datetime) -> bool:
-        return duplicated_at is not None and now - dt_util.parse_datetime(duplicated_at) < UNSHOWN
+        return duplicated_at is not None and now - dt_util.parse_datetime(duplicated_at) < DUPLICATED
 
     def keep_unlisted(self, entity_id: str) -> None:
         """Driven although no card shows it, until a card shows it again (answer to its repair)."""
