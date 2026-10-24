@@ -166,8 +166,8 @@ et deux capteurs, **désactivés par défaut** (indisponibles pendant la pause) 
 
 Services :
 
-- `chauffage.set_override` : une température ou un préréglage, pour une durée ou jusqu'à une
-  heure.
+- `chauffage.set_override` : une température ou un préréglage (ce que ce préréglage signifie pour
+  le thermostat, comme dans la carte), pour une durée ou jusqu'à une heure.
 - `chauffage.clear_override` : le thermostat reprend son planning tout de suite.
 - `chauffage.activate_schedule` : active un planning par son identifiant stable.
 

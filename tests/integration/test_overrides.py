@@ -403,3 +403,81 @@ async def test_a_preset_picked_by_a_user_during_safety_mode_is_an_override(bench
     await bench.hass.async_block_till_done()
     o = bench.overrides()["climate.salon"]
     assert (o["kind"], o["value"]) == ("preset", "comfort")
+
+
+# ----- which preset (issue #23) -----
+
+async def test_an_override_set_to_a_preset_from_the_card_keeps_which_preset_it_is(bench: Bench):
+    """On a thermostat without presets, Comfort is 20 °C: the override still says Comfort."""
+    await start(bench)
+    o = bench.runtime.new_override("temperature", 21.5)
+    await bench.set_override("climate.salon", {**o, **card_choice(bench, "climate.salon", "comfort"), "preset": "comfort"})
+    assert bench.applied() == {"climate.salon": "comfort"}
+    assert bench.overrides()["climate.salon"]["preset"] == "comfort"
+
+
+async def test_an_override_set_to_a_temperature_has_no_preset(bench: Bench):
+    await start(bench)
+    o = bench.runtime.new_override("temperature", 21.5)
+    await bench.set_override("climate.salon", {**o, **card_choice(bench, "climate.salon", "comfort"), "preset": "comfort"})
+    await bench.set_override("climate.salon", {**o, "kind": "temperature", "value": 20.0})
+    assert "preset" not in bench.overrides()["climate.salon"]
+
+
+async def test_a_change_by_hand_during_an_override_set_to_a_preset_is_a_temperature(bench: Bench):
+    await start(bench)
+    o = bench.runtime.new_override("temperature", 21.5)
+    await bench.set_override("climate.salon", {**o, **card_choice(bench, "climate.salon", "comfort"), "preset": "comfort"})
+    await bench.manual_setpoint("climate.salon", 21.5)
+    o = bench.overrides()["climate.salon"]
+    assert (o["kind"], o["value"]) == ("temperature", 21.5)
+    assert "preset" not in o
+
+
+async def test_set_override_with_a_preset_sets_what_that_preset_means_on_the_thermostat(bench: Bench):
+    """The service's preset is a Chauffage preset: Comfort on a thermostat without presets is its
+    temperature, and the override says Comfort."""
+    await start(bench)
+    await bench.hass.services.async_call(
+        "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "comfort"}, blocking=True
+    )
+    assert bench.applied() == {"climate.salon": "comfort"}
+    o = bench.overrides()["climate.salon"]
+    assert {"kind": o["kind"], "value": o["value"]} == card_choice(bench, "climate.salon", "comfort")
+    assert o["preset"] == "comfort"
+
+
+async def test_an_override_set_to_a_preset_ends_and_resumes_the_schedule(bench: Bench):
+    await start(bench)
+    await bench.hass.services.async_call(
+        "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "comfort", "duration": 30}, blocking=True
+    )
+    await bench.thermostat_applies("climate.salon", "comfort")
+    bench.applied()
+    await bench.go_to("10:30")
+    assert bench.overrides() == {}
+    assert bench.applied() == {"climate.salon": "eco"}
+
+
+async def test_set_override_with_a_preset_follows_the_thermostat_s_mapping(bench: Bench):
+    await start(bench)
+    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 22.5}})
+    bench.temperature_calls.clear()
+    await bench.hass.services.async_call(
+        "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "comfort"}, blocking=True
+    )
+    assert bench.temperature_calls == [("climate.salon", 22.5)]
+    o = bench.overrides()["climate.salon"]
+    assert (o["kind"], o["value"], o["preset"]) == ("temperature", 22.5, "comfort")
+
+
+async def test_set_override_with_a_thermostat_s_own_preset_sets_that_preset(bench: Bench):
+    """A climate preset that is not a Chauffage preset (here "away") is the thermostat's own."""
+    bench.needs("standard")
+    await start(bench)
+    await bench.hass.services.async_call(
+        "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "away"}, blocking=True
+    )
+    assert bench.applied() == {"climate.salon": "away"}
+    o = bench.overrides()["climate.salon"]
+    assert (o["kind"], o["value"], "preset" in o) == ("preset", "away", False)

@@ -533,8 +533,12 @@ function overridePieces(d) {
 
 const DEFAULT_LOCALE = makeLocale(null, 'en');
 
-function overrideLabel(d, locale = DEFAULT_LOCALE) {
+// The override's value: the preset picked (`d.preset`, among `presets`), else its temperature or
+// the thermostat's own preset
+function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   if (!d) return '';
+  const picked = d.preset && presets.find((p) => p.id === d.preset);
+  if (picked) return picked.name;
   if (d.kind === 'temperature') return `${locale.number(d.value)} ${locale.unit}`;
   return locale.preset(d.value);
 }
@@ -814,12 +818,15 @@ const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => (a.temper
 
 // The value of an override, in the card's popover and the more-info block: one of the presets
 // (what it means on this thermostat, as the integration says: `targets`), or a temperature (the
-// thermostat's setpoint while the override is a preset). Returns { presets, temperature } HTML.
+// thermostat's setpoint while the override is a preset). The preset picked is highlighted (one at
+// the same temperature is not); without one, the preset whose climate preset the thermostat is
+// on. Returns { presets, temperature } HTML.
 function overrideValueHtml(d, src, climate, attrs, loc) {
   const targets = src.targets(climate);
+  const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
   const presets = sortedPresets(src, loc).filter((l) => targets[l.id]).map((l) => {
     const [[kind, value]] = Object.entries(targets[l.id]);
-    const on = !!d && d.kind === kind && d.value === value;
+    const on = !!d && (picked ? picked === l.id : d.kind === 'preset' && kind === 'preset' && d.value === value);
     return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
   }).join('');
   const value = d && d.kind === 'temperature' ? d.value : attrs.temperature;
@@ -871,18 +878,21 @@ function presetAt(week, date) {
   return preset;
 }
 
-// The override `d` set to a preset (what it means on this thermostat), until the same end; a new
-// override without `d`
+// The override `d` set to a preset (what it means on this thermostat, and which preset it is),
+// until the same end; a new override without `d`
 function overrideWithPreset(d, src, climate, preset) {
   const target = src.targets(climate)[preset];
   if (!target) return null;
   const [[kind, value]] = Object.entries(target);
-  return d ? { ...d, kind, value } : newOverride(src, kind, value);
+  return { ...(d || newOverride(src, kind, value)), kind, value, preset };
 }
 
-// The override `d` set to a temperature, until the same end; a new override without `d`
+// The override `d` set to a temperature (no longer a preset), until the same end; a new override
+// without `d`
 function overrideWithTemperature(d, src, value) {
-  return d ? { ...d, kind: 'temperature', value } : newOverride(src, 'temperature', value);
+  if (!d) return newOverride(src, 'temperature', value);
+  const { preset, ...rest } = d;
+  return { ...rest, kind: 'temperature', value };
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
@@ -1254,7 +1264,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _overrideLabel(d) {
-    return overrideLabel(d, this._loc);
+    return overrideLabel(d, this._loc, this._presets());
   }
 
   async _sendOverride(climate, override) {
@@ -3411,7 +3421,7 @@ class ChauffageMoreInfo extends HTMLElement {
       const then = thenText(dataSource(this._hass), this._entity, d, this._loc);
       status = `<div class="status derogation">
         <div class="line">
-          <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc))}</span>
+          <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
           <label>${esc(t('until'))} <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
           <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>
