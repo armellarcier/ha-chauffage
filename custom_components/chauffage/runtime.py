@@ -265,7 +265,7 @@ class ChauffageRuntime:
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
         """(preset now, next preset, its start) for a thermostat in the active schedule."""
-        week = self.weeks.get(entity_id, {}).get(self.data["active_schedule"])
+        week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
         if not week:
             return None, None, None
         return engine.current_and_next(week, now or dt_util.now())
