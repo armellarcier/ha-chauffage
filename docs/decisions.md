@@ -190,7 +190,8 @@ thermostat it loaded.
   Lovelace, and YAML or generated dashboards would be missed.
 - **A repair proposes to pause an active thermostat no card shows any more**, with a menu:
   pause, keep driving, forget; it closes by itself when a card declares the thermostat again
-  (a dialog cancelled, the thermostat added back). A repair waits for an answer in
+  (a dialog cancelled, the thermostat added back). Resuming a thermostat no card shows is
+  answering "keep driving it": it was resumed on purpose. A repair waits for an answer in
   *Settings → Repairs*, instead of a question asked while the card is edited. Raised when a
   card declares its list without a thermostat that no other card has; as a safety net (a card
   deleted, written in YAML without an id, duplicated with its id), when an active thermostat

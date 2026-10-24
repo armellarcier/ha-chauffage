@@ -186,6 +186,21 @@ async def test_the_repair_keeps_driving_it_until_it_is_removed_again(bench: Benc
     assert issue(bench, UNLISTED) is not None  # shown, then removed again
 
 
+async def test_a_thermostat_resumed_while_no_card_shows_it_is_kept_driven(bench: Bench):
+    """Resumed on purpose (the *Thermostats* view, its switch): like "keep driving it", until a
+    card shows it and it is removed again."""
+    await start(bench)
+    await bench.runtime.set_paused("climate.salon", True)
+    await declare(bench, "c1", "climate.bureau")
+    await bench.go_to("10:00", day=10)
+    await bench.runtime.set_paused("climate.salon", False)
+    await declare(bench, "c1", "climate.bureau")
+    assert issue(bench, UNLISTED) is None
+    await declare(bench, "c1", "climate.salon", "climate.bureau")
+    await declare(bench, "c1", "climate.bureau")
+    assert issue(bench, UNLISTED) is not None
+
+
 async def test_the_repair_forgets_the_thermostat(bench: Bench, http_client):
     await start(bench)
     await declare(bench, "c1", "climate.salon", "climate.bureau")

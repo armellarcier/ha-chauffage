@@ -311,12 +311,16 @@ class ChauffageRuntime:
 
     async def set_paused(self, entity_id: str, paused: bool) -> None:
         """Pause (kept, not driven, its override dropped and the thermostat left as it is) or
-        resume (realigned at once)."""
+        resume (realigned at once). Resumed while no card shows it: driven on purpose, as answered
+        "keep driving it" in its repair."""
         if entity_id not in self.scheduled:
             raise model.InvalidData(f"not scheduled: {entity_id}")
         if self.is_paused(entity_id) == paused:
             return
-        self.thermostats[entity_id]["paused"] = paused
+        t = self.thermostats[entity_id]
+        t["paused"] = paused
+        if not paused and not any(entity_id in card["thermostats"] for card in self.data["cards"].values()):
+            t["kept_unlisted"] = True
         if paused:
             self.data["overrides"].pop(entity_id, None)
             self._retry.discard(entity_id)
