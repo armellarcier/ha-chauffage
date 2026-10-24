@@ -33,15 +33,8 @@ describe('the card in the "Add card" dialog', () => {
       'climate.salon': { Normal: Array(7).fill(WEEKDAY) },
       'climate.removed': { Normal: Array(7).fill(WEEKDAY) }, // no longer in Home Assistant
     } }) });
-    const { card_id: _, ...stub } = await ChauffageProgrammeCard.getStubConfig(hass);
+    const stub = await ChauffageProgrammeCard.getStubConfig(hass);
     assert.deepEqual(stub, { thermostats: ['climate.bureau', 'climate.salon'] });
-  });
-
-  test('a new card gets its own hidden id, for the integration to know which thermostats it shows', async () => {
-    const first = await ChauffageProgrammeCard.getStubConfig(fakeHass());
-    const second = await ChauffageProgrammeCard.getStubConfig(fakeHass());
-    assert.match(first.card_id, /^[a-z0-9]{8,}$/);
-    assert.notEqual(first.card_id, second.card_id);
   });
 
   test('without schedules yet, or without the integration, a new card starts with every thermostat', async () => {

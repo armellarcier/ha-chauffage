@@ -1,10 +1,6 @@
-"""Repairs of scheduled thermostats (docs/decisions.md, "Scheduled thermostats"), answered from
-Settings → Repairs:
-
-- unlisted_<climate>: an active thermostat no card shows any more: pause it, keep driving it
-  (until a card shows it again and it is removed again), or forget it;
-- missing_<climate>: a thermostat whose entity is gone from Home Assistant: forget it, or keep it
-  (an entity made again with the same id).
+"""Repair of a scheduled thermostat whose entity is gone from Home Assistant (docs/decisions.md,
+"Scheduled thermostats"), answered from Settings → Repairs: forget it, or keep it (an entity made
+again with the same id).
 
 The issues themselves are raised and closed by the runtime.
 """
@@ -20,7 +16,7 @@ from homeassistant.helpers import issue_registry as ir
 
 from .const import DOMAIN
 
-UNLISTED, MISSING = "unlisted", "missing"
+MISSING = "missing"
 
 
 def issue_id(kind: str, entity_id: str) -> str:
@@ -41,50 +37,24 @@ def close_issue(hass: HomeAssistant, kind: str, entity_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, issue_id(kind, entity_id))
 
 
-class ThermostatFlow(RepairsFlow):
-    """A menu of what to do with one thermostat."""
-
-    choices: list[str]
+class MissingFlow(RepairsFlow):
+    """A menu of what to do with a thermostat whose entity is gone."""
 
     def __init__(self, entity_id: str) -> None:
         self.entity_id = entity_id
 
-    @property
-    def _runtime(self):
-        from .services import loaded_runtime  # the integration's runtime, once loaded
-
-        return loaded_runtime(self.hass)
-
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        state = self.hass.states.get(self.entity_id)
         return self.async_show_menu(
-            step_id="init", menu_options=self.choices,
-            description_placeholders={"name": state.name if state else self.entity_id, "entity_id": self.entity_id},
+            step_id="init", menu_options=["forget", "keep"], description_placeholders={"entity_id": self.entity_id},
         )
 
     async def async_step_forget(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        runtime = self._runtime
+        from .services import loaded_runtime  # the integration's runtime, once loaded
+
+        runtime = loaded_runtime(self.hass)
         if self.entity_id in runtime.thermostats:
             await runtime.forget(self.entity_id)
         return self.async_create_entry(data={})
-
-
-class UnlistedFlow(ThermostatFlow):
-    choices = ["pause", "keep", "forget"]
-
-    async def async_step_pause(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        runtime = self._runtime
-        if self.entity_id in runtime.scheduled:
-            await runtime.set_paused(self.entity_id, True)
-        return self.async_create_entry(data={})
-
-    async def async_step_keep(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        self._runtime.keep_unlisted(self.entity_id)
-        return self.async_create_entry(data={})
-
-
-class MissingFlow(ThermostatFlow):
-    choices = ["forget", "keep"]
 
     async def async_step_keep(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         close_issue(self.hass, MISSING, self.entity_id)  # asked again at the next start
@@ -92,5 +62,4 @@ class MissingFlow(ThermostatFlow):
 
 
 async def async_create_fix_flow(hass: HomeAssistant, issue_id: str, data: dict[str, Any] | None) -> RepairsFlow:
-    flow = UnlistedFlow if issue_id.startswith(f"{UNLISTED}_") else MissingFlow
-    return flow((data or {})["entity_id"])
+    return MissingFlow((data or {})["entity_id"])

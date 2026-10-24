@@ -7,8 +7,6 @@ import { serializeDay } from '../../custom_components/chauffage/frontend/chauffa
 
 const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
 const lastCall = (hass) => hass.events.at(-1);
-// A card declares its thermostats once HA has said whether it is a preview
-const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 afterEach(() => cleanup());
 
@@ -55,18 +53,6 @@ describe('writing to the integration', () => {
     assert.deepEqual(msg.revisions, { 'climate.bureau': 7 });
     assert.equal(msg.revision, undefined);
     assert.equal(card._dirty, false);
-  });
-
-  test('a week the card only drew (a schedule without one for a thermostat) is not sent as a change', async () => {
-    // Sending it would refuse the save if another card changed that thermostat meanwhile
-    const both = { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.bureau': { Normal: Array(7).fill(WEEKDAY) } };
-    const hass = fakeIntegrationHass({ weeks: both });
-    const card = createCard(hass);
-    card._schedule = 'away';
-    card._render(); // draws a default week for each thermostat
-    card._split('climate.bureau', 0, 12 * 60);
-    await card._save();
-    assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
   });
 
   test('a thermostat added to the card is scheduled with the default week (docs/decisions.md)', async () => {
@@ -382,121 +368,6 @@ describe('the "Presets" view', () => {
   });
 });
 
-describe('the card declares the thermostats it shows (#27)', () => {
-  // Without the instance (tested on its own)
-  const declarations = (hass) => hass.declarations.map(({ instance: _, ...msg }) => msg);
-
-  test('with the instance of the card as drawn: the same for one card, another for another', async () => {
-    const hass = fakeIntegrationHass();
-    const card = createCard(hass, { card_id: 'abc123xyz' });
-    await settled();
-    card.setConfig({ thermostats: ['climate.bureau'], card_id: 'abc123xyz' });
-    card.hass = hass;
-    await settled();
-    createCard(hass, { card_id: 'abc123xyz' });
-    await settled();
-    const [first, second, other] = hass.declarations.map((m) => m.instance);
-    assert.match(first, /^[a-z0-9]{8,}$/);
-    assert.equal(second, first);
-    assert.notEqual(other, first);
-  });
-
-  test('a card drawn again (its dashboard edited and saved) keeps its instance: not taken for a copy', async () => {
-    const hass = fakeIntegrationHass();
-    const card = createCard(hass, { card_id: 'abc123xyz' });
-    await settled();
-    card.remove();
-    createCard(hass, { card_id: 'abc123xyz', thermostats: ['climate.bureau'] });
-    await settled();
-    const [before, after] = hass.declarations;
-    assert.deepEqual(after.thermostats, ['climate.bureau']);
-    assert.equal(after.instance, before.instance);
-  });
-
-  test('once displayed, with its id', async () => {
-    const hass = fakeIntegrationHass();
-    const card = createCard(hass, { card_id: 'abc123xyz' });
-    hass.push(INTEGRATION_DATA());
-    card.hass = hass;
-    await settled();
-    assert.deepEqual(declarations(hass), [
-      { type: 'chauffage/card/declare', card_id: 'abc123xyz', thermostats: ['climate.salon', 'climate.bureau'] },
-    ]);
-  });
-
-  test('again when its thermostats change', async () => {
-    const hass = fakeIntegrationHass();
-    const card = createCard(hass, { card_id: 'abc123xyz' });
-    await settled();
-    card.setConfig({ thermostats: ['climate.bureau'], card_id: 'abc123xyz' });
-    card.hass = hass;
-    await settled();
-    assert.deepEqual(declarations(hass).map((m) => m.thermostats), [['climate.salon', 'climate.bureau'], ['climate.bureau']]);
-  });
-
-  test('a card without an id (written in YAML) declares its thermostats without one', async () => {
-    const hass = fakeIntegrationHass();
-    createCard(hass);
-    await settled();
-    assert.deepEqual(declarations(hass), [{ type: 'chauffage/card/declare', thermostats: ['climate.salon', 'climate.bureau'] }]);
-  });
-
-  test('a preview declares nothing (the dashboard is not saved)', async () => {
-    const hass = fakeIntegrationHass();
-    const card = document.createElement('chauffage-programme-card');
-    card.preview = true;
-    card.setConfig({ thermostats: ['climate.salon'], card_id: 'abc123xyz' });
-    document.body.appendChild(card);
-    card.hass = hass;
-    await settled();
-    assert.deepEqual(declarations(hass), []);
-  });
-
-  test('nor a preview HA marks as one after giving it hass (the card editor)', async () => {
-    const hass = fakeIntegrationHass();
-    const card = document.createElement('chauffage-programme-card');
-    card.setConfig({ thermostats: ['climate.salon'], card_id: 'abc123xyz' });
-    document.body.appendChild(card);
-    card.hass = hass;
-    card.preview = true;
-    await settled();
-    assert.deepEqual(declarations(hass), []);
-  });
-
-  test('at once when the dashboard leaves edit mode (its cards were previews)', async () => {
-    const hass = fakeIntegrationHass();
-    const card = document.createElement('chauffage-programme-card');
-    card.preview = true;
-    card.setConfig({ thermostats: ['climate.salon'], card_id: 'abc123xyz' });
-    document.body.appendChild(card);
-    card.hass = hass;
-    await settled();
-    card.setConfig({ thermostats: ['climate.salon', 'climate.bureau'], card_id: 'abc123xyz' });
-    card.preview = false;
-    await settled();
-    assert.deepEqual(declarations(hass).map((m) => m.thermostats), [['climate.salon', 'climate.bureau']]);
-  });
-
-  test('nor the card shown in the card editor dialog', async () => {
-    const hass = fakeIntegrationHass();
-    const dialog = document.createElement('hui-dialog-edit-card');
-    document.body.appendChild(dialog);
-    const card = document.createElement('chauffage-programme-card');
-    card.setConfig({ thermostats: ['climate.salon'], card_id: 'abc123xyz' });
-    dialog.attachShadow({ mode: 'open' }).appendChild(card);
-    card.hass = hass;
-    await settled();
-    assert.deepEqual(declarations(hass), []);
-  });
-
-  test('nothing before the data of the integration arrives', async () => {
-    const hass = fakeIntegrationHass({ data: null });
-    createCard(hass);
-    await settled();
-    assert.deepEqual(declarations(hass), []);
-  });
-});
-
 describe('a thermostat renamed in Home Assistant', () => {
   // climate.salon renamed climate.sejour: the card's configuration still holds the former id;
   // like HA's own cards, the card does not change it by itself
@@ -534,13 +405,6 @@ describe('a thermostat renamed in Home Assistant', () => {
     card._split('climate.bureau', 0, 12 * 60);
     await card._save();
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
-  });
-
-  test('is declared under the id of the configuration (the integration knows the rename)', async () => {
-    const hass = hassOf();
-    createCard(hass);
-    await settled();
-    assert.deepEqual(hass.declarations.at(-1).thermostats, ['climate.salon', 'climate.bureau']);
   });
 
   test('an id given again to another thermostat is that thermostat, not the renamed one', () => {

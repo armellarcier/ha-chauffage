@@ -30,34 +30,35 @@ function editorFor(config, { locale, version = '2025.1.0', formatEntityName, dat
   // What <ha-form> sends when a field changes: the whole data, with that field changed
   const formChange = (form, patch) => value(form, { ...form.data, ...patch });
   const edit = (i) => rows()[i].querySelector('.edit').click();
-  // The last config sent, without its hidden card id (tested on its own)
-  const last = () => { const { card_id: _, ...config } = changes.at(-1); return config; };
-  return { editor, hass, changes, $, $$, rows, value, formChange, edit, last };
+  return { editor, hass, changes, $, $$, rows, value, formChange, edit, last: () => changes.at(-1) };
 }
 
-describe('visual editor: the card id', () => {
-  test('a change gives the card a hidden id, for the integration to know which thermostats it shows', () => {
-    const { $, value, changes } = editorFor({ type: TYPE, thermostats: ['climate.salon'] });
-    assert.equal(editorFor({ type: TYPE, thermostats: ['climate.salon'] }).$('[data-card-id]'), null, 'not shown');
+describe('visual editor: what Chauffage schedules', () => {
+  test('the configuration holds the thermostats shown, nothing hidden', () => {
+    const { $, value, last } = editorFor({ type: TYPE, thermostats: ['climate.salon'] });
     value($('.add'), 'climate.bureau');
-    assert.match(changes.at(-1).card_id, /^[a-z0-9]{8,}$/);
+    assert.deepEqual(last(), { type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] });
   });
 
-  test('an id another card shares (a card duplicated) is said, with a button to give this card its own', () => {
-    const data = { ...integrationData(), duplicated_cards: ['abc123xyz'] };
-    const { $, changes } = editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'abc123xyz' }, { data });
-    assert.match($('.duplicate-note').textContent, /une autre carte/);
-    $('.duplicate-note button').click();
-    assert.match(changes.at(-1).card_id, /^[a-z0-9]{8,}$/);
-    assert.notEqual(changes.at(-1).card_id, 'abc123xyz');
-    assert.equal(editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'other' }, { data }).$('.duplicate-note'), null);
+  test('a scheduled thermostat removed from the card is said to stay scheduled, and where to pause or forget it', () => {
+    const { rows, $, $$, value } = editorFor({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] });
+    assert.equal($('.removed-note'), null);
+    rows()[1].querySelector('.remove').click(); // the bureau: not scheduled
+    assert.equal($('.removed-note'), null);
+    rows()[0].querySelector('.remove').click(); // the salon: scheduled
+    const note = $$('.removed-note').map((n) => n.textContent).join(' ');
+    assert.match(note, /Salon/);
+    assert.match(note, /toujours programmé/);
+    assert.match(note, /Thermostats/);
+    value($('.add'), 'climate.salon'); // added back
+    assert.equal($('.removed-note'), null);
   });
 
   test('a thermostat renamed in Home Assistant is said under its row, with a button to use its new id', () => {
     const data = { ...integrationData(), renamed: { 'climate.salon': 'climate.sejour' } };
-    const { editor, hass, $, last } = editorFor({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'], card_id: 'abc123xyz' }, { data });
+    const { editor, hass, $, last } = editorFor({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] }, { data });
     delete hass.states['climate.salon'];
-    editor.setConfig({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'], card_id: 'abc123xyz' });
+    editor.setConfig({ type: TYPE, thermostats: ['climate.salon', 'climate.bureau'] });
     assert.match($('.renamed-note').textContent, /climate\.sejour/);
     $('.renamed-note button').click();
     assert.deepEqual(last().thermostats, ['climate.sejour', 'climate.bureau']);
@@ -66,14 +67,8 @@ describe('visual editor: the card id', () => {
 
   test('no notice for an id a thermostat has again', () => {
     const data = { ...integrationData(), renamed: { 'climate.salon': 'climate.sejour' } };
-    const { $ } = editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'abc123xyz' }, { data });
+    const { $ } = editorFor({ type: TYPE, thermostats: ['climate.salon'] }, { data });
     assert.equal($('.renamed-note'), null);
-  });
-
-  test('an existing card id is kept', () => {
-    const { $, value, changes } = editorFor({ type: TYPE, thermostats: ['climate.salon'], card_id: 'abc123xyz' });
-    value($('.add'), 'climate.bureau');
-    assert.equal(changes.at(-1).card_id, 'abc123xyz');
   });
 });
 

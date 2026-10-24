@@ -142,8 +142,9 @@ and *Frost protection* 7 °C.
 #### Entities and services
 
 A thermostat is **scheduled** once it is in a card. It stays scheduled when it is removed from a
-card (another card may show it): Settings → Repairs then proposes to pause it, keep driving it or
-forget it. The card's *Thermostats* view lists every scheduled thermostat.
+card (another card may show it), until it is paused or forgotten: the card's *Thermostats* view
+lists every scheduled thermostat, the ones in no card too. If its entity is deleted from Home
+Assistant, Settings → Repairs proposes to forget it.
 
 Per scheduled thermostat, on the thermostat's device page:
 

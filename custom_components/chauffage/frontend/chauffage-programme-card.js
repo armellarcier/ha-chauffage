@@ -168,8 +168,7 @@ const I18N = {
     cardDescription: 'Weekly heating schedules, several thermostats per day',
     // Visual editor of the card
     editorThermostats: 'Thermostats (required)',
-    duplicateCard: 'This card shares its id with another card (a card duplicated): Chauffage cannot tell which thermostats each one shows.',
-    newCardId: 'Give this card its own id',
+    editorRemovedScheduled: '{name} is still scheduled: Chauffage keeps driving it. Pause or forget it from the Thermostats view of the card.',
     editorRenamed: 'Renamed {entity} in Home Assistant.',
     editorUseNewId: 'Use the new id',
     editorThermostat: 'Thermostat',
@@ -333,8 +332,7 @@ const I18N = {
     cardDescription: 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée',
     // Visual editor of the card
     editorThermostats: 'Thermostats (obligatoire)',
-    duplicateCard: 'Cette carte partage son identifiant avec une autre carte (une carte dupliquée) : Chauffage ne peut pas savoir quels thermostats chacune affiche.',
-    newCardId: 'Donner un identifiant propre à cette carte',
+    editorRemovedScheduled: '{name} est toujours programmé : Chauffage continue de le piloter. Mettez-le en pause ou oubliez-le depuis la vue Thermostats de la carte.',
     editorRenamed: 'Renommé {entity} dans Home Assistant.',
     editorUseNewId: 'Utiliser le nouvel identifiant',
     editorThermostat: 'Thermostat',
@@ -688,8 +686,6 @@ const INTEGRATION = {
   seq: 0,
   listeners: new Set(),
   connection: null,
-  cards: new Set(), // the cards in the page
-  instances: new Map(), // card id → instance of the card drawn under it
   connect(hass) {
     if (!hass.connection || this.connection === hass.connection) return;
     this.connection = hass.connection;
@@ -708,22 +704,12 @@ const INTEGRATION = {
   },
 };
 
-// A card's hidden id, written in its configuration: the integration knows which thermostats each
-// card shows (docs/decisions.md, "Scheduled thermostats"). Not crypto.randomUUID: Home Assistant
-// is often reached over plain http, where it does not exist.
-function newCardId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-}
-
 // The new id of a thermostat renamed from `entity` (the integration follows it), unless an
 // entity has that id again
 function renamedTo(hass, src, entity) {
   const to = src.renamed()[entity];
   return to && !(hass && hass.states[entity]) ? to : null;
 }
-
-// Where HA shows a card that is not on a saved dashboard: the "By card" list, the card editor
-const PREVIEW_HOSTS = new Set(['hui-card-picker', 'hui-dialog-edit-card']);
 
 function dataSource(hass) {
   const available = integrationAvailable(hass);
@@ -763,10 +749,6 @@ function dataSource(hass) {
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
     renamed: () => (d && d.renamed) || {},
-    declareCard: (cardId, thermostats, instance) =>
-      hass.callWS({ type: 'chauffage/card/declare', ...(cardId ? { card_id: cardId } : {}), instance, thermostats }),
-    // Card ids two cards share (a card duplicated with its configuration)
-    duplicatedCards: () => (d && d.duplicated_cards) || [],
     // Saves against the revision of each thermostat sent (null: not scheduled when loaded);
     // an older integration only has the global one
     perThermostat: !!(d && d.thermostats),
@@ -957,7 +939,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       src = dataSource(hass);
     }
     const scheduled = Object.keys(src.weeks()).filter((e) => hass.states[e]);
-    return { thermostats: scheduled.length ? scheduled : climates, card_id: newCardId() };
+    return { thermostats: scheduled.length ? scheduled : climates };
   }
 
   setConfig(config) {
@@ -1041,7 +1023,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (need) this._render();
     else this._updateLive();
     this._refreshHistory();
-    this._declare(src);
   }
 
   // A thermostat renamed in Home Assistant: the configuration still holds its former id. Like
@@ -1056,37 +1037,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._shown = this._shown.filter((e) => !aside.includes(e));
     if (!this._shown.length) this._shown = this._initialShown();
     return true;
-  }
-
-  // Tells the integration which thermostats this card shows (as configured: it knows the
-  // renames), once displayed and again when they change; not from a preview (the dashboard may
-  // not be saved), which HA marks after giving it hass: decided a moment later
-  _declare(src) {
-    if (!src.ready || this._isPreview()) return;
-    const thermostats = this._configured.map((t) => t.entity);
-    const key = JSON.stringify([this._config.card_id, thermostats]);
-    if (key === this._declared || key === this._declaring) return;
-    this._declaring = key;
-    setTimeout(() => {
-      if (this._declaring !== key) return;
-      this._declaring = null;
-      if (!this.isConnected || this._isPreview()) return;
-      this._declared = key;
-      if (!this._instance) this._instance = this._instanceFor(this._config.card_id);
-      this._source().declareCard(this._config.card_id, thermostats, this._instance)
-        .catch((e) => console.warn('ha-chauffage: declaring the card', e));
-    }, 0);
-  }
-
-  // The card as drawn, telling a copy with the same id apart: a card drawn again (its dashboard
-  // edited) keeps the instance of its id, a second card drawn under that id gets another one
-  _instanceFor(cardId) {
-    const known = cardId && INTEGRATION.instances.get(cardId);
-    const taken = [...INTEGRATION.cards].some((c) => c !== this && c.isConnected && c._instance === known);
-    if (known && !taken) return known;
-    const instance = newCardId();
-    if (cardId && !known) INTEGRATION.instances.set(cardId, instance);
-    return instance;
   }
 
   // Thermostats shown at first: those chosen last on this device, else the config's `show`.
@@ -1108,11 +1058,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   // HA sets `preview` on the cards it previews (suggestions, card editor), after their config;
   // the cards of the "By card" list are not marked, but shown in its <hui-card-picker>
   _isPreview() {
-    if (this._previewed) return true;
-    for (let node = this.parentNode || this.host; node; node = node.parentNode || node.host) {
-      if (PREVIEW_HOSTS.has(node.localName)) return true;
-    }
-    return false;
+    const root = this.getRootNode && this.getRootNode();
+    return !!this._previewed || !!(root && root.host && root.host.localName === 'hui-card-picker');
   }
 
   get preview() { return !!this._previewed; }
@@ -1120,8 +1067,6 @@ class ChauffageProgrammeCard extends HTMLElement {
   set preview(value) {
     this._previewed = !!value;
     this._previewChanged();
-    // The dashboard leaving edit mode, where its cards are previews
-    if (this._hass && this._config) this._declare(this._source());
   }
 
   _previewChanged() {
@@ -1131,7 +1076,6 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   connectedCallback() {
-    INTEGRATION.cards.add(this);
     this._previewChanged();
     this._timer = setInterval(() => {
       if (this._drag || this._overrideDrag) return;
@@ -1161,7 +1105,6 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   disconnectedCallback() {
-    INTEGRATION.cards.delete(this);
     clearInterval(this._timer);
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
@@ -1240,12 +1183,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _week(climate, schedule = this._schedule) {
     if (!this._data[climate]) this._data[climate] = {};
     if (!this._data[climate][schedule]) {
-      const week = [0, 1, 2, 3, 4, 5, 6].map(() => [{ start: 0, preset: 'eco' }]);
-      this._data[climate][schedule] = week;
-      // Only drawn: a scheduled thermostat is not sent for it until it is edited (a thermostat
-      // not scheduled yet is, with this default week: adding it in a card schedules it)
-      const loaded = this._loadedWeeks && this._loadedWeeks[climate];
-      if (loaded) loaded[schedule] = JSON.stringify(week.map(serializeDay));
+      this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map(() => [{ start: 0, preset: 'eco' }]);
     }
     return this._data[climate][schedule];
   }
@@ -2605,8 +2543,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     return this._render();
   }
 
-  // Table: one column per preset (header: the preset, then its default temperature), one row per
-  // thermostat; each cell says what that thermostat does with that preset
   // Every scheduled thermostat: this card's first, then the others (another card, or none)
   _thermostatsViewHtml() {
     const t = this._loc.t;
@@ -2643,6 +2579,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
+  // Table: one column per preset (header: the preset, then its default temperature), one row per
+  // thermostat; each cell says what that thermostat does with that preset
   _presetsViewHtml() {
     const t = this._loc.t;
     const src = this._source();
@@ -3633,11 +3571,11 @@ const MDI = {
   pencil: 'M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z',
 };
 const EDITOR_CSS = `
-  .duplicate-note, .renamed-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 12px;
+  .removed-note, .renamed-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 0; padding: 8px 12px;
     border-radius: 8px; background: rgba(var(--rgb-warning-color, 255, 166, 0), .15); }
   .renamed-note { margin: 4px 0 0; }
-  .duplicate-note span, .renamed-note span { flex: 1 1 200px; }
-  .duplicate-note button, .renamed-note button { font: inherit; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--divider-color);
+  .renamed-note span { flex: 1 1 200px; }
+  .renamed-note button { font: inherit; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--divider-color);
     background: var(--card-background-color); color: var(--primary-text-color); cursor: pointer; }
   h3 { margin: 0 0 8px; font-size: 1em; font-weight: 500; }
   .thermostat { display: flex; align-items: center; gap: 4px; }
@@ -3665,6 +3603,8 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
 
   setConfig(config) {
     this._config = config;
+    // The thermostats when the editor opened (HA gives each change back through setConfig)
+    if (!this._initial) this._initial = this._thermostats().map((t) => t.entity);
     this._render();
   }
 
@@ -3695,7 +3635,7 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     // The thermostat's page keeps its form while its fields change; the list is rebuilt
     const shape = JSON.stringify(this._editing !== null
       ? ['page', this._editing, loc.signature, this._haNameField()]
-      : ['list', thermostats, thermostats.map((t) => [this._shownName(t), this._renamedTo(t.entity)]), loc.signature, this._duplicated()]);
+      : ['list', thermostats, thermostats.map((t) => [this._shownName(t), this._renamedTo(t.entity)]), loc.signature, this._removedScheduled()]);
     if (shape !== this._built) {
       this._built = shape;
       this.shadowRoot.replaceChildren();
@@ -3737,27 +3677,20 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     return p;
   }
 
-  // Another card has this card's id (HA's "Duplicate" copies it with the configuration)
-  _duplicated() {
-    return !!(this._hass && this._config.card_id && dataSource(this._hass).duplicatedCards().includes(this._config.card_id));
-  }
-
   _renamedTo(entity) {
     return this._hass ? renamedTo(this._hass, dataSource(this._hass), entity) : null;
   }
 
+  // Thermostats removed from the card while it is edited that Chauffage schedules: removing one
+  // from a card does not stop its schedule (docs/decisions.md, "Scheduled thermostats")
+  _removedScheduled() {
+    if (!this._hass) return [];
+    const now = this._thermostats().map((t) => t.entity);
+    const scheduled = dataSource(this._hass).scheduled();
+    return this._initial.filter((e) => !now.includes(e) && scheduled.includes(e));
+  }
+
   _buildList(loc, thermostats) {
-    if (this._duplicated()) {
-      const note = document.createElement('div');
-      note.className = 'duplicate-note';
-      const text = document.createElement('span');
-      text.textContent = loc.t('duplicateCard');
-      const button = document.createElement('button');
-      button.textContent = loc.t('newCardId');
-      button.addEventListener('click', () => this._emit({ ...this._config, card_id: newCardId() }));
-      note.append(text, button);
-      this.shadowRoot.appendChild(note);
-    }
     const title = document.createElement('h3');
     title.textContent = loc.t('editorThermostats');
     const sortable = document.createElement('ha-sortable');
@@ -3824,6 +3757,12 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
       container.appendChild(row);
     });
     sortable.appendChild(container);
+    const removed = this._removedScheduled().map((entity) => {
+      const note = document.createElement('div');
+      note.className = 'removed-note';
+      note.textContent = loc.t('editorRemovedScheduled', { name: this._defaultName(entity) });
+      return note;
+    });
     const add = this._picker('add', (entity) => {
       if (!entity) return;
       add.value = '';
@@ -3848,7 +3787,7 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
       this._emit(config);
     });
     this._options = options;
-    this.shadowRoot.append(title, sortable, add, options);
+    this.shadowRoot.append(title, sortable, ...removed, add, options);
   }
 
   _buildPage(loc) {
@@ -3892,7 +3831,6 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
   }
 
   _emit(config) {
-    if (!config.card_id) config = { ...config, card_id: newCardId() };
     this._config = config;
     this._render();
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));

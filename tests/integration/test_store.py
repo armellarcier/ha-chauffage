@@ -61,20 +61,20 @@ def test_version_5_keeps_each_thermostat_s_data_together():
     """docs/decisions.md, "Scheduled thermostats": nothing changes on upgrade. A thermostat with
     weeks is scheduled, active; one with only values of the presets set by hand was not driven
     (left behind once removed from the card, #27): they are kept, it is still not scheduled until
-    it has weeks. No card has declared its thermostats yet."""
+    it has weeks. A schedule a thermostat had no week in gets the week of a new schedule: eco all
+    week, what the card showed for it."""
     v4 = fixture(4)["data"]
-    week = v4["weeks"]["climate.salon"]
+    weeks = v4["weeks"]["climate.salon"]
+    assert set(weeks) == {"normal", "absent"}  # none in "vacances"
     v4 = {**v4, "mappings": {"climate.salon": {"eco": {"temperature": 16.5}}, "climate.bureau": {"eco": {"preset": "eco"}}},
           "preset_temperatures": {"climate.salon": {"eco": 17.0}}}
     v5 = migrate(v4, 4)
     assert not {"weeks", "mappings", "preset_temperatures"} & set(v5)
-    unseen = {"paused": False, "revision": 0, "shown_at": None, "shown_without_id_at": None,
-              "kept_unlisted": False}
     assert v5["thermostats"] == {
-        "climate.salon": {**unseen, "weeks": week, "mapping": {"eco": {"temperature": 16.5}},
-                          "preset_temperatures": {"eco": 17.0}},
-        "climate.bureau": {**unseen, "weeks": {}, "mapping": {"eco": {"preset": "eco"}},
+        "climate.salon": {"paused": False, "revision": 0, "weeks": {**weeks, "vacances": [[["00:00", "eco"]]] * 7},
+                          "mapping": {"eco": {"temperature": 16.5}}, "preset_temperatures": {"eco": 17.0}},
+        "climate.bureau": {"paused": False, "revision": 0, "weeks": {}, "mapping": {"eco": {"preset": "eco"}},
                            "preset_temperatures": {}},
     }
-    assert (v5["cards"], v5["renamed"]) == ({}, {})
+    assert v5["renamed"] == {} and "cards" not in v5
     assert (v5["overrides"], v5["revision"]) == (v4["overrides"], v4["revision"])

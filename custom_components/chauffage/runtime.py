@@ -5,8 +5,8 @@
 - a manual change on a scheduled thermostat becomes a temporary override;
 - activation rules: their templates are tracked, and a change of their outcome activates a
   schedule (a schedule chosen by hand stays until then);
-- the cards declare the thermostats they show: a repair proposes to pause an active thermostat
-  no card shows any more, another one to forget a thermostat whose entity is gone (repairs.py).
+- scheduled thermostats: kept whatever the cards show, paused or forgotten on purpose; a repair
+  proposes to forget one whose entity is gone (repairs.py), a renamed one is followed.
 
 The integration calls services with its own contexts: state changes carrying one of them are
 its own (not manual changes).
@@ -52,15 +52,6 @@ _LOGGER = logging.getLogger(__name__)
 
 # Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
 DATA, TICK = "data", "tick"
-# An active thermostat no card has shown for this long, while others were shown, is proposed to
-# be paused (a card deleted, or written in YAML without an id)
-UNSHOWN = timedelta(days=7)
-# Two cards drawn at the same time declaring different lists under one id: a card duplicated with
-# its configuration (and its hidden id)
-SAME_TIME = timedelta(minutes=1)
-# A card id two cards share stays duplicated this long after they were last drawn together:
-# both copies drawn again renew it, one of them given its own id ends it soon
-DUPLICATED = timedelta(days=1)
 
 
 class StaleRevision(Exception):
@@ -260,7 +251,6 @@ class ChauffageRuntime:
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
             "renamed": self.data["renamed"],
-            "duplicated_cards": self._duplicated_cards(dt_util.now()),
         }
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
@@ -285,9 +275,11 @@ class ChauffageRuntime:
     async def save_weeks(self, weeks: Any, revision: int | None = None,
                          revisions: dict[str, int | None] | None = None) -> None:
         """The weeks of the thermostats sent; the others keep theirs: a thermostat a card does
-        not show stays scheduled (#27), only forget() drops it. Saved against the revision of
-        each thermostat sent (`revisions`; None: not scheduled when the copy was made), or the
-        global one (`revision`, older cards). StaleRevision if one of them changed."""
+        not show stays scheduled (#27), only forget() drops it. A thermostat keeps its weeks in
+        the schedules not sent, and gets the week of a new schedule in those it had none in: a
+        scheduled thermostat has a week in every schedule. Saved against the revision of each
+        thermostat sent (`revisions`; None: not scheduled when the copy was made), or the global
+        one (`revision`, older cards). StaleRevision if one of them changed."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
@@ -299,8 +291,11 @@ class ChauffageRuntime:
                 current = scheduled.get(entity_id, {}).get("revision")
                 if revisions.get(entity_id) != current:
                     raise StaleRevision
+        schedule_ids = [schedule["id"] for schedule in self.data["schedules"]]
+        preset_ids = [preset["id"] for preset in self.data["presets"]]
         for entity_id, by_schedule in normalized.items():
-            self._thermostat(entity_id)["weeks"] = by_schedule
+            t = self._thermostat(entity_id)
+            t["weeks"] = model.complete_weeks({**t["weeks"], **by_schedule}, schedule_ids, preset_ids)
         self._weeks_changed(normalized)
         self.data["revision"] += 1
         self._track_thermostats()
@@ -311,20 +306,15 @@ class ChauffageRuntime:
 
     async def set_paused(self, entity_id: str, paused: bool) -> None:
         """Pause (kept, not driven, its override dropped and the thermostat left as it is) or
-        resume (realigned at once). Resumed while no card shows it: driven on purpose, as answered
-        "keep driving it" in its repair."""
+        resume (realigned at once)."""
         if entity_id not in self.scheduled:
             raise model.InvalidData(f"not scheduled: {entity_id}")
         if self.is_paused(entity_id) == paused:
             return
-        t = self.thermostats[entity_id]
-        t["paused"] = paused
-        if not paused and not any(entity_id in card["thermostats"] for card in self.data["cards"].values()):
-            t["kept_unlisted"] = True
+        self.thermostats[entity_id]["paused"] = paused
         if paused:
             self.data["overrides"].pop(entity_id, None)
             self._retry.discard(entity_id)
-            repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
         self._track_thermostats()
         self._changed()
         if not paused:
@@ -338,63 +328,11 @@ class ChauffageRuntime:
             raise model.InvalidData(f"not scheduled: {entity_id}")
         self.data["overrides"].pop(entity_id, None)
         self._retry.discard(entity_id)
-        for card in self.data["cards"].values():
-            if entity_id in card["thermostats"]:
-                card["thermostats"].remove(entity_id)
         self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
-        repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
         repairs.close_issue(self.hass, repairs.MISSING, entity_id)
         self.data["revision"] += 1
         self._track_thermostats()
         self._changed()
-
-    # ----- cards -----
-
-    def declare_card(self, card_id: str | None, thermostats: list[str], instance: str | None = None) -> None:
-        """A card shows these thermostats (its id: None for a card without one, YAML; its
-        instance: the card as drawn on one page). A thermostat it no longer shows, that no other
-        card shows, is proposed to be paused; so is one not shown for UNSHOWN while others were
-        (safety net). An id two cards share (duplicated) proposes nothing: its lists add up. Saved;
-        the cards are only sent their data again when one turns out duplicated (or no longer is):
-        nothing else they get changes."""
-        now = dt_util.now()
-        duplicated_before = self._duplicated_cards(now)
-        thermostats = list(dict.fromkeys(self._renamed_to(e) or e for e in thermostats))
-        # A card not seen for UNSHOWN (deleted, or given its own id) no longer counts
-        cards = self.data["cards"]
-        for gone in [c for c, card in cards.items() if c != card_id
-                     and now - dt_util.parse_datetime(card["seen_at"]) > UNSHOWN]:
-            del cards[gone]
-        for entity_id in thermostats:
-            if (t := self.thermostats.get(entity_id)) is not None:
-                t.update(shown_at=now.isoformat(), kept_unlisted=False)
-                if card_id is None:
-                    t["shown_without_id_at"] = now.isoformat()
-                repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
-        if card_id is not None:
-            card = self.data["cards"].get(card_id, {})
-            before = card.get("thermostats", [])
-            duplicated_at = card.get("duplicated_at")
-            if (instance and card.get("instance") not in (None, instance) and set(before) != set(thermostats)
-                    and now - dt_util.parse_datetime(card["seen_at"]) < SAME_TIME):
-                duplicated_at = now.isoformat()
-            duplicated = self._duplicated(duplicated_at, now)
-            self.data["cards"][card_id] = {
-                "thermostats": list(dict.fromkeys([*before, *thermostats])) if duplicated else list(thermostats),
-                "seen_at": now.isoformat(), "instance": instance,
-                **({"duplicated_at": duplicated_at} if duplicated else {}),
-            }
-            shown = {e for card in self.data["cards"].values() for e in card["thermostats"]}
-            for entity_id in set(before) - shown:
-                self._unlisted(entity_id)
-        for entity_id, t in self.thermostats.items():
-            if t["shown_at"] is None:
-                t["shown_at"] = now.isoformat()  # counted from now (never shown since the upgrade)
-            elif now - dt_util.parse_datetime(t["shown_at"]) > UNSHOWN:
-                self._unlisted(entity_id)
-        self.store.async_delay_save(lambda: self.data, SAVE_DELAY)
-        if self._duplicated_cards(now) != duplicated_before:
-            self._notify(DATA)
 
     def _renamed_to(self, entity_id: str) -> str | None:
         """The new id of a thermostat renamed from this one, unless the id is taken again."""
@@ -403,47 +341,22 @@ class ChauffageRuntime:
             return None
         return current
 
-    def _duplicated_cards(self, now: datetime) -> list[str]:
-        """Card ids two cards share (a card duplicated with its configuration)."""
-        return sorted(card_id for card_id, card in self.data["cards"].items()
-                      if self._duplicated(card.get("duplicated_at"), now))
-
-    @staticmethod
-    def _duplicated(duplicated_at: str | None, now: datetime) -> bool:
-        return duplicated_at is not None and now - dt_util.parse_datetime(duplicated_at) < DUPLICATED
-
-    def keep_unlisted(self, entity_id: str) -> None:
-        """Driven although no card shows it, until a card shows it again (answer to its repair)."""
-        if (t := self.thermostats.get(entity_id)) is not None:
-            t["kept_unlisted"] = True
-            self._changed()
-        repairs.close_issue(self.hass, repairs.UNLISTED, entity_id)
-
-    def _unlisted(self, entity_id: str) -> None:
-        t = self.scheduled.get(entity_id)
-        if t is None or t["paused"] or t["kept_unlisted"]:
-            return
-        # Still in a card without an id (its list is not kept): the safety net finds it once removed
-        without_id = t.get("shown_without_id_at")
-        if without_id is not None and dt_util.now() - dt_util.parse_datetime(without_id) <= UNSHOWN:
-            return
-        state = self.hass.states.get(entity_id)
-        repairs.raise_issue(self.hass, repairs.UNLISTED, entity_id,
-                            {"name": state.name if state else entity_id, "entity_id": entity_id})
-
     @callback
     def _registry_updated(self, event: Event) -> None:
         action, entity_id = event.data.get("action"), event.data.get("entity_id")
         if action == "remove" and entity_id in self.scheduled:
             repairs.raise_issue(self.hass, repairs.MISSING, entity_id, {"entity_id": entity_id})
+        elif action == "create" and entity_id in self.scheduled:
+            repairs.close_issue(self.hass, repairs.MISSING, entity_id)  # made again with the same id
         elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
             self._renamed(event.data["old_entity_id"], entity_id)
 
     @callback
     def _renamed(self, old: str, new: str) -> None:
-        """A thermostat renamed in Home Assistant: its data, override and cards move to the new
-        id, its entities keep their ids and settings (their unique ids follow), and the entry is
-        reloaded to attach them to the new id. A new revision: a card's copy of the weeks holds
+        """A thermostat renamed in Home Assistant: its data and override move to the new id
+        (`renamed` tells the cards still holding the former one), its entities keep their ids and
+        settings (their unique ids follow), and the entry is reloaded to attach them to the new
+        id. A new revision: a card's copy of the weeks holds
         the former id. Data still held under the new id (an entity gone, kept in its repair) is
         dropped with its entities: the renamed thermostat is the one that exists."""
         registry = er.async_get(self.hass)
@@ -459,15 +372,12 @@ class ChauffageRuntime:
         self._weeks_changed([new])
         if old in self.data["overrides"]:
             self.data["overrides"][new] = self.data["overrides"].pop(old)
-        for card in self.data["cards"].values():
-            card["thermostats"] = [new if e == old else e for e in card["thermostats"]]
         renamed = self.data["renamed"]
         for former, current in list(renamed.items()):
             if current == old:
                 renamed[former] = new
         renamed[old] = new
         renamed.pop(new, None)  # renamed back
-        repairs.close_issue(self.hass, repairs.UNLISTED, old)
         repairs.close_issue(self.hass, repairs.MISSING, old)
         for platform, unique_id in unique_ids:
             entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id.format(old))
@@ -522,8 +432,9 @@ class ChauffageRuntime:
 
     async def set_schedules(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
         """Create (empty or a copy), rename, move and delete schedules (see model.plan_schedules).
-        An empty schedule puts every scheduled thermostat in eco (or the first preset) all week.
-        The active schedule and its weeks do not change: the thermostats are not touched."""
+        An empty schedule puts every scheduled thermostat in eco (or the first preset) all week:
+        each keeps a week in every schedule. The active schedule and its weeks do not change: the
+        thermostats are not touched."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
         schedules, created = model.plan_schedules(items, self.data["schedules"], self.data["active_schedule"])
@@ -532,15 +443,11 @@ class ChauffageRuntime:
         if in_rules - kept:
             raise model.InvalidData(f"used by the activation rules: {sorted(in_rules - kept)}")
         preset_ids = [preset["id"] for preset in self.data["presets"]]
-        fill = "eco" if "eco" in preset_ids else preset_ids[0]
         for weeks in self.weeks.values():
             for schedule_id in set(weeks) - kept:
                 del weeks[schedule_id]
             for schedule_id, source in created.items():
-                if source is None:
-                    weeks[schedule_id] = [[["00:00", fill]] for _ in range(7)]
-                elif source in weeks:
-                    weeks[schedule_id] = copy.deepcopy(weeks[source])
+                weeks[schedule_id] = copy.deepcopy(weeks[source]) if source in weeks else model.empty_week(preset_ids)
         self.data["schedules"] = schedules
         self._weeks_changed(self.thermostats)
         self.data["revision"] += 1

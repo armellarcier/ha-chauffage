@@ -80,18 +80,6 @@
       "title": "Remove the ha-chauffage package",
       "description": "The Chauffage integration now schedules your thermostats; the package's automations have been turned off. To finish: delete `packages/chauffage/` and `www/chauffage/` from your configuration folder, remove the `/local/chauffage/chauffage-loader.js` line from `frontend: extra_module_url` and the three `sensor.*_chauffage` lines from `recorder: exclude` in `configuration.yaml`, then restart Home Assistant. In your own automations, replace `input_select.mode_chauffage` with `{schedule_entity}`."
     },
-    "unlisted": {
-      "title": "{name} is shown in no card",
-      "fix_flow": {
-        "step": {
-          "init": {
-            "title": "{name} is shown in no card",
-            "description": "{name} ({entity_id}) was removed from the cards that showed it, but Chauffage still drives it with its schedule. Pausing it keeps its weeks: it can be resumed from its *Scheduling* switch or the card's *Thermostats* view.",
-            "menu_options": { "pause": "Pause it (keep its weeks)", "keep": "Keep driving it", "forget": "Forget it (delete its weeks)" }
-          }
-        }
-      }
-    },
     "missing": {
       "title": "Scheduled thermostat {entity_id} is gone",
       "fix_flow": {

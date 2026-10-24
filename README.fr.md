@@ -146,9 +146,10 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
 #### Entités et services
 
 Un thermostat est **programmé** dès qu'il est dans une carte. Il le reste quand on le retire d'une
-carte (une autre carte peut l'afficher) : Paramètres → Réparations propose alors de le mettre en
-pause, de continuer à le piloter ou de l'oublier. La vue *Thermostats* de la carte liste tous les
-thermostats programmés.
+carte (une autre carte peut l'afficher), jusqu'à ce qu'on le mette en pause ou qu'on l'oublie : la
+vue *Thermostats* de la carte liste tous les thermostats programmés, y compris ceux qui ne sont
+dans aucune carte. Si son entité est supprimée de Home Assistant, Paramètres → Réparations
+propose de l'oublier.
 
 Pour chaque thermostat programmé, sur la page de l'appareil du thermostat :
 

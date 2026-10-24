@@ -81,11 +81,14 @@ async def test_activating_a_schedule_applies_its_weeks(bench: Bench):
     assert bench.applied() == {"climate.bureau": "frost"}  # living room already in eco
 
 
-async def test_a_thermostat_without_a_week_in_the_schedule_is_left_alone(bench: Bench):
+async def test_a_schedule_the_card_sent_no_week_in_is_eco_all_week(bench: Bench):
+    """A scheduled thermostat has a week in every schedule (docs/decisions.md, "Scheduled
+    thermostats"): the one of a new schedule."""
     await start(bench, "10:00")
     bench.applied()
-    await bench.activate_schedule("Holiday")  # the office has no holiday schedule
-    assert bench.applied() == {"climate.salon": "frost"}
+    await bench.activate_schedule("Holiday")  # no holiday week sent for the office
+    assert bench.runtime.planned("climate.bureau")[0] == "eco"
+    assert bench.applied()["climate.salon"] == "frost"
 
 
 async def test_a_thermostat_turned_off_is_ignored(bench: Bench):

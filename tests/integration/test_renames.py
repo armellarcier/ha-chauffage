@@ -1,5 +1,5 @@
-"""A renamed climate entity is followed: its schedule, override, entities and cards move to the
-new id (docs/decisions.md, "Scheduled thermostats")."""
+"""A renamed climate entity is followed: its schedule, override and entities move to the new id
+(docs/decisions.md, "Scheduled thermostats")."""
 
 import pytest
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
@@ -39,7 +39,7 @@ async def test_a_renamed_thermostat_keeps_its_schedule_and_its_override(bench: B
     await bench.manual_setpoint("climate.salon", 22)
     await rename(bench)
     assert "climate.salon" not in bench.runtime.thermostats
-    assert bench.runtime.weeks["climate.sejour"] == SALON
+    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
     assert bench.runtime.mappings["climate.sejour"] == {"comfort": {"temperature": 19.5}}
     assert "climate.sejour" in bench.overrides() and "climate.salon" not in bench.overrides()
 
@@ -75,15 +75,15 @@ async def test_its_entities_keep_their_ids_and_settings(bench: Bench):
 
 
 async def test_its_entities_are_kept_through_a_change_made_before_the_reload(bench: Bench, monkeypatch, caplog):
-    """The entry is reloaded to attach the entities to the new id; a change meanwhile (a card
-    displayed) must neither remove them nor make them again."""
+    """The entry is reloaded to attach the entities to the new id; a change meanwhile (a value
+    of a preset set) must neither remove them nor make them again."""
     await start(bench)
     registry = er.async_get(bench.hass)
     reloads = []
     monkeypatch.setattr(bench.hass.config_entries, "async_schedule_reload", reloads.append)
     await rename(bench)
     assert reloads == [bench.entry.entry_id]
-    bench.runtime.declare_card("c1", ["climate.sejour"])  # before the reload
+    await bench.runtime.set_mapping("climate.sejour", {"comfort": {"temperature": 19.5}})  # before the reload
     await bench.hass.async_block_till_done()
     assert registry.async_get("sensor.salon_schedule") is not None
     assert registry.async_get("switch.salon_scheduling") is not None
@@ -100,7 +100,7 @@ async def test_the_entities_of_a_thermostat_with_a_longer_id_stay_where_they_are
     await rename(bench)
     assert registry.async_get("switch.salon_bas_scheduling").unique_id == before
     assert registry.async_get("switch.salon_scheduling").unique_id.endswith("climate.sejour_scheduling")
-    assert bench.runtime.weeks["climate.salon_bas"] == SALON
+    assert bench.runtime.weeks["climate.salon_bas"]["normal"] == SALON["normal"]
 
 
 async def test_renamed_to_the_id_of_a_thermostat_whose_entity_is_gone(bench: Bench):
@@ -119,7 +119,7 @@ async def test_renamed_to_the_id_of_a_thermostat_whose_entity_is_gone(bench: Ben
     assert registry.async_get("switch.sejour_scheduling") is not None
 
     await rename(bench)
-    assert bench.runtime.weeks["climate.sejour"] == SALON
+    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
     assert "climate.sejour" not in bench.overrides()
     assert registry.async_get("switch.sejour_scheduling") is None
     switch = registry.async_get("switch.salon_scheduling")
@@ -133,20 +133,14 @@ async def test_renamed_back(bench: Bench):
     bench.hass.states.async_remove("climate.sejour")
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await bench.hass.async_block_till_done()
-    assert bench.runtime.weeks["climate.salon"] == SALON
+    assert bench.runtime.weeks["climate.salon"]["normal"] == SALON["normal"]
     assert er.async_get(bench.hass).async_get("switch.salon_scheduling").unique_id.endswith("climate.salon_scheduling")
 
 
-async def test_the_cards_follow_the_new_id(bench: Bench):
-    """A card still holding the former id in its configuration counts as showing the thermostat."""
+async def test_the_cards_learn_the_new_id(bench: Bench):
+    """A card whose configuration still holds the former id shows a notice with the new one."""
     await start(bench)
-    bench.runtime.declare_card("c1", ["climate.salon"])
     await rename(bench)
-    assert bench.runtime.data["cards"]["c1"]["thermostats"] == ["climate.sejour"]
-    bench.runtime.declare_card("c1", ["climate.salon"])
-    bench.runtime.declare_card("c2", [])
-    await bench.hass.async_block_till_done()
-    assert ir.async_get(bench.hass).async_get_issue("chauffage", "unlisted_climate.sejour") is None
     assert bench.runtime.snapshot()["renamed"] == {"climate.salon": "climate.sejour"}
 
 
@@ -157,7 +151,7 @@ async def test_renamed_twice(bench: Bench):
     bench.hass.states.async_remove("climate.sejour")
     bench.thermostat("climate.living", "eco", friendly_name="Salon")
     await bench.hass.async_block_till_done()
-    assert bench.runtime.weeks["climate.living"] == SALON
+    assert bench.runtime.weeks["climate.living"]["normal"] == SALON["normal"]
     assert bench.runtime.snapshot()["renamed"] == {"climate.salon": "climate.living", "climate.sejour": "climate.living"}
 
 
@@ -182,7 +176,7 @@ async def test_a_rename_survives_a_restart(bench: Bench):
     await bench.advance(1)  # delayed save
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.weeks["climate.sejour"] == SALON
+    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
     assert bench.runtime.snapshot()["renamed"] == {"climate.salon": "climate.sejour"}
 
 
@@ -209,21 +203,12 @@ async def test_saving_weeks_under_a_former_id_is_refused(bench: Bench):
 
 
 async def test_a_former_id_given_to_another_entity_is_that_entity(bench: Bench):
-    """climate.salon renamed climate.sejour, then a new climate.salon: a card showing
-    climate.salon shows the new one, not climate.sejour."""
+    """climate.salon renamed climate.sejour, then a new climate.salon: weeks saved under
+    climate.salon schedule the new one, not climate.sejour."""
     await start(bench)
-    bench.runtime.declare_card("c1", ["climate.salon"])
     await rename(bench)
     bench.thermostat("climate.salon", "eco", friendly_name="Salon neuf")
-    bench.runtime.declare_card("c1", ["climate.salon"])
-    await bench.hass.async_block_till_done()
-    assert bench.runtime.data["cards"]["c1"]["thermostats"] == ["climate.salon"]
-    assert ir.async_get(bench.hass).async_get_issue("chauffage", "unlisted_climate.sejour") is not None
-
-
-async def test_two_ids_of_one_card_now_the_same_thermostat_count_once(bench: Bench):
-    """climate.salon renamed climate.sejour; a card holding both."""
-    await start(bench)
-    await rename(bench)
-    bench.runtime.declare_card("c1", ["climate.salon", "climate.sejour"])
-    assert bench.runtime.data["cards"]["c1"]["thermostats"] == ["climate.sejour"]
+    week = every_day(("00:00", "frost"))
+    await bench.runtime.save_weeks({"climate.salon": {"normal": week}}, revisions={"climate.salon": None})
+    assert bench.runtime.weeks["climate.salon"]["normal"] == week
+    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]

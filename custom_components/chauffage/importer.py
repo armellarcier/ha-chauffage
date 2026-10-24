@@ -93,13 +93,15 @@ def from_package(hass: HomeAssistant) -> dict[str, Any]:
             _LOGGER.warning("Override of %s not imported (unreadable): %s", entity_id, o)
 
     active = mode_state.state if mode_state else None
+    # The package's VTherm presets become presets with the same ids (see store._v1_to_v2)
+    presets = model.default_presets(hass.config.language or "en", model.used_presets(weeks))
+    schedule_ids, preset_ids = [s["id"] for s in schedules], [p["id"] for p in presets]
     return {
         "schedules": schedules,
         "active_schedule": ids.get(active, schedules[0]["id"]),
-        # The package's VTherm presets become presets with the same ids (see store._v1_to_v2)
-        "presets": model.default_presets(hass.config.language or "en", model.used_presets(weeks)),
-        "thermostats": {entity_id: model.new_thermostat(by_schedule) for entity_id, by_schedule in weeks.items()},
-        "cards": {},
+        "presets": presets,
+        "thermostats": {entity_id: model.new_thermostat(model.complete_weeks(by_schedule, schedule_ids, preset_ids))
+                        for entity_id, by_schedule in weeks.items()},
         "renamed": {},
         "overrides": overrides,
         "revision": 0,

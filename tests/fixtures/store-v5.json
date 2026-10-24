@@ -1,7 +1,6 @@
 {
   "data": {
     "active_schedule": "normal",
-    "cards": {},
     "default_schedule": null,
     "overrides": {
       "climate.salon": {
@@ -242,13 +241,11 @@
                 "eco"
               ]
             ]
-          ]
+          ],
+          "vacances": [[["00:00", "eco"]], [["00:00", "eco"]], [["00:00", "eco"]], [["00:00", "eco"]], [["00:00", "eco"]], [["00:00", "eco"]], [["00:00", "eco"]]]
         },
         "mapping": {},
         "preset_temperatures": {},
-        "shown_at": null,
-        "shown_without_id_at": null,
-        "kept_unlisted": false,
         "revision": 0
       }
     }

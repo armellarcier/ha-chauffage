@@ -28,7 +28,7 @@ async def test_subscribe_sends_everything_then_every_change(bench: Bench, ws_cli
     assert (await client.receive_json())["success"]
     first = (await client.receive_json())["event"]
     assert [m["id"] for m in first["schedules"]] == ["normal", "away", "holiday"]
-    assert first["weeks"] == SCHEDULES
+    assert first["weeks"]["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
     assert (first["active_schedule"], first["revision"], first["override_duration"]) == ("normal", 1, 120)
 
     await bench.activate_schedule("Away")
@@ -52,7 +52,7 @@ async def test_saving_from_an_outdated_copy_is_refused(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}, "revision": 0})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "stale"
-    assert bench.runtime.weeks == SCHEDULES
+    assert bench.runtime.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
 
 
 async def test_invalid_schedules_are_refused(bench: Bench, ws_client):

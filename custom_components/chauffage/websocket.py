@@ -22,9 +22,6 @@ chauffage/rules/preview      {rules}: tries rules being typed, as the integratio
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not driven) or resume a scheduled
                              thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
-chauffage/card/declare       {card_id?, instance?, thermostats}: the thermostats a card shows, sent
-                             when it is displayed (any user); a repair proposes to pause one no
-                             card shows
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -49,7 +46,7 @@ from .runtime import DATA, ChauffageRuntime, StaleRevision, ThermostatFailed
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
-                    ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat, ws_declare_card,
+                    ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat,
                     ws_set_rules, ws_preview_rules, ws_history):
         websocket_api.async_register_command(hass, command)
 
@@ -224,20 +221,6 @@ async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveCo
 @websocket_api.async_response
 async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_paused(msg["entity_id"], msg["paused"]))
-
-
-@websocket_api.websocket_command({
-    vol.Required("type"): "chauffage/card/declare",
-    vol.Optional("card_id"): vol.Any(None, str),
-    vol.Optional("instance"): str,
-    vol.Required("thermostats"): [str],
-})
-@callback
-def ws_declare_card(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if (runtime := _runtime(hass, connection, msg["id"])) is None:
-        return
-    runtime.declare_card(msg.get("card_id"), msg["thermostats"], msg.get("instance"))
-    connection.send_result(msg["id"])
 
 
 @websocket_api.websocket_command({vol.Required("type"): "chauffage/thermostat/forget", vol.Required("entity_id"): str})

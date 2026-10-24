@@ -2,7 +2,6 @@
 purpose (docs/decisions.md, "Scheduled thermostats", #27)."""
 
 import pytest
-from homeassistant.helpers import issue_registry as ir
 
 from conftest import Bench, every_day, KINDS
 from custom_components.chauffage import model
@@ -37,11 +36,38 @@ async def test_a_thermostat_a_card_does_not_send_keeps_its_schedule(bench: Bench
     """#27: removed from a card (or shown by another one), a thermostat is still scheduled."""
     await start(bench)
     await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
-    assert bench.runtime.weeks["climate.salon"] == SALON
+    assert bench.runtime.weeks["climate.salon"]["normal"] == SALON["normal"]
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.salon": "comfort"}
     await bench.manual_setpoint("climate.salon", 22)
     assert "climate.salon" in bench.overrides()
+
+
+# ----- a week in every schedule -----
+
+ECO_WEEK = every_day(("00:00", "eco"))
+
+
+async def test_a_scheduled_thermostat_has_a_week_in_every_schedule(bench: Bench):
+    """The card sent its week in one schedule: the others are eco all week, as a new schedule."""
+    await start(bench)
+    assert bench.runtime.weeks["climate.salon"] == {"normal": SALON["normal"], "away": ECO_WEEK, "holiday": ECO_WEEK}
+
+
+async def test_saving_some_schedules_keeps_the_thermostat_s_other_weeks(bench: Bench):
+    await start(bench)
+    away = every_day(("00:00", "frost"))
+    await bench.save_weeks({"climate.salon": {"away": away}})
+    assert bench.runtime.weeks["climate.salon"] == {"normal": SALON["normal"], "away": away, "holiday": ECO_WEEK}
+
+
+async def test_deleting_a_schedule_never_unschedules_a_thermostat(bench: Bench):
+    await start(bench)
+    await bench.activate_schedule("Away")
+    await bench.set_schedules([{"id": "away"}, {"id": "holiday"}])
+    await bench.hass.async_block_till_done()
+    assert set(bench.runtime.scheduled) == {"climate.salon", "climate.bureau"}
+    assert set(bench.runtime.weeks["climate.salon"]) == {"away", "holiday"}
 
 
 async def test_a_forgotten_thermostat_is_no_longer_scheduled_nor_watched(bench: Bench):
@@ -68,8 +94,8 @@ async def test_a_copy_of_the_weeks_made_before_a_thermostat_was_forgotten_cannot
 
 
 async def test_values_of_the_presets_set_before_its_weeks_do_not_schedule_a_thermostat(bench: Bench):
-    """Kept for when its weeks are saved, but nothing is planned: no switch, no repair, nothing
-    to pause; its weeks schedule it, active."""
+    """Kept for when its weeks are saved, but nothing is planned: no switch, nothing to pause;
+    its weeks schedule it, active."""
     await start(bench)
     bench.thermostat("climate.chambre", "eco")
     await bench.runtime.set_mapping("climate.chambre", {"comfort": {"temperature": 19.5}})
@@ -79,10 +105,6 @@ async def test_values_of_the_presets_set_before_its_weeks_do_not_schedule_a_ther
     assert bench.hass.states.get("switch.chambre_scheduling") is None
     with pytest.raises(model.InvalidData):
         await bench.runtime.set_paused("climate.chambre", True)
-    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau", "climate.chambre"])
-    bench.runtime.declare_card("c1", ["climate.salon", "climate.bureau"])
-    await bench.hass.async_block_till_done()
-    assert ir.async_get(bench.hass).async_get_issue("chauffage", "unlisted_climate.chambre") is None
 
     await bench.runtime.save_weeks({"climate.chambre": SALON}, revisions={"climate.chambre": None})
     await bench.hass.async_block_till_done()

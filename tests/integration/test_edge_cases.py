@@ -125,10 +125,9 @@ async def test_removing_an_override_that_does_not_exist_changes_nothing(bench: B
     assert bench.runtime.data["revision"] == revision
 
 
-async def test_a_thermostat_without_a_week_in_the_active_schedule_has_no_planned_preset(bench: Bench):
+async def test_a_thermostat_not_scheduled_has_no_planned_preset(bench: Bench):
     await start(bench)
-    await bench.activate_schedule("Away")  # no "away" schedule
-    assert bench.runtime.planned("climate.salon") == (None, None, None)
+    assert bench.runtime.planned("climate.cuisine") == (None, None, None)
 
 
 # ----- services: errors -----

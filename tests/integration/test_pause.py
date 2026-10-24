@@ -63,7 +63,7 @@ async def test_a_paused_thermostat_keeps_its_weeks_and_its_values(bench: Bench):
     await start(bench)
     await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 19.5}})
     await pause(bench, "climate.salon")
-    assert bench.runtime.weeks["climate.salon"] == SCHEDULES["climate.salon"]
+    assert bench.runtime.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
     assert bench.runtime.mappings["climate.salon"] == {"comfort": {"temperature": 19.5}}
 
 
@@ -123,7 +123,7 @@ async def test_the_weeks_of_a_paused_thermostat_can_be_saved_without_resuming_it
     await pause(bench, "climate.salon")
     weeks = {**SCHEDULES, "climate.salon": {"normal": every_day(("00:00", "comfort"))}}
     await bench.save_weeks(weeks)
-    assert bench.runtime.weeks["climate.salon"] == weeks["climate.salon"]
+    assert bench.runtime.weeks["climate.salon"]["normal"] == weeks["climate.salon"]["normal"]
     assert bench.runtime.is_paused("climate.salon")
     assert bench.applied() == {}
 

@@ -80,18 +80,6 @@
       "title": "Retirer le package ha-chauffage",
       "description": "L'intégration Chauffage programme désormais vos thermostats ; les automatisations du package ont été désactivées. Pour terminer : supprimez `packages/chauffage/` et `www/chauffage/` de votre dossier de configuration, retirez la ligne `/local/chauffage/chauffage-loader.js` de `frontend: extra_module_url` et les trois lignes `sensor.*_chauffage` de `recorder: exclude` dans `configuration.yaml`, puis redémarrez Home Assistant. Dans vos propres automatisations, remplacez `input_select.mode_chauffage` par `{schedule_entity}`."
     },
-    "unlisted": {
-      "title": "{name} n'apparaît dans aucune carte",
-      "fix_flow": {
-        "step": {
-          "init": {
-            "title": "{name} n'apparaît dans aucune carte",
-            "description": "{name} ({entity_id}) a été retiré des cartes qui l'affichaient, mais Chauffage le pilote toujours selon son planning. Le mettre en pause garde ses semaines : on peut le reprendre depuis son interrupteur *Programmation* ou la vue *Thermostats* de la carte.",
-            "menu_options": { "pause": "Le mettre en pause (garder ses semaines)", "keep": "Continuer à le piloter", "forget": "L'oublier (supprimer ses semaines)" }
-          }
-        }
-      }
-    },
     "missing": {
       "title": "Le thermostat programmé {entity_id} a disparu",
       "fix_flow": {
