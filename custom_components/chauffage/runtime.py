@@ -421,12 +421,14 @@ class ChauffageRuntime:
             if replacements.get(preset_id) not in taken:
                 raise model.InvalidData(f"{preset_id} is used in the weeks: choose a replacement")
         if removed & used:
-            for by_schedule in self.weeks.values():
+            # Only the thermostats that used a removed preset: the others' weeks do not change
+            affected = {e: w for e, w in self.weeks.items() if removed & set(model.used_presets({e: w}))}
+            for by_schedule in affected.values():
                 for schedule_id, week in by_schedule.items():
                     by_schedule[schedule_id] = model.normalize_week(
                         [[[start, replacements.get(preset, preset)] for start, preset in day] for day in week]
                     )
-            self._weeks_changed(self.thermostats)
+            self._weeks_changed(affected)
             self.data["revision"] += 1
         for t in self.thermostats.values():
             for preset_id in removed:
@@ -463,8 +465,11 @@ class ChauffageRuntime:
                 del weeks[schedule_id]
             for schedule_id, source in created.items():
                 weeks[schedule_id] = copy.deepcopy(weeks[source]) if source in weeks else model.empty_week(preset_ids)
+        # Renamed or moved: no week changes. Created or deleted: every thermostat's weeks do (a
+        # schedule deleted then created again may take the same id)
+        if created or self.schedule_ids - kept:
+            self._weeks_changed(self.scheduled)
         self.data["schedules"] = schedules
-        self._weeks_changed(self.thermostats)
         self.data["revision"] += 1
         self._changed()
         return copy.deepcopy(schedules)

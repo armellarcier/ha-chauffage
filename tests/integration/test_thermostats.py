@@ -203,6 +203,35 @@ async def test_a_new_schedule_changes_every_thermostat_s_revision(bench: Bench):
         await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": salon})
 
 
+async def test_a_deleted_schedule_changes_every_thermostat_s_revision(bench: Bench):
+    """A schedule created again with the same name takes the same id: a copy made before must
+    not put the deleted schedule's week into it."""
+    await start(bench)
+    salon = revision(bench, "climate.salon")
+    await bench.set_schedules([{"id": "normal"}, {"id": "away"}])
+    with pytest.raises(StaleRevision):
+        await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": salon})
+
+
+async def test_a_schedule_renamed_or_moved_by_another_card_does_not_block_saving_the_weeks(bench: Bench):
+    """No week changes: a card's copy of the weeks is still good."""
+    await start(bench)
+    salon = revision(bench, "climate.salon")
+    await bench.set_schedules([{"id": "holiday"}, {"id": "normal", "name": "Semaine"}, {"id": "away"}])
+    await bench.runtime.save_weeks({"climate.salon": {"normal": every_day(("00:00", "comfort"))}}, revisions={"climate.salon": salon})
+    assert bench.runtime.weeks["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
+
+
+async def test_a_removed_preset_only_changes_the_revision_of_the_thermostats_that_used_it(bench: Bench):
+    await start(bench)
+    await bench.save_weeks({"climate.salon": {"normal": every_day(("00:00", "frost"))}})
+    salon, bureau = revision(bench, "climate.salon"), revision(bench, "climate.bureau")
+    presets = [p for p in bench.runtime.data["presets"] if p["id"] != "frost"]
+    await bench.runtime.set_presets(presets, {"frost": "eco"})
+    assert revision(bench, "climate.salon") == salon + 1
+    assert revision(bench, "climate.bureau") == bureau
+
+
 async def test_a_thermostat_scheduled_meanwhile_by_another_card_is_not_overwritten(bench: Bench):
     """The copy did not know it (no revision): another card scheduled it in the meantime."""
     await start(bench)
