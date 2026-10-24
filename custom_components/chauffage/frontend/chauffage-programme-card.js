@@ -1043,9 +1043,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     const aside = this._configured.filter((t) => renamedTo(this._hass, src, t.entity)).map((t) => t.entity);
     const key = aside.join(' ');
     if (key === this._asideKey) return false;
+    // Set aside before, not any more: an entity has that id again, shown again
+    const back = this._asideKey.split(' ').filter((e) => e && !aside.includes(e));
     this._asideKey = key;
     this._thermostats = this._configured.filter((t) => !aside.includes(t.entity));
-    this._shown = this._shown.filter((e) => !aside.includes(e));
+    this._shown = this._thermostats.map((t) => t.entity)
+      .filter((e) => (this._shown.includes(e) || back.includes(e)) && !aside.includes(e));
     if (!this._shown.length) this._shown = this._initialShown();
     return true;
   }
@@ -1282,7 +1285,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
     const revisions = src.perThermostat ? Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null])) : null;
     try {
-      const result = await src.saveWeeks(out, this._revision, revisions);
+      // Edits undone: nothing to send (a save would realign every thermostat)
+      const result = changed.length ? await src.saveWeeks(out, this._revision, revisions) : null;
       if (result && result.revision != null) this._revision = result.revision;
       if (result && result.revisions) Object.assign(this._revisions, result.revisions);
       this._loadedWeeks = now;
@@ -3292,6 +3296,7 @@ class ChauffageMoreInfo extends HTMLElement {
     }
     const { weeks, overrides, schedule, thermostats } = src.stamps;
     if (this._key && overrides !== this._key[2]) this._pending = undefined;
+    if (this._key && thermostats !== this._key[4]) this._error = null; // paused or resumed: a resume error is over
     // Redraw only when relevant data changed (or every new minute)
     const key = [s[this._entity], weeks, overrides, schedule, thermostats, Math.floor(Date.now() / 60000), this._loc.signature];
     if (this._key && key.every((v, i) => v === this._key[i])) return;

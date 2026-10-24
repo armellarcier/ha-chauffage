@@ -140,10 +140,6 @@ future contributor might question.
 
 ## Scheduled thermostats
 
-Being worked on ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)): until it is
-released, a thermostat is scheduled as long as it has weeks, and the card saves the weeks of every
-thermostat it loaded.
-
 - **The integration keeps the list of scheduled thermostats; the cards only show them.** A card
   saved the weeks of every thermostat, so the thermostats in its configuration did not say which
   ones were driven: one removed from the card stayed driven (#27). A card cannot decide either:

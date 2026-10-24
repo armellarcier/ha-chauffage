@@ -75,6 +75,20 @@ describe('writing to the integration', () => {
     assert.deepEqual(lastCall(hass).revisions, { 'climate.salon': 8 });
   });
 
+  test('an edit undone before saving sends nothing', async () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass);
+    card._split('climate.bureau', 0, 12 * 60); // the bureau gets its default week, so is changed
+    await card._save();
+    const sent = hass.events.length;
+    const before = structuredClone(card._week('climate.salon'));
+    card._split('climate.salon', 0, 12 * 60);
+    card._data['climate.salon'][card._schedule] = before;
+    await card._save();
+    assert.equal(hass.events.length, sent);
+    assert.equal(card._dirty, false);
+  });
+
   test('a thermostat new to the integration is sent with no revision', async () => {
     const hass = fakeIntegrationHass(); // only the salon is scheduled
     const card = createCard(hass);
@@ -413,6 +427,16 @@ describe('a thermostat renamed in Home Assistant', () => {
     const card = createCard(hass);
     assert.deepEqual(chips(card), ['climate.salon', 'climate.bureau']);
     assert.equal(card.shadowRoot.querySelector('.renamed-note'), null);
+  });
+
+  test('shown again once an entity has its former id again', () => {
+    const hass = hassOf();
+    const card = createCard(hass);
+    const bars = () => [...new Set([...card.shadowRoot.querySelectorAll('.bar[data-climate]')].map((b) => b.dataset.climate))];
+    assert.deepEqual(bars(), ['climate.bureau']);
+    card.hass = { ...hass, states: { ...hass.states, 'climate.salon': { state: 'heat', attributes: { friendly_name: 'Chambre' }, last_updated: '2' } } };
+    assert.deepEqual(chips(card), ['climate.salon', 'climate.bureau']);
+    assert.deepEqual(bars(), ['climate.salon', 'climate.bureau']);
   });
 
   test('the notice goes once the card is edited with the new id', () => {

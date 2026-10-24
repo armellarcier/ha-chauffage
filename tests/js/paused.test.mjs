@@ -130,6 +130,10 @@ describe('the more-info block of a paused thermostat', () => {
     await new Promise((resolve) => setImmediate(resolve));
     assert.match(text(el.shadowRoot), /Erreur : boom/);
     assert.ok(el.shadowRoot.querySelector('[data-resume]'), 'still paused: it can be tried again');
+    hass.push(integrationData({ weeks: WEEKS })); // resumed elsewhere (its switch)
+    el.hass = hass;
+    assert.match(text(el.shadowRoot), /Suit le planning/);
+    assert.doesNotMatch(text(el.shadowRoot), /Erreur/);
   });
 
   test('once resumed elsewhere, it follows its schedule again', () => {

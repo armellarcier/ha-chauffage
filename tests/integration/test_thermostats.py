@@ -112,6 +112,16 @@ async def test_values_of_the_presets_set_before_its_weeks_do_not_schedule_a_ther
     assert bench.hass.states.get("switch.chambre_scheduling") is not None
 
 
+async def test_values_of_the_presets_cleared_before_its_weeks_leave_nothing_behind(bench: Bench):
+    """Nothing kept for a thermostat Chauffage does not schedule once its values are cleared:
+    renaming it later reloads nothing."""
+    await start(bench)
+    bench.thermostat("climate.chambre", "eco")
+    await bench.runtime.set_mapping("climate.chambre", {"comfort": {"temperature": 19.5}})
+    await bench.runtime.set_mapping("climate.chambre", {})
+    assert "climate.chambre" not in bench.runtime.thermostats
+
+
 async def test_a_thermostat_without_weeks_turns_no_change_by_hand_into_an_override(bench: Bench):
     """Values of the presets set before its weeks are saved: nothing is planned for it yet, a
     setpoint changed by hand is its own."""

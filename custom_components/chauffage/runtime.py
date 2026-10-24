@@ -438,8 +438,10 @@ class ChauffageRuntime:
     async def set_mapping(self, entity_id: str, mapping: Any) -> None:
         """Mapping set by hand for one thermostat ({} = defaults only)."""
         normalized = model.normalize_mapping(mapping, self.preset_ids)
-        if normalized or entity_id in self.thermostats:
+        if normalized or entity_id in self.scheduled:
             self._thermostat(entity_id)["mapping"] = normalized
+        else:
+            self.thermostats.pop(entity_id, None)  # not scheduled: nothing left to keep
         self._changed()
         await self.apply(force=True)
 
