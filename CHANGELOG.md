@@ -12,7 +12,7 @@ Each entry says whether the release **migrates stored data** and what to do when
 What ha-chauffage knows is shown in Home Assistant itself, to see and use it in dashboards,
 automations, scripts and by voice without the card
 ([#31](https://github.com/armellarcier/ha-chauffage/issues/31)). **Does not migrate stored
-data**; the config entry goes to 1.2 (see *Upgrading*).
+data**; Home Assistant reloads the integration once after the upgrade (see *Upgrading*).
 
 ### Added
 
@@ -31,8 +31,8 @@ data**; the config entry goes to 1.2 (see *Upgrading*).
 
 ### Changed
 
-- The **Schedule** sensor is now **Planned preset**, enabled by default; its entity id does not
-  change.
+- The **Schedule** sensor is now **Planned preset** (dashboards show the new name), enabled by
+  default; its entity id does not change.
 - The **Control** switch is a plain entity, no longer a setting: it is among the device's main
   triggers, conditions and actions in the automation editor, and new ones are exposed to Assist.
 

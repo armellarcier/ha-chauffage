@@ -167,7 +167,7 @@ Pour chaque thermostat programmé, sur la page de l'appareil du thermostat :
 |---|---|
 | **Pilotage** (interrupteur) | Éteint, le thermostat est **en pause** : Chauffage garde ses semaines mais ne le pilote plus (rien n'est envoyé, pas de dérogation), jusqu'à ce qu'on le rallume. Pratique pour une pièce gérée à la main quelques jours, ou à la fin de la saison de chauffe. |
 | **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, et `temperatures` : la température de chaque préréglage sur ce thermostat. |
-| **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs `kind`, `value`, `preset` (quand elle porte sur un préréglage), `end`. |
+| **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs `kind` (`temperature` ou `preset`), `value` (une température, ou le préréglage du thermostat), `preset` (le préréglage Chauffage demandé, le cas échéant), `end`. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours sous forme d'horodatage, pour une tuile de tableau de bord. |
 
 Les capteurs sont indisponibles pendant la pause. Une installation d'avant la 0.6 garde l'ancien
@@ -178,11 +178,11 @@ Sur l'appareil *Chauffage* :
 
 | Entité | Ce qu'elle dit |
 |---|---|
-| **Planning actif** (sélecteur, `select.chauffage_schedule`) | Le planning actif, à choisir parmi tous. Attributs `schedule_id`, et `rules_choice` : le planning que donnent les règles d'activation (vide sans règles). |
+| **Planning actif** (sélecteur, `select.chauffage_schedule`) | Le planning actif, à choisir parmi tous. Attributs `schedule_id` et `rules_choice` : le planning que donnent les règles d'activation (vide sans règles). |
 | **Planning &lt;nom&gt;** (un interrupteur par planning, `switch.chauffage_schedule_<id>`) | Allumé pour le planning actif. En allumer un l'active ; on n'éteint pas le planning actif, on en allume un autre. Son icône, choisie dans Home Assistant, s'affiche sur l'onglet du planning dans la carte. |
 
 **Assist** : Home Assistant expose les nouveaux interrupteurs aux assistants vocaux, donc « éteins
-le pilotage du salon » ou « allume planning Vacances » fonctionnent. Les interrupteurs Pilotage
+le pilotage du salon » ou « allume le planning Vacances » fonctionnent. Les interrupteurs Pilotage
 créés avant la 0.6 gardent le choix fait alors (non exposés) ; dans Paramètres → Assistants
 vocaux → Exposer, chaque entité peut être exposée ou non.
 
@@ -195,8 +195,8 @@ Services :
 - `chauffage.get_schedules` (avec une réponse, pour les scripts) : les plannings (`id`, `name`,
   `entity_id` de leur interrupteur), `active_schedule`, `rules_choice`, `default_schedule`.
 - `chauffage.get_week` (avec une réponse) : la semaine de thermostats dans un planning (le planning
-  actif par défaut), comme `schedule.get_schedule` de Home Assistant : par thermostat, `schedule`
-  et une liste par jour (`monday`…), chaque créneau avec son `start`, son `end` et son `preset`.
+  actif par défaut) : par thermostat, puis par jour comme `schedule.get_schedule` de Home
+  Assistant : `schedule` et une liste par jour (`monday`…), chaque créneau avec son `start`, son `end` et son `preset`.
 
 ```yaml
 - action: chauffage.get_week
@@ -205,16 +205,19 @@ Services :
   response_variable: semaine
 - action: notify.mobile_app_telephone
   data:
-    message: "Demain le salon démarre à {{ semaine['climate.salon'].tuesday[1].start }}"
+    message: >-
+      {% set demain = (now() + timedelta(days=1)).strftime('%A') | lower %}
+      Demain le salon est en confort à partir de
+      {{ semaine['climate.salon'][demain] | selectattr('preset', 'eq', 'comfort') | map(attribute='start') | first }}
 ```
 
 Événements, pour les automatisations (déclencheur *Événement*) :
 
 | Événement | Données |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, et `source` : `thermostat` (un changement fait dessus, à la main), `card`, `service`. Signalé pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule sa fin change. |
-| `chauffage_override_ended` | `entity_id`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `service`, `paused`, `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (identifiant), `schedule_name`, `previous_schedule`, et `source` : `card`, `entity` (le sélecteur ou un interrupteur de planning), `service`, `rules`. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end` et `source` : `thermostat` (un changement fait dessus, à la main), `card`, `service`. Signalé pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule sa fin change. |
+| `chauffage_override_ended` | `entity_id` et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `service`, `paused`, `forgotten`. |
+| `chauffage_schedule_activated` | `schedule` (identifiant), `schedule_name`, `previous_schedule` et `source` : `card`, `entity` (le sélecteur ou un interrupteur de planning), `service`, `rules`. |
 
 Par exemple, être prévenu quand quelqu'un change un thermostat à la main :
 

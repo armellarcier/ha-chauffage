@@ -125,3 +125,22 @@ async def test_a_schedule_already_active_is_not_told_again(bench: Bench, events)
     await start(bench)
     await bench.activate_schedule("Normal")
     assert "chauffage_schedule_activated" not in events
+
+
+async def test_an_override_extended_while_the_minute_is_applied_is_kept(bench: Bench, events):
+    """Applying the slots takes a while (spaced out commands): an override extended meanwhile from
+    the card has not ended."""
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21.5)
+    runtime, apply = bench.runtime, bench.runtime.apply
+
+    async def slow_apply(**kwargs):
+        override = runtime.data["overrides"].get("climate.salon")
+        if override:  # the card adds 30 minutes meanwhile
+            await runtime.set_override("climate.salon", {**override, "end": "2026-10-12T12:30:00+02:00"}, source="card")
+        await apply(**kwargs)
+
+    runtime.apply = slow_apply
+    await bench.go_to("12:00")
+    assert "climate.salon" in bench.overrides()
+    assert "chauffage_override_ended" not in events

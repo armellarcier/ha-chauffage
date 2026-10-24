@@ -264,14 +264,9 @@ class ChauffageRuntime:
     def preset_temperatures_of(self, entity_id: str) -> dict[str, float]:
         """{preset id: temperature} on a thermostat: its own for a temperature, the one its own
         preset gives (published, else learned) for a climate preset; unknown ones left out."""
-        state = self.hass.states.get(entity_id)
-        out = {}
-        for preset_id, target in self.targets_of(entity_id).items():
-            if "temperature" in target:
-                out[preset_id] = target["temperature"]
-            elif state is not None and (temperature := self.preset_temperature(state, target["preset"])) is not None:
-                out[preset_id] = temperature
-        return out
+        own = self.temperatures_of(self.hass.states.get(entity_id))
+        temperatures = {p: t.get("temperature", own.get(t.get("preset"))) for p, t in self.targets_of(entity_id).items()}
+        return {p: t for p, t in temperatures.items() if t is not None}
 
     def snapshot(self) -> dict[str, Any]:
         """Everything the card needs."""
@@ -413,6 +408,8 @@ class ChauffageRuntime:
             repairs.close_missing(self.hass, entity_id)  # made again with the same id
         elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
             self._renamed(event.data["old_entity_id"], entity_id)
+        if entity_id in self.schedule_entities().values() and action != "remove":
+            self._notify()  # a schedule's switch registered or renamed: the cards show its icon
 
     @callback
     def _renamed(self, old: str, new: str) -> None:
@@ -432,7 +429,7 @@ class ChauffageRuntime:
                 if entity_id := registry.async_get_entity_id(platform, DOMAIN, unique_id(new, key)):
                     registry.async_remove(entity_id)
             repairs.close_missing(self.hass, new)
-        self.data["overrides"].pop(new, None)
+        self._drop_override(new, "forgotten")
         self.thermostats[new] = self.thermostats.pop(old)
         self._weeks_changed([new])
         if old in self.data["overrides"]:
@@ -762,6 +759,8 @@ class ChauffageRuntime:
         ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
         since, self._last_tick = self._last_tick, dt_util.now()
         await self.apply(ended=ended, since=since)
+        # Those not extended meanwhile (applying the slots takes a while)
+        ended = [e for e in engine.ended_overrides(self.data["overrides"], dt_util.now()) if e in ended]
         if ended:
             for entity_id in ended:
                 self._drop_override(entity_id, "expired")

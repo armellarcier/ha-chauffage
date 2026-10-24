@@ -68,15 +68,10 @@ class OverrideEndSensor(ThermostatSensorEntity, SensorEntity):
     _attr_entity_registry_enabled_default = False
 
     @property
-    def _override(self) -> dict[str, Any] | None:
-        return self.runtime.data["overrides"].get(self.climate)
-
-    @property
     def native_value(self) -> datetime | None:
-        override = self._override
-        return engine.parse_datetime(override["end"]) if override else None
+        return engine.parse_datetime(self.runtime.override_info(self.climate)["end"])
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        override = self._override or {}
-        return {"kind": override.get("kind"), "value": override.get("value")}
+        info = self.runtime.override_info(self.climate)
+        return {key: info[key] for key in ("kind", "value", "preset")}

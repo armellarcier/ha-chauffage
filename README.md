@@ -162,7 +162,7 @@ Per scheduled thermostat, on the thermostat's device page:
 |---|---|
 | **Control** (switch) | Off, the thermostat is **paused**: Chauffage keeps its weeks but no longer controls it (nothing sent, no override), until it is turned back on. Handy for a room run by hand for a few days, or at the end of the heating season. |
 | **Planned preset** (sensor) | The preset planned now. Attributes `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, and `temperatures`: the temperature of each preset on this thermostat. |
-| **Override** (binary sensor) | On while the thermostat has an override. Attributes `kind`, `value`, `preset` (when set to a preset), `end`. |
+| **Override** (binary sensor) | On while the thermostat has an override. Attributes `kind` (`temperature` or `preset`), `value` (a temperature, or the thermostat's climate preset), `preset` (the Chauffage preset it was set to, if any), `end`. |
 | **Override end** (sensor, disabled by default) | The end of the current override as a timestamp, for a dashboard tile. |
 
 The sensors are unavailable while the thermostat is paused. An installation from before 0.6
@@ -189,8 +189,8 @@ Services:
 - `chauffage.get_schedules` (with a response, for scripts): the schedules (`id`, `name`,
   `entity_id` of their switch), `active_schedule`, `rules_choice`, `default_schedule`.
 - `chauffage.get_week` (with a response): the week of thermostats in a schedule (the active one by
-  default), like Home Assistant's `schedule.get_schedule`: by thermostat, `schedule` and one list
-  per day (`monday`…), each slot with its `start`, `end` and `preset`.
+  default): by thermostat, then by day like Home Assistant's `schedule.get_schedule`: `schedule`
+  and one list per day (`monday`…), each slot with its `start`, `end` and `preset`.
 
 ```yaml
 - action: chauffage.get_week
@@ -199,18 +199,21 @@ Services:
   response_variable: week
 - action: notify.mobile_app_phone
   data:
-    message: "Tomorrow the living room starts at {{ week['climate.salon'].tuesday[1].start }}"
+    message: >-
+      {% set tomorrow = (now() + timedelta(days=1)).strftime('%A') | lower %}
+      Tomorrow the living room is in comfort from
+      {{ week['climate.salon'][tomorrow] | selectattr('preset', 'eq', 'comfort') | map(attribute='start') | first }}
 ```
 
 Events, for automations (*Event* trigger):
 
 | Event | Data |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (a change made on it, by hand), `card`, `service`. Told for a new override or a new value, not when only its end changes. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (a change made on it, by hand), `card`, `service`. Fired for a new override or a new value, not when only its end changes. |
 | `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (put back to its schedule by hand), `card`, `service`, `paused`, `forgotten`. |
 | `chauffage_schedule_activated` | `schedule` (id), `schedule_name`, `previous_schedule`, and `source`: `card`, `entity` (the select or a schedule switch), `service`, `rules`. |
 
-For example, to be told when someone changes a thermostat by hand:
+For example, to be notified when someone changes a thermostat by hand:
 
 ```yaml
 triggers:

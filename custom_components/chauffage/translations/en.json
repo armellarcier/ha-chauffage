@@ -37,7 +37,7 @@
         "name": "Active schedule",
         "state_attributes": {
           "schedule_id": { "name": "Schedule id" },
-          "rules_choice": { "name": "Schedule the rules give" }
+          "rules_choice": { "name": "Schedule from the rules" }
         }
       }
     },
@@ -70,7 +70,7 @@
           "next_preset": { "name": "Next preset" },
           "next_preset_name": { "name": "Next preset name" },
           "next_start": { "name": "Next slot start" },
-          "temperatures": { "name": "Temperatures of the presets" }
+          "temperatures": { "name": "Preset temperatures" }
         }
       },
       "planned_preset_of": {
@@ -82,16 +82,16 @@
           "next_preset": { "name": "Next preset" },
           "next_preset_name": { "name": "Next preset name" },
           "next_start": { "name": "Next slot start" },
-          "temperatures": { "name": "Temperatures of the presets" }
+          "temperatures": { "name": "Preset temperatures" }
         }
       },
       "override_end": {
         "name": "Override end",
-        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" } }
+        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
       },
       "override_end_of": {
         "name": "{thermostat} override end",
-        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" } }
+        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
       }
     }
   },
@@ -145,14 +145,14 @@
       }
     },
     "get_schedules": {
-      "name": "Get the schedules",
+      "name": "Get schedules",
       "description": "Gives the schedules (id, name, switch), the active one, and the one the activation rules give, for scripts."
     },
     "get_week": {
-      "name": "Get a week",
-      "description": "Gives the week of thermostats in a schedule (the active one by default): each day's slots, with their start, end and preset, for scripts.",
+      "name": "Get week",
+      "description": "Gives each thermostat's week in a schedule (the active one by default): each day's slots, with their start, end and preset, for scripts.",
       "fields": {
-        "entity_id": { "name": "Thermostats", "description": "Thermostats that have a schedule." },
+        "entity_id": { "name": "Thermostats", "description": "Scheduled thermostats." },
         "schedule": { "name": "Schedule id", "description": "The schedule's id (default: the active schedule)." }
       }
     }
@@ -163,6 +163,6 @@
     "paused": { "message": "{entity_id} is paused: resume it to set an override." },
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
     "unknown_schedule": { "message": "There is no schedule with the id {schedule}." },
-    "active_schedule_off": { "message": "{schedule} is the active schedule: turn another schedule on to change it." }
+    "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." }
   }
 }

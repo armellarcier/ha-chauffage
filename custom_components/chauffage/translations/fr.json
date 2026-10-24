@@ -37,7 +37,7 @@
         "name": "Planning actif",
         "state_attributes": {
           "schedule_id": { "name": "Identifiant du planning" },
-          "rules_choice": { "name": "Planning donné par les règles" }
+          "rules_choice": { "name": "Planning selon les règles" }
         }
       }
     },
@@ -69,7 +69,7 @@
           "target": { "name": "Consigne" },
           "next_preset": { "name": "Préréglage suivant" },
           "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début de la plage suivante" },
+          "next_start": { "name": "Début du créneau suivant" },
           "temperatures": { "name": "Températures des préréglages" }
         }
       },
@@ -81,17 +81,17 @@
           "target": { "name": "Consigne" },
           "next_preset": { "name": "Préréglage suivant" },
           "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début de la plage suivante" },
+          "next_start": { "name": "Début du créneau suivant" },
           "temperatures": { "name": "Températures des préréglages" }
         }
       },
       "override_end": {
         "name": "Fin de dérogation",
-        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" } }
+        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
       },
       "override_end_of": {
         "name": "Fin de dérogation {thermostat}",
-        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" } }
+        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
       }
     }
   },
@@ -145,14 +145,14 @@
       }
     },
     "get_schedules": {
-      "name": "Lire les plannings",
+      "name": "Obtenir les plannings",
       "description": "Donne les plannings (identifiant, nom, interrupteur), le planning actif et celui que donnent les règles d'activation, pour les scripts."
     },
     "get_week": {
-      "name": "Lire une semaine",
-      "description": "Donne la semaine de thermostats dans un planning (le planning actif par défaut) : les créneaux de chaque jour, avec leur début, leur fin et leur préréglage, pour les scripts.",
+      "name": "Obtenir la semaine",
+      "description": "Donne la semaine de chaque thermostat dans un planning (le planning actif par défaut) : les créneaux de chaque jour, avec leur début, leur fin et leur préréglage, pour les scripts.",
       "fields": {
-        "entity_id": { "name": "Thermostats", "description": "Des thermostats qui ont un planning." },
+        "entity_id": { "name": "Thermostats", "description": "Des thermostats programmés." },
         "schedule": { "name": "Identifiant du planning", "description": "L'identifiant du planning (par défaut : le planning actif)." }
       }
     }

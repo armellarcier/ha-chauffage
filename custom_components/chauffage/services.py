@@ -62,6 +62,14 @@ def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
     return runtime
 
 
+def known_schedule(runtime: ChauffageRuntime, schedule: str) -> str:
+    if schedule not in runtime.schedule_ids:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="unknown_schedule", translation_placeholders={"schedule": schedule}
+        )
+    return schedule
+
+
 @callback
 def async_register(hass: HomeAssistant) -> None:
     async def set_override(call: ServiceCall) -> None:
@@ -93,12 +101,7 @@ def async_register(hass: HomeAssistant) -> None:
 
     async def activate_schedule(call: ServiceCall) -> None:
         runtime = loaded_runtime(hass)
-        schedule = call.data["schedule"]
-        if schedule not in runtime.schedule_ids:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN, translation_key="unknown_schedule", translation_placeholders={"schedule": schedule}
-            )
-        await runtime.activate_schedule(schedule, source="service")
+        await runtime.activate_schedule(known_schedule(runtime, call.data["schedule"]), source="service")
 
     async def get_schedules(call: ServiceCall) -> ServiceResponse:
         runtime = loaded_runtime(hass)
@@ -111,11 +114,7 @@ def async_register(hass: HomeAssistant) -> None:
 
     async def get_week(call: ServiceCall) -> ServiceResponse:
         runtime = loaded_runtime(hass)
-        schedule = call.data.get("schedule", runtime.data["active_schedule"])
-        if schedule not in runtime.schedule_ids:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN, translation_key="unknown_schedule", translation_placeholders={"schedule": schedule}
-            )
+        schedule = known_schedule(runtime, call.data.get("schedule", runtime.data["active_schedule"]))
         response = {}
         for entity_id in call.data[ATTR_ENTITY_ID]:
             week = runtime_for(hass, entity_id).weeks[entity_id][schedule]

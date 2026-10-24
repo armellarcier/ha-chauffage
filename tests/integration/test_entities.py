@@ -114,10 +114,6 @@ async def test_the_override_sensor_is_on_while_the_thermostat_has_an_override(be
     assert state.attributes["end"] == "2026-10-12T12:00:00+02:00"
     await bench.go_to("12:00")
     assert bench.hass.states.get("binary_sensor.salon_override").state == "off"
-
-
-async def test_the_override_sensor_names_the_preset_an_override_was_set_to(bench: Bench):
-    await start(bench)
     await bench.hass.services.async_call(
         "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True
     )

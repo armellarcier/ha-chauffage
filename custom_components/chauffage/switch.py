@@ -1,12 +1,6 @@
-"""Switches.
-
-- Per scheduled thermostat, *Control*: on, Chauffage controls the thermostat; off, it is paused
-  (kept, not controlled). A plain entity on the thermostat's device, not a setting: pausing is an
-  everyday action (docs/decisions.md, "Entities"); pausing from the card is the same thing.
-- Per schedule, on the Chauffage device: on for the active schedule. Turning one on activates
-  that schedule (the others turn off: one schedule is active); the active one cannot be turned
-  off, another one is turned on. Created and removed with the schedules.
-"""
+"""Switches: *Control* per scheduled thermostat (off: paused), and one per schedule, on for the
+active one (docs/decisions.md, "Entities"). Both follow what they show (created and removed with
+it) and change it as the card does."""
 
 from __future__ import annotations
 
@@ -61,7 +55,7 @@ class ScheduleSwitch(ChauffageEntity, SwitchEntity):
     @property
     def translation_placeholders(self) -> dict[str, str]:
         """The schedule's name in Chauffage (a name given in Home Assistant wins)."""
-        return {"schedule": self.runtime.schedule_name(self.schedule_id) or self.schedule_id}
+        return {"schedule": self.runtime.schedule_name(self.schedule_id)}
 
     def _runtime_changed(self, reason: str) -> None:
         # The schedule may have been renamed: HA caches the name, cleared as its own setters do
@@ -79,5 +73,5 @@ class ScheduleSwitch(ChauffageEntity, SwitchEntity):
         if self.is_on:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="active_schedule_off",
-                translation_placeholders={"schedule": self.runtime.schedule_name(self.schedule_id)},
+                translation_placeholders=self.translation_placeholders,
             )

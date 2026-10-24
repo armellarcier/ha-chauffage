@@ -42,6 +42,7 @@ async def test_each_schedule_has_a_switch_on_for_the_active_one(bench: Bench):
     device = dr.async_get(bench.hass).async_get(entry.device_id)
     assert device.name == "Chauffage" and entry.entity_category is None
     assert bench.hass.states.get("switch.chauffage_schedule_away").name == "Chauffage Away schedule"
+    assert bench.runtime.snapshot()["schedule_entities"]["away"] == "switch.chauffage_schedule_away"  # for the card
 
 
 async def test_turning_a_schedule_switch_on_activates_that_schedule(bench: Bench):
@@ -84,10 +85,15 @@ async def test_schedule_switches_follow_the_schedules(bench: Bench):
                                   "switch.chauffage_schedule_remote_work"}
 
 
-async def test_the_card_is_told_each_schedule_s_switch(bench: Bench):
-    """To show the icon the user chose for it in Home Assistant on the schedule's chip."""
+
+async def test_the_card_is_told_the_switch_of_a_new_schedule_or_a_new_entity_id(bench: Bench):
+    """The switch is registered after the schedule is created: the card is told again, so that an
+    icon chosen for it is shown."""
     await start(bench)
-    assert bench.runtime.snapshot()["schedule_entities"] == {
-        "normal": "switch.chauffage_schedule_normal", "away": "switch.chauffage_schedule_away",
-        "holiday": "switch.chauffage_schedule_holiday",
-    }
+    sent = []
+    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.snapshot()["schedule_entities"]))
+    await bench.set_schedules([{"id": "normal"}, {"id": "away"}, {"id": "holiday"}, {"name": "Guests"}])
+    assert sent[-1]["guests"] == "switch.chauffage_schedule_guests"
+    er.async_get(bench.hass).async_update_entity("switch.chauffage_schedule_guests", new_entity_id="switch.guests")
+    await bench.hass.async_block_till_done()
+    assert sent[-1]["guests"] == "switch.guests"
