@@ -69,7 +69,8 @@ class OverrideEndSensor(ThermostatSensorEntity, SensorEntity):
 
     @property
     def native_value(self) -> datetime | None:
-        return engine.parse_datetime(self.runtime.override_info(self.climate)["end"])
+        end = self.runtime.override_info(self.climate)["end"]
+        return engine.parse_datetime(end) if end else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

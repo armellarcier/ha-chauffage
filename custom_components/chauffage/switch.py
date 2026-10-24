@@ -55,7 +55,7 @@ class ScheduleSwitch(ChauffageEntity, SwitchEntity):
     @property
     def translation_placeholders(self) -> dict[str, str]:
         """The schedule's name in Chauffage (a name given in Home Assistant wins)."""
-        return {"schedule": self.runtime.schedule_name(self.schedule_id)}
+        return {"schedule": self.runtime.schedule_name(self.schedule_id) or self.schedule_id}
 
     def _runtime_changed(self, reason: str) -> None:
         # The schedule may have been renamed: HA caches the name, cleared as its own setters do

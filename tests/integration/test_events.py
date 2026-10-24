@@ -129,20 +129,22 @@ async def test_a_schedule_already_active_is_not_told_again(bench: Bench, events)
     assert "chauffage_schedule_activated" not in events
 
 
-async def test_an_override_extended_while_the_minute_is_applied_is_kept(bench: Bench, events):
-    """Applying the slots takes a while (spaced out commands): an override extended meanwhile from
-    the card has not ended."""
+async def test_an_override_extended_while_the_minute_is_applied_is_sent_again(bench: Bench, events):
+    """Applying the slots takes a while (spaced out commands): an override the card extends
+    meanwhile, from its copy, is a new override, and the thermostat gets its value back."""
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
+    copy = bench.overrides()["climate.salon"]  # what the card holds
     runtime, apply = bench.runtime, bench.runtime.apply
 
     async def slow_apply(**kwargs):
-        override = runtime.data["overrides"].get("climate.salon")
-        if override:  # the card adds 30 minutes meanwhile
-            await runtime.set_override("climate.salon", {**override, "end": "2026-10-12T12:30:00+02:00"}, source="card")
-        await apply(**kwargs)
+        await apply(**kwargs)  # the slot's preset sent
+        await bench.thermostat_applies("climate.salon", "eco")
+        if runtime.data["overrides"].get("climate.salon", copy)["end"] == copy["end"]:  # the card adds 30 minutes
+            await runtime.set_override("climate.salon", {**copy, "end": "2026-10-12T12:30:00+02:00"}, source="card")
 
     runtime.apply = slow_apply
     await bench.go_to("12:00")
-    assert "climate.salon" in bench.overrides()
-    assert "chauffage_override_ended" not in events
+    assert bench.overrides()["climate.salon"]["end"] == "2026-10-12T12:30:00+02:00"
+    assert bench.applied()["climate.salon"] == "21.5"  # last sent: the override, after the slot
+    assert [e["source"] for e in events["chauffage_override_started"]] == ["thermostat", "card"]

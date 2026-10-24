@@ -408,7 +408,7 @@ class ChauffageRuntime:
             repairs.close_missing(self.hass, entity_id)  # made again with the same id
         elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
             self._renamed(event.data["old_entity_id"], entity_id)
-        if entity_id in self.schedule_entities().values() and action != "remove":
+        if action != "remove" and entity_id.startswith("switch.") and entity_id in self.schedule_entities().values():
             self._notify()  # a schedule's switch registered or renamed: the cards show its icon
 
     @callback
@@ -758,13 +758,13 @@ class ChauffageRuntime:
     async def _tick(self, now: datetime) -> None:
         ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
         since, self._last_tick = self._last_tick, dt_util.now()
-        await self.apply(ended=ended, since=since)
-        # Those not extended meanwhile (applying the slots takes a while)
-        ended = [e for e in engine.ended_overrides(self.data["overrides"], dt_util.now()) if e in ended]
+        # Dropped before the slots are applied (which takes a while): one set again meanwhile is a
+        # new override, sent to the thermostat
+        for entity_id in ended:
+            self._drop_override(entity_id, "expired")
         if ended:
-            for entity_id in ended:
-                self._drop_override(entity_id, "expired")
             self._changed()
+        await self.apply(ended=ended, since=since)
         self._notify(TICK)
 
     # ----- manual changes -----
