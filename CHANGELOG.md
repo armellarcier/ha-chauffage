@@ -9,6 +9,15 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- A page left open while ha-chauffage is updated no longer keeps the former card: Home
+  Assistant's frontend reconnects without reloading the page, so the card now compares its
+  version with the integration's and asks to reload the page, with a button
+  ([#36](https://github.com/armellarcier/ha-chauffage/issues/36)). The same message shows when
+  an older copy of the card is loaded first by a Lovelace resource: remove that resource. Works
+  from the next update on: reload the page once after installing this one.
+
 ## [0.6.0-beta.4] - 2026-10-24
 
 Overrides keep their preset's name, the more-info block says until when the planned preset
@@ -275,7 +284,8 @@ applied. Nothing changes in the stored data.
 - "Custom element doesn't exist: chauffage-programme-card" after a reload, once the card was
   in the browser cache: it was registered before HA's frontend replaced the custom element
   registry ([#2](https://github.com/armellarcier/ha-chauffage/issues/2)). Remove a Lovelace
-  resource added as a workaround (it is harmless if kept).
+  resource added as a workaround: an older copy it loads first wins over the card of the
+  integration (#36).
 
 ### Upgrading
 

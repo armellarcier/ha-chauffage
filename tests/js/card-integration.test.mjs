@@ -3,7 +3,7 @@
 import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { serializeDay, compareVersions, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
 const lastCall = (hass) => hass.events.at(-1);
@@ -468,6 +468,45 @@ describe('an integration older than the card', () => {
     el.entity = 'climate.salon';
     el.hass = hass;
     assert.equal(el.style.display, 'none');
+  });
+});
+
+describe('a card left open across an update', () => {
+  // HACS updates the integration and Home Assistant restarts: the frontend reconnects without
+  // reloading the page, so the former card keeps running against the new integration (#36)
+  test('the card asks to reload the page when the integration is newer', () => {
+    const hass = fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '99.0.0' } });
+    const card = createCard(hass);
+    assert.match(card.shadowRoot.querySelector('.missing').textContent, /rechargez la page/);
+    assert.equal(card.shadowRoot.querySelector('.chips'), null);
+  });
+
+  test('the update is noticed while the card is shown', () => {
+    const hass = fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: VERSION } });
+    const card = createCard(hass);
+    assert.equal(card.shadowRoot.querySelector('.missing'), null);
+    hass.push({ ...INTEGRATION_DATA(), version: '99.0.0' });
+    assert.match(card.shadowRoot.querySelector('.missing').textContent, /rechargez la page/);
+  });
+
+  test('a button reloads the page', () => {
+    const card = createCard(fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '99.0.0' } }));
+    const reload = mock.method(card, '_reloadPage', () => {});
+    card.shadowRoot.querySelector('.missing button').click();
+    assert.equal(reload.mock.callCount(), 1);
+  });
+
+  test('a card newer than the integration still asks to restart Home Assistant', () => {
+    const card = createCard(fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '0.0.1' } }));
+    assert.match(card.shadowRoot.querySelector('.missing').textContent, /redémarrez Home Assistant/);
+  });
+
+  test('versions are compared as releases: a beta comes before its release', () => {
+    assert.ok(compareVersions('0.6.0-beta.4', '0.6.0-beta.10') < 0);
+    assert.ok(compareVersions('0.6.0-beta.10', '0.6.0') < 0);
+    assert.ok(compareVersions('0.6.0', '0.10.0') < 0);
+    assert.ok(compareVersions('1.0.0', '0.10.0') > 0);
+    assert.equal(compareVersions('0.6.0-beta.4', '0.6.0-beta.4'), 0);
   });
 });
 

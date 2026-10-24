@@ -1,6 +1,8 @@
 """Websocket API (used by the card) and services (used by automations)."""
 
+import json
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from homeassistant.exceptions import ServiceValidationError
@@ -34,6 +36,17 @@ async def test_subscribe_sends_everything_then_every_change(bench: Bench, ws_cli
 
     await bench.activate_schedule("Away")
     assert (await client.receive_json())["event"]["active_schedule"] == "away"
+
+
+async def test_the_card_is_told_the_version_of_the_integration(bench: Bench, ws_client):
+    """A card left open across an update compares it with its own, and asks to reload the page."""
+    await start(bench)
+    client = await ws_client(bench.hass)
+    await client.send_json_auto_id({"type": "chauffage/subscribe"})
+    assert (await client.receive_json())["success"]
+    manifest = Path(__file__).parents[2] / "custom_components" / "chauffage" / "manifest.json"
+    version = json.loads(manifest.read_text(encoding="utf-8"))["version"]
+    assert (await client.receive_json())["event"]["version"] == version
 
 
 async def test_the_card_is_told_until_when_the_preset_lasts_and_what_comes_next(bench: Bench, ws_client):

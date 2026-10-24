@@ -165,6 +165,8 @@ const I18N = {
     rulesByHand: '{schedule} was chosen by hand: it stays until the rules change.',
     integrationMissing: 'The Chauffage integration is not set up: add it in Settings → Devices & services.',
     restartNeeded: 'Chauffage was updated: restart Home Assistant to finish the update.',
+    reloadNeeded: 'Chauffage was updated: reload the page to finish the update.',
+    reloadPage: 'Reload',
     // The card in HA's "Add card" dialog
     cardName: 'Heating schedules',
     cardDescription: 'Weekly heating schedules, several thermostats per day',
@@ -331,6 +333,8 @@ const I18N = {
     rulesByHand: '{schedule} a été choisi à la main : il reste jusqu’à ce que les règles changent.',
     integrationMissing: 'L’intégration Chauffage n’est pas configurée : ajoutez-la dans Paramètres → Appareils et services.',
     restartNeeded: 'Chauffage a été mis à jour : redémarrez Home Assistant pour terminer la mise à jour.',
+    reloadNeeded: 'Chauffage a été mis à jour : rechargez la page pour terminer la mise à jour.',
+    reloadPage: 'Recharger',
     // The card in HA's "Add card" dialog
     cardName: 'Plannings de chauffe',
     cardDescription: 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée',
@@ -669,6 +673,27 @@ function haAtLeast(hass, year, month) {
   return !!m && (Number(m[1]) > year || (Number(m[1]) === year && Number(m[2]) >= month));
 }
 
+// Compares two versions of ha-chauffage ("0.6.0", "0.6.0-beta.4"): < 0, 0 or > 0; a beta
+// comes before its release
+function compareVersions(a, b) {
+  const parse = (v) => {
+    const [release, pre] = String(v).split('-');
+    return [release.split('.').map(Number), pre ? pre.split('.') : null];
+  };
+  const [ra, pa] = parse(a);
+  const [rb, pb] = parse(b);
+  for (let i = 0; i < 3; i++) if ((ra[i] || 0) !== (rb[i] || 0)) return (ra[i] || 0) - (rb[i] || 0);
+  if (!pa || !pb) return (pa ? -1 : 0) - (pb ? -1 : 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if (pa[i] === undefined || pb[i] === undefined) return pa[i] === undefined ? -1 : 1;
+    const na = Number(pa[i]);
+    const nb = Number(pb[i]);
+    const diff = Number.isNaN(na) || Number.isNaN(nb) ? pa[i].localeCompare(pb[i]) : na - nb;
+    if (diff) return diff;
+  }
+  return 0;
+}
+
 // Name shown for a thermostat: the `name` of the card's config (text, or pieces such as the
 // area and the entity, as in HA's own cards) made by HA (from 2025.10); before, a text name or
 // the thermostat's own name
@@ -733,15 +758,20 @@ function dataSource(hass) {
 
 function makeDataSource(hass, available) {
   const raw = available ? INTEGRATION.data : null;
-  // Data in a format this card does not know: the running integration is older (updated from
-  // HACS, Home Assistant not restarted yet)
-  const outdated = !!raw && !(Array.isArray(raw.schedules) && raw.weeks && typeof raw.weeks === 'object');
-  const d = outdated ? null : raw;
+  // The running integration is older than the card (updated from HACS, Home Assistant not
+  // restarted yet): an older version, or data in a format this card does not know
+  const compared = raw && raw.version ? compareVersions(VERSION, raw.version) : 0;
+  const outdated = !!raw && (compared > 0 || !(Array.isArray(raw.schedules) && raw.weeks && typeof raw.weeks === 'object'));
+  // A card older than the integration: the page stayed open during an update (HA's frontend
+  // reconnects without reloading it), or an older copy of the card was loaded first (#36)
+  const stale = compared < 0;
+  const d = outdated || stale ? null : raw;
   const schedules = d ? d.schedules : [];
   const ids = new Set(schedules.map((s) => s.id));
   return {
     available, // false: the integration is not set up
     outdated, // true: Home Assistant must be restarted to finish an update
+    stale, // true: the page must be reloaded to finish an update
     ready: !!d,
     revision: d ? d.revision : null,
     stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides), schedule: d.active_schedule,
@@ -1162,6 +1192,10 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _source() {
     return dataSource(this._hass);
+  }
+
+  _reloadPage() {
+    window.location.reload();
   }
 
   // Presets as shown (columns, legend, slot popover): from the coldest to the warmest default
@@ -1820,6 +1854,12 @@ class ChauffageProgrammeCard extends HTMLElement {
   _draw() {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
+    if (this._source().stale) {
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="missing">${esc(tr('reloadNeeded'))}
+        <div><button class="btn primary" data-act="reload-page">${esc(tr('reloadPage'))}</button></div></div></ha-card>`;
+      this.shadowRoot.querySelector('[data-act="reload-page"]').addEventListener('click', () => this._reloadPage());
+      return;
+    }
     if (!this._source().available || this._source().outdated) {
       const text = this._source().outdated ? tr('restartNeeded') : tr('integrationMissing');
       this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="missing">${esc(text)}</div></ha-card>`;
@@ -3261,6 +3301,7 @@ const STYLE = `
   .pv-delete:not(:has(input:checked)) .pv-replace { opacity:.5; }
   .pv-foot { margin-left:0; justify-content:flex-end; padding-top:10px; border-top:1px solid var(--divider-color); }
   .missing { color:var(--secondary-text-color); padding:16px; }
+  .missing .btn { margin-top:12px; }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:30px fit-content(60px) 1fr 28px; }
     .dgroup { grid-template-columns:30px 1fr; }
@@ -3988,7 +4029,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
-  VERSION, I18N, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
+  VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
   overridePieces, overrideLabel, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor,
 };
