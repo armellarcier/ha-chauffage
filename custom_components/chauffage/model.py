@@ -20,7 +20,10 @@ Vocabulary: docs/glossary.md.
     renamed:         {former climate entity id: current one}: a thermostat renamed in Home
                      Assistant, for the cards whose configuration still holds the former id
     overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
-                                          "start": ISO datetime, "end": ISO datetime}}
+                                          "preset": "comfort" (optional), "start": ISO datetime,
+                                          "end": ISO datetime}}: kind and value are what the
+                     thermostat is set to; "preset", the Chauffage preset picked (card, service),
+                     which they mean on this thermostat (none for a change by hand)
     revision:        increases on every change of the schedules or weeks; the card saves against
                      a revision so that two editors cannot overwrite each other
     rules:           [{"template": "{{ … }}", "schedule": "away" | None}, …]   activation rules, in
@@ -304,4 +307,8 @@ def normalize_override(override: Any) -> dict[str, Any]:
     start, end = override.get("start"), override.get("end")
     if not isinstance(start, str) or not isinstance(end, str):
         raise InvalidData("start and end must be ISO datetimes")
-    return {"kind": kind, "value": value, "start": start, "end": end}
+    out = {"kind": kind, "value": value, "start": start, "end": end}
+    preset = override.get("preset")
+    if isinstance(preset, str) and preset:
+        out["preset"] = preset
+    return out

@@ -105,7 +105,7 @@
       "fields": {
         "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un planning." },
         "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un préréglage)." },
-        "preset": { "name": "Préréglage", "description": "Préréglage à utiliser (ou indiquer une température)." },
+        "preset": { "name": "Préréglage", "description": "Un préréglage de Chauffage, réglé sur ce qu'il signifie pour ce thermostat (ou un préréglage du thermostat lui-même) ; ou indiquer une température." },
         "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },
         "end": { "name": "Fin", "description": "Quand la dérogation se termine (au lieu d'une durée)." }
       }

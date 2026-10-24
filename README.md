@@ -161,7 +161,8 @@ and two sensors, **disabled by default** (unavailable while the thermostat is pa
 
 Services:
 
-- `chauffage.set_override`: a temperature or a preset, for a duration or until a time.
+- `chauffage.set_override`: a temperature or a preset (what that preset means on the thermostat,
+  as in the card), for a duration or until a time.
 - `chauffage.clear_override`: the thermostat resumes its schedule now.
 - `chauffage.activate_schedule`: activates a schedule by its stable id.
 

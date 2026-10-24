@@ -533,8 +533,12 @@ function overridePieces(d) {
 
 const DEFAULT_LOCALE = makeLocale(null, 'en');
 
-function overrideLabel(d, locale = DEFAULT_LOCALE) {
+// The override's value: the preset picked (`d.preset`, among `presets`), else its temperature or
+// the thermostat's own preset
+function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   if (!d) return '';
+  const picked = d.preset && presets.find((p) => p.id === d.preset);
+  if (picked) return picked.name;
   if (d.kind === 'temperature') return `${locale.number(d.value)} ${locale.unit}`;
   return locale.preset(d.value);
 }
@@ -814,12 +818,15 @@ const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => (a.temper
 
 // The value of an override, in the card's popover and the more-info block: one of the presets
 // (what it means on this thermostat, as the integration says: `targets`), or a temperature (the
-// thermostat's setpoint while the override is a preset). Returns { presets, temperature } HTML.
+// thermostat's setpoint while the override is a preset). The preset picked is highlighted (one at
+// the same temperature is not); without one, the preset whose climate preset the thermostat is
+// on. Returns { presets, temperature } HTML.
 function overrideValueHtml(d, src, climate, attrs, loc) {
   const targets = src.targets(climate);
+  const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
   const presets = sortedPresets(src, loc).filter((l) => targets[l.id]).map((l) => {
     const [[kind, value]] = Object.entries(targets[l.id]);
-    const on = !!d && d.kind === kind && d.value === value;
+    const on = !!d && (picked ? picked === l.id : d.kind === 'preset' && kind === 'preset' && d.value === value);
     return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
   }).join('');
   const value = d && d.kind === 'temperature' ? d.value : attrs.temperature;
@@ -871,27 +878,33 @@ function presetAt(week, date) {
   return preset;
 }
 
-// The override `d` set to a preset (what it means on this thermostat), until the same end; a new
-// override without `d`
+// The override `d` set to a preset (what it means on this thermostat, and which preset it is),
+// until the same end; a new override without `d`
 function overrideWithPreset(d, src, climate, preset) {
   const target = src.targets(climate)[preset];
   if (!target) return null;
   const [[kind, value]] = Object.entries(target);
-  return d ? { ...d, kind, value } : newOverride(src, kind, value);
+  return { ...(d || newOverride(src, kind, value)), kind, value, preset };
 }
 
-// The override `d` set to a temperature, until the same end; a new override without `d`
+// The override `d` set to a temperature (no longer a preset), until the same end; a new override
+// without `d`
 function overrideWithTemperature(d, src, value) {
-  return d ? { ...d, kind: 'temperature', value } : newOverride(src, 'temperature', value);
+  if (!d) return newOverride(src, 'temperature', value);
+  const { preset, ...rest } = d;
+  return { ...rest, kind: 'temperature', value };
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
-// Another preset for a new slot: comfort ↔ eco when they exist, otherwise the next preset
-function otherPreset(presets, id) {
+// Another preset for a new slot, unlike `id` and `next` (the preset after it): comfort ↔ eco when
+// they exist, otherwise the next preset in the list; undefined when there is none
+function otherPreset(presets, id, next) {
   const ids = presets.map((p) => p.id);
-  if (id === 'comfort' && ids.includes('eco')) return 'eco';
-  if (id !== 'comfort' && ids.includes('comfort')) return 'comfort';
-  return ids[(ids.indexOf(id) + 1) % ids.length] || id;
+  const free = (c) => c !== id && c !== next;
+  const pair = id === 'comfort' ? 'eco' : 'comfort';
+  if (ids.includes(pair) && free(pair)) return pair;
+  const i = ids.indexOf(id);
+  return [...ids.slice(i + 1), ...ids.slice(0, i + 1)].find(free);
 }
 
 class ChauffageProgrammeCard extends HTMLElement {
@@ -1251,7 +1264,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _overrideLabel(d) {
-    return overrideLabel(d, this._loc);
+    return overrideLabel(d, this._loc, this._presets());
   }
 
   async _sendOverride(climate, override) {
@@ -2792,7 +2805,16 @@ class ChauffageProgrammeCard extends HTMLElement {
     const s = segs[idx];
     const end = idx < segs.length - 1 ? segs[idx + 1].start : DAY_MIN;
     if (m < s.start + step || m > end - step) return;
-    segs.splice(idx + 1, 0, { start: m, preset: otherPreset(this._presets(), s.preset) });
+    const next = segs[idx + 1]?.preset;
+    const preset = otherPreset(this._presets(), s.preset, next);
+    if (preset) segs.splice(idx + 1, 0, { start: m, preset });
+    else {
+      // Only the next slot's preset is left: like "Insert a slot", go back to this slot's preset
+      // halfway, so that the new slot does not merge with the next one
+      const back = this._snap((m + end) / 2);
+      if (!next || back - m < step || end - back < step) return;
+      segs.splice(idx + 1, 0, { start: m, preset: next }, { start: back, preset: s.preset });
+    }
     this._commit(climate, day, m);
   }
 
@@ -2943,7 +2965,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const m1 = this._snap(s.start + (end - s.start) / 3);
       const m2 = this._snap(s.start + (2 * (end - s.start)) / 3);
       if (m1 <= s.start || m2 >= end || m2 <= m1 || m1 - s.start < step) return;
-      segs.splice(idx + 1, 0, { start: m1, preset: otherPreset(this._presets(), s.preset) }, { start: m2, preset: s.preset });
+      segs.splice(idx + 1, 0, { start: m1, preset: otherPreset(this._presets(), s.preset) ?? s.preset }, { start: m2, preset: s.preset });
       this._commit(climate, day, m1);
     } else if (act === 'delete') {
       if (segs.length === 1) return;
@@ -3392,7 +3414,7 @@ class ChauffageMoreInfo extends HTMLElement {
       const then = thenText(dataSource(this._hass), this._entity, d, this._loc);
       status = `<div class="status derogation">
         <div class="line">
-          <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc))}</span>
+          <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
           <label>${esc(t('until'))} <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
           <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>

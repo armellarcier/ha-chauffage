@@ -15,6 +15,25 @@ Each entry says whether the release **migrates stored data** and what to do when
   computed by the integration, the same it compares a manual setpoint with to end an override
   ([#22](https://github.com/armellarcier/ha-chauffage/issues/22)). Nothing changes for users;
   restart Home Assistant after updating, as for every release.
+- An override set to a preset, from the card, the more-info dialog or `chauffage.set_override`,
+  shows that preset's name on every kind of thermostat: *Comfort* stays *Comfort*, not *20 °C*, on
+  a thermostat without presets, and an override at 21 °C no longer highlights *Boost* because
+  *Boost* is 21 °C there ([#23](https://github.com/armellarcier/ha-chauffage/issues/23)).
+  The preset of `chauffage.set_override` is a Chauffage preset, set to what it means on the
+  thermostat (as in the card); another value is still one of the thermostat's own presets.
+  Overrides in progress are kept (they show their value, as before).
+
+### Fixed
+
+- A double click on a slot always adds a slot: its preset differs from the next slot's, so it no
+  longer merges with it and only moves its start (#25).
+
+### Upgrading
+
+- Automations calling `chauffage.set_override` with `preset: eco` (`comfort`, `boost`, `frost`, or
+  any Chauffage preset) now get what that preset means on the thermostat, as the schedule does:
+  its value set by hand in *Presets*, or its temperature on a thermostat without presets.
+  Before, the climate preset of that name was sent as is.
 
 ## [0.6.0-beta.3] - 2026-10-24
 

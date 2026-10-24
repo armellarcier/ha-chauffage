@@ -636,6 +636,16 @@ class ChauffageRuntime:
         end = end or start + timedelta(minutes=minutes or self.override_duration)
         return {"kind": kind, "value": value, "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
 
+    def preset_override(self, entity_id: str, preset_id: str, minutes: int | None = None,
+                        end: datetime | None = None) -> dict[str, Any] | None:
+        """A new override to a Chauffage preset: what it means on this thermostat, and which
+        preset it is (None: not one of the Chauffage presets)."""
+        target = self.targets_of(entity_id).get(preset_id)
+        if target is None:
+            return None
+        ((kind, value),) = target.items()
+        return self.new_override(kind, value, minutes, end) | {"preset": preset_id}
+
     async def call_climate(self, service: str, entity_id: str, data: dict[str, Any]) -> bool:
         """Calls a climate service with the integration's own context; False if it failed."""
         context = Context()

@@ -62,7 +62,26 @@ describe('more-info block', () => {
     el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
     const msg = hass.events.at(-1);
     assert.equal(msg.type, 'chauffage/override/set');
-    assert.deepEqual(msg.override, { ...override, kind: 'temperature', value: 20 });
+    assert.deepEqual(msg.override, { ...override, kind: 'temperature', value: 20, preset: 'comfort' });
+  });
+
+  test('an override set to a preset shows that preset, on a thermostat without presets', () => {
+    const el = block(withTargets({ 'climate.salon': { ...override, value: 20, preset: 'comfort' } }), 'climate.salon');
+    assert.equal(el.shadowRoot.querySelector('.override-value').textContent, '⏱ Confort');
+    assert.ok(el.shadowRoot.querySelector('.presets [data-preset="comfort"]').classList.contains('on'));
+  });
+
+  test('an override set to a preset deleted since shows the thermostat\'s own preset', () => {
+    const data = integrationData({ overrides: { 'climate.salon': { ...override, kind: 'preset', value: 'eco', preset: 'nuit' } } });
+    data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { preset: 'eco' } } };
+    const el = block(fakeHass({ data }), 'climate.salon');
+    assert.ok(el.shadowRoot.querySelector('.presets [data-preset="eco"]').classList.contains('on'));
+  });
+
+  test('an override at a preset\'s temperature does not show that preset', () => {
+    const el = block(withTargets({ 'climate.salon': { ...override, value: 20 } }), 'climate.salon');
+    assert.equal(el.shadowRoot.querySelector('.override-value').textContent, '⏱ 20 °C');
+    assert.equal(el.shadowRoot.querySelector('.presets .on'), null);
   });
 
   test('a temperature typed in the block becomes the override', () => {
@@ -101,7 +120,7 @@ describe('more-info block', () => {
     el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
     const msg = hass.events.at(-1);
     assert.equal(msg.type, 'chauffage/override/set');
-    assert.deepEqual(msg.override, { kind: 'temperature', value: 20, start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+    assert.deepEqual(msg.override, { kind: 'temperature', value: 20, preset: 'comfort', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
   });
 
   test('without an override, a temperature typed creates one', () => {
