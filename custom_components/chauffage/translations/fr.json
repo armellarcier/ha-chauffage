@@ -35,43 +35,63 @@
     "select": {
       "active_schedule": {
         "name": "Planning actif",
-        "state_attributes": { "schedule_id": { "name": "Identifiant du planning" } }
+        "state_attributes": {
+          "schedule_id": { "name": "Identifiant du planning" },
+          "rules_choice": { "name": "Planning selon les règles" }
+        }
       }
     },
     "switch": {
       "control": { "name": "Pilotage" },
-      "control_of": { "name": "Pilotage {thermostat}" }
+      "control_of": { "name": "Pilotage {thermostat}" },
+      "schedule": { "name": "Planning {schedule}" }
     },
-    "sensor": {
-      "schedule": {
-        "name": "Planning",
-        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
+    "binary_sensor": {
+      "override": {
+        "name": "Dérogation",
         "state_attributes": {
-          "preset_name": { "name": "Nom du préréglage" },
-          "target": { "name": "Consigne" },
-          "next_preset": { "name": "Préréglage suivant" },
-          "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début de la plage suivante" }
+          "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
         }
       },
-      "schedule_of": {
-        "name": "Planning {thermostat}",
+      "override_of": {
+        "name": "Dérogation {thermostat}",
+        "state_attributes": {
+          "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
+        }
+      }
+    },
+    "sensor": {
+      "planned_preset": {
+        "name": "Préréglage prévu",
         "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
         "state_attributes": {
           "preset_name": { "name": "Nom du préréglage" },
           "target": { "name": "Consigne" },
           "next_preset": { "name": "Préréglage suivant" },
           "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début de la plage suivante" }
+          "next_start": { "name": "Début du créneau suivant" },
+          "temperatures": { "name": "Températures des préréglages" }
+        }
+      },
+      "planned_preset_of": {
+        "name": "Préréglage prévu {thermostat}",
+        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
+        "state_attributes": {
+          "preset_name": { "name": "Nom du préréglage" },
+          "target": { "name": "Consigne" },
+          "next_preset": { "name": "Préréglage suivant" },
+          "next_preset_name": { "name": "Nom du préréglage suivant" },
+          "next_start": { "name": "Début du créneau suivant" },
+          "temperatures": { "name": "Températures des préréglages" }
         }
       },
       "override_end": {
         "name": "Fin de dérogation",
-        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" } }
+        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
       },
       "override_end_of": {
         "name": "Fin de dérogation {thermostat}",
-        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" } }
+        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
       }
     }
   },
@@ -123,6 +143,18 @@
       "fields": {
         "schedule": { "name": "Identifiant du planning", "description": "L'identifiant du planning, affiché dans la carte (menu du planning, Renommer)." }
       }
+    },
+    "get_schedules": {
+      "name": "Obtenir les plannings",
+      "description": "Donne les plannings (identifiant, nom, interrupteur), le planning actif et celui que donnent les règles d'activation, pour les scripts."
+    },
+    "get_week": {
+      "name": "Obtenir la semaine",
+      "description": "Donne la semaine de chaque thermostat dans un planning (le planning actif par défaut) : les créneaux de chaque jour, avec leur début, leur fin et leur préréglage, pour les scripts.",
+      "fields": {
+        "entity_id": { "name": "Thermostats", "description": "Des thermostats programmés." },
+        "schedule": { "name": "Identifiant du planning", "description": "L'identifiant du planning (par défaut : le planning actif)." }
+      }
     }
   },
   "exceptions": {
@@ -130,6 +162,7 @@
     "not_scheduled": { "message": "{entity_id} n'a pas de planning." },
     "paused": { "message": "{entity_id} est en pause : reprenez-le pour créer une dérogation." },
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
-    "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." }
+    "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." },
+    "active_schedule_off": { "message": "{schedule} est le planning actif : allumez un autre planning pour en changer." }
   }
 }

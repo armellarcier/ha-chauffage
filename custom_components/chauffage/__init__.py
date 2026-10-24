@@ -16,11 +16,11 @@ from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
 from . import frontend, importer, model, services, websocket
-from .const import DEFAULT_SCHEDULES, DOMAIN, SCHEDULE_ENTITY
+from .const import DEFAULT_SCHEDULES, DOMAIN, PLANNED_PRESET_KEY, SCHEDULE_ENTITY
 from .runtime import ChauffageRuntime
 from .store import ChauffageStore
 
-PLATFORMS = [Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type ChauffageConfigEntry = ConfigEntry[ChauffageRuntime]
@@ -63,6 +63,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
 
     schedule_entity = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_schedule")
     importer.async_update_package_issue(hass, schedule_entity)
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """1.2: the planned preset sensors are enabled by default; those disabled because they were
+    not then (not by the user) are enabled once."""
+    if entry.version > 1:
+        return False  # a newer version of the integration was installed
+    if entry.minor_version < 2:
+        registry = er.async_get(hass)
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+            if (entity.domain == "sensor" and entity.unique_id.endswith(f"_{PLANNED_PRESET_KEY}")
+                    and entity.disabled_by is er.RegistryEntryDisabler.INTEGRATION):
+                registry.async_update_entity(entity.entity_id, disabled_by=None)
+        hass.config_entries.async_update_entry(entry, minor_version=2)
     return True
 
 

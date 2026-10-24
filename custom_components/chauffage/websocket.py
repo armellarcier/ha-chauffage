@@ -170,13 +170,13 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    await _run(hass, connection, msg, lambda runtime: runtime.set_override(msg["entity_id"], msg["override"]))
+    await _run(hass, connection, msg, lambda runtime: runtime.set_override(msg["entity_id"], msg["override"], source="card"))
 
 
 @websocket_api.websocket_command({vol.Required("type"): "chauffage/schedule/activate", vol.Required("schedule"): str})
 @websocket_api.async_response
 async def ws_activate_schedule(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    await _run(hass, connection, msg, lambda runtime: runtime.activate_schedule(msg["schedule"]))
+    await _run(hass, connection, msg, lambda runtime: runtime.activate_schedule(msg["schedule"], source="card"))
 
 
 @websocket_api.websocket_command({

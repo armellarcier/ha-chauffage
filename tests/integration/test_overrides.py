@@ -307,7 +307,7 @@ async def test_the_thermostat_answering_the_schedule_is_not_a_manual_change(benc
                                     {"preset_mode": call.data["preset_mode"], "temperature": 17}, context=call.context)
 
     bench.hass.services.async_register("climate", "set_preset_mode", apply_with_answer)
-    await runtime.set_override("climate.salon", None)
+    await runtime.set_override("climate.salon", None, source="card")
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "eco"}
     assert bench.overrides() == {}

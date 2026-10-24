@@ -192,7 +192,7 @@ class Bench:
 
     async def set_override(self, entity_id: str, override: dict | None) -> None:
         """What the card sends to extend (+30 min…) or remove an override."""
-        await self.runtime.set_override(entity_id, override)
+        await self.runtime.set_override(entity_id, override, source="card")
         await self.hass.async_block_till_done()
 
     @property
