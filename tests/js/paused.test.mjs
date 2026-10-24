@@ -123,6 +123,15 @@ describe('the more-info block of a paused thermostat', () => {
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
   });
 
+  test('a resume refused by the integration says why', async () => {
+    const hass = pausedSalon({ reply: () => { throw { code: 'invalid_format', message: 'boom' }; } });
+    const el = block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-resume]').click();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.match(text(el.shadowRoot), /Erreur : boom/);
+    assert.ok(el.shadowRoot.querySelector('[data-resume]'), 'still paused: it can be tried again');
+  });
+
   test('once resumed elsewhere, it follows its schedule again', () => {
     const hass = pausedSalon();
     const el = block(hass, 'climate.salon');

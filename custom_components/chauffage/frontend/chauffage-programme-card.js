@@ -3432,6 +3432,7 @@ class ChauffageMoreInfo extends HTMLElement {
       <div class="wrap">
         <div class="title">${esc(t('schedule'))} <span class="muted">· ${esc(schedule)}</span></div>
         ${status}
+        ${this._error ? `<div class="msg">${esc(this._error)}</div>` : ''}
         <div class="today-lbl">${esc(t('todayTitle'))}</div>
         ${this._bar(segs, pieceFor(today), true, true)}
         ${endDay}
@@ -3449,7 +3450,13 @@ class ChauffageMoreInfo extends HTMLElement {
     const b = e.target.closest('button');
     if (!b || !this._hass) return;
     if (b.hasAttribute('data-new-override')) { this._creating = !this._creating; return this._render(); }
-    if (b.hasAttribute('data-resume')) return dataSource(this._hass).setPaused(this._entity, false);
+    this._error = null;
+    if (b.hasAttribute('data-resume')) {
+      return dataSource(this._hass).setPaused(this._entity, false).catch((err) => {
+        this._error = this._loc.t('error', { message: err.message || err.code || err });
+        this._render();
+      });
+    }
     const d = this._currentOverride();
     if (b.dataset.act === 'override-preset') {
       const changed = overrideWithPreset(d, dataSource(this._hass), this._entity, b.dataset.preset);
@@ -3520,6 +3527,7 @@ const MORE_INFO_STYLE = `
   .title { font-weight:600; margin-bottom:8px; }
   .muted { color:var(--secondary-text-color); font-weight:normal; font-size:.9em; }
   .status { font-size:.92em; margin-bottom:10px; }
+  .msg { font-size:.85em; color:var(--error-color,#db4437); margin-bottom:10px; }
   .status.derogation { display:flex; flex-direction:column; gap:8px; }
   .override-value { padding:2px 8px; border-radius:6px; color:#fff; font-weight:600;
     background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
