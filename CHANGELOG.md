@@ -9,10 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.6.0-beta.5] - 2026-10-24
+
 What ha-chauffage knows is shown in Home Assistant itself, to see and use it in dashboards,
 automations, scripts and by voice without the card
 ([#31](https://github.com/armellarcier/ha-chauffage/issues/31)). **Does not migrate stored
-data**; Home Assistant reloads the integration once after the upgrade (see *Upgrading*).
+data**; Home Assistant reloads the integration once after the upgrade (see *Upgrading*). A card
+left open during an update now asks to reload the page.
 
 ### Added
 
@@ -530,7 +533,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.4...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.5...HEAD
+[0.6.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.5
 [0.6.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.4
 [0.6.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.3
 [0.6.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.2
