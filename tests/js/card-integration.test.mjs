@@ -21,6 +21,24 @@ describe('loading from the integration', () => {
     assert.equal(card._schedule, 'normal');
   });
 
+  test('a schedule shows the icon chosen for its switch in Home Assistant, none otherwise', () => {
+    const hass = fakeIntegrationHass();
+    hass.entities = {
+      'switch.chauffage_schedule_normal': { entity_id: 'switch.chauffage_schedule_normal' },
+      'switch.chauffage_schedule_away': { entity_id: 'switch.chauffage_schedule_away', icon: 'mdi:beach' },
+    };
+    const card = createCard(hass);
+    hass.push({ ...INTEGRATION_DATA(), schedule_entities: { normal: 'switch.chauffage_schedule_normal', away: 'switch.chauffage_schedule_away' } });
+    const icon = (id) => card.shadowRoot.querySelector(`.tab[data-schedule="${id}"] ha-icon`);
+    assert.equal(icon('away').getAttribute('icon'), 'mdi:beach');
+    assert.equal(icon('normal'), null);
+    assert.equal(icon('holiday'), null, 'no switch known yet');
+    assert.equal(card.shadowRoot.querySelector('.tab[data-schedule="away"]').textContent.trim(), 'Absent');
+    // An icon chosen later, in Home Assistant
+    card.hass = { ...hass, entities: { ...hass.entities, 'switch.chauffage_schedule_normal': { icon: 'mdi:home' } } };
+    assert.equal(icon('normal').getAttribute('icon'), 'mdi:home');
+  });
+
   test('a placeholder is shown until the first data arrives', () => {
     const hass = fakeIntegrationHass({ data: null });
     const card = createCard(hass);

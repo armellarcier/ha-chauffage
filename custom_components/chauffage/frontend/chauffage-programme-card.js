@@ -739,12 +739,19 @@ function makeDataSource(hass, available) {
   const d = outdated ? null : raw;
   const schedules = d ? d.schedules : [];
   const ids = new Set(schedules.map((s) => s.id));
+  // The icon chosen in Home Assistant for a schedule's switch, if any (none by default: the same
+  // icon on every tab would only take room)
+  const scheduleIcon = (id) => {
+    const entity = d && d.schedule_entities && d.schedule_entities[id];
+    return (entity && hass.entities && hass.entities[entity] && hass.entities[entity].icon) || null;
+  };
   return {
     available, // false: the integration is not set up
     outdated, // true: Home Assistant must be restarted to finish an update
     ready: !!d,
     revision: d ? d.revision : null,
-    stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides), schedule: d.active_schedule,
+    stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides),
+      schedule: JSON.stringify([d.active_schedule, schedules.map((s) => scheduleIcon(s.id))]),
       rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]), thermostats: JSON.stringify(d.thermostats) } : {},
     schedules: () => schedules.map((s) => s.id),
     scheduleName: (id) => (schedules.find((s) => s.id === id) || { name: id }).name,
@@ -789,6 +796,7 @@ function makeDataSource(hass, available) {
     setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
     presets: () => (d && d.presets) || [],
     targets: (climate) => (d && d.targets && d.targets[climate]) || {},
+    scheduleIcon,
     // What a thermostat follows now and the next different preset: { preset, next_preset, next_start }
     planned: (climate) => (d && d.planned && d.planned[climate]) || null,
     // Presets and mappings are set from the card by admins (the integration refuses the others)
@@ -1024,8 +1032,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._overridePending = {};
       need = true;
     }
-    // Active schedule changed (from the card, another dashboard or an automation): redraw the
-    // active-schedule marker and the "activate" bar
+    // Active schedule changed (from the card, another dashboard or an automation), or the icon of a
+    // schedule chosen in Home Assistant: redraw the active-schedule marker, the tabs and the
+    // "activate" bar
     const scheduleStamp = src.stamps.schedule;
     if (scheduleStamp !== this._scheduleState && !this._drag && !this._overrideDrag) {
       this._scheduleState = scheduleStamp;
@@ -1867,8 +1876,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
     const editable = src.editable;
     const tabs = schedules
-      .map((m) => `<button class="tab${m === this._schedule ? ' on' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${esc(this._scheduleName(m))}</button>${
-        editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`)
+      .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}${esc(this._scheduleName(m))}</button>${
+        editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
       .join('') + (editable ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
@@ -3012,6 +3021,7 @@ const STYLE = `
     background:var(--secondary-background-color); }
   .tab { flex:1; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
+  .tab-icon { --mdc-icon-size:18px; margin-inline-end:4px; vertical-align:-3px; }
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
