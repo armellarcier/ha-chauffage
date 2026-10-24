@@ -2,7 +2,7 @@
 each saying where it came from (docs/decisions.md, "Entities")."""
 
 import pytest
-from homeassistant.core import Event
+from homeassistant.core import Event, callback
 
 from conftest import CTX_USER, KINDS, WEEKDAY, Bench, every_day
 
@@ -20,6 +20,7 @@ def events(hass) -> dict[str, list[dict]]:
     """The data of each event fired, by type."""
     fired: dict[str, list[dict]] = {}
     for event_type in ("chauffage_override_started", "chauffage_override_ended", "chauffage_schedule_activated"):
+        @callback
         def listen(event: Event, event_type: str = event_type) -> None:
             fired.setdefault(event_type, []).append(dict(event.data))
         hass.bus.async_listen(event_type, listen)
@@ -105,6 +106,7 @@ async def test_activating_a_schedule_is_told_with_where_it_came_from(bench: Benc
                                          blocking=True)
     await bench.hass.async_block_till_done()
     await bench.runtime.activate_schedule("away", source="card")
+    await bench.hass.async_block_till_done()
     assert events["chauffage_schedule_activated"] == [
         {"schedule": "away", "schedule_name": "Away", "previous_schedule": "normal", "source": "entity"},
         {"schedule": "holiday", "schedule_name": "Holiday", "previous_schedule": "away", "source": "service"},
