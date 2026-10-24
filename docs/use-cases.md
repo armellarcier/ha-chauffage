@@ -143,13 +143,20 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 |---|---|
 | Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
 | The active schedule's name, current and next slot, override, +30 min, drag its end, end time field, resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end) |
-| Until when the planned preset really lasts and what comes next, as the schedule sensor says: the next different preset, even on another day ("Eco until 06:30 (tomorrow), then Comfort", a weekend, "Eco all week"); sent again to the cards when it changes | `I/test_api.py::the_card_is_told_*`, `C/more-info.test.mjs` (until when the preset lasts, the next day, a weekend, all week), `C/i18n.test.mjs` (the more-info block in English) |
+| Until when the planned preset really lasts and what comes next, as the planned preset sensor says: the next different preset, even on another day ("Eco until 06:30 (tomorrow), then Comfort", a weekend, "Eco all week"); sent again to the cards when it changes | `I/test_api.py::the_card_is_told_*`, `C/more-info.test.mjs` (until when the preset lasts, the next day, a weekend, all week), `C/i18n.test.mjs` (the more-info block in English) |
 
 ## Entities and API
 
 | Use case | Test |
 |---|---|
-| Active-schedule select (`select.chauffage_schedule`), schedule and override-end sensors (disabled by default, on the thermostat's device; attributes `preset_name`, `next_preset`…; unavailable while paused), *Control* switch per thermostat (a configuration entity, enabled, on the thermostat's device; off: paused) | `I/test_entities.py` |
+| Active-schedule select (`select.chauffage_schedule`): lists the schedules, shows and changes the active one; attribute `rules_choice`, the schedule the activation rules give | `I/test_entities.py::the_active_schedule_select_*`, `I/test_rules.py::the_select_says_which_schedule_the_rules_give` |
+| Per thermostat, on its device (else named after it), enabled by default: *Planned preset* sensor (the preset now, the next one and its start, `temperatures`: each preset's temperature on this thermostat, published by VTherm or learned) and *Override* binary sensor (on while it has one; kind, value, preset, end in local time whoever set it); *Override end* sensor disabled by default; sensors unavailable while paused; created and removed with the scheduled thermostats, following a rename — ×3 | `I/test_entities.py::the_planned_preset_*`, `::the_override_*`, `::entities_follow_*`, `::sensors_are_attached_*`, `::the_sensors_of_a_paused_thermostat_*`, `I/test_renames.py::its_entities_*` |
+| Upgrade from before 0.6: the *Schedule* sensor keeps its entity id as *Planned preset*, and is enabled once unless the user disabled it — ×3 | `I/test_entities.py::the_planned_preset_sensor_of_an_existing_installation_*` |
+| *Control* switch per thermostat, a plain entity (main entities of the device in the automation editor, Assist); off: paused — ×3 | `I/test_entities.py::each_scheduled_thermostat_has_a_control_switch_*`, `::turning_the_control_switch_off_*`, `::the_control_switch_shows_*` |
+| A switch per schedule on the *Chauffage* device (`switch.chauffage_schedule_<id>`), on for the active one: turning one on activates it, the active one cannot be turned off (a message says to turn another one on); created, renamed and removed with the schedules — ×3 | `I/test_schedule_switches.py` |
+| The card shows on a schedule's tab the icon chosen for its switch in Home Assistant, none otherwise | `I/test_schedule_switches.py::the_card_is_told_each_schedule_s_switch`, `C/card-integration.test.mjs::a schedule shows the icon *` |
+| Events: an override started (by a change on the thermostat, the card, a service; not when only its end changes) or ended (expired, put back on the thermostat, card, service, paused, forgotten), a schedule activated (card, select or switch, service, rules; not when already active) — ×3 | `I/test_events.py` |
+| Scripts read the schedules (`chauffage.get_schedules`) and the week of thermostats in a schedule (`chauffage.get_week`, as `schedule.get_schedule`); unknown thermostat or schedule refused | `I/test_api.py::a_script_reads_*`, `::reading_the_week_of_an_unknown_*` |
 | History of the measured and target temperatures for the card: only these two, the state at the start first, gaps while unavailable, what was read kept in memory, any user, no recorder | `I/test_history.py` ×3 |
 | A card's subscription goes on after the integration is reloaded (options changed, a thermostat renamed): the data sent again at once, then every change | `I/test_api.py::a_subscription_goes_on_after_the_integration_is_reloaded` |
 | Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings, pause, forget; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
@@ -158,5 +165,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 
 - Exact placement of the menus and popovers on screen (needs a real browser layout): checked on
   the development HA.
+- A schedule's icon on its tab stays on the line of its name at 360 px: checked on the
+  development HA.
 - Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the
   integration's): the second one does not register again (guarded), checked on the development HA.
