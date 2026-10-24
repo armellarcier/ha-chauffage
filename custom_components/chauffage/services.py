@@ -65,8 +65,12 @@ def async_register(hass: HomeAssistant) -> None:
         end: datetime | None = call.data.get("end")
         if end is not None:
             end = dt_util.as_local(end if end.tzinfo else end.replace(tzinfo=dt_util.get_default_time_zone()))
-        kind = "temperature" if "temperature" in call.data else "preset"
-        override = runtime.new_override(kind, call.data[kind], call.data.get("duration"), end)
+        minutes = call.data.get("duration")
+        if "temperature" in call.data:
+            override = runtime.new_override("temperature", call.data["temperature"], minutes, end)
+        else:  # a Chauffage preset (what it means on this thermostat), else a climate preset of its own
+            preset = call.data["preset"]
+            override = runtime.preset_override(entity_id, preset, minutes, end) or runtime.new_override("preset", preset, minutes, end)
         try:
             await runtime.set_override(entity_id, override, resend=True)
         except ThermostatPaused as err:

@@ -105,7 +105,7 @@
       "fields": {
         "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." },
         "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
-        "preset": { "name": "Preset", "description": "Preset to use (or give a temperature)." },
+        "preset": { "name": "Preset", "description": "A Chauffage preset, set to what it means on this thermostat (or one of the thermostat's own presets); or give a temperature." },
         "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
         "end": { "name": "End", "description": "When the override ends (instead of a duration)." }
       }

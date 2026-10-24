@@ -9,6 +9,16 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- An override set to a preset, from the card, the more-info dialog or `chauffage.set_override`,
+  shows that preset's name on every kind of thermostat: *Comfort* stays *Comfort*, not *20 °C*, on
+  a thermostat without presets, and an override at 21 °C no longer highlights *Boost* because
+  *Boost* is 21 °C there ([#23](https://github.com/armellarcier/ha-chauffage/issues/23)).
+  The preset of `chauffage.set_override` is a Chauffage preset, set to what it means on the
+  thermostat (as in the card); another value is still one of the thermostat's own presets.
+  Overrides in progress are kept (they show their value, as before).
+
 ## [0.6.0-beta.3] - 2026-10-24
 
 **Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).
