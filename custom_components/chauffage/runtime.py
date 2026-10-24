@@ -88,11 +88,13 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
 
 
 class ChauffageRuntime:
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: ChauffageStore, data: dict[str, Any]) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: ChauffageStore, data: dict[str, Any],
+                 version: str) -> None:
         self.hass = hass
         self.entry = entry
         self.store = store
         self.data = data
+        self.version = version  # of the integration: a card older than it asks to reload the page
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
         self._own_contexts: deque[str] = deque(maxlen=500)
         self._lock = asyncio.Lock()
@@ -292,6 +294,7 @@ class ChauffageRuntime:
             "rule_results": self.rule_results,
             "renamed": self.data["renamed"],
             "planned": self.planned_presets(),
+            "version": self.version,
             "schedule_entities": self.schedule_entities(),
         }
 

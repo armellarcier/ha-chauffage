@@ -133,6 +133,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | English / French, 12 / 24 h, decimal separator, first day of the week | `C/i18n.test.mjs` |
 | Card added but the integration is not set up: says so | `C/card-integration.test.mjs` (without the integration) |
 | Updated from HACS, Home Assistant not restarted yet (the card is newer than the running integration): asks for a restart | `C/card-integration.test.mjs` (an integration older than the card) |
+| A page left open across an update, or an older copy of the card loaded first (the card is older than the integration): asks to reload the page, with a button (#36) | `C/card-integration.test.mjs` (a card left open across an update), `I/test_api.py::the_card_is_told_the_version_of_the_integration` |
 | See the temperature measured over the last 7 days over each day, with the setpoint applied and the range per slot; choice kept; then only what is new every 5 minutes; recorder unavailable: says so; HA not restarted after an update: HA's own history | `C/history.test.mjs` |
 | Show a day larger (row menu, or the name of the day with one thermostat shown): its own scale in degrees, the time, measured temperature and setpoint under the mouse or along a finger, a tap still selects a slot; hidden with the history | `C/history.test.mjs` (a day shown larger) |
 | An ended override is no longer shown, even before the integration removes it | `C/card.test.mjs::an override that has ended *` |

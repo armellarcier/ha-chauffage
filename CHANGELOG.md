@@ -36,6 +36,15 @@ data**; Home Assistant reloads the integration once after the upgrade (see *Upgr
 - The **Control** switch is a plain entity, no longer a setting: it is among the device's main
   triggers, conditions and actions in the automation editor, and new ones are exposed to Assist.
 
+### Fixed
+
+- A page left open while ha-chauffage is updated no longer keeps the former card: Home
+  Assistant's frontend reconnects without reloading the page, so the card now compares its
+  version with the integration's and asks to reload the page, with a button
+  ([#36](https://github.com/armellarcier/ha-chauffage/issues/36)). The same message shows when
+  an older copy of the card is loaded first by a Lovelace resource: remove that resource. Works
+  from the next update on: reload the page once after installing this one.
+
 ### Upgrading
 
 - The planned preset sensors, disabled by default until now, are enabled once (Home Assistant
@@ -309,7 +318,8 @@ applied. Nothing changes in the stored data.
 - "Custom element doesn't exist: chauffage-programme-card" after a reload, once the card was
   in the browser cache: it was registered before HA's frontend replaced the custom element
   registry ([#2](https://github.com/armellarcier/ha-chauffage/issues/2)). Remove a Lovelace
-  resource added as a workaround (it is harmless if kept).
+  resource added as a workaround: an older copy it loads first wins over the card of the
+  integration (#36).
 
 ### Upgrading
 

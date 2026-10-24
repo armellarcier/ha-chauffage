@@ -14,6 +14,7 @@ from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
 from . import frontend, importer, model, services, websocket
 from .const import DEFAULT_SCHEDULES, DOMAIN, PLANNED_PRESET_KEY, SCHEDULE_ENTITY
@@ -55,7 +56,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
             await importer.async_turn_off_package(hass)
 
     _rename_schedule_entity(hass, entry)
-    runtime = ChauffageRuntime(hass, entry, store, data)
+    integration = await async_get_integration(hass, DOMAIN)
+    runtime = ChauffageRuntime(hass, entry, store, data, str(integration.version))
     entry.runtime_data = runtime
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await runtime.async_start()
