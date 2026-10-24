@@ -14,7 +14,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, TITLE
+from .const import DOMAIN, TITLE, thermostat_unique_id
 from .runtime import DATA, ChauffageRuntime
 
 # From Home Assistant 2025.8, an entity is attached to the device given in its device_entry
@@ -64,7 +64,7 @@ class ThermostatEntity(ChauffageEntity):
     def __init__(self, runtime: ChauffageRuntime, climate: str) -> None:
         super().__init__(runtime)
         self.climate = climate
-        self._attr_unique_id = f"{runtime.entry.entry_id}_{climate}_{self.key}"
+        self._attr_unique_id = thermostat_unique_id(runtime.entry.entry_id, climate, self.key)
         self.device_entry = thermostat_device(runtime.hass, climate)
         if self.device_entry is None:
             # No device to attach to: the thermostat's name goes in the entity name

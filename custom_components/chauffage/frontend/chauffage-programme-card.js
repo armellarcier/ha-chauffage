@@ -711,9 +711,19 @@ function renamedTo(hass, src, entity) {
   return to && !(hass && hass.states[entity]) ? to : null;
 }
 
+// The same hass and data give the same source: a render asks for it once per bar or chip
+let lastSource = { hass: null, data: null, src: null };
+
 function dataSource(hass) {
   const available = integrationAvailable(hass);
   if (available) INTEGRATION.connect(hass);
+  if (lastSource.src && lastSource.hass === hass && lastSource.data === INTEGRATION.data) return lastSource.src;
+  const src = makeDataSource(hass, available);
+  lastSource = { hass, data: INTEGRATION.data, src };
+  return src;
+}
+
+function makeDataSource(hass, available) {
   const raw = available ? INTEGRATION.data : null;
   // Data in a format this card does not know: the running integration is older (updated from
   // HACS, Home Assistant not restarted yet)
@@ -889,6 +899,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this._data = {};
+    this._revisions = {};
     this._dirty = false;
     this._sel = null; // { climate, day, idx }
     this._focus = null; // last thermostat used (source of "Copier la semaine")
@@ -1170,12 +1181,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._loadedWeeks = this._serialized();
   }
 
-  // {climate: {schedule: JSON of its week}}, to send only the thermostats changed
+  // {climate: JSON of its weeks by schedule}, to send only the thermostats changed
   _serialized() {
     const out = {};
     for (const [climate, bySchedule] of Object.entries(this._data)) {
-      out[climate] = {};
-      for (const [schedule, week] of Object.entries(bySchedule)) out[climate][schedule] = JSON.stringify(week.map(serializeDay));
+      out[climate] = JSON.stringify(Object.fromEntries(Object.keys(bySchedule).sort()
+        .map((schedule) => [schedule, bySchedule[schedule].map(serializeDay)])));
     }
     return out;
   }
@@ -1267,11 +1278,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     const now = this._serialized();
     // Only the thermostats changed, each against its revision (another card may edit the others)
     const loaded = this._loadedWeeks || {};
-    const same = (a, b) => !!b && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((s) => a[s] === b[s]);
-    const changed = Object.keys(now).filter((c) => !src.perThermostat || !same(now[c], loaded[c]));
-    const out = Object.fromEntries(changed.map((c) => [c, Object.fromEntries(Object.entries(now[c]).map(([s, w]) => [s, JSON.parse(w)]))]));
-    const revisions = src.perThermostat
-      ? Object.fromEntries(changed.map((c) => [c, (this._revisions || {})[c] ?? null])) : null;
+    const changed = Object.keys(now).filter((c) => !src.perThermostat || now[c] !== loaded[c]);
+    const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
+    const revisions = src.perThermostat ? Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null])) : null;
     try {
       const result = await src.saveWeeks(out, this._revision, revisions);
       if (result && result.revision != null) this._revision = result.revision;
@@ -1574,14 +1583,19 @@ class ChauffageProgrammeCard extends HTMLElement {
       </div>`).join('');
   }
 
-  async _setPaused(climate, paused) {
+  // Renders, then runs a change of the integration; its error, if any, is shown
+  async _call(change) {
     this._render();
     try {
-      await this._source().setPaused(climate, paused);
+      await change(this._source());
     } catch (e) {
       this._msg = this._loc.t('error', { message: e.message || e.code || e });
       this._render();
     }
+  }
+
+  _setPaused(climate, paused) {
+    return this._call((src) => src.setPaused(climate, paused));
   }
 
   _menuHtml() {
@@ -2568,15 +2582,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div>${rows}</div>`;
   }
 
-  async _forget(climate) {
+  _forget(climate) {
     this._forgetAsk = null;
-    this._render();
-    try {
-      await this._source().forget(climate);
-    } catch (e) {
-      this._msg = this._loc.t('error', { message: e.message || e.code || e });
-      this._render();
-    }
+    return this._call((src) => src.forget(climate));
   }
 
   // Table: one column per preset (header: the preset, then its default temperature), one row per

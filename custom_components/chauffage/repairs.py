@@ -19,22 +19,18 @@ from .const import DOMAIN
 MISSING = "missing"
 
 
-def issue_id(kind: str, entity_id: str) -> str:
-    return f"{kind}_{entity_id}"
-
-
 @callback
-def raise_issue(hass: HomeAssistant, kind: str, entity_id: str, placeholders: dict[str, str]) -> None:
+def raise_missing(hass: HomeAssistant, entity_id: str) -> None:
     ir.async_create_issue(
-        hass, DOMAIN, issue_id(kind, entity_id), is_fixable=True, is_persistent=False,
-        severity=ir.IssueSeverity.WARNING, translation_key=kind,
-        translation_placeholders=placeholders, data={"entity_id": entity_id},
+        hass, DOMAIN, f"{MISSING}_{entity_id}", is_fixable=True, is_persistent=False,
+        severity=ir.IssueSeverity.WARNING, translation_key=MISSING,
+        translation_placeholders={"entity_id": entity_id}, data={"entity_id": entity_id},
     )
 
 
 @callback
-def close_issue(hass: HomeAssistant, kind: str, entity_id: str) -> None:
-    ir.async_delete_issue(hass, DOMAIN, issue_id(kind, entity_id))
+def close_missing(hass: HomeAssistant, entity_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, f"{MISSING}_{entity_id}")
 
 
 class MissingFlow(RepairsFlow):
@@ -57,7 +53,7 @@ class MissingFlow(RepairsFlow):
         return self.async_create_entry(data={})
 
     async def async_step_keep(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        close_issue(self.hass, MISSING, self.entity_id)  # asked again at the next start
+        close_missing(self.hass, self.entity_id)  # asked again at the next start
         return self.async_create_entry(data={})
 
 
