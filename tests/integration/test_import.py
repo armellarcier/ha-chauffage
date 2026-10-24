@@ -62,10 +62,10 @@ async def test_weeks_overrides_and_active_schedule_are_imported(bench: Bench):
     assert data["schedules"] == [{"id": "normal", "name": "Normal"}, {"id": "absent", "name": "Absent"},
                              {"id": "vacances", "name": "Vacances"}]
     assert data["active_schedule"] == "absent"
-    salon = data["weeks"]["climate.salon"]
+    salon = bench.runtime.weeks["climate.salon"]
     assert set(salon) == {"normal", "absent", "vacances"}
     assert salon["normal"][0] == [["00:00", "eco"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco"]]
-    assert data["weeks"]["climate.bureau"]["normal"][5] == [["00:00", "frost"]]
+    assert bench.runtime.weeks["climate.bureau"]["normal"][5] == [["00:00", "frost"]]
     assert data["overrides"]["climate.salon"] == {
         "kind": "temperature", "value": 21.5, "start": OVERRIDE["debut"], "end": OVERRIDE["fin"]}
 
@@ -89,7 +89,7 @@ async def test_the_issue_disappears_once_the_package_is_removed(bench: Bench):
     await bench.hass.async_block_till_done()
     assert ir.async_get(bench.hass).async_get_issue("chauffage", "package_installed") is None
     # The imported data was kept
-    assert "climate.salon" in entry.runtime_data.data["weeks"]
+    assert "climate.salon" in entry.runtime_data.weeks
 
 
 async def test_package_data_from_a_newer_version_is_not_imported(bench: Bench):
@@ -117,5 +117,5 @@ async def test_a_first_setup_during_startup_waits_for_home_assistant_to_be_runni
     await bench.hass.config_entries.async_reload(entry.entry_id)
     await bench.hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
-    assert "climate.salon" in entry.runtime_data.data["weeks"]
+    assert "climate.salon" in entry.runtime_data.weeks
     assert calls  # package automations turned off

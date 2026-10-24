@@ -21,7 +21,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .runtime import ThermostatFailed
+from .runtime import ThermostatFailed, ThermostatPaused
 
 if TYPE_CHECKING:
     from .runtime import ChauffageRuntime
@@ -50,7 +50,7 @@ def loaded_runtime(hass: HomeAssistant) -> ChauffageRuntime:
 
 def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
     runtime = loaded_runtime(hass)
-    if entity_id not in runtime.data["weeks"]:
+    if entity_id not in runtime.scheduled:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="not_scheduled", translation_placeholders={"entity_id": entity_id}
         )
@@ -69,6 +69,10 @@ def async_register(hass: HomeAssistant) -> None:
         override = runtime.new_override(kind, call.data[kind], call.data.get("duration"), end)
         try:
             await runtime.set_override(entity_id, override, resend=True)
+        except ThermostatPaused as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="paused", translation_placeholders={"entity_id": entity_id}
+            ) from err
         except ThermostatFailed as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="thermostat_failed", translation_placeholders={"entity_id": entity_id}

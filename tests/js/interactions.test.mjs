@@ -351,7 +351,7 @@ describe('error messages', () => {
   test('saving, removing an override, activating a schedule', async () => {
     const hass = failing(fakeHass({ overrides: { 'climate.salon': override } }));
     const card = createCard(hass, { show: ['climate.salon'] });
-    card._dirty = true;
+    card._split('climate.salon', 0, 12 * 60);
     await card._save();
     assert.match($(card, '.msg').textContent, /Erreur : boom/);
     assert.equal(card._dirty, true);

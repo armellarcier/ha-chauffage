@@ -11,7 +11,7 @@ from homeassistant.core import Context
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from conftest import KINDS, WEEKDAY, WEEKEND, Bench, every_day
+from conftest import KINDS, WEEKDAY, WEEKEND, Bench
 from custom_components.chauffage import engine, model
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
@@ -164,9 +164,3 @@ async def test_a_change_on_the_thermostat_itself_is_an_override(bench: Bench):
     assert bench.overrides()["climate.salon"]["value"] == 22
 
 
-async def test_a_thermostat_removed_from_the_schedules_is_no_longer_watched(bench: Bench):
-    await start(bench)
-    bench.thermostat("climate.bureau", "eco")
-    await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
-    await bench.manual_setpoint("climate.salon", 22)
-    assert bench.overrides() == {}

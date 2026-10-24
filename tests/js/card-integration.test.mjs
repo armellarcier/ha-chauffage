@@ -1,6 +1,6 @@
 // The card's exchanges with the Chauffage integration (websocket API): subscription, saves,
 // overrides, schedules, presets; and the card without the integration.
-import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -40,17 +40,74 @@ describe('loading from the integration', () => {
 });
 
 describe('writing to the integration', () => {
-  test('Save sends the weeks by schedule id, [start, preset] slots and the revision it edited', async () => {
-    const hass = fakeIntegrationHass();
+  test('Save sends the weeks of the thermostats changed, by schedule id, with the revision of each', async () => {
+    const both = { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.bureau': { Normal: Array(7).fill(WEEKDAY) } };
+    const hass = fakeIntegrationHass({ weeks: both });
     const card = createCard(hass);
     card._split('climate.bureau', 0, 12 * 60);
     await card._save();
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/weeks/save');
-    assert.equal(msg.revision, 4);
-    assert.deepEqual(msg.weeks['climate.bureau'].normal[0], [['00:00', 'eco'], ['12:00', 'comfort']]);
-    assert.deepEqual(msg.weeks['climate.salon'].normal[0], WEEKDAY.map((s) => s.split(' ')));
+    assert.deepEqual(Object.keys(msg.weeks), ['climate.bureau'], 'the salon was not changed');
+    assert.ok(msg.weeks['climate.bureau'].normal[0].some(([start]) => start === '12:00'));
+    assert.deepEqual(msg.revisions, { 'climate.bureau': 7 });
+    assert.equal(msg.revision, undefined);
     assert.equal(card._dirty, false);
+  });
+
+  test('a thermostat added to the card is scheduled with the default week (docs/decisions.md)', async () => {
+    const hass = fakeIntegrationHass(); // only the salon is scheduled
+    const card = createCard(hass);
+    card._split('climate.salon', 0, 12 * 60);
+    await card._save();
+    const msg = lastCall(hass);
+    assert.deepEqual(Object.keys(msg.weeks).sort(), ['climate.bureau', 'climate.salon']);
+    assert.deepEqual(msg.revisions['climate.bureau'], null);
+  });
+
+  test('the next save uses the revision the integration gave back', async () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass);
+    card._split('climate.salon', 0, 12 * 60);
+    await card._save();
+    card._split('climate.salon', 0, 13 * 60);
+    await card._save();
+    assert.deepEqual(lastCall(hass).revisions, { 'climate.salon': 8 });
+  });
+
+  test('an edit undone before saving sends nothing', async () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass);
+    card._split('climate.bureau', 0, 12 * 60); // the bureau gets its default week, so is changed
+    await card._save();
+    const sent = hass.events.length;
+    const before = structuredClone(card._week('climate.salon'));
+    card._split('climate.salon', 0, 12 * 60);
+    card._data['climate.salon'][card._schedule] = before;
+    await card._save();
+    assert.equal(hass.events.length, sent);
+    assert.equal(card._dirty, false);
+  });
+
+  test('a thermostat new to the integration is sent with no revision', async () => {
+    const hass = fakeIntegrationHass(); // only the salon is scheduled
+    const card = createCard(hass);
+    card._split('climate.bureau', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(lastCall(hass).revisions, { 'climate.bureau': null });
+  });
+
+  test('an integration without revisions per thermostat gets every week and the global revision', async () => {
+    const data = INTEGRATION_DATA();
+    delete data.thermostats;
+    const hass = fakeIntegrationHass({ data });
+    const card = createCard(hass);
+    card._split('climate.bureau', 0, 12 * 60);
+    await card._save();
+    const msg = lastCall(hass);
+    assert.equal(msg.revision, 4);
+    assert.equal(msg.revisions, undefined);
+    assert.deepEqual(Object.keys(msg.weeks).sort(), ['climate.bureau', 'climate.salon']);
   });
 
   test('a save refused because the schedules changed elsewhere says so', async () => {
@@ -322,6 +379,74 @@ describe('the "Presets" view', () => {
     const card = open(hass);
     assert.equal(card.shadowRoot.querySelector('[data-act="cell"]'), null);
     assert.ok(card.shadowRoot.querySelector('.pv-table'));
+  });
+});
+
+describe('a thermostat renamed in Home Assistant', () => {
+  // climate.salon renamed climate.sejour: the card's configuration still holds the former id;
+  // like HA's own cards, the card does not change it by itself
+  const renamed = () => {
+    const data = integrationData({ weeks: { 'climate.sejour': { Normal: Array(7).fill(WEEKDAY) } } });
+    return { ...data, renamed: { 'climate.salon': 'climate.sejour' } };
+  };
+  const hassOf = () => {
+    const hass = fakeIntegrationHass({ data: renamed() });
+    hass.states['climate.sejour'] = hass.states['climate.salon'];
+    delete hass.states['climate.salon'];
+    return hass;
+  };
+
+  const chips = (card) => [...card.shadowRoot.querySelectorAll('.chip[data-climate]')].map((c) => c.dataset.climate);
+
+  test('is set aside, with a notice giving its new id and asking to edit the card', () => {
+    const card = createCard(hassOf());
+    assert.deepEqual(chips(card), ['climate.bureau']);
+    const note = card.shadowRoot.querySelector('.renamed-note').textContent;
+    assert.match(note, /climate\.salon/);
+    assert.match(note, /climate\.sejour/);
+    assert.match(note, /modifiez la carte/);
+  });
+
+  test('a card holding only renamed thermostats shows the notice alone', () => {
+    const card = createCard(hassOf(), { thermostats: ['climate.salon'] });
+    assert.ok(card.shadowRoot.querySelector('.renamed-note'));
+    assert.deepEqual(chips(card), []);
+  });
+
+  test('nothing is saved under the former id', async () => {
+    const hass = hassOf();
+    const card = createCard(hass);
+    card._split('climate.bureau', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
+  });
+
+  test('an id given again to another thermostat is that thermostat, not the renamed one', () => {
+    const hass = hassOf();
+    hass.states['climate.salon'] = { state: 'heat', attributes: { friendly_name: 'Chambre' }, last_updated: '1' };
+    const card = createCard(hass);
+    assert.deepEqual(chips(card), ['climate.salon', 'climate.bureau']);
+    assert.equal(card.shadowRoot.querySelector('.renamed-note'), null);
+  });
+
+  test('shown again once an entity has its former id again', () => {
+    const hass = hassOf();
+    const card = createCard(hass);
+    const bars = () => [...new Set([...card.shadowRoot.querySelectorAll('.bar[data-climate]')].map((b) => b.dataset.climate))];
+    assert.deepEqual(bars(), ['climate.bureau']);
+    card.hass = { ...hass, states: { ...hass.states, 'climate.salon': { state: 'heat', attributes: { friendly_name: 'Chambre' }, last_updated: '2' } } };
+    assert.deepEqual(chips(card), ['climate.salon', 'climate.bureau']);
+    assert.deepEqual(bars(), ['climate.salon', 'climate.bureau']);
+  });
+
+  test('the notice goes once the card is edited with the new id', () => {
+    const hass = hassOf();
+    const card = createCard(hass);
+    card.setConfig({ thermostats: ['climate.sejour', 'climate.bureau'], show: 'all' });
+    card.hass = hass;
+    assert.deepEqual(chips(card), ['climate.sejour', 'climate.bureau']);
+    assert.deepEqual(day(card, 'climate.sejour', 0), WEEKDAY);
+    assert.equal(card.shadowRoot.querySelector('.renamed-note'), null);
   });
 });
 
