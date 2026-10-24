@@ -71,6 +71,13 @@ describe('more-info block', () => {
     assert.ok(el.shadowRoot.querySelector('.presets [data-preset="comfort"]').classList.contains('on'));
   });
 
+  test('an override set to a preset deleted since shows the thermostat\'s own preset', () => {
+    const data = integrationData({ overrides: { 'climate.salon': { ...override, kind: 'preset', value: 'eco', preset: 'nuit' } } });
+    data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { preset: 'eco' } } };
+    const el = block(fakeHass({ data }), 'climate.salon');
+    assert.ok(el.shadowRoot.querySelector('.presets [data-preset="eco"]').classList.contains('on'));
+  });
+
   test('an override at a preset\'s temperature does not show that preset', () => {
     const el = block(withTargets({ 'climate.salon': { ...override, value: 20 } }), 'climate.salon');
     assert.equal(el.shadowRoot.querySelector('.override-value').textContent, '⏱ 20 °C');

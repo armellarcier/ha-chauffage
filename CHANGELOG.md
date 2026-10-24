@@ -19,6 +19,13 @@ Each entry says whether the release **migrates stored data** and what to do when
   thermostat (as in the card); another value is still one of the thermostat's own presets.
   Overrides in progress are kept (they show their value, as before).
 
+### Upgrading
+
+- Automations calling `chauffage.set_override` with `preset: eco` (`comfort`, `boost`, `frost`, or
+  any Chauffage preset) now get what that preset means on the thermostat, as the schedule does:
+  its value set by hand in *Presets*, or its temperature on a thermostat without presets.
+  Before, the climate preset of that name was sent as is.
+
 ## [0.6.0-beta.3] - 2026-10-24
 
 **Scheduled thermostats**, first part ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)).

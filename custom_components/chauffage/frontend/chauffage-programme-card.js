@@ -823,9 +823,10 @@ const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => (a.temper
 // on. Returns { presets, temperature } HTML.
 function overrideValueHtml(d, src, climate, attrs, loc) {
   const targets = src.targets(climate);
+  const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
   const presets = sortedPresets(src, loc).filter((l) => targets[l.id]).map((l) => {
     const [[kind, value]] = Object.entries(targets[l.id]);
-    const on = !!d && (d.preset ? d.preset === l.id : d.kind === 'preset' && kind === 'preset' && d.value === value);
+    const on = !!d && (picked ? picked === l.id : d.kind === 'preset' && kind === 'preset' && d.value === value);
     return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
   }).join('');
   const value = d && d.kind === 'temperature' ? d.value : attrs.temperature;

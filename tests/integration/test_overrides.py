@@ -457,3 +457,27 @@ async def test_an_override_set_to_a_preset_ends_and_resumes_the_schedule(bench: 
     await bench.go_to("10:30")
     assert bench.overrides() == {}
     assert bench.applied() == {"climate.salon": "eco"}
+
+
+async def test_set_override_with_a_preset_follows_the_thermostat_s_mapping(bench: Bench):
+    await start(bench)
+    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 22.5}})
+    bench.temperature_calls.clear()
+    await bench.hass.services.async_call(
+        "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "comfort"}, blocking=True
+    )
+    assert bench.temperature_calls == [("climate.salon", 22.5)]
+    o = bench.overrides()["climate.salon"]
+    assert (o["kind"], o["value"], o["preset"]) == ("temperature", 22.5, "comfort")
+
+
+async def test_set_override_with_a_thermostat_s_own_preset_sets_that_preset(bench: Bench):
+    """A climate preset that is not a Chauffage preset (here "away") is the thermostat's own."""
+    bench.needs("standard")
+    await start(bench)
+    await bench.hass.services.async_call(
+        "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "away"}, blocking=True
+    )
+    assert bench.applied() == {"climate.salon": "away"}
+    o = bench.overrides()["climate.salon"]
+    assert (o["kind"], o["value"], "preset" in o) == ("preset", "away", False)
