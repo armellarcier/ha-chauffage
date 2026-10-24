@@ -57,6 +57,28 @@ describe('writing to the integration', () => {
     assert.equal(card._dirty, false);
   });
 
+  test('a week the card only drew (a schedule without one for a thermostat) is not sent as a change', async () => {
+    // Sending it would refuse the save if another card changed that thermostat meanwhile
+    const both = { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.bureau': { Normal: Array(7).fill(WEEKDAY) } };
+    const hass = fakeIntegrationHass({ weeks: both });
+    const card = createCard(hass);
+    card._schedule = 'away';
+    card._render(); // draws a default week for each thermostat
+    card._split('climate.bureau', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
+  });
+
+  test('a thermostat added to the card is scheduled with the default week (docs/decisions.md)', async () => {
+    const hass = fakeIntegrationHass(); // only the salon is scheduled
+    const card = createCard(hass);
+    card._split('climate.salon', 0, 12 * 60);
+    await card._save();
+    const msg = lastCall(hass);
+    assert.deepEqual(Object.keys(msg.weeks).sort(), ['climate.bureau', 'climate.salon']);
+    assert.deepEqual(msg.revisions['climate.bureau'], null);
+  });
+
   test('the next save uses the revision the integration gave back', async () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);

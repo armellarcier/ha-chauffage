@@ -39,7 +39,8 @@ left, shows up paused in the card's *Thermostats* view, to forget or resume.
   forgotten from it.
 
 - Saving the weeks only sends the thermostats changed, each against its own revision: two cards
-  (or two people) editing different thermostats no longer refuse each other's save.
+  (or two people) editing different thermostats no longer refuse each other's save. A default
+  week the card only drew (a schedule without a week for a scheduled thermostat) is not a change.
 
 ### Fixed
 

@@ -1227,11 +1227,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._loadedWeeks = this._serialized();
   }
 
-  // {climate: JSON of its weeks}, to send only the thermostats changed
+  // {climate: {schedule: JSON of its week}}, to send only the thermostats changed
   _serialized() {
     const out = {};
     for (const [climate, bySchedule] of Object.entries(this._data)) {
-      out[climate] = JSON.stringify(Object.fromEntries(Object.entries(bySchedule).map(([s, week]) => [s, week.map(serializeDay)])));
+      out[climate] = {};
+      for (const [schedule, week] of Object.entries(bySchedule)) out[climate][schedule] = JSON.stringify(week.map(serializeDay));
     }
     return out;
   }
@@ -1239,7 +1240,12 @@ class ChauffageProgrammeCard extends HTMLElement {
   _week(climate, schedule = this._schedule) {
     if (!this._data[climate]) this._data[climate] = {};
     if (!this._data[climate][schedule]) {
-      this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map(() => [{ start: 0, preset: 'eco' }]);
+      const week = [0, 1, 2, 3, 4, 5, 6].map(() => [{ start: 0, preset: 'eco' }]);
+      this._data[climate][schedule] = week;
+      // Only drawn: a scheduled thermostat is not sent for it until it is edited (a thermostat
+      // not scheduled yet is, with this default week: adding it in a card schedules it)
+      const loaded = this._loadedWeeks && this._loadedWeeks[climate];
+      if (loaded) loaded[schedule] = JSON.stringify(week.map(serializeDay));
     }
     return this._data[climate][schedule];
   }
@@ -1322,8 +1328,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     const now = this._serialized();
     // Only the thermostats changed, each against its revision (another card may edit the others)
-    const changed = Object.keys(now).filter((c) => !src.perThermostat || now[c] !== (this._loadedWeeks || {})[c]);
-    const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
+    const loaded = this._loadedWeeks || {};
+    const same = (a, b) => !!b && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((s) => a[s] === b[s]);
+    const changed = Object.keys(now).filter((c) => !src.perThermostat || !same(now[c], loaded[c]));
+    const out = Object.fromEntries(changed.map((c) => [c, Object.fromEntries(Object.entries(now[c]).map(([s, w]) => [s, JSON.parse(w)]))]));
     const revisions = src.perThermostat
       ? Object.fromEntries(changed.map((c) => [c, (this._revisions || {})[c] ?? null])) : null;
     try {
