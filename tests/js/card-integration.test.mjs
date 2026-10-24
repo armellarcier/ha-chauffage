@@ -248,31 +248,49 @@ describe('the "Presets" view', () => {
     card.shadowRoot.querySelector('[data-act="view"][data-view="presets"]').click();
     return card;
   };
-  const cellText = (card, preset, climate) => card.shadowRoot
-    .querySelector(`[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`).textContent.trim();
+  const squash = (el) => el.textContent.replace(/\s+/g, ' ').trim();
+  const cellText = (card, preset, climate) => squash(card.shadowRoot
+    .querySelector(`[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`));
   const click = (card, selector) => card.shadowRoot.querySelector(selector).click();
 
-  test('a table of what each thermostat does with each preset', () => {
+  test('a table of what each thermostat does with each preset, each cell saying what it is (#39)', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
-    const heads = [...card.shadowRoot.querySelectorAll('[data-kind="preset"]')].map((b) => b.textContent.trim());
-    assert.deepEqual(heads, ['Hors-gel', 'Éco', 'Confort']); // from the coldest to the warmest
-    assert.deepEqual([...card.shadowRoot.querySelectorAll('[data-kind="default"]')].map((b) => b.textContent.trim()), ['7°', '17°', '20°']);
-    assert.equal(cellText(card, 'comfort', 'climate.salon'), '⟲ 20,5°'); // preset, learned temperature
-    assert.equal(cellText(card, 'eco', 'climate.salon'), '⟲ (son préréglage)'); // preset never seen active
-    assert.equal(cellText(card, 'frost', 'climate.salon'), '8° ●'); // set for this thermostat
-    assert.equal(cellText(card, 'comfort', 'climate.bureau'), '20°'); // no presets of its own: the preset's default
+    const heads = [...card.shadowRoot.querySelectorAll('[data-kind="preset"]')].map(squash);
+    // From the coldest to the warmest; a preset's header holds its default temperature
+    assert.deepEqual(heads, ['Hors-gel 7° par défaut', 'Éco 17° par défaut', 'Confort 20° par défaut']);
+    assert.equal(cellText(card, 'comfort', 'climate.salon'), '20,5° son préréglage Confort'); // learned temperature
+    assert.equal(cellText(card, 'eco', 'climate.salon'), '? son préréglage Éco'); // never seen active
+    assert.equal(cellText(card, 'frost', 'climate.salon'), '8° réglé ici'); // set for this thermostat
+    assert.equal(cellText(card, 'comfort', 'climate.bureau'), '20° par défaut'); // no presets of its own
+    assert.match(squash(card.shadowRoot.querySelector('.pv-intro')), /Un préréglage est une intention/);
+    assert.match(squash(card.shadowRoot.querySelector('.pv-note')), /\? : la température d’un préréglage du thermostat est connue une fois qu’il a servi/);
     assert.equal(card.shadowRoot.querySelector('.chips'), null); // no thermostat selection here
-    // The glossary's words: a thermostat, not a valve (#39)
-    assert.match(card.shadowRoot.querySelector('.pv-key').textContent, /suit un préréglage du thermostat/);
+    assert.equal(card.shadowRoot.querySelector('[data-kind="default"]'), null); // in the headers now
+  });
+
+  test('a thermostat\'s name opens it; in a cell, its device, where its own presets are set (#39)', () => {
+    const opened = [];
+    const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = open(fakeIntegrationHass({ data: data() }));
+      click(card, '.pv-table th.name [data-more-info="climate.salon"]');
+      assert.deepEqual(opened, ['climate.salon']);
+      click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+      click(card, '[data-panel="cell"] [data-device="salon-device"]');
+      assert.equal(window.location.pathname, '/config/devices/device/salon-device');
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
   });
 
   test('a cell is edited in a popover, closed by a click elsewhere or Escape', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.ok(card.shadowRoot.querySelector('.editor[data-panel="cell"]'), 'a popover, like the slots\' one');
-    click(card, '.pv-key');
+    click(card, '.pv-intro');
     assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
-    click(card, '[data-kind="default"][data-preset="eco"]');
+    click(card, '[data-kind="preset"][data-preset="eco"]');
     assert.ok(card.shadowRoot.querySelector('[data-panel="cell"]'));
     document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
     assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
@@ -347,33 +365,36 @@ describe('the "Presets" view', () => {
     assert.deepEqual(lastCall(hass).mapping, {});
   });
 
-  test('a preset\'s default temperature', async () => {
-    const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="default"][data-preset="eco"]');
-    card.shadowRoot.querySelector('[data-cell-temp]').value = '16.5';
-    await card._action('cell-apply', {});
-    assert.equal(lastCall(hass).type, 'chauffage/presets/set');
-    assert.deepEqual(lastCall(hass).presets[1], { id: 'eco', name: 'Éco', color: '#43a047', temperature: 16.5 });
-  });
-
-  test('renaming, adding and removing presets', async () => {
+  test('a preset\'s name, color and default temperature, in one popover (#39)', async () => {
     const hass = fakeIntegrationHass({ data: data() });
     const card = open(hass);
     click(card, '[data-kind="preset"][data-preset="eco"]');
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Économique';
+    card.shadowRoot.querySelector('[data-cell-temp]').value = '16.5';
     await card._action('cell-apply', {});
-    assert.equal(lastCall(hass).presets[1].name, 'Économique');
+    assert.equal(lastCall(hass).type, 'chauffage/presets/set');
+    assert.deepEqual(lastCall(hass).presets[1], { id: 'eco', name: 'Économique', color: '#43a047', temperature: 16.5 });
+  });
 
-    click(card, '[data-kind="new"]');
+  test('a preset is added from a button under the table', async () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    const card = open(hass);
+    assert.match(squash(card.shadowRoot.querySelector('.pv-add')), /Ajouter un préréglage/);
+    click(card, '.pv-add');
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Nuit';
     await card._action('cell-apply', {});
     assert.deepEqual(lastCall(hass).presets.at(-1), { name: 'Nuit', color: '#9e9e9e', temperature: 19 });
+  });
 
+  test('deleting a preset is a button of its own, then what replaces it where it is used', async () => {
+    const hass = fakeIntegrationHass({ data: data() });
+    const card = open(hass);
     click(card, '[data-kind="preset"][data-preset="comfort"]'); // used in the schedules
-    card.shadowRoot.querySelector('[data-cell-delete]').checked = true;
+    assert.equal(card.shadowRoot.querySelector('[data-cell-replacement]'), null);
+    click(card, '[data-act="cell-delete"]');
+    assert.match(squash(card.shadowRoot.querySelector('[data-panel="cell"]')), /Supprimer « Confort » \?/);
     card.shadowRoot.querySelector('[data-cell-replacement]').value = 'eco';
-    await card._action('cell-apply', {});
+    await card._action('cell-delete-confirm', {});
     assert.deepEqual(lastCall(hass).presets.map((l) => l.id), ['eco', 'frost']);
     assert.deepEqual(lastCall(hass).replacements, { comfort: 'eco' });
   });
@@ -383,8 +404,8 @@ describe('the "Presets" view', () => {
     // The card does not read the thermostat's attributes itself
     hass.states['climate.salon'].attributes.preset_temperatures = { eco_temp: 15, comfort_temp: 18 };
     const card = open(hass);
-    assert.equal(cellText(card, 'eco', 'climate.salon'), '⟲ 16,5°');
-    assert.equal(cellText(card, 'comfort', 'climate.salon'), '⟲ 19°');
+    assert.equal(cellText(card, 'eco', 'climate.salon'), '16,5° son préréglage Éco');
+    assert.equal(cellText(card, 'comfort', 'climate.salon'), '19° son préréglage Confort');
   });
 
   test('back to the schedule view', () => {

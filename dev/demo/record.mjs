@@ -159,13 +159,10 @@ await pause(900);
 await click(page.locator(`${card} [data-act="activate-schedule"]`));
 await pause(1400);
 
-// Show only the living room; then "Now": what each thermostat does, why and until when, and the
-// living room's more-info dialog from its line: schedule and override
+// Show only the living room, then its more-info dialog: schedule and override
 await click(page.locator(`${card} .chip[data-climate="climate.salon"]`), { dx: 0.25 });
 await pause(1200);
-await click(page.locator(`${card} [data-act="view"][data-view="now"]`));
-await pause(2400);
-await click(page.locator(`${card} .now-row[data-climate="climate.salon"] [data-more-info]`));
+await click(page.locator(`${card} .chip[data-climate="climate.salon"] .chip-open`));
 await pause(1200);
 // The "Planning" block sits under the thermostat controls: scroll the dialog down to it
 await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height * 0.6, { steps: 15 });
@@ -183,8 +180,6 @@ await pause(700);
 // The history of the living room: its last days as they were measured (back to the real time,
 // the history being real), on Normal, the schedule followed during those days
 await context.clock.setFixedTime(new Date(REAL_NOW));
-await click(page.locator(`${card} [data-act="view"][data-view="schedule"]`));
-await pause(600);
 await click(page.locator(`${card} .tab`, { hasText: 'Normal' }));
 await pause(800);
 await click(page.locator(`${card} [data-act="history"]`));
@@ -218,9 +213,6 @@ await callWS(rp, {
   type: 'chauffage/schedules/set',
   schedules: data.schedules.filter((s) => s.name !== CREATED).map((s) => ({ id: s.id })),
 });
-await rp.evaluate(() => {
-  localStorage.removeItem('chauffage-programme-card:shown');
-  localStorage.removeItem('chauffage-programme-card:view');
-});
+await rp.evaluate(() => localStorage.removeItem('chauffage-programme-card:shown'));
 await browser.close();
 console.log(`demo recorded: ${(end - start).toFixed(1)} s`);

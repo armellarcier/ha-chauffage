@@ -138,6 +138,21 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.doesNotMatch(menu(card).textContent, /Identifiant/);
   });
 
+  test('opens its switch in Home Assistant (#39)', () => {
+    let received = null;
+    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = createCard(fakeHass());
+      openMenu(card, 'away');
+      menu(card).querySelector('[data-more-info="switch.chauffage_schedule_away"]').click();
+      assert.equal(received, 'switch.chauffage_schedule_away');
+      assert.equal(menu(card), null);
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
+  });
+
   test('renames it, showing its id (used by automations)', async () => {
     const hass = fakeHass();
     const card = createCard(hass);

@@ -9,28 +9,39 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
-A rework of the card for everyday use and phones
-([#39](https://github.com/armellarcier/ha-chauffage/issues/39)). **Does not migrate stored data.**
+A rework of the cards ([#39](https://github.com/armellarcier/ha-chauffage/issues/39)): a card per
+thermostat for your own dashboards, a clearer *Presets* view, everything a card names opens in
+Home Assistant, and phones. **Does not migrate stored data.**
 
 ### Added
 
-- A **Now** view, first in the card: for each thermostat, the measured temperature, what it does
-  (preset and setpoint), why and until when ("Normal · Eco until 17:30, then Comfort",
-  "Temporary setpoint until 11:30, then Eco"), today's bar with the current time; a temporary
-  setpoint, *Pause* and *Resume* from its line. The scheduled thermostats not in the card follow
-  (pause, resume, forget). The card opens on the last of *Now* / *Schedule* chosen on the device.
+- A **thermostat card**, `custom:chauffage-thermostat-card` (*Scheduled thermostat* in *Add
+  card*, suggested for a thermostat): one thermostat, to place in your own dashboards. The
+  measured temperature, what it does now (preset and setpoint, or the temporary setpoint), why and
+  until when ("Follows the schedule: Eco until 17:30, then Comfort"), today with the current
+  time, a temporary setpoint to set or change, the week, *Pause*. Visual editor (thermostat,
+  name).
+- **Everything a card names opens in Home Assistant**: the thermostats (chips, rows, menus,
+  notices, *Presets* and *Thermostats* views), a schedule's switch (its `⋮` menu, the thermostat
+  card), the active-schedule select, each thermostat's *Control*, *Override* and *Planned preset*
+  entities, the thermostat's device and the *Chauffage* device (admins: settings pages).
 - Unsaved edits of the weeks show a bar with *Cancel* and *Save*, kept at the bottom of the window
   while scrolling.
 
 ### Changed
 
-- The *Thermostats* view is replaced by *Now*.
+- **Presets view**: one line says what a preset is; a preset's header holds its name, color and
+  default temperature, changed in one popover, with *Delete…* as a button of its own; each cell
+  gives the temperature and says what it is ("its *Comfort* preset", "set here", "default", "?"
+  until the thermostat's own preset has been used), instead of symbols and a key; *+ Add a
+  preset* under the table; a cell's popover links to the thermostat's device, where its own
+  presets are set; the names stay in place when the table scrolls on a phone.
 - The views are tabs across the top of the card, easier to hit with a finger.
-- The row menu (⋮) only holds what can be done with the day (copy, paste, fill, show larger);
-  *Temporary setpoint* and *Pause* moved to *Now*. It opens upwards when there is no room below.
-- The chips only name the thermostats, with a mark when one is paused, off or on a temporary
-  setpoint: they no longer wrap or move when the temperature changes. The more-info dialog opens
-  from the names (rows, *Now*, popovers).
+- The chips name the thermostats, with a mark when one is paused, off or on a temporary setpoint
+  (no temperature: they no longer wrap or move when it changes), and a button, big enough for a
+  finger, opening the thermostat.
+- The row menu (⋮) holds the day's actions and a temporary setpoint on today; pausing is in the
+  *Thermostats* view. It opens upwards when there is no room below.
 - On a phone, with several thermostats, the day's name is above its rows and the scale shows
   every 6 hours: the bars get the width. The hint speaks of tapping on a touch screen.
 - A slot too short for its time or name no longer shows a piece of it (`06:`).
@@ -42,7 +53,8 @@ A rework of the card for everyday use and phones
 
 ### Upgrading
 
-Nothing to do: update, then reload the page.
+Nothing to do: update, restart Home Assistant (the integration tells the cards the ids of its
+entities), then reload the page.
 
 ## [0.6.0-beta.5] - 2026-10-24
 

@@ -168,11 +168,20 @@ describe('row menu', () => {
     assert.equal($(card, '.menu'), null);
   });
 
-  test('it holds what can be done with the day only', () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').click();
-    const acts = [...card.shadowRoot.querySelectorAll('.menu [data-act]')].map((b) => b.dataset.act);
-    assert.deepEqual(acts, ['copy-day', 'paste-day', 'fill-weekdays', 'fill-weekend', 'fill-all']);
+  test('it holds what can be done with the day, and opens the thermostat (#39)', () => {
+    let received = null;
+    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = createCard(fakeHass(), { show: ['climate.salon'] });
+      card._openMenu('climate.salon', ((new Date().getDay() + 6) % 7 + 1) % 7, 0, 0); // not today
+      const acts = [...card.shadowRoot.querySelectorAll('.menu [data-act]')].map((b) => b.dataset.act);
+      assert.deepEqual(acts, ['copy-day', 'paste-day', 'fill-weekdays', 'fill-weekend', 'fill-all']);
+      $(card, '.menu .mh [data-more-info="climate.salon"]').click();
+      assert.equal(received, 'climate.salon');
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
   });
 
   test('it opens upwards when there is no room below it in the window', () => {
@@ -267,10 +276,17 @@ describe('the override popover in the card', () => {
     assert.match($(card, '.override-ed').textContent, /puis Éco \(planning\)/); // 11:30: the 08:30 eco slot
   });
 
-  test('a new temporary setpoint is set from the "Now" view, not from today\'s row menu (#39)', () => {
-    const card = createCard(withTargets({}), { show: ['climate.salon'] });
-    card._openMenu('climate.salon', 0, 0, 0); // Monday: today
+  test('without an override, today\'s row menu sets a temporary setpoint, for the override duration', () => {
+    const hass = withTargets({});
+    const card = createCard(hass, { show: ['climate.salon'] });
+    card._openMenu('climate.salon', 1, 0, 0); // Tuesday: not today
     assert.equal($(card, '.menu [data-act="override-new"]'), null);
+    card._openMenu('climate.salon', 0, 0, 0); // Monday: today
+    $(card, '.menu [data-act="override-new"]').click();
+    $(card, '.override-ed .presets [data-preset="comfort"]').click();
+    const sent = hass.events.at(-1);
+    assert.equal(sent.type, 'chauffage/override/set');
+    assert.deepEqual(sent.override, { kind: 'temperature', value: 20, preset: 'comfort', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
   });
 
   test('a preset picked in the popover becomes the override, until the same end', () => {
@@ -418,7 +434,7 @@ describe('error messages', () => {
     const hass = failing(fakeIntegrationHass());
     const card = createCard(hass);
     $(card, '[data-act="view"][data-view="presets"]').click();
-    $(card, '[data-kind="default"][data-preset="eco"]').click();
+    $(card, '[data-kind="preset"][data-preset="eco"]').click();
     await card._action('cell-apply', {});
     assert.match($(card, '.msg').textContent, /boom/);
     assert.ok($(card, '[data-panel="cell"]'), 'the panel stays open');
@@ -559,6 +575,7 @@ describe('presets without the thermostats\' own presets (option off)', () => {
     const card = createCard(hass);
     $(card, '[data-act="view"][data-view="presets"]').click();
     const cell = $(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
-    assert.equal(cell.textContent.trim(), '20°');
+    assert.equal(cell.querySelector('.pv-val').textContent, '20°'); // the preset's default, not the thermostat's own preset
+    assert.equal(cell.querySelector('.pv-how').textContent, 'par défaut');
   });
 });

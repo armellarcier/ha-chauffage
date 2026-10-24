@@ -291,7 +291,9 @@ async def dashboard(ws: WS) -> None:
         # Existing dashboard: add the thermostats it does not list yet
         config = await ws.call(type="lovelace/config", url_path=DASHBOARD_URL)
         card = config["views"][0]["cards"][0]
-        missing = [t for t in CARD["thermostats"] if t not in card.get("thermostats", [])]
+        # By entity: a thermostat listed as its id alone, or with another name, is there
+        listed = {t if isinstance(t, str) else t.get("entity") for t in card.get("thermostats", [])}
+        missing = [t for t in CARD["thermostats"] if t["entity"] not in listed]
         if missing:
             log(f"dashboard: adding {', '.join(t['entity'] for t in missing)} to the card")
             card["thermostats"] = card.get("thermostats", []) + missing
@@ -301,7 +303,14 @@ async def dashboard(ws: WS) -> None:
     await ws.call(type="lovelace/dashboards/create", url_path=DASHBOARD_URL, title="Chauffage",
                   icon="mdi:radiator", show_in_sidebar=True, require_admin=False, mode="storage")
     await ws.call(type="lovelace/config/save", url_path=DASHBOARD_URL, config={
-        "views": [{"title": "Chauffage", "path": "planning", "type": "panel", "cards": [CARD]}],
+        "views": [
+            {"title": "Chauffage", "path": "planning", "type": "panel", "cards": [CARD]},
+            # A dashboard of one's own: a thermostat card per room
+            {"title": "Pièces", "path": "pieces", "type": "sections", "max_columns": 3, "sections": [
+                {"type": "grid", "cards": [{"type": "custom:chauffage-thermostat-card", "entity": t["entity"]}]}
+                for t in CARD["thermostats"]
+            ]},
+        ],
     })
 
 

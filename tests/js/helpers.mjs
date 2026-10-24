@@ -1,6 +1,6 @@
 // Fake hass (with the Chauffage integration) and card factory for the tests.
 import './setup.mjs';
-import { ChauffageProgrammeCard, ChauffageMoreInfo, INTEGRATION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard, INTEGRATION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 export const WEEKDAY = ['00:00 eco', '06:30 comfort', '08:30 eco', '17:30 comfort', '22:30 eco'];
 export const WEEKEND = ['00:00 eco', '08:00 comfort', '23:00 eco'];
@@ -50,6 +50,14 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
     use_presets: true,
     // What each thermostat follows now and the next different preset (computed by the integration)
     planned,
+    // The entities and the device the cards open (#39)
+    schedule_entities: Object.fromEntries(schedules.map((s) => [s.id, `switch.chauffage_schedule_${s.id}`])),
+    thermostat_entities: Object.fromEntries(Object.keys(out).map((climate) => {
+      const name = climate.split('.')[1];
+      return [climate, { control: `switch.${name}_control`, override: `binary_sensor.${name}_override`, planned_preset: `sensor.${name}_planned_preset` }];
+    })),
+    schedule_select: 'select.chauffage_schedule',
+    device_id: 'chauffage-device',
   };
 }
 export const INTEGRATION_DATA = () => integrationData();
@@ -72,6 +80,8 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, planned, lo
       'climate.salon': { state: 'heat', attributes: { friendly_name: 'Salon', current_temperature: 20, preset_mode: 'eco' }, last_updated: '1' },
       'climate.bureau': { state: 'heat', attributes: { friendly_name: 'Bureau', current_temperature: 19, preset_mode: 'comfort' }, last_updated: '1' },
     },
+    // Entity registry as HA's frontend has it: the salon has a device, the bureau none
+    entities: { 'climate.salon': { entity_id: 'climate.salon', device_id: 'salon-device' }, 'climate.bureau': { entity_id: 'climate.bureau' } },
     events,
     services: { chauffage: { set_override: {}, clear_override: {} } },
     locale,
@@ -138,4 +148,4 @@ export function cleanup() {
   try { localStorage.clear(); } catch (e) { /* ignore */ }
 }
 
-export { ChauffageProgrammeCard, ChauffageMoreInfo };
+export { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard };

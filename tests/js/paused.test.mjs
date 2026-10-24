@@ -56,24 +56,14 @@ describe('a paused thermostat in the card', () => {
     assert.ok(bureau.querySelector('.now'));
   });
 
-  test('the row menu is about the day only: pausing and resuming are in the "Now" view (#39)', () => {
+  test('today\'s row menu offers no temporary setpoint on it, and no pausing on any (#39)', () => {
     const card = createCard(pausedSalon());
-    for (const climate of ['climate.salon', 'climate.bureau']) {
-      const menu = openMenu(card, climate, 0);
-      assert.equal(menu.querySelector('[data-act="pause"], [data-act="resume"], [data-act="override-new"]'), null);
-      openMenu(card, climate, 0); // closes it
-    }
-  });
-
-  test('in the "Now" view: paused, with a button to resume it and no temporary setpoint', () => {
-    const hass = pausedSalon();
-    const card = createCard(hass);
-    q(card, '[data-act="view"][data-view="now"]').click();
-    const salon = q(card, '.now-row[data-climate="climate.salon"]');
-    assert.ok(salon.classList.contains('paused'));
-    assert.equal(salon.querySelector('[data-act="override-new"]'), null);
-    salon.querySelector('[data-act="resume"]').click();
-    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
+    const salon = openMenu(card, 'climate.salon', 0);
+    assert.equal(salon.querySelector('[data-act="override-new"], [data-act="pause"], [data-act="resume"]'), null);
+    openMenu(card, 'climate.salon', 0); // closes it
+    const bureau = openMenu(card, 'climate.bureau', 0);
+    assert.ok(bureau.querySelector('[data-act="override-new"]'));
+    assert.equal(bureau.querySelector('[data-act="pause"]'), null); // in the "Thermostats" view
   });
 
   test('its weeks can still be edited and saved, which does not resume it', async () => {
@@ -93,7 +83,7 @@ describe('a paused thermostat in the card', () => {
     const card = createCard(hass);
     assert.ok(q(card, '.paused-note'));
     assert.equal(q(card, '[data-act="resume"]'), null);
-    q(card, '[data-act="view"][data-view="now"]').click();
+    q(card, '[data-act="view"][data-view="thermostats"]').click();
     assert.equal(q(card, '[data-act="pause"], [data-act="resume"]'), null);
   });
 

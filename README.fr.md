@@ -16,15 +16,16 @@ préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versati
 - des **plannings** que vous créez, dupliquez et nommez (*Normal*, *Télétravail*, *Vacances*,
   *Absent*…), chacun avec une semaine de 7 jours par thermostat ; un seul est actif, changé
   depuis la carte ou par des automatisations ;
-- carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : une vue *Maintenant* (ce
-  que fait chaque thermostat, pourquoi et jusqu'à quand, une consigne temporaire en un geste),
-  glisser les horaires, copier / coller des journées, plusieurs thermostats par journée, ouvrir la
-  fenêtre de détail d'un thermostat depuis la carte, voir la température mesurée des 7 derniers
-  jours tracée sur chaque journée ; pensée aussi pour le téléphone ;
+- carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : glisser les horaires,
+  copier / coller des journées, plusieurs thermostats par journée, voir la température mesurée
+  des 7 derniers jours tracée sur chaque journée ; pensée aussi pour le téléphone ; chaque
+  thermostat, planning ou réglage qu'elle nomme s'ouvre dans Home Assistant ;
+- une **carte thermostat** (`custom:chauffage-thermostat-card`) pour composer vos propres tableaux
+  de bord : un thermostat, ce qu'il fait, pourquoi et jusqu'à quand, la journée, une consigne
+  temporaire ;
 - **dérogations** : une consigne changée à la main devient temporaire (2 h par défaut),
   visible et ajustable (sa fin, et sa valeur : un préréglage ou une température) sur la carte
-  et dans la fenêtre de détail du thermostat, qui peuvent aussi en créer une (la carte depuis sa
-  vue *Maintenant*), puis le
+  et dans la fenêtre de détail du thermostat, qui peuvent aussi en créer une, puis le
   thermostat reprend son programme.
   Revenir au préréglage ou à la consigne du créneau, même avec la molette du thermostat,
   reprend le programme tout de suite.
@@ -51,6 +52,18 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
    `language: fr` en force un.
    Les thermostats, leurs noms et les autres options se règlent aussi dans l'éditeur visuel de la
    carte (Modifier la carte) ; `language` se règle seulement en YAML.
+4. Si vous le souhaitez, une carte **Thermostat programmé** par pièce, à placer dans vos propres
+   tableaux de bord (elle est proposée pour un thermostat dans *Ajouter une carte* → *Par
+   entité*) :
+   ```yaml
+   type: custom:chauffage-thermostat-card
+   entity: climate.salon
+   name: Salon  # facultatif
+   ```
+   Elle montre la température mesurée, ce que fait le thermostat, pourquoi et jusqu'à quand
+   (« Normal · Éco jusqu'à 17:30, puis Confort »), la journée, une consigne temporaire à créer ou
+   modifier, *Mettre en pause*, et ouvre le thermostat, son planning, son interrupteur
+   *Pilotage* et son appareil.
 
 Nécessite Home Assistant 2025.1 ou plus récent. Cette version minimale ne monte que quand une
 API de Home Assistant l'impose, dans une version mineure annoncée dans le
@@ -139,10 +152,12 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
   propres préréglages, ou une température.
 - **Tout se règle dans la carte**, vue *Préréglages* (administrateurs) : un tableau avec une
   colonne par préréglage, du plus froid au plus chaud, et une ligne par thermostat. L'en-tête
-  de colonne est le préréglage (nom, couleur, température par défaut ; ajout, suppression) ;
-  chaque case indique ce que fait ce thermostat avec lui : automatique, un de ses propres
-  préréglages (⟲), ou sa propre température (●). Un clic sur une case ouvre un popover pour la
-  modifier, comme pour les créneaux.
+  de colonne est le préréglage : son nom, sa couleur et sa température par défaut, modifiés dans
+  un seul popover, avec *Supprimer…* ; *+ Ajouter un préréglage* est sous le tableau. Chaque case
+  donne la température et dit ce qu'elle est : « son préréglage *Confort* », « réglé ici » ou
+  « par défaut » (« ? » tant qu'un préréglage propre au thermostat n'a pas servi). Une case ouvre
+  un popover pour la modifier, comme pour les créneaux, avec un lien vers l'appareil du
+  thermostat, où se règlent ses propres préréglages.
 - **Températures affichées** : le tableau et la légende affichent la température de chaque
   préréglage. Aucun attribut standard ne donne celle d'un préréglage propre au thermostat :
   l'intégration retient la consigne vue quand il était actif.
@@ -154,9 +169,9 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
 
 Un thermostat est **programmé** dès qu'il est dans une carte. Il le reste quand on le retire d'une
 carte (une autre carte peut l'afficher), jusqu'à ce qu'on l'oublie. En pause, il reste programmé : il
-garde ses semaines, mais Chauffage ne le pilote plus. La vue *Maintenant* de la carte met en pause et
-reprend les thermostats de la carte, et liste les autres thermostats programmés, en pause ou non, y
-compris ceux qui ne sont dans aucune carte. Si son
+garde ses semaines, mais Chauffage ne le pilote plus. La vue *Thermostats* de la carte liste tous
+les thermostats programmés, en pause ou non, y compris ceux qui ne sont dans aucune carte, avec leur
+interrupteur *Pilotage* et leur appareil. Si son
 entité est supprimée de Home Assistant, Paramètres → Réparations propose de l'oublier.
 
 Tout ce que sait Chauffage se voit et s'utilise dans Home Assistant, sans la carte : sur les pages

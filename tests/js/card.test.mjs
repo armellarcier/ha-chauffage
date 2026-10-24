@@ -119,6 +119,20 @@ describe('activating a schedule', () => {
     assert.match(bar(card).textContent, /Activer « Absent »/);
   });
 
+  test('the active schedule\'s name opens the select of the active schedule (#39)', () => {
+    let received = null;
+    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = createCard(fakeHass({ schedule: 'Normal' }));
+      tab(card, 'away').click();
+      bar(card).querySelector('[data-more-info="select.chauffage_schedule"]').click();
+      assert.equal(received, 'select.chauffage_schedule');
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
+  });
+
   test('the button activates the schedule in the integration', async () => {
     const hass = fakeHass({ schedule: 'Normal' });
     const card = createCard(hass);
@@ -273,7 +287,6 @@ describe('choosing the displayed thermostats', () => {
     const text = (id) => chip(card, id).textContent.replace(/\s+/g, ' ').trim();
     assert.equal(text('climate.salon'), 'Salon'); // no temperature nor preset: the "Now" view says it
     assert.equal(text('climate.bureau'), 'Bureau ⏱');
-    assert.equal(card.shadowRoot.querySelector('.chip-open'), null);
   });
 });
 
@@ -312,6 +325,19 @@ describe('thermostat more-info dialog', () => {
   const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
   beforeEach(() => { received = null; document.addEventListener('hass-more-info', intercept); });
   afterEach(() => document.removeEventListener('hass-more-info', intercept));
+
+  test('the chip\'s button opens the thermostat without changing the selection', () => {
+    const card = createCard(fakeHass());
+    card.shadowRoot.querySelector('.chip[data-climate="climate.bureau"] .chip-open').click();
+    assert.equal(received, 'climate.bureau');
+    assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
+  });
+
+  test('the name in a paused notice opens the thermostat (#39)', () => {
+    const card = createCard(fakeHass({ paused: ['climate.salon'] }));
+    card.shadowRoot.querySelector('.paused-note [data-more-info="climate.salon"]').click();
+    assert.equal(received, 'climate.salon');
+  });
 
   test('the row name opens the thermostat', () => {
     const card = createCard(fakeHass());
