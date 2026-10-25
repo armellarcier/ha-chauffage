@@ -1,6 +1,6 @@
 // The "Thermostats" view: every thermostat the integration schedules, the cards only show them;
 // pause, resume, forget (docs/decisions.md, "Scheduled thermostats", #27).
-import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -94,6 +94,15 @@ describe('the "Thermostats" view', () => {
     } finally {
       document.removeEventListener('hass-more-info', intercept);
     }
+  });
+
+  test('an entity renamed in Home Assistant: its link follows at once', () => {
+    const hass = setup();
+    const card = open(hass);
+    const data = integrationData({ weeks: WEEKS, paused: ['climate.cuisine'] });
+    data.thermostat_entities['climate.salon'].control = 'switch.salon_pilotage';
+    hass.push(data); // the integration tells the cards (ENTITIES), nothing else changed
+    assert.ok(row(card, 'climate.salon').querySelector('[data-more-info="switch.salon_pilotage"]'));
   });
 
   test('the Chauffage device, with the switches of the schedules and the select, opens from it (admins)', () => {

@@ -264,6 +264,33 @@ describe('dragging the end of an override', () => {
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:30:00.000Z');
   });
 
+  test('in the card\'s popover: the end typed is sent when tapping outside the card, and the popover closes', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-end]');
+    typed(input, '12:00');
+    // As a browser does: the pointer goes down outside (the popovers close), then the field loses the focus
+    document.body.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+    input.blur();
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+    assert.equal($(card, '.override-ed'), null);
+  });
+
+  test('in the card\'s popover: an override ended elsewhere while its end is typed goes once the field is left', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-end]');
+    typed(input, '12:00');
+    hass.push(integrationData({ overrides: {} })); // resumed from another device
+    input.blur();
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal($(card, '.override-ed'), null);
+    assert.equal($(card, '.bar .override'), null);
+  });
+
   test('in the card\'s popover: the end being typed keeps its field through the redraws, sent on leaving it', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });

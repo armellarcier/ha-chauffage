@@ -267,3 +267,12 @@ async def test_the_card_is_told_an_entity_renamed_by_the_user(bench: Bench):
     er.async_get(bench.hass).async_update_entity("switch.salon_control", new_entity_id="switch.salon_pilotage")
     await bench.hass.async_block_till_done()
     assert sent and sent[-1]["climate.salon"]["control"] == "switch.salon_pilotage"
+
+
+async def test_the_card_is_told_the_active_schedule_select_renamed_by_the_user(bench: Bench):
+    await start(bench)
+    sent = []
+    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.snapshot()["schedule_select"]))
+    er.async_get(bench.hass).async_update_entity("select.chauffage_schedule", new_entity_id="select.planning_actif")
+    await bench.hass.async_block_till_done()
+    assert sent and sent[-1] == "select.planning_actif"

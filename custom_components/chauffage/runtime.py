@@ -305,8 +305,7 @@ class ChauffageRuntime:
             "schedule_entities": self.schedule_entities(),
             # The cards open the entities and the device they mention (#39)
             "thermostat_entities": self.thermostat_entities(),
-            "schedule_select": er.async_get(self.hass).async_get_entity_id(
-                "select", DOMAIN, f"{self.entry.entry_id}_schedule"),
+            "schedule_select": self.schedule_select(),
             "device_id": self.device_id(),
         }
 
@@ -335,8 +334,12 @@ class ChauffageRuntime:
         device = dr.async_get(self.hass).async_get_device(identifiers={(DOMAIN, self.entry.entry_id)})
         return device.id if device else None
 
+    def schedule_select(self) -> str | None:
+        """The active-schedule select's entity id."""
+        return er.async_get(self.hass).async_get_entity_id("select", DOMAIN, f"{self.entry.entry_id}_schedule")
+
     def _card_entities(self) -> set[str]:
-        ids = set(self.schedule_entities().values())
+        ids = {*self.schedule_entities().values(), self.schedule_select()}
         for entities in self.thermostat_entities().values():
             ids.update(entities.values())
         return ids

@@ -839,7 +839,9 @@ function makeDataSource(hass, available) {
     revision: d ? d.revision : null,
     stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides),
       schedule: JSON.stringify([d.active_schedule, schedules.map((s) => scheduleIcon(s.id))]),
-      rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]), thermostats: JSON.stringify(d.thermostats) } : {},
+      rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]), thermostats: JSON.stringify(d.thermostats),
+      // The ids of what the cards open (an entity renamed in HA)
+      entities: JSON.stringify([d.thermostat_entities, d.schedule_entities, d.schedule_select, d.device_id]) } : {},
     schedules: () => schedules.map((s) => s.id),
     scheduleName: (id) => (schedules.find((s) => s.id === id) || { name: id }).name,
     activeSchedule: () => (d ? d.active_schedule : null),
@@ -1211,6 +1213,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._thermostatsStamp = src.stamps.thermostats;
       need = true;
     }
+    // An entity the card opens renamed, or a thermostat given another device: redraw its links
+    const links = `${src.stamps.entities} ${this._thermostats.map((t) => deviceOf(hass, t.entity)).join(' ')}`;
+    if (links !== this._linksStamp && !this._drag && !this._overrideDrag) {
+      this._linksStamp = links;
+      need = true;
+    }
     // Activation rules changed, or one became true or false: redraw the "Rules" view
     if (src.stamps.rules !== this._rulesStamp) {
       this._rulesStamp = src.stamps.rules;
@@ -1465,24 +1473,27 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
-  // A time typed in the popover's end field: its next occurrence
-  _sendOverrideEnd(value) {
+  // A time typed in the popover's end field, for that thermostat: its next occurrence
+  _sendOverrideEnd(climate, value) {
     this._endTyped = null;
-    if (this._overrideSel) this._setOverrideEnd(this._overrideSel.climate, nextAtMinutes(this._snap(toMin(value))));
+    this._setOverrideEnd(climate, nextAtMinutes(this._snap(toMin(value))));
   }
 
-  // The end field left (or Enter): the time typed is sent, or the redraws held back are done
+  // The end field left (or Enter): the time typed is sent (for the thermostat it was typed for,
+  // even if a tap outside the card closed the popover meanwhile), then the redraws held back are
+  // done (the popover closed, an override ended elsewhere…)
   _overrideEndDone() {
-    const value = this._endTyped;
+    const typed = this._endTyped;
     const later = this._redrawLater;
     this._redrawLater = false;
     this._endTyped = null; // before blur(), which comes back here
-    if (value) {
+    if (typed) {
       // Sent from the field still focused (Enter): the redraw that follows must happen
       const active = this.shadowRoot.activeElement;
       if (active && active.blur) active.blur();
-      this._sendOverrideEnd(value);
-    } else if (later) this._render();
+      this._sendOverrideEnd(typed.climate, typed.value);
+    }
+    if (later) this._render();
   }
 
   // New end (Date): at least one step after now
@@ -2480,8 +2491,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._setEdge(el.dataset.edge, el.value);
       } else if (el.hasAttribute('data-override-end') && el.value && this._overrideSel) {
         // Typed (the field changes at each digit): sent on leaving the field or with Enter
-        if (root.activeElement === el) this._endTyped = el.value;
-        else this._sendOverrideEnd(el.value);
+        if (root.activeElement === el) this._endTyped = { climate: this._overrideSel.climate, value: el.value };
+        else this._sendOverrideEnd(this._overrideSel.climate, el.value);
       } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), Number(el.value)));
