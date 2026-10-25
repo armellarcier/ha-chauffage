@@ -71,10 +71,10 @@ describe('overrides', () => {
     assert.deepEqual(pieceTimes(pieces), [{ day: 6, start: 10 * 60 + 43, end: 13 * 60 }]);
   });
 
-  test('an override ending in the hour played twice never ends before it starts', () => {
+  test('an override ending in the hour played twice is drawn from its start for its length', () => {
     mock.timers.setTime(new Date('2026-10-25T02:45:00+02:00').getTime());
     const pieces = overridePieces(override('2026-10-25T02:45:00+02:00', '2026-10-25T02:15:00+01:00'));
-    assert.deepEqual(pieceTimes(pieces), [{ day: 6, start: 2 * 60 + 45, end: 2 * 60 + 45 }]);
+    assert.deepEqual(pieceTimes(pieces), [{ day: 6, start: 2 * 60 + 45, end: 3 * 60 + 15 }]);
   });
 
   test('on the day the clocks go forward, an override is placed at its time of day', () => {

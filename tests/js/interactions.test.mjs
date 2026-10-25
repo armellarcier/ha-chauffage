@@ -134,33 +134,83 @@ describe('dragging the end of an override', () => {
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T12:00:00.000Z');
   });
 
-  describe('on the day the clocks go back (#43)', () => {
-    const sunday = { kind: 'temperature', value: 21.5, start: '2026-10-25T10:00:00+01:00', end: '2026-10-25T11:30:00+01:00' };
-    beforeEach(() => mock.timers.setTime(new Date('2026-10-25T10:00:00+01:00').getTime()));
-
-    test('in the card: the end dropped at 13:00 is 13:00', () => {
-      const hass = fakeHass({ overrides: { 'climate.salon': sunday } });
+  describe('on the days the clocks change (#43)', () => {
+    const at = (iso) => mock.timers.setTime(new Date(iso).getTime());
+    const sunday = (start, end) => ({ 'climate.salon': { kind: 'temperature', value: 21.5, start, end } });
+    const dragInCard = (hass, toMinutes) => {
       const card = createCard(hass, { show: ['climate.salon'] });
-      const bar = geometry($(card, '.bar[data-climate="climate.salon"][data-day="6"]'));
-      const handle = bar.querySelector('.override-handle');
-      pointer(handle, 'pointerdown', 690);
-      pointer(handle, 'pointermove', 13 * 60);
+      const handle = geometry($(card, '.bar[data-climate="climate.salon"][data-day="6"]')).querySelector('.override-handle');
+      pointer(handle, 'pointerdown');
+      pointer(handle, 'pointermove', toMinutes);
       pointer(handle, 'pointerup');
-      assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-25T12:00:00.000Z');
-    });
-
-    test('in the more-info block: the end dropped at 13:00 is 13:00', () => {
-      const hass = fakeHass({ overrides: { 'climate.salon': sunday } });
+    };
+    const moreInfo = (hass) => {
       const el = document.createElement('chauffage-moreinfo');
       document.body.appendChild(el);
       el.entity = 'climate.salon';
       el.hass = hass;
-      const handle = el.shadowRoot.querySelector('.override-handle');
+      return el;
+    };
+    const dragInMoreInfo = (hass, toMinutes) => {
+      const handle = moreInfo(hass).shadowRoot.querySelector('.override-handle');
       geometry(handle.closest('.bar'));
-      pointer(handle, 'pointerdown', 690);
-      pointer(handle, 'pointermove', 13 * 60);
+      pointer(handle, 'pointerdown');
+      pointer(handle, 'pointermove', toMinutes);
       pointer(handle, 'pointerup');
-      assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-25T12:00:00.000Z');
+    };
+    const end = (hass) => new Date(hass.events.at(-1).override.end).toISOString();
+
+    test('clocks back, in the card: the end dropped at 13:00 is 13:00', () => {
+      at('2026-10-25T10:00:00+01:00');
+      const hass = fakeHass({ overrides: sunday('2026-10-25T10:00:00+01:00', '2026-10-25T11:30:00+01:00') });
+      dragInCard(hass, 13 * 60);
+      assert.equal(end(hass), '2026-10-25T12:00:00.000Z');
+    });
+
+    test('clocks back, in the more-info block: the end dropped at 13:00 is 13:00', () => {
+      at('2026-10-25T10:00:00+01:00');
+      const hass = fakeHass({ overrides: sunday('2026-10-25T10:00:00+01:00', '2026-10-25T11:30:00+01:00') });
+      dragInMoreInfo(hass, 13 * 60);
+      assert.equal(end(hass), '2026-10-25T12:00:00.000Z');
+    });
+
+    // 02:00-03:00 is played twice: during the second time, 02:45 is the one still to come
+    test('clocks back, in the hour played twice: the end dropped is not the 02:45 already past', () => {
+      at('2026-10-25T02:20:00+01:00');
+      const hass = fakeHass({ overrides: sunday('2026-10-25T02:00:00+01:00', '2026-10-25T02:40:00+01:00') });
+      dragInCard(hass, 2 * 60 + 45);
+      assert.equal(end(hass), '2026-10-25T01:45:00.000Z'); // 02:45 winter time
+    });
+
+    test('clocks back, in the hour played twice: the end time field is not the 02:45 already past', () => {
+      at('2026-10-25T02:20:00+01:00');
+      const hass = fakeHass({ overrides: sunday('2026-10-25T02:00:00+01:00', '2026-10-25T02:40:00+01:00') });
+      const input = moreInfo(hass).shadowRoot.querySelector('input[data-end]');
+      input.value = '02:45';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      assert.equal(end(hass), '2026-10-25T01:45:00.000Z');
+    });
+
+    test('clocks forward, in the card: the end dropped at 13:00 is 13:00', () => {
+      at('2026-03-29T10:00:00+02:00');
+      const hass = fakeHass({ overrides: sunday('2026-03-29T10:00:00+02:00', '2026-03-29T11:30:00+02:00') });
+      dragInCard(hass, 13 * 60);
+      assert.equal(end(hass), '2026-03-29T11:00:00.000Z');
+    });
+
+    // 02:00-03:00 does not exist: the end dropped there is when the clocks went forward
+    test('clocks forward, in the card: the end dropped in the hour skipped is 03:00', () => {
+      at('2026-03-29T01:00:00+01:00');
+      const hass = fakeHass({ overrides: sunday('2026-03-29T01:00:00+01:00', '2026-03-29T01:30:00+01:00') });
+      dragInCard(hass, 2 * 60 + 30);
+      assert.equal(end(hass), '2026-03-29T01:00:00.000Z'); // 03:00 summer time
+    });
+
+    test('clocks forward, in the more-info block: the end dropped in the hour skipped is 03:00', () => {
+      at('2026-03-29T01:00:00+01:00');
+      const hass = fakeHass({ overrides: sunday('2026-03-29T01:00:00+01:00', '2026-03-29T01:30:00+01:00') });
+      dragInMoreInfo(hass, 2 * 60 + 30);
+      assert.equal(end(hass), '2026-03-29T01:00:00.000Z');
     });
   });
 
