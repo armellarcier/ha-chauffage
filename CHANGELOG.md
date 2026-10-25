@@ -19,8 +19,11 @@ Home Assistant, and phones. **Does not migrate stored data.**
   card*, suggested for a thermostat): one thermostat, to place in your own dashboards. The
   measured temperature, what it does now (preset and setpoint, or the temporary setpoint), why and
   until when ("Follows the schedule: Eco until 17:30, then Comfort"), today with the current
-  time, a temporary setpoint to set or change, the week, *Pause*. Visual editor (thermostat,
-  name).
+  time, a temporary setpoint to set or change, the week, *Pause* or *Resume*. Visual editor
+  (thermostat, name). It is the block of the thermostat's more-info dialog under a header.
+- **The thermostat's more-info dialog** gets the same foot as the card: its *Control*, *Override*
+  and *Planned preset* entities and its device open from it, and *Pause*, or *Resume* in its
+  place (admins).
 - **Everything a card names opens in Home Assistant**: the thermostats (chips, rows, menus,
   notices, *Presets* and *Thermostats* views), a schedule's switch (its `⋮` menu, the thermostat
   card), the active-schedule select, each thermostat's *Control*, *Override* and *Planned preset*

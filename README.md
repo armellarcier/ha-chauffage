@@ -61,7 +61,8 @@ data automatically.
    ```
    It shows the measured temperature, what the thermostat does now, why and until when
    ("Normal · Eco until 17:30, then Comfort"), today, a temporary setpoint to set or change,
-   *Pause*, and opens the thermostat, its schedule, its *Control* switch and its device.
+   *Pause* (or *Resume*), and opens the thermostat, its schedule, its *Control* switch and its
+   device. The thermostat's more-info dialog shows the same, under its controls.
 
 Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Assistant API
 requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,

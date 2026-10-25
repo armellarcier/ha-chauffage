@@ -111,8 +111,23 @@ describe('the more-info block of a paused thermostat', () => {
     const el = block(hass, 'climate.salon');
     assert.match(text(el.shadowRoot), /En pause : Chauffage ne le pilote pas\./);
     assert.equal(el.shadowRoot.querySelector('[data-new-override]'), null);
+    // At the foot, in place of "Pause" (#39)
+    assert.equal(el.shadowRoot.querySelector('[data-pause]'), null);
+    assert.equal(el.shadowRoot.querySelector('.status [data-resume]'), null);
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Reprendre');
     el.shadowRoot.querySelector('[data-resume]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
+  });
+
+  test('an active thermostat is paused from the foot of the block (admins)', () => {
+    const hass = pausedSalon();
+    const el = block(hass, 'climate.bureau');
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-pause]')), 'Mettre en pause');
+    el.shadowRoot.querySelector('[data-pause]').click();
+    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
+    hass.user = { is_admin: false };
+    el.hass = { ...hass }; // a user who is not an admin: no pause, no resume
+    assert.equal(el.shadowRoot.querySelector('[data-pause], [data-resume]'), null);
   });
 
   test('a resume refused by the integration says why', async () => {

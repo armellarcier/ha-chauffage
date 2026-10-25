@@ -77,15 +77,15 @@ describe('the thermostat card', () => {
     assert.deepEqual(opened, ['climate.salon', 'switch.chauffage_schedule_normal']);
   });
 
-  test('its Control switch and its device open (the device for admins)', () => {
+  test('its Control switch and its device open from the foot of its block (the device for admins)', () => {
     const card = cardFor(setup());
-    $(card, '.tc-links [data-more-info="switch.salon_control"]').click();
+    block(card).querySelector('.foot [data-more-info="switch.salon_control"]').click();
     assert.deepEqual(opened, ['switch.salon_control']);
-    $(card, '.tc-links [data-device="salon-device"]').click();
+    block(card).querySelector('.foot [data-device="salon-device"]').click();
     assert.equal(window.location.pathname, '/config/devices/device/salon-device');
     const hass = setup();
     hass.user = { is_admin: false };
-    assert.equal($(cardFor(hass), '[data-device]'), null);
+    assert.equal(block(cardFor(hass)).querySelector('[data-device]'), null);
   });
 
   test('a temporary setpoint, for the override duration', () => {
@@ -105,17 +105,19 @@ describe('the thermostat card', () => {
     assert.match(text(block(card)), /Reprendre le planning/);
   });
 
-  test('pauses and resumes it (admins); a paused thermostat says so', () => {
+  test('pauses it, then Resume in place of Pause (admins); a paused thermostat says so', () => {
     const hass = setup();
     const card = cardFor(hass);
-    $(card, '[data-act="pause"]').click();
+    block(card).querySelector('.foot [data-pause]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: true });
     hass.push({ ...integrationData({ weeks: WEEKS, planned: PLANNED, paused: ['climate.salon'] }) });
     assert.match(text(block(card)), /En pause : Chauffage ne le pilote pas/);
-    assert.equal($(card, '[data-act="pause"]'), null);
+    assert.equal(block(card).querySelector('[data-pause]'), null);
+    block(card).querySelector('.foot [data-resume]').click();
+    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
     const other = setup();
     other.user = { is_admin: false };
-    assert.equal($(cardFor(other), '[data-act="pause"]'), null);
+    assert.equal(block(cardFor(other)).querySelector('[data-pause]'), null);
   });
 
   test('a thermostat Chauffage does not schedule yet says how to schedule it', () => {
@@ -133,7 +135,7 @@ describe('the thermostat card', () => {
   test('in English', () => {
     const card = cardFor(setup({ locale: { language: 'en-US', time_format: 'language', number_format: 'language', first_weekday: 'language' } }));
     assert.equal(text($(card, '.tc-state')), 'Eco · 17°');
-    assert.match(text($(card, '.tc-links')), /Control/);
+    assert.match(text(block(card).querySelector('.foot')), /Control/);
   });
 });
 

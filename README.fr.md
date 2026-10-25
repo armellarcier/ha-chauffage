@@ -62,8 +62,9 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
    ```
    Elle montre la température mesurée, ce que fait le thermostat, pourquoi et jusqu'à quand
    (« Normal · Éco jusqu'à 17:30, puis Confort »), la journée, une consigne temporaire à créer ou
-   modifier, *Mettre en pause*, et ouvre le thermostat, son planning, son interrupteur
-   *Pilotage* et son appareil.
+   modifier, *Mettre en pause* (ou *Reprendre*), et ouvre le thermostat, son planning, son
+   interrupteur *Pilotage* et son appareil. La fenêtre de détail du thermostat montre la même
+   chose, sous ses commandes.
 
 Nécessite Home Assistant 2025.1 ou plus récent. Cette version minimale ne monte que quand une
 API de Home Assistant l'impose, dans une version mineure annoncée dans le

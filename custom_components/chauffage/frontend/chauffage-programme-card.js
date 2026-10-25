@@ -3606,7 +3606,9 @@ class ChauffageMoreInfo extends HTMLElement {
     if (this._key && overrides !== this._key[2]) this._pending = undefined;
     if (this._key && thermostats !== this._key[4]) this._error = null; // paused or resumed: a resume error is over
     // Redraw only when relevant data changed (or every new minute)
-    const key = [s[this._entity], weeks, overrides, schedule, thermostats, Math.floor(Date.now() / 60000), this._loc.signature];
+    // (an admin pauses and opens devices; the registry gives the device)
+    const key = [s[this._entity], weeks, overrides, schedule, thermostats, Math.floor(Date.now() / 60000), this._loc.signature,
+      !hass.user || !!hass.user.is_admin, hass.entities && hass.entities[this._entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
     this._key = key;
@@ -3720,8 +3722,8 @@ class ChauffageMoreInfo extends HTMLElement {
       }
     } else if (dataSource(this._hass).paused(this._entity)) {
       this._creating = false;
-      status = `<div class="status"><div class="line"><span class="muted">${esc(t('pausedInfo'))}</span>
-        ${dataSource(this._hass).editable ? `<button data-resume>${esc(t('resumeShort'))}</button>` : ''}</div></div>`;
+      // Resume is at the foot, in place of Pause
+      status = `<div class="status"><div class="line"><span class="muted">${esc(t('pausedInfo'))}</span></div></div>`;
     } else {
       // "Temporary setpoint…" unfolds the same controls, to set one
       const value = this._creating ? overrideValueHtml(null, dataSource(this._hass), this._entity, attrs, this._loc) : null;
@@ -3746,12 +3748,29 @@ class ChauffageMoreInfo extends HTMLElement {
         ${endDay}
         <div class="ticks">${ticks}</div>
         <details><summary>${esc(t('week'))}</summary><div class="week">${rows}</div></details>
+        ${this._footHtml()}
       </div>`;
     // Keeps the "week" section open / closed across redraws
     const det = this.shadowRoot.querySelector('details');
     det.open = !!this._weekOpen;
     det.addEventListener('toggle', () => { this._weekOpen = det.open; });
     if (typed !== null) restoreTyped(this.shadowRoot, OVERRIDE_TEMPERATURE, typed);
+  }
+
+  // The foot: the thermostat's own entities (its control, i.e. the pause; its override; what it
+  // plans) and its device open in Home Assistant; Pause, or Resume in its place (admins) (#39)
+  _footHtml() {
+    const t = this._loc.t;
+    const src = dataSource(this._hass);
+    const links = [['control', 'controlEntity'], ['override', 'overrideEntity'], ['planned_preset', 'plannedEntity']]
+      .map(([key, label]) => src.thermostatEntity(this._entity, key) && entityLinkHtml(src.thermostatEntity(this._entity, key), t(label)))
+      .filter(Boolean)
+      .concat(deviceLinkHtml(this._hass, deviceOf(this._hass, this._entity), t('device')) || [])
+      .join(' ');
+    const paused = src.paused(this._entity);
+    const button = !src.editable ? ''
+      : paused ? `<button data-resume>${esc(t('resumeShort'))}</button>` : `<button data-pause>${esc(t('pauseShort'))}</button>`;
+    return links || button ? `<div class="foot"><span class="links">${links}</span>${button}</div>` : '';
   }
 
   _onClick(e) {
@@ -3761,12 +3780,19 @@ class ChauffageMoreInfo extends HTMLElement {
       openMoreInfo(this, link.dataset.moreInfo);
       return;
     }
+    const device = e.target.closest('[data-device]');
+    if (device) {
+      // In the more-info dialog: closed first, the device page under it otherwise
+      openMoreInfo(this, null);
+      openDevice(device.dataset.device);
+      return;
+    }
     const b = e.target.closest('button');
     if (!b || !this._hass) return;
     if (b.hasAttribute('data-new-override')) { this._creating = !this._creating; return this._render(); }
     this._error = null;
-    if (b.hasAttribute('data-resume')) {
-      return dataSource(this._hass).setPaused(this._entity, false).catch((err) => {
+    if (b.hasAttribute('data-resume') || b.hasAttribute('data-pause')) {
+      return dataSource(this._hass).setPaused(this._entity, b.hasAttribute('data-pause')).catch((err) => {
         this._error = this._loc.t('error', { message: err.message || err.code || err });
         this._render();
       });
@@ -3838,6 +3864,9 @@ const MORE_INFO_STYLE = `
   :host([embedded]) .wrap { padding:0; border-top:0; }
   .mi-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; text-decoration-color:rgba(127,127,127,.6); }
   .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
+  .foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:12px; padding-top:10px;
+    border-top:1px solid var(--divider-color); }
+  .foot .links { display:flex; flex-wrap:wrap; gap:4px 12px; flex:1 1 auto; font-size:.88em; color:var(--secondary-text-color); }
   .title { font-weight:600; margin-bottom:8px; }
   .muted { color:var(--secondary-text-color); font-weight:normal; font-size:.9em; }
   .status { font-size:.92em; margin-bottom:10px; }
@@ -3906,15 +3935,9 @@ const THERMOSTAT_CARD_STYLE = `
     font-size:.88em; font-weight:500; white-space:nowrap; background:var(--secondary-background-color); }
   .tc-state i { width:10px; height:10px; border-radius:3px; flex:none; }
   .tc-state.override { color:#fff; background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
-  .tc-foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:12px; padding-top:10px;
-    border-top:1px solid var(--divider-color); }
-  .tc-links { display:flex; flex-wrap:wrap; gap:4px 12px; flex:1 1 auto; font-size:.88em; color:var(--secondary-text-color); }
   .mi-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; text-decoration-color:rgba(127,127,127,.6); }
   .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
-  .btn { font:inherit; font-size:.88em; padding:5px 12px; border-radius:8px; cursor:pointer;
-    border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); }
   .msg { color:var(--secondary-text-color); font-size:.92em; }
-  .msg.error { color:var(--error-color,#db4437); margin-top:8px; }
 `;
 
 class ChauffageThermostatCard extends HTMLElement {
@@ -4009,18 +4032,9 @@ class ChauffageThermostatCard extends HTMLElement {
       this.shadowRoot.innerHTML = card(`${head}<div class="msg">${esc(t('notScheduled'))}</div>`);
       return;
     }
-    // Its own entities and its device: the pause (Control), the override, what it plans
-    const paused = src.paused(entity);
-    const links = [
-      ['control', 'controlEntity'], ['override', 'overrideEntity'], ['planned_preset', 'plannedEntity'],
-    ].map(([key, label]) => src.thermostatEntity(entity, key) && entityLinkHtml(src.thermostatEntity(entity, key), t(label)))
-      .filter(Boolean)
-      .concat(deviceLinkHtml(hass, deviceOf(hass, entity), t('device')) || [])
-      .join('');
-    const pause = src.editable && !paused ? `<button class="btn" data-act="pause">${esc(t('pauseShort'))}</button>` : '';
-    this.shadowRoot.innerHTML = card(`${head}<chauffage-moreinfo embedded></chauffage-moreinfo>
-      <div class="tc-foot"><span class="tc-links">${links}</span>${pause}</div>
-      ${this._error ? `<div class="msg error">${esc(this._error)}</div>` : ''}`);
+    // The block of the more-info dialog, with its foot: the thermostat's own entities, its device,
+    // Pause or Resume
+    this.shadowRoot.innerHTML = card(`${head}<chauffage-moreinfo embedded></chauffage-moreinfo>`);
     const block = this.shadowRoot.querySelector('chauffage-moreinfo');
     block.entity = entity;
     block.hass = hass;
@@ -4050,15 +4064,6 @@ class ChauffageThermostatCard extends HTMLElement {
   _onClick(e) {
     const link = e.target.closest('[data-more-info]');
     if (link) { openMoreInfo(this, link.dataset.moreInfo); return; }
-    const device = e.target.closest('[data-device]');
-    if (device) { openDevice(device.dataset.device); return; }
-    if (e.target.closest('[data-act="pause"]')) {
-      this._error = null;
-      dataSource(this._hass).setPaused(this._config.entity, true).catch((err) => {
-        this._error = makeLocale(this._hass, this._config.language).t('error', { message: err.message || err.code || err });
-        this._render();
-      });
-    }
   }
 }
 
