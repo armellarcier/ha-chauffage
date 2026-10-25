@@ -63,6 +63,29 @@ describe('overrides', () => {
     ]);
   });
 
+  const pieceTimes = (pieces) => pieces.map(({ day, start, end }) => ({ day, start, end }));
+
+  test('on the day the clocks go back, an override is placed at its time of day (#43)', () => {
+    mock.timers.setTime(new Date('2026-10-25T10:43:00+01:00').getTime()); // Sunday, 25 hours long
+    const pieces = overridePieces(override('2026-10-25T10:43:00+01:00', '2026-10-25T13:00:00+01:00'));
+    assert.deepEqual(pieceTimes(pieces), [{ day: 6, start: 10 * 60 + 43, end: 13 * 60 }]);
+  });
+
+  test('an override ending in the hour played twice is drawn from its start for its length', () => {
+    mock.timers.setTime(new Date('2026-10-25T02:45:00+02:00').getTime());
+    const pieces = overridePieces(override('2026-10-25T02:45:00+02:00', '2026-10-25T02:15:00+01:00'));
+    assert.deepEqual(pieceTimes(pieces), [{ day: 6, start: 2 * 60 + 45, end: 3 * 60 + 15 }]);
+  });
+
+  test('on the day the clocks go forward, an override is placed at its time of day', () => {
+    mock.timers.setTime(new Date('2026-03-29T10:00:00+02:00').getTime()); // Sunday, 23 hours long
+    const pieces = overridePieces(override('2026-03-29T10:00:00+02:00', '2026-03-30T01:00:00+02:00'));
+    assert.deepEqual(pieceTimes(pieces), [
+      { day: 6, start: 10 * 60, end: 24 * 60 },
+      { day: 0, start: 0, end: 60 },
+    ]);
+  });
+
   test('label: temperature or preset name', () => {
     assert.equal(overrideLabel(override('', '', { value: 21.5 })), '21.5 °C');
     assert.equal(overrideLabel({ kind: 'preset', value: 'boost' }), 'Boost');
