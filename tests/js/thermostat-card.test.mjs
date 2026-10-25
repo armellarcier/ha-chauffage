@@ -105,6 +105,23 @@ describe('the thermostat card', () => {
     assert.match(text(block(card)), /Reprendre le planning/);
   });
 
+  test('the end of a temporary setpoint being typed keeps its field while the thermostat reports', () => {
+    const override = { kind: 'temperature', value: 21, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+    const hass = setup({ overrides: { 'climate.salon': override } });
+    const card = cardFor(hass);
+    const input = block(card).querySelector('input[data-end]');
+    input.focus();
+    input.value = '12:00';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const salon = hass.states['climate.salon'];
+    card.hass = { ...hass, states: { ...hass.states, 'climate.salon': { ...salon, attributes: { ...salon.attributes, current_temperature: 20.4 } } } };
+    assert.equal(text($(card, '.tc-temp')), '20,4°'); // the header follows
+    assert.ok(input.isConnected, 'the field is kept');
+    assert.equal(hass.events.filter((m) => m.type === 'chauffage/override/set').length, 0);
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal(new Date(lastCall(hass).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+  });
+
   test('a temporary setpoint at a temperature shows it once, not "17,5 °C · 17,5°"', () => {
     const override = { kind: 'temperature', value: 17.5, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
     const hass = setup({ overrides: { 'climate.salon': override } });

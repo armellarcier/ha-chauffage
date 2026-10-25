@@ -156,7 +156,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
-| The active schedule's name, current and next slot, override, +30 min, drag its end, end time field, resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end) |
+| The active schedule's name, current and next slot, override, +30 min, drag its end, end time field (typed: it keeps its field through the redraws and is sent on leaving it or with Enter, in the card's popover and the thermostat card too), resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end, the end being typed), `C/thermostat-card.test.mjs` |
 | At the foot of the block (#39): the thermostat's *Control*, *Override* and *Planned preset* entities and its device open (the device page closing the dialog, admins); *Pause*, or *Resume* in its place (admins) | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
 | Until when the planned preset really lasts and what comes next, as the planned preset sensor says: the next different preset, even on another day ("Eco until 06:30 (tomorrow), then Comfort", a weekend, "Eco all week"); sent again to the cards when it changes | `I/test_api.py::the_card_is_told_*`, `C/more-info.test.mjs` (until when the preset lasts, the next day, a weekend, all week), `C/i18n.test.mjs` (the more-info block in English) |
 

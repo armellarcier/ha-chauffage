@@ -225,6 +225,58 @@ describe('dragging the end of an override', () => {
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-13T07:00:00.000Z');
   });
+
+  // Typing a time changes the field at each digit: sent at once, the redraw took the field away
+  const typed = (input, value) => {
+    input.focus();
+    input.value = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const sets = (hass) => hass.events.filter((m) => m.type === 'chauffage/override/set').length;
+  const thermostatChanged = (hass) => ({ ...hass, states: { ...hass.states,
+    'climate.salon': { ...hass.states['climate.salon'], last_updated: '2' } } });
+
+  test('in the more-info block: the end being typed keeps its field, and is sent on leaving it', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.salon';
+    el.hass = hass;
+    const input = el.shadowRoot.querySelector('input[data-end]');
+    typed(input, '12:00');
+    el.hass = thermostatChanged(hass); // the thermostat reports, the minute changes…
+    assert.equal(sets(hass), 0, 'nothing sent while typing');
+    assert.ok(input.isConnected, 'the field is kept');
+    assert.equal(el.shadowRoot.activeElement, input);
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+  });
+
+  test('in the more-info block: Enter sends the end being typed', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.salon';
+    el.hass = hass;
+    const input = el.shadowRoot.querySelector('input[data-end]');
+    typed(input, '12:30');
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:30:00.000Z');
+  });
+
+  test('in the card\'s popover: the end being typed keeps its field through the redraws, sent on leaving it', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-end]');
+    typed(input, '12:00');
+    card._render(); // every 30 s during an override
+    card.hass = thermostatChanged(hass);
+    assert.equal(sets(hass), 0, 'nothing sent while typing');
+    assert.ok(input.isConnected, 'the field is kept');
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+  });
 });
 
 describe('row menu', () => {

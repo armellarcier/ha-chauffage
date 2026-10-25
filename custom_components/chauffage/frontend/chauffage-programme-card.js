@@ -1445,6 +1445,26 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
+  // A time typed in the popover's end field: its next occurrence
+  _sendOverrideEnd(value) {
+    this._endTyped = null;
+    if (this._overrideSel) this._setOverrideEnd(this._overrideSel.climate, nextAtMinutes(this._snap(toMin(value))));
+  }
+
+  // The end field left (or Enter): the time typed is sent, or the redraws held back are done
+  _overrideEndDone() {
+    const value = this._endTyped;
+    const later = this._redrawLater;
+    this._redrawLater = false;
+    this._endTyped = null; // before blur(), which comes back here
+    if (value) {
+      // Sent from the field still focused (Enter): the redraw that follows must happen
+      const active = this.shadowRoot.activeElement;
+      if (active && active.blur) active.blur();
+      this._sendOverrideEnd(value);
+    } else if (later) this._render();
+  }
+
   // New end (Date): at least one step after now
   _setOverrideEnd(climate, endsAt) {
     const d = this._overrides()[climate];
@@ -1957,6 +1977,9 @@ class ChauffageProgrammeCard extends HTMLElement {
   // template being typed (the card is redrawn every 30 s during an override, or when Home
   // Assistant sends new data)
   _render() {
+    // Not while the end of an override is typed: the redraw would take its field away
+    const active = this.shadowRoot.activeElement;
+    if (active && active.hasAttribute && active.hasAttribute('data-override-end')) { this._redrawLater = true; return; }
     const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
     const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
     const area = this.shadowRoot.activeElement;
@@ -2399,9 +2422,16 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     // Enter in a schedule's name field confirms (Create / Rename)
     root.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.hasAttribute('data-override-end')) { this._overrideEndDone(); return; }
       if (e.key !== 'Enter' || !e.target.hasAttribute('data-sched-name')) return;
       const ok = root.querySelector('.sched-menu .btn.primary');
       if (ok) ok.click();
+    });
+
+    // The end of an override being typed: sent on leaving its field (the card, not redrawn while it
+    // is typed, is drawn again then)
+    root.addEventListener('focusout', (e) => {
+      if (e.target.hasAttribute && e.target.hasAttribute('data-override-end')) this._overrideEndDone();
     });
 
     // Typing a temperature for a thermostat's preset means "use a temperature"
@@ -2436,7 +2466,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       } else if (el.dataset.edge) {
         this._setEdge(el.dataset.edge, el.value);
       } else if (el.hasAttribute('data-override-end') && el.value && this._overrideSel) {
-        this._setOverrideEnd(this._overrideSel.climate, nextAtMinutes(this._snap(toMin(el.value))));
+        // Typed (the field changes at each digit): sent on leaving the field or with Enter
+        if (root.activeElement === el) this._endTyped = el.value;
+        else this._sendOverrideEnd(el.value);
       } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), Number(el.value)));
@@ -3585,6 +3617,8 @@ class ChauffageMoreInfo extends HTMLElement {
     root.addEventListener('pointermove', (e) => this._onMove(e));
     root.addEventListener('pointerup', () => this._onUp());
     root.addEventListener('pointercancel', () => this._onUp());
+    root.addEventListener('focusout', (e) => this._onEndDone(e));
+    root.addEventListener('keydown', (e) => this._onEndDone(e));
   }
 
   set entity(id) {
@@ -3611,6 +3645,7 @@ class ChauffageMoreInfo extends HTMLElement {
       !hass.user || !!hass.user.is_admin, hass.entities && hass.entities[this._entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
+    if (this._typingEnd()) { this._redrawLater = true; return; } // nor while the end is typed
     this._key = key;
     this._render();
   }
@@ -3814,7 +3849,29 @@ class ChauffageMoreInfo extends HTMLElement {
       return;
     }
     if (!el.hasAttribute('data-end') || !el.value) return;
-    this._setEnd(nextAtMinutes(Math.round(toMin(el.value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step));
+    // Typed (the field changes at each digit): sent on leaving the field or with Enter
+    if (this.shadowRoot.activeElement === el) { this._endTyped = el.value; return; }
+    this._sendEnd(el.value);
+  }
+
+  _sendEnd(value) {
+    this._endTyped = null;
+    this._setEnd(nextAtMinutes(Math.round(toMin(value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step));
+  }
+
+  // The end being typed: sent on leaving its field or with Enter; the block, not redrawn while it
+  // is typed, is drawn again then
+  _onEndDone(e) {
+    if (!e.target.matches || !e.target.matches('input[data-end]')) return;
+    if (e.type === 'keydown' && e.key !== 'Enter') return;
+    if (this._endTyped) this._sendEnd(this._endTyped);
+    else if (this._redrawLater) this._render();
+    this._redrawLater = false;
+  }
+
+  _typingEnd() {
+    const a = this.shadowRoot.activeElement;
+    return !!(a && a.matches('input[data-end]'));
   }
 
   // ----- dragging the override's end -----
@@ -4033,9 +4090,16 @@ class ChauffageThermostatCard extends HTMLElement {
       return;
     }
     // The block of the more-info dialog, with its foot: the thermostat's own entities, its device,
-    // Pause or Resume
-    this.shadowRoot.innerHTML = card(`${head}<chauffage-moreinfo embedded></chauffage-moreinfo>`);
-    const block = this.shadowRoot.querySelector('chauffage-moreinfo');
+    // Pause or Resume. Kept when it is there: only the header is drawn again (a field being typed
+    // in the block keeps its focus while the thermostat reports)
+    let block = this.shadowRoot.querySelector('chauffage-moreinfo');
+    const header = this.shadowRoot.querySelector('.tc-head');
+    if (block && header && block.entity === entity) {
+      header.outerHTML = head;
+    } else {
+      this.shadowRoot.innerHTML = card(`${head}<chauffage-moreinfo embedded></chauffage-moreinfo>`);
+      block = this.shadowRoot.querySelector('chauffage-moreinfo');
+    }
     block.entity = entity;
     block.hass = hass;
   }

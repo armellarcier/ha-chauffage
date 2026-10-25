@@ -52,6 +52,9 @@ Home Assistant, and phones. **Does not migrate stored data.**
 
 ### Fixed
 
+- The end time of a temporary setpoint can be typed again: the field kept losing the focus at each
+  digit (the end was sent, and the redraw replaced the field); it is now sent on leaving the field or
+  with Enter, in the card, the thermostat's more-info dialog and the thermostat card.
 - A thermostat listed twice in the card's configuration is shown once.
 - No more file access on the event loop when the integration loads the card (it ships with the
   integration, so it is no longer checked for).
