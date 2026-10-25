@@ -50,6 +50,11 @@ Home Assistant, and phones. **Does not migrate stored data.**
 ### Fixed
 
 - A thermostat listed twice in the card's configuration is shown once.
+- No more file access on the event loop when the integration loads the card (it ships with the
+  integration, so it is no longer checked for).
+- On the days the clocks change, overrides are drawn at their time of day again, not one hour
+  off, and the end dragged or typed is the time chosen, even in the hour played twice or skipped
+  (#43).
 
 ### Upgrading
 

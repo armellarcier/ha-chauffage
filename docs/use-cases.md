@@ -139,6 +139,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | See the temperature measured over the last 7 days over each day, with the setpoint applied and the range per slot; choice kept; then only what is new every 5 minutes; recorder unavailable: says so; HA not restarted after an update: HA's own history | `C/history.test.mjs` |
 | Show a day larger (row menu, or the name of the day with one thermostat shown): its own scale in degrees, the time, measured temperature and setpoint under the mouse or along a finger, a tap still selects a slot; hidden with the history | `C/history.test.mjs` (a day shown larger) |
 | An ended override is no longer shown, even before the integration removes it | `C/card.test.mjs::an override that has ended *` |
+| On the days the clocks change, an override is drawn at its time of day (one ending in the hour played twice, from its start for its length) and its end, dragged or typed, is the time chosen: in the hour played twice, the one still to come; in the hour skipped, when the clocks went forward (#43) | `C/calculations.test.mjs::on the day the clocks *`, `::an override ending in the hour played twice *`, `C/interactions.test.mjs` (dragging the end, on the days the clocks change) |
 
 ## Thermostat card
 

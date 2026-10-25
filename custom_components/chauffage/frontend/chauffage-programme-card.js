@@ -539,7 +539,8 @@ const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
 
 // ---------- overrides (shared by the card and the more-info block) ----------
 
-// Splits an override into one piece per day (today + 6 days)
+// Splits an override into one piece per day (today + 6 days), in minutes of the time of day like
+// the slots: on the days the clocks change, the time elapsed since midnight is an hour off (#43)
 function overridePieces(d) {
   if (!d) return [];
   const startsAt = parseDate(d.start);
@@ -555,10 +556,15 @@ function overridePieces(d) {
     const s = startsAt > d0 ? startsAt : d0;
     const e = endsAt < d1 ? endsAt : d1;
     if (e > s) {
+      const start = minutesOf(s);
+      let end = e < d1 ? minutesOf(e) : DAY_MIN;
+      // Ending in the hour played twice when the clocks go back, before its start by the clock:
+      // drawn from its start for its length
+      if (end <= start) end = Math.min(DAY_MIN, start + Math.round((e - s) / 60000));
       pieces.push({
         day: (d0.getDay() + 6) % 7,
-        start: Math.round((s - d0) / 60000),
-        end: Math.min(DAY_MIN, Math.round((e - d0) / 60000)),
+        start,
+        end,
         d0,
         isLast: endsAt <= d1,
       });
@@ -581,6 +587,29 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
 
 const hmOf = (date) => toHM(date.getHours() * 60 + date.getMinutes());
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
+// The moment at `minutes` (time of day) of the day starting at `day0`; DAY_MIN is the next midnight.
+// On the days the clocks change: a time played twice is its first occurrence, or the second one if
+// the first is before `notBefore`; a time skipped is the moment the clocks went forward.
+function atMinutes(day0, minutes, notBefore = null) {
+  const at = new Date(day0.getFullYear(), day0.getMonth(), day0.getDate(), 0, minutes);
+  if (minutes >= DAY_MIN) return at;
+  if (minutesOf(at) !== minutes) {
+    let t = at.getTime();
+    while (minutesOf(new Date(t - 60000)) > minutes) t -= 60000;
+    return new Date(t);
+  }
+  const nextDay = new Date(day0.getFullYear(), day0.getMonth(), day0.getDate() + 1);
+  const again = new Date(at.getTime() + (nextDay.getTimezoneOffset() - at.getTimezoneOffset()) * 60000);
+  return notBefore && at < notBefore && again > at && minutesOf(again) === minutes ? again : at;
+}
+
+// The next occurrence of `minutes` (time of day) after now: today, otherwise tomorrow
+function nextAtMinutes(minutes) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const at = atMinutes(today, minutes, now);
+  return at > now ? at : atMinutes(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), minutes, now);
+}
 
 function durationText(min, locale = DEFAULT_LOCALE) {
   return min >= 60
@@ -2238,7 +2267,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (dd) {
         this._overrideDrag = null;
         this._overrideDragEnded = Date.now(); // prevents the following "click" from opening the popover
-        if (dd.moved) this._setOverrideEnd(dd.climate, new Date(dd.piece.d0.getTime() + dd.end * 60000));
+        if (dd.moved) this._setOverrideEnd(dd.climate, atMinutes(dd.piece.d0, dd.end, new Date()));
         else dd.handle.classList.remove('drag');
         return;
       }
@@ -2407,12 +2436,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       } else if (el.dataset.edge) {
         this._setEdge(el.dataset.edge, el.value);
       } else if (el.hasAttribute('data-override-end') && el.value && this._overrideSel) {
-        // Next occurrence of this time (today, otherwise tomorrow)
-        const endsAt = new Date();
-        endsAt.setHours(0, 0, 0, 0);
-        endsAt.setMinutes(this._snap(toMin(el.value)));
-        if (endsAt <= new Date()) endsAt.setDate(endsAt.getDate() + 1);
-        this._setOverrideEnd(this._overrideSel.climate, endsAt);
+        this._setOverrideEnd(this._overrideSel.climate, nextAtMinutes(this._snap(toMin(el.value))));
       } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), Number(el.value)));
@@ -3764,12 +3788,7 @@ class ChauffageMoreInfo extends HTMLElement {
       return;
     }
     if (!el.hasAttribute('data-end') || !el.value) return;
-    // Next occurrence of this time (today, otherwise tomorrow)
-    const endsAt = new Date();
-    endsAt.setHours(0, 0, 0, 0);
-    endsAt.setMinutes(Math.round(toMin(el.value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step);
-    if (endsAt <= new Date()) endsAt.setDate(endsAt.getDate() + 1);
-    this._setEnd(endsAt);
+    this._setEnd(nextAtMinutes(Math.round(toMin(el.value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step));
   }
 
   // ----- dragging the override's end -----
@@ -3806,7 +3825,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const dr = this._drag;
     if (!dr) return;
     this._drag = null;
-    if (dr.moved) this._setEnd(new Date(dr.piece.d0.getTime() + dr.end * 60000));
+    if (dr.moved) this._setEnd(atMinutes(dr.piece.d0, dr.end, new Date()));
     else dr.handle.classList.remove('drag');
   }
 }
