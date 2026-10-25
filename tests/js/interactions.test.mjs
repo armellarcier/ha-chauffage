@@ -134,6 +134,36 @@ describe('dragging the end of an override', () => {
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T12:00:00.000Z');
   });
 
+  describe('on the day the clocks go back (#43)', () => {
+    const sunday = { kind: 'temperature', value: 21.5, start: '2026-10-25T10:00:00+01:00', end: '2026-10-25T11:30:00+01:00' };
+    beforeEach(() => mock.timers.setTime(new Date('2026-10-25T10:00:00+01:00').getTime()));
+
+    test('in the card: the end dropped at 13:00 is 13:00', () => {
+      const hass = fakeHass({ overrides: { 'climate.salon': sunday } });
+      const card = createCard(hass, { show: ['climate.salon'] });
+      const bar = geometry($(card, '.bar[data-climate="climate.salon"][data-day="6"]'));
+      const handle = bar.querySelector('.override-handle');
+      pointer(handle, 'pointerdown', 690);
+      pointer(handle, 'pointermove', 13 * 60);
+      pointer(handle, 'pointerup');
+      assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-25T12:00:00.000Z');
+    });
+
+    test('in the more-info block: the end dropped at 13:00 is 13:00', () => {
+      const hass = fakeHass({ overrides: { 'climate.salon': sunday } });
+      const el = document.createElement('chauffage-moreinfo');
+      document.body.appendChild(el);
+      el.entity = 'climate.salon';
+      el.hass = hass;
+      const handle = el.shadowRoot.querySelector('.override-handle');
+      geometry(handle.closest('.bar'));
+      pointer(handle, 'pointerdown', 690);
+      pointer(handle, 'pointermove', 13 * 60);
+      pointer(handle, 'pointerup');
+      assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-25T12:00:00.000Z');
+    });
+  });
+
   test('in the more-info block: the end time field', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const el = document.createElement('chauffage-moreinfo');

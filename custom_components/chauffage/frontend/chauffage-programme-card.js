@@ -511,7 +511,8 @@ const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
 
 // ---------- overrides (shared by the card and the more-info block) ----------
 
-// Splits an override into one piece per day (today + 6 days)
+// Splits an override into one piece per day (today + 6 days), in minutes of the time of day like
+// the slots: on the days the clocks change, the time elapsed since midnight is an hour off (#43)
 function overridePieces(d) {
   if (!d) return [];
   const startsAt = parseDate(d.start);
@@ -527,10 +528,11 @@ function overridePieces(d) {
     const s = startsAt > d0 ? startsAt : d0;
     const e = endsAt < d1 ? endsAt : d1;
     if (e > s) {
+      const start = minutesOf(s);
       pieces.push({
         day: (d0.getDay() + 6) % 7,
-        start: Math.round((s - d0) / 60000),
-        end: Math.min(DAY_MIN, Math.round((e - d0) / 60000)),
+        start,
+        end: e < d1 ? Math.max(start, minutesOf(e)) : DAY_MIN, // the hour played twice in October
         d0,
         isLast: endsAt <= d1,
       });
@@ -553,6 +555,8 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
 
 const hmOf = (date) => toHM(date.getHours() * 60 + date.getMinutes());
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
+// The moment at `minutes` (time of day) of the day starting at `day0`; DAY_MIN is the next midnight
+const atMinutes = (day0, minutes) => new Date(day0.getFullYear(), day0.getMonth(), day0.getDate(), 0, minutes);
 
 function durationText(min, locale = DEFAULT_LOCALE) {
   return min >= 60
@@ -2130,7 +2134,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (dd) {
         this._overrideDrag = null;
         this._overrideDragEnded = Date.now(); // prevents the following "click" from opening the popover
-        if (dd.moved) this._setOverrideEnd(dd.climate, new Date(dd.piece.d0.getTime() + dd.end * 60000));
+        if (dd.moved) this._setOverrideEnd(dd.climate, atMinutes(dd.piece.d0, dd.end));
         else dd.handle.classList.remove('drag');
         return;
       }
@@ -3602,7 +3606,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const dr = this._drag;
     if (!dr) return;
     this._drag = null;
-    if (dr.moved) this._setEnd(new Date(dr.piece.d0.getTime() + dr.end * 60000));
+    if (dr.moved) this._setEnd(atMinutes(dr.piece.d0, dr.end));
     else dr.handle.classList.remove('drag');
   }
 }

@@ -13,6 +13,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 - No more file access on the event loop when the integration loads the card (it ships with the
   integration, so it is no longer checked for).
+- On the days the clocks change, overrides are drawn at their time of day again, not one hour
+  off, and the end set by dragging is the time dropped on (#43).
 
 ## [0.6.0-beta.5] - 2026-10-24
 
