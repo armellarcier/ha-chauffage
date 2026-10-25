@@ -29,6 +29,15 @@ describe('configuration and loading', () => {
     assert.equal(card._schedule, 'away');
   });
 
+  test('a redraw keeps the same ha-card: a new one has no height until it renders, and the page scrolled back to the top', () => {
+    const card = createCard(fakeHass());
+    const haCard = card.shadowRoot.querySelector('ha-card');
+    card._openMenu('climate.salon', 1, 0, 0); // a redraw, as most clicks
+    card.shadowRoot.querySelector('[data-act="view"][data-view="presets"]').click(); // another view
+    assert.equal(card.shadowRoot.querySelector('ha-card'), haCard);
+    assert.equal(card.shadowRoot.querySelectorAll('ha-card').length, 1);
+  });
+
   test('a thermostat listed twice is shown once (#39)', () => {
     const card = createCard(fakeHass(), { thermostats: ['climate.salon', 'climate.bureau', { entity: 'climate.salon', name: 'Séjour' }] });
     assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);

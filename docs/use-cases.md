@@ -131,6 +131,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | The hint speaks of the mouse, or of the finger on a touch screen | `C/interactions.test.mjs` (the hint under the weeks) |
 | Open in Home Assistant what the card names (#39): a thermostat (chip button, row names, row menu, paused notice, popovers, *Presets* and *Thermostats* views), a schedule's switch (*Details and history…* in its `⋮` menu), the active-schedule select (the bar of another schedule), a thermostat's *Control* switch and device, the *Chauffage* device (admins) | `C/card.test.mjs` (thermostat more-info dialog, activating a schedule), `C/interactions.test.mjs` (row menu), `C/schedules.test.mjs::opens its details and history *`, `C/thermostats-view.test.mjs`, `C/card-integration.test.mjs` (Presets view) |
 | A thermostat shown with its own name or the card's; a name made of pieces (area, device) as HA makes it (2025.10+), its own name before | `C/card.test.mjs` (names of the thermostats) |
+| The page keeps its scroll when a card is redrawn (a menu, a slot, a view opened): the same frame (`ha-card`), filled again | `C/card.test.mjs::a redraw keeps the same ha-card *`, `C/thermostat-card.test.mjs::a redraw keeps the same ha-card *` |
 | Error messages (save, override, schedule, presets) | `C/interactions.test.mjs` (error messages) |
 | English / French, 12 / 24 h, decimal separator, first day of the week | `C/i18n.test.mjs` |
 | Card added but the integration is not set up: says so | `C/card-integration.test.mjs` (without the integration) |

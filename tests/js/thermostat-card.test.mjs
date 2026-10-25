@@ -65,6 +65,16 @@ describe('the thermostat card', () => {
     assert.ok(block(card).querySelector('.bar.big .now'));
   });
 
+  test('a redraw keeps the same ha-card (a new one would make the page scroll back to the top)', () => {
+    const hass = setup();
+    hass.states['climate.cuisine'] = { state: 'heat', attributes: { friendly_name: 'Cuisine', current_temperature: 18 }, last_updated: '1' };
+    const card = cardFor(hass, { entity: 'climate.cuisine' }); // not scheduled yet: a message
+    const haCard = $(card, 'ha-card');
+    hass.push(integrationData({ weeks: { ...WEEKS, 'climate.cuisine': { Normal: WEEK } }, planned: PLANNED })); // scheduled: the block
+    assert.ok($(card, 'chauffage-moreinfo'));
+    assert.equal($(card, 'ha-card'), haCard);
+  });
+
   test('a name given in the card', () => {
     const card = cardFor(setup(), { name: 'Séjour' });
     assert.equal(text($(card, '.tc-name')), 'Séjour');

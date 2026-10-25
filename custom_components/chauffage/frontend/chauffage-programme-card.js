@@ -1001,6 +1001,20 @@ function planText(plan, presetName, loc) {
 
 const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
 
+// Draws a card's content into its <ha-card>, kept from one redraw to the next: a new one (a Lit
+// component, rendered asynchronously) has no height until it renders, so the page got shorter for
+// a moment and scrolled back to the top
+function fillCard(root, style, html, cls = '') {
+  let card = root.querySelector('ha-card');
+  if (!card) {
+    root.innerHTML = `<style>${style}</style><ha-card></ha-card>`;
+    card = root.querySelector('ha-card');
+  }
+  card.className = cls;
+  card.innerHTML = html;
+  return card;
+}
+
 // The field focused in a shadow root if it matches `selector`, else null
 function focusedField(root, selector) {
   const el = root.activeElement;
@@ -2023,40 +2037,38 @@ class ChauffageProgrammeCard extends HTMLElement {
   _draw() {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
+    const fill = (html, cls) => fillCard(this.shadowRoot, STYLE, html, cls);
     if (this._source().stale) {
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="missing">${esc(tr('reloadNeeded'))}
-        <div><button class="btn primary" data-act="reload-page">${esc(tr('reloadPage'))}</button></div></div></ha-card>`;
+      fill(`<div class="missing">${esc(tr('reloadNeeded'))}
+        <div><button class="btn primary" data-act="reload-page">${esc(tr('reloadPage'))}</button></div></div>`);
       this.shadowRoot.querySelector('[data-act="reload-page"]').addEventListener('click', () => this._reloadPage());
       return;
     }
     if (!this._source().available || this._source().outdated) {
       const text = this._source().outdated ? tr('restartNeeded') : tr('integrationMissing');
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="missing">${esc(text)}</div></ha-card>`;
+      fill(`<div class="missing">${esc(text)}</div>`);
       return;
     }
     if (this._view === 'presets' && this._source().ready) {
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-        <ha-card>${this._viewsHtml()}${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+      fill(`${this._viewsHtml()}${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
       this._schedulePlaceEditor();
       return;
     }
     if (this._view === 'thermostats' && this._source().ready) {
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-        <ha-card>${this._viewsHtml()}${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div></ha-card>`;
+      fill(`${this._viewsHtml()}${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
       return;
     }
     if (this._view === 'rules' && this._source().ready) {
       const msg = this._msg || (this._rulesDraft ? tr('unsaved') : '');
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-        <ha-card>${this._viewsHtml()}${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div></ha-card>`;
+      fill(`${this._viewsHtml()}${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div>`);
       return;
     }
     if (!this._source().ready) {
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="loading">…</div></ha-card>`;
+      fill('<div class="loading">…</div>');
       return;
     }
     if (!this._thermostats.length) {
-      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card>${this._renamedNotesHtml()}</ha-card>`;
+      fill(this._renamedNotesHtml());
       return;
     }
     const src = this._source();
@@ -2105,9 +2117,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       })
       .join('');
 
-    this.shadowRoot.innerHTML = `
-      <style>${STYLE}</style>
-      <ha-card class="${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}">
+    fill(`
         ${this._viewsHtml()}
         <div class="chips">
           ${chips}
@@ -2138,8 +2148,8 @@ class ChauffageProgrammeCard extends HTMLElement {
           <span class="dirty">${esc(tr('unsaved'))}</span>
           <button class="btn" data-act="cancel">${esc(tr('cancel'))}</button>
           <button class="btn primary" data-act="save">${esc(tr('save'))}</button>
-        </div>` : ''}
-      </ha-card>`;
+        </div>` : ''}`,
+      `${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}`);
     this._schedulePlaceEditor();
   }
 
@@ -4065,10 +4075,10 @@ class ChauffageThermostatCard extends HTMLElement {
     const t = loc.t;
     const entity = this._config.entity;
     const src = dataSource(hass);
-    const card = (body) => `<style>${THERMOSTAT_CARD_STYLE}</style><ha-card>${body}</ha-card>`;
+    const card = (body) => fillCard(this.shadowRoot, THERMOSTAT_CARD_STYLE, body);
     if (src.stale || !src.available || src.outdated) {
       const message = src.stale ? 'reloadNeeded' : src.outdated ? 'restartNeeded' : 'integrationMissing';
-      this.shadowRoot.innerHTML = card(`<div class="msg">${esc(t(message))}</div>`);
+      card(`<div class="msg">${esc(t(message))}</div>`);
       return;
     }
     const st = hass.states[entity];
@@ -4081,11 +4091,11 @@ class ChauffageThermostatCard extends HTMLElement {
         ${st ? this._stateHtml(loc, src, st) : `<span class="msg">${esc(t('entityMissing', { entity }))}</span>`}
       </div>`;
     if (!src.ready || !st) {
-      this.shadowRoot.innerHTML = card(head);
+      card(head);
       return;
     }
     if (!src.scheduled().includes(entity)) {
-      this.shadowRoot.innerHTML = card(`${head}<div class="msg">${esc(t('notScheduled'))}</div>`);
+      card(`${head}<div class="msg">${esc(t('notScheduled'))}</div>`);
       return;
     }
     // The block of the more-info dialog, with its foot: the thermostat's own entities, its device,
@@ -4096,7 +4106,7 @@ class ChauffageThermostatCard extends HTMLElement {
     if (block && header && block.entity === entity) {
       header.outerHTML = head;
     } else {
-      this.shadowRoot.innerHTML = card(`${head}<chauffage-moreinfo embedded></chauffage-moreinfo>`);
+      card(`${head}<chauffage-moreinfo embedded></chauffage-moreinfo>`);
       block = this.shadowRoot.querySelector('chauffage-moreinfo');
     }
     block.entity = entity;

@@ -52,6 +52,8 @@ Home Assistant, and phones. **Does not migrate stored data.**
 
 ### Fixed
 
+- Opening a menu, a slot or another view no longer scrolls the page back to the top: the cards
+  draw their content into the same frame instead of a new one, which had no height for a moment.
 - The end time of a temporary setpoint can be typed again: the field kept losing the focus at each
   digit (the end was sent, and the redraw replaced the field); it is now sent on leaving the field or
   with Enter, in the card, the thermostat's more-info dialog and the thermostat card.
