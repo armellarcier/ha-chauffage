@@ -105,6 +105,13 @@ describe('the thermostat card', () => {
     assert.match(text(block(card)), /Reprendre le planning/);
   });
 
+  test('a temporary setpoint at a temperature shows it once, not "17,5 °C · 17,5°"', () => {
+    const override = { kind: 'temperature', value: 17.5, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+    const hass = setup({ overrides: { 'climate.salon': override } });
+    hass.states['climate.salon'].attributes.temperature = 17.5;
+    assert.equal(text($(cardFor(hass), '.tc-state')), '⏱ 17,5°');
+  });
+
   test('pauses it, then Resume in place of Pause (admins); a paused thermostat says so', () => {
     const hass = setup();
     const card = cardFor(hass);

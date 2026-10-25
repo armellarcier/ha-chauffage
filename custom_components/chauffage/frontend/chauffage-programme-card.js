@@ -4050,6 +4050,10 @@ class ChauffageThermostatCard extends HTMLElement {
     const presets = presetsOf(src, loc);
     const paused = src.paused(this._config.entity);
     const d = !paused && filterActive(src.overrides())[this._config.entity];
+    // An override at a temperature (not a preset) is that temperature: said once, not "17,5 °C · 17,5°"
+    if (d && d.kind === 'temperature' && !presets.some((p) => p.id === d.preset)) {
+      return `<span class="tc-state override">⏱ ${esc(`${loc.number(d.value)}°`)}</span>`;
+    }
     if (d) return `<span class="tc-state override">⏱ ${text(overrideLabel(d, loc, presets))}</span>`;
     const plan = paused ? null : src.planned(this._config.entity);
     let label;
