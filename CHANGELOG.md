@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.6.0-beta.6] - 2026-10-25
+
 A rework of the cards ([#39](https://github.com/armellarcier/ha-chauffage/issues/39)): a card per
 thermostat for your own dashboards, a clearer *Presets* view, everything a card names opens in
 Home Assistant, and phones. **Does not migrate stored data.**
@@ -593,7 +595,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.5...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.6...HEAD
+[0.6.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.6
 [0.6.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.5
 [0.6.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.4
 [0.6.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.3

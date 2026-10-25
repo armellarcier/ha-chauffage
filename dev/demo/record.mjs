@@ -3,7 +3,9 @@
 // The development HA has three schedules: Normal (active), Vacances, Absent. The browser clock
 // is set to a Tuesday morning, with a demo override on the living room.
 // Scenario: create a "Télétravail" schedule as a copy of Normal and edit its Tuesday, look at
-// the presets, activate Vacances, then a thermostat's more-info dialog, and its history: the
+// the presets (a preset, then what a thermostat does with it), activate Vacances, then a
+// thermostat's more-info dialog, the thermostat cards of the "Pièces" view (a new development HA
+// has it) where the living room's temporary setpoint gets 30 more minutes, and the history: the
 // temperature measured over the last days (a new development HA starts with a simulated week),
 // a day shown larger. The history is real: for it, the browser clock goes back to the real time.
 // Nothing is kept: the edits are not saved, the created schedule and the override are removed
@@ -143,11 +145,17 @@ await pause(400);
 await drag(page.locator(`${bar('salon', 1)} .handle`).last(), -1 / 24, bar('salon', 1));
 await pause(1200);
 
-// The presets: what Comfort, Eco… mean for each thermostat
+// The presets: what Comfort, Eco… mean for each thermostat, each cell saying what it is
 await click(page.locator(`${card} [data-act="view"][data-view="presets"]`));
-await pause(1500);
-await click(page.locator(`${card} [data-act="cell"][data-kind="thermostat"][data-preset="eco"][data-climate="climate.cuisine"]`));
-await pause(2000);
+await pause(1800);
+// A preset: its name, color and default temperature, in one popover
+await click(page.locator(`${card} [data-act="cell"][data-kind="preset"][data-preset="comfort"]`));
+await pause(1800);
+await click(page.locator(`${card} [data-act="cell-close"]`));
+await pause(500);
+// What a thermostat does with it: its own preset, with a link to its device, where it is set
+await click(page.locator(`${card} [data-act="cell"][data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]`));
+await pause(2200);
 await click(page.locator(`${card} [data-act="cell-close"]`));
 await pause(500);
 await click(page.locator(`${card} [data-act="view"][data-view="schedule"]`));
@@ -176,6 +184,24 @@ if (await block.count()) await moveTo(block, { dx: 0.4, dy: 0.45 });
 await pause(2800);
 await page.keyboard.press('Escape');
 await pause(700);
+
+// A dashboard of one's own: a thermostat card per room; the living room's temporary setpoint
+// gets 30 more minutes from its card
+// (through the dashboard's tabs: going to the address would reload Home Assistant)
+await click(page.getByRole('tab', { name: 'Pièces' }));
+const salonCard = page.locator('chauffage-thermostat-card').filter({ hasText: 'Salon' }).first();
+await salonCard.locator('chauffage-moreinfo .bar.big').waitFor();
+await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2);
+await pause(1800);
+await moveTo(salonCard.locator('.tc-state'));
+await pause(1200);
+await click(salonCard.locator('chauffage-moreinfo button[data-min="30"]'));
+await pause(2000);
+await moveTo(salonCard.locator('chauffage-moreinfo .foot'), { dx: 0.3 });
+await pause(1500);
+await click(page.getByRole('tab', { name: 'Chauffage' }));
+await page.locator(`${card} .bar`).first().waitFor();
+await pause(600);
 
 // The history of the living room: its last days as they were measured (back to the real time,
 // the history being real), on Normal, the schedule followed during those days

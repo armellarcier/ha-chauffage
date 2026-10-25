@@ -139,11 +139,13 @@ scripts/demo.sh      # needs the dev HA running; Playwright + ffmpeg in Docker
 
 The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs): on a Tuesday morning (browser
 clock) with a demo override, it creates a *Télétravail* schedule as a copy of *Normal*, edits its
-Tuesday, shows the *Presets* view, activates *Vacances*, opens a thermostat's more-info dialog,
-then shows the living room's *History* and one day larger (back to the real time: the history
-is real), with a visible cursor; then it restores everything (override and created schedule
-removed, *Normal* active again, edits of the weeks not saved). It expects the sample data and
-the simulated week of a new development HA (*Normal*, *Vacances*, *Absent*, French names):
+Tuesday, shows the *Presets* view (a preset's popover, then a thermostat's cell), activates
+*Vacances*, opens a thermostat's more-info dialog, shows the thermostat cards of the *Pièces*
+view (30 more minutes for the living room's override), then shows the living room's *History*
+and one day larger (back to the real time: the history is real), with a visible cursor; then it
+restores everything (override and created schedule removed, *Normal* active again, edits of the
+weeks not saved). It expects the sample data, the *Pièces* view and the simulated week of a new
+development HA (*Normal*, *Vacances*, *Absent*, French names):
 record from a second, new dev HA (above) with
 `DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh`. Whether to re-record it is a question asked
 at every release (see "Releasing").

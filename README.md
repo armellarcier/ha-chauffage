@@ -7,7 +7,7 @@
 
 **English** · [Français](README.fr.md)
 
-![Editing schedules, an override and the active schedule, the thermostat's more-info dialog, then the history of the measured temperature and a day shown larger](docs/demo.gif)
+![Editing schedules, the presets, an override and the active schedule, the thermostat's more-info dialog, the thermostat cards, then the history of the measured temperature and a day shown larger](docs/demo.gif)
 
 Weekly heating schedules for Home Assistant thermostats: thermostats without presets, with
 presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**

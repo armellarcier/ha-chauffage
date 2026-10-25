@@ -7,7 +7,7 @@
 
 [English](README.md) · **Français**
 
-![Édition des plannings, une dérogation et le planning actif, la fenêtre de détail du thermostat, puis l'historique de la température mesurée et une journée en grand](docs/demo.gif)
+![Édition des plannings, les préréglages, une dérogation et le planning actif, la fenêtre de détail du thermostat, les cartes thermostat, puis l'historique de la température mesurée et une journée en grand](docs/demo.gif)
 
 Plannings de chauffe hebdomadaires pour les thermostats de Home Assistant : sans préréglages, avec
 préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**

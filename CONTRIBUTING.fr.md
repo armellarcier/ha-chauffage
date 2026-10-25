@@ -149,11 +149,13 @@ scripts/demo.sh      # nécessite le HA de dev démarré ; Playwright + ffmpeg d
 
 Le scénario est dans [`dev/demo/record.mjs`](dev/demo/record.mjs) : un mardi matin (horloge du
 navigateur), avec une dérogation de démo, il crée un planning *Télétravail* par copie de
-*Normal*, modifie son mardi, montre la vue *Préréglages*, active *Vacances*, ouvre la fenêtre de
-détail d'un thermostat, puis montre l'*Historique* du salon et une journée en grand (en revenant
-à l'heure réelle : l'historique est réel), avec un curseur visible ; ensuite il remet tout en
-état (dérogation et planning créé supprimés, *Normal* de nouveau actif, modifications des
-semaines non enregistrées). Il attend les données d'exemple et la semaine simulée d'un HA de
+*Normal*, modifie son mardi, montre la vue *Préréglages* (le popover d'un préréglage, puis la
+case d'un thermostat), active *Vacances*, ouvre la fenêtre de détail d'un thermostat, montre les
+cartes thermostat de la vue *Pièces* (30 minutes de plus pour la dérogation du salon), puis
+montre l'*Historique* du salon et une journée en grand (en revenant à l'heure réelle :
+l'historique est réel), avec un curseur visible ; ensuite il remet tout en état (dérogation et
+planning créé supprimés, *Normal* de nouveau actif, modifications des semaines non
+enregistrées). Il attend les données d'exemple, la vue *Pièces* et la semaine simulée d'un HA de
 développement neuf (*Normal*, *Vacances*, *Absent*, noms en français) : enregistrer depuis un
 second HA de dev neuf (ci-dessus) avec `DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh`. La question de la réenregistrer se pose à
 chaque publication (voir « Publier une version »).
