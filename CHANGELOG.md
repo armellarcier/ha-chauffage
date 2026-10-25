@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- No more file access on the event loop when the integration loads the card (it ships with the
+  integration, so it is no longer checked for).
+
 ## [0.6.0-beta.5] - 2026-10-24
 
 What ha-chauffage knows is shown in Home Assistant itself, to see and use it in dashboards,
