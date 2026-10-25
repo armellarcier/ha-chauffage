@@ -24,7 +24,7 @@ FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
 async def async_register(hass: HomeAssistant) -> None:
-    if "frontend" not in hass.config.components or not (FRONTEND_DIR / CARD).is_file():
+    if "frontend" not in hass.config.components:
         return  # no UI (tests, headless setups)
     integration = await async_get_integration(hass, DOMAIN)
     await hass.http.async_register_static_paths(
