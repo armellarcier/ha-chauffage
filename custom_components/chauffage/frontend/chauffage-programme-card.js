@@ -938,7 +938,7 @@ function deviceOf(hass, entity) {
 
 function deviceLinkHtml(hass, id, label) {
   if (!id || (hass && hass.user && !hass.user.is_admin)) return '';
-  return `<span class="mi-link device-link" role="link" tabindex="0" data-device="${esc(id)}">${esc(label)}</span>`;
+  return `<span class="mi-link" role="link" tabindex="0" data-device="${esc(id)}">${esc(label)}</span>`;
 }
 
 function openMoreInfo(el, entityId) {
@@ -1000,6 +1000,12 @@ function planText(plan, presetName, loc) {
 }
 
 const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
+
+// The field focused in a shadow root if it matches `selector`, else null
+function focusedField(root, selector) {
+  const el = root.activeElement;
+  return el && el.matches && el.matches(selector) ? el : null;
+}
 
 // A field being typed in, again after a redraw: its text (if any) and the focus, again once
 // ha-card (a Lit component rendered asynchronously) shows its content; before that, the field
@@ -1502,8 +1508,8 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   // ---------- rendering ----------
 
-  // A chip only names its thermostat (what it does is in the "Now" view), with a mark when it is
-  // missing, off, paused or on a temporary setpoint: short, so that the chips do not move
+  // A chip only names its thermostat, with a mark when it is missing, off, paused or on a
+  // temporary setpoint: short, so that the chips do not move
   _chipMark(climate) {
     const st = this._hass.states[climate];
     if (!st) return '?';
@@ -1880,12 +1886,10 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _overrideEditorHtml() {
-    if (!this._overrideSel) return '';
     const { climate, create } = this._overrideSel;
     const d = this._overrides()[climate];
     // Without an override: closed (it ended), unless opened to set one (today's row menu)
-    const visible = this._shown.includes(climate);
-    if ((!d && !create) || !visible) { this._overrideSel = null; return ''; }
+    if ((!d && !create) || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
     const t = this._loc.t;
     const attrs = (this._hass.states[climate] || {}).attributes || {};
     const value = overrideValueHtml(d, this._source(), climate, attrs, this._loc);
@@ -1978,14 +1982,13 @@ class ChauffageProgrammeCard extends HTMLElement {
   // Assistant sends new data)
   _render() {
     // Not while the end of an override is typed: the redraw would take its field away
-    const active = this.shadowRoot.activeElement;
-    if (active && active.hasAttribute && active.hasAttribute('data-override-end')) { this._redrawLater = true; return; }
+    if (focusedField(this.shadowRoot, '[data-override-end]')) { this._redrawLater = true; return; }
     const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
     const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
-    const area = this.shadowRoot.activeElement;
-    const rule = area && area.hasAttribute && area.hasAttribute('data-rule-template')
-      && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
-    const temperature = area && area.matches && area.matches(OVERRIDE_TEMPERATURE) ? area.value : null;
+    const area = focusedField(this.shadowRoot, '[data-rule-template]');
+    const rule = area && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
+    const field = focusedField(this.shadowRoot, OVERRIDE_TEMPERATURE);
+    const temperature = field ? field.value : null;
     this._draw();
     if (typing) this._restoreSchedName(typing.value, typing.focused);
     if (rule) this._restoreRuleCaret(rule);
@@ -2821,7 +2824,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         : `${paused ? btn('resume', 'resumeShort') : btn('pause', 'pauseShort')}${here ? '' : btn('thermostat-forget', 'forget')}`;
       const control = src.thermostatEntity(climate, 'control');
       const links = [
-        control ? this._entityLink(control, t('controlEntity')) : '',
+        control ? entityLinkHtml(control, t('controlEntity')) : '',
         this._deviceLink(this._deviceOf(climate)),
       ].filter(Boolean).join('');
       return `<div class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}">
@@ -3044,10 +3047,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     return entityLinkHtml(climate, this._name(climate), this._loc.t('openThermostat'));
   }
 
-  _entityLink(entity, label) {
-    return entityLinkHtml(entity, label);
-  }
-
   _deviceLink(id, label = this._loc.t('device')) {
     return deviceLinkHtml(this._hass, id, label);
   }
@@ -3261,6 +3260,13 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 }
 
+// What opens in Home Assistant looks like a link, even without a mouse to hover it (every card)
+const LINK_STYLE = `
+  .mi-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;
+    text-decoration-color:rgba(127,127,127,.6); }
+  .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
+`;
+
 const STYLE = `
   :host { display:block; }
   ha-card { display:block; position:relative; padding:16px; overflow:visible; }
@@ -3332,10 +3338,7 @@ const STYLE = `
   .name { font-size:.78em; color:var(--secondary-text-color); overflow:hidden; white-space:nowrap; text-align:right; }
   .name .mi-link { display:block; overflow:hidden; text-overflow:ellipsis; }
   .sizer, .sizer span { display:block; height:0; visibility:hidden; }
-  /* What opens in Home Assistant looks like a link, even without a mouse to hover it */
-  .mi-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;
-    text-decoration-color:rgba(127,127,127,.6); }
-  .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
+  ${LINK_STYLE}
   .chip-open { display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;
     width:24px; height:24px; margin:-4px -8px -4px 2px; border-radius:50%; opacity:.7; cursor:pointer; }
   .chip-open:hover { opacity:1; background:rgba(127,127,127,.25); }
@@ -3645,7 +3648,7 @@ class ChauffageMoreInfo extends HTMLElement {
       !hass.user || !!hass.user.is_admin, hass.entities && hass.entities[this._entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
-    if (this._typingEnd()) { this._redrawLater = true; return; } // nor while the end is typed
+    if (focusedField(this.shadowRoot, 'input[data-end]')) { this._redrawLater = true; return; } // nor while the end is typed
     this._key = key;
     this._render();
   }
@@ -3712,8 +3715,8 @@ class ChauffageMoreInfo extends HTMLElement {
     const { schedule, week } = this._week();
     if (!week) { this.shadowRoot.innerHTML = ''; this.style.display = 'none'; return; }
     // A temperature being typed survives the redraw (a new state of the thermostat, every minute)
-    const focused = this.shadowRoot.activeElement;
-    const typed = focused && focused.matches(OVERRIDE_TEMPERATURE) ? focused.value : null;
+    const focused = focusedField(this.shadowRoot, OVERRIDE_TEMPERATURE);
+    const typed = focused ? focused.value : null;
     this.style.display = '';
     const today = todayIdx();
     const d = this._currentOverride();
@@ -3798,9 +3801,12 @@ class ChauffageMoreInfo extends HTMLElement {
     const t = this._loc.t;
     const src = dataSource(this._hass);
     const links = [['control', 'controlEntity'], ['override', 'overrideEntity'], ['planned_preset', 'plannedEntity']]
-      .map(([key, label]) => src.thermostatEntity(this._entity, key) && entityLinkHtml(src.thermostatEntity(this._entity, key), t(label)))
+      .map(([key, label]) => {
+        const entity = src.thermostatEntity(this._entity, key);
+        return entity && entityLinkHtml(entity, t(label));
+      })
+      .concat(deviceLinkHtml(this._hass, deviceOf(this._hass, this._entity), t('device')))
       .filter(Boolean)
-      .concat(deviceLinkHtml(this._hass, deviceOf(this._hass, this._entity), t('device')) || [])
       .join(' ');
     const paused = src.paused(this._entity);
     const button = !src.editable ? ''
@@ -3869,11 +3875,6 @@ class ChauffageMoreInfo extends HTMLElement {
     this._redrawLater = false;
   }
 
-  _typingEnd() {
-    const a = this.shadowRoot.activeElement;
-    return !!(a && a.matches('input[data-end]'));
-  }
-
   // ----- dragging the override's end -----
 
   _onDown(e) {
@@ -3919,8 +3920,7 @@ const MORE_INFO_STYLE = `
   /* In the thermostat card: under its header */
   :host([embedded]) { margin:0; }
   :host([embedded]) .wrap { padding:0; border-top:0; }
-  .mi-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; text-decoration-color:rgba(127,127,127,.6); }
-  .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
+  ${LINK_STYLE}
   .foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:12px; padding-top:10px;
     border-top:1px solid var(--divider-color); }
   .foot .links { display:flex; flex-wrap:wrap; gap:4px 12px; flex:1 1 auto; font-size:.88em; color:var(--secondary-text-color); }
@@ -3992,8 +3992,7 @@ const THERMOSTAT_CARD_STYLE = `
     font-size:.88em; font-weight:500; white-space:nowrap; background:var(--secondary-background-color); }
   .tc-state i { width:10px; height:10px; border-radius:3px; flex:none; }
   .tc-state.override { color:#fff; background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
-  .mi-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; text-decoration-color:rgba(127,127,127,.6); }
-  .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
+  ${LINK_STYLE}
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
 
@@ -4131,7 +4130,7 @@ class ChauffageThermostatCard extends HTMLElement {
 
   _onClick(e) {
     const link = e.target.closest('[data-more-info]');
-    if (link) { openMoreInfo(this, link.dataset.moreInfo); return; }
+    if (link) openMoreInfo(this, link.dataset.moreInfo);
   }
 }
 
