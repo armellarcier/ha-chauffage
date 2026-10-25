@@ -56,22 +56,14 @@ describe('a paused thermostat in the card', () => {
     assert.ok(bureau.querySelector('.now'));
   });
 
-  test('its row menu offers to resume it, and no temporary setpoint', () => {
-    const hass = pausedSalon();
-    const card = createCard(hass);
-    const menu = openMenu(card, 'climate.salon', 0);
-    assert.doesNotMatch(text(menu), /Consigne temporaire/);
-    menu.querySelector('[data-act="resume"]').click();
-    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
-  });
-
-  test('the row menu of an active thermostat offers to pause it', () => {
-    const hass = pausedSalon();
-    const card = createCard(hass);
-    const menu = openMenu(card, 'climate.bureau', 2);
-    assert.match(text(menu), /Mettre en pause/);
-    menu.querySelector('[data-act="pause"]').click();
-    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
+  test('today\'s row menu offers no temporary setpoint on it, and no pausing on any (#39)', () => {
+    const card = createCard(pausedSalon());
+    const salon = openMenu(card, 'climate.salon', 0);
+    assert.equal(salon.querySelector('[data-act="override-new"], [data-act="pause"], [data-act="resume"]'), null);
+    openMenu(card, 'climate.salon', 0); // closes it
+    const bureau = openMenu(card, 'climate.bureau', 0);
+    assert.ok(bureau.querySelector('[data-act="override-new"]'));
+    assert.equal(bureau.querySelector('[data-act="pause"]'), null); // in the "Thermostats" view
   });
 
   test('its weeks can still be edited and saved, which does not resume it', async () => {
@@ -91,8 +83,8 @@ describe('a paused thermostat in the card', () => {
     const card = createCard(hass);
     assert.ok(q(card, '.paused-note'));
     assert.equal(q(card, '[data-act="resume"]'), null);
-    const menu = openMenu(card, 'climate.bureau', 0);
-    assert.equal(menu.querySelector('[data-act="pause"]'), null);
+    q(card, '[data-act="view"][data-view="thermostats"]').click();
+    assert.equal(q(card, '[data-act="pause"], [data-act="resume"]'), null);
   });
 
   test('in English', () => {
@@ -119,8 +111,23 @@ describe('the more-info block of a paused thermostat', () => {
     const el = block(hass, 'climate.salon');
     assert.match(text(el.shadowRoot), /En pause : Chauffage ne le pilote pas\./);
     assert.equal(el.shadowRoot.querySelector('[data-new-override]'), null);
+    // At the foot, in place of "Pause" (#39)
+    assert.equal(el.shadowRoot.querySelector('[data-pause]'), null);
+    assert.equal(el.shadowRoot.querySelector('.status [data-resume]'), null);
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Reprendre');
     el.shadowRoot.querySelector('[data-resume]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
+  });
+
+  test('an active thermostat is paused from the foot of the block (admins)', () => {
+    const hass = pausedSalon();
+    const el = block(hass, 'climate.bureau');
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-pause]')), 'Mettre en pause');
+    el.shadowRoot.querySelector('[data-pause]').click();
+    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
+    hass.user = { is_admin: false };
+    el.hass = { ...hass }; // a user who is not an admin: no pause, no resume
+    assert.equal(el.shadowRoot.querySelector('[data-pause], [data-resume]'), null);
   });
 
   test('a resume refused by the integration says why', async () => {

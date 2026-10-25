@@ -9,13 +9,65 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+A rework of the cards ([#39](https://github.com/armellarcier/ha-chauffage/issues/39)): a card per
+thermostat for your own dashboards, a clearer *Presets* view, everything a card names opens in
+Home Assistant, and phones. **Does not migrate stored data.**
+
+### Added
+
+- A **thermostat card**, `custom:chauffage-thermostat-card` (*Scheduled thermostat* in *Add
+  card*, suggested for a thermostat): one thermostat, to place in your own dashboards. The
+  measured temperature, what it does now (preset and setpoint, or the temporary setpoint), why and
+  until when ("Follows the schedule: Eco until 17:30, then Comfort"), today with the current
+  time, a temporary setpoint to set or change, the week, *Pause* or *Resume*. Visual editor
+  (thermostat, name). It is the block of the thermostat's more-info dialog under a header.
+- **The thermostat's more-info dialog** gets the same foot as the card: its *Control*, *Override*
+  and *Planned preset* entities and its device open from it, and *Pause*, or *Resume* in its
+  place (admins).
+- **Everything a card names opens in Home Assistant**: the thermostats (chips, rows, menus,
+  notices, *Presets* and *Thermostats* views), a schedule's switch (its `⋮` menu, the thermostat
+  card), the active-schedule select, each thermostat's *Control*, *Override* and *Planned preset*
+  entities, the thermostat's device and the *Chauffage* device (admins: settings pages).
+- Unsaved edits of the weeks show a bar with *Cancel* and *Save*, kept at the bottom of the window
+  while scrolling.
+
+### Changed
+
+- **Presets view**: one line says what a preset is; a preset's header holds its name, color and
+  default temperature, changed in one popover, with *Delete…* as a button of its own; each cell
+  gives the temperature and says what it is ("its *Comfort* preset", "set here", "default", "?"
+  until the thermostat's own preset has been used), instead of symbols and a key; *+ Add a
+  preset* under the table; a cell's popover links to the thermostat's device, where its own
+  presets are set; the names stay in place when the table scrolls on a phone.
+- The views are tabs across the top of the card, easier to hit with a finger.
+- The chips name the thermostats, with a mark when one is paused, off or on a temporary setpoint
+  (no temperature: they no longer wrap or move when it changes), and a button, big enough for a
+  finger, opening the thermostat.
+- The row menu (⋮) holds the day's actions and a temporary setpoint on today; pausing is in the
+  *Thermostats* view. It opens upwards when there is no room below.
+- On a phone, with several thermostats, the day's name is above its rows and the scale shows
+  every 6 hours: the bars get the width. The hint speaks of tapping on a touch screen.
+- A slot too short for its time or name no longer shows a piece of it (`06:`).
+- French texts: *thermostat* instead of *vanne*; *Tous* instead of *Toutes*.
+
 ### Fixed
 
+- Opening a menu, a slot or another view no longer scrolls the page back to the top: the cards
+  draw their content into the same frame instead of a new one, which had no height for a moment.
+- The end time of a temporary setpoint can be typed again: the field kept losing the focus at each
+  digit (the end was sent, and the redraw replaced the field); it is now sent on leaving the field or
+  with Enter, in the card, the thermostat's more-info dialog and the thermostat card.
+- A thermostat listed twice in the card's configuration is shown once.
 - No more file access on the event loop when the integration loads the card (it ships with the
   integration, so it is no longer checked for).
 - On the days the clocks change, overrides are drawn at their time of day again, not one hour
   off, and the end dragged or typed is the time chosen, even in the hour played twice or skipped
   (#43).
+
+### Upgrading
+
+Nothing to do: update, restart Home Assistant (the integration tells the cards the ids of its
+entities), then reload the page.
 
 ## [0.6.0-beta.5] - 2026-10-24
 

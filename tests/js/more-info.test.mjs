@@ -160,3 +160,43 @@ describe('more-info block', () => {
     assert.match(text(el), /Suit le planning/);
   });
 });
+
+describe('the foot of the block, in the more-info dialog and the thermostat card (#39)', () => {
+  let opened;
+  const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
+  beforeEach(() => {
+    mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') });
+    opened = [];
+    document.addEventListener('hass-more-info', intercept);
+  });
+  afterEach(() => {
+    document.removeEventListener('hass-more-info', intercept);
+    mock.timers.reset();
+    cleanup();
+  });
+  const foot = (el) => el.shadowRoot.querySelector('.foot');
+
+  test('opens the thermostat\'s own entities: its control (the pause), its override, what it plans', () => {
+    const el = block(fakeHass(), 'climate.salon');
+    assert.match(foot(el).textContent.replace(/\s+/g, ' '), /Pilotage Dérogation Préréglage prévu/);
+    for (const id of ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']) {
+      foot(el).querySelector(`[data-more-info="${id}"]`).click();
+    }
+    assert.deepEqual(opened, ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']);
+  });
+
+  test('its device opens in its page, closing the dialog (admins)', () => {
+    const el = block(fakeHass(), 'climate.salon');
+    foot(el).querySelector('[data-device="salon-device"]').click();
+    assert.deepEqual(opened, [null]); // the more-info dialog is closed
+    assert.equal(window.location.pathname, '/config/devices/device/salon-device');
+    const hass = fakeHass();
+    hass.user = { is_admin: false };
+    assert.equal(foot(block(hass, 'climate.salon')).querySelector('[data-device]'), null);
+  });
+
+  test('a thermostat without a device has no device link', () => {
+    const hass = fakeHass({ weeks: { 'climate.bureau': { Normal: Array(7).fill(['00:00 eco']) } } });
+    assert.equal(foot(block(hass, 'climate.bureau')).querySelector('[data-device]'), null);
+  });
+});

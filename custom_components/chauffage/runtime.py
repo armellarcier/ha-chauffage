@@ -32,7 +32,7 @@ from homeassistant.helpers.event import (
     async_track_template_result,
     async_track_time_change,
 )
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
@@ -41,12 +41,16 @@ from .history import TemperatureHistory
 from .const import (
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
+    CONTROL_KEY,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
     DOMAIN,
     EVENT_OVERRIDE_ENDED,
     EVENT_OVERRIDE_STARTED,
     EVENT_SCHEDULE_ACTIVATED,
+    OVERRIDE_END_KEY,
+    OVERRIDE_KEY,
+    PLANNED_PRESET_KEY,
     THERMOSTAT_ENTITIES,
     schedule_unique_id,
     thermostat_unique_id,
@@ -57,6 +61,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
 DATA, TICK = "data", "tick"
+# The ids of the entities the cards open changed: the cards are told, nothing else is redone (the
+# entities must not be added or removed during a thermostat's rename, which moves them)
+ENTITIES = "entities"
 
 
 class StaleRevision(Exception):
@@ -296,6 +303,10 @@ class ChauffageRuntime:
             "planned": self.planned_presets(),
             "version": self.version,
             "schedule_entities": self.schedule_entities(),
+            # The cards open the entities and the device they mention (#39)
+            "thermostat_entities": self.thermostat_entities(),
+            "schedule_select": self.schedule_select(),
+            "device_id": self.device_id(),
         }
 
     def schedule_entities(self) -> dict[str, str]:
@@ -304,6 +315,34 @@ class ChauffageRuntime:
         entities = {s: registry.async_get_entity_id("switch", DOMAIN, schedule_unique_id(self.entry.entry_id, s))
                     for s in self.schedule_ids}
         return {s: entity_id for s, entity_id in entities.items() if entity_id}
+
+    def thermostat_entities(self) -> dict[str, dict[str, str]]:
+        """{thermostat: {control, override, planned_preset, override_end: entity id}}: a thermostat
+        without a device has no other way to find its entities (named after it, not attached)."""
+        registry = er.async_get(self.hass)
+        names = {CONTROL_KEY: "control", OVERRIDE_KEY: "override", PLANNED_PRESET_KEY: "planned_preset",
+                 OVERRIDE_END_KEY: "override_end"}
+        out = {}
+        for climate in self.scheduled:
+            ids = {names[key]: registry.async_get_entity_id(platform, DOMAIN, thermostat_unique_id(
+                self.entry.entry_id, climate, key)) for key, platform in THERMOSTAT_ENTITIES.items()}
+            out[climate] = {name: entity_id for name, entity_id in ids.items() if entity_id}
+        return out
+
+    def device_id(self) -> str | None:
+        """The "Chauffage" device holding the global entities."""
+        device = dr.async_get(self.hass).async_get_device(identifiers={(DOMAIN, self.entry.entry_id)})
+        return device.id if device else None
+
+    def schedule_select(self) -> str | None:
+        """The active-schedule select's entity id."""
+        return er.async_get(self.hass).async_get_entity_id("select", DOMAIN, f"{self.entry.entry_id}_schedule")
+
+    def _card_entities(self) -> set[str]:
+        ids = {*self.schedule_entities().values(), self.schedule_select()}
+        for entities in self.thermostat_entities().values():
+            ids.update(entities.values())
+        return ids
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
         """(preset now, next preset, its start) for a thermostat in the active schedule."""
@@ -411,8 +450,8 @@ class ChauffageRuntime:
             repairs.close_missing(self.hass, entity_id)  # made again with the same id
         elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
             self._renamed(event.data["old_entity_id"], entity_id)
-        if action != "remove" and entity_id.startswith("switch.") and entity_id in self.schedule_entities().values():
-            self._notify()  # a schedule's switch registered or renamed: the cards show its icon
+        if action != "remove" and entity_id in self._card_entities():
+            self._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
 
     @callback
     def _renamed(self, old: str, new: str) -> None:

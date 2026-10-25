@@ -1,6 +1,6 @@
 // The "Thermostats" view: every thermostat the integration schedules, the cards only show them;
 // pause, resume, forget (docs/decisions.md, "Scheduled thermostats", #27).
-import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -76,6 +76,42 @@ describe('the "Thermostats" view', () => {
     const card = open(hass);
     assert.equal(card.shadowRoot.querySelectorAll('.th-row').length, 3);
     assert.equal(card.shadowRoot.querySelector('.th-row button'), null);
+  });
+
+  test('a thermostat\'s name, its Control switch and its device open them (#39)', () => {
+    const opened = [];
+    const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = open(setup());
+      row(card, 'climate.salon').querySelector('[data-more-info="climate.salon"]').click();
+      row(card, 'climate.salon').querySelector('[data-more-info="switch.salon_control"]').click();
+      assert.deepEqual(opened, ['climate.salon', 'switch.salon_control']);
+      assert.match(text(row(card, 'climate.salon').querySelector('[data-more-info="switch.salon_control"]')), /Pilotage/);
+      row(card, 'climate.salon').querySelector('[data-device="salon-device"]').click();
+      assert.equal(window.location.pathname, '/config/devices/device/salon-device');
+      assert.equal(row(card, 'climate.bureau').querySelector('[data-device]'), null); // no device
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
+  });
+
+  test('an entity renamed in Home Assistant: its link follows at once', () => {
+    const hass = setup();
+    const card = open(hass);
+    const data = integrationData({ weeks: WEEKS, paused: ['climate.cuisine'] });
+    data.thermostat_entities['climate.salon'].control = 'switch.salon_pilotage';
+    hass.push(data); // the integration tells the cards (ENTITIES), nothing else changed
+    assert.ok(row(card, 'climate.salon').querySelector('[data-more-info="switch.salon_pilotage"]'));
+  });
+
+  test('the Chauffage device, with the switches of the schedules and the select, opens from it (admins)', () => {
+    const card = open(setup());
+    card.shadowRoot.querySelector('.thermostats-view [data-device="chauffage-device"]').click();
+    assert.equal(window.location.pathname, '/config/devices/device/chauffage-device');
+    const hass = setup();
+    hass.user = { is_admin: false };
+    assert.equal(open(hass).shadowRoot.querySelector('[data-device]'), null); // no settings pages
   });
 
   test('in English', () => {

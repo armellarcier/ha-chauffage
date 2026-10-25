@@ -28,6 +28,21 @@ describe('configuration and loading', () => {
     const card = createCard(fakeHass({ schedule: 'Absent' }));
     assert.equal(card._schedule, 'away');
   });
+
+  test('a redraw keeps the same ha-card: a new one has no height until it renders, and the page scrolled back to the top', () => {
+    const card = createCard(fakeHass());
+    const haCard = card.shadowRoot.querySelector('ha-card');
+    card._openMenu('climate.salon', 1, 0, 0); // a redraw, as most clicks
+    card.shadowRoot.querySelector('[data-act="view"][data-view="presets"]').click(); // another view
+    assert.equal(card.shadowRoot.querySelector('ha-card'), haCard);
+    assert.equal(card.shadowRoot.querySelectorAll('ha-card').length, 1);
+  });
+
+  test('a thermostat listed twice is shown once (#39)', () => {
+    const card = createCard(fakeHass(), { thermostats: ['climate.salon', 'climate.bureau', { entity: 'climate.salon', name: 'Séjour' }] });
+    assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);
+    assert.equal(card.shadowRoot.querySelectorAll('.chip[data-climate="climate.salon"]').length, 1);
+  });
 });
 
 describe('today', () => {
@@ -111,6 +126,20 @@ describe('activating a schedule', () => {
     tab(card, 'away').click();
     assert.match(bar(card).textContent, /Planning actif : Normal/);
     assert.match(bar(card).textContent, /Activer « Absent »/);
+  });
+
+  test('the active schedule\'s name opens the select of the active schedule (#39)', () => {
+    let received = null;
+    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = createCard(fakeHass({ schedule: 'Normal' }));
+      tab(card, 'away').click();
+      bar(card).querySelector('[data-more-info="select.chauffage_schedule"]').click();
+      assert.equal(received, 'select.chauffage_schedule');
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
   });
 
   test('the button activates the schedule in the integration', async () => {
@@ -260,6 +289,14 @@ describe('choosing the displayed thermostats', () => {
     click(chip(card, 'climate.bureau'), { ctrlKey: true });
     assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
   });
+
+  test('a chip only names its thermostat, with a mark when it has a temporary setpoint (#39)', () => {
+    const override = { kind: 'preset', value: 'boost', preset: 'boost', start: new Date(Date.now() - 600000).toISOString(), end: new Date(Date.now() + 3600000).toISOString() };
+    const card = createCard(fakeHass({ overrides: { 'climate.bureau': override } }));
+    const text = (id) => chip(card, id).textContent.replace(/\s+/g, ' ').trim();
+    assert.equal(text('climate.salon'), 'Salon'); // no temperature nor preset: the "Now" view says it
+    assert.equal(text('climate.bureau'), 'Bureau ⏱');
+  });
 });
 
 describe('names of the thermostats', () => {
@@ -298,11 +335,17 @@ describe('thermostat more-info dialog', () => {
   beforeEach(() => { received = null; document.addEventListener('hass-more-info', intercept); });
   afterEach(() => document.removeEventListener('hass-more-info', intercept));
 
-  test('the chip icon opens the thermostat without changing the selection', () => {
+  test('the chip\'s button opens the thermostat without changing the selection', () => {
     const card = createCard(fakeHass());
     card.shadowRoot.querySelector('.chip[data-climate="climate.bureau"] .chip-open').click();
     assert.equal(received, 'climate.bureau');
     assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
+  });
+
+  test('the name in a paused notice opens the thermostat (#39)', () => {
+    const card = createCard(fakeHass({ paused: ['climate.salon'] }));
+    card.shadowRoot.querySelector('.paused-note [data-more-info="climate.salon"]').click();
+    assert.equal(received, 'climate.salon');
   });
 
   test('the row name opens the thermostat', () => {

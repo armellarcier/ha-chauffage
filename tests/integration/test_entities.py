@@ -243,3 +243,36 @@ async def test_the_sensors_of_a_paused_thermostat_are_unavailable(bench: Bench, 
     await bench.runtime.set_paused("climate.salon", False)
     await bench.hass.async_block_till_done()
     assert bench.hass.states.get("sensor.salon_planned_preset").state == "eco"
+
+
+# ----- What the card opens (#39) -----
+
+async def test_the_card_is_told_the_entities_of_each_thermostat_and_of_chauffage(bench: Bench):
+    """The cards open the entities and devices they mention; a thermostat without a device has no
+    other way to find its own entities (they are named after it, not attached to it)."""
+    await start(bench)
+    snapshot = bench.runtime.snapshot()
+    assert snapshot["thermostat_entities"]["climate.salon"] == {
+        "control": "switch.salon_control", "override": "binary_sensor.salon_override",
+        "planned_preset": "sensor.salon_planned_preset", "override_end": "sensor.salon_override_end",
+    }
+    assert snapshot["schedule_select"] == "select.chauffage_schedule"
+    assert dr.async_get(bench.hass).async_get(snapshot["device_id"]).name == "Chauffage"
+
+
+async def test_the_card_is_told_an_entity_renamed_by_the_user(bench: Bench):
+    await start(bench)
+    sent = []
+    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.snapshot()["thermostat_entities"]))
+    er.async_get(bench.hass).async_update_entity("switch.salon_control", new_entity_id="switch.salon_pilotage")
+    await bench.hass.async_block_till_done()
+    assert sent and sent[-1]["climate.salon"]["control"] == "switch.salon_pilotage"
+
+
+async def test_the_card_is_told_the_active_schedule_select_renamed_by_the_user(bench: Bench):
+    await start(bench)
+    sent = []
+    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.snapshot()["schedule_select"]))
+    er.async_get(bench.hass).async_update_entity("select.chauffage_schedule", new_entity_id="select.planning_actif")
+    await bench.hass.async_block_till_done()
+    assert sent and sent[-1] == "select.planning_actif"

@@ -16,9 +16,12 @@ presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_the
 - **schedules** you create, duplicate and name (*Normal*, *Remote work*, *Holidays*,
   *Away*…), each with a 7-day week per thermostat; one is active, switched from the card or by
   automations;
-- visual Lovelace editor card (`custom:chauffage-programme-card`): drag time slots, copy / paste
-  days, several thermostats per day, open a thermostat's more-info dialog from the schedule, see
-  the temperature measured over the last 7 days drawn over each day;
+- visual Lovelace editor card (`custom:chauffage-programme-card`): drag time slots, copy /
+  paste days, several thermostats per day, see the temperature measured over the last 7 days
+  drawn over each day; made for phones too; every thermostat, schedule or setting it names opens
+  in Home Assistant;
+- a **thermostat card** (`custom:chauffage-thermostat-card`) to build your own dashboards: one
+  thermostat, what it does now, why and until when, today, a temporary setpoint;
 - **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
   shown and adjustable (its end, and its value: a preset or a temperature) on the card and in
   the thermostat's more-info dialog, which can also set one, then the thermostat falls back to
@@ -49,6 +52,17 @@ data automatically.
    the week); English and French are available, and `language: en` or `language: fr` forces one.
    The thermostats, their names and the other options can also be set from the card's visual
    editor (Edit card); `language` is only set in YAML.
+4. Optionally, a **Scheduled thermostat** card per room, to place in your own dashboards (it is
+   suggested for a thermostat in *Add card* → *By entity*):
+   ```yaml
+   type: custom:chauffage-thermostat-card
+   entity: climate.living_room
+   name: Living room  # optional
+   ```
+   It shows the measured temperature, what the thermostat does now, why and until when
+   ("Normal · Eco until 17:30, then Comfort"), today, a temporary setpoint to set or change,
+   *Pause* (or *Resume*), and opens the thermostat, its schedule, its *Control* switch and its
+   device. The thermostat's more-info dialog shows the same, under its controls.
 
 Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Assistant API
 requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,
@@ -133,10 +147,12 @@ and *Frost protection* 7 °C.
   has one, otherwise the preset's temperature. This can be changed per thermostat: one of its
   own presets, or a temperature.
 - **Set in the card**, *Presets* view (admins): a table with one column per preset, from the
-  coldest to the warmest, and one row per thermostat. A column header is the preset (name,
-  color, default temperature; add, remove); each cell says what that thermostat does with it:
-  automatic, one of its own presets (⟲), or its own temperature (●). A click on a cell opens a
-  popover to change it, as for the slots.
+  coldest to the warmest, and one row per thermostat. A column header is the preset: its name,
+  color and default temperature, changed in one popover, with *Delete…*; *+ Add a preset* is
+  under the table. Each cell gives the temperature and says what it is: "its *Comfort* preset",
+  "set here" or "default" ("?" until a thermostat's own preset has been used). A cell opens a
+  popover to change it, as for the slots, with a link to the thermostat's device, where its own
+  presets are set.
 - **Temperatures shown**: the table and the legend show each preset's temperature. No standard
   attribute gives the temperature of a thermostat's own preset: the integration remembers the
   setpoint seen while that preset was active.
@@ -148,7 +164,8 @@ and *Frost protection* 7 °C.
 A thermostat is **scheduled** once it is in a card. It stays scheduled when it is removed from a
 card (another card may show it), until it is forgotten. Paused, it is still scheduled: it keeps
 its weeks, but Chauffage no longer controls it. The card's *Thermostats* view lists every
-scheduled thermostat, paused or not, the ones in no card too. If its entity is deleted from Home
+scheduled thermostat, paused or not, the ones in no card too, with their *Control* switch and
+device. If its entity is deleted from Home
 Assistant, Settings → Repairs proposes to forget it.
 
 Everything Chauffage knows can be seen and used in Home Assistant, without the card: on the

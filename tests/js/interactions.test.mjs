@@ -225,6 +225,85 @@ describe('dragging the end of an override', () => {
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-13T07:00:00.000Z');
   });
+
+  // Typing a time changes the field at each digit: sent at once, the redraw took the field away
+  const typed = (input, value) => {
+    input.focus();
+    input.value = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const sets = (hass) => hass.events.filter((m) => m.type === 'chauffage/override/set').length;
+  const thermostatChanged = (hass) => ({ ...hass, states: { ...hass.states,
+    'climate.salon': { ...hass.states['climate.salon'], last_updated: '2' } } });
+
+  test('in the more-info block: the end being typed keeps its field, and is sent on leaving it', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.salon';
+    el.hass = hass;
+    const input = el.shadowRoot.querySelector('input[data-end]');
+    typed(input, '12:00');
+    el.hass = thermostatChanged(hass); // the thermostat reports, the minute changes…
+    assert.equal(sets(hass), 0, 'nothing sent while typing');
+    assert.ok(input.isConnected, 'the field is kept');
+    assert.equal(el.shadowRoot.activeElement, input);
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+  });
+
+  test('in the more-info block: Enter sends the end being typed', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.salon';
+    el.hass = hass;
+    const input = el.shadowRoot.querySelector('input[data-end]');
+    typed(input, '12:30');
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:30:00.000Z');
+  });
+
+  test('in the card\'s popover: the end typed is sent when tapping outside the card, and the popover closes', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-end]');
+    typed(input, '12:00');
+    // As a browser does: the pointer goes down outside (the popovers close), then the field loses the focus
+    document.body.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+    input.blur();
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+    assert.equal($(card, '.override-ed'), null);
+  });
+
+  test('in the card\'s popover: an override ended elsewhere while its end is typed goes once the field is left', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-end]');
+    typed(input, '12:00');
+    hass.push(integrationData({ overrides: {} })); // resumed from another device
+    input.blur();
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal($(card, '.override-ed'), null);
+    assert.equal($(card, '.bar .override'), null);
+  });
+
+  test('in the card\'s popover: the end being typed keeps its field through the redraws, sent on leaving it', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const input = $(card, '.override-ed input[data-override-end]');
+    typed(input, '12:00');
+    card._render(); // every 30 s during an override
+    card.hass = thermostatChanged(hass);
+    assert.equal(sets(hass), 0, 'nothing sent while typing');
+    assert.ok(input.isConnected, 'the field is kept');
+    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+  });
 });
 
 describe('row menu', () => {
@@ -246,6 +325,44 @@ describe('row menu', () => {
     assert.match($(card, '.menu .mh').textContent, /Mardi/);
     $(card, '.legend').click();
     assert.equal($(card, '.menu'), null);
+  });
+
+  test('it holds what can be done with the day, and opens the thermostat (#39)', () => {
+    let received = null;
+    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = createCard(fakeHass(), { show: ['climate.salon'] });
+      card._openMenu('climate.salon', ((new Date().getDay() + 6) % 7 + 1) % 7, 0, 0); // not today
+      const acts = [...card.shadowRoot.querySelectorAll('.menu [data-act]')].map((b) => b.dataset.act);
+      assert.deepEqual(acts, ['copy-day', 'paste-day', 'fill-weekdays', 'fill-weekend', 'fill-all']);
+      $(card, '.menu .mh [data-more-info="climate.salon"]').click();
+      assert.equal(received, 'climate.salon');
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
+  });
+
+  test('it opens upwards when there is no room below it in the window', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const button = $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="6"]');
+    // The card from 0 to 2000 px, the button at 700–728 px, a 768 px high window, a 300 px menu
+    $(card, 'ha-card').getBoundingClientRect = () => ({ top: 0, bottom: 2000, left: 0, right: 800, width: 800, height: 2000 });
+    button.getBoundingClientRect = () => ({ top: 700, bottom: 728, left: 760, right: 788, width: 28, height: 28 });
+    const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return this.classList.contains('menu') ? 300 : 0; } });
+    try {
+      window.innerHeight = 768;
+      button.click();
+      assert.equal($(card, '.menu').style.top, `${700 - 4 - 300}px`);
+      $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="6"]').click(); // closes it
+      button.getBoundingClientRect = () => ({ top: 100, bottom: 128, left: 760, right: 788, width: 28, height: 28 });
+      $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').getBoundingClientRect = button.getBoundingClientRect;
+      $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').click();
+      assert.equal($(card, '.menu').style.top, `${128 + 4}px`);
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', height);
+    }
   });
 });
 
@@ -476,7 +593,7 @@ describe('error messages', () => {
     const hass = failing(fakeIntegrationHass());
     const card = createCard(hass);
     $(card, '[data-act="view"][data-view="presets"]').click();
-    $(card, '[data-kind="default"][data-preset="eco"]').click();
+    $(card, '[data-kind="preset"][data-preset="eco"]').click();
     await card._action('cell-apply', {});
     assert.match($(card, '.msg').textContent, /boom/);
     assert.ok($(card, '[data-panel="cell"]'), 'the panel stays open');
@@ -564,6 +681,29 @@ describe('edits in progress', () => {
     $(card, '[data-act="cancel"]').click();
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 frost']);
   });
+
+  test('a bar says there are unsaved changes, with Cancel and Save, and stays in sight (#39)', () => {
+    const card = createCard(fakeIntegrationHass(), { show: ['climate.salon'] });
+    assert.equal($(card, '.savebar'), null); // nothing changed: no bar, no disabled buttons
+    assert.equal($(card, '[data-act="save"]'), null);
+    card._split('climate.salon', 0, 12 * 60);
+    const bar = $(card, '.savebar');
+    assert.match(bar.textContent, /Modifications non enregistrées/);
+    assert.ok(bar.querySelector('[data-act="cancel"]'));
+    assert.ok(bar.querySelector('[data-act="save"]'));
+    // After the weeks, sticky (CSS): it stays at the bottom of the window while the card scrolls
+    assert.ok(bar.compareDocumentPosition($(card, '.dgroup')) & Node.DOCUMENT_POSITION_PRECEDING);
+    bar.querySelector('[data-act="cancel"]').click();
+    assert.equal($(card, '.savebar'), null);
+  });
+});
+
+describe('the hint under the weeks', () => {
+  test('speaks of the mouse, or of the finger on a touch screen', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    assert.match($(card, '.hint .mouse').textContent, /Clic sur une plage pour la modifier/);
+    assert.match($(card, '.hint .touch').textContent, /Toucher une plage pour la modifier/);
+  });
 });
 
 describe('thermostats shown', () => {
@@ -594,6 +734,7 @@ describe('presets without the thermostats\' own presets (option off)', () => {
     const card = createCard(hass);
     $(card, '[data-act="view"][data-view="presets"]').click();
     const cell = $(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
-    assert.equal(cell.textContent.trim(), '20°');
+    assert.equal(cell.querySelector('.pv-val').textContent, '20°'); // the preset's default, not the thermostat's own preset
+    assert.equal(cell.querySelector('.pv-how').textContent, 'par défaut');
   });
 });
