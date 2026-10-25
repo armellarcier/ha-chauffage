@@ -40,7 +40,7 @@ from homeassistant.util import dt as dt_util
 
 from . import model
 from .const import DOMAIN
-from .runtime import DATA, ChauffageRuntime, StaleRevision, ThermostatFailed
+from .runtime import DATA, ENTITIES, ChauffageRuntime, StaleRevision, ThermostatFailed
 
 
 @callback
@@ -108,8 +108,8 @@ class _Subscriber:
 
     @callback
     def _changed(self, reason: str) -> None:
-        # Every minute (TICK): only when a planned preset changed
-        if reason == DATA or self.runtime.planned_presets() != self._planned:
+        # Every minute (TICK): only when a planned preset changed; ENTITIES: the ids the cards open
+        if reason in (DATA, ENTITIES) or self.runtime.planned_presets() != self._planned:
             self.send()
 
     @callback

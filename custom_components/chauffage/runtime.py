@@ -61,6 +61,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
 DATA, TICK = "data", "tick"
+# The ids of the entities the cards open changed: the cards are told, nothing else is redone (the
+# entities must not be added or removed during a thermostat's rename, which moves them)
+ENTITIES = "entities"
 
 
 class StaleRevision(Exception):
@@ -445,7 +448,7 @@ class ChauffageRuntime:
         elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
             self._renamed(event.data["old_entity_id"], entity_id)
         if action != "remove" and entity_id in self._card_entities():
-            self._notify()  # an entity registered or renamed: the cards show its icon and open it
+            self._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
 
     @callback
     def _renamed(self, old: str, new: str) -> None:
