@@ -61,7 +61,7 @@ const I18N = {
     controlEntity: 'Control',
     device: 'Device',
     chauffageDevice: 'Chauffage device: the switches of the schedules, the active schedule',
-    openSwitch: 'Open its switch in Home Assistant',
+    scheduleDetails: 'Details and history…',
     overrideEntity: 'Override',
     plannedEntity: 'Planned preset',
     entityRequired: 'The "entity" option is required (a climate.* thermostat)',
@@ -243,7 +243,7 @@ const I18N = {
     controlEntity: 'Pilotage',
     device: 'Appareil',
     chauffageDevice: 'Appareil Chauffage : interrupteurs des plannings, planning actif',
-    openSwitch: 'Ouvrir son interrupteur dans Home Assistant',
+    scheduleDetails: 'Détails et historique…',
     overrideEntity: 'Dérogation',
     plannedEntity: 'Préréglage prévu',
     entityRequired: 'Le paramètre "entity" est requis (un thermostat climate.*)',
@@ -2501,9 +2501,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         const inRules = src.rules().some((r) => r.schedule === id) || src.defaultSchedule() === id;
         const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast')
           : inRules ? t('cannotDeleteInRules') : '';
-        // Its switch in Home Assistant: icon, automations, history
+        // Its switch in Home Assistant (its more-info dialog): history, icon, settings
         const entity = this._source().scheduleEntity(id);
-        const open = entity ? `<button class="mi" data-more-info="${esc(entity)}"><span>${esc(t('openSwitch'))}</span></button><div class="sep"></div>` : '';
+        const open = entity ? `<button class="mi" data-more-info="${esc(entity)}"><span>${esc(t('scheduleDetails'))}</span></button><div class="sep"></div>` : '';
         body = `${open}${item('schedule-rename-open', esc(t('renameMenu')))}
           ${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
           ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= schedules.length - 1)}
