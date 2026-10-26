@@ -9,6 +9,15 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- **A calendar of schedules**, documented in the README (*Activation rules*): a Home Assistant
+  calendar (*Local Calendar*, Google, CalDAV…) whose events are named after schedules, read by
+  one rule. For events that overlap (an evening *Away* inside a week of *Holidays*), the
+  blueprint `blueprints/automation/chauffage/calendar_schedule.yaml` writes the schedule of the
+  event that started last into a text helper read by a rule; titles that name no schedule are
+  ignored, and the schedule changes at the second an event starts or ends.
+
 ## [0.7.0-beta.1] - 2026-10-26
 
 Identical days on one row ([#11](https://github.com/armellarcier/ha-chauffage/issues/11)).

@@ -198,8 +198,8 @@ running event and writes the schedule of the one that started last into a text h
 3. The rule reads the helper: `{{ states('input_text.calendar_schedule') }}`.
 
 Events whose title names no schedule are ignored. The schedule changes when an event starts or
-ends; an event added or edited is seen within five minutes (once an online calendar has synced
-it).
+ends; an event added or edited is seen at the next reading of the calendar, every five minutes
+(every fifteen is enough for an online calendar, which syncs at that pace).
 
 ## Presets
 

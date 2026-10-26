@@ -7,8 +7,8 @@ blueprint:
     events are ignored. When events overlap, the one that started last wins (an
     evening *Away* inside a week of *Holidays*); between events, the text is empty
     and the default schedule applies. Changes happen at the second an event starts
-    or ends; an event added or edited is seen within five minutes (once an online
-    calendar has synced it).
+    or ends; an event added or edited is seen at the next reading of the calendar
+    (every five minutes, or fifteen for an online calendar, which syncs at that pace).
   domain: automation
   source_url: https://github.com/armellarcier/ha-chauffage/blob/main/blueprints/automation/chauffage/calendar_schedule.yaml
   input:
@@ -35,6 +35,20 @@ blueprint:
           filter:
             domain: select
             integration: chauffage
+    poll:
+      name: Reading of the calendar
+      description: >-
+        How often the calendar is read again, to see events added or edited. An online
+        calendar (Google, CalDAV…) syncs every fifteen minutes: reading it more often
+        only costs requests.
+      default: /5
+      selector:
+        select:
+          options:
+            - label: Every 5 minutes
+              value: /5
+            - label: Every 15 minutes
+              value: /15
 
 # A new run (an edit seen, the next poll) replaces the one waiting for the next boundary.
 mode: restart
@@ -43,6 +57,8 @@ variables:
   calendar_entity: !input calendar_entity
   text_entity: !input text_entity
   schedule_entity: !input schedule_entity
+  poll: !input poll
+  poll_seconds: "{{ poll[1:] | int * 60 }}"
 
 triggers:
   - trigger: homeassistant
@@ -50,12 +66,17 @@ triggers:
   # Reads the calendar again: events added or edited (HA's calendar triggers only see
   # events planned more than 15 minutes ahead).
   - trigger: time_pattern
-    minutes: /5
+    minutes: !input poll
   - trigger: state
     entity_id: !input calendar_entity
+  # A schedule created, renamed or deleted (its switch is registered after the select changes).
   - trigger: state
     entity_id: !input schedule_entity
     attribute: options
+  - trigger: event
+    event_type: entity_registry_updated
+    event_data:
+      action: create
 
 # Polls push the traces out quickly: keep those of the last changes too.
 trace:
@@ -76,13 +97,9 @@ actions:
             entity_id: !input calendar_entity
           data:
             duration:
-              minutes: 10
+              seconds: "{{ poll_seconds * 2 }}"
+          # A calendar that cannot be read ends the run: the text stays as it is.
           response_variable: agenda
-          continue_on_error: true
-        # A calendar that cannot be read leaves the text as it is.
-        - if: "{{ agenda is not defined }}"
-          then:
-            - stop: Calendar unavailable
         - variables:
             result: >-
               {% set ns = namespace(title='', start=0, end=0, times=[]) %}
@@ -99,7 +116,11 @@ actions:
                 {% endif %}
               {% endfor %}
               {{ {'title': ns.title,
-                  'wait': (ns.times | select('gt', now_ts) | list + [now_ts + 301]) | min - now_ts} }}
+                  'wait': (ns.times | select('gt', now_ts) | list + [now_ts + poll_seconds + 1]) | min - now_ts} }}
+        - if: "{{ result.title | length > state_attr(text_entity, 'max') | int(100) }}"
+          then:
+            - stop: The schedule's name is longer than the text helper's maximum length
+              error: true
         - if: "{{ states(text_entity) != result.title }}"
           then:
             - action: input_text.set_value
@@ -108,8 +129,8 @@ actions:
               data:
                 value: "{{ result.title }}"
         # The next boundary is in the next poll's hands when it is further away.
-        - if: "{{ result.wait > 300 }}"
+        - if: "{{ result.wait > poll_seconds }}"
           then:
-            - stop: No event starts or ends in the next five minutes
+            - stop: No event starts or ends before the next reading
         - delay:
             seconds: "{{ result.wait + 1 }}"

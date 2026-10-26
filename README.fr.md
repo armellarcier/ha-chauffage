@@ -209,8 +209,9 @@ dernier :
 3. La règle lit l'entrée : `{{ states('input_text.planning_du_calendrier') }}`.
 
 Les événements dont le titre ne nomme aucun planning sont ignorés. Le planning change quand un
-événement commence ou finit ; un événement ajouté ou modifié est vu dans les cinq minutes (une
-fois synchronisé, pour un calendrier en ligne).
+événement commence ou finit ; un événement ajouté ou modifié est vu à la lecture suivante du
+calendrier, toutes les cinq minutes (toutes les quinze suffisent pour un calendrier en ligne, qui
+se synchronise à ce rythme).
 
 ## Préréglages
 
