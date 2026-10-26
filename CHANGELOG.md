@@ -22,6 +22,30 @@ Identical days on one row ([#11](https://github.com/armellarcier/ha-chauffage/is
   hides it). The week of the thermostat card and of the more-info dialog is grouped the same
   way. `group_days: false` (YAML) shows each day by default.
 
+## [0.6.0] - 2026-10-26
+
+**Overrides set and changed from the card, scheduled thermostats, ha-chauffage in Home Assistant
+itself, and a thermostat card**: it gathers 0.6.0-beta.1 to 0.6.0-beta.6, below, with no change
+since 0.6.0-beta.6. **Migrates stored data** automatically (version 5, in 0.6.0-beta.3: the
+weeks, values of the presets and learned temperatures of each thermostat kept together; nothing
+changes for the thermostats). Home Assistant 2025.1 or later.
+
+### Upgrading
+
+- From 0.5.x or a 0.6.0 beta: update from HACS, restart Home Assistant, then reload the browser
+  page. The stored data is migrated by itself; overrides in progress are kept.
+- The *Planned preset* sensors (formerly *Schedule*), disabled by default until now, are enabled
+  once (Home Assistant reloads the integration 30 s after starting); one you disabled yourself
+  stays disabled.
+- Picking the slot's preset by hand during an override now **resumes the schedule**. To keep a
+  preset past the next slots, change the override's value in the card, the thermostat's
+  more-info dialog or with `chauffage.set_override`, then extend it.
+- Automations calling `chauffage.set_override` with a Chauffage preset (`eco`, `comfort`…) now
+  get what that preset means on the thermostat, as the schedule does, instead of the climate
+  preset of that name sent as is.
+- Control switches made before keep their Assist exposure (not exposed); expose them in Settings
+  → Voice assistants → Expose to pause a room by voice.
+
 ## [0.6.0-beta.6] - 2026-10-25
 
 A rework of the cards ([#39](https://github.com/armellarcier/ha-chauffage/issues/39)): a card per
@@ -608,7 +632,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0-beta.6...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0
 [0.6.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.6
 [0.6.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.5
 [0.6.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.4
