@@ -75,14 +75,37 @@ API de Home Assistant l'impose, dans une version mineure annoncée dans le
 [changelog](CHANGELOG.md) ; les tests tournent sur elle, sur une version par trimestre depuis,
 sur la dernière version de Home Assistant et, chaque semaine, sur la beta.
 
-### Ce que fournit l'intégration
+### Mise à jour depuis le package (v0.1)
+
+1. Installer l'intégration (étapes 1 et 2 ci-dessus) **sans retirer le package** : la
+   configuration propose d'importer ses semaines, ses dérogations en cours et le planning actif
+   (le « mode » du package), puis désactive les deux automatisations du package pour qu'un seul
+   programmateur pilote les thermostats.
+2. Vérifier la carte et les thermostats. Pour revenir en arrière, supprimer l'intégration et
+   réactiver les deux automatisations `automation.chauffage_*` : les données du package ne sont
+   pas modifiées.
+3. Suivre la réparation affichée dans Paramètres : supprimer `packages/chauffage/` et
+   `www/chauffage/`, retirer la ligne `extra_module_url` et les exclusions `recorder` de
+   `configuration.yaml`, redémarrer. Dans vos automatisations, remplacer
+   `input_select.mode_chauffage` par `select.chauffage_schedule`.
+
+Mettre à jour l'intégration elle-même : lire le [journal des modifications](CHANGELOG.md) (en
+anglais) et mettre à jour depuis HACS ; les données stockées sont migrées automatiquement. Revenir
+à une version antérieure n'est pas pris en charge.
+
+> **Installer plutôt le package (v0.1)** : la
+> [version v0.1.0](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) est un
+> package YAML, qui n'est plus maintenu : décompresser son ZIP dans le dossier de configuration
+> et suivre le README de cette version.
+
+## Plannings
 
 Vocabulaire : un **planning** est un programme hebdomadaire (*Normal*, *Vacances*…) avec une
 **semaine** par thermostat, faite de **créneaux** ; chaque créneau demande un **préréglage**
 (*Confort*, *Éco*…) ; une **dérogation** est un changement temporaire sur un thermostat
 ([glossaire](docs/glossary.md), en anglais).
 
-#### Plannings
+### Créer des plannings
 
 - Une nouvelle installation démarre avec un seul planning, *Normal*.
 - Dans la carte (administrateurs), **+** crée un planning : vide, ou copie d'un autre. **⋮** sur
@@ -90,7 +113,7 @@ Vocabulaire : un **planning** est un programme hebdomadaire (*Normal*, *Vacances
 - Chaque planning a un **identifiant stable**, affiché dans *Renommer…*. Il ne change jamais,
   même quand on renomme le planning : les automatisations l'utilisent.
 
-#### Planning actif
+### Planning actif
 
 Un seul planning est actif à la fois : le sélecteur **Planning actif**
 (`select.chauffage_schedule`).
@@ -116,10 +139,12 @@ actions:
       schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'semaines_impaires' }}"
 ```
 
-#### Règles d'activation
+## Règles d'activation
 
 Des plannings qui s'activent tout seuls, sans écrire d'automatisation : la vue *Règles* de la
 carte (administrateurs) contient une liste ordonnée de règles.
+
+### Comment marchent les règles
 
 - **La première règle qui s'applique l'emporte.** Quand aucune ne s'applique, le planning par
   défaut est activé (ou, sans planning par défaut, le planning actif reste).
@@ -133,7 +158,9 @@ carte (administrateurs) contient une liste ordonnée de règles.
   L'attribut `rules_choice` du sélecteur dit quel planning donnent les règles : une
   automatisation peut y revenir tout de suite avec `chauffage.activate_schedule`.
 
-Par exemple, suivre la couleur du jour EDF Tempo, avec deux règles et un planning par défaut :
+### Exemple : EDF Tempo
+
+Suivre la couleur du jour EDF Tempo, avec deux règles et un planning par défaut :
 
 | Template | Planning |
 |---|---|
@@ -147,7 +174,11 @@ Ou une seule règle dont le template donne le planning :
 {{ {'red': 'absent', 'white': 'jours_eco'}.get(states('sensor.edf_tempo_color'), 'normal') }}
 ```
 
-**Un calendrier des plannings** : ajoutez un *Calendrier local* (Paramètres › Appareils et
+### Exemple : un calendrier des plannings
+
+#### Une seule règle
+
+Ajoutez un *Calendrier local* (Paramètres › Appareils et
 services › Ajouter une intégration), par exemple `calendar.chauffage`, et mettez-y des
 événements nommés comme les plannings : *Vacances* du vendredi soir au dimanche, *Absent*
 jusqu'à mardi 18:00, *Télétravail* tous les mercredis (un événement récurrent). Une seule règle,
@@ -161,6 +192,8 @@ Pendant un événement, son titre donne le planning (son nom, en majuscules ou m
 identifiant) ; entre deux événements, c'est le planning par défaut. Un nouveau planning ne
 demande pas de changer la règle. Tout calendrier marche de la même façon (Google, CalDAV…), pour
 planifier depuis un téléphone ou partager avec la maison.
+
+#### Des événements qui se chevauchent
 
 Avec cette règle, les événements ne doivent pas se chevaucher : une entité calendrier ne montre
 qu'un événement, celui qui a commencé le premier, donc une soirée *Absent* pendant une semaine de
@@ -178,7 +211,7 @@ dernier :
 Les événements dont le titre ne nomme aucun planning sont ignorés. Le planning change quand un
 événement commence ou finit ; un événement ajouté ou modifié est vu dans les cinq minutes.
 
-#### Préréglages
+## Préréglages
 
 Les créneaux demandent les préréglages de l'intégration : par défaut *Confort* 20 °C, *Éco*
 17 °C, *Boost* 21 °C et *Hors-gel* 7 °C.
@@ -201,7 +234,26 @@ Les créneaux demandent les préréglages de l'intégration : par défaut *Confo
   directement dans ses attributs (`preset_temperatures` depuis VTherm 10, `comfort_temp`…
   avant).
 
-#### Entités et services
+## Thermostats compatibles
+
+Toute entité `climate` avec une température de consigne, testée avec trois types :
+
+- **Versatile Thermostat** : les préréglages utilisent les siens (`comfort`, `eco`, `boost`,
+  `frost`), dont les températures se règlent dans VTherm ; une consigne changée à la main le fait
+  passer en preset `none` et devient une dérogation ;
+- **thermostats à préréglages standard** (`eco`, `comfort`, `away`, `boost`…) : les préréglages
+  utilisent ceux du thermostat du même nom, des températures pour les autres (le hors-gel, par
+  exemple) ;
+- **thermostats sans préréglages** (comme `generic_thermostat`) : les préréglages sont des
+  températures ; toute consigne changée par quelqu'un d'autre devient une dérogation.
+
+Pas encore pris en charge : les thermostats chaud / froid à plage de températures
+(`heat_cool`), et les appareils qui changent leur consigne d'eux-mêmes (ça peut ressembler à des
+changements manuels). Un appareil qui garde son préréglage quand on change sa consigne à la main
+est mieux réglé en températures (vue *Préréglages* de la carte). Voir la
+[feuille de route](ROADMAP.fr.md) pour les groupes de thermostats et un calendrier des plannings.
+
+## Entités et services
 
 Un thermostat est **programmé** dès qu'il est dans une carte. Il le reste quand on le retire d'une
 carte (une autre carte peut l'afficher), jusqu'à ce qu'on l'oublie. En pause, il reste programmé : il
@@ -288,74 +340,13 @@ actions:
       message: "{{ trigger.event.data.entity_id }} : {{ trigger.event.data.value }} jusqu'à {{ as_datetime(trigger.event.data.end).strftime('%H:%M') }}"
 ```
 
-#### Options
+## Options
 
 Paramètres → Appareils et services → Chauffage → *Configurer* :
 
 - **Durée des dérogations** : 2 h par défaut.
 - **Utiliser les préréglages des thermostats** : activé par défaut. Désactivé, tous les
   thermostats sont pilotés en température, entièrement réglée dans la carte.
-
-### Mise à jour depuis le package (v0.1)
-
-1. Installer l'intégration (étapes 1 et 2 ci-dessus) **sans retirer le package** : la
-   configuration propose d'importer ses semaines, ses dérogations en cours et le planning actif
-   (le « mode » du package), puis désactive les deux automatisations du package pour qu'un seul
-   programmateur pilote les thermostats.
-2. Vérifier la carte et les thermostats. Pour revenir en arrière, supprimer l'intégration et
-   réactiver les deux automatisations `automation.chauffage_*` : les données du package ne sont
-   pas modifiées.
-3. Suivre la réparation affichée dans Paramètres : supprimer `packages/chauffage/` et
-   `www/chauffage/`, retirer la ligne `extra_module_url` et les exclusions `recorder` de
-   `configuration.yaml`, redémarrer. Dans vos automatisations, remplacer
-   `input_select.mode_chauffage` par `select.chauffage_schedule`.
-
-Mettre à jour l'intégration elle-même : lire le [journal des modifications](CHANGELOG.md) (en
-anglais) et mettre à jour depuis HACS ; les données stockées sont migrées automatiquement. Revenir
-à une version antérieure n'est pas pris en charge.
-
-### Installation du package (v0.1)
-
-La [version v0.1.0](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) est un
-package YAML, qui n'est plus maintenu : décompresser son ZIP dans le dossier de configuration et
-suivre le README de cette version.
-
-### Thermostats compatibles
-
-Toute entité `climate` avec une température de consigne, testée avec trois types :
-
-- **Versatile Thermostat** : les préréglages utilisent les siens (`comfort`, `eco`, `boost`,
-  `frost`), dont les températures se règlent dans VTherm ; une consigne changée à la main le fait
-  passer en preset `none` et devient une dérogation ;
-- **thermostats à préréglages standard** (`eco`, `comfort`, `away`, `boost`…) : les préréglages
-  utilisent ceux du thermostat du même nom, des températures pour les autres (le hors-gel, par
-  exemple) ;
-- **thermostats sans préréglages** (comme `generic_thermostat`) : les préréglages sont des
-  températures ; toute consigne changée par quelqu'un d'autre devient une dérogation.
-
-Pas encore pris en charge : les thermostats chaud / froid à plage de températures
-(`heat_cool`), et les appareils qui changent leur consigne d'eux-mêmes (ça peut ressembler à des
-changements manuels). Un appareil qui garde son préréglage quand on change sa consigne à la main
-est mieux réglé en températures (vue *Préréglages* de la carte). Voir la
-[feuille de route](ROADMAP.fr.md) pour les groupes de thermostats et un calendrier des plannings.
-
-## Structure
-
-```
-custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
-custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
-dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
-dev/sim_rooms/, dev/sim_climate/    dev uniquement : modèle thermique des pièces (et une semaine
-                                    d'historique simulée pour un HA de dev neuf), un climate à
-                                    préréglages standard
-tests/integration/, tests/js/       tests automatisés (pytest + HA en mémoire, node --test + jsdom)
-docs/                               glossaire, décisions de conception, cas d'usage et leurs tests (en anglais)
-tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
-scripts/                            test.sh, logs.sh, demo.sh
-.github/workflows/                  tests (CI), hassfest, vérifications HACS et publication
-```
-
-Développement : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 
 ## Architecture
 
@@ -386,6 +377,24 @@ Développement : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 Pièges connus (déjà gérés, couverts par des tests) : les presets ZHA sont des Enum ; Safari
 refuse les dates avec microsecondes ; `ha-card` s'affiche de façon asynchrone (placement des
 popovers).
+
+## Structure
+
+```
+custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
+custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
+dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
+dev/sim_rooms/, dev/sim_climate/    dev uniquement : modèle thermique des pièces (et une semaine
+                                    d'historique simulée pour un HA de dev neuf), un climate à
+                                    préréglages standard
+tests/integration/, tests/js/       tests automatisés (pytest + HA en mémoire, node --test + jsdom)
+docs/                               glossaire, décisions de conception, cas d'usage et leurs tests (en anglais)
+tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
+scripts/                            test.sh, logs.sh, demo.sh
+.github/workflows/                  tests (CI), hassfest, vérifications HACS et publication
+```
+
+Développement : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 
 ## Licence
 

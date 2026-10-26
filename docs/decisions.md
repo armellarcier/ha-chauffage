@@ -126,6 +126,11 @@ future contributor might question.
   case), and the rule applies when it names one. One template can then map a value to schedules
   (the three Tempo colors) instead of one rule per value; a text that names no schedule lets the
   next rule decide. Ids are recommended: a rename keeps them.
+- **The calendar blueprint writes a text helper read by a rule; it does not activate the schedule
+  itself** (`blueprints/automation/chauffage/calendar_schedule.yaml`). It reads the calendar every
+  five minutes: activating the schedule each time would undo a schedule chosen by hand, and would
+  compete with the other rules. Through a rule, the order of the rules, the default schedule, a
+  choice by hand that stays and the card's preview all work as for any rule.
 - **Rules are tried as they are typed, by the integration** (`chauffage/rules/preview`), not by
   HA's `render_template`: the same rendering and the same reading as the saved rules (true or
   false, the schedule named), and again when their entities change. Admins only, like
