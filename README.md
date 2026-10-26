@@ -142,6 +142,19 @@ Or a single rule whose template gives the schedule:
 {{ {'red': 'away', 'white': 'eco_days'}.get(states('sensor.edf_tempo_color'), 'normal') }}
 ```
 
+**A calendar of schedules**: add a *Local Calendar* (Settings › Devices & services › Add
+integration), say `calendar.chauffage`, and put in it events named after schedules: *Holidays*
+from Friday evening to Sunday, *Away* until Tuesday 18:00, *Remote work* every Wednesday (a
+recurring event). One rule, and *Normal* as the default schedule:
+
+```jinja
+{{ state_attr('calendar.chauffage', 'message') if is_state('calendar.chauffage', 'on') }}
+```
+
+While an event runs, its title gives the schedule (its name, any case, or its id); between
+events, the default schedule applies. A new schedule needs no change to the rule. Any calendar
+works the same way (Google, CalDAV…), to plan from a phone or share with the household.
+
 #### Presets
 
 Slots ask for the integration's presets: by default *Comfort* 20 °C, *Eco* 17 °C, *Boost* 21 °C

@@ -147,6 +147,21 @@ Ou une seule règle dont le template donne le planning :
 {{ {'red': 'absent', 'white': 'jours_eco'}.get(states('sensor.edf_tempo_color'), 'normal') }}
 ```
 
+**Un calendrier des plannings** : ajoutez un *Calendrier local* (Paramètres › Appareils et
+services › Ajouter une intégration), par exemple `calendar.chauffage`, et mettez-y des
+événements nommés comme les plannings : *Vacances* du vendredi soir au dimanche, *Absent*
+jusqu'à mardi 18:00, *Télétravail* tous les mercredis (un événement récurrent). Une seule règle,
+et *Normal* comme planning par défaut :
+
+```jinja
+{{ state_attr('calendar.chauffage', 'message') if is_state('calendar.chauffage', 'on') }}
+```
+
+Pendant un événement, son titre donne le planning (son nom, en majuscules ou minuscules, ou son
+identifiant) ; entre deux événements, c'est le planning par défaut. Un nouveau planning ne
+demande pas de changer la règle. Tout calendrier marche de la même façon (Google, CalDAV…), pour
+planifier depuis un téléphone ou partager avec la maison.
+
 #### Préréglages
 
 Les créneaux demandent les préréglages de l'intégration : par défaut *Confort* 20 °C, *Éco*
