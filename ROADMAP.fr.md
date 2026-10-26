@@ -51,6 +51,11 @@ par mois, avec des périodes (jours et heures) colorées selon le planning, comm
 semaine avec ses créneaux. Ses périodes sont aussi des règles. Il couvre également « activer
 *Absent* jusqu'à mardi » ou « jusqu'à 18:00 ».
 
+Aujourd'hui, un calendrier de Home Assistant lu par une règle le fait déjà (voir le
+[README](README.fr.md#règles-dactivation)). Un calendrier de ha-chauffage doit faire plus, ou
+apporter quelque chose par-dessus un calendrier de HA : un planning choisi dans la liste plutôt
+qu'un titre saisi en texte libre, pas de périodes qui se chevauchent.
+
 ### Des groupes de thermostats
 
 Des zones partageant leurs semaines (« chambres », « pièces de vie »), avec des exceptions par

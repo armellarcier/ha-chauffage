@@ -1,0 +1,136 @@
+blueprint:
+  name: Chauffage – schedule from a calendar
+  description: >-
+    Writes the schedule of the calendar event running now into a text helper, for
+    an activation rule of ha-chauffage: `{{ states('input_text.your_helper') }}`.
+    Name the events after the schedules (their name, any case, or their id); other
+    events are ignored. When events overlap, the one that started last wins (an
+    evening *Away* inside a week of *Holidays*); between events, the text is empty
+    and the default schedule applies. Changes happen at the second an event starts
+    or ends; an event added or edited is seen at the next reading of the calendar
+    (every five minutes, or fifteen for an online calendar, which syncs at that pace).
+  domain: automation
+  source_url: https://github.com/armellarcier/ha-chauffage/blob/main/blueprints/automation/chauffage/calendar_schedule.yaml
+  input:
+    calendar_entity:
+      name: Calendar
+      description: The calendar whose events are named after schedules.
+      selector:
+        entity:
+          filter:
+            domain: calendar
+    text_entity:
+      name: Text helper
+      description: The helper the activation rule reads.
+      selector:
+        entity:
+          filter:
+            domain: input_text
+    schedule_entity:
+      name: Active schedule
+      description: The select of ha-chauffage, whose options are the schedules.
+      default: select.chauffage_schedule
+      selector:
+        entity:
+          filter:
+            domain: select
+            integration: chauffage
+    poll:
+      name: Reading of the calendar
+      description: >-
+        How often the calendar is read again, to see events added or edited. An online
+        calendar (Google, CalDAV…) syncs every fifteen minutes: reading it more often
+        only costs requests.
+      default: /5
+      selector:
+        select:
+          options:
+            - label: Every 5 minutes
+              value: /5
+            - label: Every 15 minutes
+              value: /15
+
+# A new run (an edit seen, the next poll) replaces the one waiting for the next boundary.
+mode: restart
+
+variables:
+  calendar_entity: !input calendar_entity
+  text_entity: !input text_entity
+  schedule_entity: !input schedule_entity
+  poll: !input poll
+  poll_seconds: "{{ poll[1:] | int * 60 }}"
+
+triggers:
+  - trigger: homeassistant
+    event: start
+  # Reads the calendar again: events added or edited (HA's calendar triggers only see
+  # events planned more than 15 minutes ahead).
+  - trigger: time_pattern
+    minutes: !input poll
+  - trigger: state
+    entity_id: !input calendar_entity
+  # A schedule created, renamed or deleted (its switch is registered after the select changes).
+  - trigger: state
+    entity_id: !input schedule_entity
+    attribute: options
+  - trigger: event
+    event_type: entity_registry_updated
+    event_data:
+      action: create
+
+# Polls push the traces out quickly: keep those of the last changes too.
+trace:
+  stored_traces: 20
+
+actions:
+  # Matched like the rules do: a schedule's id exactly, its name in any case.
+  - variables:
+      schedule_ids: >-
+        {{ integration_entities('chauffage') | select('match', 'switch[.]chauffage_schedule_')
+           | map('replace', 'switch.chauffage_schedule_', '') | list }}
+      schedule_names: "{{ state_attr(schedule_entity, 'options') | default([], true) | map('lower') | list }}"
+  - repeat:
+      while: "{{ true }}"
+      sequence:
+        - action: calendar.get_events
+          target:
+            entity_id: !input calendar_entity
+          data:
+            duration:
+              seconds: "{{ poll_seconds * 2 }}"
+          # A calendar that cannot be read ends the run: the text stays as it is.
+          response_variable: agenda
+        - variables:
+            result: >-
+              {% set ns = namespace(title='', start=0, end=0, times=[]) %}
+              {% set now_ts = as_timestamp(now()) %}
+              {% for event in agenda[calendar_entity].events %}
+                {% set title = event.summary | trim %}
+                {% if title in schedule_ids or title | lower in schedule_names %}
+                  {% set start = as_timestamp(as_datetime(event.start) | as_local) %}
+                  {% set end = as_timestamp(as_datetime(event.end) | as_local) %}
+                  {% if start <= now_ts < end and (start > ns.start or (start == ns.start and end < ns.end)) %}
+                    {% set ns.title, ns.start, ns.end = title, start, end %}
+                  {% endif %}
+                  {% set ns.times = ns.times + [start, end] %}
+                {% endif %}
+              {% endfor %}
+              {{ {'title': ns.title,
+                  'wait': (ns.times | select('gt', now_ts) | list + [now_ts + poll_seconds + 1]) | min - now_ts} }}
+        - if: "{{ result.title | length > state_attr(text_entity, 'max') | int(100) }}"
+          then:
+            - stop: The schedule's name is longer than the text helper's maximum length
+              error: true
+        - if: "{{ states(text_entity) != result.title }}"
+          then:
+            - action: input_text.set_value
+              target:
+                entity_id: !input text_entity
+              data:
+                value: "{{ result.title }}"
+        # The next boundary is in the next poll's hands when it is further away.
+        - if: "{{ result.wait > poll_seconds }}"
+          then:
+            - stop: No event starts or ends before the next reading
+        - delay:
+            seconds: "{{ result.wait + 1 }}"

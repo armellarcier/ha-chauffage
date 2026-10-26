@@ -48,6 +48,11 @@ Built on the [activation rules](#activation-rules). A year view, one row per mon
 (days and times) colored by schedule, like the weekly view with its slots. Its periods are rules
 too. It also covers "activate *Away* until Tuesday" or "until 18:00".
 
+Today a Home Assistant calendar read by one rule already does this (see the
+[README](README.md#activation-rules)). A calendar of ha-chauffage must do more than that, or
+add something on top of a HA calendar: a schedule picked from the list instead of a title typed
+as free text, no overlapping periods.
+
 ### Groups of thermostats
 
 Zones sharing their weeks ("bedrooms", "living areas"), with exceptions per thermostat; the

@@ -72,13 +72,33 @@ Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Ass
 requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,
 on one version per quarter since, on the latest Home Assistant and, every week, on the beta.
 
-### What the integration provides
+### Upgrading from the package (v0.1)
+
+1. Install the integration (steps 1–2 above) **without removing the package**: the setup
+   offers to import its weeks, current overrides and active schedule (the package's "mode"),
+   then turns off the package's two automations so that only one scheduler drives the
+   thermostats.
+2. Check the card and the thermostats. To go back, delete the integration and turn the two
+   `automation.chauffage_*` automations back on: the package's data is untouched.
+3. Follow the repair shown in Settings: delete `packages/chauffage/` and `www/chauffage/`,
+   remove the `extra_module_url` line and the `recorder` exclusions from `configuration.yaml`,
+   restart. In your automations, replace `input_select.mode_chauffage` with
+   `select.chauffage_schedule`.
+
+Upgrading the integration itself: read the [changelog](CHANGELOG.md) and update from HACS;
+stored data is migrated automatically. Going back to an older version is not supported.
+
+> **Installing the package (v0.1) instead**: the [v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) is a YAML
+> package, no longer maintained: unzip its ZIP into the configuration folder and follow the
+> README of that version.
+
+## Schedules
 
 Vocabulary: a **schedule** is a weekly plan (*Normal*, *Holidays*…) with a **week** per
 thermostat, made of **slots**; each slot asks for a **preset** (*Comfort*, *Eco*…); an
 **override** is a temporary change on one thermostat ([glossary](docs/glossary.md)).
 
-#### Schedules
+### Creating schedules
 
 - A new installation starts with a single schedule, *Normal*.
 - In the card (admins), **+** creates a schedule: empty, or a copy of another one. **⋮** on the
@@ -86,7 +106,7 @@ thermostat, made of **slots**; each slot asks for a **preset** (*Comfort*, *Eco*
 - Each schedule has a **stable id**, shown in *Rename…*. It never changes, even when the
   schedule is renamed: automations use it.
 
-#### Active schedule
+### Active schedule
 
 One schedule is active at a time: the **Active schedule** select (`select.chauffage_schedule`).
 
@@ -111,10 +131,12 @@ actions:
       schedule: "{{ 'normal' if now().isocalendar().week % 2 == 0 else 'odd_weeks' }}"
 ```
 
-#### Activation rules
+## Activation rules
 
 Schedules activated by themselves, without writing an automation: the card's *Rules* view
 (admins) holds an ordered list of rules.
+
+### How rules work
 
 - **The first rule that applies wins.** When none does, the default schedule is activated (or,
   without one, the active schedule stays).
@@ -128,7 +150,9 @@ Schedules activated by themselves, without writing an automation: the card's *Ru
   `rules_choice` attribute says which schedule the rules give: an automation can go back to it
   at once with `chauffage.activate_schedule`.
 
-For example, following the EDF Tempo color of the day, two rules and a default schedule:
+### Example: EDF Tempo
+
+Following the EDF Tempo color of the day, two rules and a default schedule:
 
 | Template | Schedule |
 |---|---|
@@ -142,7 +166,42 @@ Or a single rule whose template gives the schedule:
 {{ {'red': 'away', 'white': 'eco_days'}.get(states('sensor.edf_tempo_color'), 'normal') }}
 ```
 
-#### Presets
+### Example: a calendar of schedules
+
+#### One rule
+
+Add a *Local Calendar* (Settings › Devices & services › Add
+integration), say `calendar.chauffage`, and put in it events named after schedules: *Holidays*
+from Friday evening to Sunday, *Away* until Tuesday 18:00, *Remote work* every Wednesday (a
+recurring event). One rule, and *Normal* as the default schedule:
+
+```jinja
+{{ state_attr('calendar.chauffage', 'message') if is_state('calendar.chauffage', 'on') }}
+```
+
+While an event runs, its title gives the schedule (its name, any case, or its id); between
+events, the default schedule applies. A new schedule needs no change to the rule. Any calendar
+works the same way (Google, CalDAV…), to plan from a phone or share with the household.
+
+#### Overlapping events
+
+With this rule, events must not overlap: a calendar entity shows a single event, the one that
+started first, so an evening *Away* inside a week of *Holidays* is not seen. For exceptions
+inside a period, the blueprint
+[`calendar_schedule.yaml`](blueprints/automation/chauffage/calendar_schedule.yaml) reads every
+running event and writes the schedule of the one that started last into a text helper:
+
+1. Create a *Text* helper (Settings › Devices & services › Helpers), say
+   `input_text.calendar_schedule`.
+2. [![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Farmellarcier%2Fha-chauffage%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fchauffage%2Fcalendar_schedule.yaml),
+   then create an automation from it with the calendar and the helper.
+3. The rule reads the helper: `{{ states('input_text.calendar_schedule') }}`.
+
+Events whose title names no schedule are ignored. The schedule changes when an event starts or
+ends; an event added or edited is seen at the next reading of the calendar, every five minutes
+(every fifteen is enough for an online calendar, which syncs at that pace).
+
+## Presets
 
 Slots ask for the integration's presets: by default *Comfort* 20 °C, *Eco* 17 °C, *Boost* 21 °C
 and *Frost protection* 7 °C.
@@ -163,7 +222,26 @@ and *Frost protection* 7 °C.
 - **Versatile Thermostat bonus**: its preset temperatures are read directly from its attributes
   (`preset_temperatures` since VTherm 10, `comfort_temp`… before).
 
-#### Entities and services
+## Supported thermostats
+
+Any `climate` entity with a target temperature, tested with three kinds:
+
+- **Versatile Thermostat**: presets use its own (`comfort`, `eco`, `boost`, `frost`), whose
+  temperatures are set in VTherm; a setpoint changed by hand switches it to preset `none` and
+  becomes an override;
+- **thermostats with standard presets** (`eco`, `comfort`, `away`, `boost`…): presets use the
+  thermostat's own with the same name, temperatures for the others (frost protection, for
+  example);
+- **thermostats without presets** (such as `generic_thermostat`): presets are temperatures; any
+  setpoint changed by someone else becomes an override.
+
+Not supported yet: heat / cool thermostats with a temperature range (`heat_cool`), and devices
+that change their setpoint by themselves (they can look like manual changes). A device that keeps
+its preset when its setpoint is changed by hand is better set to temperatures (the card's
+*Presets* view). See the [roadmap](ROADMAP.md) for groups of thermostats and a calendar of
+schedules.
+
+## Entities and services
 
 A thermostat is **scheduled** once it is in a card. It stays scheduled when it is removed from a
 card (another card may show it), until it is forgotten. Paused, it is still scheduled: it keeps
@@ -248,71 +326,13 @@ actions:
       message: "{{ trigger.event.data.entity_id }}: {{ trigger.event.data.value }} until {{ as_datetime(trigger.event.data.end).strftime('%H:%M') }}"
 ```
 
-#### Options
+## Options
 
 Settings → Devices & services → Chauffage → *Configure*:
 
 - **Override duration**: 2 h by default.
 - **Use the thermostats' presets**: on by default. Off, every thermostat is driven by
   temperatures, all set in the card.
-
-### Upgrading from the package (v0.1)
-
-1. Install the integration (steps 1–2 above) **without removing the package**: the setup
-   offers to import its weeks, current overrides and active schedule (the package's "mode"),
-   then turns off the package's two automations so that only one scheduler drives the
-   thermostats.
-2. Check the card and the thermostats. To go back, delete the integration and turn the two
-   `automation.chauffage_*` automations back on: the package's data is untouched.
-3. Follow the repair shown in Settings: delete `packages/chauffage/` and `www/chauffage/`,
-   remove the `extra_module_url` line and the `recorder` exclusions from `configuration.yaml`,
-   restart. In your automations, replace `input_select.mode_chauffage` with
-   `select.chauffage_schedule`.
-
-Upgrading the integration itself: read the [changelog](CHANGELOG.md) and update from HACS;
-stored data is migrated automatically. Going back to an older version is not supported.
-
-### Package installation (v0.1)
-
-The [v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) is a YAML
-package, no longer maintained: unzip its ZIP into the configuration folder and follow the README
-of that version.
-
-### Supported thermostats
-
-Any `climate` entity with a target temperature, tested with three kinds:
-
-- **Versatile Thermostat**: presets use its own (`comfort`, `eco`, `boost`, `frost`), whose
-  temperatures are set in VTherm; a setpoint changed by hand switches it to preset `none` and
-  becomes an override;
-- **thermostats with standard presets** (`eco`, `comfort`, `away`, `boost`…): presets use the
-  thermostat's own with the same name, temperatures for the others (frost protection, for
-  example);
-- **thermostats without presets** (such as `generic_thermostat`): presets are temperatures; any
-  setpoint changed by someone else becomes an override.
-
-Not supported yet: heat / cool thermostats with a temperature range (`heat_cool`), and devices
-that change their setpoint by themselves (they can look like manual changes). A device that keeps
-its preset when its setpoint is changed by hand is better set to temperatures (the card's
-*Presets* view). See the [roadmap](ROADMAP.md) for groups of thermostats and a calendar of
-schedules.
-
-## Repository layout
-
-```
-custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
-custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
-dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
-dev/sim_rooms/, dev/sim_climate/    dev only: thermal model of the rooms (and a simulated week of
-                                    history for a new dev HA), a climate with standard presets
-tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
-docs/                               glossary, design decisions, use cases and their tests
-tests/fixtures/                     stored data in each past format (migration tests)
-scripts/                            test.sh, logs.sh, demo.sh
-.github/workflows/                  tests (CI), hassfest, HACS checks and releases
-```
-
-Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
@@ -338,6 +358,23 @@ Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Known pitfalls (already handled, covered by tests): ZHA presets are Enums; dates with
 microseconds are rejected by Safari; `ha-card` renders asynchronously (popover positioning).
+
+## Repository layout
+
+```
+custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
+custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
+dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
+dev/sim_rooms/, dev/sim_climate/    dev only: thermal model of the rooms (and a simulated week of
+                                    history for a new dev HA), a climate with standard presets
+tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
+docs/                               glossary, design decisions, use cases and their tests
+tests/fixtures/                     stored data in each past format (migration tests)
+scripts/                            test.sh, logs.sh, demo.sh
+.github/workflows/                  tests (CI), hassfest, HACS checks and releases
+```
+
+Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
