@@ -162,6 +162,22 @@ identifiant) ; entre deux événements, c'est le planning par défaut. Un nouvea
 demande pas de changer la règle. Tout calendrier marche de la même façon (Google, CalDAV…), pour
 planifier depuis un téléphone ou partager avec la maison.
 
+Avec cette règle, les événements ne doivent pas se chevaucher : une entité calendrier ne montre
+qu'un événement, celui qui a commencé le premier, donc une soirée *Absent* pendant une semaine de
+*Vacances* n'est pas vue. Pour des exceptions dans une période, le blueprint
+[`calendar_schedule.yaml`](blueprints/automation/chauffage/calendar_schedule.yaml) lit tous les
+événements en cours et écrit dans une entrée texte le planning de celui qui a commencé le
+dernier :
+
+1. Créez une entrée *Texte* (Paramètres › Appareils et services › Entrées), par exemple
+   `input_text.planning_du_calendrier`.
+2. [![Importer le blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Farmellarcier%2Fha-chauffage%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fchauffage%2Fcalendar_schedule.yaml),
+   puis créez une automatisation à partir de lui, avec le calendrier et l'entrée.
+3. La règle lit l'entrée : `{{ states('input_text.planning_du_calendrier') }}`.
+
+Les événements dont le titre ne nomme aucun planning sont ignorés. Le planning change quand un
+événement commence ou finit ; un événement ajouté ou modifié est vu dans les cinq minutes.
+
 #### Préréglages
 
 Les créneaux demandent les préréglages de l'intégration : par défaut *Confort* 20 °C, *Éco*

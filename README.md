@@ -155,6 +155,21 @@ While an event runs, its title gives the schedule (its name, any case, or its id
 events, the default schedule applies. A new schedule needs no change to the rule. Any calendar
 works the same way (Google, CalDAV…), to plan from a phone or share with the household.
 
+Events must not overlap with this rule: a calendar entity shows a single event, the one that
+started first, so an evening *Away* inside a week of *Holidays* is not seen. For exceptions
+inside a period, the blueprint
+[`calendar_schedule.yaml`](blueprints/automation/chauffage/calendar_schedule.yaml) reads every
+running event and writes the schedule of the one that started last into a text helper:
+
+1. Create a *Text* helper (Settings › Devices & services › Helpers), say
+   `input_text.calendar_schedule`.
+2. [![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Farmellarcier%2Fha-chauffage%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fchauffage%2Fcalendar_schedule.yaml),
+   then create an automation from it with the calendar and the helper.
+3. The rule reads the helper: `{{ states('input_text.calendar_schedule') }}`.
+
+Events whose title names no schedule are ignored. The schedule changes when an event starts or
+ends; an event added or edited is seen within five minutes.
+
 #### Presets
 
 Slots ask for the integration's presets: by default *Comfort* 20 °C, *Eco* 17 °C, *Boost* 21 °C

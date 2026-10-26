@@ -1,0 +1,111 @@
+blueprint:
+  name: Chauffage – schedule from a calendar
+  description: >-
+    Writes the schedule of the calendar event running now into a text helper, for
+    an activation rule of ha-chauffage: `{{ states('input_text.your_helper') }}`.
+    Name the events after the schedules (their name, any case, or their id); other
+    events are ignored. When events overlap, the one that started last wins (an
+    evening *Away* inside a week of *Holidays*); between events, the text is empty
+    and the default schedule applies. Changes happen at the second an event starts
+    or ends; an event added or edited is seen within five minutes.
+  domain: automation
+  source_url: https://github.com/armellarcier/ha-chauffage/blob/main/blueprints/automation/chauffage/calendar_schedule.yaml
+  input:
+    calendar_entity:
+      name: Calendar
+      description: The calendar whose events are named after schedules.
+      selector:
+        entity:
+          filter:
+            domain: calendar
+    text_entity:
+      name: Text helper
+      description: The helper the activation rule reads.
+      selector:
+        entity:
+          filter:
+            domain: input_text
+    schedule_entity:
+      name: Active schedule
+      description: The select of ha-chauffage, whose options are the schedules.
+      default: select.chauffage_schedule
+      selector:
+        entity:
+          filter:
+            domain: select
+            integration: chauffage
+
+# A new run (an edit seen, the next poll) replaces the one waiting for the next boundary.
+mode: restart
+
+variables:
+  calendar_entity: !input calendar_entity
+  text_entity: !input text_entity
+  schedule_entity: !input schedule_entity
+
+triggers:
+  - trigger: homeassistant
+    event: start
+  # Reads the calendar again: events added or edited (HA's calendar triggers only see
+  # events planned more than 15 minutes ahead).
+  - trigger: time_pattern
+    minutes: /5
+  - trigger: state
+    entity_id: !input calendar_entity
+  - trigger: state
+    entity_id: !input schedule_entity
+    attribute: options
+
+actions:
+  - repeat:
+      while: "{{ true }}"
+      sequence:
+        - action: calendar.get_events
+          target:
+            entity_id: !input calendar_entity
+          data:
+            duration:
+              minutes: 10
+          response_variable: agenda
+          continue_on_error: true
+        # A calendar that cannot be read leaves the text as it is.
+        - if: "{{ agenda is not defined or calendar_entity not in agenda }}"
+          then:
+            - stop: Calendar unavailable
+        - variables:
+            result: >-
+              {% macro ts(x) -%}
+                {{ as_timestamp(as_datetime(x) if 'T' in x else as_datetime(x).replace(tzinfo=now().tzinfo)) }}
+              {%- endmacro %}
+              {% set ns = namespace(names=[], title='', start=0, end=0, next=none) %}
+              {% for name in state_attr(schedule_entity, 'options') or [] %}
+                {% set ns.names = ns.names + [name | trim | lower] %}
+              {% endfor %}
+              {% for id in states.switch | map(attribute='entity_id') | select('match', 'switch\.chauffage_schedule_') %}
+                {% set ns.names = ns.names + [id[26:]] %}
+              {% endfor %}
+              {% set now_ts = as_timestamp(now()) %}
+              {% for event in agenda[calendar_entity].events
+                 if (event.summary | default('') | trim | lower) in ns.names %}
+                {% set start, end = ts(event.start) | float, ts(event.end) | float %}
+                {% if start <= now_ts < end
+                   and (start > ns.start or (start == ns.start and end < ns.end) or not ns.title) %}
+                  {% set ns.title, ns.start, ns.end = event.summary | trim, start, end %}
+                {% endif %}
+                {% for at in [start, end] if at > now_ts and (ns.next is none or at < ns.next) %}
+                  {% set ns.next = at %}
+                {% endfor %}
+              {% endfor %}
+              {{ {'title': ns.title[:state_attr(text_entity, 'max') | int(100)],
+                  'wait': none if ns.next is none else ns.next - now_ts} }}
+        - action: input_text.set_value
+          target:
+            entity_id: !input text_entity
+          data:
+            value: "{{ result.title }}"
+        # The next boundary is in the next poll's hands when it is further away.
+        - if: "{{ result.wait is none or result.wait > 300 }}"
+          then:
+            - stop: No event starts or ends in the next five minutes
+        - delay:
+            seconds: "{{ result.wait + 1 }}"
