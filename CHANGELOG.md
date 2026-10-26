@@ -9,6 +9,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.7.0-beta.1] - 2026-10-26
+
 Identical days on one row ([#11](https://github.com/armellarcier/ha-chauffage/issues/11)).
 **Does not migrate stored data.**
 
@@ -21,6 +23,12 @@ Identical days on one row ([#11](https://github.com/armellarcier/ha-chauffage/is
   days identical, and they join one row. The history still shows each day (grouping the days
   hides it). The week of the thermostat card and of the more-info dialog is grouped the same
   way. `group_days: false` (YAML) shows each day by default.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled), restart Home Assistant, then reload the
+page. Schedules whose days are identical are grouped at once; nothing changes in the stored
+weeks, the services or the entities.
 
 ## [0.6.0] - 2026-10-26
 
@@ -632,7 +640,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.1...HEAD
+[0.7.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.1
 [0.6.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0
 [0.6.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.6
 [0.6.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.5
