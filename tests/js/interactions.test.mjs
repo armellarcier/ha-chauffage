@@ -138,7 +138,7 @@ describe('dragging the end of an override', () => {
     const at = (iso) => mock.timers.setTime(new Date(iso).getTime());
     const sunday = (start, end) => ({ 'climate.salon': { kind: 'temperature', value: 21.5, start, end } });
     const dragInCard = (hass, toMinutes) => {
-      const card = createCard(hass, { show: ['climate.salon'] });
+      const card = createCard(hass, { show: ['climate.salon'], group_days: false });
       const handle = geometry($(card, '.bar[data-climate="climate.salon"][data-day="6"]')).querySelector('.override-handle');
       pointer(handle, 'pointerdown');
       pointer(handle, 'pointermove', toMinutes);
@@ -319,7 +319,7 @@ describe('row menu', () => {
   });
 
   test('a right click on a row opens it too; a click elsewhere closes it', () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
     const bar = $(card, '.bar[data-climate="climate.salon"][data-day="1"]');
     bar.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 100, clientY: 50 }));
     assert.match($(card, '.menu .mh').textContent, /Mardi/);
@@ -332,7 +332,7 @@ describe('row menu', () => {
     const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
     document.addEventListener('hass-more-info', intercept);
     try {
-      const card = createCard(fakeHass(), { show: ['climate.salon'] });
+      const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
       card._openMenu('climate.salon', ((new Date().getDay() + 6) % 7 + 1) % 7, 0, 0); // not today
       const acts = [...card.shadowRoot.querySelectorAll('.menu [data-act]')].map((b) => b.dataset.act);
       assert.deepEqual(acts, ['copy-day', 'paste-day', 'fill-weekdays', 'fill-weekend', 'fill-all']);
@@ -344,7 +344,7 @@ describe('row menu', () => {
   });
 
   test('it opens upwards when there is no room below it in the window', () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
     const button = $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="6"]');
     // The card from 0 to 2000 px, the button at 700–728 px, a 768 px high window, a 300 px menu
     $(card, 'ha-card').getBoundingClientRect = () => ({ top: 0, bottom: 2000, left: 0, right: 800, width: 800, height: 2000 });
@@ -437,7 +437,7 @@ describe('the override popover in the card', () => {
 
   test('without an override, today\'s row menu sets a temporary setpoint, for the override duration', () => {
     const hass = withTargets({});
-    const card = createCard(hass, { show: ['climate.salon'] });
+    const card = createCard(hass, { show: ['climate.salon'], group_days: false });
     card._openMenu('climate.salon', 1, 0, 0); // Tuesday: not today
     assert.equal($(card, '.menu [data-act="override-new"]'), null);
     card._openMenu('climate.salon', 0, 0, 0); // Monday: today

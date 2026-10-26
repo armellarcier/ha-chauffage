@@ -105,6 +105,9 @@ const I18N = {
     all: 'All',
     allTitle: 'Show every thermostat',
     history: 'History',
+    groupDays: 'Group days',
+    groupDaysTitle: 'Show identical days on one row: editing the row edits each of its days',
+    everyDay: 'Every day',
     historyTitle: 'Show the measured temperature of the last 7 days (dashed: the setpoint applied)',
     historyUnavailable: 'History unavailable: {message}',
     measured: 'measured {range}°',
@@ -287,6 +290,9 @@ const I18N = {
     all: 'Tous',
     allTitle: 'Afficher tous les thermostats',
     history: 'Historique',
+    groupDays: 'Grouper les jours',
+    groupDaysTitle: 'Afficher les jours identiques sur une ligne : modifier la ligne modifie chacun de ses jours',
+    everyDay: 'Tous les jours',
     historyTitle: 'Afficher la température mesurée des 7 derniers jours (pointillés : la consigne appliquée)',
     historyUnavailable: 'Historique indisponible : {message}',
     measured: 'mesuré {range}°',
@@ -459,6 +465,10 @@ function makeLocale(hass, configured) {
   const unit = (hass && hass.config && hass.config.unit_system && hass.config.unit_system.temperature) || '°C';
   const t = (key, vars = {}) => String(strings[key] ?? I18N.en[key] ?? key)
     .replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
+  const long = dayName('long');
+  const short = dayName('short');
+  // Display order of the days (indexes in the Monday-based schedule data)
+  const order = [0, 1, 2, 3, 4, 5, 6].map((i) => (first + i) % 7);
   const at = (minutes) => {
     const d = new Date(REFERENCE_MONDAY);
     d.setMinutes(minutes % DAY_MIN);
@@ -468,10 +478,24 @@ function makeLocale(hass, configured) {
     lang, intlLocale, hour12, unit, t,
     // Changes when any language / format preference changes (triggers a redraw)
     signature: JSON.stringify([lang, intlLocale, unit, configured || null, prefs]),
-    days: dayName('long'),
-    daysShort: dayName('short'),
-    // Display order of the days (indexes in the Monday-based schedule data)
-    dayOrder: [0, 1, 2, 3, 4, 5, 6].map((i) => (first + i) % 7),
+    days: long,
+    daysShort: short,
+    dayOrder: order,
+    // Days of a row → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", "Every day" (one day: its name)
+    daysLabel: (days, style = 'short') => {
+      if (days.length === 7) return t('everyDay');
+      if (days.length === 1) return (style === 'short' ? short : long)[days[0]];
+      const pos = days.map((d) => order.indexOf(d)).sort((a, b) => a - b);
+      const runs = [];
+      pos.forEach((p) => { const r = runs[runs.length - 1]; if (r && r[1] === p - 1) r[1] = p; else runs.push([p, p]); });
+      // A week starting on the weekend keeps it together: "Sat, Sun" in a Sunday-first week
+      if (runs.length > 1 && order[0] >= 5 && runs[0][0] === 0 && runs[0][1] === 0 && runs[runs.length - 1][1] === 6) {
+        const [a] = runs.pop();
+        runs[0] = [a, runs[0][1] + 7];
+      }
+      const name = (p) => short[order[p % 7]];
+      return runs.map(([a, b]) => (b - a >= 2 ? `${name(a)}–${name(b)}` : b > a ? `${name(a)}, ${name(b)}` : name(a))).join(', ');
+    },
     preset: (key) => strings.presets[key] || key,
     destination: (key) => strings.destinations[key] || key,
     // Minutes since midnight → "06:30" / "6:30 AM"; 1440 (end of day) → "24:00" in 24 h clocks
@@ -486,6 +510,7 @@ function makeLocale(hass, configured) {
 const LS_KEY = 'chauffage-programme-card:shown';
 const LS_CLIP = 'chauffage-programme-card:clip';
 const LS_HISTORY = 'chauffage-programme-card:history';
+const LS_GROUP = 'chauffage-programme-card:group-days';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
 const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
@@ -537,7 +562,25 @@ function parseDay(list) {
 
 const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
 
+// Days in display order, the days of the same key on one row: [[0, 1, 2, 3, 4], [5, 6]]
+function rowsOfDays(order, keyOf) {
+  const rows = new Map();
+  for (const d of order) {
+    const key = keyOf(d);
+    if (!rows.has(key)) rows.set(key, []);
+    rows.get(key).push(d);
+  }
+  return [...rows.values()];
+}
+
 // ---------- overrides (shared by the card and the more-info block) ----------
+
+// The piece of an override drawn on a row of days: today's, or the last one (where it ends, with
+// its handle), or the first of the row (the pieces start today: none is past)
+function rowPiece(pieces, days) {
+  const inRow = pieces.filter((p) => days.includes(p.day));
+  return inRow.find((p) => p.day === todayIdx()) || inRow.find((p) => p.isLast) || inRow[0];
+}
 
 // Splits an override into one piece per day (today + 6 days), in minutes of the time of day like
 // the slots: on the days the clocks change, the time elapsed since midnight is an hour off (#43)
@@ -1118,10 +1161,15 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._zoom = null; // { climate, day } shown larger (with the history)
     this._readTouch = false; // a finger reads the values along the bar shown larger
     this._history = { shown: false, rows: null, until: 0, days: null, loadedAt: 0, day: null, loading: false };
+    // Identical days shown on one row (the user's choice on this device, else the card's option)
+    this._groupPref = null;
+    this._rows = null; // rows of days drawn last, each edited as a whole
     try {
       const c = JSON.parse(localStorage.getItem(LS_CLIP));
       if (c && Array.isArray(c.segs) && c.segs.length) this._clip = c;
       this._history.shown = localStorage.getItem(LS_HISTORY) === '1';
+      const g = localStorage.getItem(LS_GROUP);
+      if (g === '1' || g === '0') this._groupPref = g === '1';
     } catch (e) { /* ignore */ }
     this._bindEvents();
   }
@@ -1408,6 +1456,38 @@ class ChauffageProgrammeCard extends HTMLElement {
     return this._data[climate][schedule];
   }
 
+  // Identical days on one row (the user's choice on this device, else the card's option); not
+  // with the history, which differs from day to day
+  _grouped() {
+    return !this._history.shown && (this._groupPref ?? this._config.group_days !== false);
+  }
+
+  // Rows of days, in display order: one per day, or the days identical for every thermostat
+  // shown on one row. What points at a day (selected slot, open menu, copied day) follows the
+  // first day of its row, which draws it.
+  _layoutRows() {
+    const order = this._loc.dayOrder;
+    this._rows = this._grouped()
+      ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(this._week(c)[d]).join(',')).join('|'))
+      : order.map((d) => [d]);
+    for (const ref of [this._sel, this._menu, this._clipSrc]) if (ref) ref.day = this._rowOf(ref.day)[0];
+  }
+
+  // The days of the row a day is drawn in (the day alone before the first drawing)
+  _rowOf(day) {
+    return (this._rows && this._rows.find((r) => r.includes(day))) || [day];
+  }
+
+  _rowLabel(day, style) {
+    return this._loc.daysLabel(this._rowOf(day), style);
+  }
+
+  // An edit of a row's day goes to every day of the row
+  _spread(climate, day) {
+    const week = this._week(climate);
+    for (const d of this._rowOf(day)) if (d !== day) week[d] = clone(week[day]);
+  }
+
   _name(entity) {
     const t = this._thermostats.find((x) => x.entity === entity);
     return thermostatName(this._hass, entity, t && t.name);
@@ -1425,6 +1505,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _commit(climate, day, keepMin) {
     const week = this._week(climate);
     week[day] = normalize(week[day]);
+    this._spread(climate, day);
     if (keepMin != null) {
       let idx = 0;
       week[day].forEach((s, i) => { if (s.start <= keepMin) idx = i; });
@@ -1734,7 +1815,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<span class="t">${t}</span><span class="l">${l}</span>`;
   }
 
-  _barHtml(climate, segs, d, showNow) {
+  _barHtml(climate, segs, days, showNow) {
+    const d = days[0];
     const segHtml = segs
       .map((s, i) => {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
@@ -1755,26 +1837,28 @@ class ChauffageProgrammeCard extends HTMLElement {
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && cs.day === d;
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, d)}${now}</div>`;
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
   }
 
-  // Override drawn over the schedule (only in the active schedule's tab)
-  _overrideHtml(climate, day) {
+  // Override drawn over the schedule (only in the active schedule's tab), on a row of days
+  _overrideHtml(climate, days) {
     if (this._schedule !== this._activeSchedule()) return '';
     const d = this._overrides()[climate];
-    const piece = this._overridePieces(climate).find((p) => p.day === day);
+    const piece = rowPiece(this._overridePieces(climate), days);
     if (!d || !piece) return '';
     const endHM = this._loc.time(minutesOf(parseDate(d.end)));
     const label = `${this._overrideLabel(d)} → ${endHM}`;
-    const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === day;
-    return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${day}"
+    const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === piece.day;
+    return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${piece.day}"
         style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%" title="${esc(this._loc.t('temporarySetpointTitle', { label }))}">
       <span class="override-label">${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120) ? `⏱ ${esc(label)}` : '⏱'}</span>
       ${piece.isLast ? `<div class="override-handle" title="${esc(this._loc.t('dragToChangeEnd'))}"><span class="tip">${endHM}</span></div>` : ''}
     </div>`;
   }
 
-  _dayHtml(d, showNow) {
+  // A row of days (in display order), drawn and edited through its first day
+  _dayHtml(days, showNow) {
+    const d = days[0];
     const multi = this._shown.length > 1;
     const subs = this._shown
       .map((climate) => {
@@ -1783,13 +1867,13 @@ class ChauffageProgrammeCard extends HTMLElement {
         const open = m && m.climate === climate && m.day === d;
         return `<div class="sub">
           ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
-          ${this._barHtml(climate, segs, d, showNow)}
+          ${this._barHtml(climate, segs, days, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
         </div>`;
       })
       .join('');
-    return `<div class="dgroup${d === todayIdx() ? ' today' : ''}">
-      <div class="day" data-day="${d}">${this._loc.daysShort[d]}</div>
+    return `<div class="dgroup${days.includes(todayIdx()) ? ' today' : ''}">
+      <div class="day" data-day="${d}">${esc(this._loc.daysLabel(days))}</div>
       <div class="subs">${subs}</div>
     </div>`;
   }
@@ -1838,7 +1922,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // "Thermostats" view. The thermostat's name opens it.
     const paused = this._source().paused(m.climate);
     return `<div class="menu" style="top:${m.top}px;right:${m.right}px">
-      <div class="mh">${this._moreInfoLink(m.climate)} · ${this._loc.days[m.day]}</div>
+      <div class="mh">${this._moreInfoLink(m.climate)} · ${esc(this._rowLabel(m.day, 'long'))}</div>
       ${item('copy-day', esc(t('copyDay')), ICON_COPY)}
       ${item('paste-day', paste, ICON_PASTE, !this._clip)}
       <div class="sep"></div>
@@ -1847,7 +1931,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       ${item('fill-all', esc(t('copyToAll')))}
       ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
       ${this._historyOf(m.climate, m.day) ? `<div class="sep"></div>${item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM)}` : ''}
-      ${m.day === todayIdx() && !paused ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
+      ${this._rowOf(m.day).includes(todayIdx()) && !paused ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
     </div>`;
   }
 
@@ -1898,7 +1982,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
     return `${hint}<div class="editor">
       <div class="ed-head">
-        <strong>${this._moreInfoLink(climate)} · ${this._loc.days[day]}</strong>
+        <strong>${this._moreInfoLink(climate)} · ${esc(this._rowLabel(day, 'long'))}</strong>
         <label>${esc(t('from'))} ${from}</label><label>${esc(t('to'))} ${to}</label>
         <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
       </div>
@@ -1973,7 +2057,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const ed = root.querySelector('.editor');
     // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
     const sel = this._overrideSel;
-    const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${todayIdx()}"] .now`);
+    const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${this._rowOf(todayIdx())[0]}"] .now`);
     const seg = root.querySelector('.override.sel, .seg.sel, .cell.on, .pv-add.on') || now;
     if (!ed || !seg) return true;
     const card = root.querySelector('ha-card').getBoundingClientRect();
@@ -2104,7 +2188,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('') + (editable ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span${h % 6 ? ' class="minor"' : ''} style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
-    const days = this._loc.dayOrder.map((d) => this._dayHtml(d, d === today && this._schedule === active)).join('');
+    this._layoutRows();
+    const days = this._rows.map((r) => this._dayHtml(r, r.includes(today) && this._schedule === active)).join('');
+    // The column of the days fits the longest label (on two lines at most)
+    const dayWidth = Math.min(72, Math.max(36, ...this._rows.map((r) => this._loc.daysLabel(r).length * 8 + 4)));
 
     const focus = this._focusClimate();
     const st = this._hass.states[focus];
@@ -2135,6 +2222,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <span class="chip-sep"></span>
           <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
+          <button class="chip tool${this._grouped() ? ' on' : ''}" data-act="group-days" title="${esc(tr('groupDaysTitle'))}">${esc(tr('groupDays'))}</button>
           <button class="chip tool${this._history.shown ? ' on' : ''}${this._history.loading ? ' loading' : ''}" data-act="history" title="${esc(tr('historyTitle'))}">${esc(tr('history'))}</button>
         </div>
         ${this._renamedNotesHtml()}
@@ -2142,8 +2230,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         <div class="tabs">${tabs}</div>
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}
-        <div class="scale"><div></div>${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}<div class="ticks">${ticks}</div><div></div></div>
-        ${days}
+        <div class="days" style="--day-w:${dayWidth}px">
+          <div class="scale"><div></div>${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}<div class="ticks">${ticks}</div><div></div></div>
+          ${days}
+        </div>
         ${this._menuHtml()}
         ${this._editorHtml()}
         <div class="foot">
@@ -3140,7 +3230,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _copyDay(climate, day, target) {
     const src = this._week(climate)[day];
     if (target === 'others') {
-      this._shown.filter((c) => c !== climate).forEach((c) => { this._week(c)[day] = clone(src); });
+      this._shown.filter((c) => c !== climate).forEach((c) => { this._week(c)[day] = clone(src); this._spread(c, day); });
     } else {
       const targets = { weekdays: [0, 1, 2, 3, 4], weekend: [5, 6], all: [0, 1, 2, 3, 4, 5, 6] }[target];
       if (!targets) return;
@@ -3150,7 +3240,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const destination = this._loc.destination(target);
     this._focus = climate;
     this._dirty = true;
-    this._msg = this._loc.t('dayCopiedTo', { name: this._name(climate), day: this._loc.days[day], destination });
+    this._msg = this._loc.t('dayCopiedTo', { name: this._name(climate), day: this._rowLabel(day, 'long'), destination });
     this._render();
   }
 
@@ -3168,7 +3258,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _copyToClipboard(climate, day) {
     const segs = clone(this._week(climate)[day]);
-    const label = `${this._name(climate)} · ${this._loc.days[day]} (${this._scheduleName(this._schedule)})`;
+    const label = `${this._name(climate)} · ${this._rowLabel(day, 'long')} (${this._scheduleName(this._schedule)})`;
     this._clip = { segs, label };
     this._clipSrc = { climate, schedule: this._schedule, day };
     try { localStorage.setItem(LS_CLIP, JSON.stringify(this._clip)); } catch (e) { /* ignore */ }
@@ -3183,10 +3273,11 @@ class ChauffageProgrammeCard extends HTMLElement {
   _pasteFromClipboard(climate, day) {
     if (!this._clip) return;
     this._week(climate)[day] = normalize(clone(this._clip.segs));
+    this._spread(climate, day);
     if (this._sel && this._sel.climate === climate && this._sel.day === day) this._sel = null;
     this._focus = climate;
     this._dirty = true;
-    this._msg = this._loc.t('pastedOn', { name: this._name(climate), day: this._loc.days[day] });
+    this._msg = this._loc.t('pastedOn', { name: this._name(climate), day: this._rowLabel(day, 'long') });
     this._render();
   }
 
@@ -3247,6 +3338,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       return this._render();
     }
     if (act === 'history') return this._toggleHistory();
+    if (act === 'group-days') {
+      // The history shows each day: grouping the days hides it
+      this._groupPref = !this._grouped();
+      try { localStorage.setItem(LS_GROUP, this._groupPref ? '1' : '0'); } catch (e) { /* ignore */ }
+      this._sel = null;
+      return this._history.shown ? this._toggleHistory() : this._render();
+    }
     if (act === 'zoom') return this._toggleZoom(ds.climate, Number(ds.day));
     if (act === 'show-all') {
       this._shown = this._thermostats.map((t) => t.entity);
@@ -3341,9 +3439,9 @@ const STYLE = `
     background:var(--success-color,#43a047); vertical-align:middle; }
 
   /* Grid: day | (name) | bar | tools */
-  .scale { display:grid; grid-template-columns:36px 1fr 28px; gap:8px; align-items:center; }
-  .multi .scale { grid-template-columns:36px fit-content(100px) 1fr 28px; }
-  .dgroup { display:grid; grid-template-columns:36px 1fr; gap:8px; align-items:center; margin:7px 0; }
+  .scale { display:grid; grid-template-columns:var(--day-w) 1fr 28px; gap:8px; align-items:center; }
+  .multi .scale { grid-template-columns:var(--day-w) fit-content(100px) 1fr 28px; }
+  .dgroup { display:grid; grid-template-columns:var(--day-w) 1fr; gap:8px; align-items:center; margin:7px 0; }
   .multi .dgroup { padding-top:7px; border-top:1px solid var(--divider-color); }
   /* Today stands out among the days and thermostats: its whole row is tinted, with a border on
      each side, thicker on the left. Wider than the row (negative margin, padding minus the
@@ -3371,7 +3469,7 @@ const STYLE = `
   .ticks span { position:absolute; transform:translateX(-50%); }
   .ticks span:first-child { transform:none; }
   .ticks span:last-child { transform:translateX(-100%); }
-  .day { font-size:.9em; color:var(--secondary-text-color); text-align:right; }
+  .day { font-size:.9em; color:var(--secondary-text-color); text-align:right; line-height:1.2; }
   .dgroup.today .day { color:var(--primary-color); font-weight:700; }
   .bar { position:relative; height:38px; border-radius:6px; background:var(--secondary-background-color);
     user-select:none; -webkit-user-select:none; }
@@ -3595,10 +3693,10 @@ const STYLE = `
   .missing .btn { margin-top:12px; }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:fit-content(60px) 1fr 28px; }
-    .dgroup { grid-template-columns:30px 1fr; }
+    .dgroup { grid-template-columns:min(var(--day-w), 56px) 1fr; }
     .multi .sub { grid-template-columns:fit-content(60px) 1fr 28px; }
     .sub { grid-template-columns:1fr 28px; }
-    .scale { grid-template-columns:30px 1fr 28px; }
+    .scale { grid-template-columns:min(var(--day-w), 56px) 1fr 28px; }
     /* Several thermostats: the day's name above its rows, so that the bars get the width */
     .multi .scale > div:first-child { display:none; }
     .multi .dgroup { grid-template-columns:1fr; gap:4px; }
@@ -3626,6 +3724,7 @@ const STYLE = `
 const MORE_INFO_CFG = {
   language: undefined, // card option: forces the UI language
   step: 15,
+  group_days: undefined, // card option: false shows every day on its own row
 };
 
 class ChauffageMoreInfo extends HTMLElement {
@@ -3743,7 +3842,6 @@ class ChauffageMoreInfo extends HTMLElement {
     const d = this._currentOverride();
     const pieces = overridePieces(d);
     this._pieces = pieces;
-    const pieceFor = (day) => pieces.find((p) => p.day === day);
 
     const segs = week[today];
     const followText = planText(dataSource(this._hass).planned(this._entity), (id) => this._preset(id).name, this._loc);
@@ -3793,8 +3891,11 @@ class ChauffageMoreInfo extends HTMLElement {
       </div>`;
     }
 
-    const rows = this._loc.dayOrder.map((day) => `<div class="row${day === today ? ' today' : ''}">
-        <span>${this._loc.daysShort[day]}</span>${this._bar(week[day], pieceFor(day), false, false)}</div>`).join('');
+    // Identical days on one row (card option `group_days`), like the schedule card
+    const order = this._loc.dayOrder;
+    const rows = (MORE_INFO_CFG.group_days === false ? order.map((d) => [d]) : rowsOfDays(order, (d) => serializeDay(week[d]).join(',')))
+      .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
+        <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
 
     this.shadowRoot.innerHTML = `<style>${MORE_INFO_STYLE}</style>
@@ -3803,7 +3904,7 @@ class ChauffageMoreInfo extends HTMLElement {
         ${status}
         ${this._error ? `<div class="msg">${esc(this._error)}</div>` : ''}
         <div class="today-lbl">${esc(t('todayTitle'))}</div>
-        ${this._bar(segs, pieceFor(today), true, true)}
+        ${this._bar(segs, rowPiece(pieces, [today]), true, true)}
         ${endDay}
         <div class="ticks">${ticks}</div>
         <details><summary>${esc(t('week'))}</summary><div class="week">${rows}</div></details>
@@ -3990,9 +4091,11 @@ const MORE_INFO_STYLE = `
   .ticks { display:flex; justify-content:space-between; font-size:10px; color:var(--secondary-text-color); margin-top:3px; }
   details { margin-top:10px; }
   summary { cursor:pointer; font-size:.88em; color:var(--secondary-text-color); }
-  .week { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
-  .row { display:flex; align-items:center; gap:8px; font-size:.8em; color:var(--secondary-text-color); }
-  .row span { width:28px; }
+  /* One grid for the rows: the column of the days is as wide as the longest name of a row */
+  .week { display:grid; grid-template-columns:fit-content(56px) 1fr; gap:4px 8px; align-items:center; margin-top:8px;
+    font-size:.8em; color:var(--secondary-text-color); }
+  .row { display:contents; }
+  .row span { line-height:1.2; }
   .row.today span { color:var(--primary-color); font-weight:700; }
 `;
 
