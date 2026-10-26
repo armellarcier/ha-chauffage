@@ -9,6 +9,19 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+Identical days on one row ([#11](https://github.com/armellarcier/ha-chauffage/issues/11)).
+**Does not migrate stored data.**
+
+### Added
+
+- **Identical days share a row** in the schedule card (*Mon–Fri*, *Sat, Sun*, *Every day*), and
+  editing the row edits each of its days: moving a time, adding, changing or deleting a slot,
+  pasting. With several thermostats shown, a row holds the days identical for each of them. The
+  *Group days* button shows each day on its own row, to make one day different; *Copy to…* makes
+  days identical, and they join one row. The history still shows each day (grouping the days
+  hides it). The week of the thermostat card and of the more-info dialog is grouped the same
+  way. `group_days: false` (YAML) shows each day by default.
+
 ## [0.6.0-beta.6] - 2026-10-25
 
 A rework of the cards ([#39](https://github.com/armellarcier/ha-chauffage/issues/39)): a card per

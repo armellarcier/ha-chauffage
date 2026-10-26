@@ -100,7 +100,7 @@ describe('the card in English', () => {
     const root = card.shadowRoot;
     assert.equal(root.querySelector('[data-act="multi-sel"]').textContent, 'Multiple');
     assert.match(root.querySelector('.legend').textContent, /Frost protection.*Eco.*Comfort.*Boost/);
-    assert.equal(root.querySelector('.dgroup .day').textContent, 'Sun');
+    assert.equal(root.querySelector('.dgroup .day').textContent, 'Sat, Sun'); // Sunday's row first
     assert.match(root.querySelector('.bar[data-day="0"] .seg[data-idx="1"]').title, /6:30\s?AM/); // Monday
   });
 

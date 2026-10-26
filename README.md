@@ -17,7 +17,8 @@ presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_the
   *Away*…), each with a 7-day week per thermostat; one is active, switched from the card or by
   automations;
 - visual Lovelace editor card (`custom:chauffage-programme-card`): drag time slots, copy /
-  paste days, several thermostats per day, see the temperature measured over the last 7 days
+  paste days, identical days on one row (*Mon–Fri*, *Every day*) edited at once, several
+  thermostats per day, see the temperature measured over the last 7 days
   drawn over each day; made for phones too; every thermostat, schedule or setting it names opens
   in Home Assistant;
 - a **thermostat card** (`custom:chauffage-thermostat-card`) to build your own dashboards: one
@@ -50,8 +51,11 @@ data automatically.
    ```
    The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
    the week); English and French are available, and `language: en` or `language: fr` forces one.
+   Identical days share a row (*Mon–Fri*, *Sat, Sun*, *Every day*): editing the row edits each
+   of its days. The *Group days* button shows each day on its own row (to make one day
+   different), and `group_days: false` makes that the default.
    The thermostats, their names and the other options can also be set from the card's visual
-   editor (Edit card); `language` is only set in YAML.
+   editor (Edit card); `language` and `group_days` are only set in YAML.
 4. Optionally, a **Scheduled thermostat** card per room, to place in your own dashboards (it is
    suggested for a thermostat in *Add card* → *By entity*):
    ```yaml

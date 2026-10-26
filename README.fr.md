@@ -17,7 +17,8 @@ préréglages, ou **[Versatile Thermostat](https://github.com/jmcollin78/versati
   *Absent*…), chacun avec une semaine de 7 jours par thermostat ; un seul est actif, changé
   depuis la carte ou par des automatisations ;
 - carte Lovelace d'édition visuelle (`custom:chauffage-programme-card`) : glisser les horaires,
-  copier / coller des journées, plusieurs thermostats par journée, voir la température mesurée
+  copier / coller des journées, les jours identiques sur une ligne (*Lun–Ven*, *Tous les jours*)
+  modifiés d'un coup, plusieurs thermostats par journée, voir la température mesurée
   des 7 derniers jours tracée sur chaque journée ; pensée aussi pour le téléphone ; chaque
   thermostat, planning ou réglage qu'elle nomme s'ouvre dans Home Assistant ;
 - une **carte thermostat** (`custom:chauffage-thermostat-card`) pour composer vos propres tableaux
@@ -50,8 +51,11 @@ l'interface : aucun YAML à modifier. La version 0.1 était un package YAML ; la
    La carte suit la langue et les formats de l'utilisateur (12 / 24 h, séparateur décimal, premier
    jour de la semaine) ; l'anglais et le français sont disponibles, et `language: en` ou
    `language: fr` en force un.
+   Les jours identiques partagent une ligne (*Lun–Ven*, *Sam, Dim*, *Tous les jours*) : modifier
+   la ligne modifie chacun de ses jours. Le bouton *Grouper les jours* affiche chaque jour sur sa
+   ligne (pour rendre un jour différent), et `group_days: false` en fait l'affichage par défaut.
    Les thermostats, leurs noms et les autres options se règlent aussi dans l'éditeur visuel de la
-   carte (Modifier la carte) ; `language` se règle seulement en YAML.
+   carte (Modifier la carte) ; `language` et `group_days` se règlent seulement en YAML.
 4. Si vous le souhaitez, une carte **Thermostat programmé** par pièce, à placer dans vos propres
    tableaux de bord (elle est proposée pour un thermostat dans *Ajouter une carte* → *Par
    entité*) :

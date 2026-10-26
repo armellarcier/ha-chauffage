@@ -53,7 +53,7 @@ describe('today', () => {
     const card = createCard(fakeHass());
     const today = card.shadowRoot.querySelectorAll('.dgroup.today');
     assert.equal(today.length, 1);
-    assert.equal(today[0].querySelector('.day').dataset.day, '4');
+    assert.equal(today[0].querySelector('.day').textContent, 'Lun–Ven'); // Friday, in the row of its days
     assert.equal(today[0].querySelectorAll('.bar').length, 2); // every thermostat of the day
     const row = card.shadowRoot.querySelector('style').textContent.match(/\.dgroup\.today \{([^}]*)\}/);
     assert.ok(row);
@@ -89,7 +89,7 @@ describe('today', () => {
     // Every cell of the column (and the scale above it) holds the names shown, invisible: each row
     // sizes its column on the longest one, so all rows have the same column
     const cells = [...card.shadowRoot.querySelectorAll('.scale .name, .sub .name')];
-    assert.equal(cells.length, 1 + 7 * 2);
+    assert.equal(cells.length, 1 + 2 * 2); // Mon–Fri and Sat–Sun
     for (const cell of cells) {
       const sizer = cell.querySelector('.sizer');
       assert.equal(sizer.getAttribute('aria-hidden'), 'true');
@@ -97,7 +97,7 @@ describe('today', () => {
     }
     const css = card.shadowRoot.querySelector('style').textContent;
     assert.match(css, /\.multi \.sub \{ grid-template-columns:fit-content\(100px\) 1fr 28px; \}/);
-    assert.match(css, /\.multi \.scale \{ grid-template-columns:36px fit-content\(100px\) 1fr 28px; \}/);
+    assert.match(css, /\.multi \.scale \{ grid-template-columns:var\(--day-w, 36px\) fit-content\(100px\) 1fr 28px; \}/);
   });
 
   test('the current time line has a triangle at each end, like a playhead, in the text color with a light shadow', () => {
@@ -228,7 +228,7 @@ describe('copy / paste', () => {
   });
 
   test('copying to the other displayed thermostats (same day)', () => {
-    const card = createCard(fakeHass());
+    const card = createCard(fakeHass(), { group_days: false });
     card._copyDay('climate.salon', 2, 'others');
     assert.deepEqual(day(card, 'climate.bureau', 2), WEEKDAY);
     assert.deepEqual(day(card, 'climate.bureau', 3), ['00:00 eco']);
@@ -248,7 +248,7 @@ describe('copy / paste', () => {
     cleanup();
     localStorage.setItem('chauffage-programme-card:clip', JSON.stringify(card._clip));
     const other = createCard(fakeHass());
-    assert.equal(other._clip.label, 'Salon · Lundi (Normal)');
+    assert.equal(other._clip.label, 'Salon · Lun–Ven (Normal)'); // the days of its row
   });
 });
 

@@ -318,6 +318,18 @@ dashboards, automations, scripts and by voice without the card
   temperature sensors' statistics (tiny): a thermostat does not say which sensor it uses, some
   have none, and the setpoint is only in the thermostat's attributes. The card falls back to HA's
   history while HA has not been restarted after an update.
+- **Identical days are grouped when they are drawn, not in the data** (#11): a week stays 7 days
+  (the scheduler, the storage, `get_week` and automations do not change, nothing to migrate), and
+  the card shows the days with the same slots on one row, edited as a whole. Groups chosen and
+  stored (*Mon–Fri / Sat / Sun*, as some thermostats do) were more predictable, but needed a new
+  format and a migration, exceptions inside a group, and a meaning for thermostats grouped
+  differently; deduced groups apply at once to existing schedules. Hence: with several
+  thermostats shown, a row holds the days identical for every one of them; editing a row never
+  splits it (a day is made different with each day shown, *Group days* off), and *Copy to…*
+  joins rows. The history is per day: it shows each day, and grouping the days hides it (two
+  buttons that seemed both on while one was ignored were confusing). Today's row carries the
+  current time and today's piece of an override; another row only shows where an override ends,
+  never a past piece (a row stands for days to come as much as days gone).
 - **A slot is moved whole by dragging it**, its neighbors giving or taking the time; the first
   and the last slots of the day stay (they start or end the day). A move under 5 px is still a
   click (the popover); a move does not select the slot (its popover would cover the row).
