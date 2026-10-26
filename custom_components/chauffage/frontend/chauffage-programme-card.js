@@ -467,6 +467,8 @@ function makeLocale(hass, configured) {
     .replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
   const long = dayName('long');
   const short = dayName('short');
+  // Display order of the days (indexes in the Monday-based schedule data)
+  const order = [0, 1, 2, 3, 4, 5, 6].map((i) => (first + i) % 7);
   const at = (minutes) => {
     const d = new Date(REFERENCE_MONDAY);
     d.setMinutes(minutes % DAY_MIN);
@@ -478,18 +480,16 @@ function makeLocale(hass, configured) {
     signature: JSON.stringify([lang, intlLocale, unit, configured || null, prefs]),
     days: long,
     daysShort: short,
-    // Display order of the days (indexes in the Monday-based schedule data)
-    dayOrder: [0, 1, 2, 3, 4, 5, 6].map((i) => (first + i) % 7),
+    dayOrder: order,
     // Days of a row → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", "Every day" (one day: its name)
     daysLabel: (days, style = 'short') => {
       if (days.length === 7) return t('everyDay');
       if (days.length === 1) return (style === 'short' ? short : long)[days[0]];
-      const order = [0, 1, 2, 3, 4, 5, 6].map((i) => (first + i) % 7);
       const pos = days.map((d) => order.indexOf(d)).sort((a, b) => a - b);
       const runs = [];
       pos.forEach((p) => { const r = runs[runs.length - 1]; if (r && r[1] === p - 1) r[1] = p; else runs.push([p, p]); });
-      // The days follow each other across the end of the week: "Sat, Sun" in a Sunday-first week
-      if (runs.length > 1 && runs[0][0] === 0 && runs[runs.length - 1][1] === 6) {
+      // A week starting on the weekend keeps it together: "Sat, Sun" in a Sunday-first week
+      if (runs.length > 1 && order[0] >= 5 && runs[0][0] === 0 && runs[0][1] === 0 && runs[runs.length - 1][1] === 6) {
         const [a] = runs.pop();
         runs[0] = [a, runs[0][1] + 7];
       }
@@ -562,7 +562,25 @@ function parseDay(list) {
 
 const serializeDay = (segs) => segs.map((s) => `${toHM(s.start)} ${s.preset}`);
 
+// Days in display order, the days of the same key on one row: [[0, 1, 2, 3, 4], [5, 6]]
+function rowsOfDays(order, keyOf) {
+  const rows = new Map();
+  for (const d of order) {
+    const key = keyOf(d);
+    if (!rows.has(key)) rows.set(key, []);
+    rows.get(key).push(d);
+  }
+  return [...rows.values()];
+}
+
 // ---------- overrides (shared by the card and the more-info block) ----------
+
+// The piece of an override drawn on a row of days: today's, or the last one (where it ends, with
+// its handle), or the first of the row (the pieces start today: none is past)
+function rowPiece(pieces, days) {
+  const inRow = pieces.filter((p) => days.includes(p.day));
+  return inRow.find((p) => p.day === todayIdx()) || inRow.find((p) => p.isLast) || inRow[0];
+}
 
 // Splits an override into one piece per day (today + 6 days), in minutes of the time of day like
 // the slots: on the days the clocks change, the time elapsed since midnight is an hour off (#43)
@@ -1438,25 +1456,24 @@ class ChauffageProgrammeCard extends HTMLElement {
     return this._data[climate][schedule];
   }
 
-  _groupDays() {
-    return this._groupPref ?? this._config.group_days !== false;
+  // Identical days on one row (the user's choice on this device, else the card's option); not
+  // with the history, which differs from day to day
+  _grouped() {
+    return !this._history.shown && (this._groupPref ?? this._config.group_days !== false);
   }
 
   // Rows of days, in display order: one per day, or the days identical for every thermostat
-  // shown on one row (not with the history, which differs from day to day)
-  _dayRows() {
+  // shown on one row. What points at a day (selected slot, open menu, copied day) follows the
+  // first day of its row, which draws it.
+  _layoutRows() {
     const order = this._loc.dayOrder;
-    if (!this._groupDays() || this._history.shown) return order.map((d) => [d]);
-    const rows = new Map();
-    for (const d of order) {
-      const key = this._shown.map((c) => serializeDay(this._week(c)[d]).join(',')).join('|');
-      if (!rows.has(key)) rows.set(key, []);
-      rows.get(key).push(d);
-    }
-    return [...rows.values()];
+    this._rows = this._grouped()
+      ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(this._week(c)[d]).join(',')).join('|'))
+      : order.map((d) => [d]);
+    for (const ref of [this._sel, this._menu, this._clipSrc]) if (ref) ref.day = this._rowOf(ref.day)[0];
   }
 
-  // The days of the row a day is drawn in
+  // The days of the row a day is drawn in (the day alone before the first drawing)
   _rowOf(day) {
     return (this._rows && this._rows.find((r) => r.includes(day))) || [day];
   }
@@ -1798,7 +1815,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<span class="t">${t}</span><span class="l">${l}</span>`;
   }
 
-  _barHtml(climate, segs, d, showNow, days = [d]) {
+  _barHtml(climate, segs, days, showNow) {
+    const d = days[0];
     const segHtml = segs
       .map((s, i) => {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
@@ -1819,21 +1837,18 @@ class ChauffageProgrammeCard extends HTMLElement {
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && cs.day === d;
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, d, days)}${now}</div>`;
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
   }
 
-  // Override drawn over the schedule (only in the active schedule's tab)
-  // On a row of several days: today's piece, or the last one (where it ends), not the past ones
-  _overrideHtml(climate, day, days = [day]) {
+  // Override drawn over the schedule (only in the active schedule's tab), on a row of days
+  _overrideHtml(climate, days) {
     if (this._schedule !== this._activeSchedule()) return '';
     const d = this._overrides()[climate];
-    const pieces = this._overridePieces(climate);
-    const piece = days.length === 1 ? pieces.find((p) => p.day === day)
-      : pieces.find((p) => p.day === todayIdx() && days.includes(p.day)) || pieces.find((p) => p.isLast && days.includes(p.day));
+    const piece = rowPiece(this._overridePieces(climate), days);
     if (!d || !piece) return '';
     const endHM = this._loc.time(minutesOf(parseDate(d.end)));
     const label = `${this._overrideLabel(d)} → ${endHM}`;
-    const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === day;
+    const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === piece.day;
     return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${piece.day}"
         style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%" title="${esc(this._loc.t('temporarySetpointTitle', { label }))}">
       <span class="override-label">${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120) ? `⏱ ${esc(label)}` : '⏱'}</span>
@@ -1852,7 +1867,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const open = m && m.climate === climate && m.day === d;
         return `<div class="sub">
           ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
-          ${this._barHtml(climate, segs, d, showNow, days)}
+          ${this._barHtml(climate, segs, days, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
         </div>`;
       })
@@ -2173,7 +2188,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('') + (editable ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span${h % 6 ? ' class="minor"' : ''} style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
-    this._rows = this._dayRows();
+    this._layoutRows();
     const days = this._rows.map((r) => this._dayHtml(r, r.includes(today) && this._schedule === active)).join('');
     // The column of the days fits the longest label (on two lines at most)
     const dayWidth = Math.min(72, Math.max(36, ...this._rows.map((r) => this._loc.daysLabel(r).length * 8 + 4)));
@@ -2207,7 +2222,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <span class="chip-sep"></span>
           <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
-          <button class="chip tool${this._groupDays() && !this._history.shown ? ' on' : ''}" data-act="group-days" title="${esc(tr('groupDaysTitle'))}">${esc(tr('groupDays'))}</button>
+          <button class="chip tool${this._grouped() ? ' on' : ''}" data-act="group-days" title="${esc(tr('groupDaysTitle'))}">${esc(tr('groupDays'))}</button>
           <button class="chip tool${this._history.shown ? ' on' : ''}${this._history.loading ? ' loading' : ''}" data-act="history" title="${esc(tr('historyTitle'))}">${esc(tr('history'))}</button>
         </div>
         ${this._renamedNotesHtml()}
@@ -2215,8 +2230,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         <div class="tabs">${tabs}</div>
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}
-        <div class="scale" style="--day-w:${dayWidth}px"><div></div>${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}<div class="ticks">${ticks}</div><div></div></div>
-        <div class="days" style="--day-w:${dayWidth}px">${days}</div>
+        <div class="days" style="--day-w:${dayWidth}px">
+          <div class="scale"><div></div>${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}<div class="ticks">${ticks}</div><div></div></div>
+          ${days}
+        </div>
         ${this._menuHtml()}
         ${this._editorHtml()}
         <div class="foot">
@@ -3323,7 +3340,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'history') return this._toggleHistory();
     if (act === 'group-days') {
       // The history shows each day: grouping the days hides it
-      this._groupPref = this._history.shown || !this._groupDays();
+      this._groupPref = !this._grouped();
       try { localStorage.setItem(LS_GROUP, this._groupPref ? '1' : '0'); } catch (e) { /* ignore */ }
       this._sel = null;
       return this._history.shown ? this._toggleHistory() : this._render();
@@ -3422,9 +3439,9 @@ const STYLE = `
     background:var(--success-color,#43a047); vertical-align:middle; }
 
   /* Grid: day | (name) | bar | tools */
-  .scale { display:grid; grid-template-columns:var(--day-w, 36px) 1fr 28px; gap:8px; align-items:center; }
-  .multi .scale { grid-template-columns:var(--day-w, 36px) fit-content(100px) 1fr 28px; }
-  .dgroup { display:grid; grid-template-columns:var(--day-w, 36px) 1fr; gap:8px; align-items:center; margin:7px 0; }
+  .scale { display:grid; grid-template-columns:var(--day-w) 1fr 28px; gap:8px; align-items:center; }
+  .multi .scale { grid-template-columns:var(--day-w) fit-content(100px) 1fr 28px; }
+  .dgroup { display:grid; grid-template-columns:var(--day-w) 1fr; gap:8px; align-items:center; margin:7px 0; }
   .multi .dgroup { padding-top:7px; border-top:1px solid var(--divider-color); }
   /* Today stands out among the days and thermostats: its whole row is tinted, with a border on
      each side, thicker on the left. Wider than the row (negative margin, padding minus the
@@ -3676,10 +3693,10 @@ const STYLE = `
   .missing .btn { margin-top:12px; }
   @media (max-width:500px) {
     .multi .scale { grid-template-columns:fit-content(60px) 1fr 28px; }
-    .dgroup { grid-template-columns:30px 1fr; }
+    .dgroup { grid-template-columns:min(var(--day-w), 56px) 1fr; }
     .multi .sub { grid-template-columns:fit-content(60px) 1fr 28px; }
     .sub { grid-template-columns:1fr 28px; }
-    .scale { grid-template-columns:30px 1fr 28px; }
+    .scale { grid-template-columns:min(var(--day-w), 56px) 1fr 28px; }
     /* Several thermostats: the day's name above its rows, so that the bars get the width */
     .multi .scale > div:first-child { display:none; }
     .multi .dgroup { grid-template-columns:1fr; gap:4px; }
@@ -3825,7 +3842,6 @@ class ChauffageMoreInfo extends HTMLElement {
     const d = this._currentOverride();
     const pieces = overridePieces(d);
     this._pieces = pieces;
-    const pieceFor = (day) => pieces.find((p) => p.day === day);
 
     const segs = week[today];
     const followText = planText(dataSource(this._hass).planned(this._entity), (id) => this._preset(id).name, this._loc);
@@ -3876,18 +3892,10 @@ class ChauffageMoreInfo extends HTMLElement {
     }
 
     // Identical days on one row (card option `group_days`), like the schedule card
-    const byDay = new Map();
-    for (const day of this._loc.dayOrder) {
-      const key = MORE_INFO_CFG.group_days === false ? day : serializeDay(week[day]).join(',');
-      if (!byDay.has(key)) byDay.set(key, []);
-      byDay.get(key).push(day);
-    }
-    const dayW = Math.min(56, Math.max(28, ...[...byDay.values()].map((days) => this._loc.daysLabel(days).length * 6)));
-    // On a row of several days: today's piece of the override, or where it ends, not the past ones
-    const pieceOf = (days) => (days.length === 1 ? pieceFor(days[0])
-      : pieces.find((p) => p.day === today && days.includes(p.day)) || pieces.find((p) => p.isLast && days.includes(p.day)));
-    const rows = [...byDay.values()].map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
-        <span style="width:${dayW}px">${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], pieceOf(days), false, false)}</div>`).join('');
+    const order = this._loc.dayOrder;
+    const rows = (MORE_INFO_CFG.group_days === false ? order.map((d) => [d]) : rowsOfDays(order, (d) => serializeDay(week[d]).join(',')))
+      .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
+        <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
 
     this.shadowRoot.innerHTML = `<style>${MORE_INFO_STYLE}</style>
@@ -3896,7 +3904,7 @@ class ChauffageMoreInfo extends HTMLElement {
         ${status}
         ${this._error ? `<div class="msg">${esc(this._error)}</div>` : ''}
         <div class="today-lbl">${esc(t('todayTitle'))}</div>
-        ${this._bar(segs, pieceFor(today), true, true)}
+        ${this._bar(segs, rowPiece(pieces, [today]), true, true)}
         ${endDay}
         <div class="ticks">${ticks}</div>
         <details><summary>${esc(t('week'))}</summary><div class="week">${rows}</div></details>
@@ -4083,9 +4091,11 @@ const MORE_INFO_STYLE = `
   .ticks { display:flex; justify-content:space-between; font-size:10px; color:var(--secondary-text-color); margin-top:3px; }
   details { margin-top:10px; }
   summary { cursor:pointer; font-size:.88em; color:var(--secondary-text-color); }
-  .week { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
-  .row { display:flex; align-items:center; gap:8px; font-size:.8em; color:var(--secondary-text-color); }
-  .row span { flex:0 0 auto; width:28px; line-height:1.2; }
+  /* One grid for the rows: the column of the days is as wide as the longest name of a row */
+  .week { display:grid; grid-template-columns:fit-content(56px) 1fr; gap:4px 8px; align-items:center; margin-top:8px;
+    font-size:.8em; color:var(--secondary-text-color); }
+  .row { display:contents; }
+  .row span { line-height:1.2; }
   .row.today span { color:var(--primary-color); font-weight:700; }
 `;
 

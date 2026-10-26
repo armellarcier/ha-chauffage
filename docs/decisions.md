@@ -328,8 +328,8 @@ dashboards, automations, scripts and by voice without the card
   splits it (a day is made different with each day shown, *Group days* off), and *Copy to…*
   joins rows. The history is per day: it shows each day, and grouping the days hides it (two
   buttons that seemed both on while one was ignored were confusing). Today's row carries the
-  current time and today's piece of an override; another row only shows where an override ends,
-  never a past piece (a row stands for days to come as much as days gone).
+  current time and today's piece of an override; another row shows where it ends (with the handle
+  to move the end), or else the days of the row it covers.
 - **A slot is moved whole by dragging it**, its neighbors giving or taking the time; the first
   and the last slots of the day stay (they start or end the day). A move under 5 px is still a
   click (the popover); a move does not select the slot (its popover would cover the row).

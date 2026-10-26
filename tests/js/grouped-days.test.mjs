@@ -45,7 +45,8 @@ describe('rows of identical days', () => {
     assert.equal(loc.daysLabel([3]), 'Thu');
     assert.equal(loc.daysLabel([3], 'long'), 'Thursday');
     const monday = makeLocale(user({ language: 'en', first_weekday: 'monday' }));
-    assert.equal(monday.daysLabel([6, 0, 1]), 'Sun–Tue'); // across the end of the week too
+    assert.equal(monday.daysLabel([6, 0, 1]), 'Mon, Tue, Sun'); // a week starting on Monday keeps its order
+    assert.equal(monday.daysLabel([0, 1, 3, 4, 5, 6]), 'Mon, Tue, Thu–Sun');
     assert.equal(monday.daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Every day');
   });
 
@@ -56,7 +57,7 @@ describe('rows of identical days', () => {
     };
     const card = createCard(fakeHass({ weeks }));
     assert.deepEqual(labels(card), ['Lun, Mar, Jeu, Ven', 'Mer', 'Sam, Dim']);
-    assert.equal(card.shadowRoot.querySelectorAll('.dgroup:first-of-type .bar').length, 2);
+    assert.equal($(card, '.dgroup').querySelectorAll('.bar').length, 2);
   });
 
   test('the column of the days is as wide as the longest name of a row', () => {
@@ -64,7 +65,9 @@ describe('rows of identical days', () => {
     const long = createCard(fakeHass(), { show: ['climate.salon'] });
     const width = (card) => Number($(card, '.days').style.getPropertyValue('--day-w').replace('px', ''));
     assert.ok(width(short) > width(long));
-    assert.equal($(long, '.scale').style.getPropertyValue('--day-w'), $(long, '.days').style.getPropertyValue('--day-w'));
+    // On a phone too, up to 56 px (the bars keep the width)
+    const css = $(long, 'style').textContent;
+    assert.match(css, /@media \(max-width:500px\) \{[^@]*\.dgroup \{ grid-template-columns:min\(var\(--day-w\), 56px\) 1fr; \}/);
   });
 });
 
@@ -86,6 +89,18 @@ describe('editing a row', () => {
     assert.match($(card, '.editor .ed-head strong').textContent, /Sam, Dim/);
     $(card, '.editor [data-preset="boost"]').click();
     assert.deepEqual(day(card, 'climate.salon', 6), ['00:00 eco', '08:00 boost', '23:00 eco']);
+  });
+
+  test('a slot edited until its row joins another one stays selected, its popover open', () => {
+    const boosted = ['00:00 eco', '06:30 boost', '08:30 eco', '17:30 comfort', '22:30 eco'];
+    const week = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, boosted, boosted];
+    const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] });
+    card._sel = { climate: 'climate.salon', day: 5, idx: 1 };
+    card._render();
+    $(card, '.editor [data-preset="comfort"]').click(); // the weekend is now the weekdays
+    assert.deepEqual(labels(card), ['Tous les jours']);
+    assert.ok($(card, '.seg.sel'));
+    assert.ok($(card, '.editor'));
   });
 
   test('pasting on a row pastes on each of its days', () => {
@@ -170,6 +185,15 @@ describe('today in a row of days', () => {
     assert.equal(card.shadowRoot.querySelectorAll('.now').length, 1);
   });
 
+  test('an override on a day in the middle of its row opens its popover', () => {
+    mock.timers.setTime(new Date('2026-10-14T10:00:00+02:00').getTime()); // Wednesday, in Mon–Fri
+    const midday = { 'climate.salon': { kind: 'temperature', value: 21.5, start: '2026-10-14T09:00:00+02:00', end: '2026-10-14T18:00:00+02:00' } };
+    const card = createCard(fakeHass({ overrides: midday }), { show: ['climate.salon'] });
+    $(card, '.override').click();
+    assert.ok($(card, '.override.sel'));
+    assert.ok($(card, '.editor.override-ed'));
+  });
+
   test('its menu sets a temporary setpoint', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     card._openMenu('climate.salon', 0, 0, 0);
@@ -179,12 +203,23 @@ describe('today in a row of days', () => {
     assert.equal($(card, '.menu [data-act="override-new"]'), null);
   });
 
-  test('an override shows today, and on another row where it ends, never the past', () => {
+  test('an override shows today, and on another row where it ends', () => {
     const card = createCard(fakeHass({ weeks, overrides }), { show: ['climate.salon'] });
     assert.deepEqual(labels(card), ['Lun', 'Mar–Dim']);
     const pieces = [...card.shadowRoot.querySelectorAll('.override')];
-    assert.deepEqual(pieces.map((p) => p.dataset.day), ['0', '1']); // not Sunday's
+    assert.deepEqual(pieces.map((p) => p.dataset.day), ['0', '1']);
     assert.ok(pieces[1].querySelector('.override-handle'));
+  });
+
+  test('an override for the week also shows on a row of the days it covers', () => {
+    const week = { 'climate.salon': { kind: 'temperature', value: 19, start: '2026-10-12T08:00:00+02:00', end: '2026-10-18T01:00:00+02:00' } };
+    const three = { 'climate.salon': { Normal: [WEEKDAY, OTHER, OTHER, OTHER, OTHER, WEEKEND, WEEKEND] } };
+    const card = createCard(fakeHass({ weeks: three, overrides: week }), { show: ['climate.salon'] });
+    assert.deepEqual(labels(card), ['Lun', 'Mar–Ven', 'Sam, Dim']);
+    const pieces = [...card.shadowRoot.querySelectorAll('.override')];
+    assert.deepEqual(pieces.map((p) => p.dataset.day), ['0', '1', '6']); // Sunday: where it ends
+    assert.equal(pieces[1].style.width, '100%');
+    assert.ok(pieces[2].querySelector('.override-handle'));
   });
 });
 
@@ -203,13 +238,13 @@ describe('the week in the more-info block', () => {
     assert.deepEqual(rows(block(fakeHass({ weeks: RETIRED }))), ['Tous les jours']);
   });
 
-  test('an override shows today, and on another row where it ends, never the past', () => {
+  test('an override shows today, and on another row where it ends', () => {
     const overrides = { 'climate.salon': { kind: 'temperature', value: 21.5, start: '2026-10-11T20:00:00+02:00', end: '2026-10-13T01:00:00+02:00' } };
     const weeks = { 'climate.salon': { Normal: [WEEKDAY, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND] } };
     const el = block(fakeHass({ weeks, overrides }));
     assert.deepEqual(rows(el), ['Lun', 'Mar–Dim']);
     const widths = [...el.shadowRoot.querySelectorAll('.row')].map((r) => r.querySelector('.override').style.width);
-    assert.deepEqual(widths, ['100%', '4.167%']); // all Monday, Tuesday until 01:00 (not Sunday evening)
+    assert.deepEqual(widths, ['100%', '4.167%']); // all Monday, Tuesday until 01:00
   });
 
   test('`group_days: false` shows each day', () => {

@@ -97,7 +97,7 @@ describe('today', () => {
     }
     const css = card.shadowRoot.querySelector('style').textContent;
     assert.match(css, /\.multi \.sub \{ grid-template-columns:fit-content\(100px\) 1fr 28px; \}/);
-    assert.match(css, /\.multi \.scale \{ grid-template-columns:var\(--day-w, 36px\) fit-content\(100px\) 1fr 28px; \}/);
+    assert.match(css, /\.multi \.scale \{ grid-template-columns:var\(--day-w\) fit-content\(100px\) 1fr 28px; \}/);
   });
 
   test('the current time line has a triangle at each end, like a playhead, in the text color with a light shadow', () => {
