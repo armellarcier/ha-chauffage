@@ -604,8 +604,9 @@ class ChauffageRuntime:
         self._changed()
         return copy.deepcopy(schedules)
 
-    async def activate_schedule(self, schedule_id: str, *, source: str) -> None:
-        """`source` (card, entity, service, rules) is told in the chauffage_schedule_activated event."""
+    async def activate_schedule(self, schedule_id: str, *, source: str, context: Context | None = None) -> None:
+        """`source` (card, entity, service, rules) is told in the chauffage_schedule_activated event,
+        fired on the select with the `context` of what activated it (the logbook says who)."""
         if schedule_id not in self.schedule_ids:
             raise model.InvalidData(f"unknown schedule: {schedule_id}")
         if schedule_id == self.data["active_schedule"]:
@@ -614,8 +615,8 @@ class ChauffageRuntime:
         self._changed()
         self.hass.bus.async_fire(EVENT_SCHEDULE_ACTIVATED, {
             "schedule": schedule_id, "schedule_name": self.schedule_name(schedule_id),
-            "previous_schedule": previous, "source": source,
-        })
+            "previous_schedule": previous, "source": source, "entity_id": self.schedule_select(),
+        }, context=context)
         _LOGGER.info("Schedule %s activated (%s), was %s", schedule_id, source, previous)
         await self.apply(force=True, reason=f"schedule {schedule_id} activated ({source})")
 
@@ -709,10 +710,10 @@ class ChauffageRuntime:
             await self.activate_schedule(outcome, source="rules")
 
     async def set_override(self, entity_id: str, override: dict[str, Any] | None, *, source: str,
-                           resend: bool = False) -> None:
+                           resend: bool = False, context: Context | None = None) -> None:
         """Create / change / extend (override) or remove (None) a thermostat's override, from the
-        card or the service (`source`, told in the events; "thermostat" for a change on it back to
-        the schedule).
+        card or the service (`source`, told in the events with the `context` of the change;
+        "thermostat" for a change on it back to the schedule).
 
         A temperature is fitted to the thermostat (limits, step). A new override or a new value
         is sent to the thermostat unless it already has it; a new end alone is not, unless
@@ -722,7 +723,7 @@ class ChauffageRuntime:
         if override is not None and self.is_paused(entity_id):
             raise ThermostatPaused(f"paused: {entity_id}")
         if override is None:
-            if not self._drop_override(entity_id, source):
+            if not self._drop_override(entity_id, source, context):
                 return
             self._changed()
             await self.apply(resumed=entity_id, reason=f"override ended ({source})")
@@ -737,14 +738,14 @@ class ChauffageRuntime:
         if (new_value or resend) and self.needs(entity_id, target, current):
             if not await self.send(entity_id, target, f"override set by {source}"):
                 raise ThermostatFailed(entity_id)
-        self._keep_override(entity_id, override, source)
+        self._keep_override(entity_id, override, source, context)
         self._changed()
 
     @callback
-    def record_override(self, entity_id: str, override: dict[str, Any]) -> None:
+    def record_override(self, entity_id: str, override: dict[str, Any], context: Context | None = None) -> None:
         """The override of a change by hand, only recorded: the thermostat set it itself, and
         sending it back could undo a second change made meanwhile."""
-        self._keep_override(entity_id, model.normalize_override(override), "thermostat")
+        self._keep_override(entity_id, model.normalize_override(override), "thermostat", context)
         self._changed()
 
     def override_info(self, entity_id: str) -> dict[str, Any]:
@@ -757,25 +758,27 @@ class ChauffageRuntime:
         }
 
     @callback
-    def _keep_override(self, entity_id: str, override: dict[str, Any], source: str) -> None:
+    def _keep_override(self, entity_id: str, override: dict[str, Any], source: str,
+                       context: Context | None = None) -> None:
         """Records an override; a new one, or a new value, is told (an end alone is not)."""
         before = self.data["overrides"].get(entity_id)
         self.data["overrides"][entity_id] = override
         info = self.override_info(entity_id)
         if before is None or any(before.get(key) != override.get(key) for key in ("kind", "value", "preset")):
             _LOGGER.info("%s: override started by %s: %s until %s", entity_id, source, _describe(override), info["end"])
-            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source})
+            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source},
+                                     context=context)
         elif before.get("end") != override.get("end"):
             _LOGGER.info("%s: override until %s, set by %s", entity_id, info["end"], source)
 
     @callback
-    def _drop_override(self, entity_id: str, reason: str) -> bool:
+    def _drop_override(self, entity_id: str, reason: str, context: Context | None = None) -> bool:
         """Removes a thermostat's override, and tells why; False if it had none."""
         override = self.data["overrides"].pop(entity_id, None)
         if override is None:
             return False
         _LOGGER.info("%s: override ended (%s): %s", entity_id, reason, _describe(override))
-        self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason})
+        self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason}, context=context)
         return True
 
     def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
@@ -997,7 +1000,7 @@ class ChauffageRuntime:
                      "back to its slot" if change == engine.RESUME else "an override")
         if change == engine.RESUME:
             if new.entity_id in self.data["overrides"]:
-                resume = self.set_override(new.entity_id, None, source="thermostat")
+                resume = self.set_override(new.entity_id, None, source="thermostat", context=context)
                 self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
-        self.record_override(new.entity_id, self.new_override(*change))
+        self.record_override(new.entity_id, self.new_override(*change), context)

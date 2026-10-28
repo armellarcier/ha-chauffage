@@ -326,7 +326,9 @@ Services :
 |---|---|
 | `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end` et `source` : `thermostat` (un changement fait dessus, à la main), `card`, `service`. Signalé pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule sa fin change. |
 | `chauffage_override_ended` | `entity_id` et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `service`, `paused`, `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (identifiant), `schedule_name`, `previous_schedule` et `source` : `card`, `entity` (le sélecteur ou un interrupteur de planning), `service`, `rules`. |
+| `chauffage_schedule_activated` | `schedule` (identifiant), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur du planning actif) et `source` : `card`, `entity` (le sélecteur ou un interrupteur de planning), `service`, `rules`. |
+
+Chaque événement porte le contexte de ce qui l'a causé : le journal de bord dit qui a changé le thermostat, utilisé la carte, appelé le service ou choisi le planning.
 
 Par exemple, être prévenu quand quelqu'un change un thermostat à la main :
 

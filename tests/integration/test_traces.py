@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 import pytest
-from homeassistant.core import Event
+from homeassistant.core import Context, Event
 
 from conftest import CTX_USER, KINDS, WEEKDAY, Bench, every_day
 from custom_components.chauffage import diagnostics, logbook
@@ -170,17 +170,43 @@ async def test_the_logbook_tells_an_override_with_where_it_came_from_and_why_it_
         "name": "Salon", "message": "override started: Boost until 12:00 (by a service)", "entity_id": "climate.salon"}
     assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
                      value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="thermostat")["message"] \
-        == "override started: 21.5 °C until 12:00 (changed on the thermostat)"
+        == "override started: 21.5 °C until 12:00 (changed by hand)"
     assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="expired")["message"] \
         == "override ended (expired)"
 
 
-async def test_the_logbook_tells_a_schedule_activated(bench: Bench):
+async def test_the_logbook_tells_a_schedule_activated_in_the_select_s_logbook(bench: Bench):
+    """Next to the select's change ("Schedule → Away"), what activated it."""
     await start(bench)
+    select = bench.schedule_entity
     assert described(bench, "chauffage_schedule_activated", schedule="away", schedule_name="Away",
-                     previous_schedule="normal", source="rules") == {
-        "name": "Chauffage", "message": "activated schedule Away (by the activation rules)",
-        "entity_id": bench.schedule_entity}
+                     previous_schedule="normal", source="rules", entity_id=select) == {
+        "name": bench.hass.states.get(select).name, "message": "Away activated (by the activation rules)",
+        "entity_id": select}
+
+
+async def test_the_events_carry_the_context_of_what_caused_them(bench: Bench, hass_admin_user):
+    """The logbook then says who: the user who changed the thermostat, called the service or
+    picked the schedule."""
+    await start(bench, "10:00")
+    contexts = []
+    for event_type in ("chauffage_override_started", "chauffage_override_ended", "chauffage_schedule_activated"):
+        bench.hass.bus.async_listen(event_type, lambda event: contexts.append((event.event_type, event.context.user_id)))
+    await bench.manual_setpoint("climate.salon", 21.5)  # CTX_USER
+    user = Context(user_id=hass_admin_user.id)
+    await bench.hass.services.async_call("chauffage", "clear_override", {"entity_id": "climate.salon"},
+                                         blocking=True, context=user)
+    await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22},
+                                         blocking=True, context=user)
+    await bench.hass.services.async_call("select", "select_option", {"entity_id": bench.schedule_entity, "option": "Away"},
+                                         blocking=True, context=user)
+    await bench.hass.async_block_till_done()
+    assert contexts == [
+        ("chauffage_override_started", "test-user"),
+        ("chauffage_override_ended", user.user_id),
+        ("chauffage_override_started", user.user_id),
+        ("chauffage_schedule_activated", user.user_id),
+    ]
 
 
 async def test_the_logbook_speaks_the_language_of_home_assistant(bench: Bench):

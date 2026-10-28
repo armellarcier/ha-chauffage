@@ -298,7 +298,10 @@ dashboards, automations, scripts and by voice without the card
   logbook descriptions of our own"): the binary sensor's changes say that an override started
   or ended, not why, and the events are not shown anywhere; analyses across integrations need
   the reason. The events are described in the thermostat's logbook (the select's for a
-  schedule), in Home Assistant's language (it does not translate logbook descriptions). Every
+  schedule, next to its change: the schedule event carries the select's `entity_id`, or the
+  logbook filtered on it would leave it out), in Home Assistant's language (it does not translate
+  logbook descriptions). The events carry the context of what caused them (a user's change,
+  service call, card), so the logbook says who. Every
   command sent, override and change seen on a thermostat is logged at INFO with why, off by
   default like any INFO log. The diagnostics download holds the stored data, `pending` commands
   included, rather than an attribute recorded on every command.

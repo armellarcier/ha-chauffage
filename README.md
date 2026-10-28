@@ -310,7 +310,9 @@ Events, for automations (*Event* trigger):
 |---|---|
 | `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (a change made on it, by hand), `card`, `service`. Fired for a new override or a new value, not when only its end changes. |
 | `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (put back to its schedule by hand), `card`, `service`, `paused`, `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (id), `schedule_name`, `previous_schedule`, and `source`: `card`, `entity` (the select or a schedule switch), `service`, `rules`. |
+| `chauffage_schedule_activated` | `schedule` (id), `schedule_name`, `previous_schedule`, `entity_id` (the active-schedule select), and `source`: `card`, `entity` (the select or a schedule switch), `service`, `rules`. |
+
+Each event carries the context of what caused it: the logbook says who changed the thermostat, used the card, called the service or picked the schedule.
 
 For example, to be notified when someone changes a thermostat by hand:
 

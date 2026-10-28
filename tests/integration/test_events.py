@@ -108,10 +108,10 @@ async def test_activating_a_schedule_is_told_with_where_it_came_from(bench: Benc
     await bench.runtime.activate_schedule("away", source="card")
     await bench.hass.async_block_till_done()
     assert events["chauffage_schedule_activated"] == [
-        {"schedule": "away", "schedule_name": "Away", "previous_schedule": "normal", "source": "entity"},
-        {"schedule": "holiday", "schedule_name": "Holiday", "previous_schedule": "away", "source": "service"},
-        {"schedule": "normal", "schedule_name": "Normal", "previous_schedule": "holiday", "source": "entity"},
-        {"schedule": "away", "schedule_name": "Away", "previous_schedule": "normal", "source": "card"},
+        {"schedule": "away", "schedule_name": "Away", "previous_schedule": "normal", "source": "entity", "entity_id": "select.chauffage_schedule"},
+        {"schedule": "holiday", "schedule_name": "Holiday", "previous_schedule": "away", "source": "service", "entity_id": "select.chauffage_schedule"},
+        {"schedule": "normal", "schedule_name": "Normal", "previous_schedule": "holiday", "source": "entity", "entity_id": "select.chauffage_schedule"},
+        {"schedule": "away", "schedule_name": "Away", "previous_schedule": "normal", "source": "card", "entity_id": "select.chauffage_schedule"},
     ]
 
 

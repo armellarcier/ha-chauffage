@@ -18,10 +18,10 @@ TEXTS = {
     "en": {
         "started": "override started: {value} until {end} ({source})",
         "ended": "override ended ({reason})",
-        "activated": "activated schedule {schedule} ({source})",
+        "activated": "{schedule} activated ({source})",
         "sources": {
-            "thermostat": "changed on the thermostat", "card": "from the card", "service": "by a service",
-            "entity": "from its entity", "rules": "by the activation rules",
+            "thermostat": "changed by hand", "card": "from the card", "service": "by a service",
+            "entity": "from the select or a schedule switch", "rules": "by the activation rules",
         },
         "reasons": {
             "expired": "expired", "thermostat": "back to the schedule on the thermostat",
@@ -32,10 +32,10 @@ TEXTS = {
     "fr": {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
         "ended": "dérogation terminée ({reason})",
-        "activated": "a activé le planning {schedule} ({source})",
+        "activated": "{schedule} activé ({source})",
         "sources": {
-            "thermostat": "changée sur le thermostat", "card": "depuis la carte", "service": "par un service",
-            "entity": "depuis son entité", "rules": "par les règles d'activation",
+            "thermostat": "changée à la main", "card": "depuis la carte", "service": "par un service",
+            "entity": "depuis le sélecteur ou un interrupteur de planning", "rules": "par les règles d'activation",
         },
         "reasons": {
             "expired": "expirée", "thermostat": "retour au planning sur le thermostat",
@@ -57,9 +57,9 @@ def async_describe_events(
         return next((runtime for entry in hass.config_entries.async_entries(DOMAIN)
                      if (runtime := getattr(entry, "runtime_data", None))), None)
 
-    def thermostat_name(entity_id: str) -> str:
-        state = hass.states.get(entity_id)
-        return state.name if state else entity_id
+    def name(entity_id: str | None, default: str) -> str:
+        state = hass.states.get(entity_id) if entity_id else None
+        return state.name if state else default
 
     def value(data: dict[str, Any]) -> str:
         preset = (runtime().presets_by_id if runtime() else {}).get(data.get("preset"))
@@ -73,23 +73,25 @@ def async_describe_events(
     def started(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
         end = engine.parse_datetime(data.get("end"))
-        return {"name": thermostat_name(data["entity_id"]), "entity_id": data["entity_id"],
+        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"],
                 "message": t["started"].format(value=value(data), end=dt_util.as_local(end).strftime("%H:%M") if end else "?",
                                                source=t["sources"].get(data.get("source"), data.get("source")))}
 
     @callback
     def ended(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
-        return {"name": thermostat_name(data["entity_id"]), "entity_id": data["entity_id"],
+        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"],
                 "message": t["ended"].format(reason=t["reasons"].get(data.get("reason"), data.get("reason")))}
 
     @callback
     def activated(event: Event) -> dict[str, Any]:
+        # On the select, next to its change ("Schedule → Away"); older events have no entity_id
         data, t = event.data, texts()
-        out = {"name": "Chauffage", "message": t["activated"].format(
+        select = data.get("entity_id") or ((current := runtime()) and current.schedule_select())
+        out = {"name": name(select, "Chauffage"), "message": t["activated"].format(
             schedule=data.get("schedule_name") or data.get("schedule"),
             source=t["sources"].get(data.get("source"), data.get("source")))}
-        if (current := runtime()) and (select := current.schedule_select()):
+        if select:
             out["entity_id"] = select
         return out
 
