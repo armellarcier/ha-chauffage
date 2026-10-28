@@ -1,10 +1,18 @@
 """A scheduled thermostat paused: kept, not driven (docs/decisions.md, "Scheduled thermostats")."""
 
+import json
+from pathlib import Path
+
 import pytest
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import CoreState
 from homeassistant.exceptions import ServiceValidationError
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from conftest import Bench, every_day, KINDS
 from custom_components.chauffage import model
+
+FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 
 @pytest.fixture(params=KINDS)
@@ -76,6 +84,28 @@ async def test_a_paused_thermostat_stays_paused_after_a_restart(bench: Bench):
     assert bench.runtime.is_paused("climate.salon")
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.bureau": "comfort"}
+
+
+async def test_a_thermostat_paused_before_an_upgrade_stays_paused(bench: Bench, hass_storage):
+    """#48: paused on 0.6.0-beta.4 (store v5, config entry 1.1), then upgraded: the store and the
+    config entry are migrated, the Control switch stays off and the thermostat is left as it is."""
+    stored = json.loads((FIXTURES / "store-v5.json").read_text(encoding="utf-8"))
+    stored["data"]["overrides"] = {}  # an override would (rightly) keep the thermostat as is
+    stored["data"]["thermostats"]["climate.salon"]["paused"] = True
+    hass_storage["chauffage"] = stored
+    await bench.go_to("10:00")
+    bench.thermostat("climate.salon", "comfort")  # off schedule (Monday 10:00: eco)
+    bench.hass.set_state(CoreState.starting)
+    entry = MockConfigEntry(domain="chauffage", title="Chauffage", version=1, minor_version=1)
+    entry.add_to_hass(bench.hass)
+    await bench.setup(entry=entry)
+    bench.hass.set_state(CoreState.running)
+    bench.hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await bench.hass.async_block_till_done()
+    assert entry.minor_version == 2
+    assert bench.runtime.is_paused("climate.salon")
+    assert bench.hass.states.get("switch.salon_control").state == "off"
+    assert bench.applied() == {}
 
 
 async def test_a_change_by_hand_on_a_paused_thermostat_is_not_an_override(bench: Bench):
