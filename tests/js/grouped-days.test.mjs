@@ -23,9 +23,12 @@ describe('rows of identical days', () => {
     assert.equal(card.shadowRoot.querySelectorAll('.bar').length, 2);
   });
 
-  test('the same day all week is one row, "every day"', () => {
+  test('the same day all week is one row, named from the first day to the last one', () => {
     const card = createCard(fakeHass({ weeks: RETIRED }), { show: ['climate.salon'] });
-    assert.deepEqual(labels(card), ['Tous les jours']);
+    assert.deepEqual(labels(card), ['Lun–Dim']);
+    // The menus have the room to say it in words
+    $(card, '[data-act="menu"][data-day="0"]').click();
+    assert.match($(card, '.menu .mh').textContent, /Tous les jours/);
   });
 
   test('a day that differs gets its own row; days apart are named one by one', () => {
@@ -47,7 +50,9 @@ describe('rows of identical days', () => {
     const monday = makeLocale(user({ language: 'en', first_weekday: 'monday' }));
     assert.equal(monday.daysLabel([6, 0, 1]), 'Mon, Tue, Sun'); // a week starting on Monday keeps its order
     assert.equal(monday.daysLabel([0, 1, 3, 4, 5, 6]), 'Mon, Tue, Thu–Sun');
-    assert.equal(monday.daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Every day');
+    assert.equal(monday.daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Mon–Sun');
+    assert.equal(loc.daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Sun–Sat');
+    assert.equal(monday.daysLabel([0, 1, 2, 3, 4, 5, 6], 'long'), 'Every day');
   });
 
   test('with several thermostats, a row holds the days identical for each of them', () => {
@@ -65,9 +70,38 @@ describe('rows of identical days', () => {
     const long = createCard(fakeHass(), { show: ['climate.salon'] });
     const width = (card) => Number($(card, '.days').style.getPropertyValue('--day-w').replace('px', ''));
     assert.ok(width(short) > width(long));
-    // On a phone too, up to 56 px (the bars keep the width)
-    const css = $(long, 'style').textContent;
-    assert.match(css, /@media \(max-width:500px\) \{[^@]*\.dgroup \{ grid-template-columns:min\(var\(--day-w\), 56px\) 1fr; \}/);
+  });
+});
+
+// jsdom does not lay out: these tests read the rules of the stylesheet
+describe('the width of the card', () => {
+  const css = () => $(createCard(fakeHass(), { show: ['climate.salon'] }), 'style').textContent;
+  // The block of rules that starts with `at`
+  const block = (at) => {
+    const text = css();
+    const start = text.indexOf(`${at} {`);
+    assert.ok(start >= 0, `no ${at}`);
+    let depth = 0;
+    for (let i = text.indexOf('{', start); i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      if (text[i] === '}' && --depth === 0) return text.slice(start, i + 1);
+    }
+    return '';
+  };
+
+  test('the layout follows the width of the card, not of the screen', () => {
+    assert.match(css(), /\.days \{[^}]*container-type:inline-size/);
+    assert.doesNotMatch(css(), /@media \([a-z-]*width/);
+  });
+
+  test('a narrow card keeps the column of the days to 56 px, so that the bars keep the width', () => {
+    assert.match(block('@container (max-width:499px)'), /\.dgroup \{ grid-template-columns:min\(var\(--day-w\), 56px\) 1fr; \}/);
+  });
+
+  test('with several thermostats, the days are named above their rows, beside them only on a wide card', () => {
+    const header = block('@container (max-width:699px)');
+    assert.match(header, /\.multi \.dgroup \{ grid-template-columns:1fr;/);
+    assert.match(header, /\.multi \.scale > div:first-child \{ display:none; \}/);
   });
 });
 
@@ -98,7 +132,7 @@ describe('editing a row', () => {
     card._sel = { climate: 'climate.salon', day: 5, idx: 1 };
     card._render();
     $(card, '.editor [data-preset="comfort"]').click(); // the weekend is now the weekdays
-    assert.deepEqual(labels(card), ['Tous les jours']);
+    assert.deepEqual(labels(card), ['Lun–Dim']);
     assert.ok($(card, '.seg.sel'));
     assert.ok($(card, '.editor'));
   });
@@ -108,7 +142,7 @@ describe('editing a row', () => {
     card._copyToClipboard('climate.salon', 5);
     card._pasteFromClipboard('climate.salon', 0);
     for (let d = 0; d < 7; d++) assert.deepEqual(day(card, 'climate.salon', d), WEEKEND);
-    assert.deepEqual(labels(card), ['Tous les jours']);
+    assert.deepEqual(labels(card), ['Lun–Dim']);
   });
 
   test('copying a row to the other thermostats copies each of its days', () => {
@@ -123,7 +157,7 @@ describe('editing a row', () => {
     $(card, '[data-act="menu"][data-day="0"]').click();
     assert.match($(card, '.menu .mh').textContent, /Lun–Ven/);
     $(card, '.menu [data-act="fill-all"]').click();
-    assert.deepEqual(labels(card), ['Tous les jours']);
+    assert.deepEqual(labels(card), ['Lun–Dim']);
   });
 });
 
@@ -235,7 +269,7 @@ describe('the week in the more-info block', () => {
 
   test('identical days share a row, like in the schedule card', () => {
     assert.deepEqual(rows(block(fakeHass())), ['Lun–Ven', 'Sam, Dim']);
-    assert.deepEqual(rows(block(fakeHass({ weeks: RETIRED }))), ['Tous les jours']);
+    assert.deepEqual(rows(block(fakeHass({ weeks: RETIRED }))), ['Lun–Dim']);
   });
 
   test('an override shows today, and on another row where it ends', () => {

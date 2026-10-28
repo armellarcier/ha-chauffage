@@ -481,9 +481,10 @@ function makeLocale(hass, configured) {
     days: long,
     daysShort: short,
     dayOrder: order,
-    // Days of a row → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", "Every day" (one day: its name)
+    // Days of a row → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", "Mon–Sun" (one day: its name; the
+    // whole week in the long style: "Every day")
     daysLabel: (days, style = 'short') => {
-      if (days.length === 7) return t('everyDay');
+      if (days.length === 7 && style === 'long') return t('everyDay');
       if (days.length === 1) return (style === 'short' ? short : long)[days[0]];
       const pos = days.map((d) => order.indexOf(d)).sort((a, b) => a - b);
       const runs = [];
@@ -3438,7 +3439,9 @@ const STYLE = `
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;
     background:var(--success-color,#43a047); vertical-align:middle; }
 
-  /* Grid: day | (name) | bar | tools */
+  /* Grid: day | (name) | bar | tools. Its layout follows the width of the card (a card in a
+     column of a dashboard is narrow on a wide screen too) */
+  .days { container-type:inline-size; }
   .scale { display:grid; grid-template-columns:var(--day-w) 1fr 28px; gap:8px; align-items:center; }
   .multi .scale { grid-template-columns:var(--day-w) fit-content(100px) 1fr 28px; }
   .dgroup { display:grid; grid-template-columns:var(--day-w) 1fr; gap:8px; align-items:center; margin:7px 0; }
@@ -3691,16 +3694,20 @@ const STYLE = `
   .pv-foot { margin-left:0; justify-content:flex-end; padding-top:10px; border-top:1px solid var(--divider-color); }
   .missing { color:var(--secondary-text-color); padding:16px; }
   .missing .btn { margin-top:12px; }
-  @media (max-width:500px) {
+  /* Several thermostats: the day's name above its rows, so that the bars get the width; beside
+     them only on a wide card */
+  @container (max-width:699px) {
+    .multi .scale { grid-template-columns:fit-content(100px) 1fr 28px; }
+    .multi .scale > div:first-child { display:none; }
+    .multi .dgroup { grid-template-columns:1fr; gap:4px; }
+    .multi .day { text-align:left; font-weight:500; }
+  }
+  @container (max-width:499px) {
     .multi .scale { grid-template-columns:fit-content(60px) 1fr 28px; }
     .dgroup { grid-template-columns:min(var(--day-w), 56px) 1fr; }
     .multi .sub { grid-template-columns:fit-content(60px) 1fr 28px; }
     .sub { grid-template-columns:1fr 28px; }
     .scale { grid-template-columns:min(var(--day-w), 56px) 1fr 28px; }
-    /* Several thermostats: the day's name above its rows, so that the bars get the width */
-    .multi .scale > div:first-child { display:none; }
-    .multi .dgroup { grid-template-columns:1fr; gap:4px; }
-    .multi .day { text-align:left; font-weight:500; }
     .ticks .minor { display:none; }
   }
   /* On a touch screen, the hint speaks of a finger */
