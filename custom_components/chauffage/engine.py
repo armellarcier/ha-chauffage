@@ -195,6 +195,7 @@ def targets(
     ended: frozenset[str] | list[str] = (),
     since: datetime | None = None,
     include: frozenset[str] | set[str] = frozenset(),
+    pending: dict[str, Target] | None = None,
 ) -> list[tuple[str, Target]]:
     """(thermostat, target) pairs to apply now, in schedule order.
 
@@ -204,8 +205,10 @@ def targets(
       applied late rather than never), whose slot starts now, whose override just ended or was
       removed (resumed), or that must be realigned (`include`: back online, failed command);
     - thermostats with an active override, turned off, unavailable or already as expected are
-      left alone.
+      left alone. Not one that still has another command to apply (`pending`, the last command
+      sent to each thermostat that it does not show yet): it would apply that one later.
     """
+    pending = pending or {}
     out = []
     for entity_id in plan.weeks:
         if entity_id in plan.overrides and entity_id not in ended and entity_id != resumed:
@@ -218,10 +221,35 @@ def targets(
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
         target = resolve(preset, plan.presets, plan.mappings.get(entity_id), thermostat, plan.use_presets)
-        if target is None or thermostat.state in IGNORED_STATES or satisfied(target, thermostat):
+        if target is None or thermostat.state in IGNORED_STATES:
+            continue
+        if satisfied(target, thermostat) and pending.get(entity_id, target) == target:
             continue
         out.append((entity_id, target))
     return out
+
+
+# ----- commands applied late -----
+
+PENDING_HOURS = 24  # a command a thermostat has not applied after a day is not waited for anymore
+
+
+def applied_command(pending: list[Target], before: Thermostat | None, after: Thermostat) -> int | None:
+    """Index of the latest command not applied yet that the thermostat has just taken (None: none).
+    Only a change to it counts: a thermostat that already showed it (another report, its
+    temperature) may still apply an older command."""
+    if after.state in IGNORED_STATES:
+        return None
+    return next((i for i in range(len(pending) - 1, -1, -1)
+                 if satisfied(pending[i], after) and not (before and satisfied(pending[i], before))), None)
+
+
+def expired_commands(sent: list[Any], now: datetime) -> int:
+    """How many of the oldest commands not applied yet (their ISO dates of sending, in order) are
+    not waited for anymore."""
+    limit = now - timedelta(hours=PENDING_HOURS)
+    return next((i for i, date in enumerate(sent) if (d := parse_datetime(date)) is not None and d > limit),
+                len(sent))
 
 
 # ----- manual changes -----

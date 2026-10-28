@@ -365,7 +365,8 @@ Paramètres → Appareils et services → Chauffage → *Configurer* :
   revenir de la même façon à ce que donne le créneau (son préréglage, ou une consigne à la
   température de ce préréglage sur ce thermostat) la termine. Les
   changements faits par l'intégration elle-même (son propre contexte) ou par une automatisation
-  sont ignorés.
+  sont ignorés, tout comme une commande qu'une vanne à pile applique en retard (les commandes
+  qu'elle n'a pas encore prises sont gardées un jour).
 - **Carte** : servie par l'intégration et chargée sur toutes les pages (carte + bloc de la
   fenêtre de détail) ; elle dialogue avec l'intégration par websocket (`chauffage/subscribe`,
   `chauffage/weeks/save`…) ; un enregistrement fait depuis une copie périmée est refusé au

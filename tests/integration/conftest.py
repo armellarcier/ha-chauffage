@@ -97,6 +97,7 @@ class Bench:
         self.calls: list[tuple[str, str]] = []
         self.temperature_calls: list[tuple[str, float]] = []
         self.unreachable: set[str] = set()
+        self.slow: set[str] = set()  # accept a command, apply it later (battery valves)
         self.entry: MockConfigEntry | None = None
 
     @property
@@ -159,6 +160,18 @@ class Bench:
     async def manual_setpoint(self, entity_id: str, temperature: float) -> None:
         """Setpoint changed by hand (VTherm switches to preset "none", standard ones clear it)."""
         self.thermostat(entity_id, MANUAL_PRESET[self.kind], temperature, context=CTX_USER)
+        await self.hass.async_block_till_done()
+
+    async def change_on_device(self, entity_id: str, temperature: float) -> None:
+        """Setpoint changed on the thermostat itself (its knob): reported with a new context,
+        neither a user's nor an automation's."""
+        self.thermostat(entity_id, MANUAL_PRESET[self.kind], temperature, context=Context())
+        await self.hass.async_block_till_done()
+
+    async def applies_late(self, entity_id: str, preset: str) -> None:
+        """A slow thermostat finally applies a command received earlier, and reports it as any
+        change on the device."""
+        self.thermostat(entity_id, preset, context=Context())
         await self.hass.async_block_till_done()
 
     async def thermostat_applies(self, entity_id: str, preset: str) -> None:
@@ -233,7 +246,8 @@ async def bench(hass: HomeAssistant, freezer, thermostat_kind, hass_storage) -> 
         b.calls.append((entity_id, preset))
         if entity_id in b.unreachable:
             raise HomeAssistantError("Failed to send request: NWK_NO_ROUTE (simulated)")
-        b.thermostat(entity_id, MANUAL_PRESET[b.kind], temperature, context=call.context)
+        if entity_id not in b.slow:
+            b.thermostat(entity_id, MANUAL_PRESET[b.kind], temperature, context=call.context)
 
     hass.services.async_register("climate", "set_preset_mode", set_preset_mode)
     hass.services.async_register("climate", "set_temperature", set_temperature)

@@ -24,6 +24,10 @@ Vocabulary: docs/glossary.md.
                                           "end": ISO datetime}}: kind and value are what the
                      thermostat is set to; "preset", the Chauffage preset picked (card, service),
                      which they mean on this thermostat (none for a change by hand)
+    pending:         {climate entity id: [{"kind": "temperature" | "preset", "value": 20.0 | "comfort",
+                                           "sent": ISO datetime}, …]}: commands sent that the
+                     thermostat does not show yet, oldest first (a battery valve applies them
+                     late); dropped once shown, or after a day
     revision:        increases on every change of the schedules or weeks; the card saves against
                      a revision so that two editors cannot overwrite each other
     rules:           [{"template": "{{ … }}", "schedule": "away" | None}, …]   activation rules, in
@@ -163,7 +167,7 @@ def complete_weeks(weeks: dict[str, Any], schedule_ids: list[str], preset_ids: l
 def default_data(schedule_names: list[str], language: str = "en") -> dict[str, Any]:
     schedules = make_schedules(schedule_names)
     return {"schedules": schedules, "active_schedule": schedules[0]["id"], "presets": default_presets(language),
-            "thermostats": {}, "renamed": {}, "overrides": {}, "revision": 0,
+            "thermostats": {}, "renamed": {}, "overrides": {}, "pending": {}, "revision": 0,
             "rules": [], "default_schedule": None, "rules_choice": None}
 
 

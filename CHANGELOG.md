@@ -18,6 +18,17 @@ Each entry says whether the release **migrates stored data** and what to do when
   event that started last into a text helper read by a rule; titles that name no schedule are
   ignored, and the schedule changes at the second an event starts or ends.
 
+### Fixed
+
+- **A setpoint a battery valve applies late is no longer an override.** A valve asleep could
+  apply the slot's setpoint an hour or more after it was sent, once the next slot had started:
+  the integration took it for a change made on the valve and created an override nobody made.
+  The commands a thermostat has not taken yet are now remembered (for a day, across restarts):
+  one applied late is not an override and does not end one, the thermostat is set back to its
+  override or slot, and the next slot is sent even when the valve seems to have it already.
+  Turning a valve, on the device, to a value it has not taken yet makes no override (a change in
+  Home Assistant always does). **Migrates stored data** (version 6), nothing to do.
+
 ## [0.7.0-beta.1] - 2026-10-26
 
 Identical days on one row ([#11](https://github.com/armellarcier/ha-chauffage/issues/11)).
