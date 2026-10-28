@@ -260,6 +260,16 @@ async def test_the_card_is_told_the_entities_of_each_thermostat_and_of_chauffage
     assert dr.async_get(bench.hass).async_get(snapshot["device_id"]).name == "Chauffage"
 
 
+async def test_the_chauffage_device_is_found_without_a_deprecated_call(bench: Bench, caplog):
+    """From Home Assistant 2026.10, looking a device up by identifiers alone is deprecated (they are
+    no longer unique across config entries) and stops working in 2027.8; older ones only have it."""
+    await start(bench)
+    caplog.clear()
+    device = dr.async_get(bench.hass).async_get(bench.runtime.device_id())
+    assert device is not None and device.name == "Chauffage"
+    assert "deprecated" not in caplog.text
+
+
 async def test_the_card_is_told_an_entity_renamed_by_the_user(bench: Bench):
     await start(bench)
     sent = []

@@ -9,6 +9,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **No more deprecation warning at start on Home Assistant 2026.10.** Finding the *Chauffage*
+  device (which the card opens) used a lookup Home Assistant 2026.10 deprecates and will remove
+  in 2027.8; it now uses the new one, and the old one on older Home Assistant versions.
+
 ## [0.7.0-beta.2] - 2026-10-28
 
 Setpoints applied late by battery valves are no longer overrides, and a calendar of schedules.
