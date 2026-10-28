@@ -8,3 +8,4 @@ Key rules, in short:
 - Use the vocabulary of docs/glossary.md (schedule, preset, slot, override), never "mode" or "level".
 - Write commit messages in English.
 - English docs (`README.md`, `CONTRIBUTING.md`) are canonical. Update the `*.fr.md` version in the same commit.
+- Read [docs/writing-style.md](docs/writing-style.md) before editing a doc, a changelog entry or a pull request.
