@@ -365,7 +365,14 @@ class ChauffageRuntime:
 
     def device_id(self) -> str | None:
         """The "Chauffage" device holding the global entities."""
-        device = dr.async_get(self.hass).async_get_device(identifiers={(DOMAIN, self.entry.entry_id)})
+        registry = dr.async_get(self.hass)
+        identifier = (DOMAIN, self.entry.entry_id)
+        # From Home Assistant 2026.10, identifiers are only unique within a config entry: the
+        # lookup by identifiers alone is deprecated (it stops working in 2027.8)
+        if hasattr(registry, "async_get_device_by_identifier"):
+            device = registry.async_get_device_by_identifier(identifier, self.entry.entry_id)
+        else:
+            device = registry.async_get_device(identifiers={identifier})
         return device.id if device else None
 
     def schedule_select(self) -> str | None:
