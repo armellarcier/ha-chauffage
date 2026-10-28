@@ -43,18 +43,11 @@
     },
     "switch": {
       "control": { "name": "Control" },
-      "control_of": { "name": "{thermostat} control" },
       "schedule": { "name": "{schedule} schedule" }
     },
     "binary_sensor": {
       "override": {
         "name": "Override",
-        "state_attributes": {
-          "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
-        }
-      },
-      "override_of": {
-        "name": "{thermostat} override",
         "state_attributes": {
           "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
         }
@@ -73,24 +66,8 @@
           "temperatures": { "name": "Preset temperatures" }
         }
       },
-      "planned_preset_of": {
-        "name": "{thermostat} planned preset",
-        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
-        "state_attributes": {
-          "preset_name": { "name": "Preset name" },
-          "target": { "name": "Target" },
-          "next_preset": { "name": "Next preset" },
-          "next_preset_name": { "name": "Next preset name" },
-          "next_start": { "name": "Next slot start" },
-          "temperatures": { "name": "Preset temperatures" }
-        }
-      },
       "override_end": {
         "name": "Override end",
-        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
-      },
-      "override_end_of": {
-        "name": "{thermostat} override end",
         "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
       }
     }

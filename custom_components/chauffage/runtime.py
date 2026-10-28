@@ -95,6 +95,16 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
     )
 
 
+def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
+    """One of the integration's devices, by its identifier."""
+    registry = dr.async_get(hass)
+    # From Home Assistant 2026.10, identifiers are only unique within a config entry: the
+    # lookup by identifiers alone is deprecated (it stops working in 2027.8)
+    if hasattr(registry, "async_get_device_by_identifier"):
+        return registry.async_get_device_by_identifier(identifier, entry.entry_id)
+    return registry.async_get_device(identifiers={identifier})
+
+
 def _describe(command: engine.Target | dict[str, Any]) -> str:
     """A command or an override, for the log: "preset eco", "temperature 21.5"."""
     if isinstance(command, engine.Target):
@@ -365,14 +375,7 @@ class ChauffageRuntime:
 
     def device_id(self) -> str | None:
         """The "Chauffage" device holding the global entities."""
-        registry = dr.async_get(self.hass)
-        identifier = (DOMAIN, self.entry.entry_id)
-        # From Home Assistant 2026.10, identifiers are only unique within a config entry: the
-        # lookup by identifiers alone is deprecated (it stops working in 2027.8)
-        if hasattr(registry, "async_get_device_by_identifier"):
-            device = registry.async_get_device_by_identifier(identifier, self.entry.entry_id)
-        else:
-            device = registry.async_get_device(identifiers={identifier})
+        device = device_by_identifier(self.hass, self.entry, (DOMAIN, self.entry.entry_id))
         return device.id if device else None
 
     def schedule_select(self) -> str | None:

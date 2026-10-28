@@ -187,22 +187,6 @@ async def test_a_forgotten_thermostat_s_disabled_sensors_leave_the_registry(benc
     assert registry.async_get("sensor.salon_override_end") is None
 
 
-async def test_sensors_are_attached_to_the_thermostat_s_device(bench: Bench):
-    other = MockConfigEntry(domain="test")
-    other.add_to_hass(bench.hass)
-    device = dr.async_get(bench.hass).async_get_or_create(
-        config_entry_id=other.entry_id, identifiers={("test", "valve")}, name="Vanne salon"
-    )
-    er.async_get(bench.hass).async_get_or_create("climate", "test", "valve", suggested_object_id="salon",
-                                                 device_id=device.id)
-    await start(bench)
-    registry = er.async_get(bench.hass)
-    for entity_id in ("sensor.vanne_salon_planned_preset", "binary_sensor.vanne_salon_override",
-                      "switch.vanne_salon_control"):
-        entry = registry.async_get(entity_id)
-        assert entry is not None and entry.device_id == device.id
-
-
 # ----- Control switch (docs/decisions.md, "Scheduled thermostats") -----
 
 async def test_each_scheduled_thermostat_has_a_control_switch_among_its_main_entities(bench: Bench):

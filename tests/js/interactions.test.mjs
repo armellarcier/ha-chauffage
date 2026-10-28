@@ -591,8 +591,7 @@ describe('error messages', () => {
 
   test('a preset change refused by the integration', async () => {
     const hass = failing(fakeIntegrationHass());
-    const card = createCard(hass);
-    $(card, '[data-act="view"][data-view="presets"]').click();
+    const card = createCard(hass, { view: 'presets' });
     $(card, '[data-kind="preset"][data-preset="eco"]').click();
     await card._action('cell-apply', {});
     assert.match($(card, '.msg').textContent, /boom/);
@@ -731,8 +730,7 @@ describe('presets without the thermostats\' own presets (option off)', () => {
     };
     const hass = fakeIntegrationHass({ data });
     hass.states['climate.salon'].attributes.preset_modes = ['comfort'];
-    const card = createCard(hass);
-    $(card, '[data-act="view"][data-view="presets"]').click();
+    const card = createCard(hass, { view: 'presets' });
     const cell = $(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(cell.querySelector('.pv-val').textContent, '20°'); // the preset's default, not the thermostat's own preset
     assert.equal(cell.querySelector('.pv-how').textContent, 'par défaut');

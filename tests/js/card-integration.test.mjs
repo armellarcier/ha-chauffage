@@ -244,8 +244,7 @@ describe('the "Presets" view', () => {
   });
   const open = (hass) => {
     hass.states['climate.salon'].attributes.preset_modes = ['eco', 'comfort', 'away', 'boost'];
-    const card = createCard(hass); // salon and bureau (bureau: no schedule, no presets)
-    card.shadowRoot.querySelector('[data-act="view"][data-view="presets"]').click();
+    const card = createCard(hass, { view: 'presets' }); // salon and bureau (bureau: no schedule, no presets)
     return card;
   };
   const squash = (el) => el.textContent.replace(/\s+/g, ' ').trim();
@@ -408,10 +407,10 @@ describe('the "Presets" view', () => {
     assert.equal(cellText(card, 'comfort', 'climate.salon'), '19° son préréglage Confort');
   });
 
-  test('back to the schedule view', () => {
+  test('the page shows the presets alone: no views to switch, the panel tabs do it (#57)', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-act="view"][data-view="schedule"]');
-    assert.ok(card.shadowRoot.querySelector('.chips'));
+    assert.equal(card.shadowRoot.querySelector('[data-act="view"]'), null);
+    assert.equal(card.shadowRoot.querySelector('.chips'), null);
   });
 
   test('read only for non-admins', () => {

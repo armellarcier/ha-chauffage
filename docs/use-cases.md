@@ -185,6 +185,75 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A card's subscription goes on after the integration is reloaded (options changed, a thermostat renamed): the data sent again at once, then every change | `I/test_api.py::a_subscription_goes_on_after_the_integration_is_reloaded` |
 | Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings, pause, forget; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
 
+## Chauffage panel and devices (#57)
+
+The decisions behind these use cases are in
+[decisions.md](decisions.md#chauffage-panel-and-devices-57). The card's *Presets*,
+*Rules* and *Thermostats* views became pages of the panel: the rows above that name these views
+are proved by the same tests, on the panel's page.
+
+### The scheduled thermostat's device
+
+| Use case | Test |
+|---|---|
+| Each scheduled thermostat has a device of ours, which holds its *Control*, *Override* and *Planned preset* entities; their entity ids and unique ids do not change | `I/test_devices.py::each_scheduled_thermostat_has_a_device_holding_its_entities`, `::entities_keep_their_ids_on_the_scheduled_thermostat_s_device` |
+| A thermostat without a device of its own, for example a `generic_thermostat` written in YAML, also gets a device, and its entities are named after that device | `I/test_devices.py::entities_keep_their_ids_on_the_scheduled_thermostat_s_device` |
+| The device takes the thermostat's name, even at startup before the thermostat's state exists (its registry entry, else its device) | `I/test_devices.py::the_device_takes_the_thermostat_s_name_even_before_its_state_exists` |
+| The device goes in the thermostat's area | `I/test_devices.py::a_thermostat_with_a_device_of_its_own_gets_a_device_connected_via_it` |
+| The device's model follows Home Assistant's language: *Scheduled thermostat*, *Thermostat programmé* | `I/test_devices.py::each_scheduled_thermostat_has_a_device_*`, `::the_device_s_model_follows_home_assistant_s_language` |
+| The thermostat's device page lists the scheduled thermostat's device under *Connected devices*, and our device shows *Connected via* the thermostat (by its id from HA 2026.10, by its identifiers before) | `I/test_devices.py::a_thermostat_with_a_device_of_its_own_*`, `::before_home_assistant_2026_10_*` |
+| An admin opens a thermostat's weeks from its device page, with *Visit* (`homeassistant://chauffage/thermostats/<climate>`) | `I/test_devices.py::the_device_s_visit_link_opens_the_thermostat_s_weeks_in_the_panel` |
+| A forgotten thermostat's device disappears with its entities | `I/test_devices.py::a_forgotten_thermostat_s_device_goes_with_its_entities` |
+
+### The panel
+
+| Use case | Test |
+|---|---|
+| An admin finds *Chauffage* in the sidebar, with its own icon (`chauffage:logo`); the panel is for admins only | `I/test_frontend.py::the_chauffage_panel_is_registered_for_admins_with_its_own_icon`, `C/panel.test.mjs` ("the panel's icon") |
+| On a dashboard, an admin sees the schedule card's links to the panel's *Presets*, *Rules* and *Thermostats* pages, in place of the card's former views; a non-admin sees none | `C/panel.test.mjs` ("the dashboard card and the panel") |
+| A list shows the panel's tabs (*Schedules*, *Thermostats*, *Presets*) and Home Assistant's menu button; a sheet shows no tabs, a breadcrumb title whose list is a link | `C/panel.test.mjs` ("lists and sheets") |
+| `/chauffage` and `/chauffage/rules` open the *Schedules* page | `C/panel.test.mjs` ("its addresses") |
+| The first prototype's address of a thermostat (`/chauffage/<climate>`) redirects to its sheet | `C/panel.test.mjs` ("its addresses") |
+| A renamed thermostat's address redirects to its new id | `C/panel.test.mjs` ("its addresses") |
+| A deleted schedule's sheet goes back to the list of schedules | `C/panel.test.mjs` ("its addresses") |
+| The panel does not redirect before Home Assistant gives it its address | `C/panel.test.mjs` ("no redirect before Home Assistant gives the address") |
+
+### The panel's pages
+
+| Use case | Test |
+|---|---|
+| An admin activates a schedule from the *Schedules* page, which shows the active one with a badge | `C/panel.test.mjs` ("the Schedules page") |
+| An admin opens a schedule's sheet from its name or *Edit* | `C/panel.test.mjs` ("the Schedules page") |
+| An admin creates a schedule from the *Schedules* page, with the name field in the list | `C/panel.test.mjs` ("creates a schedule") |
+| The *Schedules* page shows the activation rules below the schedules | `C/panel.test.mjs` ("shows the activation rules"), `C/rules.test.mjs` |
+| The *Thermostats* page lists every scheduled thermostat by name, *Controlled* or *Paused*, with *Pause* or *Resume*; its name opens its sheet | `C/thermostats-view.test.mjs` |
+| The *Thermostats* page shows where each thermostat is shown ("Shown in *dashboard* › *view*", a link), found in cards nested in stacks, sections or conditional cards; a generated dashboard shows none | `C/thermostats-view.test.mjs` ("says where the dashboards show each thermostat") |
+| An admin schedules another thermostat from the *Thermostats* page: it gets the week of a new schedule in every schedule | `C/thermostats-view.test.mjs` ("schedules another thermostat") |
+| An admin forgets a thermostat from the *Thermostats* page after confirming, whatever the cards show; cancelling keeps it | `C/thermostats-view.test.mjs` ("forgets any thermostat", "the confirmation can be cancelled") |
+| From the ⋮ menu of a thermostat's row, an admin opens the thermostat and its devices, each named by its name and model | `C/thermostats-view.test.mjs` ("the rarer actions wait behind ⋮") |
+| A thermostat's sheet shows the thermostat's tile, *Pause* or *Resume*, whether Chauffage controls it, where it is shown, and its devices by name and model | `C/panel.test.mjs` ("its header") |
+| A thermostat's sheet shows its presets as the legend of its weeks: its row only, without the presets' definitions, laid out to fit the page's width | `C/panel.test.mjs` ("its presets first") |
+| A thermostat's sheet shows its week in every schedule, under *Weeks*, each headed by the schedule's name (a link to its sheet), the active one marked | `C/panel.test.mjs` ("its week in every schedule") |
+| Copy a thermostat's week to another schedule from the week's heading on its sheet: the target week shows the copy at once, unsaved, and its own save bar asks to save it ("The *Normal* week copied here"); the source week asks for nothing | `C/panel.test.mjs` ("copying a week to another schedule") |
+| Copy a week that has edits not saved yet: the target gets the week as shown, and the source keeps its own edits, still to save | `C/panel.test.mjs` ("a week with edits not saved yet") |
+| A week stacked on a thermostat's sheet has no foot (no legend, no copy list, no empty message line), no tabs and no chips; the hint is shown once above the weeks | `C/panel.test.mjs` ("no foot under a stacked week") |
+| A schedule's sheet and the dashboard card keep the card's list to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |
+| On a thermostat's sheet, today stands out only in the active schedule's week; a schedule's sheet still marks today | `C/panel.test.mjs` ("today stands out only", "keeps the card's list") |
+| The *Pause* button keeps its place when it turns into *Resume*: the badge comes after it | `C/panel.test.mjs` ("Pause sends the pause") |
+| A thermostat's sheet says *Controlled* or *Paused* in its header; a paused thermostat's sheet says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
+| Ungrouping the days on a thermostat's sheet applies to every schedule, and is remembered in the browser with the cards' choice; the sheet's choice wins over the one remembered | `C/panel.test.mjs` ("ungrouping the days") |
+| Outside the panel, the choice of grouping remembered in the browser wins over the card's option | `C/panel.test.mjs` ("outside the panel") |
+| A schedule's sheet shows every thermostat's week in that schedule, with only its tab and its ⋮ menu (rename, copy, delete), no "+" | `C/panel.test.mjs` ("a schedule's sheet") |
+
+### The more-info block and the thermostat card
+
+| Use case | Test |
+|---|---|
+| The more-info block and the thermostat card open the thermostat's sheet with "Open in *panel*", named as the panel is in the sidebar | `C/panel.test.mjs` ("its link says \"Open in\" the panel") |
+| From the more-info dialog, a link to the thermostat's sheet or to a device closes the dialog, then opens the page once the dialog has left the address | `C/panel.test.mjs` ("a page opens once the dialog is closed"), `C/more-info.test.mjs` ("its device opens in its page") |
+| Their *Device* link opens the scheduled thermostat's device, else the thermostat's own | `C/panel.test.mjs` ("its Device link") |
+| The thermostat card of a thermostat Chauffage does not schedule says that an admin can schedule it in the panel's *Thermostats* page | `C/thermostat-card.test.mjs` |
+
 ## Not covered by automated tests
 
 - Exact placement of the menus and popovers on screen (needs a real browser layout): checked on
@@ -200,5 +269,11 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
   day's name beside its rows from 700 px, above them below; checked on the development HA at
   several window widths. The rules of the stylesheet are tested in `C/grouped-days.test.mjs`
   (the width of the card).
+- The layout of a thermostat's sheet in the panel (#57): the tile top right on a wide screen and
+  first on a phone, the presets fitting the width at 360 px without scrolling, the *Paused* badge
+  in the warning color: checked on the development HA.
+- The tile card at the top of a thermostat's sheet in the panel (#57): the panel loads
+  Home Assistant's card helpers through an internal of its frontend. Check it on the development
+  HA after each Home Assistant release.
 - Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the
   integration's): the second one does not register again (guarded), checked on the development HA.

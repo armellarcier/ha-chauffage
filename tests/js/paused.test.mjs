@@ -83,8 +83,8 @@ describe('a paused thermostat in the card', () => {
     const card = createCard(hass);
     assert.ok(q(card, '.paused-note'));
     assert.equal(q(card, '[data-act="resume"]'), null);
-    q(card, '[data-act="view"][data-view="thermostats"]').click();
-    assert.equal(q(card, '[data-act="pause"], [data-act="resume"]'), null);
+    const page = createCard(hass, { view: 'thermostats' }); // the panel's Thermostats page
+    assert.equal(q(page, '[data-act="pause"], [data-act="resume"]'), null);
   });
 
   test('in English', () => {

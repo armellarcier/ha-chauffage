@@ -43,18 +43,11 @@
     },
     "switch": {
       "control": { "name": "Pilotage" },
-      "control_of": { "name": "Pilotage {thermostat}" },
       "schedule": { "name": "Planning {schedule}" }
     },
     "binary_sensor": {
       "override": {
         "name": "Dérogation",
-        "state_attributes": {
-          "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
-        }
-      },
-      "override_of": {
-        "name": "Dérogation {thermostat}",
         "state_attributes": {
           "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
         }
@@ -73,24 +66,8 @@
           "temperatures": { "name": "Températures des préréglages" }
         }
       },
-      "planned_preset_of": {
-        "name": "Préréglage prévu {thermostat}",
-        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
-        "state_attributes": {
-          "preset_name": { "name": "Nom du préréglage" },
-          "target": { "name": "Consigne" },
-          "next_preset": { "name": "Préréglage suivant" },
-          "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début du créneau suivant" },
-          "temperatures": { "name": "Températures des préréglages" }
-        }
-      },
       "override_end": {
         "name": "Fin de dérogation",
-        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
-      },
-      "override_end_of": {
-        "name": "Fin de dérogation {thermostat}",
         "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
       }
     }

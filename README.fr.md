@@ -22,6 +22,10 @@ un projet indépendant, sans lien avec Versatile Thermostat.
   mesurée sur les 7 derniers jours. Elle marche aussi sur téléphone.
 - **Une carte par thermostat.** La carte thermostat montre ce que fait le thermostat, pourquoi,
   et jusqu'à quand. Vous pouvez y régler une consigne temporaire.
+- **Un panneau Chauffage pour tout régler.** Les administrateurs trouvent *Chauffage* dans la
+  barre latérale. Le panneau rassemble les plannings et leurs règles d'activation, les
+  thermostats et les préréglages. Chaque thermostat y a sa propre page, avec sa semaine dans
+  chaque planning.
 - **Dérogations.** Si vous changez une consigne à la main, Chauffage la garde 2 heures
   (réglable), puis revient au planning. Vous pouvez voir et modifier la dérogation depuis la
   carte.
@@ -48,6 +52,9 @@ Dans HACS, ouvrez ⋮ → *Dépôts personnalisés*. Ajoutez
 
 Allez dans Paramètres → Appareils et services → *Ajouter une intégration*, puis choisissez
 **Chauffage**.
+
+Chauffage ajoute alors un panneau **Chauffage** dans la barre latérale, pour les
+administrateurs. Voir [Le panneau Chauffage](#le-panneau-chauffage).
 
 ### 3. Ajouter la carte des plannings
 
@@ -90,7 +97,46 @@ vous pouvez régler une consigne temporaire et mettre le thermostat en pause. La
 le thermostat, son planning, son interrupteur *Pilotage* et son appareil.
 
 La fenêtre de détail du thermostat montre les mêmes informations, sous les commandes du
-thermostat.
+thermostat. Son lien *Ouvrir dans Chauffage* ouvre la page du thermostat dans le panneau
+Chauffage.
+
+## Le panneau Chauffage
+
+C'est dans le panneau **Chauffage**, dans la barre latérale, qu'un administrateur règle
+Chauffage. Les cartes des tableaux de bord servent au quotidien : elles montrent ce que fait le
+chauffage, changent de planning et modifient les semaines.
+
+### Les pages du panneau
+
+Le panneau a trois onglets :
+
+- **Plannings.** La liste des plannings, avec le planning actif signalé. Vous pouvez activer un
+  planning, en créer un ou l'ouvrir. Les [règles d'activation](#règles-dactivation) se trouvent
+  sous la liste.
+- **Thermostats.** Tous les thermostats programmés, et les cartes qui les affichent. Vous pouvez
+  mettre un thermostat en pause, l'oublier avec ⋮, ou en programmer un autre.
+- **Préréglages.** Le tableau des préréglages : leurs noms, leurs couleurs et leurs
+  températures, et ce que fait chacun sur chaque thermostat (voir [Préréglages](#préréglages)).
+
+Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, par exemple
+« Thermostats › Salon », ramène à sa liste.
+
+- **La page d'un planning** montre la semaine de chaque thermostat dans ce planning. Son menu ⋮
+  renomme, copie ou supprime le planning.
+- **La page d'un thermostat** montre le thermostat, si Chauffage le pilote, et ses appareils.
+  En dessous, ses préréglages servent de légende à ses semaines, une semaine par planning.
+  *Copier vers…* copie une semaine vers un autre planning. *Grouper les jours* regroupe les jours
+  identiques de toutes les semaines.
+
+### Ouvrir la page d'un thermostat
+
+- Dans le panneau Chauffage, sur l'onglet *Thermostats*, cliquez sur le nom du thermostat.
+- Dans la fenêtre de détail du thermostat, cliquez sur *Ouvrir dans Chauffage*.
+- Sur l'appareil du thermostat programmé, cliquez sur *Visiter*. Voir
+  [Sur l'appareil de chaque thermostat programmé](#sur-lappareil-de-chaque-thermostat-programmé).
+
+Chaque page a sa propre adresse, par exemple `/chauffage/thermostats/climate.salon`. Vous pouvez
+y renvoyer depuis un tableau de bord ou une notification.
 
 ## Mettre à jour
 
@@ -144,6 +190,7 @@ Un seul planning est actif à la fois. Le sélecteur **Planning actif**
 (`select.chauffage_schedule`) indique lequel.
 
 - **Depuis la carte**, ouvrez l'onglet du planning, puis cliquez sur *Activer*.
+- **Depuis le panneau Chauffage**, sur l'onglet *Plannings*, cliquez sur *Activer*.
 - **Depuis une automatisation**, appelez `chauffage.activate_schedule` avec l'identifiant stable
   du planning. L'attribut `schedule_id` du sélecteur donne l'identifiant stable du planning
   actif.
@@ -168,8 +215,8 @@ actions:
 ## Règles d'activation
 
 Les règles d'activation changent de planning à votre place, sans automatisation. Vous écrivez
-les règles dans la vue *Règles* de la carte. Seuls les administrateurs peuvent modifier les
-règles.
+les règles dans le panneau Chauffage, sur l'onglet *Plannings*, sous la liste des plannings.
+Seuls les administrateurs peuvent modifier les règles.
 
 ### Comment marchent les règles
 
@@ -268,11 +315,11 @@ Si le thermostat a son propre préréglage du même nom, Chauffage utilise ce pr
 Chauffage règle la température du préréglage. Vous pouvez changer ce choix pour chaque
 thermostat : prenez un des préréglages du thermostat, ou une température.
 
-### Régler les préréglages dans la carte
+### Régler les préréglages dans le panneau Chauffage
 
-Ouvrez la vue *Préréglages* de la carte. Seuls les administrateurs peuvent modifier les
-préréglages. Le tableau a une colonne par préréglage, du plus froid au plus chaud, et une ligne
-par thermostat.
+Ouvrez le panneau Chauffage, puis l'onglet *Préréglages*. Seuls les administrateurs peuvent
+modifier les préréglages. Le tableau a une colonne par préréglage, du plus froid au plus chaud,
+et une ligne par thermostat. La page d'un thermostat, dans le panneau, ne montre que sa ligne.
 
 - **Un en-tête de colonne** ouvre le préréglage : son nom, sa couleur et sa température par
   défaut. Vous pouvez aussi y supprimer le préréglage. Pour ajouter un préréglage, cliquez sur
@@ -312,7 +359,7 @@ Chauffage ne prend pas encore en charge ces appareils :
   changements pour des changements manuels.
 
 Certains appareils gardent leur préréglage quand vous changez leur consigne à la main. Pour un tel
-appareil, réglez chaque préréglage sur une température, dans la vue *Préréglages* de la carte.
+appareil, réglez chaque préréglage sur une température, dans le panneau Chauffage, sur l'onglet *Préréglages*.
 
 La [feuille de route](ROADMAP.fr.md) présente la suite, par exemple les groupes de thermostats.
 
@@ -340,18 +387,21 @@ pouvez aussi arrêter la dérogation depuis la carte, ou avec l'action `chauffag
 
 ## Thermostats programmés
 
-Un thermostat est **programmé** dès que vous l'ajoutez à une carte. Si vous retirez le
-thermostat de la carte, il reste programmé, car une autre carte peut l'afficher. Le thermostat
-reste programmé jusqu'à ce que vous l'oubliiez.
+Un thermostat est **programmé** dès que vous l'ajoutez à une carte, ou dès que vous le
+programmez dans le panneau Chauffage : sur l'onglet *Thermostats*, choisissez-le sous
+*Programmer un autre thermostat*. Si vous retirez le thermostat d'une carte, il reste programmé,
+car une autre carte peut l'afficher. Le thermostat reste programmé jusqu'à ce que vous
+l'oubliiez.
 
-La vue *Thermostats* de la carte liste tous les thermostats programmés, même ceux qui ne sont
-dans aucune carte. Si vous supprimez l'entité d'un thermostat de Home Assistant, Paramètres →
-Réparations propose d'oublier le thermostat.
+L'onglet *Thermostats* du panneau liste tous les thermostats programmés, et les cartes qui les
+affichent. Pour oublier un thermostat, ouvrez son menu ⋮, puis *Oublier…*. Si vous supprimez
+l'entité d'un thermostat de Home Assistant, Paramètres → Réparations propose d'oublier le
+thermostat.
 
 ### Mettre un thermostat en pause
 
-Pour mettre un thermostat en pause, éteignez son interrupteur **Pilotage**. Chauffage garde les
-semaines du thermostat, mais ne lui envoie plus de commandes et ne crée plus de dérogations. La
+Pour mettre un thermostat en pause, éteignez son interrupteur **Pilotage**, ou cliquez sur
+*Mettre en pause* dans le panneau Chauffage. Chauffage garde les semaines du thermostat, mais ne lui envoie plus de commandes et ne crée plus de dérogations. La
 pause est pratique pour une pièce que vous gérez à la main quelques jours, ou à la fin de la
 saison de chauffe.
 
@@ -364,7 +414,13 @@ tableaux de bord, les automatisations, les scripts et à la voix. Les entités a
 d'elles-mêmes. Elles montrent les données de Chauffage et les modifient, comme la carte. Vous
 pouvez les renommer et changer leurs icônes dans Home Assistant.
 
-### Sur l'appareil de chaque thermostat
+### Sur l'appareil de chaque thermostat programmé
+
+Chauffage donne à chaque thermostat programmé son propre appareil, au nom du thermostat, avec le
+modèle *Thermostat programmé*. L'appareil est dans la pièce du thermostat. Quand le thermostat a
+un appareil, par exemple celui de sa vanne, l'appareil de Chauffage y est connecté : la page de
+l'appareil du thermostat le liste dans *Appareils connectés*. Le bouton *Visiter* de l'appareil
+ouvre la page du thermostat dans le panneau Chauffage.
 
 | Entité | Ce qu'elle indique |
 |---|---|

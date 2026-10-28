@@ -33,7 +33,7 @@ describe('configuration and loading', () => {
     const card = createCard(fakeHass());
     const haCard = card.shadowRoot.querySelector('ha-card');
     card._openMenu('climate.salon', 1, 0, 0); // a redraw, as most clicks
-    card.shadowRoot.querySelector('[data-act="view"][data-view="presets"]').click(); // another view
+    card.shadowRoot.querySelector('[data-act="group-days"]').click(); // another redraw
     assert.equal(card.shadowRoot.querySelector('ha-card'), haCard);
     assert.equal(card.shadowRoot.querySelectorAll('ha-card').length, 1);
   });

@@ -33,6 +33,13 @@ DEFAULT_SCHEDULES = {
     "fr": ["Normal"],
 }
 
+# The model of a scheduled thermostat's device, by language (Home Assistant does not translate
+# device models)
+SCHEDULED_THERMOSTAT_MODEL = {
+    "en": "Scheduled thermostat",
+    "fr": "Thermostat programmé",
+}
+
 # Events, for automations (data: README, "Events")
 EVENT_OVERRIDE_STARTED = f"{DOMAIN}_override_started"
 EVENT_OVERRIDE_ENDED = f"{DOMAIN}_override_ended"
