@@ -9,114 +9,139 @@
 
 ![Editing schedules, the presets, an override and the active schedule, the thermostat's more-info dialog, the thermostat cards, then the history of the measured temperature and a day shown larger](docs/demo.gif)
 
-Weekly heating schedules for Home Assistant thermostats: thermostats without presets, with
-presets, or **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**
-(independent project, not affiliated with Versatile Thermostat):
+Chauffage gives your Home Assistant thermostats weekly heating schedules. It works with
+thermostats without presets, thermostats with presets, and
+**[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**. ha-chauffage is
+an independent project, not affiliated with Versatile Thermostat.
 
-- **schedules** you create, duplicate and name (*Normal*, *Remote work*, *Holidays*,
-  *Away*…), each with a 7-day week per thermostat; one is active, switched from the card or by
-  automations;
-- visual Lovelace editor card (`custom:chauffage-programme-card`): drag time slots, copy /
-  paste days, identical days on one row (*Mon–Fri*, *Every day*) edited at once, several
-  thermostats per day, see the temperature measured over the last 7 days
-  drawn over each day; made for phones too; every thermostat, schedule or setting it names opens
-  in Home Assistant;
-- a **thermostat card** (`custom:chauffage-thermostat-card`) to build your own dashboards: one
-  thermostat, what it does now, why and until when, today, a temporary setpoint;
-- **temporary overrides**: a setpoint changed by hand becomes temporary (2 h by default),
-  shown and adjustable (its end, and its value: a preset or a temperature) on the card and in
-  the thermostat's more-info dialog, which can also set one, then the thermostat falls back to
-  its schedule. Going back
-  to the slot's preset or setpoint, even with the thermostat's knob, resumes the schedule at once.
+- **Schedules.** You create and name as many schedules as you need, for example *Normal*,
+  *Remote work* or *Holidays*. Each schedule holds a week for each thermostat. One schedule is
+  active at a time, and you can switch it from the card or from an automation.
+- **A card to edit the weeks.** You drag the slots, copy and paste days, and edit identical days
+  at once. The card also draws the temperature measured over the last 7 days. The card works on
+  phones too.
+- **A card for each thermostat.** The thermostat card shows what the thermostat does now, why,
+  and until when. You can set a temporary setpoint from it.
+- **Temporary overrides.** If you change a setpoint by hand, Chauffage keeps it for 2 hours
+  (configurable), then goes back to the schedule. You can see and adjust the override from the
+  card.
 
-> The project's name is French (*chauffage* = heating); the integration and the card speak
+  The override ends as soon as you set the thermostat back to the planned setpoint.
+
+> The project's name is French: *chauffage* means heating. The integration and the card speak
 > English and French.
 
 ## Installation
 
-From v0.2, ha-chauffage is a **Home Assistant integration** configured from the UI: no YAML to
-edit. Version 0.1 was a YAML package; [upgrading](#upgrading-from-the-package-v01) imports its
-data automatically.
+ha-chauffage is a Home Assistant integration that you set up from the UI. You don't need to edit
+any YAML.
 
-1. In HACS: ⋮ → *Custom repositories* → `https://github.com/armellarcier/ha-chauffage`, type
-   *Integration*; then install **ha-chauffage** and restart Home Assistant.
-2. Settings → Devices & services → *Add integration* → **Chauffage**.
-3. Add the card to a dashboard (it is served by the integration: no resource to add): *Add card*
-   → **Heating schedules**, or in YAML:
-   ```yaml
-   type: custom:chauffage-programme-card
-   thermostats:
-     - entity: climate.living_room
-       name: Living room
-   ```
-   The card follows the user's language and formats (12 / 24 h, decimal separator, first day of
-   the week); English and French are available, and `language: en` or `language: fr` forces one.
-   Identical days share a row (*Mon–Fri*, *Sat, Sun*, *Every day*): editing the row edits each
-   of its days. The *Group days* button shows each day on its own row (to make one day
-   different), and `group_days: false` makes that the default.
-   The thermostats, their names and the other options can also be set from the card's visual
-   editor (Edit card); `language` and `group_days` are only set in YAML.
-4. Optionally, a **Scheduled thermostat** card per room, to place in your own dashboards (it is
-   suggested for a thermostat in *Add card* → *By entity*):
-   ```yaml
-   type: custom:chauffage-thermostat-card
-   entity: climate.living_room
-   name: Living room  # optional
-   ```
-   It shows the measured temperature, what the thermostat does now, why and until when
-   ("Normal · Eco until 17:30, then Comfort"), today, a temporary setpoint to set or change,
-   *Pause* (or *Resume*), and opens the thermostat, its schedule, its *Control* switch and its
-   device. The thermostat's more-info dialog shows the same, under its controls.
+Requires Home Assistant 2025.1 or later. We raise the minimum Home Assistant version only when
+Chauffage needs a newer Home Assistant API, and the [changelog](CHANGELOG.md) announces it. The
+tests run on the minimum version, on one version per quarter since, on the latest release, and
+every week on the beta.
 
-Requires Home Assistant 2025.1 or later. This minimum only rises when a Home Assistant API
-requires it, in a minor version announced in the [changelog](CHANGELOG.md); the tests run on it,
-on one version per quarter since, on the latest Home Assistant and, every week, on the beta.
+### 1. Install the integration from HACS
 
-### Upgrading from the package (v0.1)
+In HACS, open ⋮ → *Custom repositories*. Add `https://github.com/armellarcier/ha-chauffage`
+with the type *Integration*. Then install **ha-chauffage** and restart Home Assistant.
 
-1. Install the integration (steps 1–2 above) **without removing the package**: the setup
-   offers to import its weeks, current overrides and active schedule (the package's "mode"),
-   then turns off the package's two automations so that only one scheduler drives the
-   thermostats.
-2. Check the card and the thermostats. To go back, delete the integration and turn the two
-   `automation.chauffage_*` automations back on: the package's data is untouched.
-3. Follow the repair shown in Settings: delete `packages/chauffage/` and `www/chauffage/`,
-   remove the `extra_module_url` line and the `recorder` exclusions from `configuration.yaml`,
-   restart. In your automations, replace `input_select.mode_chauffage` with
-   `select.chauffage_schedule`.
+### 2. Add the integration
 
-Upgrading the integration itself: read the [changelog](CHANGELOG.md) and update from HACS;
-stored data is migrated automatically. Going back to an older version is not supported.
+Go to Settings → Devices & services → *Add integration*, and choose **Chauffage**.
 
-> **Installing the package (v0.1) instead**: the [v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) is a YAML
-> package, no longer maintained: unzip its ZIP into the configuration folder and follow the
-> README of that version.
+### 3. Add the schedule card
+
+Add the card to a dashboard: *Add card* → **Heating schedules**. The integration serves the card,
+so you don't need to add a resource. In the card's visual editor, choose the thermostats and
+their names.
+
+You can also write the card in YAML:
+
+```yaml
+type: custom:chauffage-programme-card
+thermostats:
+  - entity: climate.living_room
+    name: Living room
+```
+
+The card follows your language and your formats, for example the 12 or 24-hour clock. To force
+English or French, add `language: en` or `language: fr` to the YAML.
+
+Identical days share a row, for example *Mon–Fri*. Editing the row edits each of its days. To
+make one day different, click *Group days*: the card then shows each day on its own row. To show
+each day on its own row by default, add `group_days: false` to the YAML.
+
+### 4. Add a card for each room (optional)
+
+The **Scheduled thermostat** card shows one thermostat, for your own dashboards. In *Add card* →
+*By entity*, Home Assistant suggests it for each thermostat. In YAML:
+
+```yaml
+type: custom:chauffage-thermostat-card
+entity: climate.living_room
+name: Living room  # optional
+```
+
+The card shows the measured temperature and what the thermostat does now, for example
+"Normal · Eco until 17:30, then Comfort", and today's slots. From the card, you can set a
+temporary setpoint and pause the thermostat. The card also opens the thermostat, its schedule,
+its *Control* switch and its device.
+
+The thermostat's more-info dialog shows the same information, under the thermostat's controls.
+
+## Updating
+
+Read the [changelog](CHANGELOG.md), then update ha-chauffage from HACS. Chauffage migrates your
+stored data automatically. Going back to an older version is not supported.
+
+## Upgrading from the package (v0.1)
+
+Version 0.1 of ha-chauffage was a YAML package. The integration imports the package's data.
+
+1. Install the integration (steps 1 and 2 of the installation). **Don't remove the package
+   yet.** The setup offers to import the package's weeks, its current overrides and its active
+   schedule. The setup then turns off the package's two automations, so that only the
+   integration drives the thermostats.
+2. Check the card and the thermostats. To go back to the package, delete the integration and
+   turn the two `automation.chauffage_*` automations back on. The import does not change the
+   package's data.
+3. Follow the repair that Home Assistant shows in Settings. The repair asks you to delete
+   `packages/chauffage/` and `www/chauffage/`, to remove the `extra_module_url` line and the
+   `recorder` exclusions from `configuration.yaml`, and to restart Home Assistant.
+4. In your automations, replace `input_select.mode_chauffage` with `select.chauffage_schedule`.
+
+The package is no longer maintained. If you still want it, the
+[v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) holds it, with
+its own README.
 
 ## Schedules
 
-Vocabulary: a **schedule** is a weekly plan (*Normal*, *Holidays*…) with a **week** per
-thermostat, made of **slots**; each slot asks for a **preset** (*Comfort*, *Eco*…); an
-**override** is a temporary change on one thermostat ([glossary](docs/glossary.md)).
+A **schedule** is a weekly plan, for example *Normal* or *Holidays*. A schedule holds a **week**
+for each thermostat. A week is made of **slots**, and each slot asks for a **preset**, for
+example *Comfort* or *Eco*. The [glossary](docs/glossary.md) defines these words.
 
-### Creating schedules
+### Create a schedule
 
-- A new installation starts with a single schedule, *Normal*.
-- In the card (admins), **+** creates a schedule: empty, or a copy of another one. **⋮** on the
-  open tab renames, moves or deletes it.
-- Each schedule has a **stable id**, shown in *Rename…*. It never changes, even when the
-  schedule is renamed: automations use it.
+A new installation starts with one schedule, *Normal*. In the card, **+** creates a schedule:
+an empty one, or a copy of another schedule. To rename, move or delete a schedule, open its tab
+and use **⋮**. Only administrators can change the schedules.
 
-### Active schedule
+Each schedule has a **stable id**, shown in *Rename…*. The stable id never changes, even when
+you rename the schedule. Use the stable id in your automations.
 
-One schedule is active at a time: the **Active schedule** select (`select.chauffage_schedule`).
+### Change the active schedule
 
-- From the card: open the schedule's tab, then *Activate*.
-- From an automation: the service `chauffage.activate_schedule` and the select's `schedule_id`
-  attribute, both with the stable id.
-- From a dashboard, a script or by voice: the select, or the switch of each schedule (see
-  *Entities and services*).
+One schedule is active at a time. The **Active schedule** select (`select.chauffage_schedule`)
+shows which one.
 
-For example, odd and even weeks:
+- **From the card**, open the schedule's tab, then click *Activate*.
+- **From an automation**, call `chauffage.activate_schedule` with the schedule's stable id. The
+  select's `schedule_id` attribute gives the stable id of the active schedule.
+- **From a dashboard, a script or by voice**, use the select or the schedule's switch (see
+  [Entities](#entities)).
+
+For example, this automation switches between two schedules, on even and odd weeks:
 
 ```yaml
 triggers:
@@ -133,34 +158,41 @@ actions:
 
 ## Activation rules
 
-Schedules activated by themselves, without writing an automation: the card's *Rules* view
-(admins) holds an ordered list of rules.
+Activation rules switch the schedule for you, without an automation. You write the rules in the
+card's *Rules* view. Only administrators can change the rules.
 
-### How rules work
+### How the rules work
 
-- **The first rule that applies wins.** When none does, the default schedule is activated (or,
-  without one, the active schedule stays).
-- **A rule is a template**, in one of two ways:
-  - a template and the schedule it activates while the template is true. True and false are
-    read as in a template condition: `true`, `on`, `yes`, `1`…; any other text is false;
-  - a template that gives the schedule itself, by its id or its name.
-- **Rules are tried as you type them**: each one shows what its template gives now (or its
-  error), and whether it applies.
-- **A schedule chosen by hand stays** until the outcome of the rules changes. The select's
-  `rules_choice` attribute says which schedule the rules give: an automation can go back to it
-  at once with `chauffage.activate_schedule`.
+The rules are in order. **The first rule that applies wins.** When no rule applies, Chauffage
+activates the default schedule. Without a default schedule, the active schedule stays.
+
+A rule is a template. You can write a rule in two ways:
+
+- **A template and a schedule.** The schedule is active while the template is true. Chauffage
+  reads the template as a template condition does: for example `true`, `on`, `yes` or `1` are
+  true, and any other text is false.
+- **A template that gives the schedule.** The template returns the schedule's name or its stable
+  id.
+
+The card tries each rule as you type. For each rule, the card shows what the template gives now
+(or its error), and whether the rule applies.
+
+If you choose a schedule by hand, your choice stays until the outcome of the rules changes. The
+select's `rules_choice` attribute gives the schedule the rules ask for. To go back to it at
+once, an automation can call `chauffage.activate_schedule`.
 
 ### Example: EDF Tempo
 
-Following the EDF Tempo color of the day, two rules and a default schedule:
+To follow the EDF Tempo color of the day, write two rules and choose *Normal* as the default
+schedule:
 
 | Template | Schedule |
 |---|---|
 | `{{ is_state('sensor.edf_tempo_color', 'red') }}` | *Away* |
 | `{{ is_state('sensor.edf_tempo_color', 'white') }}` | *Eco days* |
-| (none is true) | *Normal* (default) |
+| (no rule applies) | *Normal* (default) |
 
-Or a single rule whose template gives the schedule:
+You can also write a single rule whose template gives the schedule:
 
 ```jinja
 {{ {'red': 'away', 'white': 'eco_days'}.get(states('sensor.edf_tempo_color'), 'normal') }}
@@ -170,126 +202,189 @@ Or a single rule whose template gives the schedule:
 
 #### One rule
 
-Add a *Local Calendar* (Settings › Devices & services › Add
-integration), say `calendar.chauffage`, and put in it events named after schedules: *Holidays*
-from Friday evening to Sunday, *Away* until Tuesday 18:00, *Remote work* every Wednesday (a
-recurring event). One rule, and *Normal* as the default schedule:
+You can plan your schedules in a calendar. Chauffage then activates the schedule named by the
+current event.
 
-```jinja
-{{ state_attr('calendar.chauffage', 'message') if is_state('calendar.chauffage', 'on') }}
-```
+1. Add a *Local Calendar* (Settings › Devices & services › Add integration), for example
+   `calendar.chauffage`.
+2. Add events named after your schedules. For example: *Holidays* from Friday evening to Sunday,
+   *Away* until Tuesday 18:00, and *Remote work* every Wednesday as a recurring event.
+3. Write one rule, and choose *Normal* as the default schedule:
 
-While an event runs, its title gives the schedule (its name, any case, or its id); between
-events, the default schedule applies. A new schedule needs no change to the rule. Any calendar
-works the same way (Google, CalDAV…), to plan from a phone or share with the household.
+   ```jinja
+   {{ state_attr('calendar.chauffage', 'message') if is_state('calendar.chauffage', 'on') }}
+   ```
+
+While an event runs, the event's title gives the schedule. The title can be the schedule's name,
+in any case, or its stable id. Between events, the default schedule applies. A new schedule needs
+no change to the rule.
+
+Any calendar works the same way, for example Google or CalDAV. You can then plan from your
+phone, or share the calendar with your household.
 
 #### Overlapping events
 
-With this rule, events must not overlap: a calendar entity shows a single event, the one that
-started first, so an evening *Away* inside a week of *Holidays* is not seen. For exceptions
-inside a period, the blueprint
-[`calendar_schedule.yaml`](blueprints/automation/chauffage/calendar_schedule.yaml) reads every
-running event and writes the schedule of the one that started last into a text helper:
+With the rule above, events must not overlap. A calendar entity shows only one event: the event
+that started first. So an *Away* evening during a week of *Holidays* is not seen.
 
-1. Create a *Text* helper (Settings › Devices & services › Helpers), say
+To plan exceptions inside a longer event, use the blueprint
+[`calendar_schedule.yaml`](blueprints/automation/chauffage/calendar_schedule.yaml). The blueprint
+reads every running event. The blueprint writes the schedule of the event that started last
+into a text helper.
+
+1. Create a *Text* helper (Settings › Devices & services › Helpers), for example
    `input_text.calendar_schedule`.
 2. [![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Farmellarcier%2Fha-chauffage%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fchauffage%2Fcalendar_schedule.yaml),
-   then create an automation from it with the calendar and the helper.
-3. The rule reads the helper: `{{ states('input_text.calendar_schedule') }}`.
+   then create an automation from the blueprint, with your calendar and the helper.
+3. Write a rule that reads the helper: `{{ states('input_text.calendar_schedule') }}`.
 
-Events whose title names no schedule are ignored. The schedule changes when an event starts or
-ends; an event added or edited is seen at the next reading of the calendar, every five minutes
-(every fifteen is enough for an online calendar, which syncs at that pace).
+The blueprint ignores events whose title names no schedule. The schedule changes as soon as an
+event starts or ends. The blueprint sees a new or edited event the next time it reads the
+calendar: every five minutes by default. For an online calendar, choose fifteen minutes, because
+an online calendar only syncs at that pace.
 
 ## Presets
 
-Slots ask for the integration's presets: by default *Comfort* 20 °C, *Eco* 17 °C, *Boost* 21 °C
-and *Frost protection* 7 °C.
+Slots ask for presets. Chauffage comes with four presets: *Comfort* 20 °C, *Eco* 17 °C,
+*Boost* 21 °C and *Frost protection* 7 °C.
 
-- **For each thermostat**, a preset is the thermostat's own preset with the same name when it
-  has one, otherwise the preset's temperature. This can be changed per thermostat: one of its
-  own presets, or a temperature.
-- **Set in the card**, *Presets* view (admins): a table with one column per preset, from the
-  coldest to the warmest, and one row per thermostat. A column header is the preset: its name,
-  color and default temperature, changed in one popover, with *Delete…*; *+ Add a preset* is
-  under the table. Each cell gives the temperature and says what it is: "its *Comfort* preset",
-  "set here" or "default" ("?" until a thermostat's own preset has been used). A cell opens a
-  popover to change it, as for the slots, with a link to the thermostat's device, where its own
-  presets are set.
-- **Temperatures shown**: the table and the legend show each preset's temperature. No standard
-  attribute gives the temperature of a thermostat's own preset: the integration remembers the
-  setpoint seen while that preset was active.
-- **Versatile Thermostat bonus**: its preset temperatures are read directly from its attributes
-  (`preset_temperatures` since VTherm 10, `comfort_temp`… before).
+### What a preset does on each thermostat
+
+If the thermostat has its own preset with the same name, Chauffage uses that preset. Otherwise,
+Chauffage sets the preset's temperature. You can change this for each thermostat: choose one of
+the thermostat's own presets, or a temperature.
+
+### Set the presets in the card
+
+Open the card's *Presets* view. Only administrators can change the presets. The table has a
+column for each preset, from the coldest to the warmest, and a row for each thermostat.
+
+- **A column header** opens the preset: its name, its color and its default temperature. You can
+  also delete the preset from there. To add a preset, click *+ Add a preset* under the table.
+- **A cell** opens what the preset does on this thermostat. The cell says where its temperature
+  comes from, for example "its *Comfort* preset", "set here" or "default". The popover also
+  links to the thermostat's device. You set the thermostat's own presets there.
+
+### The temperature of a thermostat's own preset
+
+No standard attribute gives the temperature of a thermostat's own preset. So Chauffage remembers
+the setpoint it saw while that preset was active. Until then, the card shows "?".
+
+Versatile Thermostat is an exception. Chauffage reads the temperatures of its presets from its
+attributes.
 
 ## Supported thermostats
 
-Any `climate` entity with a target temperature, tested with three kinds:
+Chauffage works with any `climate` entity that has a target temperature. The tests cover three
+kinds of thermostats:
 
-- **Versatile Thermostat**: presets use its own (`comfort`, `eco`, `boost`, `frost`), whose
-  temperatures are set in VTherm; a setpoint changed by hand switches it to preset `none` and
-  becomes an override;
-- **thermostats with standard presets** (`eco`, `comfort`, `away`, `boost`…): presets use the
-  thermostat's own with the same name, temperatures for the others (frost protection, for
-  example);
-- **thermostats without presets** (such as `generic_thermostat`): presets are temperatures; any
-  setpoint changed by someone else becomes an override.
+- **Versatile Thermostat.** Chauffage uses its presets (`comfort`, `eco`, `boost`, `frost`). You
+  set their temperatures in Versatile Thermostat. If you change the setpoint by hand, Versatile
+  Thermostat switches to preset `none`, and Chauffage makes it an override.
+- **Thermostats with standard presets**, for example `eco` or `comfort`. Chauffage uses the
+  thermostat's preset with the same name. For the other presets, for example frost protection,
+  Chauffage sets a temperature.
+- **Thermostats without presets**, for example `generic_thermostat`. Chauffage sets
+  temperatures. Any setpoint that someone else changes becomes an override.
 
-Not supported yet: heat / cool thermostats with a temperature range (`heat_cool`), and devices
-that change their setpoint by themselves (they can look like manual changes). A device that keeps
-its preset when its setpoint is changed by hand is better set to temperatures (the card's
-*Presets* view). See the [roadmap](ROADMAP.md) for groups of thermostats and a calendar of
-schedules.
+Chauffage doesn't support these devices yet:
 
-## Entities and services
+- heat / cool thermostats with a temperature range (`heat_cool`);
+- devices that change their setpoint by themselves, because Chauffage could take their changes
+  for manual changes.
 
-A thermostat is **scheduled** once it is in a card. It stays scheduled when it is removed from a
-card (another card may show it), until it is forgotten. Paused, it is still scheduled: it keeps
-its weeks, but Chauffage no longer controls it. The card's *Thermostats* view lists every
-scheduled thermostat, paused or not, the ones in no card too, with their *Control* switch and
-device. If its entity is deleted from Home
-Assistant, Settings → Repairs proposes to forget it.
+Some devices keep their preset when you change their setpoint by hand. For such a device, set
+every preset to a temperature in the card's *Presets* view.
 
-Everything Chauffage knows can be seen and used in Home Assistant, without the card: on the
-device pages, in dashboards, automations, scripts and by voice. The entities appear by
-themselves; they hold no state of their own (they show the integration's data and change it as
-the card does), and their names and icons can be changed in Home Assistant.
+The [roadmap](ROADMAP.md) says what comes next, for example groups of thermostats.
 
-Per scheduled thermostat, on the thermostat's device page:
+## Overrides
+
+An override is a temporary change on one thermostat. An override lasts 2 hours by default. You
+can change this duration in the [options](#options).
+
+### Start an override
+
+- **On the thermostat.** Change the setpoint or the preset by hand, with the knob or in Home
+  Assistant. Chauffage makes your change an override.
+- **From the card**, or from the thermostat's more-info dialog. Choose a preset or a
+  temperature, and an end.
+- **From an automation**, with the `chauffage.set_override` action.
+
+A change made by an automation does not start an override. A command that a battery valve
+applies late does not start one either.
+
+### End an override
+
+An override ends by itself, and the thermostat goes back to its schedule. To end the override
+sooner, set the thermostat back to the planned preset or setpoint, even with the knob. You can
+also end the override from the card, or with the `chauffage.clear_override` action.
+
+## Scheduled thermostats
+
+A thermostat is **scheduled** once you add it to a card. If you remove the thermostat from the
+card, the thermostat stays scheduled, because another card may show it. The thermostat stays
+scheduled until you forget it.
+
+The card's *Thermostats* view lists every scheduled thermostat, even the thermostats in no card.
+If you delete a thermostat's entity from Home Assistant, Settings → Repairs offers to forget the
+thermostat.
+
+### Pause a thermostat
+
+To pause a thermostat, turn off its **Control** switch. Chauffage keeps the thermostat's weeks,
+but stops sending it commands and stops making overrides. Pausing is handy for a room you run by
+hand for a few days, or at the end of the heating season.
+
+To resume the schedule, turn the **Control** switch back on.
+
+## Entities
+
+You can use everything Chauffage knows without the card: on the device pages, in dashboards,
+automations, scripts and by voice. The entities appear by themselves. They show Chauffage's
+data and change it, as the card does. You can rename them and change their icons in Home
+Assistant.
+
+### On each thermostat's device
 
 | Entity | What it says |
 |---|---|
-| **Control** (switch) | Off, the thermostat is **paused**: Chauffage keeps its weeks but no longer controls it (nothing sent, no override), until it is turned back on. Handy for a room run by hand for a few days, or at the end of the heating season. |
-| **Planned preset** (sensor) | The preset planned now. Attributes `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, and `temperatures`: the temperature of each preset on this thermostat. |
-| **Override** (binary sensor) | On while the thermostat has an override. Attributes `kind` (`temperature` or `preset`), `value` (a temperature, or the thermostat's climate preset), `preset` (the Chauffage preset it was set to, if any), `end`. |
+| **Control** (switch) | Off while the thermostat is **paused**. |
+| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat). |
+| **Override** (binary sensor) | On while the thermostat has an override. Attributes: `kind` (`temperature` or `preset`), `value` (a temperature, or the thermostat's own preset), `preset` (the Chauffage preset asked for, if any), `end`. |
 | **Override end** (sensor, disabled by default) | The end of the current override as a timestamp, for a dashboard tile. |
 
-The sensors are unavailable while the thermostat is paused. An installation from before 0.6
-keeps the planned preset sensor's former id (`sensor.<thermostat>_schedule`), and enables it once.
+The sensors are unavailable while the thermostat is paused.
 
-On the *Chauffage* device:
+On an installation from before 0.6, the planned preset sensor keeps its former id,
+`sensor.<thermostat>_schedule`. Chauffage enables the sensor once.
+
+### On the *Chauffage* device
 
 | Entity | What it says |
 |---|---|
-| **Active schedule** (select, `select.chauffage_schedule`) | The active schedule, to pick among all of them. Attributes `schedule_id`, and `rules_choice`: the schedule the activation rules give (empty without rules). |
-| **&lt;Schedule&gt; schedule** (a switch per schedule, `switch.chauffage_schedule_<id>`) | On for the active schedule. Turning one on activates it; the active one is not turned off, another one is turned on. Its icon, chosen in Home Assistant, is shown on the schedule's tab in the card. |
+| **Active schedule** (select, `select.chauffage_schedule`) | The active schedule. Choose another option to activate another schedule. Attributes: `schedule_id`, and `rules_choice` (the schedule the activation rules give, empty without rules). |
+| **&lt;Schedule&gt; schedule** (a switch for each schedule, `switch.chauffage_schedule_<id>`) | On for the active schedule. Turn on a switch to activate its schedule. You cannot turn off the active schedule: turn on another one. The card shows the switch's icon on the schedule's tab. |
 
-**Assist**: Home Assistant exposes new switches to voice assistants, so "turn off the living room
-control" or "turn on the Holidays schedule" work. Control switches made before 0.6 keep the
-choice made then (not exposed); in Settings → Voice assistants → Expose, each entity can be
-exposed or not.
+### Voice assistants
 
-Services:
+Home Assistant exposes new switches to voice assistants. So you can say "turn off the living
+room control" or "turn on the Holidays schedule". The *Control* switches created before 0.6 are
+not exposed. To expose an entity or not, go to Settings → Voice assistants → Expose.
 
-- `chauffage.set_override`: a temperature or a preset (what that preset means on the thermostat,
-  as in the card), for a duration or until a time.
-- `chauffage.clear_override`: the thermostat resumes its schedule now.
-- `chauffage.activate_schedule`: activates a schedule by its stable id.
-- `chauffage.get_schedules` (with a response, for scripts): the schedules (`id`, `name`,
-  `entity_id` of their switch), `active_schedule`, `rules_choice`, `default_schedule`.
-- `chauffage.get_week` (with a response): the week of thermostats in a schedule (the active one by
-  default): by thermostat, then by day like Home Assistant's `schedule.get_schedule`: `schedule`
-  and one list per day (`monday`…), each slot with its `start`, `end` and `preset`.
+## Services
+
+| Action | What it does |
+|---|---|
+| `chauffage.set_override` | Sets an override on a thermostat: a temperature or a preset, for a duration or until a time. A preset means the same as in the card. |
+| `chauffage.clear_override` | Ends the override: the thermostat goes back to its schedule now. |
+| `chauffage.activate_schedule` | Activates a schedule, by its stable id. |
+| `chauffage.get_schedules` | Returns the schedules (`id`, `name`, and `entity_id` of their switch), `active_schedule`, `rules_choice` and `default_schedule`. |
+| `chauffage.get_week` | Returns the weeks of the thermostats in a schedule (the active schedule by default). |
+
+`chauffage.get_week` returns one entry for each thermostat, in the format of Home Assistant's
+`schedule.get_schedule`: `schedule`, then a list for each day (`monday`…), and each slot with its `start`, its
+`end` and its `preset`. For example, to send tomorrow's comfort time:
 
 ```yaml
 - action: chauffage.get_week
@@ -304,17 +399,20 @@ Services:
       {{ week['climate.salon'][tomorrow] | selectattr('preset', 'eq', 'comfort') | map(attribute='start') | first }}
 ```
 
-Events, for automations (*Event* trigger):
+## Events
+
+Chauffage fires events that your automations can use, with the *Event* trigger:
 
 | Event | Data |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (a change made on it, by hand), `card`, `service`. Fired for a new override or a new value, not when only its end changes. |
-| `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (put back to its schedule by hand), `card`, `service`, `paused`, `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (id), `schedule_name`, `previous_schedule`, `entity_id` (the active-schedule select), and `source`: `card`, `entity` (the select or a schedule switch), `service`, `rules`. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (changed by hand), `card` or `service`. Fired for a new override or a new value, not when only the end changes. |
+| `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `service`, `paused` or `forgotten`. |
+| `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `entity` (the select or a schedule switch), `service` or `rules`. |
 
-Each event carries the context of what caused it: the logbook says who changed the thermostat, used the card, called the service or picked the schedule.
+Each event carries the context of what caused it. So the logbook says who changed the
+thermostat, used the card, called the action or chose the schedule.
 
-For example, to be notified when someone changes a thermostat by hand:
+For example, to get a notification when someone changes a thermostat by hand:
 
 ```yaml
 triggers:
@@ -330,56 +428,76 @@ actions:
 
 ## Options
 
-Settings → Devices & services → Chauffage → *Configure*:
+To change the options, go to Settings → Devices & services → Chauffage → *Configure*.
 
-- **Override duration**: 2 h by default.
-- **Use the thermostats' presets**: on by default. Off, every thermostat is driven by
-  temperatures, all set in the card.
+- **Override duration.** 2 hours by default.
+- **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
+  every thermostat with temperatures, and you set all of them in the card.
 
 ## Troubleshooting
 
-What Chauffage does to the thermostats, and why, can be followed:
+A thermostat didn't do what you expected? Here is where to look, in order.
 
-- **Logbook**: an override starting (where it came from: the thermostat, the card, a service)
-  or ending (expired, back to the schedule on the thermostat, removed, thermostat paused…) is in
-  the thermostat's logbook; a schedule activated (and by what) in the select's.
-- **Logs**: every command sent to a thermostat, with why (new slot, schedule activated, override
-  ended, back online, retry, command applied late…), every override and every change seen on a
-  thermostat, at the INFO level:
-  ```yaml
-  logger:
-    logs:
-      custom_components.chauffage: info
-  ```
-- **Diagnostics** (Settings → Devices & services → Chauffage → ⋮ → *Download diagnostics*): the
-  stored data (weeks, overrides, commands a valve has not applied yet) and the scheduled
-  thermostats as they are now. Attach it to an issue.
+### 1. The thermostat's logbook
+
+The thermostat's logbook records every override. It shows where the override came from
+(the knob, the card or the `chauffage.set_override` action) and why it ended.
+
+Schedule changes are recorded in the logbook of the *Active schedule* select.
+
+### 2. The Home Assistant logs
+
+To see every command sent to the thermostats and why, set Chauffage to the `info` level:
+
+```yaml
+logger:
+  logs:
+    custom_components.chauffage: info
+```
+
+### 3. Diagnostics
+
+Download the diagnostics: Settings → Devices & services → Chauffage → ⋮ → *Download diagnostics*.
+Attach this file to your issue. The file holds your schedules and the current state of the
+thermostats.
 
 ## How it works
 
-- Data is stored in `.storage/chauffage` (versioned, migrated automatically): schedules, presets,
-  weeks (`{climate: {schedule id: [7 days × [[start, preset], …]]}}`), current overrides.
-- **Scheduler**: every minute, applies the preset of the slots starting now and resumes the
-  schedule of thermostats whose override ends; it realigns every thermostat at startup, when
-  a schedule is activated and when weeks are saved. Thermostats with an active override, turned
-  off or unavailable are left alone; an unreachable valve does not stop the others.
-- **Manual changes**: a setpoint changed by hand (the thermostat switches to preset `none`) or
-  a preset picked by a user becomes a temporary override; going back the same way to what the
-  slot gives (its preset, or a setpoint at that preset's temperature on this thermostat) ends
-  it instead. Changes made by the integration itself
-  (its own context) or by an automation are ignored, and so is a command a battery valve applies
-  late (the commands it has not taken yet are remembered for a day).
-- **Card**: served by the integration and loaded on every page (card + more-info block); it
-  talks to the integration over websocket (`chauffage/subscribe`, `chauffage/weeks/save`…);
-  a save made from an outdated copy is refused instead of overwriting someone else's changes.
-- **History**: the card asks the integration for the measured temperature and the setpoint
-  applied over the last 7 days (`chauffage/history`); the integration reads them from HA's
-  recorder, keeps only these two values (HA's own history sends every attribute of a thermostat,
-  megabytes for a week) and keeps what it read in memory, so the card's refreshes only read the
-  last minutes.
+This section is for the curious, and for contributors.
 
-Known pitfalls (already handled, covered by tests): ZHA presets are Enums; dates with
-microseconds are rejected by Safari; `ha-card` renders asynchronously (popover positioning).
+**Stored data.** Chauffage stores its data in `.storage/chauffage`: the schedules, the presets,
+the weeks and the current overrides. The weeks have the format
+`{climate: {schedule id: [7 days × [[start, preset], …]]}}`. The data has a version, and
+Chauffage migrates it automatically.
+
+**The scheduler.** Every minute, the scheduler applies the preset of the slots that start now.
+The scheduler also sends back to their schedule the thermostats whose override ends. The
+scheduler sets every thermostat to its schedule again at startup, when a schedule is activated,
+and when weeks are saved. The scheduler leaves alone a thermostat that has an override, is off
+or is unavailable. An unreachable valve does not stop the other thermostats.
+
+**Manual changes.** A setpoint changed by hand, or a preset that a user chooses, becomes an
+override. Going back to what the slot asks for ends the override. Chauffage ignores its own
+changes, thanks to their context, and the changes made by automations. Chauffage also ignores a
+command that a battery valve applies late: Chauffage remembers the commands not yet applied for
+a day.
+
+**The card.** The integration serves the card and loads it on every page, for the card and the
+block in the more-info dialog. The card talks to the integration over the websocket API, for
+example `chauffage/subscribe` or `chauffage/weeks/save`. The integration refuses a save made
+from an outdated copy, so that a save never overwrites someone else's changes.
+
+**The history.** The card asks the integration for the measured temperature and the applied
+setpoint over the last 7 days (`chauffage/history`). The integration reads these two values from
+Home Assistant's recorder, and keeps nothing else: Home Assistant's own history would send every
+attribute of the thermostat, megabytes for a week. The integration also keeps what it read in
+memory, so a refresh of the card only reads the last minutes.
+
+**Known pitfalls**, already handled and covered by tests:
+
+- ZHA presets are Enums.
+- Safari rejects dates with microseconds.
+- `ha-card` renders asynchronously, which matters to place the popovers.
 
 ## Repository layout
 
@@ -390,13 +508,13 @@ dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermos
 dev/sim_rooms/, dev/sim_climate/    dev only: thermal model of the rooms (and a simulated week of
                                     history for a new dev HA), a climate with standard presets
 tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
-docs/                               glossary, design decisions, use cases and their tests
+docs/                               glossary, design decisions, use cases, writing style
 tests/fixtures/                     stored data in each past format (migration tests)
 scripts/                            test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, HACS checks and releases
 ```
 
-Development: see [CONTRIBUTING.md](CONTRIBUTING.md).
+To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

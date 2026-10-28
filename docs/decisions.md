@@ -441,3 +441,18 @@ dashboards, automations, scripts and by voice without the card
   the same thermal model as the live simulation. That model has inertia everywhere (radiator,
   air, walls, sensor) and random but plausible disturbances: regular sawtooth curves and
   straight slopes looked fake.
+- **Coverage is a floor, not the goal** (97 % for the integration, 95 % for the card). 100 % of
+  the lines does not mean that every use case is covered. The use cases
+  ([use-cases.md](use-cases.md)) say what to test. The coverage floor only catches code that no
+  test runs.
+- **A release may drop the current overrides instead of migrating them.** An override lasts a
+  few hours. Losing one costs the user less than a migration costs us: the thermostat goes back
+  to its schedule. The changelog says so.
+- **The card works on phones, by touch, from 360 px wide.** Users often open the card in the Home
+  Assistant app on their phone. So no information is only shown on
+  hover, and no action needs a mouse or a keyboard.
+- **The docs are written for the reader** ([writing-style.md](writing-style.md), #53). The
+  README and CONTRIBUTING read like generated text: packed sentences, chains of colons and
+  semicolons, every case in parentheses, and French translated word by word. The writing guide
+  gives the rules and examples, mainly for AI edits, where this style came from. CONTRIBUTING
+  says what to do, and this file says why.
