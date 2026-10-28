@@ -326,7 +326,9 @@ Services :
 |---|---|
 | `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end` et `source` : `thermostat` (un changement fait dessus, à la main), `card`, `service`. Signalé pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule sa fin change. |
 | `chauffage_override_ended` | `entity_id` et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `service`, `paused`, `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (identifiant), `schedule_name`, `previous_schedule` et `source` : `card`, `entity` (le sélecteur ou un interrupteur de planning), `service`, `rules`. |
+| `chauffage_schedule_activated` | `schedule` (identifiant), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur du planning actif) et `source` : `card`, `entity` (le sélecteur ou un interrupteur de planning), `service`, `rules`. |
+
+Chaque événement porte le contexte de ce qui l'a causé : le journal de bord dit qui a changé le thermostat, utilisé la carte, appelé le service ou choisi le planning.
 
 Par exemple, être prévenu quand quelqu'un change un thermostat à la main :
 
@@ -349,6 +351,26 @@ Paramètres → Appareils et services → Chauffage → *Configurer* :
 - **Durée des dérogations** : 2 h par défaut.
 - **Utiliser les préréglages des thermostats** : activé par défaut. Désactivé, tous les
   thermostats sont pilotés en température, entièrement réglée dans la carte.
+
+## Dépannage
+
+Ce que Chauffage fait aux thermostats, et pourquoi, se suit :
+
+- **Journal de bord** : une dérogation qui commence (d'où elle vient : le thermostat, la carte,
+  un service) ou qui finit (expirée, retour au planning sur le thermostat, retirée, thermostat
+  en pause…) est dans le journal du thermostat ; un planning activé (et par quoi) dans celui du
+  sélecteur.
+- **Journaux** : chaque commande envoyée à un thermostat, avec sa raison (nouveau créneau,
+  planning activé, dérogation terminée, retour en ligne, nouvel essai, commande appliquée en
+  retard…), chaque dérogation et chaque changement vu sur un thermostat, au niveau INFO :
+  ```yaml
+  logger:
+    logs:
+      custom_components.chauffage: info
+  ```
+- **Diagnostics** (Paramètres → Appareils et services → Chauffage → ⋮ → *Télécharger les
+  diagnostics*) : les données stockées (semaines, dérogations, commandes qu'une vanne n'a pas
+  encore appliquées) et les thermostats programmés tels qu'ils sont. À joindre à une issue.
 
 ## Architecture
 
