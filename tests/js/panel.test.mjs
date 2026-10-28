@@ -353,6 +353,21 @@ describe('the Chauffage panel', () => {
       assert.equal(localStorage.getItem('chauffage-programme-card:history'), '1');
     });
 
+    test('a day copied in one schedule\'s week can be pasted in another schedule\'s week', () => {
+      // Regression (alpha.2): each week of the sheet is a card of its own; a card read the copied
+      // day once, when created, so the other weeks offered nothing to paste
+      const el = panel(setup(), '/thermostats/climate.salon');
+      const [normal, away] = weeks(el);
+      normal._action('copy-day', { climate: 'climate.salon', day: '0' }); // the row "Mon–Fri"
+      away._openMenu('climate.salon', 0, 0, 0, 0);
+      const paste = $(away, '.menu [data-act="paste-day"]');
+      assert.ok(!paste.disabled, 'the other week offers to paste');
+      assert.match(text(paste), /Salon · .* \(Normal\)/);
+      paste.click();
+      assert.ok(away._dirty);
+      assert.deepEqual(away._week('climate.salon')[0], normal._week('climate.salon')[0]);
+    });
+
     test('copying a week to another schedule asks to save the target, never the source', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       const select = $(el, 'select.copy[data-copy-from="normal"]');

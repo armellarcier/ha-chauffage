@@ -586,6 +586,10 @@ older one, the older one says so.
   for all its weeks. As on the card, the history shows each day, so grouping the days hides it.
   Both choices are the ones the cards keep in this browser. The alpha.1 had no *History* switch:
   a history turned on in a card showed on the sheet, and the days could not be grouped any more.
+- **A day copied in one week can be pasted in any other week of the page**, for example from
+  *Normal* to *Away* on a thermostat's sheet, or from one dashboard card to another. Every card
+  reads the copied day when it is used, from this browser's storage. The alpha.2 read it once,
+  when the card was drawn: the other weeks of a sheet offered nothing to paste.
 - **In the panel, the sheet's `group_days` wins** over the choice kept in the browser. The
   prototype first did the opposite, and the switch did nothing.
 - **A schedule's sheet shows every thermostat's week in this schedule.** It shows this schedule's

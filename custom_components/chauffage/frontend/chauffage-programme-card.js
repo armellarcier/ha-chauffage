@@ -1321,8 +1321,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._groupPref = null;
     this._rows = null; // rows of days drawn last, each edited as a whole
     try {
-      const c = JSON.parse(localStorage.getItem(LS_CLIP));
-      if (c && Array.isArray(c.segs) && c.segs.length) this._clip = c;
       this._history.shown = localStorage.getItem(LS_HISTORY) === '1';
       const g = localStorage.getItem(LS_GROUP);
       if (g === '1' || g === '0') this._groupPref = g === '1';
@@ -3480,6 +3478,21 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._dirty = true;
     this._msg = this._loc.t('weekCopiedFrom', { schedule: sourceName });
     this._render();
+  }
+
+  // The day copied, shared by every card of the page and kept across reloads (this browser): read
+  // when used, so that a card drawn before the copy, such as another week of a thermostat's sheet
+  // in the panel, can paste it. Without the browser's storage, this card's own copy.
+  get _clip() {
+    try {
+      const c = JSON.parse(localStorage.getItem(LS_CLIP));
+      if (c && Array.isArray(c.segs) && c.segs.length) return c;
+    } catch (e) { /* ignore */ }
+    return this._ownClip || null;
+  }
+
+  set _clip(clip) {
+    this._ownClip = clip;
   }
 
   _copyToClipboard(climate, day) {

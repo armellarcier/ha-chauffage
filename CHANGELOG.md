@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **A day copied in one week can be pasted in another week** of a thermostat's page in the
+  Chauffage panel, or of another card. *Paste* stayed greyed out in a week drawn before the copy.
+
 ## [0.8.0-alpha.2] - 2026-10-29
 
 A second alpha of the Chauffage panel (#57): it welcomes a new user, and a thermostat's page gets
