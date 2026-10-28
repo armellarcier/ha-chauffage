@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 import pytest
-from homeassistant.core import Context, Event
+from homeassistant.core import Context, Event, callback
 
 from conftest import CTX_USER, KINDS, WEEKDAY, Bench, every_day
 from custom_components.chauffage import diagnostics, logbook
@@ -190,8 +190,12 @@ async def test_the_events_carry_the_context_of_what_caused_them(bench: Bench, ha
     picked the schedule."""
     await start(bench, "10:00")
     contexts = []
+
+    @callback  # in the order fired (a plain function runs as a job, in any order)
+    def listen(event: Event) -> None:
+        contexts.append((event.event_type, event.context.user_id))
     for event_type in ("chauffage_override_started", "chauffage_override_ended", "chauffage_schedule_activated"):
-        bench.hass.bus.async_listen(event_type, lambda event: contexts.append((event.event_type, event.context.user_id)))
+        bench.hass.bus.async_listen(event_type, listen)
     await bench.manual_setpoint("climate.salon", 21.5)  # CTX_USER
     user = Context(user_id=hass_admin_user.id)
     await bench.hass.services.async_call("chauffage", "clear_override", {"entity_id": "climate.salon"},
