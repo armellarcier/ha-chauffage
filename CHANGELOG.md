@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.7.0-beta.4] - 2026-10-28
+
+More width for the bars of the weeks when the card is narrow, for example in a column of a
+dashboard.
+
 ### Changed
 
 - **The bars of the weeks get more width** (#11). With several thermostats, the name of the days
@@ -17,6 +22,11 @@ Each entry says whether the release **migrates stored data** and what to do when
   therefore gets the compact layout on a computer too.
 - A row of the whole week is named *Mon–Sun* instead of *Every day*, so the column of the days
   stays narrow. The menus still say *Every day*.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled), restart Home Assistant and reload the
+page. No stored data is migrated.
 
 ## [0.7.0-beta.3] - 2026-10-28
 
@@ -709,7 +719,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.3...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.4...HEAD
+[0.7.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.4
 [0.7.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.3
 [0.7.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.2
 [0.7.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.1
