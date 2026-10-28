@@ -54,7 +54,8 @@ Allez dans Paramètres → Appareils et services → *Ajouter une intégration*,
 **Chauffage**.
 
 Chauffage ajoute alors un panneau **Chauffage** dans la barre latérale, pour les
-administrateurs. Voir [Le panneau Chauffage](#le-panneau-chauffage).
+administrateurs. Ouvrez-le : le panneau vous accueille et liste vos thermostats. Cochez ceux que
+Chauffage pilote, puis cliquez sur *Programmer*. Voir [Le panneau Chauffage](#le-panneau-chauffage).
 
 ### 3. Ajouter la carte des plannings
 
@@ -110,11 +111,13 @@ chauffage, changent de planning et modifient les semaines.
 
 Le panneau a trois onglets :
 
+- **Thermostats.** Tous les thermostats programmés, et les cartes qui les affichent. Vous pouvez
+  mettre un thermostat en pause, l'oublier avec ⋮, ou en programmer un autre. Avant votre premier
+  thermostat, cet onglet vous accueille : cochez les thermostats que Chauffage pilote, puis
+  *Programmer*.
 - **Plannings.** La liste des plannings, avec le planning actif signalé. Vous pouvez activer un
   planning, en créer un ou l'ouvrir. Les [règles d'activation](#règles-dactivation) se trouvent
   sous la liste.
-- **Thermostats.** Tous les thermostats programmés, et les cartes qui les affichent. Vous pouvez
-  mettre un thermostat en pause, l'oublier avec ⋮, ou en programmer un autre.
 - **Préréglages.** Le tableau des préréglages : leurs noms, leurs couleurs et leurs
   températures, et ce que fait chacun sur chaque thermostat (voir [Préréglages](#préréglages)).
 
@@ -126,7 +129,8 @@ Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, p
 - **La page d'un thermostat** montre le thermostat, si Chauffage le pilote, et ses appareils.
   En dessous, ses préréglages servent de légende à ses semaines, une semaine par planning.
   *Copier vers…* copie une semaine vers un autre planning. *Grouper les jours* regroupe les jours
-  identiques de toutes les semaines.
+  identiques de toutes les semaines, et *Historique* trace la température mesurée sur les 7
+  derniers jours.
 
 ### Ouvrir la page d'un thermostat
 

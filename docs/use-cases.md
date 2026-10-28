@@ -211,8 +211,8 @@ are proved by the same tests, on the panel's page.
 |---|---|
 | An admin finds *Chauffage* in the sidebar, with its own icon (`chauffage:logo`); the panel is for admins only | `I/test_frontend.py::the_chauffage_panel_is_registered_for_admins_with_its_own_icon`, `C/panel.test.mjs` ("the panel's icon") |
 | On a dashboard, an admin sees the schedule card's links to the panel's *Presets*, *Rules* and *Thermostats* pages, in place of the card's former views; a non-admin sees none | `C/panel.test.mjs` ("the dashboard card and the panel") |
-| A list shows the panel's tabs (*Schedules*, *Thermostats*, *Presets*) and Home Assistant's menu button; a sheet shows no tabs, a breadcrumb title whose list is a link | `C/panel.test.mjs` ("lists and sheets") |
-| `/chauffage` and `/chauffage/rules` open the *Schedules* page | `C/panel.test.mjs` ("its addresses") |
+| A list shows the panel's tabs (*Thermostats*, *Schedules*, *Presets*) and Home Assistant's menu button; a sheet shows no tabs, a breadcrumb title whose list is a link | `C/panel.test.mjs` ("lists and sheets") |
+| `/chauffage/rules` opens the *Schedules* page, where the rules are | `C/panel.test.mjs` ("its addresses") |
 | The first prototype's address of a thermostat (`/chauffage/<climate>`) redirects to its sheet | `C/panel.test.mjs` ("its addresses") |
 | A renamed thermostat's address redirects to its new id | `C/panel.test.mjs` ("its addresses") |
 | A deleted schedule's sheet goes back to the list of schedules | `C/panel.test.mjs` ("its addresses") |
@@ -242,8 +242,20 @@ are proved by the same tests, on the panel's page.
 | The *Pause* button keeps its place when it turns into *Resume*: the badge comes after it | `C/panel.test.mjs` ("Pause sends the pause") |
 | A thermostat's sheet says *Controlled* or *Paused* in its header; a paused thermostat's sheet says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
 | Ungrouping the days on a thermostat's sheet applies to every schedule, and is remembered in the browser with the cards' choice; the sheet's choice wins over the one remembered | `C/panel.test.mjs` ("ungrouping the days") |
+| A thermostat's sheet has the card's *History* switch, for all its weeks; grouping the days hides the history; a history turned on in a card does not stop the sheet from grouping the days | `C/panel.test.mjs` ("the history has its own switch") |
 | Outside the panel, the choice of grouping remembered in the browser wins over the card's option | `C/panel.test.mjs` ("outside the panel") |
 | A schedule's sheet shows every thermostat's week in that schedule, with only its tab and its ⋮ menu (rename, copy, delete), no "+" | `C/panel.test.mjs` ("a schedule's sheet") |
+
+### Welcoming a new user
+
+| Use case | Test |
+|---|---|
+| The panel's tabs are *Thermostats*, *Schedules*, *Presets*; `/chauffage` opens *Thermostats* | `C/panel.test.mjs` ("lists and sheets", "its addresses") |
+| A new user, with no thermostat scheduled, is welcomed on the *Thermostats* page: what Chauffage does in three steps, and every `climate` entity to tick, none ticked | `C/panel.test.mjs` ("welcoming a new user") |
+| The welcome schedules the thermostats ticked, all at once (*Schedule 2 thermostats*); the button waits for one ticked, and the welcome says the thermostats follow the week of a new schedule at once | `C/panel.test.mjs` ("welcoming a new user") |
+| With no `climate` entity at all, the welcome says so and links to Settings → Devices & services | `C/panel.test.mjs` ("welcoming a new user") |
+| Once the first thermostats are scheduled, the *Thermostats* page says what to do next, until the user closes it (remembered in the browser) | `C/panel.test.mjs` ("welcoming a new user") |
+| Before the first thermostat, the *Schedules* and *Presets* pages say so, with a link to the *Thermostats* tab | `C/panel.test.mjs` ("welcoming a new user") |
 
 ### The more-info block and the thermostat card
 

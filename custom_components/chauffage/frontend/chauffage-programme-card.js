@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.8.0-alpha.1';
+const VERSION = '0.8.0-alpha.2';
 
 const DAY_MIN = 1440;
 
@@ -78,6 +78,24 @@ const I18N = {
     panelNewName: 'Name of the new schedule',
     panelCreate: 'Create',
     panelDevices: 'Devices:',
+    welcomeTitle: 'Welcome to Chauffage',
+    welcomeIntro: 'Chauffage gives your thermostats weekly schedules. Three steps to start:',
+    welcomeStep1: 'Choose the thermostats that Chauffage controls.',
+    welcomeStep2: 'Set their weeks, from each thermostat’s page.',
+    welcomeStep3: 'Add the Heating schedules card to a dashboard, for every day.',
+    welcomePick: 'Which thermostats should Chauffage control?',
+    welcomeNote: 'Chauffage controls them at once: until you set their weeks, they follow the week of a new schedule ({preset} all week).',
+    welcomeStartNone: 'Schedule',
+    welcomeStartOne: 'Schedule 1 thermostat',
+    welcomeStartMany: 'Schedule {count} thermostats',
+    welcomeNoClimate: 'Home Assistant has no thermostat yet (a climate entity). Add one, then come back here.',
+    welcomeAddDevice: 'Add a thermostat',
+    nextTitle: 'Next steps',
+    nextWeeks: 'Open a thermostat to set its weeks and its presets.',
+    nextCard: 'Add the card to a dashboard: Add card → Heating schedules.',
+    nextClose: 'Close',
+    noThermostatYet: 'No thermostat is scheduled yet.',
+    scheduleThermostats: 'Schedule thermostats',
     overrideEntity: 'Override',
     plannedEntity: 'Planned preset',
     entityRequired: 'The "entity" option is required (a climate.* thermostat)',
@@ -280,6 +298,24 @@ const I18N = {
     panelNewName: 'Nom du nouveau planning',
     panelCreate: 'Créer',
     panelDevices: 'Appareils :',
+    welcomeTitle: 'Bienvenue dans Chauffage',
+    welcomeIntro: 'Chauffage donne à vos thermostats des plannings de la semaine. Trois étapes pour commencer :',
+    welcomeStep1: 'Choisissez les thermostats que Chauffage pilote.',
+    welcomeStep2: "Réglez leurs semaines, depuis la page de chaque thermostat.",
+    welcomeStep3: 'Ajoutez la carte Plannings de chauffe à un tableau de bord, pour le quotidien.',
+    welcomePick: 'Quels thermostats Chauffage doit-il piloter ?',
+    welcomeNote: "Chauffage les pilote tout de suite : tant que vous n'avez pas réglé leurs semaines, ils suivent la semaine d'un nouveau planning ({preset} toute la semaine).",
+    welcomeStartNone: 'Programmer',
+    welcomeStartOne: 'Programmer 1 thermostat',
+    welcomeStartMany: 'Programmer {count} thermostats',
+    welcomeNoClimate: "Home Assistant n'a encore aucun thermostat (une entité climate). Ajoutez-en un, puis revenez ici.",
+    welcomeAddDevice: 'Ajouter un thermostat',
+    nextTitle: 'Et maintenant',
+    nextWeeks: 'Ouvrez un thermostat pour régler ses semaines et ses préréglages.',
+    nextCard: 'Ajoutez la carte à un tableau de bord : Ajouter une carte → Plannings de chauffe.',
+    nextClose: 'Fermer',
+    noThermostatYet: "Aucun thermostat n'est encore programmé.",
+    scheduleThermostats: 'Programmer des thermostats',
     overrideEntity: 'Dérogation',
     plannedEntity: 'Préréglage prévu',
     entityRequired: 'Le paramètre "entity" est requis (un thermostat climate.*)',
@@ -1337,6 +1373,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._wantSchedule = config.schedule || null;
     // The view shown (a page of the Chauffage panel), else the weeks
     this._view = config.view || 'schedule';
+    // In the panel, a thermostat's sheet shows the history or not for all its weeks (`history`)
+    if (config.panel && config.history != null) this._history.shown = !!config.history;
     if (this._hass) {
       this._setAside(this._source());
       this._render();
@@ -4828,7 +4866,11 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
 //  A thermostat is named by its climate entity id, the key of a scheduled thermostat.
 //  Dashboards keep the cards, for everyday use.
 // =====================================================================
-const PANEL_TABS = [['schedules', 'pageSchedules'], ['thermostats', 'viewThermostats'], ['presets', 'viewPresets']];
+// Thermostats first: everything starts from a scheduled thermostat, and a new user starts there
+const PANEL_TABS = [['thermostats', 'viewThermostats'], ['schedules', 'pageSchedules'], ['presets', 'viewPresets']];
+// The next steps after the welcome: 'pending' once the first thermostats are scheduled from it,
+// 'closed' once the user closed them (this browser)
+const LS_NEXT_STEPS = 'chauffage-panel:next-steps';
 
 // What a panel address shows: { list } or { sheet, id, list }, else { redirect }
 function panelRoute(path, src, hass) {
@@ -4845,7 +4887,8 @@ function panelRoute(path, src, hass) {
     return { sheet: 'schedule', id, list: 'schedules' };
   }
   if (PANEL_TABS.some(([p]) => p === page)) return { list: page };
-  return { redirect: 'schedules' }; // the rules live with the schedules
+  // The rules live with the schedules; anything else opens the first tab
+  return { redirect: page === 'rules' ? 'schedules' : PANEL_TABS[0][0] };
 }
 
 class ChauffagePanel extends HTMLElement {
@@ -4859,11 +4902,24 @@ class ChauffagePanel extends HTMLElement {
     this._creating = false;
     // A thermostat's sheet: identical days on one row for every schedule, as chosen on this device
     this._groupDays = true;
-    try { this._groupDays = localStorage.getItem(LS_GROUP) !== '0'; } catch (e) { /* ignore */ }
+    // …and the history of the measured temperature, as chosen on this device (as the cards)
+    this._historyOn = false;
+    try {
+      this._groupDays = localStorage.getItem(LS_GROUP) !== '0';
+      this._historyOn = localStorage.getItem(LS_HISTORY) === '1';
+    } catch (e) { /* ignore */ }
+    this._picked = new Set(); // the welcome: the thermostats ticked
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     // A thermostat's sheet: its week in schedule A copied to schedule B lands in B's card, which
     // asks to save B. A is not touched, even with edits not saved yet (they are copied as shown).
     this.shadowRoot.addEventListener('change', (e) => {
+      const box = e.target.closest('[data-pick]');
+      if (box) {
+        if (box.checked) this._picked.add(box.dataset.pick);
+        else this._picked.delete(box.dataset.pick);
+        this._update();
+        return;
+      }
       const select = e.target.closest('[data-copy-from]');
       if (!select || !select.value) return;
       const route = panelRoute(this._route && this._route.path, dataSource(this._hass), this._hass);
@@ -4899,6 +4955,15 @@ class ChauffagePanel extends HTMLElement {
     this._update();
   }
 
+  // Home Assistant may set the properties before it adds the panel to the page
+  connectedCallback() {
+    if (!this._unlisten && this._hass && integrationAvailable(this._hass)) {
+      INTEGRATION.connect(this._hass);
+      this._unlisten = INTEGRATION.listen(() => this._update());
+    }
+    this._update();
+  }
+
   disconnectedCallback() {
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
@@ -4910,8 +4975,9 @@ class ChauffagePanel extends HTMLElement {
 
   _update() {
     const hass = this._hass;
-    // Home Assistant sets the route after hass: no redirect before the address is known
-    if (!hass || !this._route) return;
+    // Home Assistant sets the route after hass: no redirect before the address is known. A panel
+    // no longer on the page (left, or an answer arriving late) draws nothing.
+    if (!hass || !this._route || !this.isConnected) return;
     const src = dataSource(hass);
     const route = panelRoute(this._route && this._route.path, src, hass);
     if (route.redirect) {
@@ -4920,7 +4986,8 @@ class ChauffagePanel extends HTMLElement {
       return;
     }
     // The page is built again when what it is made of changes; its live parts are filled each time
-    const key = JSON.stringify([route, src.ready, src.schedules(), Object.keys(src.weeks()).sort(), this._groupDays]);
+    const key = JSON.stringify([route, src.ready, src.schedules(), Object.keys(src.weeks()).sort(), this._groupDays,
+      this._historyOn]);
     if (key !== this._key) {
       this._key = key;
       this._build(route, src);
@@ -4963,6 +5030,7 @@ class ChauffagePanel extends HTMLElement {
     const content = this.shadowRoot.querySelector('.content');
     const html = (s) => content.insertAdjacentHTML('beforeend', s);
     this._weekCards = {}; // a thermostat's sheet: its card of each schedule
+    const scheduled = Object.keys(src.weeks()).length;
     const card = (config, parent = content) => {
       const el = document.createElement('chauffage-programme-card');
       el.setConfig({ thermostats: this._thermostats(src), panel: true, ...config });
@@ -4981,23 +5049,36 @@ class ChauffagePanel extends HTMLElement {
       // Its presets first: what each one means for this thermostat is the legend of its weeks
       part(`<h2>${esc(t('viewPresets'))}</h2>`);
       card({ thermostats: [route.id], view: 'presets', preset_definitions: false, flat: true }, box);
+      // As on the card: the history shows each day, so grouping the days hides it
+      const grouped = this._groupDays && !this._historyOn;
       part(`<div class="h2-row"><h2>${esc(t('weeksTitle'))}</h2>
-        <button class="chip${this._groupDays ? ' on' : ''}" data-group-days aria-pressed="${this._groupDays}">${esc(t('groupDays'))}</button></div>
+        <button class="chip${grouped ? ' on' : ''}" data-group-days aria-pressed="${grouped}">${esc(t('groupDays'))}</button>
+        <button class="chip${this._historyOn ? ' on' : ''}" data-history aria-pressed="${this._historyOn}" title="${esc(t('historyTitle'))}">${esc(t('history'))}</button></div>
         <div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`);
       for (const id of src.schedules()) {
         part(`<h3 data-fill-schedule="${esc(id)}"></h3>`);
         this._weekCards[id] = card({ thermostats: [route.id], schedule: id, schedule_tabs: false, chips: false,
-          legend: false, hint: false, group_days: this._groupDays, flat: true, copy_week: false, today: 'active',
-          paused_note: false }, box);
+          legend: false, hint: false, group_days: this._groupDays, history: this._historyOn, flat: true,
+          copy_week: false, today: 'active', paused_note: false }, box);
       }
-    } else if (route.list === 'schedules') {
-      html(`<h2>${esc(t('pageSchedules'))}</h2><div class="box" data-fill="schedules"></div>`);
-      html(`<h2>${esc(t('rulesHeading'))}</h2>`);
-      card({ view: 'rules' });
+    } else if (route.list === 'thermostats' && !scheduled) {
+      html('<div class="box welcome" data-fill="welcome"></div>'); // a new user: no empty page
     } else if (route.list === 'thermostats') {
+      html('<div data-fill="next"></div>');
       card({ view: 'thermostats' });
-    } else if (route.list === 'presets') {
-      card({ view: 'presets' });
+    } else {
+      // A user may create schedules or presets first: the page stays, and says where to start
+      if (!scheduled) {
+        html(`<div class="notice">${esc(t('noThermostatYet'))}
+          <a href="/chauffage/thermostats" data-page="thermostats">${esc(t('scheduleThermostats'))}</a></div>`);
+      }
+      if (route.list === 'schedules') {
+        html(`<h2>${esc(t('pageSchedules'))}</h2><div class="box" data-fill="schedules"></div>`);
+        html(`<h2>${esc(t('rulesHeading'))}</h2>`);
+        card({ view: 'rules' });
+      } else {
+        card({ view: 'presets' });
+      }
     }
   }
 
@@ -5031,6 +5112,16 @@ class ChauffagePanel extends HTMLElement {
     }
     const sheet = this.shadowRoot.querySelector('[data-fill="thermostat"]');
     if (sheet) sheet.innerHTML = this._controlHtml(route.id, src);
+    const welcome = this.shadowRoot.querySelector('[data-fill="welcome"]');
+    if (welcome) welcome.innerHTML = this._welcomeHtml(src);
+    const next = this.shadowRoot.querySelector('[data-fill="next"]');
+    if (next) {
+      let shown = false;
+      try { shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending'; } catch (e) { /* ignore */ }
+      next.innerHTML = shown ? `<div class="box next-steps">
+          <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
+          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li></ul></div>` : '';
+    }
     // A week's heading: its schedule (a link to its sheet), and copying it to another schedule
     for (const h of this.shadowRoot.querySelectorAll('[data-fill-schedule]')) {
       const id = h.dataset.fillSchedule;
@@ -5069,6 +5160,31 @@ class ChauffagePanel extends HTMLElement {
       </div>`;
   }
 
+  // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
+  // every climate of Home Assistant to tick (none at first: Chauffage controls it at once)
+  _welcomeHtml(src) {
+    const t = this._t;
+    const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.'))
+      .sort((a, b) => this._name(a).localeCompare(this._name(b)));
+    const steps = ['welcomeStep1', 'welcomeStep2', 'welcomeStep3'].map((k) => `<li>${esc(t(k))}</li>`).join('');
+    const head = `<h2>${esc(t('welcomeTitle'))}</h2><p>${esc(t('welcomeIntro'))}</p><ol class="steps">${steps}</ol>`;
+    if (!climates.length) {
+      return `${head}<p class="none">${esc(t('welcomeNoClimate'))}</p>
+        <button class="btn primary" data-navigate="/config/integrations/dashboard">${esc(t('welcomeAddDevice'))}</button>`;
+    }
+    const picked = climates.filter((c) => this._picked.has(c));
+    const picks = climates.map((c) => `<label class="pick"><input type="checkbox" data-pick="${esc(c)}"${this._picked.has(c) ? ' checked' : ''}>
+        <span class="pick-name">${esc(this._name(c))}<small>${esc(c)}</small></span></label>`).join('');
+    const eco = src.presets().find((l) => l.id === 'eco') || src.presets()[0];
+    const preset = eco ? eco.name || makeLocale(this._hass).preset(eco.id) : '';
+    const label = picked.length === 0 ? t('welcomeStartNone')
+      : picked.length === 1 ? t('welcomeStartOne') : t('welcomeStartMany', { count: picked.length });
+    return `${head}<h3>${esc(t('welcomePick'))}</h3><div class="picks">${picks}</div>
+      <p class="note">${esc(t('welcomeNote', { preset }))}</p>
+      <button class="btn primary" data-start${picked.length ? '' : ' disabled'}>${esc(label)}</button>
+      ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
+  }
+
   async _tile(climate, host) {
     const helpers = await cardHelpers();
     if (!helpers || !host.isConnected) return;
@@ -5084,7 +5200,7 @@ class ChauffagePanel extends HTMLElement {
   }
 
   async _onClick(e) {
-    const el = e.target.closest('[data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days]');
+    const el = e.target.closest('[data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -5096,9 +5212,33 @@ class ChauffagePanel extends HTMLElement {
       if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
       if (ds.navigate) return navigate(ds.navigate);
       if (ds.device) return openDevice(ds.device);
-      if ('groupDays' in ds) {
-        this._groupDays = !this._groupDays;
-        try { localStorage.setItem(LS_GROUP, this._groupDays ? '1' : '0'); } catch (err) { /* ignore */ }
+      if ('groupDays' in ds || 'history' in ds) {
+        if ('history' in ds) {
+          this._historyOn = !this._historyOn;
+        } else {
+          // As on the card: grouping the days hides the history, which shows each day
+          this._groupDays = !(this._groupDays && !this._historyOn);
+          this._historyOn = false;
+        }
+        try {
+          localStorage.setItem(LS_GROUP, this._groupDays ? '1' : '0');
+          localStorage.setItem(LS_HISTORY, this._historyOn ? '1' : '0');
+        } catch (err) { /* ignore */ }
+        return this._update();
+      }
+      if ('closeNext' in ds) {
+        try { localStorage.setItem(LS_NEXT_STEPS, 'closed'); } catch (err) { /* ignore */ }
+        return this._update();
+      }
+      if ('start' in ds) {
+        // Scheduled with no week of their own: the integration gives them the week of a new
+        // schedule in each schedule, as a thermostat added to a card
+        const climates = [...this._picked].sort();
+        if (!climates.length) return undefined;
+        try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
+        await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])), null,
+          Object.fromEntries(climates.map((c) => [c, null])));
+        this._picked.clear();
         return this._update();
       }
       if (ds.activate) return await src.activateSchedule(ds.activate);
@@ -5170,12 +5310,32 @@ const PANEL_CSS = `
   .btn { border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color);
     padding:6px 12px; border-radius:8px; cursor:pointer; font:inherit; font-size:14px; min-height:36px; }
   .btn.primary { background:var(--primary-color); border-color:var(--primary-color); color:var(--text-primary-color, #fff); }
-  input { flex:1 1 160px; min-height:36px; padding:0 10px; border:1px solid var(--divider-color); border-radius:8px;
+  input[data-new-name] { flex:1 1 160px; min-height:36px; padding:0 10px; border:1px solid var(--divider-color); border-radius:8px;
     background:var(--card-background-color); color:var(--primary-text-color); font:inherit; }
   .muted { padding:4px 0; font-size:14px; color:var(--secondary-text-color); }
   .links { display:flex; flex-wrap:wrap; gap:6px 16px; padding:6px 0 8px; font-size:14px; }
   .links [data-device], .links .link { color:var(--primary-color); cursor:pointer; }
   .error { padding:6px 0; color:var(--error-color, #db4437); }
+  .welcome { padding:16px 20px; margin-top:8px; }
+  .welcome h2 { margin:4px 0 8px; font-size:20px; }
+  .welcome h3 { margin:20px 0 8px; font-size:15px; font-weight:500; color:var(--primary-text-color); }
+  .welcome p, .welcome ol { margin:6px 0; line-height:1.5; }
+  .welcome ol { padding-left:22px; }
+  .picks { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:6px 16px; }
+  .pick { display:flex; align-items:center; gap:8px; min-height:40px; cursor:pointer; }
+  .pick input { flex:none; width:18px; height:18px; margin:0; }
+  .pick-name { display:flex; flex-direction:column; min-width:0; }
+  .pick-name small { font-size:12px; color:var(--secondary-text-color); overflow:hidden; text-overflow:ellipsis; }
+  .welcome .note { font-size:14px; color:var(--secondary-text-color); }
+  .welcome [data-start], .welcome [data-navigate] { margin-top:8px; }
+  .btn[disabled] { opacity:.5; cursor:default; }
+  .notice { margin:8px 0 0; padding:10px 14px; border-radius:var(--ha-card-border-radius, 12px);
+    background:var(--secondary-background-color); font-size:14px; }
+  .notice a { color:var(--primary-color); margin-left:6px; }
+  .next-steps { margin:8px 0 12px; padding:8px 16px 12px; }
+  .next-head { display:flex; align-items:center; gap:8px; }
+  .next-head h2 { flex:1; margin:8px 0; }
+  .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }

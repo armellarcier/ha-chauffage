@@ -9,6 +9,37 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.0-alpha.2] - 2026-10-29
+
+A second alpha of the Chauffage panel (#57): it welcomes a new user, and a thermostat's page gets
+back the *History* switch.
+
+### Added
+
+- **The panel welcomes a new user.** Before the first thermostat, the *Thermostats* tab says what
+  Chauffage does in three steps, and lists every thermostat of Home Assistant to tick. Nothing is
+  ticked at first: a thermostat scheduled is controlled at once. *Schedule* schedules the
+  thermostats ticked, all at once. Then the tab says what to do next, until you close it.
+- **Without any thermostat in Home Assistant**, the welcome says so and leads to Settings →
+  Devices & services.
+- **Before the first thermostat, the *Schedules* and *Presets* tabs say so**, with a link to the
+  *Thermostats* tab.
+
+### Changed
+
+- **The *Thermostats* tab comes first**, and `/chauffage` opens it.
+
+### Fixed
+
+- **A thermostat's page has the *History* switch again**, beside *Group days*. With a history
+  turned on in a card, the page showed the history with no way to turn it off, and the days could
+  not be grouped any more.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+No stored data is migrated.
+
 ## [0.8.0-alpha.1] - 2026-10-28
 
 A first alpha of the **Chauffage panel** and of a **device per scheduled thermostat** (#57). An
@@ -767,7 +798,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-alpha.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-alpha.2...HEAD
+[0.8.0-alpha.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.2
 [0.8.0-alpha.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.1
 [0.7.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.4
 [0.7.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.3

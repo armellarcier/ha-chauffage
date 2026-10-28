@@ -53,8 +53,9 @@ with the type *Integration*. Then install **ha-chauffage** and restart Home Assi
 
 Go to Settings → Devices & services → *Add integration*, and choose **Chauffage**.
 
-Chauffage then adds a **Chauffage** panel to the sidebar, for administrators. See
-[The Chauffage panel](#the-chauffage-panel).
+Chauffage then adds a **Chauffage** panel to the sidebar, for administrators. Open it: the
+panel welcomes you and lists your thermostats. Tick the ones Chauffage controls, then click
+*Schedule*. See [The Chauffage panel](#the-chauffage-panel).
 
 ### 3. Add the schedule card
 
@@ -107,10 +108,11 @@ edit the weeks.
 
 The panel has three tabs:
 
+- **Thermostats.** Every scheduled thermostat, and the cards that show it. You can pause a
+  thermostat, forget it with ⋮, or schedule another one. Before your first thermostat, this tab
+  welcomes you: tick the thermostats Chauffage controls, then *Schedule*.
 - **Schedules.** The list of schedules, with the active one marked. You can activate a schedule,
   create one, or open it. The [activation rules](#activation-rules) are below the list.
-- **Thermostats.** Every scheduled thermostat, and the cards that show it. You can pause a
-  thermostat, forget it with ⋮, or schedule another one.
 - **Presets.** The table of the presets: their names, colors and temperatures, and what each one
   does on each thermostat (see [Presets](#presets)).
 
@@ -121,7 +123,8 @@ A schedule or a thermostat opens on a page of its own. The title of the page, fo
   copies or deletes the schedule.
 - **A thermostat's page** shows the thermostat, whether Chauffage controls it, and its devices.
   Below, its presets serve as the legend of its weeks, one week for each schedule. *Copy to…*
-  copies a week to another schedule. *Group days* groups the identical days of every week.
+  copies a week to another schedule. *Group days* groups the identical days of every week, and
+  *History* draws the temperature measured over the last 7 days.
 
 ### Open a thermostat's page
 

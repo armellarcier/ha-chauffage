@@ -484,7 +484,8 @@ older one, the older one says so.
   longer has the *Presets*, *Rules* and *Thermostats* views. Admins see three links to the panel's
   pages in their place. The schedule card keeps the week editor for now (see the open questions).
 - **The panel has lists, then sheets**, as Home Assistant's settings do. A list has the panel's
-  tabs: *Schedules*, *Thermostats* and *Presets*. A sheet is about one schedule or one
+  tabs: *Thermostats*, *Schedules* and *Presets*. *Thermostats* comes first (0.8.0-alpha.2):
+  everything starts from a scheduled thermostat, and a new user starts there. A sheet is about one schedule or one
   thermostat. A sheet has no tabs. Its title is a breadcrumb, for example "Thermostats ›
   Bureau", where "Thermostats" links to the list. A sheet keeps Home Assistant's menu button.
 - **Rejected: tabs on the sheets.** A selected tab would change the page, and the sheet would have
@@ -501,7 +502,7 @@ older one, the older one says so.
 
   | Address | Page |
   |---|---|
-  | `/chauffage` | Redirects to `/chauffage/schedules` |
+  | `/chauffage` | Redirects to `/chauffage/thermostats`, the first tab |
   | `/chauffage/schedules` | The schedules and the activation rules |
   | `/chauffage/schedules/<id>` | A schedule's sheet |
   | `/chauffage/thermostats` | The scheduled thermostats |
@@ -581,12 +582,36 @@ older one, the older one says so.
   the dashboard card still mark today.
 - **One *Group days* switch for all the weeks of a thermostat's sheet.** The switch shares its
   choice with the cards. The choice is kept in this browser. The editing hint is shown once.
+- **A thermostat's sheet has the card's two switches, *Group days* and *History*** (0.8.0-alpha.2),
+  for all its weeks. As on the card, the history shows each day, so grouping the days hides it.
+  Both choices are the ones the cards keep in this browser. The alpha.1 had no *History* switch:
+  a history turned on in a card showed on the sheet, and the days could not be grouped any more.
 - **In the panel, the sheet's `group_days` wins** over the choice kept in the browser. The
   prototype first did the opposite, and the switch did nothing.
 - **A schedule's sheet shows every thermostat's week in this schedule.** It shows this schedule's
   tab only, with its ⋮ menu (rename, copy, delete), and no "+".
 - **The *Schedules* page lists each schedule**, with an *Active* badge, *Activate* and *Edit*.
   "+ New schedule" opens a name field in the list.
+
+### Welcoming a new user (0.8.0-alpha.2)
+
+- **A new user goes to the panel first, with no thermostat scheduled yet.** The panel must not
+  show an empty page. Its *Thermostats* page welcomes the user instead, and leads them to
+  schedule their first thermostats.
+- **The welcome says what Chauffage does, in three steps**: choose the thermostats, set their
+  weeks, then add a card to a dashboard for every day.
+- **The welcome lists every `climate` entity, none ticked.** The user ticks the thermostats to
+  schedule, then *Schedule N thermostats*. Nothing is ticked at first, because scheduling a
+  thermostat controls it at once: it follows the week of a new schedule (eco all week). The
+  welcome says so before the button. A heat pump or an air conditioner may be a `climate` too,
+  and the user may not want Chauffage to control it.
+- **With no `climate` entity at all**, the welcome says that Home Assistant has no thermostat
+  yet, and links to Settings → Devices & services to add one.
+- **Once the first thermostats are scheduled, the page says what to do next**: open a
+  thermostat to set its weeks and its presets, add the *Heating schedules* card to a dashboard.
+  The next steps stay until the user closes them; this browser remembers it.
+- **Before the first thermostat, the *Schedules* and *Presets* pages say so**, with a link to
+  the *Thermostats* tab. Their content stays: a user may create schedules first.
 
 ### The more-info block
 
@@ -624,10 +649,6 @@ Settle these questions before the panel and the devices are released.
 - **One save bar per sheet.** On a thermostat's sheet, each stacked week has its own save bar,
   right under it, and a copy asks to save its target only. Is one bar for the whole sheet still
   needed?
-- **Welcoming a new user (planned for 0.8.0-alpha.2).** With the panel, a new user goes to it
-  first, with no thermostat scheduled yet. The panel must not show an empty page: it must welcome
-  the user and lead them to schedule their first thermostats. The *Thermostats* tab then comes
-  first.
 - **The sidebar entry.** Show *Chauffage* in the sidebar always, or let the user hide it?
 - **The integration's name.** If the name changes, the `/chauffage/...` addresses need redirects.
 

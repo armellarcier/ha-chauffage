@@ -47,11 +47,14 @@ describe('the Chauffage panel', () => {
   afterEach(() => { mock.timers.reset(); delete window.loadCardHelpers; cleanup(); });
 
   describe('its addresses', () => {
-    test('/chauffage and /chauffage/rules open the Schedules page: the rules live with the schedules', () => {
-      for (const path of ['', '/rules']) {
-        panel(setup(), path);
-        assert.equal(window.location.pathname, '/chauffage/schedules', path);
-      }
+    test('/chauffage opens the first tab, Thermostats', () => {
+      panel(setup(), '');
+      assert.equal(window.location.pathname, '/chauffage/thermostats');
+    });
+
+    test('/chauffage/rules opens the Schedules page: the rules live with the schedules', () => {
+      panel(setup(), '/rules');
+      assert.equal(window.location.pathname, '/chauffage/schedules');
     });
 
     test('the first prototype\'s address of a thermostat redirects to its sheet', () => {
@@ -83,7 +86,7 @@ describe('the Chauffage panel', () => {
   describe('lists and sheets', () => {
     test('a list shows the panel\'s three tabs, the current one marked, and Home Assistant\'s menu button', () => {
       const el = panel(setup(), '/thermostats');
-      assert.deepEqual($$(el, '.tab').map(text), ['Plannings', 'Thermostats', 'Préréglages']);
+      assert.deepEqual($$(el, '.tab').map(text), ['Thermostats', 'Plannings', 'Préréglages']);
       assert.equal(text($(el, '.tab.on')), 'Thermostats');
       assert.ok($(el, 'ha-menu-button'));
       $$(el, '.tab')[2].click();
@@ -143,6 +146,100 @@ describe('the Chauffage panel', () => {
       assert.equal(cards(el).length, 1);
       assert.equal(cards(el)[0]._config.view, 'rules');
       assert.ok($(cards(el)[0], '.rule, [data-act="rule-add"]'));
+    });
+  });
+
+  describe('welcoming a new user', () => {
+    // A new installation: no thermostat scheduled yet; Home Assistant has the salon and the bureau
+    const fresh = (more = {}) => setup({ weeks: {}, ...more });
+    const pick = (el, climate) => {
+      const box = $(el, `.welcome input[data-pick="${climate}"]`);
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    test('the Thermostats page welcomes them: what Chauffage does in three steps, every thermostat to tick', () => {
+      const el = panel(fresh(), '/thermostats');
+      assert.equal(cards(el).length, 0, 'no empty list');
+      assert.equal(text($(el, '.welcome h2')), 'Bienvenue dans Chauffage');
+      assert.equal($$(el, '.welcome .steps li').length, 3);
+      const boxes = $$(el, '.welcome input[data-pick]');
+      assert.deepEqual(boxes.map((b) => b.dataset.pick), ['climate.bureau', 'climate.salon']);
+      assert.ok(boxes.every((b) => !b.checked), 'none ticked: scheduling a thermostat controls it at once');
+      assert.match(text($(el, '.welcome')), /Bureau.*Salon/);
+    });
+
+    test('schedules the thermostats ticked, all at once; the button waits for one', () => {
+      const hass = fresh();
+      const el = panel(hass, '/thermostats');
+      assert.ok($(el, '[data-start]').disabled);
+      pick(el, 'climate.salon');
+      assert.equal(text($(el, '[data-start]')), 'Programmer 1 thermostat');
+      pick(el, 'climate.bureau');
+      assert.equal(text($(el, '[data-start]')), 'Programmer 2 thermostats');
+      assert.ok(!$(el, '[data-start]').disabled);
+      assert.match(text($(el, '.welcome .note')), /pilote.*tout de suite.*Éco toute la semaine/);
+      $(el, '[data-start]').click();
+      assert.deepEqual(hass.events.at(-1), {
+        type: 'chauffage/weeks/save',
+        weeks: { 'climate.bureau': {}, 'climate.salon': {} },
+        revisions: { 'climate.bureau': null, 'climate.salon': null },
+      });
+    });
+
+    test('with no thermostat in Home Assistant, says so and leads to adding one', () => {
+      const hass = fresh();
+      hass.states = {};
+      const el = panel(hass, '/thermostats');
+      assert.match(text($(el, '.welcome')), /Home Assistant n'a encore aucun thermostat/);
+      $(el, '.welcome [data-navigate]').click();
+      assert.equal(window.location.pathname, '/config/integrations/dashboard');
+    });
+
+    test('once the first thermostats are scheduled, says what to do next, until closed', () => {
+      const hass = fresh();
+      const el = panel(hass, '/thermostats');
+      pick(el, 'climate.salon');
+      $(el, '[data-start]').click();
+      hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } })); // the integration schedules it
+      assert.equal($(el, '.welcome'), null);
+      assert.ok(cards(el).length, 'the list of thermostats');
+      assert.match(text($(el, '.next-steps')), /Ouvrez un thermostat.*Plannings de chauffe/);
+      $(el, '[data-close-next]').click();
+      assert.equal($(el, '.next-steps'), null);
+      cleanup();
+      assert.equal($(panel(setup(), '/thermostats'), '.next-steps'), null, 'a user who did not start here sees none');
+    });
+
+    test('the next steps stay closed once closed, on this browser', () => {
+      const hass = fresh();
+      const el = panel(hass, '/thermostats');
+      pick(el, 'climate.salon');
+      $(el, '[data-start]').click();
+      $(el, '[data-close-next]')?.click();
+      hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } }));
+      $(el, '[data-close-next]').click();
+      el.remove();
+      const again = panel(hass, '/thermostats'); // the panel opened again, in the same browser
+      assert.equal($(again, '.welcome'), null);
+      assert.equal($(again, '.next-steps'), null);
+    });
+
+    test('before the first thermostat, the Schedules and Presets pages say so, with a link to the Thermostats tab', () => {
+      for (const path of ['/schedules', '/presets']) {
+        const el = panel(fresh(), path);
+        assert.match(text($(el, '.notice')), /Aucun thermostat n'est encore programmé/, path);
+        $(el, '.notice [data-page="thermostats"]').click();
+        assert.equal(window.location.pathname, '/chauffage/thermostats', path);
+        cleanup();
+      }
+      assert.equal($(panel(setup(), '/schedules'), '.notice'), null, 'no notice once a thermostat is scheduled');
+    });
+
+    test('speaks English', () => {
+      const el = panel(fresh({ locale: { language: 'en' } }), '/thermostats');
+      assert.equal(text($(el, '.welcome h2')), 'Welcome to Chauffage');
+      assert.equal(text($(el, '[data-start]')), 'Schedule');
     });
   });
 
@@ -237,6 +334,23 @@ describe('the Chauffage panel', () => {
       $(el, '[data-group-days]').click();
       assert.deepEqual(weeks(el).map((c) => c._rows.length), [7, 7, 7]);
       assert.equal(localStorage.getItem('chauffage-programme-card:group-days'), '0');
+    });
+
+    test('the history has its own switch, as on the card; grouping the days hides it (#57, alpha.1)', () => {
+      // Regression: the history turned on in a card was kept in the browser; the sheet showed it
+      // with no switch, and the days could not be grouped any more
+      localStorage.setItem('chauffage-programme-card:history', '1');
+      const el = panel(setup(), '/thermostats/climate.salon');
+      assert.ok($(el, '[data-history]').classList.contains('on'));
+      assert.ok(!$(el, '[data-group-days]').classList.contains('on'));
+      assert.deepEqual(weeks(el).map((c) => c._history.shown), [true, true, true]);
+      $(el, '[data-group-days]').click();
+      assert.deepEqual(weeks(el).map((c) => c._history.shown), [false, false, false]);
+      assert.deepEqual(weeks(el).map((c) => c._rows.length), [2, 1, 1]);
+      assert.equal(localStorage.getItem('chauffage-programme-card:history'), '0');
+      $(el, '[data-history]').click();
+      assert.deepEqual(weeks(el).map((c) => c._history.shown), [true, true, true]);
+      assert.equal(localStorage.getItem('chauffage-programme-card:history'), '1');
     });
 
     test('copying a week to another schedule asks to save the target, never the source', () => {
