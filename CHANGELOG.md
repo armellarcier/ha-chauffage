@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.7.0-beta.3] - 2026-10-28
+
+What Chauffage does to the thermostats, and why, in the logbook, the log and diagnostics; no
+more deprecation warning on Home Assistant 2026.10.
+
 ### Added
 
 - **What Chauffage does to the thermostats, and why** (#49), documented in the README
@@ -26,6 +31,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **No more deprecation warning at start on Home Assistant 2026.10.** Finding the *Chauffage*
   device (which the card opens) used a lookup Home Assistant 2026.10 deprecates and will remove
   in 2027.8; it now uses the new one, and the old one on older Home Assistant versions.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled) and restart Home Assistant. No stored
+data is migrated.
 
 ## [0.7.0-beta.2] - 2026-10-28
 
@@ -690,7 +700,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.2...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.3...HEAD
+[0.7.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.3
 [0.7.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.2
 [0.7.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.1
 [0.6.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0
