@@ -350,6 +350,26 @@ Paramètres → Appareils et services → Chauffage → *Configurer* :
 - **Utiliser les préréglages des thermostats** : activé par défaut. Désactivé, tous les
   thermostats sont pilotés en température, entièrement réglée dans la carte.
 
+## Dépannage
+
+Ce que Chauffage fait aux thermostats, et pourquoi, se suit :
+
+- **Journal de bord** : une dérogation qui commence (d'où elle vient : le thermostat, la carte,
+  un service) ou qui finit (expirée, retour au planning sur le thermostat, retirée, thermostat
+  en pause…) est dans le journal du thermostat ; un planning activé (et par quoi) dans celui du
+  sélecteur.
+- **Journaux** : chaque commande envoyée à un thermostat, avec sa raison (nouveau créneau,
+  planning activé, dérogation terminée, retour en ligne, nouvel essai, commande appliquée en
+  retard…), chaque dérogation et chaque changement vu sur un thermostat, au niveau INFO :
+  ```yaml
+  logger:
+    logs:
+      custom_components.chauffage: info
+  ```
+- **Diagnostics** (Paramètres → Appareils et services → Chauffage → ⋮ → *Télécharger les
+  diagnostics*) : les données stockées (semaines, dérogations, commandes qu'une vanne n'a pas
+  encore appliquées) et les thermostats programmés tels qu'ils sont. À joindre à une issue.
+
 ## Architecture
 
 - Les données sont stockées dans `.storage/chauffage` (versionnées, migrées automatiquement) :

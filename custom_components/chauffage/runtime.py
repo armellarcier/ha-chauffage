@@ -95,6 +95,29 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
     )
 
 
+def _describe(command: engine.Target | dict[str, Any]) -> str:
+    """A command or an override, for the log: "preset eco", "temperature 21.5"."""
+    if isinstance(command, engine.Target):
+        return f"{command.kind} {command.value}"
+    return f"{command['kind']} {command['value']}"
+
+
+def _time(iso: str) -> str:
+    """Local time of an ISO date, for the log."""
+    when = engine.parse_datetime(iso)
+    return dt_util.as_local(when).strftime("%H:%M:%S") if when else str(iso)
+
+
+def _change(old: State, new: State) -> str:
+    """What changed on a thermostat, for the log: its state, preset and setpoint."""
+    before, after = thermostat(old), thermostat(new)
+    parts = [after.state]
+    if before.preset or after.preset:
+        parts.append(f"preset {before.preset} → {after.preset}")
+    parts.append(f"setpoint {before.temperature} → {after.temperature}")
+    return ", ".join(parts)
+
+
 class ChauffageRuntime:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: ChauffageStore, data: dict[str, Any],
                  version: str) -> None:
@@ -145,7 +168,7 @@ class ChauffageRuntime:
                 repairs.raise_missing(self.hass, entity_id)
         self._track_rules()
         await self.follow_rules()
-        await self.apply(force=True)
+        await self.apply(force=True, reason="Home Assistant started")
 
     @callback
     def async_stop(self) -> None:
@@ -186,6 +209,11 @@ class ChauffageRuntime:
     @property
     def override_duration(self) -> int:
         return int(self.entry.options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION))
+
+    @property
+    def retrying(self) -> set[str]:
+        """The thermostats whose last command failed, sent again at the next minutes."""
+        return set(self._retry)
 
     @property
     def schedule_ids(self) -> set[str]:
@@ -408,7 +436,7 @@ class ChauffageRuntime:
         for entity_id in self.active:
             self._learn(self.hass.states.get(entity_id))
         self._changed()
-        await self.apply(force=True)
+        await self.apply(force=True, reason="weeks saved")
 
     async def set_paused(self, entity_id: str, paused: bool) -> None:
         """Pause (kept, not controlled, its override dropped and the thermostat left as it is) or
@@ -426,7 +454,7 @@ class ChauffageRuntime:
         self._changed()
         if not paused:
             self._learn(self.hass.states.get(entity_id))
-            await self.apply(include={entity_id})
+            await self.apply(include={entity_id}, reason="resumed after a pause")
 
     async def forget(self, entity_id: str) -> None:
         """No longer scheduled: its data, override and entities are dropped, the thermostat left
@@ -537,7 +565,7 @@ class ChauffageRuntime:
                 t["mapping"].pop(preset_id, None)
         self.data["presets"] = new_presets
         self._changed()
-        await self.apply(force=True)
+        await self.apply(force=True, reason="presets changed")
 
     async def set_mapping(self, entity_id: str, mapping: Any) -> None:
         """Mapping set by hand for one thermostat ({} = defaults only)."""
@@ -547,7 +575,7 @@ class ChauffageRuntime:
         else:
             self.thermostats.pop(entity_id, None)  # not scheduled: nothing left to keep
         self._changed()
-        await self.apply(force=True)
+        await self.apply(force=True, reason=f"mapping of {entity_id} changed")
 
     async def set_schedules(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
         """Create (empty or a copy), rename, move and delete schedules (see model.plan_schedules).
@@ -588,7 +616,8 @@ class ChauffageRuntime:
             "schedule": schedule_id, "schedule_name": self.schedule_name(schedule_id),
             "previous_schedule": previous, "source": source,
         })
-        await self.apply(force=True)
+        _LOGGER.info("Schedule %s activated (%s), was %s", schedule_id, source, previous)
+        await self.apply(force=True, reason=f"schedule {schedule_id} activated ({source})")
 
     # ----- activation rules -----
 
@@ -696,7 +725,7 @@ class ChauffageRuntime:
             if not self._drop_override(entity_id, source):
                 return
             self._changed()
-            await self.apply(resumed=entity_id)
+            await self.apply(resumed=entity_id, reason=f"override ended ({source})")
             return
         override = model.normalize_override(override)
         current = thermostat(self.hass.states.get(entity_id))
@@ -706,7 +735,7 @@ class ChauffageRuntime:
         before = self.data["overrides"].get(entity_id)
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
         if (new_value or resend) and self.needs(entity_id, target, current):
-            if not await self.send(entity_id, target):
+            if not await self.send(entity_id, target, f"override set by {source}"):
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source)
         self._changed()
@@ -732,15 +761,20 @@ class ChauffageRuntime:
         """Records an override; a new one, or a new value, is told (an end alone is not)."""
         before = self.data["overrides"].get(entity_id)
         self.data["overrides"][entity_id] = override
+        info = self.override_info(entity_id)
         if before is None or any(before.get(key) != override.get(key) for key in ("kind", "value", "preset")):
-            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED,
-                                     {"entity_id": entity_id, **self.override_info(entity_id), "source": source})
+            _LOGGER.info("%s: override started by %s: %s until %s", entity_id, source, _describe(override), info["end"])
+            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source})
+        elif before.get("end") != override.get("end"):
+            _LOGGER.info("%s: override until %s, set by %s", entity_id, info["end"], source)
 
     @callback
     def _drop_override(self, entity_id: str, reason: str) -> bool:
         """Removes a thermostat's override, and tells why; False if it had none."""
-        if self.data["overrides"].pop(entity_id, None) is None:
+        override = self.data["overrides"].pop(entity_id, None)
+        if override is None:
             return False
+        _LOGGER.info("%s: override ended (%s): %s", entity_id, reason, _describe(override))
         self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason})
         return True
 
@@ -774,11 +808,13 @@ class ChauffageRuntime:
 
     # ----- commands applied late (docs/decisions.md, "Commands applied late") -----
 
-    async def send(self, entity_id: str, target: engine.Target) -> bool:
-        """Sets a thermostat to a target; False if the call failed. The command is pending until
-        the thermostat takes it: a battery valve may apply it hours later, even after a failed
-        call (the Zigbee message waits for it)."""
+    async def send(self, entity_id: str, target: engine.Target, why: str) -> bool:
+        """Sets a thermostat to a target, logged with `why`; False if the call failed. The
+        command is pending until the thermostat takes it: a battery valve may apply it hours
+        later, even after a failed call (the Zigbee message waits for it)."""
         commands = self.data["pending"].setdefault(entity_id, [])
+        waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)
+        _LOGGER.info("%s: %s sent (%s)%s", entity_id, _describe(target), why, waiting)
         if commands and (commands[-1]["kind"], commands[-1]["value"]) == (target.kind, target.value):
             commands.pop()  # sent again: waited for from now
         commands.append({"kind": target.kind, "value": target.value, "sent": dt_util.now().isoformat()})
@@ -799,15 +835,17 @@ class ChauffageRuntime:
         return bool(commands) and commands[-1] != target
 
     @callback
-    def _applied(self, entity_id: str, before: engine.Thermostat | None, after: engine.Thermostat | None) -> bool:
-        """The thermostat has just taken a command not applied yet: that one and the older ones
-        are done (True)."""
+    def _applied(self, entity_id: str, before: engine.Thermostat | None,
+                 after: engine.Thermostat | None) -> dict[str, Any] | None:
+        """The command not applied yet that the thermostat has just taken (None: none): that one
+        and the older ones are done."""
         commands = self.pending(entity_id)
         index = engine.applied_command(commands, before, after) if after and commands else None
         if index is None:
-            return False
+            return None
+        command = self.data["pending"][entity_id][index]
         self._drop_pending(entity_id, index + 1)
-        return True
+        return command
 
     @callback
     def _drop_pending(self, entity_id: str, count: int | None = None) -> None:
@@ -825,22 +863,25 @@ class ChauffageRuntime:
         to its override, or to its slot."""
         override = self.data["overrides"].get(entity_id)
         if override is None:
-            await self.apply(include={entity_id})
+            await self.apply(include={entity_id}, reason="command applied late")
             return
         target = engine.Target(override["kind"], override["value"])
         async with self._lock:
             current = thermostat(self.hass.states.get(entity_id))
             if current is not None and current.state not in engine.IGNORED_STATES and self.needs(entity_id, target, current):
-                await self.send(entity_id, target)
+                await self.send(entity_id, target, "command applied late, back to the override")
 
     # ----- scheduling -----
 
     async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None,
-                    since: datetime | None = None, include: set[str] | None = None) -> None:
+                    since: datetime | None = None, include: set[str] | None = None, reason: str | None = None) -> None:
+        """Sends the thermostats their slot (see engine.targets); `reason`, logged with each
+        command, says why (by default: a new slot)."""
         async with self._lock:
+            now, retry = dt_util.now(), set(self._retry)
             todo = engine.targets(
                 self.plan(),
-                dt_util.now(),
+                now,
                 {e: t for e in self.active if (t := thermostat(self.hass.states.get(e)))},
                 force=force,
                 resumed=resumed,
@@ -856,7 +897,11 @@ class ChauffageRuntime:
                     await asyncio.sleep(self.pause)
                 if entity_id not in self.thermostats or self.is_paused(entity_id):
                     continue  # paused or forgotten meanwhile
-                done = await self.send(entity_id, target)
+                why = ("retry after a failed command" if entity_id in retry
+                       else "override ended (expired)" if entity_id in (ended or ())
+                       else reason or "new slot")
+                preset, _ = self.plan().preset_at(entity_id, now)
+                done = await self.send(entity_id, target, f"{why}, {preset} of schedule {self.data['active_schedule']}")
                 # Not delivered (unreachable valve…): sent again at the next minutes
                 if done:
                     self._retry.discard(entity_id)
@@ -916,7 +961,8 @@ class ChauffageRuntime:
         applied = self._applied(new.entity_id, thermostat(old), thermostat(new))
         if old.state in engine.IGNORED_STATES and new.state not in engine.IGNORED_STATES:
             # Turned back on, or back online: the thermostat may have missed slot changes
-            self.entry.async_create_task(self.hass, self.apply(include={new.entity_id}), "chauffage catch up")
+            catch_up = self.apply(include={new.entity_id}, reason=f"back from {old.state}")
+            self.entry.async_create_task(self.hass, catch_up, "chauffage catch up")
             return
         context = new.context
         # Changes made by the schedule, or by any automation / script, are not overrides
@@ -925,8 +971,13 @@ class ChauffageRuntime:
         # On the device, a command sent earlier and applied late: not a change by hand (in doubt,
         # no override). Set back once the thermostat has no newer command to apply.
         if applied and context.user_id is None:
-            if not self.data["pending"].get(new.entity_id):
+            if self.data["pending"].get(new.entity_id):
+                then = "a newer command is not applied yet"
+            else:
+                then = "set back to its " + ("override" if new.entity_id in self.data["overrides"] else "slot")
                 self.entry.async_create_task(self.hass, self._realign(new.entity_id), "chauffage realign late")
+            _LOGGER.info("%s: applied late a command sent at %s (%s): not an override, %s",
+                         new.entity_id, _time(applied["sent"]), _describe(applied), then)
             return
         after = thermostat(new)
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
@@ -940,6 +991,10 @@ class ChauffageRuntime:
         )
         if change is None:
             return
+        _LOGGER.info("%s: changed %s (%s); the slot asks for %s: %s", new.entity_id,
+                     "by a user" if context.user_id else "on the device", _change(old, new),
+                     _describe(expected) if expected else "nothing",
+                     "back to its slot" if change == engine.RESUME else "an override")
         if change == engine.RESUME:
             if new.entity_id in self.data["overrides"]:
                 resume = self.set_override(new.entity_id, None, source="thermostat")

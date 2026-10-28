@@ -334,6 +334,25 @@ Settings → Devices & services → Chauffage → *Configure*:
 - **Use the thermostats' presets**: on by default. Off, every thermostat is driven by
   temperatures, all set in the card.
 
+## Troubleshooting
+
+What Chauffage does to the thermostats, and why, can be followed:
+
+- **Logbook**: an override starting (where it came from: the thermostat, the card, a service)
+  or ending (expired, back to the schedule on the thermostat, removed, thermostat paused…) is in
+  the thermostat's logbook; a schedule activated (and by what) in the select's.
+- **Logs**: every command sent to a thermostat, with why (new slot, schedule activated, override
+  ended, back online, retry, command applied late…), every override and every change seen on a
+  thermostat, at the INFO level:
+  ```yaml
+  logger:
+    logs:
+      custom_components.chauffage: info
+  ```
+- **Diagnostics** (Settings → Devices & services → Chauffage → ⋮ → *Download diagnostics*): the
+  stored data (weeks, overrides, commands a valve has not applied yet) and the scheduled
+  thermostats as they are now. Attach it to an issue.
+
 ## How it works
 
 - Data is stored in `.storage/chauffage` (versioned, migrated automatically): schedules, presets,
