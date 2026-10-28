@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.7.0-beta.2] - 2026-10-28
+
+Setpoints applied late by battery valves are no longer overrides, and a calendar of schedules.
+**Migrates stored data** (version 6).
+
 ### Added
 
 - **A calendar of schedules**, documented in the README (*Activation rules*): a Home Assistant
@@ -28,6 +33,13 @@ Each entry says whether the release **migrates stored data** and what to do when
   override or slot, and the next slot is sent even when the valve seems to have it already.
   Turning a valve, on the device, to a value it has not taken yet makes no override (a change in
   Home Assistant always does). **Migrates stored data** (version 6), nothing to do.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled) and restart Home Assistant. The stored
+data is migrated at start (version 6: an empty list of commands not taken yet); schedules,
+presets, overrides and rules are kept. To use the calendar, import the blueprint (README,
+*Activation rules*).
 
 ## [0.7.0-beta.1] - 2026-10-26
 
@@ -660,7 +672,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.1...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.2...HEAD
+[0.7.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.2
 [0.7.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.1
 [0.6.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0
 [0.6.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.6.0-beta.6
