@@ -85,7 +85,7 @@ def async_register(hass: HomeAssistant) -> None:
             preset = call.data["preset"]
             override = runtime.preset_override(entity_id, preset, minutes, end) or runtime.new_override("preset", preset, minutes, end)
         try:
-            await runtime.set_override(entity_id, override, source="service", resend=True)
+            await runtime.set_override(entity_id, override, source="service", resend=True, context=call.context)
         except ThermostatPaused as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="paused", translation_placeholders={"entity_id": entity_id}
@@ -97,11 +97,12 @@ def async_register(hass: HomeAssistant) -> None:
 
     async def clear_override(call: ServiceCall) -> None:
         entity_id = call.data[ATTR_ENTITY_ID]
-        await runtime_for(hass, entity_id).set_override(entity_id, None, source="service")
+        await runtime_for(hass, entity_id).set_override(entity_id, None, source="service", context=call.context)
 
     async def activate_schedule(call: ServiceCall) -> None:
         runtime = loaded_runtime(hass)
-        await runtime.activate_schedule(known_schedule(runtime, call.data["schedule"]), source="service")
+        await runtime.activate_schedule(known_schedule(runtime, call.data["schedule"]), source="service",
+                                       context=call.context)
 
     async def get_schedules(call: ServiceCall) -> ServiceResponse:
         runtime = loaded_runtime(hass)

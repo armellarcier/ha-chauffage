@@ -293,8 +293,18 @@ dashboards, automations, scripts and by voice without the card
   turned into an override) and are the base for device triggers later. Who started an override
   (`source`: thermostat, card, service) is kept apart from why it ended (`reason`: expired,
   thermostat, card, service, paused, forgotten). An override whose end alone changes is not
-  started again (the binary sensor carries the end). No logbook descriptions of our own: the
-  entities' changes are already in the logbook, the events would repeat them.
+  started again (the binary sensor carries the end).
+- **Logbook descriptions of the events, logs of every command** (#49, which reverses "no
+  logbook descriptions of our own"): the binary sensor's changes say that an override started
+  or ended, not why, and the events are not shown anywhere; analyses across integrations need
+  the reason. The events are described in the thermostat's logbook (the select's for a
+  schedule, next to its change: the schedule event carries the select's `entity_id`, or the
+  logbook filtered on it would leave it out), in Home Assistant's language (it does not translate
+  logbook descriptions). The events carry the context of what caused them (a user's change,
+  service call, card), so the logbook says who. Every
+  command sent, override and change seen on a thermostat is logged at INFO with why, off by
+  default like any INFO log. The diagnostics download holds the stored data, `pending` commands
+  included, rather than an attribute recorded on every command.
 - **Services with a response for structured data** (`get_schedules`, `get_week`) instead of
   more entities. `get_week` answers as Home Assistant's `schedule.get_schedule` does: by entity,
   then by day name, each slot with its start and end.

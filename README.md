@@ -310,7 +310,9 @@ Events, for automations (*Event* trigger):
 |---|---|
 | `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (a change made on it, by hand), `card`, `service`. Fired for a new override or a new value, not when only its end changes. |
 | `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (put back to its schedule by hand), `card`, `service`, `paused`, `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (id), `schedule_name`, `previous_schedule`, and `source`: `card`, `entity` (the select or a schedule switch), `service`, `rules`. |
+| `chauffage_schedule_activated` | `schedule` (id), `schedule_name`, `previous_schedule`, `entity_id` (the active-schedule select), and `source`: `card`, `entity` (the select or a schedule switch), `service`, `rules`. |
+
+Each event carries the context of what caused it: the logbook says who changed the thermostat, used the card, called the service or picked the schedule.
 
 For example, to be notified when someone changes a thermostat by hand:
 
@@ -333,6 +335,25 @@ Settings → Devices & services → Chauffage → *Configure*:
 - **Override duration**: 2 h by default.
 - **Use the thermostats' presets**: on by default. Off, every thermostat is driven by
   temperatures, all set in the card.
+
+## Troubleshooting
+
+What Chauffage does to the thermostats, and why, can be followed:
+
+- **Logbook**: an override starting (where it came from: the thermostat, the card, a service)
+  or ending (expired, back to the schedule on the thermostat, removed, thermostat paused…) is in
+  the thermostat's logbook; a schedule activated (and by what) in the select's.
+- **Logs**: every command sent to a thermostat, with why (new slot, schedule activated, override
+  ended, back online, retry, command applied late…), every override and every change seen on a
+  thermostat, at the INFO level:
+  ```yaml
+  logger:
+    logs:
+      custom_components.chauffage: info
+  ```
+- **Diagnostics** (Settings → Devices & services → Chauffage → ⋮ → *Download diagnostics*): the
+  stored data (weeks, overrides, commands a valve has not applied yet) and the scheduled
+  thermostats as they are now. Attach it to an issue.
 
 ## How it works
 

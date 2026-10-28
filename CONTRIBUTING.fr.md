@@ -288,6 +288,12 @@ Ces conventions s'appliquent à tous les contributeurs, humains comme assistants
 - Les données lues sur les thermostats peuvent contenir des Enum (par ex. un `preset_mode`
   ZHA) : les convertir en valeurs simples (`.value`) avant de les stocker ou de les mettre dans
   un attribut.
+- **Tout ce que Chauffage fait à un thermostat dit pourquoi** (#49), pour les analyses entre
+  intégrations : une commande passe par `send()` avec sa raison (journalisée en INFO), une
+  dérogation commence et finit par `_keep_override()` / `_drop_override()` avec sa source ou sa
+  raison (journalisée, envoyée en événement, décrite dans le journal de bord). Une nouvelle
+  source ou raison a son texte dans chaque langue de `logbook.py` (`test_traces.py` le vérifie),
+  et une nouvelle trace a son test dans `test_traces.py`.
 - Les changements de la carte s'essaient dans le HA de développement, sur tous les types de
   thermostats.
 - **Le mobile aussi** : la carte est utilisée dans l'application Home Assistant sur téléphone.

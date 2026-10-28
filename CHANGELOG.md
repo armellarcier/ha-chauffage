@@ -9,6 +9,18 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- **What Chauffage does to the thermostats, and why** (#49), documented in the README
+  (*Troubleshooting*): the logbook tells an override starting (from the thermostat, the card, a
+  service) and ending (expired, back to the schedule on the thermostat, removed, paused…), and
+  a schedule activated (and by what), with who did it; every command sent to a thermostat is logged at INFO with
+  its reason, as are overrides and changes seen on a thermostat; a diagnostics download holds the
+  stored data and the scheduled thermostats as they are now.
+- `chauffage_schedule_activated` has an `entity_id`: the active-schedule select. The events
+  carry the context of what caused them (the user who changed the thermostat, called the
+  service, used the card or picked the schedule).
+
 ## [0.7.0-beta.2] - 2026-10-28
 
 Setpoints applied late by battery valves are no longer overrides, and a calendar of schedules.

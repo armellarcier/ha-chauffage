@@ -268,6 +268,12 @@ These conventions apply to every contributor, human or AI assistant
   [ROADMAP.md](ROADMAP.md) holds the vision and the ideas retained, linking to their issues.
 - Data read from thermostats may hold Enums (e.g. a ZHA `preset_mode`): convert them to plain
   values (`.value`) before storing them or putting them in an attribute.
+- **Everything Chauffage does to a thermostat says why** (#49), for analyses across
+  integrations: a command goes through `send()` with its reason (logged at INFO), an override
+  starts and ends through `_keep_override()` / `_drop_override()` with its source or reason
+  (logged, fired as an event, described in the logbook). A new source or reason gets its text in
+  every language of `logbook.py` (`test_traces.py` checks it), and a new trace has its test in
+  `test_traces.py`.
 - Card changes are tried in the development HA, on every kind of thermostat.
 - **Mobile too**: the card is used in the Home Assistant app on phones. Everything works by
   touch (no information only shown on hover, no action only reachable with a mouse or a
