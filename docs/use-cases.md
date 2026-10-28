@@ -90,6 +90,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | A setpoint changed by hand, in HA or on the device itself, becomes a 2 h override (duration in the options) | `I/test_overrides.py::a_setpoint_changed_by_hand_*`, `::the_override_duration_is_an_option`, `I/test_use_cases.py::a_change_on_the_thermostat_itself_is_an_override` |
+| A command a battery valve applies late (even after a failed call, even after a restart) is not an override, does not end one, and the valve is set back to its override; a command it has not taken yet is sent again at the next slot even if the valve seems to have the slot's value; only a change to the value counts as taking it; a change in HA by a user, a change after the valve took the last command, or more than a day after sending, is an override | `I/test_late_setpoints.py` |
 | A preset picked by a user is an override (thermostats with presets) | `I/test_overrides.py::a_preset_picked_by_a_user_creates_an_override` |
 | Changes made by an automation, or by the integration itself (and the thermostat's answer), are not overrides | `I/test_overrides.py::a_change_made_by_an_automation_*`, `::a_change_made_by_the_integration_itself_*`, `::the_thermostat_answering_the_schedule_*` |
 | VTherm safety mode in and out is not an override; a user's choice during it is | `I/test_overrides.py::safety_mode_*`, `::slot_changes_are_still_sent_during_safety_mode`, `::a_preset_picked_by_a_user_during_safety_mode_*` |

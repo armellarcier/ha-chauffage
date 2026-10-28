@@ -2,7 +2,8 @@
 
 - every minute: slots starting now, overrides ending now;
 - full realignment when HA starts, a schedule is activated or the weeks are saved;
-- a manual change on a scheduled thermostat becomes a temporary override;
+- a manual change on a scheduled thermostat becomes a temporary override; a command the
+  thermostat applies late (battery valve) does not;
 - activation rules: their templates are tracked, and a change of their outcome activates a
   schedule (a schedule chosen by hand stays until then);
 - scheduled thermostats: kept whatever the cards show, paused or forgotten on purpose; a repair
@@ -172,8 +173,13 @@ class ChauffageRuntime:
 
     @callback
     def _changed(self) -> None:
-        self.store.async_delay_save(lambda: self.data, SAVE_DELAY)
+        self._save()
         self._notify(DATA)
+
+    @callback
+    def _save(self) -> None:
+        """Saved, nothing the cards show changed."""
+        self.store.async_delay_save(lambda: self.data, SAVE_DELAY)
 
     # ----- reading -----
 
@@ -415,6 +421,7 @@ class ChauffageRuntime:
         if paused:
             self._drop_override(entity_id, "paused")
             self._retry.discard(entity_id)
+            self._drop_pending(entity_id)
         self._track_thermostats()
         self._changed()
         if not paused:
@@ -428,6 +435,7 @@ class ChauffageRuntime:
             raise model.InvalidData(f"not scheduled: {entity_id}")
         self._drop_override(entity_id, "forgotten")
         self._retry.discard(entity_id)
+        self._drop_pending(entity_id)
         self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
         repairs.close_missing(self.hass, entity_id)
         self.data["revision"] += 1
@@ -472,10 +480,13 @@ class ChauffageRuntime:
                     registry.async_remove(entity_id)
             repairs.close_missing(self.hass, new)
         self._drop_override(new, "forgotten")
+        self.data["pending"].pop(new, None)
         self.thermostats[new] = self.thermostats.pop(old)
         self._weeks_changed([new])
         if old in self.data["overrides"]:
             self.data["overrides"][new] = self.data["overrides"].pop(old)
+        if old in self.data["pending"]:
+            self.data["pending"][new] = self.data["pending"].pop(old)
         renamed = self.data["renamed"]
         for former, current in list(renamed.items()):
             if current == old:
@@ -694,12 +705,8 @@ class ChauffageRuntime:
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
-        if (new_value or resend) and (current is None or not engine.satisfied(target, current)):
-            service, data = (
-                ("set_temperature", {"temperature": target.value}) if target.kind == "temperature"
-                else ("set_preset_mode", {"preset_mode": target.value})
-            )
-            if not await self.call_climate(service, entity_id, data):
+        if (new_value or resend) and self.needs(entity_id, target, current):
+            if not await self.send(entity_id, target):
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source)
         self._changed()
@@ -765,6 +772,67 @@ class ChauffageRuntime:
             return False
         return True
 
+    # ----- commands applied late (docs/decisions.md, "Commands applied late") -----
+
+    async def send(self, entity_id: str, target: engine.Target) -> bool:
+        """Sets a thermostat to a target; False if the call failed. The command is pending until
+        the thermostat takes it: a battery valve may apply it hours later, even after a failed
+        call (the Zigbee message waits for it)."""
+        commands = self.data["pending"].setdefault(entity_id, [])
+        if commands and (commands[-1]["kind"], commands[-1]["value"]) == (target.kind, target.value):
+            commands.pop()  # sent again: waited for from now
+        commands.append({"kind": target.kind, "value": target.value, "sent": dt_util.now().isoformat()})
+        self._save()
+        if target.kind == "preset":
+            return await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
+        return await self.call_climate("set_temperature", entity_id, {"temperature": target.value})
+
+    def pending(self, entity_id: str) -> list[engine.Target]:
+        """The commands sent to a thermostat that it does not show yet, oldest first."""
+        return [engine.Target(c["kind"], c["value"]) for c in self.data["pending"].get(entity_id, [])]
+
+    def needs(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None) -> bool:
+        """A target to send: the thermostat does not show it, or would apply another command later."""
+        if current is None or not engine.satisfied(target, current):
+            return True
+        commands = self.pending(entity_id)
+        return bool(commands) and commands[-1] != target
+
+    @callback
+    def _applied(self, entity_id: str, before: engine.Thermostat | None, after: engine.Thermostat | None) -> bool:
+        """The thermostat has just taken a command not applied yet: that one and the older ones
+        are done (True)."""
+        commands = self.pending(entity_id)
+        index = engine.applied_command(commands, before, after) if after and commands else None
+        if index is None:
+            return False
+        self._drop_pending(entity_id, index + 1)
+        return True
+
+    @callback
+    def _drop_pending(self, entity_id: str, count: int | None = None) -> None:
+        """Forgets a thermostat's oldest commands not applied yet (all of them by default)."""
+        commands = self.data["pending"].get(entity_id)
+        if not commands:
+            return
+        del commands[:count]
+        if not commands:
+            del self.data["pending"][entity_id]
+        self._save()
+
+    async def _realign(self, entity_id: str) -> None:
+        """A command applied late, after the thermostat was meant to do something else: set back
+        to its override, or to its slot."""
+        override = self.data["overrides"].get(entity_id)
+        if override is None:
+            await self.apply(include={entity_id})
+            return
+        target = engine.Target(override["kind"], override["value"])
+        async with self._lock:
+            current = thermostat(self.hass.states.get(entity_id))
+            if current is not None and current.state not in engine.IGNORED_STATES and self.needs(entity_id, target, current):
+                await self.send(entity_id, target)
+
     # ----- scheduling -----
 
     async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None,
@@ -779,6 +847,7 @@ class ChauffageRuntime:
                 ended=ended or (),
                 since=since,
                 include=frozenset(include or ()) | frozenset(self._retry),
+                pending={e: commands[-1] for e in self.data["pending"] if (commands := self.pending(e))},
             )
             # A thermostat to retry that needs nothing anymore (already right, override, off…)
             self._retry &= {entity_id for entity_id, _ in todo}
@@ -787,10 +856,7 @@ class ChauffageRuntime:
                     await asyncio.sleep(self.pause)
                 if entity_id not in self.thermostats or self.is_paused(entity_id):
                     continue  # paused or forgotten meanwhile
-                if target.kind == "preset":
-                    done = await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
-                else:
-                    done = await self.call_climate("set_temperature", entity_id, {"temperature": target.value})
+                done = await self.send(entity_id, target)
                 # Not delivered (unreachable valve…): sent again at the next minutes
                 if done:
                     self._retry.discard(entity_id)
@@ -806,6 +872,9 @@ class ChauffageRuntime:
             self._drop_override(entity_id, "expired")
         if ended:
             self._changed()
+        for entity_id, commands in list(self.data["pending"].items()):
+            if expired := engine.expired_commands([c["sent"] for c in commands], dt_util.now()):
+                self._drop_pending(entity_id, expired)
         await self.apply(ended=ended, since=since)
         self._notify(TICK)
 
@@ -844,6 +913,7 @@ class ChauffageRuntime:
         # Paused thermostats are followed for their preset temperatures only
         if old is None or new is None or self.is_paused(new.entity_id):
             return
+        applied = self._applied(new.entity_id, thermostat(old), thermostat(new))
         if old.state in engine.IGNORED_STATES and new.state not in engine.IGNORED_STATES:
             # Turned back on, or back online: the thermostat may have missed slot changes
             self.entry.async_create_task(self.hass, self.apply(include={new.entity_id}), "chauffage catch up")
@@ -851,6 +921,12 @@ class ChauffageRuntime:
         context = new.context
         # Changes made by the schedule, or by any automation / script, are not overrides
         if context.id in self._own_contexts or context.parent_id is not None:
+            return
+        # On the device, a command sent earlier and applied late: not a change by hand (in doubt,
+        # no override). Set back once the thermostat has no newer command to apply.
+        if applied and context.user_id is None:
+            if not self.data["pending"].get(new.entity_id):
+                self.entry.async_create_task(self.hass, self._realign(new.entity_id), "chauffage realign late")
             return
         after = thermostat(new)
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)

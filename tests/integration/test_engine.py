@@ -286,3 +286,21 @@ def test_presets_and_mappings_are_validated():
 def test_weeks_with_an_unknown_preset_are_refused():
     with pytest.raises(model.InvalidData):
         model.normalize_weeks({"climate.salon": {"normal": [[["00:00", "sleep"]]] * 7}}, {"normal"}, {"eco"})
+
+
+# ----- commands applied late -----
+
+def test_a_thermostat_takes_a_command_by_changing_to_it():
+    pending = [engine.Target("temperature", 20.0), engine.Target("temperature", 17.0)]
+    eco, comfort = Thermostat("heat", None, 17.0), Thermostat("heat", None, 20.0)
+    assert engine.applied_command(pending, eco, comfort) == 0
+    assert engine.applied_command(pending, comfort, eco) == 1
+    assert engine.applied_command(pending, eco, eco) is None  # already showed it: may still apply 20
+    assert engine.applied_command(pending, eco, Thermostat("off", None, 20.0)) is None  # turned off
+
+
+def test_commands_not_taken_after_a_day_are_not_waited_for():
+    sent = [at("06:30").isoformat(), at("08:30").isoformat(), "unreadable"]
+    assert engine.expired_commands(sent, at("07:00", day=1)) == 1
+    assert engine.expired_commands(sent, at("09:00", day=1)) == 3
+    assert engine.expired_commands(sent, at("09:00")) == 0

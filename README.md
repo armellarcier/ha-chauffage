@@ -346,7 +346,8 @@ Settings → Devices & services → Chauffage → *Configure*:
   a preset picked by a user becomes a temporary override; going back the same way to what the
   slot gives (its preset, or a setpoint at that preset's temperature on this thermostat) ends
   it instead. Changes made by the integration itself
-  (its own context) or by an automation are ignored.
+  (its own context) or by an automation are ignored, and so is a command a battery valve applies
+  late (the commands it has not taken yet are remembered for a day).
 - **Card**: served by the integration and loaded on every page (card + more-info block); it
   talks to the integration over websocket (`chauffage/subscribe`, `chauffage/weeks/save`…);
   a save made from an outdated copy is refused instead of overwriting someone else's changes.

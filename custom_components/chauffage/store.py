@@ -16,7 +16,7 @@ from homeassistant.helpers.storage import Store
 from . import model
 from .const import DOMAIN
 
-STORAGE_VERSION = 5
+STORAGE_VERSION = 6
 STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
@@ -67,7 +67,12 @@ def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
     return data
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5}
+def _v5_to_v6(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """Commands applied late (v0.7): none is waited for yet."""
+    return {**data, "pending": {}}
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6}
 
 
 class ChauffageStore(Store[dict[str, Any]]):

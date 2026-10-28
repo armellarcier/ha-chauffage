@@ -104,6 +104,7 @@ def from_package(hass: HomeAssistant) -> dict[str, Any]:
                         for entity_id, by_schedule in weeks.items()},
         "renamed": {},
         "overrides": overrides,
+        "pending": {},
         "revision": 0,
         "rules": [],
         "default_schedule": None,

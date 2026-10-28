@@ -74,6 +74,22 @@ future contributor might question.
 - **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
   realigned at once. A command that was not delivered is sent again every minute. Commands are
   spaced out (Zigbee networks).
+- **Commands applied late: in doubt, no override.** A battery valve (Zigbee, asleep most of the
+  time) may apply a command an hour or more later, even after a call that failed; its state in
+  HA does not change meanwhile. Seen in production on a Tuya valve: comfort sent at 7:00, still
+  shown at eco when eco was due at 8:00 (so nothing was sent), applied at 9:16 and taken for a
+  change on the device: an override nobody made. The integration now keeps the commands sent
+  that a thermostat has not taken yet (`pending`, stored: a restart must not bring the false
+  override back). A thermostat that would still apply another command is sent the slot's even
+  when it seems to have it already. A change on the device to a pending command is that
+  command, applied late: no override, an override is not ended, and the thermostat is set back
+  to its override or slot once it has no newer command to apply. Only a change to the value
+  counts as taking it: a report that already showed it (its measured temperature) does not, as
+  an older command may still come. The price: someone turning the valve to a value still
+  pending, within a day of sending it, makes no override. Accepted: a missed override is seen
+  at once and done again (the valve, the card), a false one heats a room at the wrong
+  temperature for hours without anyone knowing why. A change made in Home Assistant by a user
+  is always an override. After a day a command is not waited for anymore.
 - **No special case for Versatile Thermostat's safety mode**: VTherm keeps the requested preset
   and returns to it by itself, so the usual rules are right (v0.2.0-beta.3 removed a special
   case that overwrote a user's choice).
