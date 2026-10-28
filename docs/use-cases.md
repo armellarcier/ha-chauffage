@@ -128,7 +128,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Add a slot (double click, never merged with the next slot), insert, delete, change a slot's preset, move times (drag or fields), close the editor | `C/card.test.mjs` (editing a day), `C/interactions.test.mjs` (slot editor buttons, double click, dragging, editing a slot) |
 | Move a whole slot by dragging it (same length, within its neighbors; by touch, the selected slot only) | `C/interactions.test.mjs` (dragging a whole slot) |
 | Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week; the row menu holds the day's actions only, and opens upwards when there is no room below it | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
-| See identical days on one row, named after its days (*Mon–Fri*, *Mon, Wed, Fri*, *Sat, Sun* in a Sunday-first week, *Every day*), the days identical for every thermostat shown (#11) | `C/grouped-days.test.mjs` (rows of identical days) |
+| See identical days on one row, named after its days (*Mon–Fri*, *Mon, Wed, Fri*, *Sat, Sun* in a Sunday-first week, *Mon–Sun*; *Every day* in the menus), the days identical for every thermostat shown (#11) | `C/grouped-days.test.mjs` (rows of identical days) |
 | Edit a row of days at once: a slot and its popover, pasting, copying to the other thermostats; copying a day onto others joins their rows | `C/grouped-days.test.mjs` (editing a row) |
 | Show each day on its own row (*Group days*, kept on the device; `group_days: false`) to make one day different, which keeps its row once grouped again; the history shows each day, grouping the days hides it | `C/grouped-days.test.mjs` (grouping the days or not) |
 | Today in a row of days: the row stands out with the current time, its menu sets a temporary setpoint, an override shows today, where it ends, and on the rows of the days it covers | `C/grouped-days.test.mjs` (today in a row of days) |
@@ -196,5 +196,9 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
   at the bottom of the window (`position: sticky`); the hint for a touch screen (`hover: none`); the
   thermostats' names of the *Presets* view kept in place while the table scrolls sideways:
   checked on the development HA.
+- Layout from the width of the card, not of the screen (#11): with several thermostats, the
+  day's name beside its rows from 700 px, above them below; checked on the development HA at
+  several window widths. The rules of the stylesheet are tested in `C/grouped-days.test.mjs`
+  (the width of the card).
 - Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the
   integration's): the second one does not register again (guarded), checked on the development HA.

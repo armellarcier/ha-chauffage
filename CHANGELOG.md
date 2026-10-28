@@ -9,6 +9,15 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- **The bars of the weeks get more width** (#11). With several thermostats, the name of the days
+  now sits above their rows, unless the card is wide (700 px or more). The card picks its layout
+  from its own width, not from the width of the screen. A card in a column of a dashboard
+  therefore gets the compact layout on a computer too.
+- A row of the whole week is named *Mon–Sun* instead of *Every day*, so the column of the days
+  stays narrow. The menus still say *Every day*.
+
 ## [0.7.0-beta.3] - 2026-10-28
 
 What Chauffage does to the thermostats, and why, in the logbook, the log and diagnostics; no
