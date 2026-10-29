@@ -513,6 +513,24 @@ par exemple `chauffage/subscribe` ou `chauffage/weeks/save`. L'intégration refu
 enregistrement fait depuis une copie périmée : un enregistrement n'écrase jamais les
 modifications de quelqu'un d'autre.
 
+**Le chargement de la carte.** Vous n'avez rien à configurer : l'intégration charge la carte de
+deux façons, comme d'autres intégrations qui ajoutent des éléments aux pages de Home Assistant,
+par exemple browser_mod et UIX.
+
+1. **Sur toutes les pages.** L'intégration ajoute la carte aux modules que Home Assistant charge
+   sur chaque page (`add_extra_js_url`). Une ressource de tableau de bord ne se charge que sur les
+   tableaux de bord, alors que le bloc de la fenêtre de détail doit marcher partout.
+2. **Par sa propre ressource de tableau de bord.** Home Assistant sert ses pages quelques
+   secondes avant que Chauffage démarre, par exemple quand l'application compagnon se reconnecte
+   après un redémarrage. Une telle page n'a pas la carte, et Home Assistant ne l'ajoute jamais
+   ensuite. Les tableaux de bord chargent eux-mêmes leurs ressources : Chauffage y enregistre donc
+   un petit chargeur. Le chargeur attend que Chauffage serve la carte, puis la charge. Les tableaux
+   de bord dont les ressources sont en YAML n'ont pas ce chargeur.
+
+La carte déclare aussi ses éléments une seconde fois, une fois le frontend de Home Assistant
+démarré. Un module chargé sur toutes les pages peut s'exécuter avant que le frontend ait mis en
+place son registre d'éléments, et le frontend ne verrait pas les éléments déclarés avant.
+
 **L'historique.** La carte demande à l'intégration la température mesurée et la consigne
 appliquée des 7 derniers jours (`chauffage/history`). L'intégration lit ces deux valeurs dans le
 recorder de Home Assistant, et rien d'autre : l'historique de Home Assistant enverrait tous les

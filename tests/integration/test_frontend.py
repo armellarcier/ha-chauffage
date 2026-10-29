@@ -58,7 +58,12 @@ async def test_a_dashboard_opened_while_home_assistant_starts_loads_the_card(ben
 
     [loader] = loaders(resources)
     assert loader["type"] == "module"
-    assert CARD_URL in unquote(loader["url"])
+    code = unquote(loader["url"].removeprefix(LOADER))
+    assert CARD_URL in code
+    # One statement per line, as in the file: a trailing comment or a missing semicolon in the
+    # file cannot break the code once its lines are joined
+    assert code.count("\n") > 5
+    assert "//" not in code.replace("://", "")
 
 
 async def test_the_card_loader_follows_the_new_version_without_duplicates(bench: Bench):
@@ -73,6 +78,15 @@ async def test_the_card_loader_follows_the_new_version_without_duplicates(bench:
     [loader] = loaders(resources)
     assert CARD_URL in unquote(loader["url"])
     assert other in resources.async_items()
+
+
+async def test_chauffage_starts_even_if_the_card_loader_cannot_be_saved(bench: Bench, caplog):
+    resources = await setup_lovelace(bench)
+    with patch.object(type(resources), "async_create_item", side_effect=OSError("disk full")):
+        await setup_chauffage(bench)
+
+    assert bench.hass.states.get(bench.schedule_entity) is not None
+    assert "card loader" in caplog.text
 
 
 async def test_dashboards_with_resources_in_yaml_get_no_card_loader(bench: Bench):

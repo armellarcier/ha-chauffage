@@ -10,6 +10,7 @@ The card lives in `frontend/` (the package release, until v0.2.0, copies it next
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -20,6 +21,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 URL_BASE = "/chauffage_frontend"
 CARD = "chauffage-programme-card.js"
@@ -37,7 +40,10 @@ async def async_register(hass: HomeAssistant) -> None:
     )
     card_url = f"{URL_BASE}/{CARD}?v={integration.version}"
     add_extra_js_url(hass, card_url)
-    await _async_save_card_loader(hass, card_url)
+    try:
+        await _async_save_card_loader(hass, card_url)
+    except Exception:  # noqa: BLE001 - the loader only helps; Chauffage works without it
+        _LOGGER.warning("Could not save the card loader in the dashboard resources", exc_info=True)
 
 
 async def _async_save_card_loader(hass: HomeAssistant, card_url: str) -> None:
@@ -51,12 +57,12 @@ async def _async_save_card_loader(hass: HomeAssistant, card_url: str) -> None:
         return
     code = await hass.async_add_executor_job(LOADER_FILE.read_text, "utf-8")
     # Without the comments: the URL is shown in the dashboard resources
-    lines = [line.strip() for line in code.splitlines() if not line.strip().startswith("//")]
-    url = LOADER + quote("".join(lines).replace("CARD_URL", card_url))
+    code = "\n".join(line for line in map(str.strip, code.splitlines()) if not line.startswith("//"))
+    item = {"res_type": "module", "url": LOADER + quote(code.replace("CARD_URL", card_url))}
     if not (loaders := _loaders(resources)):
-        await resources.async_create_item({"res_type": "module", "url": url})
-    elif loaders[0]["url"] != url:
-        await resources.async_update_item(loaders[0]["id"], {"res_type": "module", "url": url})
+        await resources.async_create_item(item)
+    elif loaders[0]["url"] != item["url"]:
+        await resources.async_update_item(loaders[0]["id"], item)
 
 
 async def async_remove_card_loader(hass: HomeAssistant) -> None:
@@ -69,8 +75,7 @@ async def async_remove_card_loader(hass: HomeAssistant) -> None:
 
 async def _async_resources(hass: HomeAssistant) -> ResourceStorageCollection | None:
     """The dashboard resources, when the UI can change them (not in YAML)."""
-    if (data := hass.data.get("lovelace")) is None:
-        return None
+    data = hass.data.get("lovelace")
     # A dict up to Home Assistant 2025.1, a dataclass after
     resources = data.get("resources") if isinstance(data, dict) else getattr(data, "resources", None)
     if not isinstance(resources, ResourceStorageCollection):
