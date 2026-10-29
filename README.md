@@ -53,8 +53,9 @@ Go to Settings → Devices & services → *Add integration*, and choose **Chauff
 ### 3. Add the schedule card
 
 Add the card to a dashboard: *Add card* → **Heating schedules**. The integration serves the card,
-so you don't need to add a resource. In the card's visual editor, choose the thermostats and
-their names.
+so you don't need to add a resource. Chauffage adds a resource of its own, which loads the card on
+the pages opened while Home Assistant restarts: keep it. In the card's visual editor, choose the
+thermostats and their names.
 
 You can also write the card in YAML:
 

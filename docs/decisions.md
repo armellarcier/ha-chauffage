@@ -320,6 +320,13 @@ dashboards, automations, scripts and by voice without the card
   in parallel with HA's frontend, which replaces `customElements` with a scoped registry
   polyfill: a card evaluated first (cached) would be unknown to it. The card defines its
   elements again once `<home-assistant>` is defined, in the registry in place then (#2).
+- **A dashboard resource loads the card on the pages served before Chauffage is set up** (#59).
+  Home Assistant serves its pages before the custom integrations are set up, and the frontend
+  never loads a module added after the page was served. The dashboards load their saved
+  resources themselves. The resource is a `data:` URL, because Chauffage's own URLs answer only
+  once Chauffage is set up: the loader waits for the card, then imports it. A path served early,
+  such as `/local/`, would mean writing files into the user's configuration. Remove the resource
+  once the minimum Home Assistant version loads the modules added after the page was served.
 - **Saves carry the revision they edited**: a save from an outdated copy is refused instead of
   overwriting someone else's changes.
 - **The card's type stays `custom:chauffage-programme-card`**: dashboards refer to it.

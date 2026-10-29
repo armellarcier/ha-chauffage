@@ -52,8 +52,9 @@ Allez dans Paramètres → Appareils et services → *Ajouter une intégration*,
 ### 3. Ajouter la carte des plannings
 
 Ajoutez la carte à un tableau de bord : *Ajouter une carte* → **Plannings de chauffe**.
-L'intégration fournit la carte : vous n'avez pas de ressource à ajouter. Dans l'éditeur visuel
-de la carte, choisissez les thermostats et leurs noms.
+L'intégration fournit la carte : vous n'avez pas de ressource à ajouter. Chauffage ajoute sa
+propre ressource, qui charge la carte sur les pages ouvertes pendant un redémarrage de Home
+Assistant : gardez-la. Dans l'éditeur visuel de la carte, choisissez les thermostats et leurs noms.
 
 Vous pouvez aussi écrire la carte en YAML :
 

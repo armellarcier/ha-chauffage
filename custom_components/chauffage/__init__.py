@@ -106,3 +106,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) -
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Deleting the integration deletes its data."""
     await ChauffageStore(hass).async_remove()
+    await frontend.async_remove_card_loader(hass)
