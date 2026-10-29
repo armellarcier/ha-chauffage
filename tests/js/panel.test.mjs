@@ -290,15 +290,23 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: true });
     });
 
-    test('its presets first, as the legend of its weeks: its row only, without the presets\' definitions', () => {
+    test('its presets first, as the legend of its weeks: a list, one item per preset, not a table of one row', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       const presets = cards(el)[0];
       assert.equal(presets._config.view, 'presets');
-      assert.ok($(presets, '.presets-view.compact'));
-      assert.equal($(presets, '.pv-add'), null);
-      assert.equal($(presets, 'button.cell.head'), null);
-      assert.equal($(presets, 'th.name'), null);
-      assert.equal($$(presets, 'tbody tr').length, 1);
+      assert.equal($(presets, 'table'), null, 'not a table of one row');
+      assert.equal($(presets, '.pv-add'), null); // the presets themselves are set on the Presets tab
+      const items = $$(presets, '.pv-list .pv-item');
+      // From the coldest to the warmest, as the table: its name, its value here, and what it is
+      assert.deepEqual(items.map((i) => text(i.querySelector('.pv-pname'))), ['Hors-gel', 'Éco', 'Confort', 'Boost']);
+      assert.match(text(items[1]), /^Éco 17° par défaut$/);
+    });
+
+    test('a preset of the list opens the editor of what it does on this thermostat', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      const presets = cards(el)[0];
+      $$(presets, '.pv-list .pv-item')[2].click();
+      assert.match(text($(presets, '[data-panel="cell"]')), /Confort · Salon/);
     });
 
     test('its week in every schedule, each headed by the schedule (a link to its sheet), the active one marked', () => {

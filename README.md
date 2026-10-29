@@ -306,7 +306,7 @@ the thermostat's own presets, or a temperature.
 
 Open the Chauffage panel, then the *Presets* tab. Only administrators can change the presets. The
 table has a column for each preset, from the coldest to the warmest, and a row for each
-thermostat. A thermostat's page in the panel shows its row only.
+thermostat. A thermostat's page in the panel shows its presets side by side, without the table.
 
 - **A column header** opens the preset: its name, its color and its default temperature. You can
   also delete the preset from there. To add a preset, click *+ Add a preset* under the table.

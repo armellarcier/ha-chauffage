@@ -323,7 +323,8 @@ thermostat : prenez un des préréglages du thermostat, ou une température.
 
 Ouvrez le panneau Chauffage, puis l'onglet *Préréglages*. Seuls les administrateurs peuvent
 modifier les préréglages. Le tableau a une colonne par préréglage, du plus froid au plus chaud,
-et une ligne par thermostat. La page d'un thermostat, dans le panneau, ne montre que sa ligne.
+et une ligne par thermostat. La page d'un thermostat, dans le panneau, montre ses préréglages côte à côte,
+sans le tableau.
 
 - **Un en-tête de colonne** ouvre le préréglage : son nom, sa couleur et sa température par
   défaut. Vous pouvez aussi y supprimer le préréglage. Pour ajouter un préréglage, cliquez sur

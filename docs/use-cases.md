@@ -232,7 +232,8 @@ are proved by the same tests, on the panel's page.
 | An admin forgets a thermostat from the *Thermostats* page after confirming, whatever the cards show; cancelling keeps it | `C/thermostats-view.test.mjs` ("forgets any thermostat", "the confirmation can be cancelled") |
 | From the ⋮ menu of a thermostat's row, an admin opens the thermostat and its devices, each named by its name and model | `C/thermostats-view.test.mjs` ("the rarer actions wait behind ⋮") |
 | A thermostat's sheet shows the thermostat's tile, *Pause* or *Resume*, whether Chauffage controls it, where it is shown, and its devices by name and model | `C/panel.test.mjs` ("its header") |
-| A thermostat's sheet shows its presets as the legend of its weeks: its row only, without the presets' definitions, laid out to fit the page's width | `C/panel.test.mjs` ("its presets first") |
+| A thermostat's sheet shows its presets side by side as the legend of its weeks, one item per preset (its name, its value here, where it comes from), not a table of one row; the presets' definitions stay on the *Presets* tab | `C/panel.test.mjs` ("its presets first") |
+| A preset of a thermostat's sheet opens the editor of what it does on this thermostat | `C/panel.test.mjs` ("a preset of the list") |
 | A thermostat's sheet shows its week in every schedule, under *Weeks*, each headed by the schedule's name (a link to its sheet), the active one marked | `C/panel.test.mjs` ("its week in every schedule") |
 | Copy a thermostat's week to another schedule from the week's heading on its sheet: the target week shows the copy at once, unsaved, and its own save bar asks to save it ("The *Normal* week copied here"); the source week asks for nothing | `C/panel.test.mjs` ("copying a week to another schedule") |
 | Copy a day in one schedule's week of a thermostat's sheet, then paste it in another schedule's week | `C/panel.test.mjs` ("a day copied in one schedule's week") |

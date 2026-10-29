@@ -555,15 +555,17 @@ older one, the older one says so.
   Assistant's card helpers do not exist yet. The panel loads the dashboards' code to get them
   (`cardHelpers`), so the tile may break when Home Assistant changes that code.
 - **Then the sheet shows one surface**, in this order:
-  1. The thermostat's presets: its row of the *Presets* table only, without the presets'
-     definitions and without a column of names. The row is the legend of its weeks.
+  1. The thermostat's presets, side by side: for each preset, its color and name, its value on
+     this thermostat and where the value comes from. They are the legend of its weeks. The
+     presets' definitions stay on the *Presets* tab.
   2. Its weeks, one per schedule, stacked, under the heading *Weeks* (*Semaines*). Each week's
      heading is the schedule's name, a link to its sheet, with an *Active* badge on the active
      schedule.
 - **The heading is *Weeks*, not *Its weeks*** (the `weeksTitle` key). The possessive read badly.
-- **The presets fit the sheet's width.** The presets row has no horizontal scroll: the table has a
-  fixed layout, and its texts wrap. At 360 px, a row that scrolls sideways was not usable as a
-  legend.
+- **A thermostat's presets are a row of items, not a table of one row** (after 0.8.0-alpha.2). A
+  table with a single row only repeated the table's headers. The items sit side by side and wrap:
+  four on a computer, two per line at 360 px, with no horizontal scroll. An item opens the same
+  editor as a cell of the *Presets* table.
 - **On a thermostat's sheet, copying a week starts from the week it copies.** Each week's heading
   has a *Copy to…* list (*Copier vers…*) of the other schedules. The list copies this thermostat's
   week in this schedule to the schedule chosen. The card's list at the foot of the weeks ("Copy

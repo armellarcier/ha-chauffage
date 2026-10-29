@@ -9,6 +9,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- **A thermostat's page shows its presets side by side**, one item per preset: its name, its value
+  on this thermostat and where the value comes from. The table of a single row is gone.
+
 ### Fixed
 
 - **A day copied in one week can be pasted in another week** of a thermostat's page in the

@@ -3189,37 +3189,55 @@ class ChauffageProgrammeCard extends HTMLElement {
     const head = presets.map((l) => `<th>${definitions ? cell('preset', l.id, null, headInner(l), 'head')
       : `<span class="cell head">${headInner(l)}</span>`}</th>`).join('');
     let unknown = false;
-    const rows = this._thermostats.map(({ entity }) => {
+    // What a preset does on a thermostat: its value, then what it is (the thermostat's own preset,
+    // set here, or the default)
+    const what = (entity, l) => {
       const explicit = src.mapping(entity);
-      const cells = presets.map((l) => {
-        const target = this._targetOf(entity, l);
-        const temp = this._presetTemperature(entity, target);
-        // The value, then what it is: the thermostat's own preset, set here, or the default
-        let how;
-        let cls;
-        if ('preset' in target) {
-          how = t('cellOwnPreset', { preset: this._loc.preset(target.preset) });
-          cls = 'preset';
-          if (l.id in explicit) how += ` · ${t('cellSetHere')}`;
-        } else if (l.id in explicit) {
-          how = t('cellSetHere');
-          cls = 'custom';
-        } else {
-          how = t('cellDefault');
-          cls = 'default';
-        }
-        if (temp == null) unknown = true;
-        const value = temp != null ? `${this._loc.number(temp)}°` : '?';
-        return `<td>${cell('thermostat', l.id, entity, `<span class="pv-val">${value}</span> <span class="pv-how">${esc(how)}</span>`, cls)}</td>`;
+      const target = this._targetOf(entity, l);
+      const temp = this._presetTemperature(entity, target);
+      let how;
+      let cls;
+      if ('preset' in target) {
+        how = t('cellOwnPreset', { preset: this._loc.preset(target.preset) });
+        cls = 'preset';
+        if (l.id in explicit) how += ` · ${t('cellSetHere')}`;
+      } else if (l.id in explicit) {
+        how = t('cellSetHere');
+        cls = 'custom';
+      } else {
+        how = t('cellDefault');
+        cls = 'default';
+      }
+      if (temp == null) unknown = true;
+      return { value: temp != null ? `${this._loc.number(temp)}°` : '?', how, cls };
+    };
+    let body;
+    if (definitions) {
+      const rows = this._thermostats.map(({ entity }) => {
+        const cells = presets.map((l) => {
+          const w = what(entity, l);
+          return `<td>${cell('thermostat', l.id, entity, `<span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, w.cls)}</td>`;
+        }).join('');
+        return `<tr><th class="name">${this._moreInfoLink(entity)}</th>${cells}</tr>`;
       }).join('');
-      return `<tr>${definitions ? `<th class="name">${this._moreInfoLink(entity)}</th>` : ''}${cells}</tr>`;
-    }).join('');
-    return `<div class="presets-view${definitions ? '' : ' compact'}">
-      ${definitions ? `<div class="pv-intro muted">${esc(t('presetsIntro'))}</div>` : ''}
-      <div class="table-wrap"><table class="pv-table">
-        <thead><tr>${definitions ? '<th></th>' : ''}${head}</tr></thead>
+      body = `<div class="table-wrap"><table class="pv-table">
+        <thead><tr><th></th>${head}</tr></thead>
         <tbody>${rows}</tbody>
-      </table></div>
+      </table></div>`;
+    } else {
+      // One thermostat (its sheet in the panel): a list, one item per preset, not a table of one
+      // row; an item opens the same editor as a cell of the table
+      const entity = this._thermostats[0].entity;
+      const items = presets.map((l) => {
+        const w = what(entity, l);
+        return cell('thermostat', l.id, entity, `<span class="pv-pname"><i style="background:${l.color}"></i>${esc(l.name)}</span>
+          <span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, `pv-item ${w.cls}`);
+      }).join('');
+      body = `<div class="pv-list">${items}</div>`;
+    }
+    return `<div class="presets-view">
+      ${definitions ? `<div class="pv-intro muted">${esc(t('presetsIntro'))}</div>` : ''}
+      ${body}
       ${unknown ? `<div class="pv-note muted">${esc(t('presetsUnknown'))}</div>` : ''}
       ${editable && definitions ? `<button class="btn pv-add${sel && sel.kind === 'new' ? ' on' : ''}" data-act="cell" data-kind="new" data-preset="">${esc(t('addPresetButton'))}</button>` : ''}
       ${this._cellPanelHtml()}
@@ -3891,9 +3909,10 @@ const STYLE = `
   .view:hover { color:var(--primary-text-color); }
   .view.on { color:var(--primary-color); border-bottom-color:var(--primary-color); font-weight:500; }
   .table-wrap { overflow-x:auto; }
-  .compact .pv-table { table-layout:fixed; }
-  .compact .pv-table th, .compact .pv-table td { white-space:normal; }
-  .compact .cell { min-width:0; box-sizing:border-box; }
+  .pv-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
+  .pv-list .cell { align-items:flex-start; min-width:0; box-sizing:border-box; padding:8px 10px; gap:2px;
+    border-color:var(--divider-color); text-align:left; }
+  .pv-list .pv-val { font-size:1.2em; }
   .pv-intro { margin:0 0 10px; }
   .pv-table { border-collapse:separate; border-spacing:0; width:100%; font-size:.9em; }
   .pv-table th, .pv-table td { padding:2px; text-align:center; white-space:nowrap; }
