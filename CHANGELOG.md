@@ -9,6 +9,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.0-alpha.4] - 2026-10-29
+
+A cleaner upgrade from 0.7: Chauffage keeps only its own devices (#57).
+
 ### Fixed
 
 - **A renamed thermostat no longer leaves its former device behind.** Chauffage keeps only its
@@ -835,7 +839,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-alpha.3...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-alpha.4...HEAD
+[0.8.0-alpha.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.4
 [0.8.0-alpha.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.3
 [0.8.0-alpha.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.2
 [0.8.0-alpha.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.1

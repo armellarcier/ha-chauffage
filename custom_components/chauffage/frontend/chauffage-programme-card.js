@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.8.0-alpha.3';
+const VERSION = '0.8.0-alpha.4';
 
 const DAY_MIN = 1440;
 
