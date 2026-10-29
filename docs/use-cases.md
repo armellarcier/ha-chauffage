@@ -237,6 +237,7 @@ are proved by the same tests, on the panel's page.
 | A thermostat's sheet shows its week in every schedule, under *Weeks*, each headed by the schedule's name (a link to its sheet), the active one marked | `C/panel.test.mjs` ("its week in every schedule") |
 | Copy a thermostat's week to another schedule from the week's heading on its sheet: the target week shows the copy at once, unsaved, and its own save bar asks to save it ("The *Normal* week copied here"); the source week asks for nothing | `C/panel.test.mjs` ("copying a week to another schedule") |
 | Copy a day in one schedule's week of a thermostat's sheet, then paste it in another schedule's week | `C/panel.test.mjs` ("a day copied in one schedule's week") |
+| A second copy replaces the first one, whatever week it comes from; only the day copied last stands out as copied | `C/panel.test.mjs` ("a second copy replaces the first one", "only the day copied last") |
 | Copy a week that has edits not saved yet: the target gets the week as shown, and the source keeps its own edits, still to save | `C/panel.test.mjs` ("a week with edits not saved yet") |
 | A week stacked on a thermostat's sheet has no foot (no legend, no copy list, no empty message line), no tabs and no chips; the hint is shown once above the weeks | `C/panel.test.mjs` ("no foot under a stacked week") |
 | A schedule's sheet and the dashboard card keep the card's list to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |

@@ -9,6 +9,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.0-alpha.3] - 2026-10-29
+
+Copy and paste between the weeks of a thermostat's page, and its presets side by side (#57).
+
 ### Changed
 
 - **A thermostat's page shows its presets side by side**, one item per preset: its name, its value
@@ -18,6 +22,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 - **A day copied in one week can be pasted in another week** of a thermostat's page in the
   Chauffage panel, or of another card. *Paste* stayed greyed out in a week drawn before the copy.
+- **A new copy replaces the one before it**, and only the day copied last stands out as copied,
+  in every week.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+No stored data is migrated.
 
 ## [0.8.0-alpha.2] - 2026-10-29
 
@@ -808,7 +819,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-alpha.2...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-alpha.3...HEAD
+[0.8.0-alpha.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.3
 [0.8.0-alpha.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.2
 [0.8.0-alpha.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.1
 [0.7.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.4

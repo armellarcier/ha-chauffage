@@ -376,6 +376,27 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(away._week('climate.salon')[0], normal._week('climate.salon')[0]);
     });
 
+    test('a second copy replaces the first one: the day pasted is the last one copied', () => {
+      // Regression (after alpha.2): a copy wrote back the day already copied, kept in the browser
+      const el = panel(setup(), '/thermostats/climate.salon');
+      const [normal, away, holiday] = weeks(el);
+      normal._action('copy-day', { climate: 'climate.salon', day: '0' });
+      holiday._action('copy-day', { climate: 'climate.salon', day: '0' });
+      away._openMenu('climate.salon', 0, 0, 0, 0);
+      assert.match(text($(away, '.menu [data-act="paste-day"]')), /\(Vacances\)/);
+      $(away, '.menu [data-act="paste-day"]').click();
+      assert.deepEqual(away._week('climate.salon')[0], holiday._week('climate.salon')[0]);
+    });
+
+    test('only the day copied last stands out as copied, whatever week it was copied in', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      const [normal, away, holiday] = weeks(el);
+      normal._action('copy-day', { climate: 'climate.salon', day: '0' });
+      holiday._action('copy-day', { climate: 'climate.salon', day: '0' });
+      for (const card of [normal, away, holiday]) card._render();
+      assert.deepEqual([normal, away, holiday].map((c) => $$(c, '.bar.clipsrc').length), [0, 0, 1]);
+    });
+
     test('copying a week to another schedule asks to save the target, never the source', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       const select = $(el, 'select.copy[data-copy-from="normal"]');

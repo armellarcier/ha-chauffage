@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.8.0-alpha.2';
+const VERSION = '0.8.0-alpha.3';
 
 const DAY_MIN = 1440;
 
@@ -1305,7 +1305,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._renderedDay = null;
     // Internal clipboard: { segs, label }, shared between cards through localStorage
     this._clip = null;
-    this._clipSrc = null; // { climate, schedule, day } of the copied row (highlight)
     this._menu = null; // { climate, day, top, right } open row menu
     this._multiSel = false; // "Plusieurs" mode: clicking a thermostat adds / removes it
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
@@ -1632,7 +1631,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._rows = this._grouped()
       ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(this._week(c)[d]).join(',')).join('|'))
       : order.map((d) => [d]);
-    for (const ref of [this._sel, this._menu, this._clipSrc]) if (ref) ref.day = this._rowOf(ref.day)[0];
+    for (const ref of [this._sel, this._menu]) if (ref) ref.day = this._rowOf(ref.day)[0];
   }
 
   // The days of the row a day is drawn in (the day alone before the first drawing)
@@ -1995,8 +1994,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
     const paused = this._source().paused(climate);
     const now = showNow && !paused ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
-    const cs = this._clipSrc;
-    const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && cs.day === d;
+    // The day copied last stands out, in whatever card it was copied (the copy is shared)
+    const clip = this._clip;
+    const cs = clip && clip.src;
+    const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && days.includes(cs.day);
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
     return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
@@ -3516,9 +3517,10 @@ class ChauffageProgrammeCard extends HTMLElement {
   _copyToClipboard(climate, day) {
     const segs = clone(this._week(climate)[day]);
     const label = `${this._name(climate)} · ${this._rowLabel(day, 'long')} (${this._scheduleName(this._schedule)})`;
-    this._clip = { segs, label };
-    this._clipSrc = { climate, schedule: this._schedule, day };
-    try { localStorage.setItem(LS_CLIP, JSON.stringify(this._clip)); } catch (e) { /* ignore */ }
+    // The new copy itself: reading `_clip` back would give the day copied before, still stored
+    const clip = { segs, label, src: { climate, schedule: this._schedule, day } };
+    this._clip = clip;
+    try { localStorage.setItem(LS_CLIP, JSON.stringify(clip)); } catch (e) { /* ignore */ }
     // Also copies as text to the system clipboard (when the browser allows it)
     try {
       if (navigator.clipboard) navigator.clipboard.writeText(`${label} : ${serializeDay(segs).join(', ')}`).catch(() => {});

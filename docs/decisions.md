@@ -591,7 +591,9 @@ older one, the older one says so.
 - **A day copied in one week can be pasted in any other week of the page**, for example from
   *Normal* to *Away* on a thermostat's sheet, or from one dashboard card to another. Every card
   reads the copied day when it is used, from this browser's storage. The alpha.2 read it once,
-  when the card was drawn: the other weeks of a sheet offered nothing to paste.
+  when the card was drawn: the other weeks of a sheet offered nothing to paste. A new copy
+  replaces the one before it, and only the day copied last stands out (dotted) in every card:
+  the place of the copied day is kept with the copy, not in the card that copied it.
 - **In the panel, the sheet's `group_days` wins** over the choice kept in the browser. The
   prototype first did the opposite, and the switch did nothing.
 - **A schedule's sheet shows every thermostat's week in this schedule.** It shows this schedule's
