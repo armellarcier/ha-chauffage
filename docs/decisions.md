@@ -464,6 +464,18 @@ older one, the older one says so.
 - **The device's *Visit* button opens the thermostat's sheet in the panel.** The device's
   `configuration_url` is `homeassistant://chauffage/thermostats/<climate>`.
 - **Forgetting a thermostat removes its device.**
+- **At setup, Chauffage keeps only its own devices**: the service device and one per scheduled
+  thermostat. A device of a thermostat renamed or forgotten while Home Assistant was stopped goes
+  (a rename reloads the integration, so a renamed thermostat's former device goes at once). So
+  does what 0.7 left on a thermostat's own device: before HA 2025.8, 0.7 attached its entities
+  through the thermostat's device, so HA listed Chauffage among the device's integrations; from HA
+  2026.8, HA split that into a device of Chauffage of its own, with the thermostat's identifiers.
+  A device that still holds an entity of Chauffage is never touched.
+- **Upgrading from 0.7 changes no stored data** (storage version 6 before and after). The
+  entities keep their ids, their names and their settings, and move to the new device. Checked on
+  a real upgrade of a development HA, from 0.7.0-beta.4 to 0.8.0-alpha.3. One visible change: an
+  entity of a thermostat without a device of its own is now named after the new device, for
+  example *Cuisine Pilotage* instead of *Pilotage Cuisine*.
 - **A thermostat without a device of its own also gets one**, for example a `generic_thermostat`
   written in YAML. Every scheduled thermostat works the same way. So the entity names "*X* of
   *thermostat*" (the `*_of` translation keys) and the Home Assistant version switch

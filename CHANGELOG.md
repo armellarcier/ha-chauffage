@@ -9,6 +9,22 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **A renamed thermostat no longer leaves its former device behind.** Chauffage keeps only its
+  own devices when it starts.
+- **Upgrading from 0.7 cleans the thermostat's own device.** On an installation that ran 0.7 on
+  Home Assistant before 2025.8, Chauffage stayed listed among the integrations of each
+  thermostat's device. From Home Assistant 2026.8, that became a duplicate device of the
+  thermostat, owned by Chauffage. Both go.
+
+### Upgrading
+
+Upgrading from 0.7 changes no stored data. The entities keep their ids, their names and their
+settings. An entity of a thermostat without a device of its own is now named after the new
+device, for example *Living room Control* instead of *Living room control*: rename it in Home
+Assistant if you prefer the former name.
+
 ## [0.8.0-alpha.3] - 2026-10-29
 
 Copy and paste between the weeks of a thermostat's page, and its presets side by side (#57).

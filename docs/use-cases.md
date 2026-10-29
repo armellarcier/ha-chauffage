@@ -204,6 +204,10 @@ are proved by the same tests, on the panel's page.
 | The thermostat's device page lists the scheduled thermostat's device under *Connected devices*, and our device shows *Connected via* the thermostat (by its id from HA 2026.10, by its identifiers before) | `I/test_devices.py::a_thermostat_with_a_device_of_its_own_*`, `::before_home_assistant_2026_10_*` |
 | An admin opens a thermostat's weeks from its device page, with *Visit* (`homeassistant://chauffage/thermostats/<climate>`) | `I/test_devices.py::the_device_s_visit_link_opens_the_thermostat_s_weeks_in_the_panel` |
 | A forgotten thermostat's device disappears with its entities | `I/test_devices.py::a_forgotten_thermostat_s_device_goes_with_its_entities` |
+| A renamed thermostat's device follows it: the device of its former id goes | `I/test_devices.py::a_renamed_thermostat_s_device_follows_it` |
+| Upgrading from 0.7 changes no stored data | `I/test_upgrade_to_0_8.py::the_stored_data_does_not_change` |
+| Upgrading from 0.7, the entities keep their ids, their names and their settings, on the new device | `I/test_upgrade_to_0_8.py::the_entities_keep_their_ids_names_and_settings_on_the_new_device` |
+| Upgrading from 0.7, Chauffage leaves the thermostat's own device: no longer among its integrations (before HA 2026.8), no device of Chauffage split from it (from 2026.8) | `I/test_upgrade_to_0_8.py::chauffage_leaves_the_integrations_of_the_thermostat_s_device` |
 
 ### The panel
 

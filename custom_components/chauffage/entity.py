@@ -159,6 +159,31 @@ def async_follow_thermostats(
 
 
 @callback
+def async_clean_devices(runtime: ChauffageRuntime) -> None:
+    """At setup, Chauffage keeps only its own devices: the service device and one per scheduled
+    thermostat. A device of a thermostat forgotten or renamed while Home Assistant was stopped
+    goes. So does what 0.7 left on a thermostat's own device: before HA 2025.8 it attached its
+    entities through the thermostat's device, so HA listed Chauffage among the device's
+    integrations; from HA 2026.8, HA split that into a device of Chauffage of its own. A device
+    that still holds an entity of Chauffage is left as it is."""
+    hass, entry_id = runtime.hass, runtime.entry.entry_id
+    devices, entities = dr.async_get(hass), er.async_get(hass)
+    keep = {(DOMAIN, entry_id)} | {scheduled_thermostat_identifier(runtime, c) for c in runtime.scheduled}
+    for device in dr.async_entries_for_config_entry(devices, entry_id):
+        if device.identifiers & keep:
+            continue
+        if any(e.platform == DOMAIN for e in er.async_entries_for_device(entities, device.id, include_disabled_entities=True)):
+            continue
+        try:
+            device.config_entry_id  # noqa: B018 - from HA 2026.8, a device has one integration
+        except AttributeError:
+            if len(device.config_entries) > 1:  # a thermostat's device, shared with its integration
+                devices.async_update_device(device.id, remove_config_entry_id=entry_id)
+                continue
+        devices.async_remove_device(device.id)
+
+
+@callback
 def _remove_device(runtime: ChauffageRuntime, climate: str) -> None:
     """A forgotten thermostat: its device goes with its entities."""
     device = device_by_identifier(runtime.hass, runtime.entry, scheduled_thermostat_identifier(runtime, climate))

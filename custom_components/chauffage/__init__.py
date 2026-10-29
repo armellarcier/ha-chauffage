@@ -16,7 +16,7 @@ from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from . import frontend, importer, model, services, websocket
+from . import entity, frontend, importer, model, services, websocket
 from .const import DEFAULT_SCHEDULES, DOMAIN, PLANNED_PRESET_KEY, SCHEDULE_ENTITY
 from .runtime import ChauffageRuntime
 from .store import ChauffageStore
@@ -60,6 +60,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     runtime = ChauffageRuntime(hass, entry, store, data, str(integration.version))
     entry.runtime_data = runtime
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entity.async_clean_devices(runtime)  # once the entities are on their devices
     await runtime.async_start()
     websocket.async_attach_subscribers(hass, runtime)  # cards open during a reload
 

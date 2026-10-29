@@ -115,6 +115,23 @@ async def test_entities_keep_their_ids_on_the_scheduled_thermostat_s_device(benc
     assert bench.hass.states.get("switch.salon_control").name == "Salon Control"
 
 
+async def test_a_renamed_thermostat_s_device_follows_it(bench: Bench):
+    """The device's identifier holds the climate's id: renamed, the thermostat gets the device of
+    its new id, and the device of its former id goes (no device left behind)."""
+    er.async_get(bench.hass).async_get_or_create("climate", "test", "salon", suggested_object_id="salon")
+    bench.thermostat("climate.salon", "eco", friendly_name="Salon")
+    await start(bench)
+    former = device_of(bench)
+    er.async_get(bench.hass).async_update_entity("climate.salon", new_entity_id="climate.sejour")
+    bench.hass.states.async_remove("climate.salon")
+    bench.thermostat("climate.sejour", "eco", friendly_name="Séjour")
+    await bench.hass.async_block_till_done()
+    devices = dr.async_get(bench.hass)
+    assert devices.async_get(former.id) is None
+    ours = [d for d in dr.async_entries_for_config_entry(devices, bench.entry.entry_id) if d.model == "Scheduled thermostat"]
+    assert [d.configuration_url for d in ours] == ["homeassistant://chauffage/thermostats/climate.sejour"]
+
+
 async def test_a_forgotten_thermostat_s_device_goes_with_its_entities(bench: Bench):
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await start(bench)
