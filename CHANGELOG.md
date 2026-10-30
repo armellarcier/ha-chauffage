@@ -9,20 +9,6 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
-### Fixed
-
-- **The card no longer shows "Configuration error" after a restart of Home Assistant** (#59).
-  Home Assistant serves its pages a few seconds before Chauffage is set up. A page opened in
-  that window, for example by the companion app, did not load the card until you reloaded it.
-  The dashboards now load the card as soon as Chauffage is ready. To do so, Chauffage adds a
-  resource of its own to the dashboards, which you can see in *Settings → Dashboards →
-  Resources*. Dashboards with resources in YAML don't get this resource.
-
-### Upgrading
-
-Nothing to do: update from HACS, restart Home Assistant and reload the page. No stored data is
-migrated.
-
 ## [0.7.0-beta.4] - 2026-10-28
 
 More width for the bars of the weeks when the card is narrow, for example in a column of a
