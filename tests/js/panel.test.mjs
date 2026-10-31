@@ -257,7 +257,7 @@ describe('the Chauffage panel', () => {
 
     test('keeps the card\'s list to copy a week, and marks today even when the schedule is not active', () => {
       const [card] = cards(panel(setup(), '/schedules/holiday'));
-      assert.ok($(card, 'select.copyweek'));
+      assert.ok($(card, '[data-act="copyweek-menu"]'));
       assert.notEqual($(card, '.foot').style.display, 'none');
       assert.equal($$(card, '.dgroup.today').length, 1);
     });
@@ -399,10 +399,12 @@ describe('the Chauffage panel', () => {
 
     test('copying a week to another schedule asks to save the target, never the source', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
-      const select = $(el, 'select.copy[data-copy-from="normal"]');
-      assert.deepEqual([...select.options].slice(1).map((o) => o.value), ['away', 'holiday']);
-      select.value = 'away';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
+      assert.equal($(el, 'select.copy'), null); // a menu, not a list that acts as soon as an option is picked
+      $(el, '[data-copy-menu="normal"]').click();
+      const items = $$(el, '.copy-menu.menu [data-copy-to]');
+      assert.deepEqual(items.map((i) => i.dataset.copyTo), ['away', 'holiday']);
+      items[0].click();
+      assert.equal($(el, '.copy-menu'), null);
       const [normal, away, holiday] = weeks(el);
       assert.ok(!normal._dirty && !holiday._dirty);
       assert.ok(away._dirty);
@@ -411,15 +413,25 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(away._week('climate.salon'), normal._week('climate.salon'));
     });
 
+    test('the menu to copy a week closes with a click elsewhere or Escape, copying nothing', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      $(el, '[data-copy-menu="normal"]').click();
+      $(el, '.hint').click();
+      assert.equal($(el, '.copy-menu'), null);
+      $(el, '[data-copy-menu="normal"]').click();
+      document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+      assert.equal($(el, '.copy-menu'), null);
+      assert.ok(weeks(el).every((card) => !card._dirty));
+    });
+
     test('a week with edits not saved yet is copied as shown, and keeps its own edits', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       const [normal, away] = weeks(el);
       normal._data['climate.salon'] = { ...(normal._data['climate.salon'] || {}), normal: Array(7).fill([{ start: 0, preset: 'boost' }]) };
       normal._dirty = true;
       const shown = normal._week('climate.salon');
-      const select = $(el, 'select.copy[data-copy-from="normal"]');
-      select.value = 'away';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
+      $(el, '[data-copy-menu="normal"]').click();
+      $(el, '.copy-menu [data-copy-to="away"]').click();
       assert.deepEqual(away._week('climate.salon'), shown);
       assert.ok(normal._dirty, 'the source keeps its edits, still to save');
     });

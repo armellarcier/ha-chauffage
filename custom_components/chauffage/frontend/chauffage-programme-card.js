@@ -1664,8 +1664,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell && !this._thMore) return;
+      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell && !this._thMore && !this._copyWeekMenu) return;
       this._menu = null;
+      this._copyWeekMenu = null;
       this._thMore = null;
       this._forgetAsk = null;
       this._cell = null;
@@ -2530,15 +2531,17 @@ class ChauffageProgrammeCard extends HTMLElement {
         return `<span><i style="background:${l.color}"></i>${esc(l.name)}${t != null ? ` ${this._loc.number(t)}°` : esc(hint)}</span>`;
       })
       .join('') + this._settingsLinkHtml();
-    const copyWeek = this._thermostats
-      .map((t) => {
-        const opts = schedules
+    // Copying the week of the thermostat shown to another thermostat or schedule: a menu, as the
+    // day's ⋮, opening upwards from the foot of the card
+    const cw = this._copyWeekMenu;
+    const copyWeekMenu = !cw ? '' : `<div class="menu copyweek-menu" style="bottom:${cw.bottom}px;right:${cw.right}px">${
+      this._thermostats.map((t) => {
+        const items = schedules
           .filter((m) => !(t.entity === focus && m === this._schedule))
-          .map((m) => `<option value="${esc(t.entity)}|${esc(m)}">${esc(this._name(t.entity))} · ${esc(this._scheduleName(m))}</option>`)
+          .map((m) => `<button class="mi" data-act="copy-week" data-climate="${esc(t.entity)}" data-schedule="${esc(m)}"><span>${esc(this._scheduleName(m))}</span></button>`)
           .join('');
-        return `<optgroup label="${esc(this._name(t.entity))}">${opts}</optgroup>`;
-      })
-      .join('');
+        return items ? `<div class="mh">${esc(this._name(t.entity))}</div>${items}` : '';
+      }).join('')}</div>`;
 
     fill(`
         
@@ -2564,9 +2567,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         <div class="foot"${this._config.legend === false && this._config.copy_week === false ? ' style="display:none"' : ''}>
           <div class="legend">${this._config.legend === false ? '' : legend}</div>
           <div class="actions"${this._config.copy_week === false ? ' style="display:none"' : ''}>
-            <select class="copyweek" title="${esc(tr('copyWeekTo', { name: this._name(focus) }))}">
-              <option value="">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</option>${copyWeek}
-            </select>
+            <button class="btn copyweek${cw ? ' on' : ''}" data-act="copyweek-menu">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</button>
+            ${copyWeekMenu}
           </div>
         </div>
         <div class="msg">${esc(this._msg)}</div>
@@ -2768,6 +2770,12 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._render();
         return;
       }
+      // The menu to copy the week open: a click elsewhere only closes it
+      if (this._copyWeekMenu && !e.target.closest('.copyweek-menu, [data-act="copyweek-menu"]')) {
+        this._copyWeekMenu = null;
+        this._render();
+        return;
+      }
       // A thermostat's menu open (Thermostats page): a click elsewhere only closes it
       if (this._thMore && !e.target.closest('.th-menu, [data-act="thermostat-more"]')) {
         this._thMore = null;
@@ -2922,8 +2930,6 @@ class ChauffageProgrammeCard extends HTMLElement {
         // Picking one of the thermostat's presets means "use a thermostat preset"
         const radio = root.querySelector('input[name="cell-kind"][value="preset"]');
         if (radio) radio.checked = true;
-      } else if (el.classList.contains('copyweek')) {
-        this._copyWeek(el.value);
       } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), Number(el.value)));
@@ -3713,6 +3719,16 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _action(act, ds, el) {
+    if (act === 'copyweek-menu') {
+      const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
+      const b = el.getBoundingClientRect();
+      this._copyWeekMenu = this._copyWeekMenu ? null : { bottom: card.bottom - b.top + 4, right: card.right - b.right };
+      return this._render();
+    }
+    if (act === 'copy-week') {
+      this._copyWeekMenu = null;
+      return this._copyWeek(`${ds.climate}|${ds.schedule}`);
+    }
     if (act === 'menu') {
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
       const b = el.getBoundingClientRect();
@@ -4090,8 +4106,8 @@ const STYLE = `
   .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.85em; color:var(--secondary-text-color); }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
   .actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-  .copyweek { padding:6px 8px; border-radius:8px; border:1px solid var(--divider-color);
-    background:var(--card-background-color); max-width:260px; }
+  .copyweek { max-width:260px; text-align:left; }
+  .copyweek-menu { max-height:60vh; overflow-y:auto; }
   .msg { min-height:1.2em; margin-top:6px; font-size:.85em; color:var(--secondary-text-color); text-align:right; }
   ha-card.flat .msg:empty { min-height:0; margin:0; }
   .dirty { color:var(--warning-color,#ff9800); }
@@ -5114,8 +5130,6 @@ class ChauffagePanel extends HTMLElement {
     } catch (e) { /* ignore */ }
     this._picked = new Set(); // the welcome: the thermostats ticked
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
-    // A thermostat's sheet: its week in schedule A copied to schedule B lands in B's card, which
-    // asks to save B. A is not touched, even with edits not saved yet (they are copied as shown).
     this.shadowRoot.addEventListener('change', (e) => {
       const box = e.target.closest('[data-pick]');
       if (box) {
@@ -5124,14 +5138,14 @@ class ChauffagePanel extends HTMLElement {
         this._update();
         return;
       }
-      const select = e.target.closest('[data-copy-from]');
-      if (!select || !select.value) return;
-      const route = panelRoute(this._route && this._route.path, dataSource(this._hass), this._hass);
-      const from = this._weekCards && this._weekCards[select.dataset.copyFrom];
-      const to = this._weekCards && this._weekCards[select.value];
-      if (from && to) to._receiveWeek(route.id, from._week(route.id), from._scheduleName(from._schedule));
-      select.value = '';
     });
+    // Escape closes the menu to copy a week, as the card's menus
+    this._onKey = (e) => {
+      if (e.key === 'Escape' && this._copyMenu) {
+        this._copyMenu = null;
+        this._update();
+      }
+    };
   }
 
   // Set by Home Assistant: hass, the panel (its title), the route (the page), narrow
@@ -5165,12 +5179,14 @@ class ChauffagePanel extends HTMLElement {
       INTEGRATION.connect(this._hass);
       this._unlisten = INTEGRATION.listen(() => this._update());
     }
+    document.addEventListener('keydown', this._onKey);
     this._update();
   }
 
   disconnectedCallback() {
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
+    document.removeEventListener('keydown', this._onKey);
   }
 
   get _t() {
@@ -5326,14 +5342,14 @@ class ChauffagePanel extends HTMLElement {
           <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
           <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li></ul></div>` : '';
     }
-    // A week's heading: its schedule (a link to its sheet), and copying it to another schedule
+    // A week's heading: its schedule (a link to its sheet), and its ⋮ menu to copy it to another
+    // schedule, as the card's menus
     for (const h of this.shadowRoot.querySelectorAll('[data-fill-schedule]')) {
       const id = h.dataset.fillSchedule;
       const others = src.schedules().filter((m) => m !== id);
-      const copy = others.length ? `<select class="copy" data-copy-from="${esc(id)}" aria-label="${esc(t('copyTo'))}">
-          <option value="">${esc(t('copyTo'))}</option>
-          ${others.map((m) => `<option value="${esc(m)}">${esc(src.scheduleName(m))}</option>`).join('')}
-        </select>` : '';
+      const menu = this._copyMenu === id ? `<div class="menu copy-menu"><div class="mh">${esc(t('copyTo'))}</div>${
+        others.map((m) => `<button class="mi" data-copy-to="${esc(m)}"><span>${esc(src.scheduleName(m))}</span></button>`).join('')}</div>` : '';
+      const copy = others.length ? `<button class="btn icon${menu ? ' on' : ''}" data-copy-menu="${esc(id)}" title="${esc(t('copyTo'))}" aria-label="${esc(t('copyTo'))}">⋮</button>${menu}` : '';
       h.innerHTML = `<span role="link" tabindex="0" data-page="schedules/${esc(id)}">${esc(src.scheduleName(id))}</span>${
         id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}<span class="grow"></span>${copy}`;
     }
@@ -5404,7 +5420,13 @@ class ChauffagePanel extends HTMLElement {
   }
 
   async _onClick(e) {
-    const el = e.target.closest('[data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
+    // The menu to copy a week open: a click elsewhere only closes it
+    if (this._copyMenu && !e.target.closest('.copy-menu, [data-copy-menu]')) {
+      this._copyMenu = null;
+      this._update();
+      return;
+    }
+    const el = e.target.closest('[data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -5412,6 +5434,19 @@ class ChauffagePanel extends HTMLElement {
     const route = panelRoute(this._route && this._route.path, src, this._hass);
     this._error = null;
     try {
+      if (ds.copyMenu) {
+        this._copyMenu = this._copyMenu === ds.copyMenu ? null : ds.copyMenu;
+        return this._update();
+      }
+      if (ds.copyTo) {
+        // Its week in schedule A copied to schedule B lands in B's card, which asks to save B. A is
+        // not touched, even with edits not saved yet (they are copied as shown)
+        const from = this._weekCards && this._weekCards[this._copyMenu];
+        const to = this._weekCards && this._weekCards[ds.copyTo];
+        this._copyMenu = null;
+        if (from && to) to._receiveWeek(route.id, from._week(route.id), from._scheduleName(from._schedule));
+        return this._update();
+      }
       if (ds.page != null) return openPanel(ds.page);
       if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
       if (ds.navigate) return navigate(ds.navigate);
@@ -5564,8 +5599,15 @@ const PANEL_CSS = `
   .sheet .h2-row h2 { margin:0; }
   .sheet .hint { margin:4px 0 0; }
   .sheet h3 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .copy { min-height:30px; padding:2px 8px; border:1px solid var(--divider-color); border-radius:8px; font:inherit;
-    font-size:13px; font-weight:normal; background:var(--card-background-color); color:var(--primary-text-color); }
+  .sheet h3 { position:relative; }
+  .menu { position:absolute; top:100%; right:0; z-index:10; min-width:200px; padding:6px 0; border-radius:10px;
+    background:var(--card-background-color); border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25); }
+  .mh { padding:4px 14px 6px; font-size:12px; color:var(--secondary-text-color); }
+  .mi { display:block; width:100%; padding:8px 14px; border:0; background:transparent; text-align:left; cursor:pointer;
+    font:inherit; font-size:14px; font-weight:normal; color:var(--primary-text-color); }
+  .mi:hover { background:var(--secondary-background-color); }
+  .btn.icon { min-width:32px; padding:4px 8px; }
+  .btn.icon.on { border-color:var(--primary-color); color:var(--primary-color); }
   .h2-row { display:flex; align-items:center; gap:12px; margin-right:8px; }
   .h2-row h2 { flex:1; }
   .chip { border:1px solid var(--divider-color); border-radius:16px; padding:4px 12px; background:transparent;

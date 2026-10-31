@@ -131,7 +131,7 @@ Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, p
   renomme ou supprime le planning.
 - **La page d'un thermostat** montre le thermostat, si Chauffage le pilote, et ses appareils.
   En dessous, ses préréglages servent de légende à ses semaines, une semaine par planning.
-  *Copier vers…* copie une semaine vers un autre planning. *Grouper les jours* regroupe les jours
+  Le menu ⋮ d’une semaine la copie vers un autre planning. *Grouper les jours* regroupe les jours
   identiques de toutes les semaines, et *Historique* trace la température mesurée sur les 7
   derniers jours.
 

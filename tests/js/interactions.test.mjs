@@ -496,13 +496,27 @@ describe('editing a slot', () => {
 });
 
 describe('copying a week', () => {
-  test('to another thermostat and schedule', () => {
+  test('to another thermostat and schedule, from a menu: a list would act as soon as an option is picked', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    const select = $(card, '.copyweek');
-    select.value = 'climate.bureau|away';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.equal($(card, 'select.copyweek'), null);
+    $(card, '[data-act="copyweek-menu"]').click();
+    const menu = $(card, '.copyweek-menu');
+    assert.ok(menu.classList.contains('menu'));
+    menu.querySelector('[data-act="copy-week"][data-climate="climate.bureau"][data-schedule="away"]').click();
+    assert.equal($(card, '.copyweek-menu'), null);
     assert.deepEqual(day(card, 'climate.bureau', 0, 'away'), WEEKDAY);
     assert.equal(card._dirty, true);
+  });
+
+  test('its menu closes with a click elsewhere or Escape, copying nothing', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    $(card, '[data-act="copyweek-menu"]').click();
+    $(card, '.legend').click();
+    assert.equal($(card, '.copyweek-menu'), null);
+    $(card, '[data-act="copyweek-menu"]').click();
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal($(card, '.copyweek-menu'), null);
+    assert.equal(card._dirty, false);
   });
 });
 

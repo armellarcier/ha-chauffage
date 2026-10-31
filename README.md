@@ -125,8 +125,8 @@ A schedule or a thermostat opens on a page of its own. The title of the page, fo
 - **A schedule's page** shows every thermostat's week in this schedule. Its ⋮ menu renames
   or deletes the schedule.
 - **A thermostat's page** shows the thermostat, whether Chauffage controls it, and its devices.
-  Below, its presets serve as the legend of its weeks, one week for each schedule. *Copy to…*
-  copies a week to another schedule. *Group days* groups the identical days of every week, and
+  Below, its presets serve as the legend of its weeks, one week for each schedule. The ⋮ of a
+  week copies it to another schedule. *Group days* groups the identical days of every week, and
   *History* draws the temperature measured over the last 7 days.
 
 ### Open a thermostat's page
