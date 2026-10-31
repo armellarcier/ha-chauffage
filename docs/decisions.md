@@ -437,13 +437,19 @@ dashboards, automations, scripts and by voice without the card
     field has the focus, so that the redraw waits instead of replacing the field being typed in.
   - **The small arrows and the arrow keys**, like those of `<input type="time">`. The small
     arrows move the time by the step, and are out of the Tab order. The arrow keys move the
-    hours by an hour, the minutes by the step, and AM / PM by 12 hours.
+    hours by an hour, the minutes by the step, and AM / PM by 12 hours. The hours and the minutes
+    are the first two groups of digits, because the separator depends on the language: "08:30",
+    "08.30" in Finnish.
+  - **A time field is as wide as the longest time of the profile's format**, for example
+    "10:45 PM" or "10:45 p. m.". A fixed width would cut the longer formats, or push the
+    popover's close button to a second row with the shorter ones.
   - **The end of an override is typed to the minute**: it needs no step, unlike the slots.
   - **The arrows move the end of an override by as much**, not to the next time it is that
     time of day: an end moved before now would jump to tomorrow, and an end in three days would
     come back within a day. A time typed is still the next time it is that time.
   - **On a 12 h clock, a time typed without AM / PM keeps the period of the field**: "0715" in
-    a field at "06:00 PM" means 7:15 PM.
+    a field at "06:00 PM" means 7:15 PM. Except 12, which is noon: "1230" in a morning field
+    means half past noon, not half past midnight.
 
 ## Process
 

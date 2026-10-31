@@ -9,6 +9,17 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **The time fields are narrower**, so the close button of a slot's popover stays on the same
+  row as the times. Each field is as wide as the times of your profile's format.
+- **On a 12 h clock, 12 typed without AM or PM is noon.** Before, "1230" typed in a morning
+  field gave 12:30 AM, just after midnight.
+- **↑ on AM or PM moves the end of an override 12 hours later.** Before, the end moved 12 hours
+  earlier.
+- **↑ and ↓ move the hours in every language.** Before, in a language that writes "08.30", for
+  example Finnish, the arrow keys always moved the minutes.
+
 ## [0.7.0-beta.5] - 2026-10-31
 
 The time fields of the card follow the time format of your profile, and you type a time as

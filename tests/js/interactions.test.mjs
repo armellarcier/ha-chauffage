@@ -320,6 +320,26 @@ describe('dragging the end of an override', () => {
     assert.equal(sentEnd(hass), '2026-10-12T10:00:00.000Z');
   });
 
+  test('on a 12 h clock, ↑ on AM moves the end 12 hours later', () => {
+    const locale = { language: 'en-US', time_format: '12', number_format: 'language', first_weekday: 'language' };
+    const hass = fakeHass({ locale, overrides: { 'climate.salon': override } });
+    const field = moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]'); // 11:30 AM
+    field.focus();
+    field.setSelectionRange(6, 6);
+    pressKey(field, 'ArrowUp');
+    field.blur();
+    assert.equal(sentEnd(hass), '2026-10-12T21:30:00.000Z'); // 11:30 PM today
+  });
+
+  test('two quick taps on a small arrow move the end by two steps', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    popoverEnd(card);
+    $(card, '.override-ed .time-step[data-time-step="1"]').click();
+    $(card, '.override-ed .time-step[data-time-step="1"]').click(); // before the new end comes back
+    assert.equal(sentEnd(hass), '2026-10-12T10:00:00.000Z'); // 12:00
+  });
+
   test('the small arrows move the end by the step, at once', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });

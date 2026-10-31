@@ -653,8 +653,11 @@ const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 function timeField(attr, minutes, loc, step) {
   // Out of the Tab order: the arrow keys do the same from the field
   const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}">${icon}</button>`;
+  // As wide as the longest time of the profile's format ("10:45 PM", "10:45 p. m."), counting a
+  // character of Chinese or Japanese as two
+  const width = [...loc.time(22 * 60 + 45)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
   // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
-  return `<span class="time-field"><input type="text" class="time${loc.hour12 ? ' h12' : ''}" inputmode="numeric"
+  return `<span class="time-field"><input type="text" class="time" style="width:calc(${width}ch + 2px)" inputmode="numeric"
     autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}" value="${esc(loc.time(minutes))}"><span
     class="time-spin">${button(1, ICON_UP, loc.t('later', { duration: durationText(step, loc) }))}${button(-1, ICON_DOWN, loc.t('earlier', { duration: durationText(step, loc) }))}</span></span>`;
 }
@@ -686,43 +689,45 @@ function parseTime(text, periods = []) {
 }
 
 // The time typed in a time field, in minutes since midnight; null if it is not a time. On a 12 h
-// clock, a time from 1 to 12 typed without AM / PM keeps the period the field had.
+// clock, a time from 1 to 11 typed without AM / PM keeps the period the field had, and 12 is noon.
 function typedTime(el, loc) {
   const t = parseTime(el.value, loc.periods);
   if (!t) return null;
-  const keep = loc.hour12 && t.h >= 1 && t.h <= 12 ? Number(el.dataset.minutes) >= 12 * 60 : null;
+  const keep = loc.hour12 && t.h >= 1 && t.h <= 12 ? t.h === 12 || Number(el.dataset.minutes) >= 12 * 60 : null;
   const pm = t.pm ?? keep;
   return (pm === null ? t.h : (t.h % 12) + (pm ? 12 : 0)) * 60 + t.m;
 }
 
-// A time moved by `delta` minutes, onto the multiples of `grid` (11:47 + 15 min: 12:00)
-const moveTime = (m, delta, grid = 1) =>
-  ((((delta > 0 ? Math.floor(m / grid) : Math.ceil(m / grid)) * grid + delta) % DAY_MIN) + DAY_MIN) % DAY_MIN;
+// How far a time moves for a move of `delta` minutes onto the multiples of `grid`
+// (11:47 + 15 min: + 13 min, to 12:00)
+const moveBy = (m, delta, grid = 1) => (delta > 0 ? Math.floor(m / grid) : Math.ceil(m / grid)) * grid + delta - m;
 
-// The time of a field moved by its arrows: `move(minutes, step)` gives the new time. The field
-// keeps how far its arrows moved it (`moved`, in minutes), for the end of an override. False if
-// the field holds no time.
+// The time of a field moved by its arrows: `move(minutes, step)` gives how far. The field keeps
+// how far its arrows moved it (`moved`, in minutes), for the end of an override. False if the
+// field holds no time.
 function moveFieldTime(el, loc, move) {
   const m = typedTime(el, loc);
   if (m === null) return false;
-  const moved = move(m, Number(el.dataset.step));
-  el.dataset.moved = Number(el.dataset.moved || 0) + ((moved - m + DAY_MIN * 1.5) % DAY_MIN) - DAY_MIN / 2;
-  el.value = loc.time(moved);
+  const by = move(m, Number(el.dataset.step));
+  el.dataset.moved = Number(el.dataset.moved || 0) + by;
+  el.value = loc.time((((m + by) % DAY_MIN) + DAY_MIN) % DAY_MIN);
   return true;
 }
 
-// ↑ / ↓ in a time field: on the hours (before ":"), an hour; on the minutes, the field's step;
-// after them (AM / PM), 12 hours
+// ↑ / ↓ in a time field: on the hours, an hour; on the minutes, the field's step; elsewhere on a
+// 12 h clock (AM / PM), 12 hours. The hours and minutes are the first two groups of digits, as the
+// separator depends on the language ("08:30", "08.30", "08 h 30").
 function arrowInTimeField(e, loc) {
   const el = e.target;
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
   const pos = el.selectionStart || 0;
-  const colon = el.value.indexOf(':');
+  const [hours, minutes] = [...el.value.matchAll(/\d+/g)].map((r) => [r.index, r.index + r[0].length]);
+  const on = (part) => part && pos >= part[0] && pos <= part[1];
   const dir = e.key === 'ArrowUp' ? 1 : -1;
   const move = (m, step) => {
-    if (colon >= 0 && pos <= colon) return moveTime(m, 60 * dir);
-    if (colon >= 0 && pos > colon + 3) return moveTime(m, 12 * 60 * dir);
-    return moveTime(m, step * dir, step);
+    if (on(hours)) return 60 * dir;
+    if (loc.hour12 && !on(minutes)) return 12 * 60 * dir;
+    return moveBy(m, step * dir, step);
   };
   if (!moveFieldTime(el, loc, move)) return;
   e.preventDefault();
@@ -778,7 +783,7 @@ function listenTimeFields(host, done) {
     if (!button) return;
     const el = button.closest('.time-field').querySelector('input.time');
     const dir = Number(button.dataset.timeStep);
-    if (!moveFieldTime(el, host._loc, (m, step) => moveTime(m, step * dir, step))) return;
+    if (!moveFieldTime(el, host._loc, (m, step) => moveBy(m, step * dir, step))) return;
     if (root.activeElement === el) el.blur(); // applied by its focusout
     else done(el);
   });
@@ -3527,8 +3532,7 @@ const LINK_STYLE = `
 // A time field and its small arrows (the card's popovers, the more-info block). Each arrow takes
 // a finger a few pixels beyond its edge, away from the other arrow.
 const TIME_FIELD_STYLE = `
-  input.time { width:5.5ch; font-variant-numeric:tabular-nums; }
-  input.time.h12 { width:8ch; }
+  input.time { font-variant-numeric:tabular-nums; }
   .time-field { display:inline-flex; align-items:stretch; vertical-align:middle; }
   .time-field input.time { border-radius:6px 0 0 6px; }
   .time-spin { display:flex; flex-direction:column; }

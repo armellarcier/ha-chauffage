@@ -203,6 +203,27 @@ describe('the time fields follow the profile\'s time format', () => {
     assert.match(end.value, time12('8:30 PM'));
   });
 
+  test('on a 12 h clock, 12 typed without AM / PM is noon', () => {
+    const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
+    typeTime(slotEnd(card), '1230'); // in an 8:30 AM field
+    assert.equal(serializeDay(card._week('climate.salon')[0])[2], '12:30 eco');
+  });
+
+  test('in a language that writes 08.30, ↑ on the hours moves an hour', () => {
+    const card = createCard(fakeHass({ locale: { ...english('24'), language: 'fi' } }), { show: ['climate.salon'] });
+    const end = slotEnd(card);
+    assert.equal(end.value, '08.30');
+    end.focus();
+    end.setSelectionRange(1, 1);
+    pressKey(end, 'ArrowUp');
+    assert.equal(end.value, '09.30');
+  });
+
+  test('a time field is as wide as the times of the profile\'s format', () => {
+    const width = (language) => Number(/(\d+)ch/.exec(slotEnd(createCard(fakeHass({ locale: { ...english('12'), language } }), { show: ['climate.salon'] })).style.width)[1]);
+    assert.ok(width('es-US') > width('en-US'), '"10:45 p. m." is longer than "10:45 PM"');
+  });
+
   test('on a 12 h clock, the field opens the number keypad too', () => {
     const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
     assert.equal(slotEnd(card).inputMode, 'numeric');
