@@ -13,7 +13,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 The first beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57). This
 beta gathers 0.8.0-alpha.1 to 0.8.0-alpha.4, below. It also holds everything in 0.7.0, for
-example the time fields in your profile's format. **Does not migrate stored data.**
+example the time fields in your profile's format. **You can upgrade from 0.7 directly**: the
+stored data keeps the format of 0.7.
 
 ### Highlights
 
@@ -28,8 +29,10 @@ example the time fields in your profile's format. **Does not migrate stored data
 ### Upgrading
 
 Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
-Your schedules, weeks, presets and overrides stay as they are.
 
+- **Your schedules, weeks, presets, overrides and rules stay as they are.** The stored data of
+  0.7 needs no migration. From 0.6, Chauffage migrates the stored data at start, as 0.7 does.
+- **Chauffage creates the new devices at start**, and moves its entities to them.
 - **The entities keep their ids**, so your dashboards and automations that use them keep working.
 - **An automation that targets the thermostat's device no longer finds Chauffage's entities.**
   Target the scheduled thermostat's device, or the entities, instead.
