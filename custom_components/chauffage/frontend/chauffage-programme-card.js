@@ -147,6 +147,10 @@ const I18N = {
     cancel: 'Cancel',
     save: 'Save',
     unsavedWeeks: 'Not saved: {schedules}',
+    leaveUnsaved: 'The weeks of {schedules} are not saved yet.',
+    leaveStay: 'Stay',
+    leaveDiscard: 'Leave without saving',
+    leaveSave: 'Save and leave',
     unsaved: 'Unsaved changes',
     destinations: { weekdays: 'Mon–Fri', weekend: 'Sat–Sun', all: 'every day', others: 'the other thermostats' },
     dayCopiedTo: '{name} · {day} copied to {destination}',
@@ -362,6 +366,10 @@ const I18N = {
     cancel: 'Annuler',
     save: 'Enregistrer',
     unsavedWeeks: 'Non enregistré : {schedules}',
+    leaveUnsaved: 'Les semaines de {schedules} ne sont pas enregistrées.',
+    leaveStay: 'Rester',
+    leaveDiscard: 'Quitter sans enregistrer',
+    leaveSave: 'Enregistrer et quitter',
     unsaved: 'Modifications non enregistrées',
     destinations: { weekdays: 'Lun–Ven', weekend: 'Sam–Dim', all: 'tous les jours', others: 'les autres thermostats' },
     dayCopiedTo: '{name} · {day} copié vers {destination}',
@@ -5190,6 +5198,12 @@ class ChauffagePanel extends HTMLElement {
         return;
       }
     });
+    // Closing or reloading the browser's page with weeks not saved yet: the browser asks
+    this._onUnload = (e) => {
+      if (!this._dirtyWeeks().length) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
     // Escape closes the menu to copy a week, as the card's menus
     this._onKey = (e) => {
       if (e.key === 'Escape' && this._copyMenu) {
@@ -5231,6 +5245,7 @@ class ChauffagePanel extends HTMLElement {
       this._unlisten = INTEGRATION.listen(() => this._update());
     }
     document.addEventListener('keydown', this._onKey);
+    window.addEventListener('beforeunload', this._onUnload);
     this._update();
   }
 
@@ -5238,6 +5253,7 @@ class ChauffagePanel extends HTMLElement {
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
     document.removeEventListener('keydown', this._onKey);
+    window.removeEventListener('beforeunload', this._onUnload);
   }
 
   get _t() {
@@ -5421,14 +5437,36 @@ class ChauffagePanel extends HTMLElement {
     if (!slot) return;
     const t = this._t;
     const dirty = this._dirtyWeeks();
-    if (!dirty.length) { slot.innerHTML = ''; this._saveError = null; return; }
+    if (!dirty.length) { slot.innerHTML = ''; this._saveError = null; this._leave = null; return; }
     const names = dirty.map(([, card]) => card._scheduleName(card._schedule)).join(', ');
+    if (this._leave) {
+      slot.innerHTML = `<div class="sheet-savebar leaving">
+        <span class="dirty">${esc(t('leaveUnsaved', { schedules: names }))}</span>
+        <span class="btns"><button class="btn" data-leave-stay>${esc(t('leaveStay'))}</button>
+        <button class="btn" data-leave-discard>${esc(t('leaveDiscard'))}</button>
+        <button class="btn primary" data-leave-save>${esc(t('leaveSave'))}</button></span>
+      </div>`;
+      return;
+    }
     slot.innerHTML = `<div class="sheet-savebar">
         <span class="dirty">${esc(t('unsavedWeeks', { schedules: names }))}</span>
         ${this._saveError ? `<span class="error">${esc(this._saveError)}</span>` : ''}
         <span class="btns"><button class="btn" data-sheet-cancel>${esc(t('cancel'))}</button>
         <button class="btn primary" data-sheet-save>${esc(t('save'))}</button></span>
       </div>`;
+  }
+
+  // Cancel: every week goes back as it was saved
+  _discardSheet() {
+    for (const card of this._dirtyWeeks().map(([, c]) => c)) {
+      card._dirty = false;
+      card._sel = null;
+      card._msg = '';
+      card._load();
+      card._render();
+    }
+    this._saveError = null;
+    this._fillSavebar();
   }
 
   // Saves the weeks not saved yet in one call: each card sends its own schedule's week, against
@@ -5531,7 +5569,7 @@ class ChauffagePanel extends HTMLElement {
       this._update();
       return;
     }
-    const el = e.target.closest('[data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
+    const el = e.target.closest('[data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -5540,15 +5578,26 @@ class ChauffagePanel extends HTMLElement {
     this._error = null;
     try {
       if ('sheetSave' in ds) return this._saveSheet(route.id);
-      if ('sheetCancel' in ds) {
-        for (const card of this._dirtyWeeks().map(([, c]) => c)) {
-          card._dirty = false;
-          card._sel = null;
-          card._msg = '';
-          card._load();
-          card._render();
-        }
-        this._saveError = null;
+      if ('sheetCancel' in ds) return this._discardSheet();
+      // Leaving the sheet with weeks not saved yet: the save bar asks first
+      if ('leaveStay' in ds) {
+        this._leave = null;
+        return this._fillSavebar();
+      }
+      if ('leaveDiscard' in ds || 'leaveSave' in ds) {
+        const leave = this._leave;
+        this._leave = null;
+        if ('leaveSave' in ds) await this._saveSheet(route.id);
+        else this._discardSheet();
+        if (!this._dirtyWeeks().length && leave) leave();
+        return;
+      }
+      if ((ds.page != null || ds.navigate || ds.device) && this._dirtyWeeks().length) {
+        this._leave = () => {
+          if (ds.page != null) openPanel(ds.page);
+          else if (ds.navigate) navigate(ds.navigate);
+          else openDevice(ds.device);
+        };
         return this._fillSavebar();
       }
       if (ds.copyMenu) {
@@ -5722,6 +5771,7 @@ const PANEL_CSS = `
     background:var(--card-background-color); box-shadow:0 -4px 12px rgba(0,0,0,.2); }
   .sheet-savebar .dirty { margin-right:auto; font-size:14px; }
   .sheet-savebar .btns { display:flex; gap:8px; margin-left:auto; }
+  .sheet-savebar.leaving { outline:2px solid var(--warning-color, #ffa600); }
   .sheet-savebar .error { flex-basis:100%; order:-1; font-size:13px; color:var(--error-color, #db4437); }
   .sheet h3 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .sheet h3 { position:relative; }

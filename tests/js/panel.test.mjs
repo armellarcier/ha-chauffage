@@ -458,6 +458,65 @@ describe('the Chauffage panel', () => {
       assert.ok(weeks(el)[1]._dirty);
     });
 
+    describe('leaving the sheet with weeks not saved yet', () => {
+      const edited = (hass) => {
+        const el = panel(hass, '/thermostats/climate.salon');
+        $(el, '[data-copy-menu="normal"]').click();
+        $(el, '.copy-menu [data-copy-to="away"]').click();
+        return el;
+      };
+      const saves = (hass) => hass.events.filter((m) => m.type === 'chauffage/weeks/save').length;
+
+      test('a link does not leave at once: the save bar asks first', () => {
+        const hass = setup();
+        const el = edited(hass);
+        const before = window.location.pathname;
+        $(el, '.crumbs [data-page="thermostats"]').click();
+        assert.equal(window.location.pathname, before);
+        assert.match(text($(el, '.sheet-savebar')), /pas enregistrées/);
+      });
+
+      test('Stay keeps the edits and the page', () => {
+        const el = edited(setup());
+        const before = window.location.pathname;
+        $(el, '.crumbs [data-page="thermostats"]').click();
+        $(el, '.sheet-savebar [data-leave-stay]').click();
+        assert.equal(window.location.pathname, before);
+        assert.ok(weeks(el)[1]._dirty);
+        assert.doesNotMatch(text($(el, '.sheet-savebar')), /pas enregistrées/);
+      });
+
+      test('Leave drops the edits, then follows the link', () => {
+        const hass = setup();
+        const el = edited(hass);
+        $(el, '.crumbs [data-page="thermostats"]').click();
+        $(el, '.sheet-savebar [data-leave-discard]').click();
+        assert.equal(window.location.pathname, '/chauffage/thermostats');
+        assert.equal(saves(hass), 0);
+      });
+
+      test('Save and leave saves, then follows the link', async () => {
+        const hass = setup();
+        const el = edited(hass);
+        $(el, '.crumbs [data-page="thermostats"]').click();
+        $(el, '.sheet-savebar [data-leave-save]').click();
+        await tick();
+        assert.equal(saves(hass), 1);
+        assert.equal(window.location.pathname, '/chauffage/thermostats');
+      });
+
+      test('closing or reloading the browser\'s page asks too', () => {
+        const el = edited(setup());
+        const event = new window.Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        assert.ok(event.defaultPrevented);
+        $(el, '.sheet-savebar [data-sheet-cancel]').click();
+        const again = new window.Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(again);
+        assert.ok(!again.defaultPrevented);
+      });
+    });
+
     test('its Cancel puts every week back as it was saved', () => {
       const hass = setup();
       const el = panel(hass, '/thermostats/climate.salon');
