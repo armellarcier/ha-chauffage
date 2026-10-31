@@ -267,6 +267,14 @@ describe('the Chauffage panel', () => {
   describe('a thermostat\'s sheet', () => {
     const weeks = (el) => cards(el).slice(1); // the presets first, then a week per schedule
 
+    test('the line of the cards that show it holds its place while they load: the page does not move under a finger', async () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      assert.equal(text($(el, '.about .shown')), 'Affiché dans …');
+      await tick();
+      assert.match(text($(el, '.about .shown')), /^Affiché dans /);
+      assert.doesNotMatch(text($(el, '.about .shown')), /…/);
+    });
+
     test('its header: Home Assistant\'s tile, Pause and whether Chauffage controls it, its devices by their names', async () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       await tick();

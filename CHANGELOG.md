@@ -51,8 +51,9 @@ Each entry says whether the release **migrates stored data** and what to do when
   for administrators only, so the link led nowhere.
 - **With the history shown, a slot's popover says what the slot measured.** A phone shows no
   tooltip, so this text was out of reach on a phone.
-- **On a phone, the *+* of the schedule tabs stays on the card**, and the hours of the time axis
-  stay on one line.
+- **On a phone, the *+* of the schedule tabs stays on the card**, the active schedule keeps its
+  dot, and the hours of the time axis stay on one line.
+- **A thermostat's page no longer moves while it loads**, so a tap lands where you aimed.
 - **Texts that pointed to the card's former views now point to the panel's tabs.**
 
 ## [0.8.0-beta.1] - 2026-10-31

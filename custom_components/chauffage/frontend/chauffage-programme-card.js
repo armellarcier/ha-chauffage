@@ -2542,7 +2542,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // On a schedule's sheet (schedule_tabs: 'one'): its tab alone, with its menu, and no new schedule
     const one = this._config.schedule_tabs === 'one';
     const tabs = (one ? schedules.filter((m) => m === this._schedule) : schedules)
-      .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}${icon ? ' with-icon' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}${esc(this._scheduleName(m))}</button>${
+      .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}${icon ? ' with-icon' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}<span class="tab-name">${esc(this._scheduleName(m))}</span></button>${
         editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
       .join('') + (editable && !one ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span${h % 6 ? ' class="minor"' : ''} style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
@@ -3988,7 +3988,8 @@ const STYLE = `
     background:var(--secondary-background-color); color:var(--secondary-text-color); }
   .schedule-bar strong { color:var(--primary-text-color); }
   .btn.small { padding:4px 10px; font-size:.95em; }
-  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;
+  .tab-name { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .dot { display:inline-block; flex:none; width:8px; height:8px; border-radius:50%; margin-right:6px;
     background:var(--success-color,#43a047); vertical-align:middle; }
 
   /* Grid: day | (name) | bar | tools. Its layout follows the width of the card (a card in a
@@ -5508,13 +5509,15 @@ class ChauffagePanel extends HTMLElement {
     }
     const paused = src.paused(climate);
     const places = this._placements ? this._placements[climate] || [] : null;
-    const shown = places == null ? '' : places.length
+    // While the dashboards are read, the line already holds its place: the page does not move
+    // under a finger about to tap
+    const shown = places == null ? `${esc(t('inCards'))} …` : places.length
       ? `${esc(t('inCards'))} ${places.map((p) => `<span class="link" role="link" tabindex="0" data-navigate="${esc(p.path)}">${esc(`${p.dashboard} › ${p.view}`)}</span>`).join(', ')}`
       : esc(t('inNoCard'));
     // Its devices, by their names: the thermostat's, then the scheduled thermostat's (Chauffage)
     const devices = thermostatDevices(hass, src, climate).map((id) => deviceNamedLinkHtml(hass, id)).filter(Boolean);
     return `<div class="about">
-        ${shown ? `<div>${shown}</div>` : ''}
+        <div class="shown">${shown}</div>
         ${devices.length ? `<div>${esc(t('panelDevices'))} ${devices.join(', ')}</div>` : ''}
       </div>
       <div class="control">
