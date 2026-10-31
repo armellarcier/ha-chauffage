@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Chauffage",
-        "description": "Weekly heating schedules for your thermostats. Edit them with the Chauffage card, switch schedules with the Active schedule entity."
+        "description": "Weekly heating schedules for your thermostats. After setup, open Chauffage in the sidebar to choose your thermostats."
       },
       "import_package": {
         "title": "Import from the package",
@@ -27,7 +27,7 @@
         },
         "data_description": {
           "override_duration": "How long a manual change lasts before the thermostat resumes its schedule.",
-          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, all set in the card.",
+          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
       }
@@ -85,7 +85,7 @@
         "step": {
           "init": {
             "title": "{entity_id} is gone",
-            "description": "Chauffage schedules {entity_id}, but this entity no longer exists in Home Assistant. If it was renamed or replaced, add the new thermostat to a card.",
+            "description": "Chauffage schedules {entity_id}, but this entity no longer exists in Home Assistant. If it was renamed or replaced, schedule the new thermostat in the Chauffage panel (Thermostats tab).",
             "menu_options": { "forget": "Forget it (delete its weeks)", "keep": "Keep it (the entity will come back)" }
           }
         }

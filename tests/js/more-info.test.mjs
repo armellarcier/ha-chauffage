@@ -176,27 +176,23 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
   });
   const foot = (el) => el.shadowRoot.querySelector('.foot');
 
-  test('opens the thermostat\'s own entities: its control (the pause), its override, what it plans', () => {
+  test('holds Open in Chauffage and Pause only: the device\'s page lists the thermostat\'s entities', () => {
     const el = block(fakeHass(), 'climate.salon');
-    assert.match(foot(el).textContent.replace(/\s+/g, ' '), /Pilotage Dérogation Préréglage prévu/);
-    for (const id of ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']) {
-      foot(el).querySelector(`[data-more-info="${id}"]`).click();
-    }
-    assert.deepEqual(opened, ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']);
+    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent),
+      ['Ouvrir dans Chauffage', 'Mettre en pause']);
+    assert.equal(foot(el).querySelector('[data-more-info], [data-device]'), null);
   });
 
-  test('its device opens in its page, closing the dialog (admins)', () => {
+  test('Open in Chauffage opens the thermostat\'s page, closing the dialog', () => {
     const el = block(fakeHass(), 'climate.salon');
-    foot(el).querySelector('[data-device="salon-device"]').click();
+    foot(el).querySelector('[data-weeks="climate.salon"]').click();
     assert.deepEqual(opened, [null]); // the more-info dialog is closed
-    assert.equal(window.location.pathname, '/config/devices/device/salon-device');
+    assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
+  });
+
+  test('a user who is not an admin gets neither Open in Chauffage nor Pause (the panel is for admins)', () => {
     const hass = fakeHass();
     hass.user = { is_admin: false };
-    assert.equal(foot(block(hass, 'climate.salon')).querySelector('[data-device]'), null);
-  });
-
-  test('a thermostat without a device has no device link', () => {
-    const hass = fakeHass({ weeks: { 'climate.bureau': { Normal: Array(7).fill(['00:00 eco']) } } });
-    assert.equal(foot(block(hass, 'climate.bureau')).querySelector('[data-device]'), null);
+    assert.equal(foot(block(hass, 'climate.salon')), null);
   });
 });

@@ -87,15 +87,13 @@ describe('the thermostat card', () => {
     assert.deepEqual(opened, ['climate.salon', 'switch.chauffage_schedule_normal']);
   });
 
-  test('its Control switch and its device open from the foot of its block (the device for admins)', () => {
+  test('its page in the panel opens from the foot of its block (admins)', () => {
     const card = cardFor(setup());
-    block(card).querySelector('.foot [data-more-info="switch.salon_control"]').click();
-    assert.deepEqual(opened, ['switch.salon_control']);
-    block(card).querySelector('.foot [data-device="salon-device"]').click();
-    assert.equal(window.location.pathname, '/config/devices/device/salon-device');
+    block(card).querySelector('.foot [data-weeks="climate.salon"]').click();
+    assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
     const hass = setup();
     hass.user = { is_admin: false };
-    assert.equal(block(cardFor(hass)).querySelector('[data-device]'), null);
+    assert.equal(block(cardFor(hass)).querySelector('.foot [data-weeks]'), null);
   });
 
   test('a temporary setpoint, for the override duration', () => {
@@ -157,7 +155,7 @@ describe('the thermostat card', () => {
     const hass = setup();
     hass.states['climate.cuisine'] = { state: 'heat', attributes: { friendly_name: 'Cuisine', current_temperature: 18 }, last_updated: '1' };
     const card = cardFor(hass, { entity: 'climate.cuisine' });
-    assert.match(text($(card, 'ha-card')), /Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur la page Thermostats/);
+    assert.match(text($(card, 'ha-card')), /Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur l’onglet Thermostats/);
   });
 
   test('without the integration, says so', () => {
@@ -168,7 +166,7 @@ describe('the thermostat card', () => {
   test('in English', () => {
     const card = cardFor(setup({ locale: { language: 'en-US', time_format: 'language', number_format: 'language', first_weekday: 'language' } }));
     assert.equal(text($(card, '.tc-state')), 'Eco · 17°');
-    assert.match(text(block(card).querySelector('.foot')), /Control/);
+    assert.equal(text(block(card).querySelector('.foot [data-weeks]')), 'Open in Chauffage');
   });
 });
 

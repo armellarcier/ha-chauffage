@@ -276,7 +276,7 @@ describe('the Chauffage panel', () => {
 
     test('a paused thermostat: Resume, a Paused badge that stands out, said once and not under each week', () => {
       const el = panel(setup({ paused: ['climate.salon'] }), '/thermostats/climate.salon');
-      assert.equal(text($(el, '.control')), 'Reprendre En pause');
+      assert.equal(text($(el, '.control')), 'Piloter En pause');
       assert.ok($(el, '.control .badge.paused'));
       for (const card of weeks(el)) assert.equal($(card, '.paused-note'), null);
     });
@@ -462,20 +462,6 @@ describe('the more-info block and the panel', () => {
     el.entity = 'climate.salon';
     el.hass = hass;
     assert.equal(text(el.shadowRoot.querySelector('[data-weeks]')), 'Ouvrir dans Chauffe');
-  });
-
-  test('its Device link opens the scheduled thermostat\'s device, else the thermostat\'s own', () => {
-    const block = (hass) => {
-      const el = document.createElement('chauffage-moreinfo');
-      document.body.appendChild(el);
-      el.entity = 'climate.salon';
-      el.hass = hass;
-      return el.shadowRoot.querySelector('.foot [data-device]').dataset.device;
-    };
-    assert.equal(block(setup()), 'salon-scheduled');
-    const hass = setup();
-    delete hass.entities['switch.salon_control'];
-    assert.equal(block(hass), 'salon-device');
   });
 
   test('from the more-info dialog, a page opens once the dialog is closed (it closes by going back)', async () => {

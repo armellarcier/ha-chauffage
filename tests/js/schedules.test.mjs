@@ -209,7 +209,7 @@ describe('the "⋮" menu of the open schedule', () => {
     for (const id of ['holiday', 'away']) {
       openMenu(card, id);
       assert.equal($(card, '[data-act="schedule-delete"]').disabled, true);
-      assert.match(menu(card).textContent, /utilisé par les règles/i);
+      assert.match(menu(card).textContent, /Une règle d’activation utilise ce planning/);
     }
   });
 

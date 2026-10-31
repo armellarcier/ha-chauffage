@@ -153,7 +153,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Place one scheduled thermostat in one's own dashboard (`custom:chauffage-thermostat-card`): its name (or the card's), the measured temperature, what it does now (preset and setpoint, or the temporary setpoint), why and until when, today with the current time, the week, in the block of the more-info dialog | `C/thermostat-card.test.mjs` |
-| From it: a temporary setpoint set, changed or ended; *Pause*, then *Resume* in its place (admins), at the foot of the block it shares with the more-info dialog | `C/thermostat-card.test.mjs` |
+| From it: a temporary setpoint set, changed or ended; *Pause*, then *Control* in its place (admins), at the foot of the block it shares with the more-info dialog | `C/thermostat-card.test.mjs` |
 | From it, open the thermostat, its schedule's switch, its *Control*, *Override* and *Planned preset* entities, its device (admins) | `C/thermostat-card.test.mjs`, `I/test_entities.py::the_card_is_told_*` |
 | A thermostat Chauffage does not schedule says how to schedule it; the integration missing, or a card older or newer than it, says so | `C/thermostat-card.test.mjs` |
 | In the *Add card* dialog (name in HA's language, preview), suggested for a thermostat (*By entity*), starting with a scheduled thermostat; a visual editor for the thermostat and its name | `C/thermostat-card.test.mjs` (in Home Assistant) |
@@ -165,7 +165,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
 | Its week (and the thermostat card's) shows identical days on one row, or each day with `group_days: false` (#11) | `C/grouped-days.test.mjs` (the week in the more-info block) |
 | The active schedule's name, current and next slot, override, +30 min, drag its end, end time field (typed to the minute, sent on Enter or on leaving it, even after a tap outside the card; kept through the redraws while typed; a time not whole shown again as it was; arrow keys by the hour or the step; small arrows by the step; moved by the arrows, the end moves by as much (before now: a step after now, not tomorrow; in three days: still in three days); in the card's popover and the thermostat card too), resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end, the end time field), `C/thermostat-card.test.mjs` |
-| At the foot of the block (#39): the thermostat's *Control*, *Override* and *Planned preset* entities and its device open (the device page closing the dialog, admins); *Pause*, or *Resume* in its place (admins) | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
+| At the foot of the block, for admins only: *Open in Chauffage* and *Pause*, or *Control* in its place (not a second "Resume"); no link to the thermostat's entities or devices, which the device's page and the panel's sheet list | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
 | Until when the planned preset really lasts and what comes next, as the planned preset sensor says: the next different preset, even on another day ("Eco until 06:30 (tomorrow), then Comfort", a weekend, "Eco all week"); sent again to the cards when it changes | `I/test_api.py::the_card_is_told_*`, `C/more-info.test.mjs` (until when the preset lasts, the next day, a weekend, all week), `C/i18n.test.mjs` (the more-info block in English) |
 
 ## Entities and API
@@ -270,8 +270,7 @@ are proved by the same tests, on the panel's page.
 | Use case | Test |
 |---|---|
 | The more-info block and the thermostat card open the thermostat's sheet with "Open in *panel*", named as the panel is in the sidebar | `C/panel.test.mjs` ("its link says \"Open in\" the panel") |
-| From the more-info dialog, a link to the thermostat's sheet or to a device closes the dialog, then opens the page once the dialog has left the address | `C/panel.test.mjs` ("a page opens once the dialog is closed"), `C/more-info.test.mjs` ("its device opens in its page") |
-| Their *Device* link opens the scheduled thermostat's device, else the thermostat's own | `C/panel.test.mjs` ("its Device link") |
+| From the more-info dialog, a link to the thermostat's sheet or to a device closes the dialog, then opens the page once the dialog has left the address | `C/panel.test.mjs` ("a page opens once the dialog is closed"), `C/more-info.test.mjs` ("Open in Chauffage opens the thermostat's page") |
 | The thermostat card of a thermostat Chauffage does not schedule says that an admin can schedule it in the panel's *Thermostats* page | `C/thermostat-card.test.mjs` |
 
 ## Not covered by automated tests

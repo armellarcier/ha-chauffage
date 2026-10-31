@@ -58,9 +58,8 @@ const I18N = {
     pausedNote: '{name} is paused: Chauffage does not control it.',
     renamedNote: '{former} was renamed {entity} in Home Assistant: edit the card to use its new id.',
     pausedInfo: 'Paused: Chauffage does not control it.',
-    resumeShort: 'Resume',
+    resumeShort: 'Resume control',
     viewThermostats: 'Thermostats',
-    controlEntity: 'Control',
     device: 'Device',
     chauffageDevice: 'Chauffage device: the switches of the schedules, the active schedule',
     scheduleDetails: 'Details and history…',
@@ -98,11 +97,9 @@ const I18N = {
     nextClose: 'Close',
     noThermostatYet: 'No thermostat is scheduled yet.',
     scheduleThermostats: 'Schedule thermostats',
-    overrideEntity: 'Override',
-    plannedEntity: 'Planned preset',
     entityRequired: 'The "entity" option is required (a climate.* thermostat)',
     entityMissing: '{entity} does not exist in Home Assistant',
-    notScheduled: 'Chauffage does not schedule this thermostat. An admin can schedule it in the Chauffage panel, on the Thermostats page.',
+    notScheduled: 'Chauffage does not schedule this thermostat. An admin can schedule it in the Chauffage panel, on the Thermostats tab.',
     thermostatCardName: 'Scheduled thermostat',
     thermostatCardDescription: 'One thermostat scheduled by Chauffage: what it does now, why and until when, a temporary setpoint',
     thermostatsHint: 'Chauffage controls the scheduled thermostats. A paused thermostat stays scheduled: it keeps its weeks, but Chauffage does not control it.',
@@ -132,7 +129,7 @@ const I18N = {
     confirmDelete: 'Delete “{name}” and its weeks?',
     cannotDeleteActive: 'The active schedule cannot be deleted.',
     cannotDeleteLast: 'The last schedule cannot be deleted.',
-    cannotDeleteInRules: 'Used by the activation rules (Rules view): it cannot be deleted.',
+    cannotDeleteInRules: 'An activation rule uses this schedule, so you can’t delete it.',
     nameRequired: 'Give the schedule a name.',
     nameTaken: 'This name is already used.',
     multiple: 'Multiple',
@@ -226,7 +223,7 @@ const I18N = {
     cardDescription: 'Weekly heating schedules, several thermostats per day',
     // Visual editor of the card
     editorThermostats: 'Thermostats (required)',
-    editorRemovedScheduled: '{name} is still scheduled: Chauffage keeps controlling it. Pause or forget it from the Thermostats view of the card.',
+    editorRemovedScheduled: '{name} is still scheduled, so Chauffage keeps controlling it. To stop, pause or forget it in the Chauffage panel, on the Thermostats tab.',
     editorRenamed: 'Renamed {entity} in Home Assistant.',
     editorUseNewId: 'Use the new id',
     editorThermostat: 'Thermostat',
@@ -280,9 +277,8 @@ const I18N = {
     pausedNote: '{name} est en pause : Chauffage ne le pilote pas.',
     renamedNote: '{former} a été renommé {entity} dans Home Assistant : modifiez la carte pour utiliser son nouvel identifiant.',
     pausedInfo: 'En pause : Chauffage ne le pilote pas.',
-    resumeShort: 'Reprendre',
+    resumeShort: 'Piloter',
     viewThermostats: 'Thermostats',
-    controlEntity: 'Pilotage',
     device: 'Appareil',
     chauffageDevice: 'Appareil Chauffage : interrupteurs des plannings, planning actif',
     scheduleDetails: 'Détails et historique…',
@@ -320,11 +316,9 @@ const I18N = {
     nextClose: 'Fermer',
     noThermostatYet: "Aucun thermostat n'est encore programmé.",
     scheduleThermostats: 'Programmer des thermostats',
-    overrideEntity: 'Dérogation',
-    plannedEntity: 'Préréglage prévu',
     entityRequired: 'Le paramètre "entity" est requis (un thermostat climate.*)',
     entityMissing: '{entity} n’existe pas dans Home Assistant',
-    notScheduled: "Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur la page Thermostats.",
+    notScheduled: "Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur l’onglet Thermostats.",
     thermostatCardName: 'Thermostat programmé',
     thermostatCardDescription: 'Un thermostat programmé par Chauffage : ce qu’il fait, pourquoi et jusqu’à quand, une consigne temporaire',
     thermostatsHint: "Chauffage pilote les thermostats programmés. Un thermostat en pause reste programmé : il garde ses semaines, mais Chauffage ne le pilote pas.",
@@ -354,7 +348,7 @@ const I18N = {
     confirmDelete: 'Supprimer « {name} » et ses semaines ?',
     cannotDeleteActive: 'Le planning actif ne peut pas être supprimé.',
     cannotDeleteLast: 'Le dernier planning ne peut pas être supprimé.',
-    cannotDeleteInRules: 'Utilisé par les règles d’activation (vue Règles) : il ne peut pas être supprimé.',
+    cannotDeleteInRules: 'Une règle d’activation utilise ce planning. Vous ne pouvez donc pas le supprimer.',
     nameRequired: 'Donnez un nom au planning.',
     nameTaken: 'Ce nom est déjà utilisé.',
     multiple: 'Plusieurs',
@@ -448,7 +442,7 @@ const I18N = {
     cardDescription: 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée',
     // Visual editor of the card
     editorThermostats: 'Thermostats (obligatoire)',
-    editorRemovedScheduled: '{name} est toujours programmé : Chauffage continue de le piloter. Mettez-le en pause ou oubliez-le depuis la vue Thermostats de la carte.',
+    editorRemovedScheduled: '{name} est toujours programmé, donc Chauffage continue de le piloter. Pour l’arrêter, mettez-le en pause ou oubliez-le dans le panneau Chauffage, sur l’onglet Thermostats.',
     editorRenamed: 'Renommé {entity} dans Home Assistant.',
     editorUseNewId: 'Utiliser le nouvel identifiant',
     editorThermostat: 'Thermostat',
@@ -4374,22 +4368,15 @@ class ChauffageMoreInfo extends HTMLElement {
     if (typed !== null) restoreTyped(this.shadowRoot, OVERRIDE_TEMPERATURE, typed);
   }
 
-  // The foot: the thermostat's own entities (its control, i.e. the pause; its override; what it
-  // plans) and its device open in Home Assistant; Pause, or Resume in its place (admins) (#39)
+  // The foot, for admins: the thermostat's page in the panel, and Pause, or Control in its place.
+  // Its entities and its devices are on the device's page and on the panel's sheet
   _footHtml() {
     const t = this._loc.t;
     const src = dataSource(this._hass);
-    const links = [['control', 'controlEntity'], ['override', 'overrideEntity'], ['planned_preset', 'plannedEntity']]
-      .map(([key, label]) => {
-        const entity = src.thermostatEntity(this._entity, key);
-        return entity && entityLinkHtml(entity, t(label));
-      })
-      .concat(`<span class="mi-link" role="link" tabindex="0" data-weeks="${esc(this._entity)}">${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span>`)
-      // Its scheduled thermostat's device (prototype), else the thermostat's
-      .concat(deviceLinkHtml(this._hass, deviceOf(this._hass, src.thermostatEntity(this._entity, 'control'))
-        || deviceOf(this._hass, this._entity), t('device')))
-      .filter(Boolean)
-      .join(' ');
+    const admin = !(this._hass && this._hass.user && !this._hass.user.is_admin);
+    const links = admin
+      ? `<span class="mi-link" role="link" tabindex="0" data-weeks="${esc(this._entity)}">${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span>`
+      : '';
     const paused = src.paused(this._entity);
     const button = !src.editable ? ''
       : paused ? `<button data-resume>${esc(t('resumeShort'))}</button>` : `<button data-pause>${esc(t('pauseShort'))}</button>`;

@@ -122,8 +122,8 @@ The panel has three tabs:
 A schedule or a thermostat opens on a page of its own. The title of the page, for example
 "Thermostats › Living room", leads back to its list.
 
-- **A schedule's page** shows every thermostat's week in this schedule. Its ⋮ menu renames,
-  copies or deletes the schedule.
+- **A schedule's page** shows every thermostat's week in this schedule. Its ⋮ menu renames
+  or deletes the schedule.
 - **A thermostat's page** shows the thermostat, whether Chauffage controls it, and its devices.
   Below, its presets serve as the legend of its weeks, one week for each schedule. *Copy to…*
   copies a week to another schedule. *Group days* groups the identical days of every week, and
@@ -385,12 +385,15 @@ Home Assistant, Settings → Repairs offers to forget the thermostat.
 
 ### Pause a thermostat
 
-To pause a thermostat, turn off its **Control** switch, or click *Pause* in the Chauffage panel.
-Chauffage keeps the thermostat's weeks,
-but stops sending it commands and stops making overrides. Pausing is handy for a room you run by
-hand for a few days, or at the end of the heating season.
+To pause a thermostat, click *Pause* under the thermostat's more-info dialog or in the
+Chauffage panel. You can also turn off the thermostat's **Control** switch.
 
-To resume the schedule, turn the **Control** switch back on.
+Chauffage keeps the thermostat's weeks, but stops sending it commands and stops making
+overrides. Pausing is handy for a room you run by hand for a few days, or at the end of the
+heating season.
+
+To give the thermostat back to Chauffage, click *Resume control* in the same places, or turn the
+**Control** switch back on.
 
 ## Entities
 

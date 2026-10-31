@@ -699,8 +699,7 @@ older one, the older one says so.
 
 ### The more-info block
 
-- **The block injected in the more-info dialog stays for now.** Its *Device* link opens the
-  scheduled thermostat's device.
+- **The block injected in the more-info dialog stays.** See [The UX review](#the-ux-review-080-beta2).
 - **The block's link to the thermostat's sheet says "Open in Chauffage"** (*Ouvrir dans
   Chauffage*, the `openInPanel` key). "Chauffage" is the panel's title as Home Assistant shows it
   in the sidebar, so the link follows a renamed panel or integration.
@@ -711,14 +710,49 @@ older one, the older one says so.
   going back undoes the navigation. The prototype first had this bug: the dialog stayed open, and
   the page did not open.
 
+### The UX review (0.8.0-beta.2)
+
+A review of every surface, before the merge into `main`, settled these choices.
+
+- **One role per surface.** The schedule card is for every day, on a group of thermostats. The
+  thermostat card and the more-info block are for one thermostat, now. The panel is for
+  configuration. The devices and the entities are for automations, voice and Home Assistant's
+  history: no user path needs them.
+- **The more-info block stays, lighter.** Its foot keeps *Open in Chauffage* (admins only, as the
+  panel) and *Pause*. The links to the *Control*, *Override* and *Planned preset* entities and to
+  the device go: the device's page lists them, and the panel's sheet links both devices. The
+  block keeps its preset chips and its temperature field: on a thermostat without presets, they
+  are the only way to pick a Chauffage preset.
+- **A pause ends with *Control*** (*Piloter*), the name of the switch. "Resume" stays for the
+  override only (*Resume the schedule*), so the block never shows two "Resume" buttons.
+- **A thermostat chip keeps its ↗ link to the more-info dialog.** With one thermostat shown, it
+  is the only link to the thermostat. Its tap area grows on a touch screen.
+- **A tap on a chip shows that thermostat only**, like a switch. *Multiple* stays the way to show
+  several thermostats.
+- **The schedule card's link to the settings sits in its presets legend**, for admins: *Set the
+  presets*. The card had three links (*Presets*, *Rules*, *Thermostats*) at its top, in another
+  order than the panel's tabs. The legend showed the presets without saying where to set them.
+- **Two ways to schedule a thermostat stay**: adding it to a card, or the panel. Removing one
+  would gain little.
+- **A ⋮ button always opens a floating menu**, as in the card. The panel's list of thermostats
+  unfolded a row of actions instead. A row of this list opens the thermostat's sheet, and its
+  badge only says *Paused*, the exception.
+- **A week is copied from a ⋮ menu**, not from a list that acts as soon as an option is picked.
+- **One save bar for a thermostat's sheet.** It names the weeks not saved yet, and saves them in
+  one call. On a phone, a bar under a week further up the page went unseen. A copy still marks
+  only its target week as not saved.
+- **Every user can set, change and end an override from a card.** The `chauffage.set_override`
+  and `chauffage.clear_override` services were already open to every user, and anyone can turn
+  the thermostat's knob. The websocket command keeps its format: only its permission changes.
+- **One word for each thing**, as the glossary says: *override* (*dérogation*), not "temporary
+  setpoint"; *slot* (*créneau*), not "plage"; the panel's *tabs* (*onglets*).
+- **The card's panel-only options are internal.** The panel passes them to the card in its own
+  key, not as options a dashboard could set.
+
 ### Open questions
 
 Settle these questions before the panel and the devices are released.
 
-- **Overrides need an admin** (`chauffage/override/set`). Should everyone at home extend an
-  override from a card? Anyone can already start one by turning the thermostat's knob.
-- **The injected more-info block.** Keep it, or drop it? Without it, the path from the `climate` to
-  its weeks is long: the climate, its device, our device, then *Visit*.
 - **Existing installations.** The cards lose their *Presets*, *Rules* and *Thermostats* views. The
   entities move to a new device, so automations that target the thermostat's device lose them.
   This needs a changelog entry, a beta, and links to the panel.
@@ -726,11 +760,6 @@ Settle these questions before the panel and the devices are released.
   carry a mark, for example "Bureau (Chauffage)"?
 - **The device must follow the thermostat**: a renamed `climate` (the device's identifier holds
   the entity id), a new area, a new name. The prototype does not check these cases yet.
-- **Two ways to schedule a thermostat.** Adding a thermostat to a card still schedules it, and the
-  panel now has its own *Schedule* action. These two ways are inconsistent.
-- **One save bar per sheet.** On a thermostat's sheet, each stacked week has its own save bar,
-  right under it, and a copy asks to save its target only. Is one bar for the whole sheet still
-  needed?
 - **The integration's name.** If the name changes, the `/chauffage/...` addresses need redirects.
 
 ## Process

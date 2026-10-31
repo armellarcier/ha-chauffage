@@ -128,7 +128,7 @@ Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, p
 « Thermostats › Salon », ramène à sa liste.
 
 - **La page d'un planning** montre la semaine de chaque thermostat dans ce planning. Son menu ⋮
-  renomme, copie ou supprime le planning.
+  renomme ou supprime le planning.
 - **La page d'un thermostat** montre le thermostat, si Chauffage le pilote, et ses appareils.
   En dessous, ses préréglages servent de légende à ses semaines, une semaine par planning.
   *Copier vers…* copie une semaine vers un autre planning. *Grouper les jours* regroupe les jours
@@ -408,12 +408,16 @@ thermostat.
 
 ### Mettre un thermostat en pause
 
-Pour mettre un thermostat en pause, éteignez son interrupteur **Pilotage**, ou cliquez sur
-*Mettre en pause* dans le panneau Chauffage. Chauffage garde les semaines du thermostat, mais ne lui envoie plus de commandes et ne crée plus de dérogations. La
-pause est pratique pour une pièce que vous gérez à la main quelques jours, ou à la fin de la
-saison de chauffe.
+Pour mettre un thermostat en pause, cliquez sur *Mettre en pause* sous la fenêtre du thermostat
+ou dans le panneau Chauffage. Vous pouvez aussi éteindre l'interrupteur **Pilotage** du
+thermostat.
 
-Pour reprendre le planning, rallumez l'interrupteur **Pilotage**.
+Chauffage garde les semaines du thermostat, mais ne lui envoie plus de commandes et ne crée plus
+de dérogations. La pause est pratique pour une pièce que vous gérez à la main quelques jours, ou
+à la fin de la saison de chauffe.
+
+Pour rendre le thermostat à Chauffage, cliquez sur *Piloter* aux mêmes endroits, ou rallumez
+l'interrupteur **Pilotage**.
 
 ## Entités
 

@@ -114,7 +114,7 @@ describe('the more-info block of a paused thermostat', () => {
     // At the foot, in place of "Pause" (#39)
     assert.equal(el.shadowRoot.querySelector('[data-pause]'), null);
     assert.equal(el.shadowRoot.querySelector('.status [data-resume]'), null);
-    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Reprendre');
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Piloter'); // the name of the Control switch, not a second "Resume"
     el.shadowRoot.querySelector('[data-resume]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
   });
