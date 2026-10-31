@@ -414,6 +414,13 @@ dashboards, automations, scripts and by voice without the card
   disabled buttons at the foot of a card several screens long (edits of Monday, Save after
   Sunday). A switch of schedule tab keeps the edits (they are saved together), and the bar
   stays.
+- **A time field is a list of times, not `<input type="time">`** (#63). A browser shows its
+  time input in the format of its own language, and a page cannot change it: an English
+  browser showed "8:30 AM" to a user whose profile says 24 hours. The list shows the times as
+  the rest of the card does. It also only offers the times on the step and within the limits,
+  for example between a slot's neighbors. A time off the step, set with another step, stays in
+  the list. A time is picked, not typed, so it is sent at once: the field no longer waits for
+  Enter or for the focus to leave.
 
 ## Process
 

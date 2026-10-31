@@ -185,7 +185,7 @@ describe('dragging the end of an override', () => {
     test('clocks back, in the hour played twice: the end time field is not the 02:45 already past', () => {
       at('2026-10-25T02:20:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-10-25T02:00:00+01:00', '2026-10-25T02:40:00+01:00') });
-      const input = moreInfo(hass).shadowRoot.querySelector('input[data-end]');
+      const input = moreInfo(hass).shadowRoot.querySelector('select[data-end]');
       input.value = '02:45';
       input.dispatchEvent(new Event('change', { bubbles: true }));
       assert.equal(end(hass), '2026-10-25T01:45:00.000Z');
@@ -220,89 +220,69 @@ describe('dragging the end of an override', () => {
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = hass;
-    const input = el.shadowRoot.querySelector('input[data-end]');
+    const input = el.shadowRoot.querySelector('select[data-end]');
     input.value = '09:00'; // already past today: tomorrow 09:00
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-13T07:00:00.000Z');
   });
 
-  // Typing a time changes the field at each digit: sent at once, the redraw took the field away
-  const typed = (input, value) => {
-    input.focus();
-    input.value = value;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+  // A redraw while the list of the end is open would close the list
+  const picked = (field, value) => {
+    field.value = value;
+    field.dispatchEvent(new Event('change', { bubbles: true }));
   };
-  const sets = (hass) => hass.events.filter((m) => m.type === 'chauffage/override/set').length;
   const thermostatChanged = (hass) => ({ ...hass, states: { ...hass.states,
     'climate.salon': { ...hass.states['climate.salon'], last_updated: '2' } } });
 
-  test('in the more-info block: the end being typed keeps its field, and is sent on leaving it', () => {
+  test('in the more-info block: the end field open is kept through the redraws, and the end picked is sent at once', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = hass;
-    const input = el.shadowRoot.querySelector('input[data-end]');
-    typed(input, '12:00');
+    const field = el.shadowRoot.querySelector('select[data-end]');
+    field.focus();
     el.hass = thermostatChanged(hass); // the thermostat reports, the minute changes…
-    assert.equal(sets(hass), 0, 'nothing sent while typing');
-    assert.ok(input.isConnected, 'the field is kept');
-    assert.equal(el.shadowRoot.activeElement, input);
-    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.ok(field.isConnected, 'the field is kept');
+    picked(field, '12:00');
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+    assert.notEqual(el.shadowRoot.querySelector('select[data-end]'), field, 'the redraw held back is done');
   });
 
-  test('in the more-info block: Enter sends the end being typed', () => {
-    const hass = fakeHass({ overrides: { 'climate.salon': override } });
-    const el = document.createElement('chauffage-moreinfo');
-    document.body.appendChild(el);
-    el.entity = 'climate.salon';
-    el.hass = hass;
-    const input = el.shadowRoot.querySelector('input[data-end]');
-    typed(input, '12:30');
-    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:30:00.000Z');
-  });
-
-  test('in the card\'s popover: the end typed is sent when tapping outside the card, and the popover closes', () => {
+  test('the end field offers the times from one step after now, for the next 24 hours', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });
     $(card, '.override[data-climate="climate.salon"]').click();
-    const input = $(card, '.override-ed input[data-override-end]');
-    typed(input, '12:00');
-    // As a browser does: the pointer goes down outside (the popovers close), then the field loses the focus
-    document.body.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
-    input.blur();
-    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
-    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
-    assert.equal($(card, '.override-ed'), null);
+    const times = [...$(card, '.override-ed select[data-override-end]').options].map((o) => o.value);
+    assert.deepEqual([times[0], times.at(-1), times.length], ['10:15', '10:00', 96]);
   });
 
-  test('in the card\'s popover: an override ended elsewhere while its end is typed goes once the field is left', () => {
+  test('in the card\'s popover: an override ended elsewhere while its end field is open goes once the field is left', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });
     $(card, '.override[data-climate="climate.salon"]').click();
-    const input = $(card, '.override-ed input[data-override-end]');
-    typed(input, '12:00');
+    const field = $(card, '.override-ed select[data-override-end]');
+    field.focus();
     hass.push(integrationData({ overrides: {} })); // resumed from another device
-    input.blur();
-    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.ok(field.isConnected, 'the field is kept');
+    field.blur();
+    field.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
     assert.equal($(card, '.override-ed'), null);
     assert.equal($(card, '.bar .override'), null);
   });
 
-  test('in the card\'s popover: the end being typed keeps its field through the redraws, sent on leaving it', () => {
+  test('in the card\'s popover: the end field open is kept through the redraws, and the end picked is sent at once', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });
     $(card, '.override[data-climate="climate.salon"]').click();
-    const input = $(card, '.override-ed input[data-override-end]');
-    typed(input, '12:00');
+    const field = $(card, '.override-ed select[data-override-end]');
+    field.focus();
     card._render(); // every 30 s during an override
     card.hass = thermostatChanged(hass);
-    assert.equal(sets(hass), 0, 'nothing sent while typing');
-    assert.ok(input.isConnected, 'the field is kept');
-    input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
+    assert.ok(field.isConnected, 'the field is kept');
+    picked(field, '12:00');
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+    assert.notEqual($(card, '.override-ed select[data-override-end]'), field, 'the redraw held back is done');
   });
 });
 
@@ -370,7 +350,7 @@ describe('editing a slot', () => {
   test('the "to" time field moves the end of the slot', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click(); // 06:30 → 08:30
-    const end = $(card, '.editor input[data-edge="end"]');
+    const end = $(card, '.editor select[data-edge="end"]');
     end.value = '09:00';
     end.dispatchEvent(new Event('change', { bubbles: true }));
     assert.deepEqual(day(card, 'climate.salon', 0).slice(1, 3), ['06:30 comfort', '09:00 eco']);
@@ -378,11 +358,24 @@ describe('editing a slot', () => {
 
   test('the "from" time field moves its start, within its neighbors', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
-    const start = $(card, '.editor input[data-edge="start"]');
-    start.value = '09:30'; // after the slot's end (08:30): stops one step before it
+    $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click(); // 06:30 → 08:30
+    const start = $(card, '.editor select[data-edge="start"]');
+    const times = [...start.options].map((o) => o.value);
+    assert.deepEqual([times[0], times.at(-1)], ['00:15', '08:15']); // one step after 00:00, one step before 08:30
+    start.value = '08:15';
     start.dispatchEvent(new Event('change', { bubbles: true }));
     assert.equal(day(card, 'climate.salon', 0)[1], '08:15 comfort');
+  });
+
+  test('a time off the step stays in its field', () => {
+    const hass = fakeHass();
+    const card = createCard(hass, { show: ['climate.salon'] });
+    card._week('climate.salon')[0][1].start = 6 * 60 + 20; // 06:20, set with another step
+    card._render();
+    $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+    const start = $(card, '.editor select[data-edge="start"]');
+    assert.equal(start.value, '06:20');
+    assert.equal(start.options[start.selectedIndex - 1].value, '06:15');
   });
 
   test('a click outside closes the editor', () => {
@@ -416,7 +409,7 @@ describe('the override popover in the card', () => {
     assert.ok($(card, '.override-ed'));
     $(card, '.override-ed [data-act="override-add"][data-min="30"]').click();
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
-    const input = $(card, '.override-ed input[data-override-end]');
+    const input = $(card, '.override-ed select[data-override-end]');
     input.value = '18:00';
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T16:00:00.000Z');

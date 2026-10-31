@@ -56,7 +56,7 @@ describe('more-info block', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
     assert.match(text(el), /21,5 °C/); // French decimal comma
     assert.match(text(el), /encore 1 h 30/);
-    assert.equal(el.shadowRoot.querySelector('input[data-end]').value, '11:30');
+    assert.equal(el.shadowRoot.querySelector('select[data-end]').value, '11:30');
   });
 
   test('+30 min extends the override', () => {

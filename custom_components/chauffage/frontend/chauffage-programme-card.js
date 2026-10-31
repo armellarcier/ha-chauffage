@@ -629,8 +629,22 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   return locale.preset(d.value);
 }
 
-const hmOf = (date) => toHM(date.getHours() * 60 + date.getMinutes());
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
+
+// A time field: the times on the step from `from` to `to` (minutes since midnight; `to` may pass
+// midnight), and `current`, selected. A list, not <input type="time">: a browser shows that one in
+// the format of its own language, not in the format of the user's profile (#63).
+function timeSelect(attr, loc, from, to, step, current) {
+  const first = Math.ceil(from / step) * step;
+  const times = [];
+  for (let m = first; m <= to; m += step) times.push(m % DAY_MIN);
+  if (!times.includes(current)) times.push(current);
+  const order = (m) => (m - first % DAY_MIN + DAY_MIN) % DAY_MIN; // across midnight
+  times.sort((a, b) => order(a) - order(b));
+  const options = times.map((m) => `<option value="${toHM(m)}"${m === current ? ' selected' : ''}>${esc(loc.time(m))}</option>`);
+  return `<select ${attr}>${options.join('')}</select>`;
+}
+
 // The moment at `minutes` (time of day) of the day starting at `day0`; DAY_MIN is the next midnight.
 // On the days the clocks change: a time played twice is its first occurrence, or the second one if
 // the first is before `notBefore`; a time skipped is the moment the clocks went forward.
@@ -1555,27 +1569,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
-  // A time typed in the popover's end field, for that thermostat: its next occurrence
+  // A time picked in the popover's end field, for that thermostat: its next occurrence
   _sendOverrideEnd(climate, value) {
-    this._endTyped = null;
     this._setOverrideEnd(climate, nextAtMinutes(this._snap(toMin(value))));
   }
 
-  // The end field left (or Enter): the time typed is sent (for the thermostat it was typed for,
-  // even if a tap outside the card closed the popover meanwhile), then the redraws held back are
-  // done (the popover closed, an override ended elsewhere…)
+  // The end field left: the redraws held back while it was open are done (the popover closed, an
+  // override ended elsewhere…)
   _overrideEndDone() {
-    const typed = this._endTyped;
-    const later = this._redrawLater;
+    if (!this._redrawLater) return;
     this._redrawLater = false;
-    this._endTyped = null; // before blur(), which comes back here
-    if (typed) {
-      // Sent from the field still focused (Enter): the redraw that follows must happen
-      const active = this.shadowRoot.activeElement;
-      if (active && active.blur) active.blur();
-      this._sendOverrideEnd(typed.climate, typed.value);
-    }
-    if (later) this._render();
+    this._render();
   }
 
   // New end (Date): at least one step after now
@@ -1975,9 +1979,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Popover, placed under the slot by _placeEditor() after rendering
     const last = idx === segs.length - 1;
     const end = last ? DAY_MIN : segs[idx + 1].start;
-    const stepSec = this._config.step * 60;
-    const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>` : `<input type="time" data-edge="start" step="${stepSec}" value="${toHM(s.start)}">`;
-    const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>` : `<input type="time" data-edge="end" step="${stepSec}" value="${toHM(end)}">`;
+    const step = this._config.step;
+    // Each edge between its neighbors, as when it is dragged
+    const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>`
+      : timeSelect('data-edge="start"', this._loc, segs[idx - 1].start + step, end - step, step, s.start);
+    const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>`
+      : timeSelect('data-edge="end"', this._loc, s.start + step, (idx + 2 < segs.length ? segs[idx + 2].start : DAY_MIN) - step, step, end);
     const presets = this._presets()
       .map((l) => `<button data-act="preset" data-preset="${esc(l.id)}" class="${s.preset === l.id ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`)
       .join('');
@@ -2021,7 +2028,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="editor override-ed">
       ${head}
       <div class="ed-head">
-        <label>${esc(t('until'))} <input type="time" data-override-end step="${this._config.step * 60}" value="${hmOf(endsAt)}"></label>
+        <label>${esc(t('until'))} ${timeSelect('data-override-end', this._loc, nowMin() + this._config.step, nowMin() + DAY_MIN, this._config.step, minutesOf(endsAt))}</label>
         <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
       </div>
       <div class="ed-actions start">
@@ -2091,7 +2098,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   // template being typed (the card is redrawn every 30 s during an override, or when Home
   // Assistant sends new data)
   _render() {
-    // Not while the end of an override is typed: the redraw would take its field away
+    // Not while the end of an override is picked: the redraw would close its list
     if (focusedField(this.shadowRoot, '[data-override-end]')) { this._redrawLater = true; return; }
     const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
     const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
@@ -2537,14 +2544,12 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     // Enter in a schedule's name field confirms (Create / Rename)
     root.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && e.target.hasAttribute('data-override-end')) { this._overrideEndDone(); return; }
       if (e.key !== 'Enter' || !e.target.hasAttribute('data-sched-name')) return;
       const ok = root.querySelector('.sched-menu .btn.primary');
       if (ok) ok.click();
     });
 
-    // The end of an override being typed: sent on leaving its field (the card, not redrawn while it
-    // is typed, is drawn again then)
+    // The end field of an override left: the card, not redrawn while it was open, is drawn again
     root.addEventListener('focusout', (e) => {
       if (e.target.hasAttribute && e.target.hasAttribute('data-override-end')) this._overrideEndDone();
     });
@@ -2581,9 +2586,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       } else if (el.dataset.edge) {
         this._setEdge(el.dataset.edge, el.value);
       } else if (el.hasAttribute('data-override-end') && el.value && this._overrideSel) {
-        // Typed (the field changes at each digit): sent on leaving the field or with Enter
-        if (root.activeElement === el) this._endTyped = { climate: this._overrideSel.climate, value: el.value };
-        else this._sendOverrideEnd(this._overrideSel.climate, el.value);
+        const { climate } = this._overrideSel;
+        const { value } = el;
+        el.blur(); // its focusout does the redraws held back, and lets the next ones through
+        this._sendOverrideEnd(climate, value);
       } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), Number(el.value)));
@@ -3590,7 +3596,7 @@ const STYLE = `
   .btn.danger { color:var(--error-color,#db4437); border-color:var(--error-color,#db4437); }
   .ed-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   .ed-head .close { margin-left:auto; }
-  .editor input { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
+  .editor input, .editor select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--secondary-background-color); }
   .fixed { font-variant-numeric:tabular-nums; padding:0 4px; }
   .presets { display:flex; flex-wrap:wrap; gap:6px; }
@@ -3747,8 +3753,7 @@ class ChauffageMoreInfo extends HTMLElement {
     root.addEventListener('pointermove', (e) => this._onMove(e));
     root.addEventListener('pointerup', () => this._onUp());
     root.addEventListener('pointercancel', () => this._onUp());
-    root.addEventListener('focusout', (e) => this._onEndDone(e));
-    root.addEventListener('keydown', (e) => this._onEndDone(e));
+    root.addEventListener('focusout', (e) => { if (e.target.matches && e.target.matches('[data-end]')) this._endDone(); });
   }
 
   set entity(id) {
@@ -3775,7 +3780,7 @@ class ChauffageMoreInfo extends HTMLElement {
       !hass.user || !!hass.user.is_admin, hass.entities && hass.entities[this._entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
-    if (focusedField(this.shadowRoot, 'input[data-end]')) { this._redrawLater = true; return; } // nor while the end is typed
+    if (focusedField(this.shadowRoot, '[data-end]')) { this._redrawLater = true; return; } // nor while the end is picked
     this._key = key;
     this._render();
   }
@@ -3869,7 +3874,7 @@ class ChauffageMoreInfo extends HTMLElement {
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
-          <label>${esc(t('until'))} <input type="time" data-end step="${MORE_INFO_CFG.step * 60}" value="${hmOf(endsAt)}"></label>
+          <label>${esc(t('until'))} ${timeSelect('data-end', this._loc, nowMin() + MORE_INFO_CFG.step, nowMin() + DAY_MIN, MORE_INFO_CFG.step, minutesOf(endsAt))}</label>
           <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>
         ${value.presets}
@@ -3984,24 +3989,16 @@ class ChauffageMoreInfo extends HTMLElement {
       return;
     }
     if (!el.hasAttribute('data-end') || !el.value) return;
-    // Typed (the field changes at each digit): sent on leaving the field or with Enter
-    if (this.shadowRoot.activeElement === el) { this._endTyped = el.value; return; }
-    this._sendEnd(el.value);
-  }
-
-  _sendEnd(value) {
-    this._endTyped = null;
+    const { value } = el;
+    el.blur(); // its focusout does the redraws held back, and lets the next ones through
     this._setEnd(nextAtMinutes(Math.round(toMin(value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step));
   }
 
-  // The end being typed: sent on leaving its field or with Enter; the block, not redrawn while it
-  // is typed, is drawn again then
-  _onEndDone(e) {
-    if (!e.target.matches || !e.target.matches('input[data-end]')) return;
-    if (e.type === 'keydown' && e.key !== 'Enter') return;
-    if (this._endTyped) this._sendEnd(this._endTyped);
-    else if (this._redrawLater) this._render();
+  // The end field left: the block, not redrawn while it was open, is drawn again
+  _endDone() {
+    if (!this._redrawLater) return;
     this._redrawLater = false;
+    this._render();
   }
 
   // ----- dragging the override's end -----
@@ -4086,7 +4083,7 @@ const MORE_INFO_STYLE = `
     background:var(--primary-text-color); color:var(--card-background-color); }
   .override-handle:hover .tip, .override-handle.drag .tip { display:block; }
   .line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
-  input[type=time], input[type=number] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
+  select[data-end], input[type=number] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--card-background-color); color:var(--primary-text-color); }
   input[type=number] { width:5em; }
   .presets { display:flex; flex-wrap:wrap; gap:6px; }

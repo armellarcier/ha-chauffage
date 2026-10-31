@@ -143,3 +143,36 @@ describe('the more-info block in English', () => {
     assert.match(el.shadowRoot.textContent.replace(/\s+/g, ' '), /Follows the schedule: Eco all week/);
   });
 });
+
+// A browser shows <input type="time"> in the format of its own language, whatever the profile
+// says (#63): the card's time fields list the times in the profile's format
+describe('the time fields follow the profile\'s time format', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
+  afterEach(() => { mock.timers.reset(); cleanup(); });
+
+  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+  const english = (time_format) => ({ language: 'en-US', time_format, number_format: 'language', first_weekday: 'language' });
+  const label = (select) => select.options[select.selectedIndex].textContent.trim();
+
+  test('a slot\'s times: 24 h in English when the profile says so, 12 h otherwise', () => {
+    for (const [format, expected] of [['24', '08:30'], ['language', '8:30 AM']]) {
+      const card = createCard(fakeHass({ locale: english(format) }), { show: ['climate.salon'] });
+      card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+      const end = card.shadowRoot.querySelector('.editor [data-edge="end"]');
+      assert.equal(label(end), expected);
+      cleanup();
+    }
+  });
+
+  test('the end of an override, in the card\'s popover and in the more-info block', () => {
+    const hass = fakeHass({ locale: english('24'), overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click();
+    assert.equal(label(card.shadowRoot.querySelector('.override-ed [data-override-end]')), '11:30');
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.salon';
+    el.hass = fakeHass({ locale: english('12'), overrides: { 'climate.salon': override } });
+    assert.equal(label(el.shadowRoot.querySelector('[data-end]')), '11:30 AM');
+  });
+});

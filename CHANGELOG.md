@@ -9,6 +9,18 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **The time fields follow the time format of your profile** (#63). Before, the fields of a
+  slot and of an override's end followed the language of your browser. An English browser
+  showed "8:30 AM" even if your profile says 24 hours.
+
+### Changed
+
+- **A time field is now a list of times.** You pick a time in the list, and Chauffage applies
+  it at once. The list only offers the times you can choose, for example between the slot
+  before and the slot after.
+
 ## [0.7.0-beta.4] - 2026-10-28
 
 More width for the bars of the weeks when the card is narrow, for example in a column of a
