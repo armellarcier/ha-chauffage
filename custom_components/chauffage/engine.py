@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
-from .const import MANUAL_PRESETS
+from .const import AUTO_START_STOP_OFF_REASON, MANUAL_PRESETS
 
 IGNORED_STATES = frozenset({"off", "unavailable", "unknown"})
 DEFAULT_STEP = 0.5
@@ -30,6 +30,7 @@ class Thermostat:
     min_temp: float | None = None
     max_temp: float | None = None
     step: float | None = None
+    off_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,15 @@ def satisfied(target: Target, thermostat: Thermostat) -> bool:
     return same_temperature(thermostat.temperature, target.value, thermostat)
 
 
+def ignored(thermostat: Thermostat, allow_auto_start_stop_off: bool = False) -> bool:
+    """Whether the scheduler must leave this thermostat alone."""
+    if thermostat.state in ("unavailable", "unknown"):
+        return True
+    if thermostat.state == "off":
+        return not (allow_auto_start_stop_off and thermostat.off_reason == AUTO_START_STOP_OFF_REASON)
+    return False
+
+
 # ----- slots -----
 
 def slot_at(day: list[list[str]], hhmm: str) -> tuple[str | None, bool]:
@@ -173,6 +183,7 @@ class Plan:
     mappings: dict[str, dict[str, Any]]
     overrides: dict[str, Any]
     use_presets: bool = True
+    allow_auto_start_stop_off: bool = False
 
     def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
         week = self.weeks.get(entity_id, {}).get(self.schedule)
@@ -204,9 +215,10 @@ def targets(
       starting during a missed minute, or in the hour skipped by the change to summer time, is
       applied late rather than never), whose slot starts now, whose override just ended or was
       removed (resumed), or that must be realigned (`include`: back online, failed command);
-    - thermostats with an active override, turned off, unavailable or already as expected are
-      left alone. Not one that still has another command to apply (`pending`, the last command
-      sent to each thermostat that it does not show yet): it would apply that one later.
+        - thermostats with an active override, ignored state or already as expected are left alone.
+            Auto-stopped VTherms are eligible only when the global option is enabled. Not one that still
+            has another command to apply (`pending`, the last command sent to each thermostat that it
+            does not show yet): it would apply that one later.
     """
     pending = pending or {}
     out = []
@@ -221,7 +233,7 @@ def targets(
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
         target = resolve(preset, plan.presets, plan.mappings.get(entity_id), thermostat, plan.use_presets)
-        if target is None or thermostat.state in IGNORED_STATES:
+        if target is None or ignored(thermostat, plan.allow_auto_start_stop_off):
             continue
         if satisfied(target, thermostat) and pending.get(entity_id, target) == target:
             continue
@@ -234,11 +246,17 @@ def targets(
 PENDING_HOURS = 24  # a command a thermostat has not applied after a day is not waited for anymore
 
 
-def applied_command(pending: list[Target], before: Thermostat | None, after: Thermostat) -> int | None:
+def applied_command(
+    pending: list[Target],
+    before: Thermostat | None,
+    after: Thermostat,
+    *,
+    allow_auto_start_stop_off: bool = False,
+) -> int | None:
     """Index of the latest command not applied yet that the thermostat has just taken (None: none).
     Only a change to it counts: a thermostat that already showed it (another report, its
     temperature) may still apply an older command."""
-    if after.state in IGNORED_STATES:
+    if ignored(after, allow_auto_start_stop_off):
         return None
     return next((i for i in range(len(pending) - 1, -1, -1)
                  if satisfied(pending[i], after) and not (before and satisfied(pending[i], before))), None)

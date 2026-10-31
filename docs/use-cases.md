@@ -62,7 +62,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | The repeated hour of winter time changes nothing | `I/test_use_cases.py::fall_back_the_repeated_hour_changes_nothing` |
 | Saving the weeks realigns; an already right thermostat gets nothing | `I/test_schedules.py::saving_the_weeks_realigns_every_thermostat`, `::a_preset_already_active_is_not_sent_again` |
 | HA restart: thermostats realigned once HA has started; weeks and overrides kept | `I/test_edge_cases.py::thermostats_are_realigned_once_home_assistant_has_started`, `I/test_schedules.py::the_weeks_survive_a_restart`, `I/test_use_cases.py::overrides_survive_a_restart` |
-| A thermostat turned off (summer) is left alone; turned back on, it gets its preset at once | `I/test_schedules.py::a_thermostat_turned_off_is_ignored`, `I/test_use_cases.py::a_thermostat_turned_back_on_*` |
+| A thermostat turned off (summer) is left alone; the global option can allow a VTherm auto-stopped by Auto Start/Stop to receive its slot; turned back on, an ignored thermostat gets its preset at once | `I/test_schedules.py::a_thermostat_turned_off_is_ignored`, `::an_auto_stopped_thermostat_*`, `I/test_use_cases.py::a_thermostat_turned_back_on_*` |
 | An unavailable valve catches up as soon as it is back online | `I/test_use_cases.py::a_thermostat_back_online_*` |
 | An unreachable valve does not block the others; its command is retried every minute until delivered | `I/test_schedules.py::an_unreachable_thermostat_does_not_block_the_others`, `I/test_use_cases.py::a_failed_command_is_retried_the_next_minutes` |
 | Commands are spaced out (Zigbee network) | `I/test_edge_cases.py::thermostats_are_sent_one_after_the_other` |

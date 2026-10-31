@@ -22,11 +22,13 @@
         "description": "Default settings. Presets and what they mean for each thermostat are set in the Chauffage card (Presets view).",
         "data": {
           "override_duration": "Override duration",
-          "use_presets": "Use the thermostats' presets"
+          "use_presets": "Use the thermostats' presets",
+          "allow_auto_start_stop_off": "Send targets to VTherms stopped by Auto Start/Stop"
         },
         "data_description": {
           "override_duration": "How long a manual change lasts before the thermostat resumes its schedule.",
-          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, all set in the card."
+          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, all set in the card.",
+          "allow_auto_start_stop_off": "When enabled, scheduled targets are sent while Versatile Thermostat is off specifically because of Auto Start/Stop. Other off thermostats remain untouched."
         }
       }
     }

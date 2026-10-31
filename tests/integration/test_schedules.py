@@ -3,7 +3,9 @@
 from enum import Enum
 
 import pytest
+from homeassistant.core import Context
 
+from custom_components.chauffage.engine import Target
 from conftest import WEEKDAY, WEEKEND, Bench, every_day, KINDS
 
 
@@ -97,6 +99,43 @@ async def test_a_thermostat_turned_off_is_ignored(bench: Bench):
     bench.thermostat("climate.bureau", "eco", state="off")
     await bench.setup()
     await bench.save_weeks(SCHEDULES)
+    assert bench.applied() == {}
+
+
+async def test_an_auto_stopped_thermostat_gets_its_slot_when_the_option_is_enabled(bench: Bench):
+    bench.needs("vtherm")
+    await bench.go_to("10:00")
+    bench.thermostat(
+        "climate.bureau", "eco", state="off",
+        specific_states={"hvac_off_reason": "hvac_off_auto_start_stop"},
+    )
+    await bench.setup(options={"allow_auto_start_stop_off": True})
+    await bench.save_weeks(SCHEDULES)
+
+    assert bench.applied() == {"climate.bureau": "comfort"}
+    assert bench.runtime.pending("climate.bureau") == [
+        Target("preset", "comfort")
+    ]
+
+    bench.thermostat(
+        "climate.bureau", "comfort", state="off",
+        specific_states={"hvac_off_reason": "hvac_off_auto_start_stop"},
+        context=Context(),
+    )
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.pending("climate.bureau") == []
+
+
+async def test_an_auto_stopped_thermostat_is_ignored_when_the_option_is_disabled(bench: Bench):
+    bench.needs("vtherm")
+    await bench.go_to("10:00")
+    bench.thermostat(
+        "climate.bureau", "eco", state="off",
+        specific_states={"hvac_off_reason": "hvac_off_auto_start_stop"},
+    )
+    await bench.setup(options={"allow_auto_start_stop_off": False})
+    await bench.save_weeks(SCHEDULES)
+
     assert bench.applied() == {}
 
 

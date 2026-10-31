@@ -22,11 +22,13 @@
         "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans la carte Chauffage (vue Préréglages).",
         "data": {
           "override_duration": "Durée des dérogations",
-          "use_presets": "Utiliser les préréglages des thermostats"
+          "use_presets": "Utiliser les préréglages des thermostats",
+          "allow_auto_start_stop_off": "Envoyer les consignes aux VTherm arrêtés par Auto Start/Stop"
         },
         "data_description": {
           "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son planning.",
-          "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte."
+          "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte.",
+          "allow_auto_start_stop_off": "Activé, les consignes planifiées sont envoyées lorsque Versatile Thermostat est arrêté spécifiquement par Auto Start/Stop. Les autres thermostats arrêtés restent ignorés."
         }
       }
     }

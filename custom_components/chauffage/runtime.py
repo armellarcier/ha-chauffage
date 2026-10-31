@@ -40,8 +40,10 @@ from homeassistant.util import dt as dt_util
 from . import engine, model, repairs
 from .history import TemperatureHistory
 from .const import (
+    CONF_ALLOW_AUTO_START_STOP_OFF,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
+    DEFAULT_ALLOW_AUTO_START_STOP_OFF,
     CONTROL_KEY,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
@@ -84,6 +86,8 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
         return None
     attributes = state.attributes
     presets = attributes.get("preset_modes") or ()
+    specific_states = attributes.get("specific_states") or {}
+    off_reason = specific_states.get("hvac_off_reason", attributes.get("hvac_off_reason"))
     return engine.Thermostat(
         state.state,
         engine.preset_value(attributes.get("preset_mode")),
@@ -92,6 +96,7 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),
         engine.temperature_value(attributes.get("target_temp_step")),
+        str(off_reason) if off_reason is not None else None,
     )
 
 
@@ -286,11 +291,18 @@ class ChauffageRuntime:
             self.mappings,
             self.data["overrides"],
             self.use_presets,
+            self.allow_auto_start_stop_off,
         )
 
     @property
     def use_presets(self) -> bool:
         return bool(self.entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
+
+    @property
+    def allow_auto_start_stop_off(self) -> bool:
+        return bool(self.entry.options.get(
+            CONF_ALLOW_AUTO_START_STOP_OFF, DEFAULT_ALLOW_AUTO_START_STOP_OFF,
+        ))
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
         """What each preset means for a thermostat (mapping set by hand, else the default)."""
@@ -850,7 +862,10 @@ class ChauffageRuntime:
         """The command not applied yet that the thermostat has just taken (None: none): that one
         and the older ones are done."""
         commands = self.pending(entity_id)
-        index = engine.applied_command(commands, before, after) if after and commands else None
+        index = engine.applied_command(
+            commands, before, after,
+            allow_auto_start_stop_off=self.allow_auto_start_stop_off,
+        ) if after and commands else None
         if index is None:
             return None
         command = self.data["pending"][entity_id][index]

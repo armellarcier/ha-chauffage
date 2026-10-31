@@ -29,8 +29,8 @@ VTHERM = ("none", "frost", "eco", "comfort", "boost")
 PRESETS = {preset["id"]: preset for preset in model.default_presets("en")}
 
 
-def heat(preset="eco", temperature=17.0, state="heat", presets=VTHERM) -> Thermostat:
-    return Thermostat(state, preset, temperature, presets, 5.0, 30.0, 0.5)
+def heat(preset="eco", temperature=17.0, state="heat", presets=VTHERM, off_reason=None) -> Thermostat:
+    return Thermostat(state, preset, temperature, presets, 5.0, 30.0, 0.5, off_reason)
 
 
 def plain(temperature=17.0, state="heat", **kw) -> Thermostat:
@@ -38,8 +38,12 @@ def plain(temperature=17.0, state="heat", **kw) -> Thermostat:
     return Thermostat(state, None, temperature, (), kw.get("min_temp", 5.0), kw.get("max_temp", 30.0), kw.get("step", 0.5))
 
 
-def targets(now, thermostats, schedule="normal", overrides=None, mappings=None, **kw):
-    plan = engine.Plan(WEEKS, schedule, PRESETS, mappings or {}, overrides or {})
+def targets(now, thermostats, schedule="normal", overrides=None, mappings=None,
+            allow_auto_start_stop_off=False, **kw):
+    plan = engine.Plan(
+        WEEKS, schedule, PRESETS, mappings or {}, overrides or {},
+        allow_auto_start_stop_off=allow_auto_start_stop_off,
+    )
     return [(entity_id, target.value) for entity_id, target in engine.targets(plan, now, thermostats, **kw)]
 
 
@@ -86,6 +90,41 @@ def test_off_unavailable_and_unknown_thermostats_are_ignored():
     for state in ("off", "unavailable", "unknown"):
         assert targets(at("10:00"), {"climate.bureau": heat("eco", state=state)}, force=True) == []
     assert targets(at("10:00"), {}, force=True) == []  # entity missing
+
+
+def test_auto_stopped_thermostat_is_scheduled_only_when_the_option_is_enabled():
+    stopped = heat("eco", state="off", off_reason="hvac_off_auto_start_stop")
+    thermostats = {"climate.bureau": stopped}
+
+    assert targets(at("10:00"), thermostats, force=True) == []
+    assert targets(at("10:00"), thermostats, force=True, allow_auto_start_stop_off=True) == [
+        ("climate.bureau", "comfort")
+    ]
+
+
+def test_auto_start_stop_option_does_not_schedule_other_ignored_states():
+    for state, off_reason in (
+        ("off", None),
+        ("off", "hvac_off_manual"),
+        ("unavailable", "hvac_off_auto_start_stop"),
+        ("unknown", "hvac_off_auto_start_stop"),
+    ):
+        current = heat("eco", state=state, off_reason=off_reason)
+        assert targets(
+            at("10:00"), {"climate.bureau": current}, force=True,
+            allow_auto_start_stop_off=True,
+        ) == []
+
+
+def test_auto_stopped_thermostat_can_acknowledge_a_pending_command_when_enabled():
+    pending = [engine.Target("preset", "comfort")]
+    before = heat("eco", state="off", off_reason="hvac_off_auto_start_stop")
+    after = heat("comfort", state="off", off_reason="hvac_off_auto_start_stop")
+
+    assert engine.applied_command(pending, before, after) is None
+    assert engine.applied_command(
+        pending, before, after, allow_auto_start_stop_off=True,
+    ) == 0
 
 
 def test_overrides_are_left_alone_until_they_end_or_are_removed():
