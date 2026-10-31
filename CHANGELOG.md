@@ -18,11 +18,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 ### Changed
 
 - **You type a time as digits.** For example, "1225" gives 12:25. On a 12 h clock, type "p"
-  for PM. Chauffage applies the time when you press Enter or leave the field.
+  for PM. Without AM or PM, the time keeps the period the field had. Chauffage applies the
+  time when you press Enter or leave the field.
 - **The small arrows of a time field** move the time by the step of the card, 15 minutes by
   default. With the keyboard, ↑ and ↓ move the hours by an hour, and the minutes by the step.
 - **The end of an override can be any minute**, for example 12:07. It still ends at least
-  15 minutes from now.
+  15 minutes from now. The arrows move the end by as much, so an end moved before now stays
+  15 minutes from now instead of jumping to tomorrow.
 
 ## [0.7.0-beta.4] - 2026-10-28
 

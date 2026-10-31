@@ -170,6 +170,24 @@ describe('the time fields follow the profile\'s time format', () => {
     assert.deepEqual(serializeDay(card._week('climate.salon')[0]).slice(1, 3), ['06:30 comfort', '17:15 eco']);
   });
 
+  test('on a 12 h clock, a time typed without AM / PM keeps the period of the field', () => {
+    const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
+    card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="3"]').click(); // 17:30 → 22:30
+    const end = card.shadowRoot.querySelector('.editor input.time[data-edge="end"]');
+    assert.equal(end.value, '10:30 PM');
+    typeTime(end, '11:00');
+    assert.equal(serializeDay(card._week('climate.salon')[0])[4], '23:00 eco');
+  });
+
+  test('on a 12 h clock, ↑ on AM / PM switches the period', () => {
+    const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
+    const end = slotEnd(card); // 08:30 AM
+    end.focus();
+    end.setSelectionRange(7, 7);
+    end.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    assert.match(end.value, /^08:30\sPM$/); // Maskito's own space
+  });
+
   test('the end of an override, in the card\'s popover and in the more-info block', () => {
     const hass = fakeHass({ locale: english('24'), overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });

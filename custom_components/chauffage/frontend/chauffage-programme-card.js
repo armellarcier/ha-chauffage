@@ -522,7 +522,9 @@ const LS_GROUP = 'chauffage-programme-card:group-days';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
 const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
-const ICON_ZOOM = '<svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5M7,9H12V10H7V9M9,7H10V12H9V7Z"/></svg>';
+const ICON_UP = '<svg viewBox="0 0 24 24"><path d="M7,15L12,10L17,15H7Z"/></svg>';
+const ICON_DOWN = '<svg viewBox="0 0 24 24"><path d="M7,10L12,15L17,10H7Z"/></svg>';
+const ICON_ZOOM ='<svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5M7,9H12V10H7V9M9,7H10V12H9V7Z"/></svg>';
 const ICON_PASTE ='<svg viewBox="0 0 24 24"><path d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"/></svg>';
 
 const toMin = (s) => {
@@ -638,77 +640,122 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
 
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 
+// ---------- time fields ----------
 // A time field in the format of the user's profile (#63): a browser shows <input type="time"> in
 // the format of its own language. A text field instead, masked by Maskito once focused: "1225"
-// gives 12:25. Applied on Enter or on leaving the field. Its small up and down arrows, like those
-// of <input type="time">, and the arrow keys on its minutes, move the time by `step` minutes; the
-// arrow keys on its hours by an hour.
+// gives 12:25. Applied on Enter or on leaving the field. Its small arrows, like those of
+// <input type="time">, and the arrow keys on its minutes, move the time by `step` minutes; the
+// arrow keys on its hours by an hour, on AM / PM by 12 hours (Maskito's own).
+
 const fieldTime = (m, hour12) => {
   if (!hour12) return toHM(m);
   const h = Math.floor(m / 60) % 24;
   return `${String(h % 12 || 12).padStart(2, '0')}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 };
 
-const ICON_UP = '<svg viewBox="0 0 24 24"><path d="M7,15L12,10L17,15H7Z"/></svg>';
-const ICON_DOWN = '<svg viewBox="0 0 24 24"><path d="M7,10L12,15L17,10H7Z"/></svg>';
-
-function timeField(attr, minutes, hour12, step, t) {
+function timeField(attr, minutes, loc, step) {
   // Out of the Tab order: the arrow keys do the same from the field
   const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}">${icon}</button>`;
   // 12 h: letters too, for AM / PM
-  return `<span class="time-field"><input type="text" class="time${hour12 ? ' h12' : ''}"
-    inputmode="${hour12 ? 'text' : 'numeric'}" autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}"
-    value="${fieldTime(minutes, hour12)}"><span class="time-spin">${button(1, ICON_UP, t('later', { min: step }))}${button(-1, ICON_DOWN, t('earlier', { min: step }))}</span></span>`;
+  return `<span class="time-field"><input type="text" class="time${loc.hour12 ? ' h12' : ''}"
+    inputmode="${loc.hour12 ? 'text' : 'numeric'}" autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}"
+    value="${fieldTime(minutes, loc.hour12)}"><span class="time-spin">${button(1, ICON_UP, loc.t('later', { min: step }))}${button(-1, ICON_DOWN, loc.t('earlier', { min: step }))}</span></span>`;
+}
+
+// The time typed in a time field, in minutes since midnight; null if it is not a whole time. On a
+// 12 h clock, a time typed without AM / PM keeps the period the field had.
+function typedTime(el) {
+  const r = /^(\d{1,2}):(\d{2})(?:\s*([AP])M)?$/i.exec(el.value.trim());
+  if (!r) return null;
+  let h = Number(r[1]);
+  const m = Number(r[2]);
+  if (el.classList.contains('h12')) {
+    if (h < 1 || h > 12) return null;
+    const pm = r[3] ? r[3].toUpperCase() === 'P' : Number(el.dataset.minutes) >= 12 * 60;
+    h = (h % 12) + (pm ? 12 : 0);
+  }
+  return h <= 23 && m <= 59 ? h * 60 + m : null;
 }
 
 // A time moved by `delta` minutes, onto the multiples of `grid` (11:47 + 15 min: 12:00)
 const moveTime = (m, delta, grid = 1) =>
   ((((delta > 0 ? Math.floor(m / grid) : Math.ceil(m / grid)) * grid + delta) % DAY_MIN) + DAY_MIN) % DAY_MIN;
 
-// ↑ / ↓ in a time field: on the hours, an hour; on the minutes, the field's step; on AM / PM, 12 hours
+// The time of a field moved by its arrows: `move(minutes, step)` gives the new time. The field
+// keeps how far its arrows moved it (`moved`, in minutes), for the end of an override. False if
+// the field holds no whole time.
+function moveFieldTime(el, move) {
+  const m = typedTime(el);
+  if (m === null) return false;
+  const moved = move(m, Number(el.dataset.step) || 1);
+  el.dataset.moved = Number(el.dataset.moved || 0) + ((moved - m + DAY_MIN * 1.5) % DAY_MIN) - DAY_MIN / 2;
+  el.value = fieldTime(moved, el.classList.contains('h12'));
+  return true;
+}
+
+// ↑ / ↓ in a time field: on the hours, an hour; on the minutes, the field's step
 function arrowInTimeField(e) {
   const el = e.target;
-  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !el.matches || !el.matches('input.time')) return;
-  const m = typedTime(el.value);
-  if (m === null) return;
-  e.preventDefault();
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
   const pos = el.selectionStart || 0;
+  // On AM / PM: Maskito switches the period itself; the end of an override is then the next one
+  if (pos > 5) { delete el.dataset.moved; return; }
   const dir = e.key === 'ArrowUp' ? 1 : -1;
-  const step = Number(el.dataset.step) || 1;
-  const moved = pos <= 2 ? moveTime(m, 60 * dir) : pos <= 5 ? moveTime(m, step * dir, step) : moveTime(m, 720 * dir);
-  el.value = fieldTime(moved, el.classList.contains('h12'));
+  if (!moveFieldTime(el, (m, step) => (pos <= 2 ? moveTime(m, 60 * dir) : moveTime(m, step * dir, step)))) return;
+  e.preventDefault();
   el.setSelectionRange(pos, pos);
 }
 
-// The small arrows of a time field: the time moved by the field's step, put in the field. Returns the
-// field, to apply the time (null if it is not a whole time)
-function stepTimeField(button) {
-  const el = button.closest('.time-field').querySelector('input.time');
-  const m = typedTime(el.value);
-  if (m === null) return null;
-  const step = Number(el.dataset.step) || 1;
-  el.value = fieldTime(moveTime(m, step * Number(button.dataset.timeStep), step), el.classList.contains('h12'));
-  return el;
-}
-
-// The time typed in a time field, in minutes since midnight; null if it is not a whole time
-function typedTime(value) {
-  const r = /^(\d{1,2}):(\d{2})(?:\s*([AP])M)?$/i.exec(String(value).trim());
-  if (!r) return null;
-  let h = Number(r[1]);
-  const m = Number(r[2]);
-  if (r[3]) {
-    if (h < 1 || h > 12) return null;
-    h = (h % 12) + (r[3].toUpperCase() === 'P' ? 12 : 0);
+// A time field left (or Enter, or its small arrows): `apply(minutes)` once per new time. Then the
+// redraws held back while it was typed in are done, and a time not whole is shown again as it was.
+function timeFieldDone(host, el, apply) {
+  const minutes = typedTime(el);
+  if (minutes === null) host._redrawLater = true;
+  else if (minutes !== Number(el.dataset.minutes) || Number(el.dataset.moved)) {
+    el.dataset.minutes = minutes; // applied once
+    apply(minutes);
+    delete el.dataset.moved;
   }
-  return h <= 23 && m <= 59 ? h * 60 + m : null;
+  if (!host._redrawLater) return;
+  host._redrawLater = false;
+  host._render();
 }
 
-// Masks a time field when it gets the focus (once)
-function maskTimeField(el) {
-  if (!el.matches || !el.matches('input.time') || el._maskito) return;
-  // Without Maskito's own step: it moves the hours by the step too
-  el._maskito = new Maskito(el, maskitoTimeOptionsGenerator({ mode: el.classList.contains('h12') ? 'HH:MM AA' : 'HH:MM' }));
+// The end of an override typed in its field: moved by the arrows, the end moves by as much (it
+// does not jump to tomorrow, nor lose the days of an end in three days); typed, the next time it
+// is that time. An end before now + a step is then raised to it.
+const endOfField = (el, minutes) => (Number(el.dataset.moved)
+  ? new Date(parseDate(el.dataset.endsAt).getTime() + Number(el.dataset.moved) * 60000)
+  : nextAtMinutes(minutes));
+
+// The listeners of the time fields of a shadow root. `done(field, next)` applies a field's time
+// (`next`: the field Tab goes to, if any).
+function listenTimeFields(root, done) {
+  const isTime = (el) => el && el.matches && el.matches('input.time');
+  root.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (!isTime(el) || el._maskito) return;
+    el._maskito = new Maskito(el, maskitoTimeOptionsGenerator({ mode: el.classList.contains('h12') ? 'HH:MM AA' : 'HH:MM' }));
+  });
+  root.addEventListener('focusout', (e) => { if (isTime(e.target)) done(e.target, e.relatedTarget); });
+  // Typed: the time is the one typed, not moved (the end of an override)
+  root.addEventListener('input', (e) => { if (isTime(e.target)) delete e.target.dataset.moved; });
+  root.addEventListener('keydown', (e) => {
+    if (!isTime(e.target)) return;
+    if (e.key === 'Enter') e.target.blur(); // applied on leaving the field
+    else arrowInTimeField(e);
+  });
+  // The small arrows: the field keeps the focus (a redraw would take the button away before its click)
+  root.addEventListener('mousedown', (e) => { if (e.target.closest('.time-step')) e.preventDefault(); });
+  root.addEventListener('click', (e) => {
+    const button = e.target.closest('.time-step');
+    if (!button) return;
+    const el = button.closest('.time-field').querySelector('input.time');
+    const dir = Number(button.dataset.timeStep);
+    if (!moveFieldTime(el, (m, step) => moveTime(m, step * dir, step))) return;
+    if (root.activeElement === el) el.blur(); // applied by its focusout
+    else done(el);
+  });
 }
 
 // The moment at `minutes` (time of day) of the day starting at `day0`; DAY_MIN is the next midnight.
@@ -1635,10 +1682,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
-  // A time field left (or Enter, or its arrows): its time is applied, for the slot or the
-  // thermostat it was typed for (a tap outside the card may have closed the popover meanwhile).
-  // Then the redraws held back while it was typed in are done (an override ended elsewhere…), and
-  // a time not whole is shown again as it was. `next` is the field Tab goes to.
+  // A time field left: its time is applied, for the slot or the thermostat it was typed for (a tap
+  // outside the card may have closed the popover meanwhile). `next` is the field Tab goes to.
   _timeFieldDone(el, next) {
     // Tab to another time field: applied once that field has the focus, so that the redraw waits
     // until the time fields are left, instead of replacing the field being typed in
@@ -1646,16 +1691,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       setTimeout(() => this._timeFieldDone(el));
       return;
     }
-    const minutes = typedTime(el.value);
-    if (minutes === null) this._redrawLater = true;
-    else if (minutes !== Number(el.dataset.minutes)) {
-      el.dataset.minutes = minutes; // applied once
+    timeFieldDone(this, el, (minutes) => {
       if (el.dataset.edge) this._setEdge(el.dataset.edge, minutes, JSON.parse(el.dataset.slot));
-      else this._setOverrideEnd(el.dataset.overrideEnd, nextAtMinutes(minutes));
-    }
-    if (!this._redrawLater) return;
-    this._redrawLater = false;
-    this._render();
+      else this._setOverrideEnd(el.dataset.overrideEnd, endOfField(el, minutes));
+    });
   }
 
   // New end (Date): at least one step after now
@@ -2055,12 +2094,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Popover, placed under the slot by _placeEditor() after rendering
     const last = idx === segs.length - 1;
     const end = last ? DAY_MIN : segs[idx + 1].start;
-    const { hour12 } = this._loc;
     const slot = `data-slot="${esc(JSON.stringify({ climate, day, idx }))}"`;
     const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>`
-      : timeField(`data-edge="start" ${slot}`, s.start, hour12, this._config.step, this._loc.t);
+      : timeField(`data-edge="start" ${slot}`, s.start, this._loc, this._config.step);
     const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>`
-      : timeField(`data-edge="end" ${slot}`, end, hour12, this._config.step, this._loc.t);
+      : timeField(`data-edge="end" ${slot}`, end, this._loc, this._config.step);
     const presets = this._presets()
       .map((l) => `<button data-act="preset" data-preset="${esc(l.id)}" class="${s.preset === l.id ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`)
       .join('');
@@ -2104,7 +2142,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="editor override-ed">
       ${head}
       <div class="ed-head">
-        <label>${esc(t('until'))} ${timeField(`data-override-end="${esc(climate)}"`, minutesOf(endsAt), this._loc.hour12, this._config.step, this._loc.t)}</label>
+        <label>${esc(t('until'))} ${timeField(`data-override-end="${esc(climate)}" data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, this._config.step)}</label>
         <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
       </div>
       <div class="ed-actions start">
@@ -2620,28 +2658,12 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     // Enter in a schedule's name field confirms (Create / Rename)
     root.addEventListener('keydown', (e) => {
-      // Enter in a time field applies the time (on leaving the field)
-      if (e.key === 'Enter' && e.target.matches('input.time')) { e.target.blur(); return; }
-      arrowInTimeField(e);
       if (e.key !== 'Enter' || !e.target.hasAttribute('data-sched-name')) return;
       const ok = root.querySelector('.sched-menu .btn.primary');
       if (ok) ok.click();
     });
 
-    // A time field: masked once focused; applied once left
-    root.addEventListener('focusin', (e) => maskTimeField(e.target));
-    root.addEventListener('focusout', (e) => {
-      if (e.target.matches && e.target.matches('input.time')) this._timeFieldDone(e.target, e.relatedTarget);
-    });
-    // Its arrows: the field keeps the focus (a redraw would take the button away before its click)
-    root.addEventListener('mousedown', (e) => { if (e.target.closest('.time-step')) e.preventDefault(); });
-    root.addEventListener('click', (e) => {
-      const b = e.target.closest('.time-step');
-      const el = b && stepTimeField(b);
-      if (!el) return;
-      if (this.shadowRoot.activeElement === el) el.blur(); // applied by its focusout
-      else this._timeFieldDone(el);
-    });
+    listenTimeFields(root, (el, next) => this._timeFieldDone(el, next));
 
     // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e) => {
@@ -3476,6 +3498,25 @@ const LINK_STYLE = `
   .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
 `;
 
+// A time field and its small arrows (the card's popovers, the more-info block). Each arrow takes
+// a finger a few pixels beyond its edge, away from the other arrow.
+const TIME_FIELD_STYLE = `
+  input.time { width:6.5ch; font-variant-numeric:tabular-nums; }
+  input.time.h12 { width:9.5ch; }
+  .time-field { display:inline-flex; align-items:stretch; vertical-align:middle; }
+  .time-field input.time { border-radius:6px 0 0 6px; }
+  .time-spin { display:flex; flex-direction:column; }
+  .time-step { position:relative; flex:1; width:22px; min-height:0; padding:0; border:1px solid var(--divider-color);
+    border-left:0; background:none; color:var(--primary-text-color); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
+  .time-step::after { content:''; position:absolute; left:0; right:-8px; }
+  .time-step:first-child { border-radius:0 6px 0 0; border-bottom:0; }
+  .time-step:first-child::after { top:-8px; bottom:0; }
+  .time-step:last-child { border-radius:0 0 6px 0; }
+  .time-step:last-child::after { top:0; bottom:-8px; }
+  .time-step svg { width:16px; height:16px; fill:currentColor; }
+`;
+
 const STYLE = `
   :host { display:block; }
   ha-card { display:block; position:relative; padding:16px; overflow:visible; }
@@ -3681,16 +3722,7 @@ const STYLE = `
   .ed-head .close { margin-left:auto; }
   .editor input { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--secondary-background-color); }
-  input.time { width:6.5ch; font-variant-numeric:tabular-nums; }
-  input.time.h12 { width:9.5ch; }
-  .time-field { display:inline-flex; align-items:stretch; vertical-align:middle; }
-  .time-field input.time { border-radius:6px 0 0 6px; }
-  .time-spin { display:flex; flex-direction:column; }
-  .time-step { flex:1; width:20px; min-height:0; padding:0; border:1px solid var(--divider-color); border-left:0;
-    background:none; color:var(--primary-text-color); cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  .time-step:first-child { border-radius:0 6px 0 0; border-bottom:0; }
-  .time-step:last-child { border-radius:0 0 6px 0; }
-  .time-step svg { width:16px; height:16px; fill:currentColor; }
+  ${TIME_FIELD_STYLE}
   .fixed { font-variant-numeric:tabular-nums; padding:0 4px; }
   .presets { display:flex; flex-wrap:wrap; gap:6px; }
   .presets button { border:0; color:#fff; padding:6px 10px; border-radius:6px; cursor:pointer; opacity:.5; }
@@ -3846,10 +3878,8 @@ class ChauffageMoreInfo extends HTMLElement {
     root.addEventListener('pointermove', (e) => this._onMove(e));
     root.addEventListener('pointerup', () => this._onUp());
     root.addEventListener('pointercancel', () => this._onUp());
-    root.addEventListener('focusout', (e) => { if (e.target.matches && e.target.matches('[data-end]')) this._endDone(e.target); });
-    root.addEventListener('mousedown', (e) => { if (e.target.closest('.time-step')) e.preventDefault(); });
-    root.addEventListener('keydown', (e) => this._onEndKey(e));
-    root.addEventListener('focusin', (e) => maskTimeField(e.target));
+    // The end field of an override left: the end typed is applied
+    listenTimeFields(root, (el) => timeFieldDone(this, el, (minutes) => this._setEnd(endOfField(el, minutes))));
   }
 
   set entity(id) {
@@ -3970,7 +4000,7 @@ class ChauffageMoreInfo extends HTMLElement {
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
-          <label>${esc(t('until'))} ${timeField('data-end', minutesOf(endsAt), this._loc.hour12, MORE_INFO_CFG.step, this._loc.t)}</label>
+          <label>${esc(t('until'))} ${timeField(`data-end data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, MORE_INFO_CFG.step)}</label>
           <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>
         ${value.presets}
@@ -4051,13 +4081,6 @@ class ChauffageMoreInfo extends HTMLElement {
       openMoreInfo(this, link.dataset.moreInfo);
       return;
     }
-    const step = e.target.closest('.time-step');
-    if (step) {
-      const el = stepTimeField(step);
-      if (el && this.shadowRoot.activeElement === el) el.blur(); // applied by its focusout
-      else if (el) this._endDone(el);
-      return;
-    }
     const device = e.target.closest('[data-device]');
     if (device) {
       // In the more-info dialog: closed first, the device page under it otherwise
@@ -4065,7 +4088,7 @@ class ChauffageMoreInfo extends HTMLElement {
       openDevice(device.dataset.device);
       return;
     }
-    const b = e.target.closest('button');
+    const b = e.target.closest('button:not(.time-step)'); // the small arrows: listenTimeFields()
     if (!b || !this._hass) return;
     if (b.hasAttribute('data-new-override')) { this._creating = !this._creating; return this._render(); }
     this._error = null;
@@ -4089,28 +4112,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const el = e.target;
     if (el.hasAttribute('data-override-temperature') && el.value !== '') {
       this._send(overrideWithTemperature(this._currentOverride(), dataSource(this._hass), Number(el.value)));
-      return;
     }
-  }
-
-  // Enter in the end field applies the time (on leaving the field); ↑ / ↓ move it
-  _onEndKey(e) {
-    if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-end]')) e.target.blur();
-    else arrowInTimeField(e);
-  }
-
-  // The end field left (or its arrows): its time is applied, then the block, not redrawn while it
-  // was typed in, is drawn again (a time not whole as it was)
-  _endDone(el) {
-    const minutes = typedTime(el.value);
-    if (minutes === null) this._redrawLater = true;
-    else if (minutes !== Number(el.dataset.minutes)) {
-      el.dataset.minutes = minutes; // applied once
-      this._setEnd(nextAtMinutes(minutes));
-    }
-    if (!this._redrawLater) return;
-    this._redrawLater = false;
-    this._render();
   }
 
   // ----- dragging the override's end -----
@@ -4198,16 +4200,7 @@ const MORE_INFO_STYLE = `
   input.time, input[type=number] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--card-background-color); color:var(--primary-text-color); }
   input[type=number] { width:5em; }
-  input.time { width:6.5ch; font-variant-numeric:tabular-nums; }
-  input.time.h12 { width:9.5ch; }
-  .time-field { display:inline-flex; align-items:stretch; vertical-align:middle; }
-  .time-field input.time { border-radius:6px 0 0 6px; }
-  .time-spin { display:flex; flex-direction:column; }
-  .time-step { flex:1; width:20px; min-height:0; padding:0; border:1px solid var(--divider-color); border-left:0;
-    background:none; color:var(--primary-text-color); cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  .time-step:first-child { border-radius:0 6px 0 0; border-bottom:0; }
-  .time-step:last-child { border-radius:0 0 6px 0; }
-  .time-step svg { width:16px; height:16px; fill:currentColor; }
+  ${TIME_FIELD_STYLE}
   .presets { display:flex; flex-wrap:wrap; gap:6px; }
   .presets button { border:0; color:#fff; padding:6px 10px; opacity:.5; }
   .presets button.on { opacity:1; box-shadow:0 0 0 2px var(--primary-text-color); }

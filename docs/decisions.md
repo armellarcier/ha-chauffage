@@ -432,8 +432,13 @@ dashboards, automations, scripts and by voice without the card
   - **The small arrows and the arrow keys**, like those of `<input type="time">`. The small
     arrows move the time by the step, and are out of the Tab order. The arrow keys move the
     hours by an hour and the minutes by the step: Maskito's own step moved the hours by the step
-    too.
+    too. On AM / PM, Maskito switches the period itself.
   - **The end of an override is typed to the minute**: it needs no step, unlike the slots.
+  - **The arrows move the end of an override by as much**, not to the next time it is that
+    time of day: an end moved before now would jump to tomorrow, and an end in three days would
+    come back within a day. A time typed is still the next time it is that time.
+  - **On a 12 h clock, a time typed without AM / PM keeps the period of the field**: "0715" in
+    a field at "06:00 PM" means 7:15 PM.
 
 ## Process
 

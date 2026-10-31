@@ -339,6 +339,22 @@ describe('dragging the end of an override', () => {
     el.shadowRoot.querySelector('.time-step[data-time-step="-1"]').click();
     assert.equal(sentEnd(hass), '2026-10-12T09:15:00.000Z'); // 11:15
   });
+
+  test('an end moved before now by the arrows stays a step after now, not tomorrow', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-12T10:30:00+02:00' } } });
+    const field = moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]');
+    field.focus();
+    field.setSelectionRange(1, 1);
+    key(field, 'ArrowDown'); // 09:30, already past
+    field.blur();
+    assert.equal(sentEnd(hass), '2026-10-12T08:15:00.000Z'); // 10:15 today
+  });
+
+  test('an end in three days moved by the small arrows stays in three days', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-15T11:30:00+02:00' } } });
+    moreInfoOf(hass).shadowRoot.querySelector('.time-step[data-time-step="1"]').click();
+    assert.equal(sentEnd(hass), '2026-10-15T09:45:00.000Z'); // 11:45 in three days
+  });
 });
 
 describe('row menu', () => {
