@@ -499,6 +499,17 @@ describe('the Chauffage panel', () => {
 describe('the dashboard card and the panel', () => {
   afterEach(() => cleanup());
 
+  test('a dashboard card ignores the options the panel sets for its own pages', () => {
+    const card = document.createElement('chauffage-programme-card');
+    card.setConfig({ thermostats: ['climate.salon', 'climate.bureau'], chips: false, schedule_tabs: false, view: 'presets', panel: true, savebar: false });
+    document.body.appendChild(card);
+    card.hass = setup();
+    assert.ok(card.shadowRoot.querySelector('.chips'), 'its chips');
+    assert.ok(card.shadowRoot.querySelector('.tabs'), 'its schedule tabs');
+    assert.equal(card._view, 'schedule', 'its weeks');
+    assert.ok(card.shadowRoot.querySelector('[data-panel-page]'), 'its link to the panel: it is not the panel');
+  });
+
   test('admins set the presets from the legend of the presets: one link, where the card shows them', () => {
     const card = createCard(setup());
     assert.equal(card.shadowRoot.querySelector('[data-act="view"], .config-links'), null); // no links at the top

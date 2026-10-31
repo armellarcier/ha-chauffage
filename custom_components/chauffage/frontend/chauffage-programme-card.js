@@ -1435,6 +1435,11 @@ function otherPreset(presets, id, next) {
   return [...ids.slice(i + 1), ...ids.slice(0, i + 1)].find(free);
 }
 
+// The card's options that only the Chauffage panel sets, for its pages: a page shows one view, a
+// thermostat's sheet stacks its weeks without their chips, tabs or foot, and saves them together
+const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'chips', 'legend', 'copy_week', 'hint', 'today',
+  'flat', 'paused_note', 'preset_definitions', 'history', 'savebar'];
+
 class ChauffageProgrammeCard extends HTMLElement {
   constructor() {
     super();
@@ -1496,7 +1501,16 @@ class ChauffageProgrammeCard extends HTMLElement {
     return { thermostats: scheduled.length ? scheduled : climates };
   }
 
+  // A dashboard's configuration: the options the Chauffage panel sets for its own pages are not
+  // options of a dashboard card (PANEL_OPTIONS), and are ignored there
   setConfig(config) {
+    const own = { ...config };
+    for (const key of PANEL_OPTIONS) delete own[key];
+    this._setPanelConfig(own);
+  }
+
+  // The panel's pages set the card with their own options too (see ChauffagePanel)
+  _setPanelConfig(config) {
     if (!config.thermostats || !config.thermostats.length) {
       const lang = config.language || (typeof navigator !== 'undefined' && navigator.language);
       throw new Error(makeLocale(null, lang).t('thermostatsRequired'));
@@ -5257,7 +5271,7 @@ class ChauffagePanel extends HTMLElement {
     const scheduled = Object.keys(src.weeks()).length;
     const card = (config, parent = content) => {
       const el = document.createElement('chauffage-programme-card');
-      el.setConfig({ thermostats: this._thermostats(src), panel: true, ...config });
+      el._setPanelConfig({ thermostats: this._thermostats(src), panel: true, ...config });
       parent.appendChild(el);
       this._cards.push(el);
       return el;

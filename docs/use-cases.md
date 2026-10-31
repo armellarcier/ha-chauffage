@@ -216,6 +216,7 @@ are proved by the same tests, on the panel's page.
 |---|---|
 | An admin finds *Chauffage* in the sidebar, with its own icon (`chauffage:logo`); the panel is for admins only | `I/test_frontend.py::the_chauffage_panel_is_registered_for_admins_with_its_own_icon`, `C/panel.test.mjs` ("the panel's icon") |
 | An admin takes *Chauffage* out of the sidebar with an option, on by default; the panel keeps its addresses, and the sidebar follows the option without a restart | `I/test_frontend.py::the_panel_is_in_the_sidebar_by_default`, `::an_admin_can_take_the_panel_out_of_the_sidebar`, `::the_sidebar_follows_the_option_without_a_restart` |
+| A dashboard card ignores the options the panel sets for its own pages, for example `chips: false` or `view: presets` written in its YAML | `C/panel.test.mjs` ("a dashboard card ignores the options") |
 | On a dashboard, the legend of the schedule card's presets ends, for an admin, with *Set the presets*, which opens the panel's *Presets* tab; no other link to the panel; a non-admin sees none | `C/panel.test.mjs` ("the dashboard card and the panel") |
 | A list shows the panel's tabs (*Thermostats*, *Schedules*, *Presets*) and Home Assistant's menu button; a sheet shows no tabs, a breadcrumb title whose list is a link | `C/panel.test.mjs` ("lists and sheets") |
 | `/chauffage/rules` opens the *Schedules* page, where the rules are | `C/panel.test.mjs` ("its addresses") |

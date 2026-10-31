@@ -137,7 +137,8 @@ export function hassWithoutIntegration({ locale = FRENCH } = {}) {
 /** Configured card fed with hass; detach it at the end of the test (stops its timer). */
 export function createCard(hass, config = {}) {
   const card = document.createElement('chauffage-programme-card');
-  card.setConfig({ thermostats: ['climate.salon', 'climate.bureau'], show: 'all', ...config });
+  // As the panel does: a test may set the options of the panel's pages too (see PANEL_OPTIONS)
+  card._setPanelConfig({ thermostats: ['climate.salon', 'climate.bureau'], show: 'all', ...config });
   document.body.appendChild(card);
   card.hass = hass;
   return card;
