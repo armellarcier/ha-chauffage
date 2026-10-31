@@ -11,7 +11,7 @@ import { Maskito } from './vendor/maskito-core-5.6.1.js';
 import { maskitoTimeOptionsGenerator } from './vendor/maskito-time-5.6.1.js';
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.7.0-beta.4';
+const VERSION = '0.7.0-beta.5';
 
 const DAY_MIN = 1440;
 
