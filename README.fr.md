@@ -129,8 +129,8 @@ Le panneau a trois onglets :
 Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, par exemple
 « Thermostats › Salon », ramène à sa liste.
 
-- **La page d'un planning** montre la semaine de chaque thermostat dans ce planning. Son menu ⋮
-  renomme ou supprime le planning.
+- **La page d'un planning** montre la semaine de chaque thermostat dans ce planning. Le menu ⋮,
+  à côté du titre de la page, renomme ou supprime le planning.
 - **La page d'un thermostat** montre le thermostat, si Chauffage le pilote, et ses appareils.
   En dessous, ses préréglages servent de légende à ses semaines, une semaine par planning.
   Le menu ⋮ d’une semaine la copie vers un autre planning. *Grouper les jours* regroupe les jours
@@ -405,7 +405,7 @@ car une autre carte peut l'afficher. Le thermostat reste programmé jusqu'à ce 
 l'oubliiez.
 
 L'onglet *Thermostats* du panneau liste tous les thermostats programmés, et les cartes qui les
-affichent. Pour oublier un thermostat, ouvrez son menu ⋮, puis *Oublier…*. Si vous supprimez
+affichent. Pour oublier un thermostat, ouvrez son menu ⋮, dans la liste ou à côté du titre de sa page, puis *Oublier…*. Si vous supprimez
 l'entité d'un thermostat de Home Assistant, Paramètres → Réparations propose d'oublier le
 thermostat.
 

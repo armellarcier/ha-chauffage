@@ -251,14 +251,15 @@ are proved by the same tests, on the panel's page.
 | A second copy replaces the first one, whatever week it comes from; only the day copied last stands out as copied | `C/panel.test.mjs` ("a second copy replaces the first one", "only the day copied last") |
 | Copy a week that has edits not saved yet: the target gets the week as shown, and the source keeps its own edits, still to save | `C/panel.test.mjs` ("a week with edits not saved yet") |
 | A week stacked on a thermostat's sheet has no foot (no legend, no copy menu, no empty message line), no tabs and no chips; the hint is shown once above the weeks | `C/panel.test.mjs` ("no foot under a stacked week") |
-| A schedule's sheet and the dashboard card keep the card's list to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |
+| A schedule's sheet and the dashboard card keep the card's menu to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |
 | On a thermostat's sheet, today stands out only in the active schedule's week; a schedule's sheet still marks today | `C/panel.test.mjs` ("today stands out only", "keeps the card's list") |
 | The *Pause* button keeps its place when it turns into *Control*: the badge comes after it | `C/panel.test.mjs` ("Pause sends the pause") |
 | A thermostat's sheet says *Paused* in its header when it is; a paused thermostat's sheet says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
 | Ungrouping the days on a thermostat's sheet applies to every schedule, and is remembered in the browser with the cards' choice; the sheet's choice wins over the one remembered | `C/panel.test.mjs` ("ungrouping the days") |
 | A thermostat's sheet has the card's *History* switch, for all its weeks; grouping the days hides the history; a history turned on in a card does not stop the sheet from grouping the days | `C/panel.test.mjs` ("the history has its own switch") |
 | Outside the panel, the choice of grouping remembered in the browser wins over the card's option | `C/panel.test.mjs` ("outside the panel") |
-| A schedule's sheet shows every thermostat's week in that schedule, with only its tab and its ⋮ menu (rename, copy, delete), no "+" | `C/panel.test.mjs` ("a schedule's sheet") |
+| A schedule's sheet shows every thermostat's week in that schedule, without tabs (the breadcrumb names it) and no "+"; the page's ⋮, next to the breadcrumb, renames or deletes the schedule, and does not move it | `C/panel.test.mjs` ("a schedule's sheet") |
+| A thermostat's sheet has its ⋮ next to the breadcrumb: open the thermostat, or forget it after a confirmation; the menu closes with a click elsewhere or Escape | `C/panel.test.mjs` ("its ⋮, next to the breadcrumb, opens the thermostat", "its ⋮ menu closes") |
 
 ### Welcoming a new user
 

@@ -123,8 +123,8 @@ The panel has three tabs:
 A schedule or a thermostat opens on a page of its own. The title of the page, for example
 "Thermostats › Living room", leads back to its list.
 
-- **A schedule's page** shows every thermostat's week in this schedule. Its ⋮ menu renames
-  or deletes the schedule.
+- **A schedule's page** shows every thermostat's week in this schedule. The ⋮ next to the
+  page's title renames or deletes the schedule.
 - **A thermostat's page** shows the thermostat, whether Chauffage controls it, and its devices.
   Below, its presets serve as the legend of its weeks, one week for each schedule. The ⋮ of a
   week copies it to another schedule. *Group days* groups the identical days of every week, and
@@ -381,7 +381,7 @@ remove the thermostat from a card, the thermostat stays scheduled, because anoth
 it. The thermostat stays scheduled until you forget it.
 
 The panel's *Thermostats* tab lists every scheduled thermostat, and the cards that show it. To
-forget a thermostat, open its ⋮ menu, then *Forget…*. If you delete a thermostat's entity from
+forget a thermostat, open its ⋮ menu, in the list or next to the title of its page, then *Forget…*. If you delete a thermostat's entity from
 Home Assistant, Settings → Repairs offers to forget the thermostat.
 
 ### Pause a thermostat

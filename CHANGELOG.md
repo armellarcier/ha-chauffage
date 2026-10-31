@@ -41,6 +41,8 @@ Each entry says whether the release **migrates stored data** and what to do when
   thermostats.** A row opens the schedule's page, and its ⋮ renames, moves or deletes it.
   *+ New schedule* also creates a copy of another schedule, checks the name, then opens the new
   schedule's page.
+- **Each page of the panel has its ⋮ next to its title.** A schedule's page no longer shows a lone
+  tab, which offered to move the schedule. A thermostat's page can now forget the thermostat.
 - **A schedule's ⋮ on the card opens its page in the panel**, instead of the history of its
   switch.
 - A dashboard card ignores the options that the panel sets for its own pages, for example

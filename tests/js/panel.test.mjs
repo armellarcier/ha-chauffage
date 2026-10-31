@@ -256,15 +256,22 @@ describe('the Chauffage panel', () => {
   });
 
   describe('a schedule\'s sheet', () => {
-    test('shows every thermostat\'s week in this schedule, with its tab and menu alone, no new schedule', () => {
+    test('shows every thermostat\'s week in this schedule, without tabs: the breadcrumb names it', () => {
       const el = panel(setup(), '/schedules/holiday');
       const [card] = cards(el);
       assert.equal(card._schedule, 'holiday');
       assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);
-      assert.deepEqual($$(card, '.tab').map(text), ['Vacances']);
-      assert.ok($(card, '[data-act="schedule-menu"]'));
+      assert.equal($(card, '.tabs'), null);
       assert.equal($(card, '[data-act="schedule-new"]'), null);
       assert.equal($(card, '[data-panel-page]'), null); // in the panel, no links to the panel
+    });
+
+    test('its ⋮, next to the breadcrumb, renames or deletes the schedule; it does not move it', () => {
+      const el = panel(setup(), '/schedules/holiday');
+      $(el, '.toolbar [data-page-menu]').click();
+      const menu = $(cards(el)[0], '.sched-menu');
+      assert.match(text(menu), /Renommer.*Supprimer/);
+      assert.equal(menu.querySelector('[data-act="schedule-move"]'), null);
     });
 
     test('keeps the card\'s list to copy a week, and marks today even when the schedule is not active', () => {
@@ -284,6 +291,28 @@ describe('the Chauffage panel', () => {
       await tick();
       assert.match(text($(el, '.about .shown')), /^Affiché dans /);
       assert.doesNotMatch(text($(el, '.about .shown')), /…/);
+    });
+
+    test('its ⋮, next to the breadcrumb, opens the thermostat or forgets it, after a confirmation', () => {
+      const hass = setup();
+      const el = panel(hass, '/thermostats/climate.salon');
+      $(el, '.toolbar [data-page-menu]').click();
+      assert.match(text($(el, '.page-menu')), /Ouvrir le thermostat.*Oublier/);
+      $(el, '.page-menu [data-forget]').click();
+      assert.equal(hass.events.filter((m) => m.type === 'chauffage/thermostat/forget').length, 0);
+      assert.match(text($(el, '.page-menu')), /Ses semaines et ses réglages seront supprimés/);
+      $(el, '.page-menu [data-forget-confirm]').click();
+      assert.deepEqual(hass.events.at(-1), { type: 'chauffage/thermostat/forget', entity_id: 'climate.salon' });
+    });
+
+    test('its ⋮ menu closes with a click elsewhere or Escape', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      $(el, '.toolbar [data-page-menu]').click();
+      $(el, '.hint').click();
+      assert.equal($(el, '.page-menu'), null);
+      $(el, '.toolbar [data-page-menu]').click();
+      document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+      assert.equal($(el, '.page-menu'), null);
     });
 
     test('its header: Home Assistant\'s tile, Pause and whether Chauffage controls it, its devices by their names', async () => {

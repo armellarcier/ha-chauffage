@@ -2588,7 +2588,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>`}
         ${this._renamedNotesHtml()}
         ${this._config.paused_note === false ? '' : this._pausedNotesHtml()}
-        ${this._config.schedule_tabs === false ? '' : `<div class="tabs">${tabs}</div>
+        ${this._config.schedule_tabs === false ? '' : `${one ? '' : `<div class="tabs">${tabs}</div>`}
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}`}
         <div class="days" style="--day-w:${dayWidth}px">
@@ -5238,11 +5238,16 @@ class ChauffagePanel extends HTMLElement {
       e.preventDefault();
       e.returnValue = '';
     };
-    // Escape closes the menu to copy a week, as the card's menus
+    // Escape closes the panel's menus, as the card's menus
     this._onKey = (e) => {
-      if (e.key === 'Escape' && this._copyMenu) {
+      if (e.key !== 'Escape') return;
+      if (this._copyMenu) {
         this._copyMenu = null;
         this._update();
+      }
+      if (this._pageMenu) {
+        this._pageMenu = false;
+        this._fillPageMenu();
       }
     };
   }
@@ -5338,6 +5343,8 @@ class ChauffagePanel extends HTMLElement {
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button>
           <nav class="title crumbs"><a href="/chauffage/${route.list}" data-page="${route.list}">${esc(t(list[1]))}</a>
             <span class="sep">›</span><span>${esc(name)}</span></nav>
+          ${src.editable ? `<button class="page-more" data-page-menu title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>` : ''}
+          <div data-fill="page-menu"></div>
         </div>`;
     } else {
       const tabs = PANEL_TABS.map(([page, label]) =>
@@ -5433,6 +5440,23 @@ class ChauffagePanel extends HTMLElement {
       h.innerHTML = `<span role="link" tabindex="0" data-page="schedules/${esc(id)}">${esc(src.scheduleName(id))}</span>${
         id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}<span class="grow"></span>${copy}`;
     }
+  }
+
+  // The ⋮ menu of a thermostat's sheet, under the button of the toolbar
+  _fillPageMenu() {
+    const slot = this.shadowRoot.querySelector('[data-fill="page-menu"]');
+    if (!slot) return;
+    const route = panelRoute(this._route && this._route.path, dataSource(this._hass), this._hass);
+    if (!this._pageMenu || route.sheet !== 'thermostat') { slot.innerHTML = ''; return; }
+    const t = this._t;
+    const climate = route.id;
+    slot.innerHTML = `<div class="menu page-menu">${this._pageForget
+      ? `<div class="mh">${esc(t('forgetText', { name: this._name(climate) }))}</div>
+        <div class="menu-btns"><button class="btn danger" data-forget-confirm>${esc(t('forgetConfirm'))}</button>
+        <button class="btn" data-forget-cancel>${esc(t('cancel'))}</button></div>`
+      : `<button class="mi" data-more-info="${esc(climate)}">${esc(t('openThermostat'))}</button>
+        <div class="sep"></div>
+        <button class="mi danger" data-forget>${esc(t('forget'))}</button>`}</div>`;
   }
 
   // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
@@ -5576,13 +5600,19 @@ class ChauffagePanel extends HTMLElement {
   }
 
   async _onClick(e) {
+    // The page's menu open: a click elsewhere only closes it
+    if (this._pageMenu && !e.target.closest('.page-menu, [data-page-menu]')) {
+      this._pageMenu = false;
+      this._fillPageMenu();
+      if (!e.target.closest('[data-more-info]')) return;
+    }
     // The menu to copy a week open: a click elsewhere only closes it
     if (this._copyMenu && !e.target.closest('.copy-menu, [data-copy-menu]')) {
       this._copyMenu = null;
       this._update();
       return;
     }
-    const el = e.target.closest('[data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next]');
+    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -5590,6 +5620,24 @@ class ChauffagePanel extends HTMLElement {
     const route = panelRoute(this._route && this._route.path, src, this._hass);
     this._error = null;
     try {
+      // The page's ⋮: a schedule's sheet opens its card's menu (rename, delete); a thermostat's
+      // sheet opens the thermostat, or forgets it after a confirmation
+      if ('pageMenu' in ds) {
+        if (route.sheet === 'schedule') return this._cards[0] && this._cards[0]._scheduleAction('schedule-menu', {}, el);
+        this._pageMenu = !this._pageMenu;
+        this._pageForget = false;
+        return this._fillPageMenu();
+      }
+      if ('forget' in ds || 'forgetCancel' in ds) {
+        this._pageForget = 'forget' in ds;
+        return this._fillPageMenu();
+      }
+      if ('forgetConfirm' in ds) {
+        this._pageMenu = false;
+        this._fillPageMenu();
+        await src.forget(route.id);
+        return openPanel('thermostats');
+      }
       if ('sheetSave' in ds) return this._saveSheet(route.id);
       if ('sheetCancel' in ds) return this._discardSheet();
       // Leaving the sheet with weeks not saved yet: the save bar asks first
@@ -5688,7 +5736,7 @@ async function cardHelpers() {
 
 const PANEL_CSS = `
   :host { display:block; min-height:100vh; background:var(--primary-background-color); color:var(--primary-text-color); }
-  .toolbar { display:flex; align-items:center; gap:8px; height:56px; padding:0 12px;
+  .toolbar { position:relative; display:flex; align-items:center; gap:8px; height:56px; padding:0 12px;
     background:var(--app-header-background-color, var(--primary-color)); color:var(--app-header-text-color, #fff); }
   .title { flex:1; font-size:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tabs { display:flex; overflow-x:auto; scrollbar-width:none; padding:0 8px;
@@ -5775,6 +5823,12 @@ const PANEL_CSS = `
   .sheet-savebar .error { flex-basis:100%; order:-1; font-size:13px; color:var(--error-color, #db4437); }
   .sheet h3 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .sheet h3 { position:relative; }
+  .page-more { min-width:40px; min-height:40px; border:0; border-radius:50%; background:transparent; color:inherit;
+    font-size:20px; cursor:pointer; }
+  .page-menu { top:52px; right:8px; color:var(--primary-text-color); }
+  .mi.danger { color:var(--error-color, #db4437); }
+  .menu-btns { display:flex; gap:8px; padding:6px 14px 8px; }
+  .menu .sep { height:1px; margin:5px 0; background:var(--divider-color); }
   .menu { position:absolute; top:100%; right:0; z-index:10; min-width:200px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .mh { padding:4px 14px 6px; font-size:12px; color:var(--secondary-text-color); }
