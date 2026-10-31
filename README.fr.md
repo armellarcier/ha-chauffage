@@ -107,6 +107,9 @@ C'est dans le panneau **Chauffage**, dans la barre latérale, qu'un administrate
 Chauffage. Les cartes des tableaux de bord servent au quotidien : elles montrent ce que fait le
 chauffage, changent de planning et modifient les semaines.
 
+Pour retirer *Chauffage* de la barre latérale, désactivez l'option *Afficher Chauffage dans la
+barre latérale* (voir [Options](#options)).
+
 ### Les pages du panneau
 
 Le panneau a trois onglets :
@@ -517,6 +520,9 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Si vous la désactivez,
   Chauffage pilote tous les thermostats en température, et vous réglez toutes les températures
   dans la carte.
+- **Afficher Chauffage dans la barre latérale.** Activée par défaut. Si vous la désactivez, la
+  barre latérale n'affiche plus *Chauffage*. Vous ouvrez toujours le panneau Chauffage depuis les
+  cartes, ou avec le bouton *Visiter* de l'appareil d'un thermostat programmé.
 
 ## Dépannage
 

@@ -2,8 +2,9 @@
 
 If the package (v0.1) is installed, the form says what will be imported (schedules, overrides,
 active schedule); the import itself happens when the entry is set up (see importer.py).
-Options: default settings (override duration, use of the thermostats' climate presets). Presets
-and what they mean per thermostat are set in the card.
+Options: default settings (override duration, use of the thermostats' climate presets) and the
+Chauffage panel's entry in the sidebar. Presets and what they mean per thermostat are set in
+the panel.
 """
 
 from __future__ import annotations
@@ -19,8 +20,10 @@ from homeassistant.helpers import selector
 from . import importer
 from .const import (
     CONF_OVERRIDE_DURATION,
+    CONF_SHOW_IN_SIDEBAR,
     CONF_USE_PRESETS,
     DEFAULT_OVERRIDE_DURATION,
+    DEFAULT_SHOW_IN_SIDEBAR,
     DEFAULT_USE_PRESETS,
     DOMAIN,
     TITLE,
@@ -57,7 +60,7 @@ class ChauffageConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ChauffageOptionsFlow(OptionsFlow):
-    """Default settings. Presets and what they mean per thermostat are set in the card."""
+    """Default settings, and the panel's entry in the sidebar. Presets are set in the panel."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -72,6 +75,9 @@ class ChauffageOptionsFlow(OptionsFlow):
             ),
             vol.Required(
                 CONF_USE_PRESETS, default=options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS),
+            ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_SHOW_IN_SIDEBAR, default=options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR),
             ): selector.BooleanSelector(),
         })
         return self.async_show_form(step_id="init", data_schema=schema)

@@ -9,6 +9,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- **You can take *Chauffage* out of the sidebar** (#57). Turn off the option *Show Chauffage in
+  the sidebar*, in Settings → Devices & services → Chauffage → *Configure*. You still open the
+  Chauffage panel from the cards, or from the *Visit* button of a scheduled thermostat's device.
+
 ## [0.8.0-beta.1] - 2026-10-31
 
 The first beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57). This

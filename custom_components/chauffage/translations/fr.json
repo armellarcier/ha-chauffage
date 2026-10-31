@@ -19,14 +19,16 @@
     "step": {
       "init": {
         "title": "Options de Chauffage",
-        "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans la carte Chauffage (vue Préréglages).",
+        "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans le panneau Chauffage (onglet Préréglages).",
         "data": {
           "override_duration": "Durée des dérogations",
-          "use_presets": "Utiliser les préréglages des thermostats"
+          "use_presets": "Utiliser les préréglages des thermostats",
+          "show_in_sidebar": "Afficher Chauffage dans la barre latérale"
         },
         "data_description": {
           "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son planning.",
-          "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte."
+          "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte.",
+          "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }
       }
     }

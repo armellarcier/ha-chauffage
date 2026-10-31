@@ -104,6 +104,9 @@ The **Chauffage** panel, in the sidebar, is where an administrator sets Chauffag
 dashboard cards are for every day: they show what the heating does, switch the schedule and
 edit the weeks.
 
+To take *Chauffage* out of the sidebar, turn off the option *Show Chauffage in the sidebar* (see
+[Options](#options)).
+
 ### The panel's pages
 
 The panel has three tabs:
@@ -490,6 +493,9 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **Override duration.** 2 hours by default.
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
   every thermostat with temperatures, and you set all of them in the card.
+- **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
+  longer shows *Chauffage*. You still open the Chauffage panel from the cards, or from the
+  *Visit* button of a scheduled thermostat's device.
 
 ## Troubleshooting
 

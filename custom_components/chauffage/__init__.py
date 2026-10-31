@@ -63,6 +63,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     entity.async_clean_devices(runtime)  # once the entities are on their devices
     await runtime.async_start()
     websocket.async_attach_subscribers(hass, runtime)  # cards open during a reload
+    await frontend.async_register_panel(hass, entry)
+    entry.async_on_unload(entry.add_update_listener(frontend.async_register_panel))  # the sidebar option
 
     schedule_entity = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_schedule")
     importer.async_update_package_issue(hass, schedule_entity)

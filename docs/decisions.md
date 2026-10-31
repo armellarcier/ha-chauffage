@@ -544,9 +544,21 @@ older one, the older one says so.
   in `window.customIcons`. The icon is drawn from the brand icon: bars of slots and a clock. The
   icon does not depend on the integration's name, which may change. The limit: if the card's
   JavaScript does not load, the icon is empty.
+- **The sidebar entry is an option, on by default** (*Show Chauffage in the sidebar*). An
+  integration should not force an entry into the sidebar. Out of the sidebar, the panel is
+  registered without a title or an icon: Home Assistant shows no entry for a panel without a
+  title, on every supported version, as for its own *Profile* panel. The panel keeps its
+  addresses, so the cards' links and the devices' *Visit* button still open it.
+  - **Not `show_in_sidebar`**: Home Assistant 2025.1 does not have it.
+  - **Not only the user's own setting**: each user can hide an entry from the sidebar, but on
+    each browser, one by one.
 - **Dashboard cards are for everyday use. The panel is for configuration.** The schedule card no
   longer has the *Presets*, *Rules* and *Thermostats* views. Admins see three links to the panel's
-  pages in their place. The schedule card keeps the week editor for now (see the open questions).
+  pages in their place.
+- **The schedule card keeps its week editor**, and the panel has one too. The card is the only
+  place that compares the weeks of several thermostats side by side: a card is a group of
+  thermostats that the user chose to show together, for example the bedrooms. The panel shows one
+  thermostat, or one schedule for every thermostat.
 - **The panel has lists, then sheets**, as Home Assistant's settings do. A list has the panel's
   tabs: *Thermostats*, *Schedules* and *Presets*. *Thermostats* comes first (0.8.0-alpha.2):
   everything starts from a scheduled thermostat, and a new user starts there. A sheet is about one schedule or one
@@ -705,8 +717,6 @@ Settle these questions before the panel and the devices are released.
 
 - **Overrides need an admin** (`chauffage/override/set`). Should everyone at home extend an
   override from a card? Anyone can already start one by turning the thermostat's knob.
-- **The week editor of the dashboard card.** Keep it, only show the weeks with a link to the panel,
-  or edit only today and tomorrow?
 - **The injected more-info block.** Keep it, or drop it? Without it, the path from the `climate` to
   its weeks is long: the climate, its device, our device, then *Visit*.
 - **Existing installations.** The cards lose their *Presets*, *Rules* and *Thermostats* views. The
@@ -721,7 +731,6 @@ Settle these questions before the panel and the devices are released.
 - **One save bar per sheet.** On a thermostat's sheet, each stacked week has its own save bar,
   right under it, and a copy asks to save its target only. Is one bar for the whole sheet still
   needed?
-- **The sidebar entry.** Show *Chauffage* in the sidebar always, or let the user hide it?
 - **The integration's name.** If the name changes, the `/chauffage/...` addresses need redirects.
 
 ## Process

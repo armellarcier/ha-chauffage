@@ -19,14 +19,16 @@
     "step": {
       "init": {
         "title": "Chauffage options",
-        "description": "Default settings. Presets and what they mean for each thermostat are set in the Chauffage card (Presets view).",
+        "description": "Default settings. Presets and what they mean for each thermostat are set in the Chauffage panel (Presets tab).",
         "data": {
           "override_duration": "Override duration",
-          "use_presets": "Use the thermostats' presets"
+          "use_presets": "Use the thermostats' presets",
+          "show_in_sidebar": "Show Chauffage in the sidebar"
         },
         "data_description": {
           "override_duration": "How long a manual change lasts before the thermostat resumes its schedule.",
-          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, all set in the card."
+          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, all set in the card.",
+          "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
       }
     }
