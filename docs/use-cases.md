@@ -232,10 +232,10 @@ are proved by the same tests, on the panel's page.
 | Use case | Test |
 |---|---|
 | An admin activates a schedule from the *Schedules* page, which shows the active one with a badge | `C/panel.test.mjs` ("the Schedules page") |
-| The *Schedules* page lists the schedules as the *Thermostats* page lists the thermostats: the whole row opens the schedule's sheet; its ⋮ renames, moves up or down, deletes it | `C/panel.test.mjs` ("the Schedules page") |
+| The *Schedules* page lists the schedules as the *Thermostats* page lists the thermostats: the whole row opens the schedule's sheet, its chevron included; its ⋮ renames, moves up or down, deletes it | `C/panel.test.mjs` ("the Schedules page") |
 | An admin creates a schedule from the *Schedules* page, as with the card's +: empty or a copy, its name checked; then its sheet opens | `C/panel.test.mjs` ("+ New schedule creates") |
 | The *Schedules* page shows the activation rules below the schedules | `C/panel.test.mjs` ("shows the activation rules"), `C/rules.test.mjs` |
-| The *Thermostats* page lists every scheduled thermostat by name; only a paused one has a badge, *Paused*; the whole row opens the thermostat's sheet | `C/thermostats-view.test.mjs` ("lists every scheduled thermostat", "the whole row opens") |
+| The *Thermostats* page lists every scheduled thermostat by name; only a paused one has a badge, *Paused*; the whole row opens the thermostat's sheet, its chevron included, as on the integration's page | `C/thermostats-view.test.mjs` ("lists every scheduled thermostat", "the whole row opens") |
 | The *Thermostats* page shows where each thermostat is shown ("Shown in *dashboard* › *view*", a link), found in cards nested in stacks, sections or conditional cards; a generated dashboard shows none | `C/thermostats-view.test.mjs` ("says where the dashboards show each thermostat") |
 | An admin schedules another thermostat from the *Thermostats* page: it gets the week of a new schedule in every schedule | `C/thermostats-view.test.mjs` ("schedules another thermostat") |
 | An admin forgets a thermostat from the *Thermostats* page after confirming, whatever the cards show; cancelling keeps it | `C/thermostats-view.test.mjs` ("forgets any thermostat", "the confirmation can be cancelled") |

@@ -121,9 +121,12 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/schedule/activate', schedule: 'holiday' });
     });
 
-    test('the whole row opens the schedule\'s sheet', () => {
+    test('the whole row opens the schedule\'s sheet, its chevron too', () => {
       const el = panel(setup(), '/schedules');
       row(el, 'away').querySelector('.th-main').click();
+      assert.equal(window.location.pathname, '/chauffage/schedules/away');
+      window.history.pushState(null, '', '/chauffage/schedules');
+      row(el, 'away').querySelector('.th-chevron').click();
       assert.equal(window.location.pathname, '/chauffage/schedules/away');
     });
 

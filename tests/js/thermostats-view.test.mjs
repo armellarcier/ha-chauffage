@@ -67,9 +67,12 @@ describe('the panel\'s "Thermostats" page', () => {
     assert.match(text(row(card, 'climate.cuisine').querySelector('.th-badge')), /^En pause$/);
   });
 
-  test('the whole row opens the thermostat\'s sheet in the panel, not only its name', () => {
+  test('the whole row opens the thermostat\'s sheet in the panel, its chevron too, as the rows of the integration\'s page', () => {
     const card = open(setup());
     row(card, 'climate.salon').querySelector('.th-main').click();
+    assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
+    window.history.pushState(null, '', '/chauffage/thermostats');
+    row(card, 'climate.salon').querySelector('.th-chevron').click();
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
   });
 

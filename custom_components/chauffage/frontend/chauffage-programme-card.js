@@ -1218,6 +1218,19 @@ function deviceNamedLinkHtml(hass, id) {
 }
 
 // A thermostat's devices: its own, then the scheduled thermostat's (Chauffage), once each
+// A row of the panel's lists, as the rows of the integration's page: an icon, a name and a line
+// under it, a chevron, all one link; then its actions, after a divider
+function thRow(rowAttrs, linkAttrs, icon, title, sub, actions) {
+  return `<div ${rowAttrs}>
+    <div class="th-main" role="link" tabindex="0" ${linkAttrs}>
+      <ha-icon class="th-icon" icon="${esc(icon)}"></ha-icon>
+      <div class="th-text"><div class="th-title">${title}</div>${sub}</div>
+      <ha-icon class="th-chevron" icon="mdi:chevron-right" aria-hidden="true"></ha-icon>
+    </div>
+    ${actions ? `<span class="th-divider"></span><div class="th-actions">${actions}</div>` : ''}
+  </div>`;
+}
+
 function thermostatDevices(hass, src, climate) {
   return [deviceOf(hass, climate), deviceOf(hass, src.thermostatEntity(climate, 'control'))]
     .filter((id, i, list) => id && list.indexOf(id) === i);
@@ -3372,16 +3385,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       const paused = src.paused(climate);
       const open = this._thMore && this._thMore.climate === climate;
       const more = !editable ? ''
-        : `<button class="btn icon${open ? ' on' : ''}" data-act="thermostat-more" data-climate="${esc(climate)}" title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>`;
-      return `<div class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}">
-        <div class="th-main" role="link" tabindex="0" data-weeks="${esc(climate)}">
-          <span class="th-title">${esc(this._name(climate))}</span>
-          ${paused ? `<span class="th-badge paused">${esc(t('paused'))}</span>` : ''}
-          ${placesHtml(climate)}
-        </div>
-        <span class="th-chevron" aria-hidden="true">›</span>
-        ${more}
-      </div>`;
+        : `<button class="icon-btn${open ? ' on' : ''}" data-act="thermostat-more" data-climate="${esc(climate)}" title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
+      const icon = (this._hass.states[climate] || { attributes: {} }).attributes.icon || 'mdi:thermostat';
+      return thRow(`class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}"`, `data-weeks="${esc(climate)}"`, icon,
+        `${esc(this._name(climate))}${paused ? ` <span class="th-badge paused">${esc(t('paused'))}</span>` : ''}`,
+        placesHtml(climate), more);
     }).join('');
     // Schedule another thermostat: one of the climates Chauffage does not schedule yet
     const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.') && !scheduled.includes(e))
@@ -3430,16 +3438,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     const rows = this._schedules().map((id) => {
       const open = this._schedEd && this._schedEd.kind === 'menu' && this._schedEd.id === id;
       const more = !src.editable ? ''
-        : `<button class="btn icon${open ? ' on' : ''}" data-act="schedule-menu" data-schedule="${esc(id)}" title="${esc(t('scheduleMenu'))}" aria-label="${esc(t('scheduleMenu'))}">⋮</button>`;
-      return `<div class="th-row" data-schedule="${esc(id)}">
-        <div class="th-main" role="link" tabindex="0" data-panel-page="schedules/${esc(id)}">
-          <span class="th-title">${esc(this._scheduleName(id))}</span>
-          ${id === active ? `<span class="th-badge on">${esc(t('panelActive'))}</span>` : ''}
-        </div>
-        ${id === active ? '' : `<button class="btn" data-act="activate-schedule" data-schedule="${esc(id)}">${esc(t('panelActivate'))}</button>`}
-        <span class="th-chevron" aria-hidden="true">›</span>
-        ${more}
-      </div>`;
+        : `<button class="icon-btn${open ? ' on' : ''}" data-act="schedule-menu" data-schedule="${esc(id)}" title="${esc(t('scheduleMenu'))}" aria-label="${esc(t('scheduleMenu'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
+      const activate = id === active ? '' : `<button class="btn" data-act="activate-schedule" data-schedule="${esc(id)}">${esc(t('panelActivate'))}</button>`;
+      return thRow(`class="th-row" data-schedule="${esc(id)}"`, `data-panel-page="schedules/${esc(id)}"`,
+        src.scheduleIcon(id) || 'mdi:calendar-clock',
+        `${esc(this._scheduleName(id))}${id === active ? ` <span class="th-badge on">${esc(t('panelActive'))}</span>` : ''}`,
+        '', activate + more);
     }).join('');
     const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
     return `<div class="thermostats-view schedules-view">${rows}${add}</div>${this._schedMenuHtml()}`;
@@ -3994,16 +3998,25 @@ const STYLE = `
   .paused-note span { flex:1 1 180px; }
   .bar.paused .seg { opacity:.45; }
   .th-hint { color:var(--secondary-text-color); font-size:.9em; margin-bottom:8px; }
-  /* A row is a link to the thermostat's sheet, as the rows of Home Assistant's settings */
-  .th-row { display:flex; align-items:center; gap:6px 10px; border-top:1px solid var(--divider-color); }
-  .th-main { flex:1 1 auto; min-width:0; padding:12px 0; cursor:pointer; }
-  .th-main:hover .th-title, .th-main:focus-visible .th-title { color:var(--primary-color); }
-  .th-title { font-size:1.05em; font-weight:500; color:var(--primary-text-color); }
-  .th-chevron { color:var(--secondary-text-color); font-size:1.4em; line-height:1; }
+  /* A row is a link to its sheet, chevron included, as the rows of the integration's page: they
+     span the card, and its actions come after a divider */
+  .th-row { display:flex; align-items:center; margin:0 -16px; padding-right:8px; border-top:1px solid var(--divider-color); }
+  ha-card.flat .th-row { margin:0; }
+  .th-main { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:16px; min-height:48px;
+    padding:12px 8px 12px 16px; cursor:pointer; outline:none; }
+  .th-main:hover, .th-main:focus-visible { background:rgba(127,127,127,.08); }
+  .th-icon, .th-chevron { flex:none; color:var(--secondary-text-color); --mdc-icon-size:24px; }
+  .th-text { flex:1 1 auto; min-width:0; }
+  .th-title { font-size:14px; line-height:22px; color:var(--primary-text-color); overflow-wrap:anywhere; }
+  .th-divider { flex:none; align-self:center; width:1px; height:48px; margin:0 4px; background:var(--divider-color); }
+  .th-actions { flex:none; display:flex; align-items:center; gap:4px; }
+  .icon-btn { flex:none; width:48px; height:48px; border:0; border-radius:50%; background:transparent; cursor:pointer;
+    color:var(--secondary-text-color); --mdc-icon-size:24px; display:flex; align-items:center; justify-content:center; padding:0; }
+  .icon-btn:hover, .icon-btn:focus-visible, .icon-btn.on { background:var(--secondary-background-color); color:var(--primary-text-color); }
   .th-badge.on { background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
   .th-badge { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px; font-size:.75em; vertical-align:2px;
     background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
-  .th-cards { margin-top:4px; font-size:.85em; color:var(--secondary-text-color); }
+  .th-cards { font-size:12px; line-height:19px; color:var(--secondary-text-color); }
   .th-cards .mi-link { color:inherit; }
   .btn.icon { min-width:36px; padding:6px 8px; }
   .btn.icon.on { border-color:var(--primary-color); color:var(--primary-color); }
