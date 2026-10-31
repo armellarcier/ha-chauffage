@@ -461,6 +461,15 @@ Download the diagnostics: Settings → Devices & services → Chauffage → ⋮ 
 Attach this file to your issue. The file holds your schedules and the current state of the
 thermostats.
 
+### The card shows "Configuration error" after a restart
+
+Reload the page. In the companion app, close the app and open it again.
+
+Home Assistant serves its pages a few seconds before Chauffage is set up. A page opened in that
+window, for example by the companion app when it reconnects, doesn't have the Chauffage card.
+Home Assistant never adds the card to that page later, so the error stays until the page is
+reloaded. Every integration that adds its JavaScript to Home Assistant's pages has this problem.
+
 ## How it works
 
 This section is for the curious, and for contributors.
@@ -486,6 +495,18 @@ a day.
 block in the more-info dialog. The card talks to the integration over the websocket API, for
 example `chauffage/subscribe` or `chauffage/weeks/save`. The integration refuses a save made
 from an outdated copy, so that a save never overwrites someone else's changes.
+
+**How the card is loaded.** You have nothing to set up. The integration adds the card to the
+modules that Home Assistant loads on every page (`add_extra_js_url`), like other integrations that
+add to Home Assistant's own pages, for example browser_mod and UIX. A dashboard resource would
+only load on dashboards, and the block of the more-info dialog must work on every page.
+
+The card defines its elements a second time once Home Assistant's frontend has started. A module
+loaded on every page can run before the frontend has put its registry of elements in place, and
+the frontend would not see the elements defined before.
+
+A page that Home Assistant serves while it starts doesn't have the card: see
+[Troubleshooting](#the-card-shows-configuration-error-after-a-restart).
 
 **The history.** The card asks the integration for the measured temperature and the applied
 setpoint over the last 7 days (`chauffage/history`). The integration reads these two values from

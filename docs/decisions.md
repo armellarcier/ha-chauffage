@@ -320,6 +320,22 @@ dashboards, automations, scripts and by voice without the card
   in parallel with HA's frontend, which replaces `customElements` with a scoped registry
   polyfill: a card evaluated first (cached) would be unknown to it. The card defines its
   elements again once `<home-assistant>` is defined, in the registry in place then (#2).
+- **The same loading as the integrations that inject into HA's own pages** (#59, 2026-10). Home
+  Assistant offers no API to add content to the more-info dialog, so browser_mod and UIX use the
+  same kind of injection as Chauffage. Both load their module with `add_extra_js_url`, and add a
+  dashboard resource at the same URL for Google Cast. card-mod asks for both too, the resource
+  and `extra_module_url`. A plain dashboard resource, the usual way for a card, would leave the
+  more-info block without its module outside the dashboards.
+- **No fix for the pages served while HA starts, only documentation** (#59, 2026-10). HA serves
+  its pages a few seconds before the custom integrations are set up. Such a page lacks the card,
+  and the frontend never loads a module added after the page was served, so the card shows
+  "Configuration error" until a reload. Every integration that uses `add_extra_js_url` has this
+  problem, and none fixes it: a browser_mod user reproduced it by opening the iOS app while HA
+  started (thomasloven/hass-browser_mod#941), closed without a fix. A resource at the card's own
+  URL would not help, because that URL answers 404 until Chauffage is set up. A `data:` loader
+  saved as a dashboard resource worked (PR #60), but it had to poll, guess the card's version and
+  could import a stale card after an upgrade: too much for a reload. The real fix belongs to
+  HA's frontend, which could subscribe to `frontend/subscribe_extra_js`.
 - **Saves carry the revision they edited**: a save from an outdated copy is refused instead of
   overwriting someone else's changes.
 - **The card's type stays `custom:chauffage-programme-card`**: dashboards refer to it.
