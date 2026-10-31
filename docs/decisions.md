@@ -419,8 +419,10 @@ dashboards, automations, scripts and by voice without the card
   browser showed "8:30 AM" to a user whose profile says 24 hours. The list shows the times as
   the rest of the card does. It also only offers the times on the step and within the limits,
   for example between a slot's neighbors. A time off the step, set with another step, stays in
-  the list. A time is picked, not typed, so it is sent at once: the field no longer waits for
-  Enter or for the focus to leave.
+  the list. A time picked with a mouse or a finger is sent at once. With the keyboard, a browser
+  changes the list at each arrow, so the end of an override chosen with the arrows waits for
+  Enter or for the focus to leave: otherwise the first arrow would send it and take the focus
+  away.
 
 ## Process
 

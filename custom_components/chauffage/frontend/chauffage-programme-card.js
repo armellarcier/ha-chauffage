@@ -639,11 +639,21 @@ function timeSelect(attr, loc, from, to, step, current) {
   const times = [];
   for (let m = first; m <= to; m += step) times.push(m % DAY_MIN);
   if (!times.includes(current)) times.push(current);
-  const order = (m) => (m - first % DAY_MIN + DAY_MIN) % DAY_MIN; // across midnight
+  // In order from one step before `from` (now, or the slot before), across midnight: an override
+  // ending within the step shows its end first
+  const order = (m) => (m - (from - step) % DAY_MIN + DAY_MIN) % DAY_MIN;
   times.sort((a, b) => order(a) - order(b));
   const options = times.map((m) => `<option value="${toHM(m)}"${m === current ? ' selected' : ''}>${esc(loc.time(m))}</option>`);
   return `<select ${attr}>${options.join('')}</select>`;
 }
+
+// The end field of an override: from one step after now, for less than 24 hours
+const overrideEndSelect = (attr, loc, step, endsAt) =>
+  timeSelect(attr, loc, nowMin() + step, nowMin() + DAY_MIN - 1, step, minutesOf(endsAt));
+
+// With the keyboard, a browser changes a list at each arrow: the end of an override is then sent
+// with Enter or on leaving its field. Picked with a mouse or a finger, it is sent at once.
+const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'];
 
 // The moment at `minutes` (time of day) of the day starting at `day0`; DAY_MIN is the next midnight.
 // On the days the clocks change: a time played twice is its first occurrence, or the second one if
@@ -1569,14 +1579,23 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
-  // A time picked in the popover's end field, for that thermostat: its next occurrence
+  // A time chosen in the popover's end field, for that thermostat: its next occurrence
   _sendOverrideEnd(climate, value) {
-    this._setOverrideEnd(climate, nextAtMinutes(this._snap(toMin(value))));
+    this._setOverrideEnd(climate, nextAtMinutes(toMin(value)));
   }
 
-  // The end field left: the redraws held back while it was open are done (the popover closed, an
-  // override ended elsewhere…)
+  // The end field left (or Enter): the end chosen with the arrows is sent (for the thermostat it
+  // was chosen for, even if a tap outside the card closed the popover meanwhile), then the
+  // redraws held back are done (the popover closed, an override ended elsewhere…)
   _overrideEndDone() {
+    const chosen = this._endChosen;
+    this._endChosen = null; // before blur(), which comes back here
+    this._endKeyed = false;
+    if (chosen) {
+      const active = this.shadowRoot.activeElement;
+      if (active && active.blur) active.blur(); // after Enter: the next redraws are let through
+      this._sendOverrideEnd(chosen.climate, chosen.value);
+    }
     if (!this._redrawLater) return;
     this._redrawLater = false;
     this._render();
@@ -2028,7 +2047,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="editor override-ed">
       ${head}
       <div class="ed-head">
-        <label>${esc(t('until'))} ${timeSelect('data-override-end', this._loc, nowMin() + this._config.step, nowMin() + DAY_MIN, this._config.step, minutesOf(endsAt))}</label>
+        <label>${esc(t('until'))} ${overrideEndSelect('data-override-end', this._loc, this._config.step, endsAt)}</label>
         <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
       </div>
       <div class="ed-actions start">
@@ -2544,6 +2563,11 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     // Enter in a schedule's name field confirms (Create / Rename)
     root.addEventListener('keydown', (e) => {
+      if (e.target.hasAttribute('data-override-end')) {
+        if (e.key === 'Enter') this._overrideEndDone();
+        else if (ARROW_KEYS.includes(e.key)) this._endKeyed = true;
+        return;
+      }
       if (e.key !== 'Enter' || !e.target.hasAttribute('data-sched-name')) return;
       const ok = root.querySelector('.sched-menu .btn.primary');
       if (ok) ok.click();
@@ -2585,11 +2609,13 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._copyWeek(el.value);
       } else if (el.dataset.edge) {
         this._setEdge(el.dataset.edge, el.value);
-      } else if (el.hasAttribute('data-override-end') && el.value && this._overrideSel) {
-        const { climate } = this._overrideSel;
-        const { value } = el;
-        el.blur(); // its focusout does the redraws held back, and lets the next ones through
-        this._sendOverrideEnd(climate, value);
+      } else if (el.hasAttribute('data-override-end') && this._overrideSel) {
+        const chosen = { climate: this._overrideSel.climate, value: el.value };
+        if (this._endKeyed) this._endChosen = chosen;
+        else {
+          el.blur(); // its focusout does the redraws held back, and lets the next ones through
+          this._sendOverrideEnd(chosen.climate, chosen.value);
+        }
       } else if (el.hasAttribute('data-override-temperature') && el.value !== '' && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), Number(el.value)));
@@ -3754,6 +3780,7 @@ class ChauffageMoreInfo extends HTMLElement {
     root.addEventListener('pointerup', () => this._onUp());
     root.addEventListener('pointercancel', () => this._onUp());
     root.addEventListener('focusout', (e) => { if (e.target.matches && e.target.matches('[data-end]')) this._endDone(); });
+    root.addEventListener('keydown', (e) => this._onEndKey(e));
   }
 
   set entity(id) {
@@ -3874,7 +3901,7 @@ class ChauffageMoreInfo extends HTMLElement {
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
-          <label>${esc(t('until'))} ${timeSelect('data-end', this._loc, nowMin() + MORE_INFO_CFG.step, nowMin() + DAY_MIN, MORE_INFO_CFG.step, minutesOf(endsAt))}</label>
+          <label>${esc(t('until'))} ${overrideEndSelect('data-end', this._loc, MORE_INFO_CFG.step, endsAt)}</label>
           <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>
         ${value.presets}
@@ -3988,14 +4015,30 @@ class ChauffageMoreInfo extends HTMLElement {
       this._send(overrideWithTemperature(this._currentOverride(), dataSource(this._hass), Number(el.value)));
       return;
     }
-    if (!el.hasAttribute('data-end') || !el.value) return;
-    const { value } = el;
+    if (!el.hasAttribute('data-end')) return;
+    if (this._endKeyed) { this._endChosen = el.value; return; }
     el.blur(); // its focusout does the redraws held back, and lets the next ones through
-    this._setEnd(nextAtMinutes(Math.round(toMin(value) / MORE_INFO_CFG.step) * MORE_INFO_CFG.step));
+    this._setEnd(nextAtMinutes(toMin(el.value)));
   }
 
-  // The end field left: the block, not redrawn while it was open, is drawn again
+  // Keys in the end field: Enter sends the end chosen with the arrows
+  _onEndKey(e) {
+    if (!e.target.matches || !e.target.matches('[data-end]')) return;
+    if (e.key === 'Enter') this._endDone();
+    else if (ARROW_KEYS.includes(e.key)) this._endKeyed = true;
+  }
+
+  // The end field left (or Enter): the end chosen with the arrows is sent, then the block, not
+  // redrawn while the field was open, is drawn again
   _endDone() {
+    const chosen = this._endChosen;
+    this._endChosen = null; // before blur(), which comes back here
+    this._endKeyed = false;
+    if (chosen) {
+      const active = this.shadowRoot.activeElement;
+      if (active && active.blur) active.blur(); // after Enter: the next redraws are let through
+      this._setEnd(nextAtMinutes(toMin(chosen)));
+    }
     if (!this._redrawLater) return;
     this._redrawLater = false;
     this._render();

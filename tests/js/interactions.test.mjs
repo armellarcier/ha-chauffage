@@ -226,7 +226,6 @@ describe('dragging the end of an override', () => {
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-13T07:00:00.000Z');
   });
 
-  // A redraw while the list of the end is open would close the list
   const picked = (field, value) => {
     field.value = value;
     field.dispatchEvent(new Event('change', { bubbles: true }));
@@ -254,7 +253,7 @@ describe('dragging the end of an override', () => {
     const card = createCard(hass, { show: ['climate.salon'] });
     $(card, '.override[data-climate="climate.salon"]').click();
     const times = [...$(card, '.override-ed select[data-override-end]').options].map((o) => o.value);
-    assert.deepEqual([times[0], times.at(-1), times.length], ['10:15', '10:00', 96]);
+    assert.deepEqual([times[0], times.at(-1), times.length], ['10:15', '09:45', 95]);
   });
 
   test('in the card\'s popover: an override ended elsewhere while its end field is open goes once the field is left', () => {
@@ -266,7 +265,6 @@ describe('dragging the end of an override', () => {
     hass.push(integrationData({ overrides: {} })); // resumed from another device
     assert.ok(field.isConnected, 'the field is kept');
     field.blur();
-    field.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true, composed: true }));
     assert.equal($(card, '.override-ed'), null);
     assert.equal($(card, '.bar .override'), null);
   });
@@ -283,6 +281,50 @@ describe('dragging the end of an override', () => {
     picked(field, '12:00');
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
     assert.notEqual($(card, '.override-ed select[data-override-end]'), field, 'the redraw held back is done');
+  });
+
+  test('the end field of an override in its last step shows its end first', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-12T10:10:00+02:00' } } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const field = $(card, '.override-ed select[data-override-end]');
+    assert.deepEqual([field.options[0].value, field.value], ['10:10', '10:10']);
+  });
+
+  // With the keyboard, a browser changes the list at each arrow: the end is sent with Enter or on leaving
+  const arrowDown = (field, value) => {
+    field.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    picked(field, value);
+  };
+  const sets = (hass) => hass.events.filter((m) => m.type === 'chauffage/override/set').length;
+
+  test('in the card\'s popover: the end chosen with the arrows is sent with Enter', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const field = $(card, '.override-ed select[data-override-end]');
+    field.focus();
+    arrowDown(field, '11:45');
+    arrowDown(field, '12:00');
+    assert.equal(sets(hass), 0, 'nothing sent at each arrow');
+    assert.equal(card.shadowRoot.activeElement, field, 'the field keeps the focus');
+    field.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+  });
+
+  test('in the more-info block: the end chosen with the arrows is sent on leaving the field', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.salon';
+    el.hass = hass;
+    const field = el.shadowRoot.querySelector('select[data-end]');
+    field.focus();
+    arrowDown(field, '11:45');
+    arrowDown(field, '12:00');
+    assert.equal(sets(hass), 0, 'nothing sent at each arrow');
+    field.blur();
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
   });
 });
 
@@ -368,8 +410,7 @@ describe('editing a slot', () => {
   });
 
   test('a time off the step stays in its field', () => {
-    const hass = fakeHass();
-    const card = createCard(hass, { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
     card._week('climate.salon')[0][1].start = 6 * 60 + 20; // 06:20, set with another step
     card._render();
     $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
