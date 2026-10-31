@@ -150,6 +150,7 @@ const I18N = {
     copyTo: 'Copy to…',
     cancel: 'Cancel',
     save: 'Save',
+    unsavedWeeks: 'Not saved: {schedules}',
     unsaved: 'Unsaved changes',
     destinations: { weekdays: 'Mon–Fri', weekend: 'Sat–Sun', all: 'every day', others: 'the other thermostats' },
     dayCopiedTo: '{name} · {day} copied to {destination}',
@@ -368,6 +369,7 @@ const I18N = {
     copyTo: 'Copier vers…',
     cancel: 'Annuler',
     save: 'Enregistrer',
+    unsavedWeeks: 'Non enregistré : {schedules}',
     unsaved: 'Modifications non enregistrées',
     destinations: { weekdays: 'Lun–Ven', weekend: 'Sam–Dim', all: 'tous les jours', others: 'les autres thermostats' },
     dayCopiedTo: '{name} · {day} copié vers {destination}',
@@ -2572,13 +2574,19 @@ class ChauffageProgrammeCard extends HTMLElement {
           </div>
         </div>
         <div class="msg">${esc(this._msg)}</div>
-        ${this._dirty ? `<div class="savebar">
+        ${this._dirty && this._config.savebar !== false ? `<div class="savebar">
           <span class="dirty">${esc(tr('unsaved'))}</span>
           <button class="btn" data-act="cancel">${esc(tr('cancel'))}</button>
           <button class="btn primary" data-act="save">${esc(tr('save'))}</button>
         </div>` : ''}`,
       `${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}`);
     this._schedulePlaceEditor();
+    // A week of a thermostat's sheet (`savebar: false`): the sheet's own bar saves it, so the
+    // sheet hears when it has edits to save
+    if (this._config.savebar === false && this._dirty !== this._dirtyTold) {
+      this._dirtyTold = this._dirty;
+      this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
+    }
   }
 
   // Visual update of a row while dragging (without recreating the captured handle)
@@ -5130,6 +5138,7 @@ class ChauffagePanel extends HTMLElement {
     } catch (e) { /* ignore */ }
     this._picked = new Set(); // the welcome: the thermostats ticked
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
+    this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
     this.shadowRoot.addEventListener('change', (e) => {
       const box = e.target.closest('[data-pick]');
       if (box) {
@@ -5279,8 +5288,9 @@ class ChauffagePanel extends HTMLElement {
         part(`<h3 data-fill-schedule="${esc(id)}"></h3>`);
         this._weekCards[id] = card({ thermostats: [route.id], schedule: id, schedule_tabs: false, chips: false,
           legend: false, hint: false, group_days: this._groupDays, history: this._historyOn, flat: true,
-          copy_week: false, today: 'active', paused_note: false }, box);
+          copy_week: false, today: 'active', paused_note: false, savebar: false }, box);
       }
+      html('<div data-fill="savebar"></div>');
     } else if (route.list === 'thermostats' && !scheduled) {
       html('<div class="box welcome" data-fill="welcome"></div>'); // a new user: no empty page
     } else if (route.list === 'thermostats') {
@@ -5306,6 +5316,7 @@ class ChauffagePanel extends HTMLElement {
   _fill(route, src) {
     const t = this._t;
     const active = src.activeSchedule();
+    this._fillSavebar();
     const box = this.shadowRoot.querySelector('[data-fill="schedules"]');
     if (box) {
       const rows = src.schedules().map((id) => `<div class="row">
@@ -5353,6 +5364,58 @@ class ChauffagePanel extends HTMLElement {
       h.innerHTML = `<span role="link" tabindex="0" data-page="schedules/${esc(id)}">${esc(src.scheduleName(id))}</span>${
         id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}<span class="grow"></span>${copy}`;
     }
+  }
+
+  // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
+  // order of the schedules
+  _dirtyWeeks() {
+    return Object.entries(this._weekCards || {}).filter(([, card]) => card._dirty);
+  }
+
+  // A thermostat's sheet has one save bar for all its weeks: on a phone, a bar under a week further
+  // up the page went unseen. It names the weeks not saved yet.
+  _fillSavebar() {
+    const slot = this.shadowRoot.querySelector('[data-fill="savebar"]');
+    if (!slot) return;
+    const t = this._t;
+    const dirty = this._dirtyWeeks();
+    if (!dirty.length) { slot.innerHTML = ''; this._saveError = null; return; }
+    const names = dirty.map(([, card]) => card._scheduleName(card._schedule)).join(', ');
+    slot.innerHTML = `<div class="sheet-savebar">
+        <span class="dirty">${esc(t('unsavedWeeks', { schedules: names }))}</span>
+        ${this._saveError ? `<span class="error">${esc(this._saveError)}</span>` : ''}
+        <span class="btns"><button class="btn" data-sheet-cancel>${esc(t('cancel'))}</button>
+        <button class="btn primary" data-sheet-save>${esc(t('save'))}</button></span>
+      </div>`;
+  }
+
+  // Saves the weeks not saved yet in one call: each card sends its own schedule's week, against
+  // the thermostat's revision. The integration keeps the weeks of the schedules not sent.
+  async _saveSheet(climate) {
+    const t = this._t;
+    const src = dataSource(this._hass);
+    const dirty = this._dirtyWeeks();
+    if (!dirty.length) return;
+    const first = dirty[0][1];
+    const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, card._week(climate).map(serializeDay)])) };
+    const revisions = src.perThermostat ? { [climate]: first._revisions[climate] ?? null } : null;
+    try {
+      const result = await src.saveWeeks(weeks, first._revision, revisions);
+      for (const card of Object.values(this._weekCards)) {
+        if (result && result.revisions) Object.assign(card._revisions, result.revisions);
+        if (result && result.revision != null) card._revision = result.revision;
+      }
+      for (const [, card] of dirty) {
+        card._loadedWeeks = card._serialized();
+        card._dirty = false;
+        card._msg = card._loc.t('saved');
+        card._render();
+      }
+      this._saveError = null;
+    } catch (err) {
+      this._saveError = err && err.code === 'stale' ? t('stale') : t('error', { message: err.message || err.code || err });
+    }
+    this._fillSavebar();
   }
 
   // A thermostat's sheet, first: whether Chauffage controls it, where it is shown, its devices
@@ -5426,7 +5489,7 @@ class ChauffagePanel extends HTMLElement {
       this._update();
       return;
     }
-    const el = e.target.closest('[data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
+    const el = e.target.closest('[data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -5434,6 +5497,18 @@ class ChauffagePanel extends HTMLElement {
     const route = panelRoute(this._route && this._route.path, src, this._hass);
     this._error = null;
     try {
+      if ('sheetSave' in ds) return this._saveSheet(route.id);
+      if ('sheetCancel' in ds) {
+        for (const card of this._dirtyWeeks().map(([, c]) => c)) {
+          card._dirty = false;
+          card._sel = null;
+          card._msg = '';
+          card._load();
+          card._render();
+        }
+        this._saveError = null;
+        return this._fillSavebar();
+      }
       if (ds.copyMenu) {
         this._copyMenu = this._copyMenu === ds.copyMenu ? null : ds.copyMenu;
         return this._update();
@@ -5598,6 +5673,14 @@ const PANEL_CSS = `
   .sheet .h2-row { margin:24px 0 0; padding-top:16px; border-top:1px solid var(--divider-color); }
   .sheet .h2-row h2 { margin:0; }
   .sheet .hint { margin:4px 0 0; }
+  /* One save bar for the sheet, at the bottom of the window while the sheet has edits not saved yet */
+  [data-fill="savebar"] { position:sticky; bottom:0; z-index:8; }
+  .sheet-savebar { display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    margin:12px 0 0; padding:10px 16px; border-radius:var(--ha-card-border-radius, 12px);
+    background:var(--card-background-color); box-shadow:0 -4px 12px rgba(0,0,0,.2); }
+  .sheet-savebar .dirty { margin-right:auto; font-size:14px; }
+  .sheet-savebar .btns { display:flex; gap:8px; margin-left:auto; }
+  .sheet-savebar .error { flex-basis:100%; order:-1; font-size:13px; color:var(--error-color, #db4437); }
   .sheet h3 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .sheet h3 { position:relative; }
   .menu { position:absolute; top:100%; right:0; z-index:10; min-width:200px; padding:6px 0; border-radius:10px;

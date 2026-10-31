@@ -1,7 +1,7 @@
 // The Chauffage panel (#57): where an admin configures Chauffage, lists then sheets, one address
 // per page (docs/decisions.md, "Chauffage panel and devices"). Dashboard cards link to it.
 import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { ChauffagePanel, leaveMoreInfo, ICONS } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { ChauffagePanel, leaveMoreInfo, ICONS, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -408,9 +408,66 @@ describe('the Chauffage panel', () => {
       const [normal, away, holiday] = weeks(el);
       assert.ok(!normal._dirty && !holiday._dirty);
       assert.ok(away._dirty);
-      assert.ok($(away, '.savebar'));
+      assert.equal($(away, '.savebar'), null); // the sheet's own bar, below
+      assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
       assert.equal(text($(away, '.msg')), 'Semaine Normal copiée ici');
       assert.deepEqual(away._week('climate.salon'), normal._week('climate.salon'));
+    });
+
+    test('one save bar for the whole sheet: it names the weeks not saved yet, none under a week', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      assert.equal($(el, '.sheet-savebar'), null);
+      for (const target of ['holiday', 'away']) {
+        $(el, '[data-copy-menu="normal"]').click();
+        $(el, `.copy-menu [data-copy-to="${target}"]`).click();
+      }
+      assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent, Vacances'); // in the order of the schedules
+      for (const card of weeks(el)) assert.equal($(card, '.savebar'), null);
+    });
+
+    test('its Save sends the weeks not saved yet in one call, each schedule\'s own, against the thermostat\'s revision', async () => {
+      const hass = setup();
+      const el = panel(hass, '/thermostats/climate.salon');
+      for (const target of ['holiday', 'away']) {
+        $(el, '[data-copy-menu="normal"]').click();
+        $(el, `.copy-menu [data-copy-to="${target}"]`).click();
+      }
+      const [normal] = weeks(el);
+      const week = normal._week('climate.salon').map(serializeDay).map((day) => day.map((s) => s.split(' ')));
+      $(el, '.sheet-savebar [data-sheet-save]').click();
+      await tick();
+      const saves = hass.events.filter((m) => m.type === 'chauffage/weeks/save');
+      assert.equal(saves.length, 1);
+      assert.deepEqual(saves[0], { type: 'chauffage/weeks/save', weeks: { 'climate.salon': { away: week, holiday: week } }, revisions: { 'climate.salon': 7 } });
+      assert.ok(weeks(el).every((card) => !card._dirty));
+      assert.equal($(el, '.sheet-savebar'), null);
+    });
+
+    test('its Save refused because the weeks changed elsewhere: the bar says so and keeps the edits', async () => {
+      const reply = (msg) => {
+        if (msg.type === 'chauffage/weeks/save') throw Object.assign(new Error('stale'), { code: 'stale' });
+        return null;
+      };
+      const el = panel(setup({ reply }), '/thermostats/climate.salon');
+      $(el, '[data-copy-menu="normal"]').click();
+      $(el, '.copy-menu [data-copy-to="away"]').click();
+      $(el, '.sheet-savebar [data-sheet-save]').click();
+      await tick();
+      assert.match(text($(el, '.sheet-savebar .error')), /modifiés ailleurs/);
+      assert.ok(weeks(el)[1]._dirty);
+    });
+
+    test('its Cancel puts every week back as it was saved', () => {
+      const hass = setup();
+      const el = panel(hass, '/thermostats/climate.salon');
+      const [, away] = weeks(el);
+      const before = away._week('climate.salon').map(serializeDay);
+      $(el, '[data-copy-menu="normal"]').click();
+      $(el, '.copy-menu [data-copy-to="away"]').click();
+      $(el, '.sheet-savebar [data-sheet-cancel]').click();
+      assert.deepEqual(away._week('climate.salon').map(serializeDay), before);
+      assert.equal($(el, '.sheet-savebar'), null);
+      assert.equal(hass.events.filter((m) => m.type === 'chauffage/weeks/save').length, 0);
     });
 
     test('the menu to copy a week closes with a click elsewhere or Escape, copying nothing', () => {
