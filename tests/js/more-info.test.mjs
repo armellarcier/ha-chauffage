@@ -59,6 +59,20 @@ describe('more-info block', () => {
     assert.equal(el.shadowRoot.querySelector('input.time[data-end]').value, '11:30');
   });
 
+  test('a user who is not an admin sets, extends and ends an override too, as with the thermostat\'s knob', () => {
+    const hass = withTargets({});
+    hass.user = { is_admin: false };
+    const el = block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-new-override]').click();
+    el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
+    assert.equal(hass.events.at(-1).type, 'chauffage/override/set');
+    hass.push(integrationData({ overrides: { 'climate.salon': override } }));
+    el.shadowRoot.querySelector('button[data-min="30"]').click();
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+    el.shadowRoot.querySelector('[data-del]').click();
+    assert.deepEqual(hass.events.at(-1), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
+  });
+
   test('+30 min extends the override', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const el = block(hass, 'climate.salon');

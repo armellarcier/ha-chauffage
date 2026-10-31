@@ -156,10 +156,37 @@ async def test_an_override_s_new_value_on_a_thermostat_that_does_not_answer(benc
 
 async def test_writes_need_an_admin(bench: Bench, ws_client):
     await start(bench)
-    client = await ws_client(bench.hass, admin=False)
+    client = await ws_client(bench.hass, admin=False, read_only=False)
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
+
+
+async def test_anyone_at_home_sets_changes_and_ends_an_override_from_a_card(bench: Bench, ws_client):
+    """As with the thermostat's knob, and the set_override and clear_override services, which any
+    user can call: a user who is not an admin changes an override from a card."""
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21)
+    client = await ws_client(bench.hass, admin=False, read_only=False)
+    o = bench.overrides()["climate.salon"]
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    assert (await client.receive_json())["success"]
+    assert bench.overrides()["climate.salon"]["value"] == 22
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": None})
+    assert (await client.receive_json())["success"]
+    assert bench.overrides() == {}
+
+
+async def test_a_read_only_user_cannot_change_an_override(bench: Bench, ws_client):
+    """The user may not control the thermostat, as for its own controls in Home Assistant."""
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21)
+    client = await ws_client(bench.hass, admin=False)
+    o = bench.overrides()["climate.salon"]
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "unauthorized"
+    assert bench.overrides()["climate.salon"] == o
 
 
 # ----- services -----

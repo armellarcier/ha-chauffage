@@ -381,7 +381,8 @@ défaut. Vous pouvez changer cette durée dans les [options](#options).
 - **Sur le thermostat.** Changez la consigne ou le préréglage à la main, avec la molette ou dans
   Home Assistant. Chauffage fait de votre changement une dérogation.
 - **Depuis la carte**, ou depuis la fenêtre de détail du thermostat. Choisissez un préréglage ou
-  une température, et une fin.
+  une température, et une fin. Tous les utilisateurs le peuvent, pas seulement les
+  administrateurs, comme avec la molette.
 - **Depuis une automatisation**, avec l'action `chauffage.set_override`.
 
 Un changement fait par une automatisation ne crée pas de dérogation. Une commande qu'une vanne à

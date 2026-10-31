@@ -360,7 +360,7 @@ can change this duration in the [options](#options).
 - **On the thermostat.** Change the setpoint or the preset by hand, with the knob or in Home
   Assistant. Chauffage makes your change an override.
 - **From the card**, or from the thermostat's more-info dialog. Choose a preset or a
-  temperature, and an end.
+  temperature, and an end. Every user can, not only administrators, as with the knob.
 - **From an automation**, with the `chauffage.set_override` action.
 
 A change made by an automation does not start an override. A command that a battery valve
