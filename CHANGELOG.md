@@ -9,6 +9,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.7.0-beta.6] - 2026-10-31
+
+Fixes to the time fields of 0.7.0-beta.5.
+
 ### Fixed
 
 - **The time fields are narrower**, so the close button of a slot's popover stays on the same
@@ -19,6 +23,11 @@ Each entry says whether the release **migrates stored data** and what to do when
   earlier.
 - **↑ and ↓ move the hours in every language.** Before, in a language that writes "08.30", for
   example Finnish, the arrow keys always moved the minutes.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled), restart Home Assistant and reload the
+page. No stored data is migrated.
 
 ## [0.7.0-beta.5] - 2026-10-31
 
@@ -759,7 +768,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.5...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.6...HEAD
+[0.7.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.6
 [0.7.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.5
 [0.7.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.4
 [0.7.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.3
