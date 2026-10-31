@@ -132,6 +132,19 @@ describe('history of the measured temperature', () => {
     assert.match(seg.title, /mesuré 18,2–19,6° · consigne 20°/);
   });
 
+  test('the measured range of a slot is in its popover too: a phone shows no tooltip', async () => {
+    const card = createCard(historyHass());
+    toggle(card).click();
+    await flush();
+    card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+    assert.equal(card.shadowRoot.querySelector('.editor .ed-measured').textContent, 'mesuré 18,2–19,6° · consigne 20°');
+    // Without the history, the popover says nothing about it
+    toggle(card).click();
+    await flush();
+    card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+    assert.equal(card.shadowRoot.querySelector('.editor .ed-measured'), null);
+  });
+
   test('the measured temperature is a smooth line, flat until 15 minutes before a change after a long steady time', async () => {
     const card = createCard(historyHass());
     toggle(card).click();

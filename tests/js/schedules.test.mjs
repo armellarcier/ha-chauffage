@@ -191,6 +191,13 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.equal($(card, '[data-act="schedule-move"][data-dir="1"]').disabled, true); // already last
   });
 
+  test('a schedule\'s sheet in the panel shows one tab: its menu does not move it', () => {
+    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
+    openMenu(card, 'away');
+    assert.ok($(card, '[data-act="schedule-rename-open"]'));
+    assert.equal($(card, '[data-act="schedule-move"]'), null);
+  });
+
   test('deletes it after a confirmation', async () => {
     const hass = fakeHass();
     const card = createCard(hass);

@@ -2294,12 +2294,16 @@ class ChauffageProgrammeCard extends HTMLElement {
     const presets = this._presets()
       .map((l) => `<button data-act="preset" data-preset="${esc(l.id)}" class="${s.preset === l.id ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`)
       .join('');
+    // With the history shown, what the slot measured: the slot's tooltip says it too, but a phone
+    // shows no tooltip
+    const measured = this._measuredText(climate, day, s.start, end).replace(/^ · /, '');
     return `${hint}<div class="editor">
       <div class="ed-head">
         <strong>${this._moreInfoLink(climate)} · ${esc(this._rowLabel(day, 'long'))}</strong>
         <label>${esc(t('from'))} ${from}</label><label>${esc(t('to'))} ${to}</label>
         <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
       </div>
+      ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
       <div class="presets">${presets}</div>
       <div class="ed-actions">
         <button class="btn" data-act="insert" ${end - s.start < 3 * this._config.step ? 'disabled' : ''}>${esc(t('insertSlot'))}</button>
@@ -2973,9 +2977,12 @@ class ChauffageProgrammeCard extends HTMLElement {
         // Its switch in Home Assistant (its more-info dialog): history, icon, settings
         const entity = this._source().scheduleEntity(id);
         const open = entity ? `<button class="mi" data-more-info="${esc(entity)}"><span>${esc(t('scheduleDetails'))}</span></button><div class="sep"></div>` : '';
+        // A schedule's sheet shows one tab (`schedule_tabs: 'one'`): no tab to move it next to
+        const moves = this._config.schedule_tabs === 'one' ? ''
+          : `${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
+          ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= schedules.length - 1)}`;
         body = `${open}${item('schedule-rename-open', esc(t('renameMenu')))}
-          ${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
-          ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= schedules.length - 1)}
+          ${moves}
           <div class="sep"></div>
           ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
       }
@@ -3847,7 +3854,9 @@ const STYLE = `
   .chip.tool.on { border-style:solid; border-color:var(--primary-color); color:var(--primary-color); }
   .tabs { display:flex; gap:4px; margin:12px 0 10px; padding:3px; border-radius:10px;
     background:var(--secondary-background-color); }
-  .tab { flex:1; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer; }
+  /* A long name shrinks with an ellipsis, so the ⋮ and the + stay on the card */
+  .tab { flex:1; min-width:0; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
   /* An icon chosen in HA stays on the line of the name, even on a narrow screen */
   .tab.with-icon { display:flex; align-items:center; justify-content:center; }
@@ -3906,7 +3915,7 @@ const STYLE = `
   .th-add select { flex:1; min-width:0; min-height:36px; }
 
   .ticks { position:relative; height:16px; font-size:11px; color:var(--secondary-text-color); }
-  .ticks span { position:absolute; transform:translateX(-50%); }
+  .ticks span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
   .ticks span:first-child { transform:none; }
   .ticks span:last-child { transform:translateX(-100%); }
   .day { font-size:.9em; color:var(--secondary-text-color); text-align:right; line-height:1.2; }
@@ -4027,6 +4036,7 @@ const STYLE = `
   .btn.danger { color:var(--error-color,#db4437); border-color:var(--error-color,#db4437); }
   .ed-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   .ed-head .close { margin-left:auto; }
+  .ed-measured { margin-top:6px; font-size:12px; color:var(--secondary-text-color); }
   .editor input { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
     background:var(--secondary-background-color); }
   ${TIME_FIELD_STYLE}
@@ -4057,14 +4067,7 @@ const STYLE = `
     border-radius:0 0 var(--ha-card-border-radius,12px) var(--ha-card-border-radius,12px); }
   .savebar .dirty { margin-right:auto; font-size:.9em; }
   .loading { color:var(--secondary-text-color); }
-  /* Views: tabs across the top of the card, unlike the schedules' segmented switch */
   .config-links { display:flex; justify-content:flex-end; gap:12px; margin:-4px 0 8px; font-size:.85em; }
-  .views { display:flex; margin:-12px -16px 12px; padding:0 8px; box-shadow:inset 0 -1px var(--divider-color);
-    overflow-x:auto; scrollbar-width:none; }
-  .view { flex:1 1 auto; min-height:40px; padding:8px; border:0; border-bottom:2px solid transparent;
-    background:transparent; cursor:pointer; font-size:.9em; white-space:nowrap; color:var(--secondary-text-color); }
-  .view:hover { color:var(--primary-text-color); }
-  .view.on { color:var(--primary-color); border-bottom-color:var(--primary-color); font-weight:500; }
   .table-wrap { overflow-x:auto; }
   .pv-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
   .pv-list .cell { align-items:flex-start; min-width:0; box-sizing:border-box; padding:8px 10px; gap:2px;

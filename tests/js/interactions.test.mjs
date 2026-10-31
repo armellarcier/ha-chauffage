@@ -380,6 +380,15 @@ describe('row menu', () => {
     assert.deepEqual(day(card, 'climate.salon', 2), WEEKDAY);
   });
 
+  test('Escape closes it, as it closes the popovers', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
+    $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').click();
+    assert.ok($(card, '.menu'));
+    $(card, '.menu [data-act="fill-weekdays"]').focus();
+    $(card, '.menu [data-act="fill-weekdays"]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+    assert.equal($(card, '.menu'), null);
+  });
+
   test('a right click on a row opens it too; a click elsewhere closes it', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
     const bar = $(card, '.bar[data-climate="climate.salon"][data-day="1"]');
