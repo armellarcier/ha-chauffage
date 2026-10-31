@@ -128,6 +128,84 @@ No stored data is migrated: your schedules, weeks, presets and overrides stay as
   presets, the rules and the thermostats.
 - Each scheduled thermostat now appears twice in the devices of its area: the thermostat's own
   device, and the scheduled thermostat's device.
+## [0.7.0] - 2026-10-31
+
+**Identical days on one row, a calendar of schedules, what Chauffage does to the thermostats and
+why, and time fields in your profile's format.** This release gathers 0.7.0-beta.1 to
+0.7.0-beta.6, below. Nothing changed since 0.7.0-beta.6. **Migrates stored data**
+automatically (version 6, in 0.7.0-beta.2). Home Assistant 2025.1 or later.
+
+### Highlights
+
+- **Identical days share a row** in the cards, for example *Mon–Fri* (#11). Editing the row
+  edits each of its days.
+- **A calendar can pick the active schedule.** Name the events of a Home Assistant calendar
+  after your schedules, and add a rule that reads the calendar.
+- **The logbook says what Chauffage did to a thermostat, and why** (#49). The log and the
+  diagnostics say it too.
+- **Battery valves no longer create overrides by themselves.** A valve that applies a setpoint
+  late is no longer taken for a change made by hand.
+- **The time fields follow your profile's time format** (#63). You type a time the way you write
+  it, for example "1225" or "12h25".
+- **The card shows "Configuration error" after a restart?** Reload the page. The README
+  explains why, under *Troubleshooting* (#59).
+
+### Upgrading
+
+- From 0.6.x or a 0.7.0 beta: update from HACS, restart Home Assistant, then reload the browser
+  page.
+- Chauffage migrates the stored data at start. Your schedules, presets, overrides and rules are
+  kept.
+- To pick the schedule from a calendar, import the blueprint (README, *Activation rules*).
+
+## [0.7.0-beta.6] - 2026-10-31
+
+Fixes to the time fields of 0.7.0-beta.5.
+
+### Fixed
+
+- **The time fields are narrower**, so the close button of a slot's popover stays on the same
+  row as the times. Each field is as wide as the times of your profile's format.
+- **On a 12 h clock, 12 typed without AM or PM is noon.** Before, "1230" typed in a morning
+  field gave 12:30 AM, just after midnight.
+- **↑ on AM or PM moves the end of an override 12 hours later.** Before, the end moved 12 hours
+  earlier.
+- **↑ and ↓ move the hours in every language.** Before, in a language that writes "08.30", for
+  example Finnish, the arrow keys always moved the minutes.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled), restart Home Assistant and reload the
+page. No stored data is migrated.
+
+## [0.7.0-beta.5] - 2026-10-31
+
+The time fields of the card follow the time format of your profile, and you type a time as
+digits.
+
+### Fixed
+
+- **The time fields follow the time format of your profile** (#63). Before, the fields of a
+  slot and of an override's end followed the language of your browser. An English browser
+  showed "8:30 AM" even if your profile says 24 hours.
+
+### Changed
+
+- **You type a time the way you write it.** For example, "1225", "12:25" and "12h25" all give
+  12:25, and "7" gives 7:00. On a 12 h clock, add "p" for PM, or type "19" for 7 PM. Without AM
+  or PM, the time keeps the period the field had. Chauffage applies the time when you press
+  Enter or leave the field, and shows it again in your format.
+- **The small arrows of a time field** move the time by the step of the card, 15 minutes by
+  default. With the keyboard, ↑ and ↓ move the hours by an hour, the minutes by the step, and
+  AM or PM by 12 hours.
+- **The end of an override can be any minute**, for example 12:07. It still ends at least
+  15 minutes from now. The arrows move the end by as much, so an end moved before now stays
+  15 minutes from now instead of jumping to tomorrow.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled), restart Home Assistant and reload the
+page. No stored data is migrated.
 
 ## [0.7.0-beta.4] - 2026-10-28
 
@@ -844,6 +922,9 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 [0.8.0-alpha.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.3
 [0.8.0-alpha.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.2
 [0.8.0-alpha.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.1
+[0.7.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0
+[0.7.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.6
+[0.7.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.5
 [0.7.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.4
 [0.7.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.3
 [0.7.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.2

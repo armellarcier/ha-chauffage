@@ -546,6 +546,16 @@ Téléchargez les diagnostics : Paramètres → Appareils et services → Chauff
 *Télécharger les diagnostics*. Joignez ce fichier à votre issue. Le fichier contient vos plannings
 et l'état actuel des thermostats.
 
+### La carte affiche « Erreur de configuration » après un redémarrage
+
+Rechargez la page. Dans l'application compagnon, fermez l'application et rouvrez-la.
+
+Home Assistant sert ses pages quelques secondes avant que Chauffage démarre. Une page ouverte à ce
+moment-là, par exemple par l'application compagnon quand elle se reconnecte, n'a pas la carte de
+Chauffage. Home Assistant n'ajoute jamais la carte à cette page ensuite : l'erreur reste jusqu'au
+rechargement de la page. Toutes les intégrations qui ajoutent leur JavaScript aux pages de Home
+Assistant ont ce problème.
+
 ## Architecture
 
 Cette section s'adresse aux curieux et aux contributeurs.
@@ -572,6 +582,19 @@ pour le bloc de la fenêtre de détail. La carte dialogue avec l'intégration pa
 par exemple `chauffage/subscribe` ou `chauffage/weeks/save`. L'intégration refuse un
 enregistrement fait depuis une copie périmée : un enregistrement n'écrase jamais les
 modifications de quelqu'un d'autre.
+
+**Le chargement de la carte.** Vous n'avez rien à configurer. L'intégration ajoute la carte aux
+modules que Home Assistant charge sur chaque page (`add_extra_js_url`), comme d'autres
+intégrations qui ajoutent des éléments aux pages de Home Assistant, par exemple browser_mod et
+UIX. Une ressource de tableau de bord ne se charge que sur les tableaux de bord, alors que le bloc
+de la fenêtre de détail doit marcher partout.
+
+La carte déclare ses éléments une seconde fois, une fois le frontend de Home Assistant démarré.
+Un module chargé sur toutes les pages peut s'exécuter avant que le frontend ait mis en place son
+registre d'éléments, et le frontend ne verrait pas les éléments déclarés avant.
+
+Une page que Home Assistant sert pendant son démarrage n'a pas la carte : voir le
+[Dépannage](#la-carte-affiche--erreur-de-configuration--après-un-redémarrage).
 
 **L'historique.** La carte demande à l'intégration la température mesurée et la consigne
 appliquée des 7 derniers jours (`chauffage/history`). L'intégration lit ces deux valeurs dans le

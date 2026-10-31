@@ -331,6 +331,22 @@ dashboards, automations, scripts and by voice without the card
   in parallel with HA's frontend, which replaces `customElements` with a scoped registry
   polyfill: a card evaluated first (cached) would be unknown to it. The card defines its
   elements again once `<home-assistant>` is defined, in the registry in place then (#2).
+- **The same loading as the integrations that inject into HA's own pages** (#59, 2026-10). Home
+  Assistant offers no API to add content to the more-info dialog, so browser_mod and UIX use the
+  same kind of injection as Chauffage. Both load their module with `add_extra_js_url`, and add a
+  dashboard resource at the same URL for Google Cast. card-mod asks for both too, the resource
+  and `extra_module_url`. A plain dashboard resource, the usual way for a card, would leave the
+  more-info block without its module outside the dashboards.
+- **No fix for the pages served while HA starts, only documentation** (#59, 2026-10). HA serves
+  its pages a few seconds before the custom integrations are set up. Such a page lacks the card,
+  and the frontend never loads a module added after the page was served, so the card shows
+  "Configuration error" until a reload. Every integration that uses `add_extra_js_url` has this
+  problem, and none fixes it: a browser_mod user reproduced it by opening the iOS app while HA
+  started (thomasloven/hass-browser_mod#941), closed without a fix. A resource at the card's own
+  URL would not help, because that URL answers 404 until Chauffage is set up. A `data:` loader
+  saved as a dashboard resource worked (PR #60), but it had to poll, guess the card's version and
+  could import a stale card after an upgrade: too much for a reload. The real fix belongs to
+  HA's frontend, which could subscribe to `frontend/subscribe_extra_js`.
 - **Saves carry the revision they edited**: a save from an outdated copy is refused instead of
   overwriting someone else's changes.
 - **The card's type stays `custom:chauffage-programme-card`**: dashboards refer to it.
@@ -431,6 +447,42 @@ dashboards, automations, scripts and by voice without the card
   the tab shown is not the schedule edited. A thermostat's sheet in the panel is different: its
   weeks are all shown at once, and each save bar sits under the week it saves (see
   [The panel's pages](#the-panels-pages)).
+- **A time field is a text field read by the card's own parser, not `<input type="time">`**
+  (#63). A browser shows its time input in the format of its own language, and a page cannot
+  change it: an English browser showed "8:30 AM" to a user whose profile says 24 hours. The
+  field shows the time with Intl, like the rest of the card, and `parseTime()` reads it when it
+  is left: "1225", "12:25", "12h25", "7", "7p", "7:30 pm", or the words of the user's language
+  for AM and PM.
+  - **Tried and dropped: a list of times.** It followed the profile, but it was slow to use,
+    and it could not offer every minute for the end of an override.
+  - **Tried and dropped: the Maskito library**, which masks the field while it is typed. The
+    card has no build step, so Maskito had to be copied, minified, in the card's folder: no
+    dependency tool would see it, and its import could stop the card and the more-info block on
+    every page if it failed to load. A parser of the times people type, read when the field is
+    left, is a few dozen lines and is tested here. Maskito can come back once the card is
+    bundled (roadmap).
+  - **Not HA's own `ha-time-input`**: it is only loaded on the pages that need it, and it is
+    not a public API.
+  - **The number keypad on phones, on a 12 h clock too.** A time typed without AM / PM keeps
+    the period of the field, so the letters are not needed.
+  - **The time is applied on Enter or on leaving the field**, not at each key: the card is not
+    redrawn while a time is typed. Tab to the other time field applies the time once that
+    field has the focus, so that the redraw waits instead of replacing the field being typed in.
+  - **The small arrows and the arrow keys**, like those of `<input type="time">`. The small
+    arrows move the time by the step, and are out of the Tab order. The arrow keys move the
+    hours by an hour, the minutes by the step, and AM / PM by 12 hours. The hours and the minutes
+    are the first two groups of digits, because the separator depends on the language: "08:30",
+    "08.30" in Finnish.
+  - **A time field is as wide as the longest time of the profile's format**, for example
+    "10:45 PM" or "10:45 p. m.". A fixed width would cut the longer formats, or push the
+    popover's close button to a second row with the shorter ones.
+  - **The end of an override is typed to the minute**: it needs no step, unlike the slots.
+  - **The arrows move the end of an override by as much**, not to the next time it is that
+    time of day: an end moved before now would jump to tomorrow, and an end in three days would
+    come back within a day. A time typed is still the next time it is that time.
+  - **On a 12 h clock, a time typed without AM / PM keeps the period of the field**: "0715" in
+    a field at "06:00 PM" means 7:15 PM. Except 12, which is noon: "1230" in a morning field
+    means half past noon, not half past midnight.
 
 ## Chauffage panel and devices (#57)
 
