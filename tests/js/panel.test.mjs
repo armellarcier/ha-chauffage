@@ -252,7 +252,7 @@ describe('the Chauffage panel', () => {
       assert.deepEqual($$(card, '.tab').map(text), ['Vacances']);
       assert.ok($(card, '[data-act="schedule-menu"]'));
       assert.equal($(card, '[data-act="schedule-new"]'), null);
-      assert.equal($(card, '.config-links'), null); // in the panel, no links to the panel
+      assert.equal($(card, '[data-panel-page]'), null); // in the panel, no links to the panel
     });
 
     test('keeps the card\'s list to copy a week, and marks today even when the schedule is not active', () => {
@@ -429,19 +429,19 @@ describe('the Chauffage panel', () => {
 describe('the dashboard card and the panel', () => {
   afterEach(() => cleanup());
 
-  test('admins see links to the panel\'s Presets, Rules and Thermostats pages, in place of the card\'s views', () => {
+  test('admins set the presets from the legend of the presets: one link, where the card shows them', () => {
     const card = createCard(setup());
-    assert.equal(card.shadowRoot.querySelector('[data-act="view"]'), null);
-    const links = [...card.shadowRoot.querySelectorAll('.config-links [data-panel-page]')];
-    assert.deepEqual(links.map((l) => l.dataset.panelPage), ['presets', 'rules', 'thermostats']);
-    links[1].click();
-    assert.equal(window.location.pathname, '/chauffage/rules');
+    assert.equal(card.shadowRoot.querySelector('[data-act="view"], .config-links'), null); // no links at the top
+    const links = [...card.shadowRoot.querySelectorAll('[data-panel-page]')];
+    assert.deepEqual(links.map((l) => l.closest('.legend') && l.textContent), ['Régler les préréglages']);
+    links[0].click();
+    assert.equal(window.location.pathname, '/chauffage/presets');
   });
 
   test('a user who is not an admin sees no link to the panel (it is for admins only)', () => {
     const hass = setup();
     hass.user = { is_admin: false };
-    assert.equal(createCard(hass).shadowRoot.querySelector('.config-links'), null);
+    assert.equal(createCard(hass).shadowRoot.querySelector('[data-panel-page]'), null);
   });
 
   test('outside the panel, the choice of grouping kept in the browser wins over the card\'s option', () => {

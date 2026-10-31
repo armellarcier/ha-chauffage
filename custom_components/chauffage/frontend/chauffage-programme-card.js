@@ -166,6 +166,7 @@ const I18N = {
     week: 'Week',
     stale: 'These schedules were changed elsewhere in the meantime: cancel to reload them, then redo your changes.',
     presetHint: '(its preset)',
+    setPresets: 'Set the presets',
     presetFor: '{preset} · {name}',
     ownPreset: 'Thermostat preset',
     presetTemperature: 'Temperature',
@@ -190,7 +191,6 @@ const I18N = {
     presetColor: 'Color',
     deletePreset: 'Delete this preset',
     replaceWith: 'replaced by',
-    viewRules: 'Rules',
     rulesIntro: 'Schedules activated by themselves: the first rule that applies wins (its template is true, or gives the name or id of a schedule). A schedule chosen by hand stays until the rules give another one.',
     rulesEmpty: 'No rules: the active schedule is chosen by hand (card, select entity, automations).',
     rulesTry: 'Try a template',
@@ -384,6 +384,7 @@ const I18N = {
     week: 'Semaine',
     stale: 'Ces plannings ont été modifiés ailleurs entre-temps : annulez pour les recharger, puis refaites vos modifications.',
     presetHint: '(son préréglage)',
+    setPresets: 'Régler les préréglages',
     presetFor: '{preset} · {name}',
     ownPreset: 'Préréglage du thermostat',
     presetTemperature: 'Température',
@@ -408,7 +409,6 @@ const I18N = {
     presetColor: 'Couleur',
     deletePreset: 'Supprimer ce préréglage',
     replaceWith: 'remplacé par',
-    viewRules: 'Règles',
     rulesIntro: 'Les plannings s’activent tout seuls : la première règle qui s’applique l’emporte (son template est vrai, ou donne le nom ou l’identifiant d’un planning). Un planning choisi à la main reste jusqu’à ce que les règles en donnent un autre.',
     rulesEmpty: 'Aucune règle : le planning actif est choisi à la main (carte, entité select, automatisations).',
     rulesTry: 'Essayer un template',
@@ -2468,17 +2468,17 @@ class ChauffageProgrammeCard extends HTMLElement {
       return;
     }
     if (this._view === 'presets' && this._source().ready) {
-      fill(`${this._viewsHtml()}${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
+      fill(`${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
       this._schedulePlaceEditor();
       return;
     }
     if (this._view === 'thermostats' && this._source().ready) {
-      fill(`${this._viewsHtml()}${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
+      fill(`${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
       return;
     }
     if (this._view === 'rules' && this._source().ready) {
       const msg = this._msg || (this._rulesDraft ? tr('unsaved') : '');
-      fill(`${this._viewsHtml()}${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div>`);
+      fill(`${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div>`);
       return;
     }
     if (!this._source().ready) {
@@ -2520,8 +2520,8 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     const focus = this._focusClimate();
     const st = this._hass.states[focus];
-    // What each preset means for the focused thermostat (see _presetTemperature); presets are
-    // set in the "Presets" view
+    // What each preset means for the focused thermostat (see _presetTemperature), then where to
+    // set the presets
     const legend = this._presets()
       .map((l) => {
         const target = this._targetOf(focus, l);
@@ -2529,7 +2529,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const hint = !multi && 'preset' in target ? ` ${tr('presetHint')}` : '';
         return `<span><i style="background:${l.color}"></i>${esc(l.name)}${t != null ? ` ${this._loc.number(t)}°` : esc(hint)}</span>`;
       })
-      .join('');
+      .join('') + this._settingsLinkHtml();
     const copyWeek = this._thermostats
       .map((t) => {
         const opts = schedules
@@ -2541,7 +2541,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
 
     fill(`
-        ${this._viewsHtml()}
+        
         ${this._config.chips === false ? '' : `<div class="chips">
           ${chips}
           <span class="chip-sep"></span>
@@ -3102,15 +3102,13 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // On a dashboard, the card shows the weeks; the presets, the rules and the thermostats are set
-  // in the Chauffage panel (admins only, as the panel). In the panel, a page shows one view
-  // (`view`), and the panel's own tabs switch pages.
-  _viewsHtml() {
+  // in the Chauffage panel (admins only, as the panel). The legend of the presets ends with the
+  // link to set them; the panel's tabs lead to the rest. In the panel, no link to the panel.
+  _settingsLinkHtml() {
     if (this._config.view || this._config.panel) return '';
     const hass = this._hass;
     if (hass && hass.user && !hass.user.is_admin) return '';
-    const t = this._loc.t;
-    const link = (page, label) => `<span class="mi-link" role="link" tabindex="0" data-panel-page="${page}">${esc(t(label))}</span>`;
-    return `<div class="config-links">${link('presets', 'viewPresets')}${link('rules', 'viewRules')}${link('thermostats', 'viewThermostats')}</div>`;
+    return `<span class="mi-link settings-link" role="link" tabindex="0" data-panel-page="presets">${esc(this._loc.t('setPresets'))}</span>`;
   }
 
   // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
@@ -4105,7 +4103,7 @@ const STYLE = `
     border-radius:0 0 var(--ha-card-border-radius,12px) var(--ha-card-border-radius,12px); }
   .savebar .dirty { margin-right:auto; font-size:.9em; }
   .loading { color:var(--secondary-text-color); }
-  .config-links { display:flex; justify-content:flex-end; gap:12px; margin:-4px 0 8px; font-size:.85em; }
+  .legend .settings-link { white-space:nowrap; }
   .table-wrap { overflow-x:auto; }
   .pv-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
   .pv-list .cell { align-items:flex-start; min-width:0; box-sizing:border-box; padding:8px 10px; gap:2px;
@@ -4200,6 +4198,8 @@ const STYLE = `
   @media (hover:none) {
     .hint .mouse { display:none; }
     .hint .touch { display:inline; }
+    /* A finger: the chip's ↗ gets a larger target, so a tap beside it does not pick the chip */
+    .chip-open { width:32px; height:32px; margin:-8px -10px -8px 0; }
   }
 `;
 
