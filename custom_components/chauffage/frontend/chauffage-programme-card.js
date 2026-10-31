@@ -44,8 +44,8 @@ const I18N = {
     temporarySetpointTitle: 'Temporary setpoint: {label}',
     dragToChangeEnd: 'Drag to change the end',
     until: 'until',
-    earlier: '{min} min earlier',
-    later: '{min} min later',
+    earlier: '{duration} earlier',
+    later: '{duration} later',
     today: 'today',
     tomorrow: 'tomorrow',
     remaining: '{duration} left',
@@ -231,8 +231,8 @@ const I18N = {
     temporarySetpointTitle: 'Consigne temporaire : {label}',
     dragToChangeEnd: 'Glisser pour changer la fin',
     until: 'jusqu\'à',
-    earlier: '{min} min plus tôt',
-    later: '{min} min plus tard',
+    earlier: '{duration} plus tôt',
+    later: '{duration} plus tard',
     today: 'aujourd\'hui',
     tomorrow: 'demain',
     remaining: 'encore {duration}',
@@ -478,11 +478,14 @@ function makeLocale(hass, configured) {
     d.setMinutes(minutes % DAY_MIN);
     return d;
   };
-  // The words for AM and PM in the user's language, typed in the time fields ("p. m." in Spanish)
-  const periodFormat = new Intl.DateTimeFormat(intlLocale, { hour: 'numeric', hourCycle: 'h12' });
-  const periods = [60, 13 * 60].map((m) => (periodFormat.formatToParts(at(m)).find((p) => p.type === 'dayPeriod') || {}).value || '');
   return {
-    lang, intlLocale, hour12, unit, t, periods,
+    lang, intlLocale, hour12, unit, t,
+    // The words for AM and PM in the user's language, typed in the time fields ("p. m." in Spanish).
+    // Read when a time field is left, not on every update of hass.
+    get periods() {
+      const format = new Intl.DateTimeFormat(intlLocale, { hour: 'numeric', hourCycle: 'h12' });
+      return [60, 13 * 60].map((m) => (format.formatToParts(at(m)).find((p) => p.type === 'dayPeriod') || {}).value || '');
+    },
     // Changes when any language / format preference changes (triggers a redraw)
     signature: JSON.stringify([lang, intlLocale, unit, configured || null, prefs]),
     days: long,
@@ -524,7 +527,7 @@ const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
 const ICON_UP = '<svg viewBox="0 0 24 24"><path d="M7,15L12,10L17,15H7Z"/></svg>';
 const ICON_DOWN = '<svg viewBox="0 0 24 24"><path d="M7,10L12,15L17,10H7Z"/></svg>';
-const ICON_ZOOM ='<svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5M7,9H12V10H7V9M9,7H10V12H9V7Z"/></svg>';
+const ICON_ZOOM = '<svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5M7,9H12V10H7V9M9,7H10V12H9V7Z"/></svg>';
 const ICON_PASTE ='<svg viewBox="0 0 24 24"><path d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"/></svg>';
 
 const toMin = (s) => {
@@ -653,7 +656,7 @@ function timeField(attr, minutes, loc, step) {
   // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
   return `<span class="time-field"><input type="text" class="time${loc.hour12 ? ' h12' : ''}" inputmode="numeric"
     autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}" value="${esc(loc.time(minutes))}"><span
-    class="time-spin">${button(1, ICON_UP, loc.t('later', { min: step }))}${button(-1, ICON_DOWN, loc.t('earlier', { min: step }))}</span></span>`;
+    class="time-spin">${button(1, ICON_UP, loc.t('later', { duration: durationText(step, loc) }))}${button(-1, ICON_DOWN, loc.t('earlier', { duration: durationText(step, loc) }))}</span></span>`;
 }
 
 // A time typed by hand, read the way people write it: "1225", "12:25", "12.25", "12h25", "7" (7:00),
@@ -702,7 +705,7 @@ const moveTime = (m, delta, grid = 1) =>
 function moveFieldTime(el, loc, move) {
   const m = typedTime(el, loc);
   if (m === null) return false;
-  const moved = move(m, Number(el.dataset.step) || 1);
+  const moved = move(m, Number(el.dataset.step));
   el.dataset.moved = Number(el.dataset.moved || 0) + ((moved - m + DAY_MIN * 1.5) % DAY_MIN) - DAY_MIN / 2;
   el.value = loc.time(moved);
   return true;
@@ -749,8 +752,11 @@ function timeFieldDone(host, el, apply) {
 // does not jump to tomorrow, nor lose the days of an end in three days); typed, the next time it
 // is that time. An end before now + a step is then raised to it.
 const endOfField = (el, minutes) => (Number(el.dataset.moved)
-  ? new Date(parseDate(el.dataset.endsAt).getTime() + Number(el.dataset.moved) * 60000)
+  ? endMovedBy(el.dataset.endsAt, Number(el.dataset.moved))
   : nextAtMinutes(minutes));
+
+// The end of an override moved by `min` minutes (its arrows, its +30 min button)
+const endMovedBy = (end, min) => new Date(parseDate(end).getTime() + min * 60000);
 
 // The listeners of the time fields of a card's shadow root. `done(field, next)` applies a field's
 // time (`next`: the field Tab goes to, if any).
@@ -3442,7 +3448,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
       if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
       if (act === 'override-del') return this._sendOverride(c, null);
-      if (act === 'override-add') return this._setOverrideEnd(c, new Date(parseDate(d.end).getTime() + Number(ds.min) * 60000));
+      if (act === 'override-add') return this._setOverrideEnd(c, endMovedBy(d.end, Number(ds.min)));
     }
     if (act === 'view') {
       this._view = ds.view;
@@ -3926,7 +3932,7 @@ class ChauffageMoreInfo extends HTMLElement {
       !hass.user || !!hass.user.is_admin, hass.entities && hass.entities[this._entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
-    if (focusedField(this.shadowRoot, '[data-end]')) { this._redrawLater = true; return; } // nor while the end is typed
+    if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; } // nor while the end is typed
     this._key = key;
     this._render();
   }
@@ -4125,7 +4131,7 @@ class ChauffageMoreInfo extends HTMLElement {
     }
     if (!d) return;
     if (b.hasAttribute('data-del')) return this._send(null);
-    this._setEnd(new Date(parseDate(d.end).getTime() + Number(b.dataset.min) * 60000));
+    this._setEnd(endMovedBy(d.end, Number(b.dataset.min)));
   }
 
   _onChange(e) {

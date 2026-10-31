@@ -1,5 +1,5 @@
 // Internationalization: translations, language choice and locale-aware formats (hass.locale).
-import { fakeHass, createCard, cleanup, typeTime } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, typeTime, pressKey } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { I18N, makeLocale, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -199,7 +199,7 @@ describe('the time fields follow the profile\'s time format', () => {
     const end = slotEnd(card); // 8:30 AM
     end.focus();
     end.setSelectionRange(6, 6);
-    end.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    pressKey(end, 'ArrowUp');
     assert.match(end.value, time12('8:30 PM'));
   });
 

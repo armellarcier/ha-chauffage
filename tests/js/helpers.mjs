@@ -150,6 +150,11 @@ export function typeTime(field, value) {
   field.blur();
 }
 
+/** Presses a key in a field, for example an arrow key or Enter in a time field. */
+export function pressKey(field, key) {
+  field.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+}
+
 export function cleanup() {
   document.body.innerHTML = '';
   try { localStorage.clear(); } catch (e) { /* ignore */ }

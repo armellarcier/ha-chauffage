@@ -1,7 +1,7 @@
 // Pointer and form interactions of the card and of the more-info block: dragging slots and
 // override ends, row menu, copying a week, time fields, popovers, injection into the dialog,
 // error messages.
-import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, typeTime, WEEKDAY } from './helpers.mjs';
+import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, typeTime, pressKey, WEEKDAY } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -144,34 +144,26 @@ describe('dragging the end of an override', () => {
       pointer(handle, 'pointermove', toMinutes);
       pointer(handle, 'pointerup');
     };
-    const moreInfo = (hass) => {
-      const el = document.createElement('chauffage-moreinfo');
-      document.body.appendChild(el);
-      el.entity = 'climate.salon';
-      el.hass = hass;
-      return el;
-    };
     const dragInMoreInfo = (hass, toMinutes) => {
-      const handle = moreInfo(hass).shadowRoot.querySelector('.override-handle');
+      const handle = moreInfoOf(hass).shadowRoot.querySelector('.override-handle');
       geometry(handle.closest('.bar'));
       pointer(handle, 'pointerdown');
       pointer(handle, 'pointermove', toMinutes);
       pointer(handle, 'pointerup');
     };
-    const end = (hass) => new Date(hass.events.at(-1).override.end).toISOString();
 
     test('clocks back, in the card: the end dropped at 13:00 is 13:00', () => {
       at('2026-10-25T10:00:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-10-25T10:00:00+01:00', '2026-10-25T11:30:00+01:00') });
       dragInCard(hass, 13 * 60);
-      assert.equal(end(hass), '2026-10-25T12:00:00.000Z');
+      assert.equal(sentEnd(hass), '2026-10-25T12:00:00.000Z');
     });
 
     test('clocks back, in the more-info block: the end dropped at 13:00 is 13:00', () => {
       at('2026-10-25T10:00:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-10-25T10:00:00+01:00', '2026-10-25T11:30:00+01:00') });
       dragInMoreInfo(hass, 13 * 60);
-      assert.equal(end(hass), '2026-10-25T12:00:00.000Z');
+      assert.equal(sentEnd(hass), '2026-10-25T12:00:00.000Z');
     });
 
     // 02:00-03:00 is played twice: during the second time, 02:45 is the one still to come
@@ -179,21 +171,21 @@ describe('dragging the end of an override', () => {
       at('2026-10-25T02:20:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-10-25T02:00:00+01:00', '2026-10-25T02:40:00+01:00') });
       dragInCard(hass, 2 * 60 + 45);
-      assert.equal(end(hass), '2026-10-25T01:45:00.000Z'); // 02:45 winter time
+      assert.equal(sentEnd(hass), '2026-10-25T01:45:00.000Z'); // 02:45 winter time
     });
 
     test('clocks back, in the hour played twice: the end time field is not the 02:45 already past', () => {
       at('2026-10-25T02:20:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-10-25T02:00:00+01:00', '2026-10-25T02:40:00+01:00') });
-      typeTime(moreInfo(hass).shadowRoot.querySelector('input.time[data-end]'), '02:45');
-      assert.equal(end(hass), '2026-10-25T01:45:00.000Z');
+      typeTime(moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]'), '02:45');
+      assert.equal(sentEnd(hass), '2026-10-25T01:45:00.000Z');
     });
 
     test('clocks forward, in the card: the end dropped at 13:00 is 13:00', () => {
       at('2026-03-29T10:00:00+02:00');
       const hass = fakeHass({ overrides: sunday('2026-03-29T10:00:00+02:00', '2026-03-29T11:30:00+02:00') });
       dragInCard(hass, 13 * 60);
-      assert.equal(end(hass), '2026-03-29T11:00:00.000Z');
+      assert.equal(sentEnd(hass), '2026-03-29T11:00:00.000Z');
     });
 
     // 02:00-03:00 does not exist: the end dropped there is when the clocks went forward
@@ -201,14 +193,14 @@ describe('dragging the end of an override', () => {
       at('2026-03-29T01:00:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-03-29T01:00:00+01:00', '2026-03-29T01:30:00+01:00') });
       dragInCard(hass, 2 * 60 + 30);
-      assert.equal(end(hass), '2026-03-29T01:00:00.000Z'); // 03:00 summer time
+      assert.equal(sentEnd(hass), '2026-03-29T01:00:00.000Z'); // 03:00 summer time
     });
 
     test('clocks forward, in the more-info block: the end dropped in the hour skipped is 03:00', () => {
       at('2026-03-29T01:00:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-03-29T01:00:00+01:00', '2026-03-29T01:30:00+01:00') });
       dragInMoreInfo(hass, 2 * 60 + 30);
-      assert.equal(end(hass), '2026-03-29T01:00:00.000Z');
+      assert.equal(sentEnd(hass), '2026-03-29T01:00:00.000Z');
     });
   });
 
@@ -227,7 +219,6 @@ describe('dragging the end of an override', () => {
     $(card, '.override[data-climate="climate.salon"]').click();
     return $(card, '.override-ed input.time[data-override-end]');
   };
-  const key = (field, k) => field.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
 
   test('in the more-info block: the end time field', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
@@ -275,7 +266,7 @@ describe('dragging the end of an override', () => {
     const field = popoverEnd(createCard(hass, { show: ['climate.salon'] }));
     field.focus();
     field.value = '12:30';
-    key(field, 'Enter');
+    pressKey(field, 'Enter');
     assert.equal(sentEnd(hass), '2026-10-12T10:30:00.000Z');
   });
 
@@ -318,11 +309,11 @@ describe('dragging the end of an override', () => {
     const field = el.shadowRoot.querySelector('input.time[data-end]'); // 11:30
     field.focus();
     field.setSelectionRange(1, 1);
-    key(field, 'ArrowUp');
+    pressKey(field, 'ArrowUp');
     assert.equal(field.value, '12:30');
     field.setSelectionRange(4, 4);
-    key(field, 'ArrowDown');
-    key(field, 'ArrowDown');
+    pressKey(field, 'ArrowDown');
+    pressKey(field, 'ArrowDown');
     assert.equal(field.value, '12:00');
     assert.equal(sets(hass), 0, 'nothing sent at each arrow');
     field.blur();
@@ -345,7 +336,7 @@ describe('dragging the end of an override', () => {
     const field = moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]');
     field.focus();
     field.setSelectionRange(1, 1);
-    key(field, 'ArrowDown'); // 09:30, already past
+    pressKey(field, 'ArrowDown'); // 09:30, already past
     field.blur();
     assert.equal(sentEnd(hass), '2026-10-12T08:15:00.000Z'); // 10:15 today
   });
