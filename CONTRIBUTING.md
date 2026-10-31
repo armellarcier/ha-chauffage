@@ -12,11 +12,8 @@ Assistant.
 - [Docker](https://docs.docker.com/get-docker/) for the development HA. On Windows and macOS,
   use Docker Desktop.
 
-The card is a JavaScript file served as is, so there is no build step. The card's only
-library, [Maskito](https://github.com/taiga-family/maskito), is copied in
-`custom_components/chauffage/frontend/vendor/` (see [Updating Maskito](#updating-maskito)).
-Node and Python are only used by the automated tests. If Node or Python is not installed, the
-tests run in Docker.
+The card is a JavaScript file served as is, so there is no build step. Node and Python are only
+used by the automated tests. If Node or Python is not installed, the tests run in Docker.
 
 ## The development HA
 
@@ -301,15 +298,6 @@ versions.
 
 A change to the stored data or to the installation goes through a beta first. Install the beta
 on a real installation before the release.
-
-## Updating Maskito
-
-The card's time fields use Maskito's time mask. To change the version of Maskito:
-
-1. Run `scripts/vendor-maskito.sh 5.7.0`, with the new version. The script downloads Maskito's
-   core and time mask into `frontend/vendor/`, with its license.
-2. Change the version in the two `import` lines at the top of the card.
-3. Run `scripts/test.sh js`, then try the time fields in the development HA, in 12 h and 24 h.
 
 ## Translations
 

@@ -7,9 +7,6 @@
  * reads and writes through its websocket API.
  */
 
-import { Maskito } from './vendor/maskito-core-5.6.1.js';
-import { maskitoTimeOptionsGenerator } from './vendor/maskito-time-5.6.1.js';
-
 // Release version (same as package.json and CHANGELOG.md)
 const VERSION = '0.7.0-beta.5';
 
@@ -481,8 +478,11 @@ function makeLocale(hass, configured) {
     d.setMinutes(minutes % DAY_MIN);
     return d;
   };
+  // The words for AM and PM in the user's language, typed in the time fields ("p. m." in Spanish)
+  const periodFormat = new Intl.DateTimeFormat(intlLocale, { hour: 'numeric', hourCycle: 'h12' });
+  const periods = [60, 13 * 60].map((m) => (periodFormat.formatToParts(at(m)).find((p) => p.type === 'dayPeriod') || {}).value || '');
   return {
-    lang, intlLocale, hour12, unit, t,
+    lang, intlLocale, hour12, unit, t, periods,
     // Changes when any language / format preference changes (triggers a redraw)
     signature: JSON.stringify([lang, intlLocale, unit, configured || null, prefs]),
     days: long,
@@ -642,39 +642,54 @@ const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 
 // ---------- time fields ----------
 // A time field in the format of the user's profile (#63): a browser shows <input type="time"> in
-// the format of its own language. A text field instead, masked by Maskito once focused: "1225"
-// gives 12:25. Applied on Enter or on leaving the field. Its small arrows, like those of
-// <input type="time">, and the arrow keys on its minutes, move the time by `step` minutes; the
-// arrow keys on its hours by an hour, on AM / PM by 12 hours (Maskito's own).
-
-const fieldTime = (m, hour12) => {
-  if (!hour12) return toHM(m);
-  const h = Math.floor(m / 60) % 24;
-  return `${String(h % 12 || 12).padStart(2, '0')}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
-};
+// the format of its own language. A text field instead, read by parseTime() when it is left or on
+// Enter: "1225" gives 12:25. Its small arrows, like those of <input type="time">, and the arrow
+// keys on its minutes, move the time by `step` minutes; the arrow keys on its hours by an hour, on
+// AM / PM by 12 hours.
 
 function timeField(attr, minutes, loc, step) {
   // Out of the Tab order: the arrow keys do the same from the field
   const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}">${icon}</button>`;
-  // 12 h: letters too, for AM / PM
-  return `<span class="time-field"><input type="text" class="time${loc.hour12 ? ' h12' : ''}"
-    inputmode="${loc.hour12 ? 'text' : 'numeric'}" autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}"
-    value="${fieldTime(minutes, loc.hour12)}"><span class="time-spin">${button(1, ICON_UP, loc.t('later', { min: step }))}${button(-1, ICON_DOWN, loc.t('earlier', { min: step }))}</span></span>`;
+  // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
+  return `<span class="time-field"><input type="text" class="time${loc.hour12 ? ' h12' : ''}" inputmode="numeric"
+    autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}" value="${esc(loc.time(minutes))}"><span
+    class="time-spin">${button(1, ICON_UP, loc.t('later', { min: step }))}${button(-1, ICON_DOWN, loc.t('earlier', { min: step }))}</span></span>`;
 }
 
-// The time typed in a time field, in minutes since midnight; null if it is not a whole time. On a
-// 12 h clock, a time typed without AM / PM keeps the period the field had.
-function typedTime(el) {
-  const r = /^(\d{1,2}):(\d{2})(?:\s*([AP])M)?$/i.exec(el.value.trim());
-  if (!r) return null;
-  let h = Number(r[1]);
-  const m = Number(r[2]);
-  if (el.classList.contains('h12')) {
-    if (h < 1 || h > 12) return null;
-    const pm = r[3] ? r[3].toUpperCase() === 'P' : Number(el.dataset.minutes) >= 12 * 60;
-    h = (h % 12) + (pm ? 12 : 0);
+// A time typed by hand, read the way people write it: "1225", "12:25", "12.25", "12h25", "7" (7:00),
+// "730" (7:30), with or without AM / PM, before or after: "7p", "7:30 pm", or the words of the
+// user's language (`periods`, from Intl). Returns { h, m, pm }, pm being null when neither AM nor PM
+// is typed; null if it is not a time.
+function parseTime(text, periods = []) {
+  const compact = (s) => String(s).toLowerCase().replace(/[\s.]/g, '');
+  let rest = compact(text);
+  let pm = null;
+  const words = [...periods.map((w, i) => [compact(w), i === 1]), ['am', false], ['pm', true], ['a', false], ['p', true]]
+    .filter(([w]) => w)
+    .sort((a, b) => b[0].length - a[0].length);
+  for (const [w, isPm] of words) {
+    if (rest.endsWith(w)) rest = rest.slice(0, -w.length);
+    else if (rest.startsWith(w)) rest = rest.slice(w.length);
+    else continue;
+    pm = isPm;
+    break;
   }
-  return h <= 23 && m <= 59 ? h * 60 + m : null;
+  const r = /^(\d{1,2})(?:[:h]?(\d{2}))?h?$/.exec(rest);
+  if (!r) return null;
+  const h = Number(r[1]);
+  const m = r[2] ? Number(r[2]) : 0;
+  if (m > 59 || h > (pm === null ? 23 : 12) || (pm !== null && h < 1)) return null;
+  return { h, m, pm };
+}
+
+// The time typed in a time field, in minutes since midnight; null if it is not a time. On a 12 h
+// clock, a time from 1 to 12 typed without AM / PM keeps the period the field had.
+function typedTime(el, loc) {
+  const t = parseTime(el.value, loc.periods);
+  if (!t) return null;
+  const keep = loc.hour12 && t.h >= 1 && t.h <= 12 ? Number(el.dataset.minutes) >= 12 * 60 : null;
+  const pm = t.pm ?? keep;
+  return (pm === null ? t.h : (t.h % 12) + (pm ? 12 : 0)) * 60 + t.m;
 }
 
 // A time moved by `delta` minutes, onto the multiples of `grid` (11:47 + 15 min: 12:00)
@@ -683,38 +698,47 @@ const moveTime = (m, delta, grid = 1) =>
 
 // The time of a field moved by its arrows: `move(minutes, step)` gives the new time. The field
 // keeps how far its arrows moved it (`moved`, in minutes), for the end of an override. False if
-// the field holds no whole time.
-function moveFieldTime(el, move) {
-  const m = typedTime(el);
+// the field holds no time.
+function moveFieldTime(el, loc, move) {
+  const m = typedTime(el, loc);
   if (m === null) return false;
   const moved = move(m, Number(el.dataset.step) || 1);
   el.dataset.moved = Number(el.dataset.moved || 0) + ((moved - m + DAY_MIN * 1.5) % DAY_MIN) - DAY_MIN / 2;
-  el.value = fieldTime(moved, el.classList.contains('h12'));
+  el.value = loc.time(moved);
   return true;
 }
 
-// ↑ / ↓ in a time field: on the hours, an hour; on the minutes, the field's step
-function arrowInTimeField(e) {
+// ↑ / ↓ in a time field: on the hours (before ":"), an hour; on the minutes, the field's step;
+// after them (AM / PM), 12 hours
+function arrowInTimeField(e, loc) {
   const el = e.target;
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
   const pos = el.selectionStart || 0;
-  // On AM / PM: Maskito switches the period itself; the end of an override is then the next one
-  if (pos > 5) { delete el.dataset.moved; return; }
+  const colon = el.value.indexOf(':');
   const dir = e.key === 'ArrowUp' ? 1 : -1;
-  if (!moveFieldTime(el, (m, step) => (pos <= 2 ? moveTime(m, 60 * dir) : moveTime(m, step * dir, step)))) return;
+  const move = (m, step) => {
+    if (colon >= 0 && pos <= colon) return moveTime(m, 60 * dir);
+    if (colon >= 0 && pos > colon + 3) return moveTime(m, 12 * 60 * dir);
+    return moveTime(m, step * dir, step);
+  };
+  if (!moveFieldTime(el, loc, move)) return;
   e.preventDefault();
   el.setSelectionRange(pos, pos);
 }
 
-// A time field left (or Enter, or its small arrows): `apply(minutes)` once per new time. Then the
-// redraws held back while it was typed in are done, and a time not whole is shown again as it was.
+// A time field left (or Enter, or its small arrows): `apply(minutes)` once per new time, and the
+// time shown again in the profile's format. Then the redraws held back while it was typed in are
+// done, and a time that is not one is shown again as it was.
 function timeFieldDone(host, el, apply) {
-  const minutes = typedTime(el);
+  const minutes = typedTime(el, host._loc);
   if (minutes === null) host._redrawLater = true;
-  else if (minutes !== Number(el.dataset.minutes) || Number(el.dataset.moved)) {
-    el.dataset.minutes = minutes; // applied once
-    apply(minutes);
-    delete el.dataset.moved;
+  else {
+    el.value = host._loc.time(minutes);
+    if (minutes !== Number(el.dataset.minutes) || Number(el.dataset.moved)) {
+      el.dataset.minutes = minutes; // applied once
+      apply(minutes);
+      delete el.dataset.moved;
+    }
   }
   if (!host._redrawLater) return;
   host._redrawLater = false;
@@ -728,22 +752,18 @@ const endOfField = (el, minutes) => (Number(el.dataset.moved)
   ? new Date(parseDate(el.dataset.endsAt).getTime() + Number(el.dataset.moved) * 60000)
   : nextAtMinutes(minutes));
 
-// The listeners of the time fields of a shadow root. `done(field, next)` applies a field's time
-// (`next`: the field Tab goes to, if any).
-function listenTimeFields(root, done) {
+// The listeners of the time fields of a card's shadow root. `done(field, next)` applies a field's
+// time (`next`: the field Tab goes to, if any).
+function listenTimeFields(host, done) {
+  const root = host.shadowRoot;
   const isTime = (el) => el && el.matches && el.matches('input.time');
-  root.addEventListener('focusin', (e) => {
-    const el = e.target;
-    if (!isTime(el) || el._maskito) return;
-    el._maskito = new Maskito(el, maskitoTimeOptionsGenerator({ mode: el.classList.contains('h12') ? 'HH:MM AA' : 'HH:MM' }));
-  });
   root.addEventListener('focusout', (e) => { if (isTime(e.target)) done(e.target, e.relatedTarget); });
   // Typed: the time is the one typed, not moved (the end of an override)
   root.addEventListener('input', (e) => { if (isTime(e.target)) delete e.target.dataset.moved; });
   root.addEventListener('keydown', (e) => {
     if (!isTime(e.target)) return;
     if (e.key === 'Enter') e.target.blur(); // applied on leaving the field
-    else arrowInTimeField(e);
+    else arrowInTimeField(e, host._loc);
   });
   // The small arrows: the field keeps the focus (a redraw would take the button away before its click)
   root.addEventListener('mousedown', (e) => { if (e.target.closest('.time-step')) e.preventDefault(); });
@@ -752,7 +772,7 @@ function listenTimeFields(root, done) {
     if (!button) return;
     const el = button.closest('.time-field').querySelector('input.time');
     const dir = Number(button.dataset.timeStep);
-    if (!moveFieldTime(el, (m, step) => moveTime(m, step * dir, step))) return;
+    if (!moveFieldTime(el, host._loc, (m, step) => moveTime(m, step * dir, step))) return;
     if (root.activeElement === el) el.blur(); // applied by its focusout
     else done(el);
   });
@@ -2663,7 +2683,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (ok) ok.click();
     });
 
-    listenTimeFields(root, (el, next) => this._timeFieldDone(el, next));
+    listenTimeFields(this, (el, next) => this._timeFieldDone(el, next));
 
     // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e) => {
@@ -3879,7 +3899,7 @@ class ChauffageMoreInfo extends HTMLElement {
     root.addEventListener('pointerup', () => this._onUp());
     root.addEventListener('pointercancel', () => this._onUp());
     // The end field of an override left: the end typed is applied
-    listenTimeFields(root, (el) => timeFieldDone(this, el, (minutes) => this._setEnd(endOfField(el, minutes))));
+    listenTimeFields(this, (el) => timeFieldDone(this, el, (minutes) => this._setEnd(endOfField(el, minutes))));
   }
 
   set entity(id) {
@@ -4821,7 +4841,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
-  VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay,
+  VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay, parseTime,
   overridePieces, overrideLabel, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
 };

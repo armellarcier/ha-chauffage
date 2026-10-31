@@ -519,6 +519,3 @@ To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 [MIT](LICENSE) © 2026 Armel Larcier
-
-The card includes [Maskito](https://github.com/taiga-family/maskito), under the
-[Apache-2.0](custom_components/chauffage/frontend/vendor/LICENSE-maskito) license.

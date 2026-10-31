@@ -22,11 +22,13 @@ digits.
 
 ### Changed
 
-- **You type a time as digits.** For example, "1225" gives 12:25. On a 12 h clock, type "p"
-  for PM. Without AM or PM, the time keeps the period the field had. Chauffage applies the
-  time when you press Enter or leave the field.
+- **You type a time the way you write it.** For example, "1225", "12:25" and "12h25" all give
+  12:25, and "7" gives 7:00. On a 12 h clock, add "p" for PM, or type "19" for 7 PM. Without AM
+  or PM, the time keeps the period the field had. Chauffage applies the time when you press
+  Enter or leave the field, and shows it again in your format.
 - **The small arrows of a time field** move the time by the step of the card, 15 minutes by
-  default. With the keyboard, ↑ and ↓ move the hours by an hour, and the minutes by the step.
+  default. With the keyboard, ↑ and ↓ move the hours by an hour, the minutes by the step, and
+  AM or PM by 12 hours.
 - **The end of an override can be any minute**, for example 12:07. It still ends at least
   15 minutes from now. The arrows move the end by as much, so an end moved before now stays
   15 minutes from now instead of jumping to tomorrow.

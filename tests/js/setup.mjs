@@ -13,7 +13,6 @@ const w = dom.window;
 for (const name of [
   'window', 'document', 'HTMLElement', 'customElements', 'CustomEvent', 'Event', 'MouseEvent',
   'Node', 'localStorage', 'getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame', 'navigator',
-  'InputEvent', // Maskito's time mask
 ]) {
   Object.defineProperty(globalThis, name, { value: name === 'window' ? w : w[name], configurable: true, writable: true });
 }

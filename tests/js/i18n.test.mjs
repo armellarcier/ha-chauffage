@@ -157,16 +157,18 @@ describe('the time fields follow the profile\'s time format', () => {
     return card.shadowRoot.querySelector('.editor input.time[data-edge="end"]');
   };
 
+  // The times are written by Intl: a narrow space before AM / PM in recent browsers
+  const time12 = (text) => new RegExp(`^${text.replace(' ', '\\s')}$`);
+
   test('a slot\'s times: 24 h in English when the profile says so, 12 h otherwise', () => {
-    for (const [format, expected] of [['24', '08:30'], ['language', '08:30 AM']]) {
-      assert.equal(slotEnd(createCard(fakeHass({ locale: english(format) }), { show: ['climate.salon'] })).value, expected);
-      cleanup();
-    }
+    assert.equal(slotEnd(createCard(fakeHass({ locale: english('24') }), { show: ['climate.salon'] })).value, '08:30');
+    cleanup();
+    assert.match(slotEnd(createCard(fakeHass({ locale: english('language') }), { show: ['climate.salon'] })).value, time12('8:30 AM'));
   });
 
   test('a time typed on a 12 h clock, in the afternoon', () => {
     const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
-    typeTime(slotEnd(card), '05:15 PM');
+    typeTime(slotEnd(card), '515p');
     assert.deepEqual(serializeDay(card._week('climate.salon')[0]).slice(1, 3), ['06:30 comfort', '17:15 eco']);
   });
 
@@ -174,18 +176,36 @@ describe('the time fields follow the profile\'s time format', () => {
     const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
     card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="3"]').click(); // 17:30 → 22:30
     const end = card.shadowRoot.querySelector('.editor input.time[data-edge="end"]');
-    assert.equal(end.value, '10:30 PM');
-    typeTime(end, '11:00');
+    assert.match(end.value, time12('10:30 PM'));
+    typeTime(end, '1100');
     assert.equal(serializeDay(card._week('climate.salon')[0])[4], '23:00 eco');
+  });
+
+  test('on a 12 h clock, a time typed past 12 is read on 24 h', () => {
+    const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
+    const end = slotEnd(card);
+    typeTime(end, '1715');
+    assert.equal(serializeDay(card._week('climate.salon')[0])[2], '17:15 eco');
+  });
+
+  test('a time is shown again in the profile\'s format once applied', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); // French, 24 h
+    typeTime(slotEnd(card), '9h');
+    assert.equal(card.shadowRoot.querySelector('.editor input.time[data-edge="end"]').value, '09:00');
   });
 
   test('on a 12 h clock, ↑ on AM / PM switches the period', () => {
     const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
-    const end = slotEnd(card); // 08:30 AM
+    const end = slotEnd(card); // 8:30 AM
     end.focus();
-    end.setSelectionRange(7, 7);
+    end.setSelectionRange(6, 6);
     end.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
-    assert.match(end.value, /^08:30\sPM$/); // Maskito's own space
+    assert.match(end.value, time12('8:30 PM'));
+  });
+
+  test('on a 12 h clock, the field opens the number keypad too', () => {
+    const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
+    assert.equal(slotEnd(card).inputMode, 'numeric');
   });
 
   test('the end of an override, in the card\'s popover and in the more-info block', () => {
@@ -197,6 +217,6 @@ describe('the time fields follow the profile\'s time format', () => {
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = fakeHass({ locale: english('12'), overrides: { 'climate.salon': override } });
-    assert.equal(el.shadowRoot.querySelector('input.time[data-end]').value, '11:30 AM');
+    assert.match(el.shadowRoot.querySelector('input.time[data-end]').value, time12('11:30 AM'));
   });
 });

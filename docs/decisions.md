@@ -414,25 +414,30 @@ dashboards, automations, scripts and by voice without the card
   disabled buttons at the foot of a card several screens long (edits of Monday, Save after
   Sunday). A switch of schedule tab keeps the edits (they are saved together), and the bar
   stays.
-- **A time field is a text field masked by Maskito, not `<input type="time">`** (#63). A
-  browser shows its time input in the format of its own language, and a page cannot change it:
-  an English browser showed "8:30 AM" to a user whose profile says 24 hours. A list of times
-  was tried first: it followed the profile, but it was slow to use, and it could not offer
-  every minute for the end of an override. HA's own `ha-time-input` is only loaded on the pages
-  that need it, and it is not a public API. So the card uses a text field, masked by
-  [Maskito](https://github.com/taiga-family/maskito): "1225" gives 12:25, and AM / PM on a 12 h
-  clock. Maskito is a tested, maintained library (Apache-2.0); its own masking code would have
-  been the hardest part to write and test here.
-  - **Maskito is copied in `frontend/vendor/`**, its core and its time mask only (22 kB), as
-    esm.sh builds them: the card has no build step. `scripts/vendor-maskito.sh` downloads them
-    again, with the license. Once the card is bundled (roadmap), Maskito becomes a dependency.
+- **A time field is a text field read by the card's own parser, not `<input type="time">`**
+  (#63). A browser shows its time input in the format of its own language, and a page cannot
+  change it: an English browser showed "8:30 AM" to a user whose profile says 24 hours. The
+  field shows the time with Intl, like the rest of the card, and `parseTime()` reads it when it
+  is left: "1225", "12:25", "12h25", "7", "7p", "7:30 pm", or the words of the user's language
+  for AM and PM.
+  - **Tried and dropped: a list of times.** It followed the profile, but it was slow to use,
+    and it could not offer every minute for the end of an override.
+  - **Tried and dropped: the Maskito library**, which masks the field while it is typed. The
+    card has no build step, so Maskito had to be copied, minified, in the card's folder: no
+    dependency tool would see it, and its import could stop the card and the more-info block on
+    every page if it failed to load. A parser of the times people type, read when the field is
+    left, is a few dozen lines and is tested here. Maskito can come back once the card is
+    bundled (roadmap).
+  - **Not HA's own `ha-time-input`**: it is only loaded on the pages that need it, and it is
+    not a public API.
+  - **The number keypad on phones, on a 12 h clock too.** A time typed without AM / PM keeps
+    the period of the field, so the letters are not needed.
   - **The time is applied on Enter or on leaving the field**, not at each key: the card is not
     redrawn while a time is typed. Tab to the other time field applies the time once that
     field has the focus, so that the redraw waits instead of replacing the field being typed in.
   - **The small arrows and the arrow keys**, like those of `<input type="time">`. The small
     arrows move the time by the step, and are out of the Tab order. The arrow keys move the
-    hours by an hour and the minutes by the step: Maskito's own step moved the hours by the step
-    too. On AM / PM, Maskito switches the period itself.
+    hours by an hour, the minutes by the step, and AM / PM by 12 hours.
   - **The end of an override is typed to the minute**: it needs no step, unlike the slots.
   - **The arrows move the end of an override by as much**, not to the next time it is that
     time of day: an end moved before now would jump to tomorrow, and an end in three days would
