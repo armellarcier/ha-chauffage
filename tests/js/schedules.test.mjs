@@ -138,21 +138,14 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.doesNotMatch(menu(card).textContent, /Identifiant/);
   });
 
-  test('opens its details and history in Home Assistant (its switch, #39)', () => {
-    let received = null;
-    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
-    document.addEventListener('hass-more-info', intercept);
-    try {
-      const card = createCard(fakeHass());
-      openMenu(card, 'away');
-      // In the user's words: what it shows, not how Home Assistant models it
-      assert.equal(menu(card).querySelector('[data-more-info]').textContent.trim(), 'Détails et historique…');
-      menu(card).querySelector('[data-more-info="switch.chauffage_schedule_away"]').click();
-      assert.equal(received, 'switch.chauffage_schedule_away');
-      assert.equal(menu(card), null);
-    } finally {
-      document.removeEventListener('hass-more-info', intercept);
-    }
+  test('opens the schedule\'s page in the Chauffage panel, not its switch: no user path needs an entity', () => {
+    const card = createCard(fakeHass());
+    openMenu(card, 'away');
+    assert.equal(menu(card).querySelector('[data-more-info]'), null);
+    const open = menu(card).querySelector('[data-panel-page="schedules/away"]');
+    assert.equal(open.textContent.trim(), 'Ouvrir dans Chauffage');
+    open.click();
+    assert.equal(window.location.pathname, '/chauffage/schedules/away');
   });
 
   test('renames it, showing its id (used by automations)', async () => {

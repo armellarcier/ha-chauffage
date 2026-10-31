@@ -37,6 +37,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **One word for each thing**: an *override*, not a "temporary setpoint". In French, a
   *créneau*, not a "plage".
 - **The panel's welcome says what Chauffage does in one sentence.**
+- **The panel's *Schedules* tab lists the schedules as the *Thermostats* tab lists the
+  thermostats.** A row opens the schedule's page, and its ⋮ renames, moves or deletes it.
+  *+ New schedule* also creates a copy of another schedule, checks the name, then opens the new
+  schedule's page.
+- **A schedule's ⋮ on the card opens its page in the panel**, instead of the history of its
+  switch.
 - A dashboard card ignores the options that the panel sets for its own pages, for example
   `chips: false`. The README never documented them.
 

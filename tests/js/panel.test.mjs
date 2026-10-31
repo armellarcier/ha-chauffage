@@ -108,44 +108,55 @@ describe('the Chauffage panel', () => {
   });
 
   describe('the Schedules page', () => {
-    test('lists the schedules, the active one marked; the others can be activated', () => {
+    const list = (el) => cards(el).find((c) => c._config.view === 'schedules');
+    const row = (el, id) => $(list(el), `.th-row[data-schedule="${id}"]`);
+
+    test('lists the schedules as the Thermostats tab lists the thermostats: the active one marked, the others can be activated', () => {
       const hass = setup();
       const el = panel(hass, '/schedules');
-      const rows = $$(el, '[data-fill="schedules"] .row');
-      assert.match(text(rows[0]), /^Normal Actif Modifier$/);
-      assert.match(text(rows[2]), /^Vacances Activer Modifier$/);
-      rows[2].querySelector('[data-activate]').click();
+      assert.deepEqual($$(list(el), '.th-row').map((r) => r.dataset.schedule), ['normal', 'away', 'holiday']);
+      assert.equal(text(row(el, 'normal').querySelector('.th-main')), 'Normal Actif');
+      assert.equal(row(el, 'holiday').querySelector('[data-page], .name'), null, 'no Edit button: the row opens the sheet');
+      row(el, 'holiday').querySelector('[data-act="activate-schedule"]').click();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/schedule/activate', schedule: 'holiday' });
     });
 
-    test('a schedule\'s name or Edit opens its sheet', () => {
+    test('the whole row opens the schedule\'s sheet', () => {
       const el = panel(setup(), '/schedules');
-      $$(el, '[data-fill="schedules"] .row')[1].querySelector('.name').click();
+      row(el, 'away').querySelector('.th-main').click();
       assert.equal(window.location.pathname, '/chauffage/schedules/away');
-      panel(setup(), '/schedules');
-      $$(document.querySelector('chauffage-panel:last-of-type'), '[data-fill="schedules"] .row')[2]
-        .querySelector('button[data-page]').click();
-      assert.equal(window.location.pathname, '/chauffage/schedules/holiday');
     });
 
-    test('creates a schedule with a name typed in the list', async () => {
+    test('its ⋮ menu renames, moves up or down, deletes the schedule', () => {
+      const el = panel(setup(), '/schedules');
+      row(el, 'away').querySelector('[data-act="schedule-menu"]').click();
+      const menu = $(list(el), '.sched-menu');
+      assert.match(text(menu), /Renommer.*Monter.*Descendre.*Supprimer/);
+      assert.doesNotMatch(text(menu), /Détails et historique/);
+    });
+
+    test('+ New schedule creates an empty one or a copy, checks its name, then opens its sheet', async () => {
       const hass = setup();
       const el = panel(hass, '/schedules');
-      $(el, '[data-create-open]').click();
-      $(el, '[data-new-name]').value = 'Télétravail';
-      $(el, '[data-create]').click();
+      $(list(el), '[data-act="schedule-new"]').click();
+      $(list(el), '[data-act="schedule-pick"][data-copy="normal"]').click();
+      $(list(el), 'input[data-sched-name]').value = 'normal';
+      $(list(el), '[data-act="schedule-create"]').click();
+      assert.match(text($(list(el), '.sched-menu')), /Ce nom est déjà utilisé/);
+      $(list(el), 'input[data-sched-name]').value = 'Télétravail';
+      $(list(el), '[data-act="schedule-create"]').click();
       await tick();
       const sent = hass.events.at(-1);
       assert.equal(sent.type, 'chauffage/schedules/set');
-      assert.deepEqual(sent.schedules.at(-1), { name: 'Télétravail' });
-      assert.deepEqual(sent.schedules.slice(0, 3), [{ id: 'normal' }, { id: 'away' }, { id: 'holiday' }]);
+      assert.deepEqual(sent.schedules.at(-1), { name: 'Télétravail', copy_of: 'normal' });
+      assert.equal(window.location.pathname, '/chauffage/schedules/teletravail');
     });
 
     test('shows the activation rules below the schedules', () => {
       const el = panel(setup(), '/schedules');
-      assert.equal(cards(el).length, 1);
-      assert.equal(cards(el)[0]._config.view, 'rules');
-      assert.ok($(cards(el)[0], '.rule, [data-act="rule-add"]'));
+      const rules = cards(el).find((c) => c._config.view === 'rules');
+      assert.ok($(rules, '.rule, [data-act="rule-add"]'));
+      assert.equal(cards(el).indexOf(rules), 1, 'below the list');
     });
   });
 

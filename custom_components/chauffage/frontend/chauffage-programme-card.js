@@ -61,7 +61,6 @@ const I18N = {
     viewThermostats: 'Thermostats',
     device: 'Device',
     chauffageDevice: 'Chauffage device: the switches of the schedules, the active schedule',
-    scheduleDetails: 'Details and history…',
     allThermostats: 'All thermostats',
     weeksTitle: 'Weeks',
     openInPanel: 'Open in {panel}',
@@ -74,9 +73,6 @@ const I18N = {
     rulesHeading: 'Activation rules',
     panelActive: 'Active',
     panelActivate: 'Activate',
-    panelEdit: 'Edit',
-    panelNewName: 'Name of the new schedule',
-    panelCreate: 'Create',
     panelDevices: 'Devices:',
     welcomeTitle: 'Welcome to Chauffage',
     welcomeIntro: 'Chauffage gives your thermostats a schedule for the week. Start by choosing them.',
@@ -120,6 +116,8 @@ const I18N = {
     scheduleId: 'Id: {id}',
     moveLeft: '◀ Move left',
     moveRight: 'Move right ▶',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
     deleteSchedule: 'Delete',
     confirmDelete: 'Delete “{name}” and its weeks?',
     cannotDeleteActive: 'The active schedule cannot be deleted.',
@@ -280,7 +278,6 @@ const I18N = {
     viewThermostats: 'Thermostats',
     device: 'Appareil',
     chauffageDevice: 'Appareil Chauffage : interrupteurs des plannings, planning actif',
-    scheduleDetails: 'Détails et historique…',
     allThermostats: 'Tous les thermostats',
     weeksTitle: 'Semaines',
     openInPanel: 'Ouvrir dans {panel}',
@@ -293,9 +290,6 @@ const I18N = {
     rulesHeading: "Règles d'activation",
     panelActive: 'Actif',
     panelActivate: 'Activer',
-    panelEdit: 'Modifier',
-    panelNewName: 'Nom du nouveau planning',
-    panelCreate: 'Créer',
     panelDevices: 'Appareils :',
     welcomeTitle: 'Bienvenue dans Chauffage',
     welcomeIntro: 'Chauffage donne à vos thermostats un planning pour la semaine. Commencez par les choisir.',
@@ -339,6 +333,8 @@ const I18N = {
     scheduleId: 'Identifiant : {id}',
     moveLeft: '◀ Déplacer à gauche',
     moveRight: 'Déplacer à droite ▶',
+    moveUp: 'Monter',
+    moveDown: 'Descendre',
     deleteSchedule: 'Supprimer',
     confirmDelete: 'Supprimer « {name} » et ses semaines ?',
     cannotDeleteActive: 'Le planning actif ne peut pas être supprimé.',
@@ -2506,6 +2502,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._schedulePlaceEditor();
       return;
     }
+    if (this._view === 'schedules' && this._source().ready) {
+      fill(`${this._schedulesViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
+      return;
+    }
     if (this._view === 'thermostats' && this._source().ready) {
       fill(`${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
       return;
@@ -3052,13 +3052,16 @@ class ChauffageProgrammeCard extends HTMLElement {
         const inRules = src.rules().some((r) => r.schedule === id) || src.defaultSchedule() === id;
         const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast')
           : inRules ? t('cannotDeleteInRules') : '';
-        // Its switch in Home Assistant (its more-info dialog): history, icon, settings
-        const entity = this._source().scheduleEntity(id);
-        const open = entity ? `<button class="mi" data-more-info="${esc(entity)}"><span>${esc(t('scheduleDetails'))}</span></button><div class="sep"></div>` : '';
-        // A schedule's sheet shows one tab (`schedule_tabs: 'one'`): no tab to move it next to
+        // On a dashboard, the schedule's page in the panel; in the panel, the page is a row or
+        // the page itself
+        const open = this._config.panel ? ''
+          : `<button class="mi" data-panel-page="schedules/${esc(id)}"><span>${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span></button><div class="sep"></div>`;
+        // A schedule's sheet shows one tab (`schedule_tabs: 'one'`): no tab to move it next to; the
+        // list moves it up or down
+        const list = this._view === 'schedules';
         const moves = this._config.schedule_tabs === 'one' ? ''
-          : `${item('schedule-move', esc(t('moveLeft')), 'data-dir="-1"', i <= 0)}
-          ${item('schedule-move', esc(t('moveRight')), 'data-dir="1"', i >= schedules.length - 1)}`;
+          : `${item('schedule-move', esc(t(list ? 'moveUp' : 'moveLeft')), 'data-dir="-1"', i <= 0)}
+          ${item('schedule-move', esc(t(list ? 'moveDown' : 'moveRight')), 'data-dir="1"', i >= schedules.length - 1)}`;
         body = `${open}${item('schedule-rename-open', esc(t('renameMenu')))}
           ${moves}
           <div class="sep"></div>
@@ -3075,12 +3078,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._schedErr = '';
     if (act === 'schedule-new' || act === 'schedule-menu') {
       const kind = act === 'schedule-new' ? 'new' : 'menu';
-      if (ed && ed.kind === kind) { this._schedEd = null; return this._render(); }
+      const id = (el && el.dataset.schedule) || this._schedule;
+      if (ed && ed.kind === kind && (kind === 'new' || ed.id === id)) { this._schedEd = null; return this._render(); }
       // Under the button, inside the card
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
       const b = el ? el.getBoundingClientRect() : { bottom: 0, left: 0 };
       const left = Math.max(8, Math.min(b.left - card.left, card.width - 280));
-      this._schedEd = { kind, id: this._schedule, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4, left };
+      this._schedEd = { kind, id, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4, left };
       return this._render();
     }
     if (act === 'schedule-close' || !ed) { this._schedEd = null; return this._render(); }
@@ -3121,7 +3125,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     try {
       const result = await this._source().setSchedules(list, this._revision);
       if (result && result.revision != null) this._revision = result.revision;
-      if (created && result && result.schedules) this._wantSchedule = result.schedules[result.schedules.length - 1].id;
+      if (created && result && result.schedules) {
+        this._wantSchedule = result.schedules[result.schedules.length - 1].id;
+        // The panel's list: the new schedule's sheet, to set its weeks
+        if (this._view === 'schedules') openPanel(`schedules/${this._wantSchedule}`);
+      }
     } catch (e) {
       this._msg = e && e.code === 'stale' ? t('stale') : t('error', { message: e.message || e.code || e });
     }
@@ -3396,6 +3404,31 @@ class ChauffageProgrammeCard extends HTMLElement {
         item(`data-act="thermostat-forget" ${ref}`, esc(t('forget')), 'mi danger'),
       ].join('');
     return `<div class="menu th-menu" style="top:${m.top}px;right:${m.right}px">${body}</div>`;
+  }
+
+  // The panel's Schedules page: one row per schedule, as the Thermostats page, the active one
+  // marked; a row opens the schedule's sheet; Activate; its ⋮ renames, moves, deletes (admins);
+  // + New schedule creates an empty one or a copy, as the card's +
+  _schedulesViewHtml() {
+    const t = this._loc.t;
+    const src = this._source();
+    const active = this._activeSchedule();
+    const rows = this._schedules().map((id) => {
+      const open = this._schedEd && this._schedEd.kind === 'menu' && this._schedEd.id === id;
+      const more = !src.editable ? ''
+        : `<button class="btn icon${open ? ' on' : ''}" data-act="schedule-menu" data-schedule="${esc(id)}" title="${esc(t('scheduleMenu'))}" aria-label="${esc(t('scheduleMenu'))}">⋮</button>`;
+      return `<div class="th-row" data-schedule="${esc(id)}">
+        <div class="th-main" role="link" tabindex="0" data-panel-page="schedules/${esc(id)}">
+          <span class="th-title">${esc(this._scheduleName(id))}</span>
+          ${id === active ? `<span class="th-badge on">${esc(t('panelActive'))}</span>` : ''}
+        </div>
+        ${id === active ? '' : `<button class="btn" data-act="activate-schedule" data-schedule="${esc(id)}">${esc(t('panelActivate'))}</button>`}
+        <span class="th-chevron" aria-hidden="true">›</span>
+        ${more}
+      </div>`;
+    }).join('');
+    const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
+    return `<div class="thermostats-view schedules-view">${rows}${add}</div>${this._schedMenuHtml()}`;
   }
 
   _forget(climate) {
@@ -3858,7 +3891,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
     if (act === 'paste-day') return this._pasteFromClipboard(ds.climate, Number(ds.day));
-    if (act === 'activate-schedule') return this._activateSchedule(this._schedule);
+    if (act === 'activate-schedule') return this._activateSchedule(ds.schedule || this._schedule);
     if (act === 'multi-sel') {
       this._multiSel = !this._multiSel;
       return this._render();
@@ -3953,6 +3986,7 @@ const STYLE = `
   .th-main:hover .th-title, .th-main:focus-visible .th-title { color:var(--primary-color); }
   .th-title { font-size:1.05em; font-weight:500; color:var(--primary-text-color); }
   .th-chevron { color:var(--secondary-text-color); font-size:1.4em; line-height:1; }
+  .th-badge.on { background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
   .th-badge { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px; font-size:.75em; vertical-align:2px;
     background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
   .th-cards { margin-top:4px; font-size:.85em; color:var(--secondary-text-color); }
@@ -5178,7 +5212,6 @@ class ChauffagePanel extends HTMLElement {
     this._key = null;
     this._cards = [];
     this._placements = undefined;
-    this._creating = false;
     // A thermostat's sheet: identical days on one row for every schedule, as chosen on this device
     this._groupDays = true;
     // …and the history of the measured temperature, as chosen on this device (as the cards)
@@ -5362,7 +5395,8 @@ class ChauffagePanel extends HTMLElement {
           <a href="/chauffage/thermostats" data-page="thermostats">${esc(t('scheduleThermostats'))}</a></div>`);
       }
       if (route.list === 'schedules') {
-        html(`<h2>${esc(t('pageSchedules'))}</h2><div class="box" data-fill="schedules"></div>`);
+        html(`<h2>${esc(t('pageSchedules'))}</h2>`);
+        card({ view: 'schedules' });
         html(`<h2>${esc(t('rulesHeading'))}</h2>`);
         card({ view: 'rules' });
       } else {
@@ -5376,30 +5410,6 @@ class ChauffagePanel extends HTMLElement {
     const t = this._t;
     const active = src.activeSchedule();
     this._fillSavebar();
-    const box = this.shadowRoot.querySelector('[data-fill="schedules"]');
-    if (box) {
-      const rows = src.schedules().map((id) => `<div class="row">
-          <span class="name" role="link" tabindex="0" data-page="schedules/${esc(id)}">${esc(src.scheduleName(id))}</span>
-          ${id === active ? `<span class="badge on">${esc(t('panelActive'))}</span>` : ''}
-          <span class="grow"></span>
-          ${id === active ? '' : `<button class="btn" data-activate="${esc(id)}">${esc(t('panelActivate'))}</button>`}
-          <button class="btn" data-page="schedules/${esc(id)}">${esc(t('panelEdit'))}</button>
-        </div>`).join('');
-      const create = this._creating
-        ? `<div class="row"><input data-new-name placeholder="${esc(t('panelNewName'))}">
-            <button class="btn primary" data-create>${esc(t('panelCreate'))}</button>
-            <button class="btn" data-create-cancel>${esc(t('cancel'))}</button></div>`
-        : `<div class="row"><button class="btn" data-create-open>+ ${esc(t('newSchedule'))}</button></div>`;
-      const typed = box.querySelector('[data-new-name]');
-      const value = typed ? typed.value : '';
-      box.innerHTML = rows + create + (this._error ? `<div class="error">${esc(this._error)}</div>` : '');
-      const input = box.querySelector('[data-new-name]');
-      if (input) {
-        input.value = value;
-        if (this._focusNew) input.focus();
-        this._focusNew = false;
-      }
-    }
     const sheet = this.shadowRoot.querySelector('[data-fill="thermostat"]');
     if (sheet) sheet.innerHTML = this._controlHtml(route.id, src);
     const welcome = this.shadowRoot.querySelector('[data-fill="welcome"]');
@@ -5572,7 +5582,7 @@ class ChauffagePanel extends HTMLElement {
       this._update();
       return;
     }
-    const el = e.target.closest('[data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-activate], [data-pause], [data-create-open], [data-create], [data-create-cancel], [data-group-days], [data-history], [data-start], [data-close-next]');
+    const el = e.target.closest('[data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -5649,20 +5659,7 @@ class ChauffagePanel extends HTMLElement {
         this._picked.clear();
         return this._update();
       }
-      if (ds.activate) return await src.activateSchedule(ds.activate);
       if (ds.pause != null) return await src.setPaused(route.id, ds.pause === '1');
-      if ('createOpen' in ds || 'createCancel' in ds) {
-        this._creating = 'createOpen' in ds;
-        this._focusNew = this._creating;
-        return this._update();
-      }
-      if ('create' in ds) {
-        const name = this.shadowRoot.querySelector('[data-new-name]').value.trim();
-        if (!name) return undefined;
-        await src.setSchedules([...src.schedules().map((id) => ({ id })), { name }], src.revision);
-        this._creating = false;
-        return this._update();
-      }
     } catch (err) {
       this._error = this._t('error', { message: err.message || err.code || err });
       this._update();

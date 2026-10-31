@@ -114,8 +114,9 @@ The panel has three tabs:
 - **Thermostats.** Every scheduled thermostat, and the cards that show it. You can pause a
   thermostat, forget it with ⋮, or schedule another one. Before your first thermostat, this tab
   welcomes you: tick the thermostats Chauffage controls, then *Schedule*.
-- **Schedules.** The list of schedules, with the active one marked. You can activate a schedule,
-  create one, or open it. The [activation rules](#activation-rules) are below the list.
+- **Schedules.** The list of schedules, with the active one marked. A schedule's row opens its
+  page, and its ⋮ renames, moves or deletes it. *+ New schedule* creates an empty schedule or a
+  copy of another one. The [activation rules](#activation-rules) are below the list.
 - **Presets.** The table of the presets: their names, colors and temperatures, and what each one
   does on each thermostat (see [Presets](#presets)).
 

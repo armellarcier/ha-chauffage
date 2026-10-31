@@ -119,9 +119,10 @@ Le panneau a trois onglets :
   mettre un thermostat en pause, l'oublier avec ⋮, ou en programmer un autre. Avant votre premier
   thermostat, cet onglet vous accueille : cochez les thermostats que Chauffage pilote, puis
   *Programmer*.
-- **Plannings.** La liste des plannings, avec le planning actif signalé. Vous pouvez activer un
-  planning, en créer un ou l'ouvrir. Les [règles d'activation](#règles-dactivation) se trouvent
-  sous la liste.
+- **Plannings.** La liste des plannings, avec le planning actif signalé. La ligne d'un planning
+  ouvre sa page, et son menu ⋮ le renomme, le déplace ou le supprime. *+ Nouveau planning* crée un
+  planning vide ou une copie d'un autre. Les [règles d'activation](#règles-dactivation) se
+  trouvent sous la liste.
 - **Préréglages.** Le tableau des préréglages : leurs noms, leurs couleurs et leurs
   températures, et ce que fait chacun sur chaque thermostat (voir [Préréglages](#préréglages)).
 
