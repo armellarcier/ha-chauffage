@@ -21,7 +21,7 @@ un projet indépendant, sans lien avec Versatile Thermostat.
   des journées, et modifiez d'un coup les jours identiques. La carte trace aussi la température
   mesurée sur les 7 derniers jours. Elle marche aussi sur téléphone.
 - **Une carte par thermostat.** La carte thermostat montre ce que fait le thermostat, pourquoi,
-  et jusqu'à quand. Vous pouvez y régler une consigne temporaire.
+  et jusqu'à quand. Vous pouvez y créer une dérogation.
 - **Un panneau Chauffage pour tout régler.** Les administrateurs trouvent *Chauffage* dans la
   barre latérale. Le panneau rassemble les plannings et leurs règles d'activation, les
   thermostats et les préréglages. Chaque thermostat y a sa propre page, avec sa semaine dans
@@ -94,8 +94,9 @@ name: Salon  # facultatif
 
 La carte montre la température mesurée et ce que fait le thermostat, par exemple
 « Normal · Éco jusqu'à 17:30, puis Confort », ainsi que les créneaux du jour. Depuis la carte,
-vous pouvez régler une consigne temporaire et mettre le thermostat en pause. La carte ouvre aussi
-le thermostat, son planning, son interrupteur *Pilotage* et son appareil.
+vous pouvez créer une dérogation et mettre le thermostat en pause. La carte ouvre aussi le
+thermostat et son planning. Les administrateurs ouvrent la page du thermostat dans le panneau
+Chauffage.
 
 La fenêtre de détail du thermostat montre les mêmes informations, sous les commandes du
 thermostat. Son lien *Ouvrir dans Chauffage* ouvre la page du thermostat dans le panneau

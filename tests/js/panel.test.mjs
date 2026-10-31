@@ -158,11 +158,12 @@ describe('the Chauffage panel', () => {
       box.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
-    test('the Thermostats page welcomes them: what Chauffage does in three steps, every thermostat to tick', () => {
+    test('the Thermostats page welcomes them: what Chauffage does in a sentence, every thermostat to tick', () => {
       const el = panel(fresh(), '/thermostats');
       assert.equal(cards(el).length, 0, 'no empty list');
       assert.equal(text($(el, '.welcome h2')), 'Bienvenue dans Chauffage');
-      assert.equal($$(el, '.welcome .steps li').length, 3);
+      assert.equal(text($(el, '.welcome h2 + p')), 'Chauffage donne à vos thermostats un planning pour la semaine. Commencez par les choisir.');
+      assert.equal($(el, '.welcome .steps'), null, 'the next steps come once, after the first thermostat');
       const boxes = $$(el, '.welcome input[data-pick]');
       assert.deepEqual(boxes.map((b) => b.dataset.pick), ['climate.bureau', 'climate.salon']);
       assert.ok(boxes.every((b) => !b.checked), 'none ticked: scheduling a thermostat controls it at once');
@@ -178,7 +179,7 @@ describe('the Chauffage panel', () => {
       pick(el, 'climate.bureau');
       assert.equal(text($(el, '[data-start]')), 'Programmer 2 thermostats');
       assert.ok(!$(el, '[data-start]').disabled);
-      assert.match(text($(el, '.welcome .note')), /pilote.*tout de suite.*Éco toute la semaine/);
+      assert.match(text($(el, '.welcome .note')), /^Chauffage les pilote tout de suite\. Tant que vous n'avez pas réglé leurs semaines, ils restent en Éco\.$/);
       $(el, '[data-start]').click();
       assert.deepEqual(hass.events.at(-1), {
         type: 'chauffage/weeks/save',

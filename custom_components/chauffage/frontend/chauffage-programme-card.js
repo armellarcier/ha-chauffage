@@ -40,8 +40,8 @@ const I18N = {
     close: 'Close (Esc)',
     insertSlot: '+ Insert a slot',
     delete: 'Delete',
-    temporarySetpoint: 'temporary setpoint',
-    temporarySetpointTitle: 'Temporary setpoint: {label}',
+    temporarySetpoint: 'override',
+    temporarySetpointTitle: 'Override: {label}',
     dragToChangeEnd: 'Drag to change the end',
     until: 'until',
     earlier: '{duration} earlier',
@@ -50,9 +50,8 @@ const I18N = {
     tomorrow: 'tomorrow',
     remaining: '{duration} left',
     duration: '{h}h {mm}',
-    deleteAndResume: 'Delete · resume the schedule',
     thenSchedule: 'then {preset} (schedule)',
-    newOverride: 'Temporary setpoint…',
+    newOverride: 'New override…',
     resume: 'Resume the schedule',
     paused: 'Paused',
     pausedNote: '{name} is paused: Chauffage does not control it.',
@@ -80,17 +79,14 @@ const I18N = {
     panelCreate: 'Create',
     panelDevices: 'Devices:',
     welcomeTitle: 'Welcome to Chauffage',
-    welcomeIntro: 'Chauffage gives your thermostats weekly schedules. Three steps to start:',
-    welcomeStep1: 'Choose the thermostats that Chauffage controls.',
-    welcomeStep2: 'Set their weeks, from each thermostat’s page.',
-    welcomeStep3: 'Add the Heating schedules card to a dashboard, for every day.',
+    welcomeIntro: 'Chauffage gives your thermostats a schedule for the week. Start by choosing them.',
     welcomePick: 'Which thermostats should Chauffage control?',
-    welcomeNote: 'Chauffage controls them at once: until you set their weeks, they follow the week of a new schedule ({preset} all week).',
+    welcomeNote: 'Chauffage controls them at once. Until you set their weeks, they stay at {preset}.',
     welcomeStartNone: 'Schedule',
     welcomeStartOne: 'Schedule 1 thermostat',
     welcomeStartMany: 'Schedule {count} thermostats',
-    welcomeNoClimate: 'Home Assistant has no thermostat yet (a climate entity). Add one, then come back here.',
-    welcomeAddDevice: 'Add a thermostat',
+    welcomeNoClimate: 'Home Assistant has no thermostat yet. Add your thermostat’s integration, then come back here.',
+    welcomeAddDevice: 'Add an integration',
     nextTitle: 'Next steps',
     nextWeeks: 'Open a thermostat to set its weeks and its presets.',
     nextCard: 'Add the card to a dashboard: Add card → Heating schedules.',
@@ -101,7 +97,7 @@ const I18N = {
     entityMissing: '{entity} does not exist in Home Assistant',
     notScheduled: 'Chauffage does not schedule this thermostat. An admin can schedule it in the Chauffage panel, on the Thermostats tab.',
     thermostatCardName: 'Scheduled thermostat',
-    thermostatCardDescription: 'One thermostat scheduled by Chauffage: what it does now, why and until when, a temporary setpoint',
+    thermostatCardDescription: 'One thermostat scheduled by Chauffage: what it does now, why and until when, an override',
     thermostatsHint: 'Chauffage controls the scheduled thermostats. A paused thermostat stays scheduled: it keeps its weeks, but Chauffage does not control it.',
     pauseShort: 'Pause',
     forget: 'Forget…',
@@ -243,8 +239,8 @@ const I18N = {
     saved: 'Enregistré ✓',
     off: 'arrêt',
     manual: 'manuel',
-    hint: 'Glisser une poignée pour déplacer un horaire · Clic sur une plage pour la modifier · Double-clic pour ajouter une coupure',
-    hintTouch: 'Glisser une poignée pour déplacer un horaire · Toucher une plage pour la modifier · Toucher deux fois pour ajouter une coupure',
+    hint: 'Glisser une poignée pour déplacer un horaire · Clic sur un créneau pour le modifier · Double-clic pour ajouter une coupure',
+    hintTouch: 'Glisser une poignée pour déplacer un horaire · Toucher un créneau pour le modifier · Toucher deux fois pour ajouter une coupure',
     open: 'Ouvrir {name}',
     openThermostat: 'Ouvrir le thermostat',
     copyPaste: 'Copier / coller…',
@@ -257,10 +253,10 @@ const I18N = {
     from: 'de',
     to: 'à',
     close: 'Fermer (Échap)',
-    insertSlot: '+ Insérer une plage',
+    insertSlot: '+ Insérer un créneau',
     delete: 'Supprimer',
-    temporarySetpoint: 'consigne temporaire',
-    temporarySetpointTitle: 'Consigne temporaire : {label}',
+    temporarySetpoint: 'dérogation',
+    temporarySetpointTitle: 'Dérogation : {label}',
     dragToChangeEnd: 'Glisser pour changer la fin',
     until: 'jusqu\'à',
     earlier: '{duration} plus tôt',
@@ -269,9 +265,8 @@ const I18N = {
     tomorrow: 'demain',
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
-    deleteAndResume: 'Supprimer · reprendre le planning',
     thenSchedule: 'puis {preset} (planning)',
-    newOverride: 'Consigne temporaire…',
+    newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
     paused: 'En pause',
     pausedNote: '{name} est en pause : Chauffage ne le pilote pas.',
@@ -299,17 +294,14 @@ const I18N = {
     panelCreate: 'Créer',
     panelDevices: 'Appareils :',
     welcomeTitle: 'Bienvenue dans Chauffage',
-    welcomeIntro: 'Chauffage donne à vos thermostats des plannings de la semaine. Trois étapes pour commencer :',
-    welcomeStep1: 'Choisissez les thermostats que Chauffage pilote.',
-    welcomeStep2: "Réglez leurs semaines, depuis la page de chaque thermostat.",
-    welcomeStep3: 'Ajoutez la carte Plannings de chauffe à un tableau de bord, pour le quotidien.',
+    welcomeIntro: 'Chauffage donne à vos thermostats un planning pour la semaine. Commencez par les choisir.',
     welcomePick: 'Quels thermostats Chauffage doit-il piloter ?',
-    welcomeNote: "Chauffage les pilote tout de suite : tant que vous n'avez pas réglé leurs semaines, ils suivent la semaine d'un nouveau planning ({preset} toute la semaine).",
+    welcomeNote: "Chauffage les pilote tout de suite. Tant que vous n'avez pas réglé leurs semaines, ils restent en {preset}.",
     welcomeStartNone: 'Programmer',
     welcomeStartOne: 'Programmer 1 thermostat',
     welcomeStartMany: 'Programmer {count} thermostats',
-    welcomeNoClimate: "Home Assistant n'a encore aucun thermostat (une entité climate). Ajoutez-en un, puis revenez ici.",
-    welcomeAddDevice: 'Ajouter un thermostat',
+    welcomeNoClimate: "Home Assistant n'a encore aucun thermostat. Ajoutez l'intégration de votre thermostat, puis revenez ici.",
+    welcomeAddDevice: 'Ajouter une intégration',
     nextTitle: 'Et maintenant',
     nextWeeks: 'Ouvrez un thermostat pour régler ses semaines et ses préréglages.',
     nextCard: 'Ajoutez la carte à un tableau de bord : Ajouter une carte → Plannings de chauffe.',
@@ -320,7 +312,7 @@ const I18N = {
     entityMissing: '{entity} n’existe pas dans Home Assistant',
     notScheduled: "Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur l’onglet Thermostats.",
     thermostatCardName: 'Thermostat programmé',
-    thermostatCardDescription: 'Un thermostat programmé par Chauffage : ce qu’il fait, pourquoi et jusqu’à quand, une consigne temporaire',
+    thermostatCardDescription: 'Un thermostat programmé par Chauffage : ce qu’il fait, pourquoi et jusqu’à quand, une dérogation',
     thermostatsHint: "Chauffage pilote les thermostats programmés. Un thermostat en pause reste programmé : il garde ses semaines, mais Chauffage ne le pilote pas.",
     pauseShort: 'Mettre en pause',
     forget: 'Oublier…',
@@ -2328,14 +2320,16 @@ class ChauffageProgrammeCard extends HTMLElement {
     const t = this._loc.t;
     const attrs = (this._hass.states[climate] || {}).attributes || {};
     const value = overrideValueHtml(d, this._source(), climate, attrs, this._loc);
+    // In the order of the more-info block: its value and its end, then the value to change, the
+    // durations, and Resume the schedule
     const head = `<div class="ed-head">
         <strong>${this._moreInfoLink(climate)} · ${esc(t('temporarySetpoint'))}</strong>
         ${d ? `<span class="override-value">${esc(this._overrideLabel(d))}</span>` : ''}
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
-      </div>
-      ${value.presets}
+      </div>`;
+    const values = `${value.presets}
       <div class="ed-head">${value.temperature}</div>`;
-    if (!d) return `<div class="editor override-ed">${head}</div>`;
+    if (!d) return `<div class="editor override-ed">${head}${values}</div>`;
     const endsAt = parseDate(d.end);
     const today = new Date();
     const dayLabel = endsAt.toDateString() === today.toDateString() ? t('today')
@@ -2349,11 +2343,12 @@ class ChauffageProgrammeCard extends HTMLElement {
         <label>${esc(t('until'))} ${timeField(`data-override-end="${esc(climate)}" data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, this._config.step)}</label>
         <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
       </div>
+      ${values}
       <div class="ed-actions start">
         ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
       </div>
       <div class="ed-actions">
-        <button class="btn danger" data-act="override-del">${esc(t('deleteAndResume'))}</button>
+        <button class="btn danger" data-act="override-del">${esc(t('resume'))}</button>
       </div>
     </div>`;
   }
@@ -5449,8 +5444,8 @@ class ChauffagePanel extends HTMLElement {
     const t = this._t;
     const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.'))
       .sort((a, b) => this._name(a).localeCompare(this._name(b)));
-    const steps = ['welcomeStep1', 'welcomeStep2', 'welcomeStep3'].map((k) => `<li>${esc(t(k))}</li>`).join('');
-    const head = `<h2>${esc(t('welcomeTitle'))}</h2><p>${esc(t('welcomeIntro'))}</p><ol class="steps">${steps}</ol>`;
+    // What Chauffage does, in a sentence: the next steps come once, after the first thermostat
+    const head = `<h2>${esc(t('welcomeTitle'))}</h2><p>${esc(t('welcomeIntro'))}</p>`;
     if (!climates.length) {
       return `${head}<p class="none">${esc(t('welcomeNoClimate'))}</p>
         <button class="btn primary" data-navigate="/config/integrations/dashboard">${esc(t('welcomeAddDevice'))}</button>`;

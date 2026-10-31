@@ -21,7 +21,7 @@ an independent project, not affiliated with Versatile Thermostat.
   at once. The card also draws the temperature measured over the last 7 days. The card works on
   phones too.
 - **A card for each thermostat.** The thermostat card shows what the thermostat does now, why,
-  and until when. You can set a temporary setpoint from it.
+  and until when. You can start an override from it.
 - **A Chauffage panel to set everything up.** Administrators find *Chauffage* in the sidebar.
   The panel holds the schedules and their activation rules, the thermostats and the presets.
   Each thermostat has its own page there, with its week in every schedule.
@@ -91,9 +91,9 @@ name: Living room  # optional
 ```
 
 The card shows the measured temperature and what the thermostat does now, for example
-"Normal · Eco until 17:30, then Comfort", and today's slots. From the card, you can set a
-temporary setpoint and pause the thermostat. The card also opens the thermostat, its schedule,
-its *Control* switch and its device.
+"Normal · Eco until 17:30, then Comfort", and today's slots. From the card, you can start an
+override and pause the thermostat. The card also opens the thermostat and its schedule.
+Administrators open the thermostat's page in the Chauffage panel.
 
 The thermostat's more-info dialog shows the same information, under the thermostat's controls.
 Its link *Open in Chauffage* opens the thermostat's page in the Chauffage panel.

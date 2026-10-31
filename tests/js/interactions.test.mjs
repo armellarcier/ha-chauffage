@@ -524,6 +524,19 @@ describe('the override popover in the card', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
 
+  test('the same editor as the more-info block: the end first, then the value, the durations, Resume the schedule', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const ed = $(card, '.override-ed');
+    const order = ['input.time[data-override-end]', '.presets', 'input[data-override-temperature]', '[data-act="override-add"]', '[data-act="override-del"]']
+      .map((s) => ed.querySelector(s));
+    for (let i = 1; i < order.length; i += 1) {
+      assert.ok(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `${i}: in the block's order`);
+    }
+    assert.equal(ed.querySelector('[data-act="override-del"]').textContent, 'Reprendre le planning');
+  });
+
   test('opens on a click; "+30 min" and the end time field', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });
@@ -813,8 +826,8 @@ describe('edits in progress', () => {
 describe('the hint under the weeks', () => {
   test('speaks of the mouse, or of the finger on a touch screen', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    assert.match($(card, '.hint .mouse').textContent, /Clic sur une plage pour la modifier/);
-    assert.match($(card, '.hint .touch').textContent, /Toucher une plage pour la modifier/);
+    assert.match($(card, '.hint .mouse').textContent, /Clic sur un créneau pour le modifier/);
+    assert.match($(card, '.hint .touch').textContent, /Toucher un créneau pour le modifier/);
   });
 });
 
