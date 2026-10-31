@@ -209,6 +209,8 @@ future contributor might question.
 - **In the card, a paused thermostat stays**, marked paused with a *Resume* button; its weeks
   can still be edited (to prepare the return), saving does not resume it; no override can be
   set on it.
+  **Amended by the UX review**: the button says *Control* (*Piloter*), the name of the switch. See
+  [The UX review](#the-ux-review-080-beta2).
 - **The cards do not tell the integration what they show.** Removing a thermostat from a card
   does not stop its schedule: it is paused or forgotten on purpose, from its switch or the
   card's *Thermostats* view, which lists every scheduled thermostat and marks the ones not in
@@ -600,6 +602,8 @@ older one, the older one says so.
   thermostat's name, which opens its sheet. A badge says *Controlled* or *Paused*. The row says
   where the dashboards show the thermostat, then gives the *Pause* or *Resume* button. The rarer
   actions wait behind ⋮: open the thermostat, open its devices, forget it.
+  **Amended by the UX review**: only a paused thermostat has a badge, *Paused*, the
+  exception. The whole row opens the sheet, and *Pause* or *Control* moves to the row's ⋮ menu.
 - **Devices are named by their name and model everywhere**, for example "Bureau (Thermostat
   programmé)", in the ⋮ menu of the *Thermostats* page too. The labels "Its Chauffage device" and
   "The thermostat's device" are gone: the model says which device is which.
@@ -624,6 +628,8 @@ older one, the older one says so.
 - **The header always says whether Chauffage controls the thermostat**, with a badge after the
   button: *Controlled* (green) or *Paused*. *Paused* stands out (the warning color, bold): the
   thermostat then runs by hand, and the user must see it at a glance.
+  **Amended by the UX review**: the header shows a badge only when the thermostat is
+  paused, as the *Thermostats* page does.
 - **A paused thermostat's sheet says it is paused once**, in its header. The weeks stacked below
   do not repeat the card's note "… is paused: Chauffage does not control it · Resume" (card
   option `paused_note: false`). The weeks stay dimmed, as in the card.
@@ -648,6 +654,9 @@ older one, the older one says so.
   Bureau's week to…", every thermostat in every schedule) does not fit a page about one
   thermostat, so the sheet hides it (card option `copy_week: false`). A schedule's sheet and the
   dashboard card keep that list.
+  **Amended by the UX review**: each week's heading has a ⋮ button, which opens a
+  menu of the other schedules. On the card, a button opens the same kind of menu. Nothing is
+  copied until the user picks a schedule in the menu.
 - **Copying week A to schedule B asks to save B, never A.** The copy lands in B's week at once,
   unsaved: B's save bar appears, with the message "The *Normal* week copied here". Week A is not
   touched. If A has edits not saved yet, the copy takes A as shown, and A keeps its own edits.
@@ -674,8 +683,13 @@ older one, the older one says so.
   prototype first did the opposite, and the switch did nothing.
 - **A schedule's sheet shows every thermostat's week in this schedule.** It shows this schedule's
   tab only, with its ⋮ menu (rename, copy, delete), and no "+".
+  **Amended by the UX review**: the sheet shows no tab. A ⋮ button next to the page's
+  title renames or deletes the schedule. A copy starts from the "+" of the *Schedules* page.
 - **The *Schedules* page lists each schedule**, with an *Active* badge, *Activate* and *Edit*.
   "+ New schedule" opens a name field in the list.
+  **Amended by the UX review**: the page follows the model of the *Thermostats* page.
+  The whole row opens the schedule's sheet, and its ⋮ menu renames, moves or deletes the schedule.
+  "+ New schedule" opens the card's "+" menu: an empty schedule or a copy.
 
 ### Welcoming a new user (0.8.0-alpha.2)
 
@@ -748,6 +762,12 @@ A review of every surface, before the merge into `main`, settled these choices.
   the thermostat's knob. The websocket command keeps its format: only its permission changes.
 - **One word for each thing**, as the glossary says: *override* (*dérogation*), not "temporary
   setpoint"; *slot* (*créneau*), not "plage"; the panel's *tabs* (*onglets*).
+- **The panel's lists look like the list of the integration's page**: an icon, the name and a
+  line under it, a chevron, then the actions after a divider. The whole row is one link, chevron
+  included. The card copies this style with the theme's variables. It does not use
+  `ha-list-item-button`: that component is internal to Home Assistant's frontend, it was renamed
+  since 2025.1, and a dashboard may not load it. If Home Assistant restyles its lists, adjust the
+  copy.
 - **The card's panel-only options are internal.** The panel passes them to the card in its own
   key, not as options a dashboard could set.
 
