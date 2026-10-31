@@ -71,9 +71,11 @@ future contributor might question.
   service, the value every time (an automation setting it again puts a thermostat that lost it
   back); a change by hand, nothing (the thermostat set it itself: sending it back could undo a
   second change made meanwhile).
-- **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
-  realigned at once. A command that was not delivered is sent again every minute. Commands are
-  spaced out (Zigbee networks).
+- **Thermostats turned off, unavailable or overridden are left alone.** A thermostat that comes
+  back is realigned at once. The global option *Send targets to VTherms stopped by Auto
+  Start/Stop* also sends scheduled targets when VTherm reports
+  `hvac_off_auto_start_stop`. Manual-off thermostats remain untouched. A command that was not
+  delivered is sent again every minute. Commands are spaced out for Zigbee networks.
 - **Commands applied late: in doubt, no override.** A battery valve (Zigbee, asleep most of the
   time) may apply a command an hour or more later, even after a call that failed; its state in
   HA does not change meanwhile. Seen in production on a Tuya valve: comfort sent at 7:00, still
@@ -101,7 +103,8 @@ future contributor might question.
   (and the option allows it), otherwise the preset's temperature, fitted to the thermostat's
   limits and step. It can be set by hand per thermostat. Versatile Thermostat becomes one case
   among others.
-- **No *Off* preset** (yet): thermostats turned off, by hand or for the summer, are left alone.
+- **No *Off* preset (yet).** A thermostat turned off by hand or for the summer remains alone.
+  The global Auto Start/Stop option allows only VTherm's temporary auto-stop state.
 - **A preset used in the weeks cannot simply be removed**: another one takes its place.
 - **Temperatures of the thermostats' own presets** are learned while each preset is active (no
   standard attribute gives them); Versatile Thermostat's are read from its attributes, a

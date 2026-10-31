@@ -22,11 +22,23 @@ async def test_the_options_form(bench: Bench):
     options = bench.hass.config_entries.options
     flow = await options.async_init(bench.entry.entry_id)
     assert flow["type"] == "form"
-    assert {str(key) for key in flow["data_schema"].schema} == {"override_duration", "use_presets"}
-    result = await options.async_configure(flow["flow_id"], {"override_duration": 30, "use_presets": True})
+    assert {str(key) for key in flow["data_schema"].schema} == {
+        "override_duration", "use_presets", "allow_auto_start_stop_off",
+    }
+    result = await options.async_configure(flow["flow_id"], {
+        "override_duration": 30,
+        "use_presets": True,
+        "allow_auto_start_stop_off": True,
+    })
     assert result["type"] == "create_entry"
     await bench.hass.async_block_till_done()
     assert bench.runtime.override_duration == 30
+    assert bench.runtime.allow_auto_start_stop_off is True
+
+
+async def test_auto_start_stop_off_option_is_disabled_by_default(bench: Bench):
+    await start(bench)
+    assert bench.runtime.allow_auto_start_stop_off is False
 
 
 async def test_without_presets_every_thermostat_is_driven_by_temperature(bench: Bench):

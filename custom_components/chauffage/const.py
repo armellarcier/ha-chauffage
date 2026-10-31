@@ -8,6 +8,9 @@ CONF_OVERRIDE_DURATION = "override_duration"
 DEFAULT_OVERRIDE_DURATION = 120  # minutes
 CONF_USE_PRESETS = "use_presets"  # a preset uses the thermostat's climate preset with the same name
 DEFAULT_USE_PRESETS = True
+CONF_ALLOW_AUTO_START_STOP_OFF = "allow_auto_start_stop_off"
+DEFAULT_ALLOW_AUTO_START_STOP_OFF = False
+AUTO_START_STOP_OFF_REASON = "hvac_off_auto_start_stop"
 
 # preset_mode values meaning "manual setpoint" (Versatile Thermostat: "none")
 MANUAL_PRESETS = frozenset({"", "none", "manual", "manuel"})

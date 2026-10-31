@@ -9,6 +9,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- **An option to send scheduled targets to VTherms stopped by Auto Start/Stop.** Enable the
+  option in the ha-chauffage integration settings. The option is off by default, and manually
+  stopped thermostats remain untouched. No stored data is migrated.
+
 ## [0.7.0-beta.4] - 2026-10-28
 
 More width for the bars of the weeks when the card is narrow, for example in a column of a
