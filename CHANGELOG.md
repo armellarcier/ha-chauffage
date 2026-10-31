@@ -14,6 +14,41 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **You can take *Chauffage* out of the sidebar** (#57). Turn off the option *Show Chauffage in
   the sidebar*, in Settings → Devices & services → Chauffage → *Configure*. You still open the
   Chauffage panel from the cards, or from the *Visit* button of a scheduled thermostat's device.
+- **Every user can change an override from a card**, not only administrators, as with the
+  thermostat's knob. A read-only user still cannot.
+
+### Changed
+
+- **The block under a thermostat's more-info dialog is lighter.** Its foot keeps *Open in
+  Chauffage* and *Pause*, for administrators. The links to the thermostat's entities and device
+  are gone: the device's page lists them.
+- **A paused thermostat goes back to Chauffage with *Resume control*** (*Piloter*), the name of
+  its switch. *Resume the schedule* now only ends an override.
+- **The schedule card's legend says where to set the presets.** For administrators, it ends with
+  *Set the presets*, which opens the panel. The three links at the top of the card are gone.
+- **On the panel's *Thermostats* tab, the whole row opens the thermostat's page.** Only a paused
+  thermostat has a badge. The row's ⋮ opens a menu, as every ⋮ of the card, with *Pause*.
+- **A thermostat's page has one save bar for all its weeks**, at the bottom of the window. It
+  names the weeks not saved yet.
+- **A week is copied from a ⋮ menu**, on the card and on a thermostat's page, not from a list that
+  acts as soon as you pick an option.
+- **The card's override editor follows the order of the more-info block**: the end, the value,
+  the durations, then *Resume the schedule*.
+- **One word for each thing**: an *override*, not a "temporary setpoint". In French, a
+  *créneau*, not a "plage".
+- **The panel's welcome says what Chauffage does in one sentence.**
+- A dashboard card ignores the options that the panel sets for its own pages, for example
+  `chips: false`. The README never documented them.
+
+### Fixed
+
+- **A *Chauffage* link no longer shows to a user who is not an administrator.** The panel is
+  for administrators only, so the link led nowhere.
+- **With the history shown, a slot's popover says what the slot measured.** A phone shows no
+  tooltip, so this text was out of reach on a phone.
+- **On a phone, the *+* of the schedule tabs stays on the card**, and the hours of the time axis
+  stay on one line.
+- **Texts that pointed to the card's former views now point to the panel's tabs.**
 
 ## [0.8.0-beta.1] - 2026-10-31
 
