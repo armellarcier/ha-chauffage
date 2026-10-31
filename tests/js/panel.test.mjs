@@ -620,10 +620,18 @@ describe('the dashboard card and the panel', () => {
   test('admins set the presets from the legend of the presets: one link, where the card shows them', () => {
     const card = createCard(setup());
     assert.equal(card.shadowRoot.querySelector('[data-act="view"], .config-links'), null); // no links at the top
-    const links = [...card.shadowRoot.querySelectorAll('[data-panel-page]')];
+    const links = [...card.shadowRoot.querySelectorAll('.legend [data-panel-page]')];
     assert.deepEqual(links.map((l) => l.closest('.legend') && l.textContent), ['Régler les préréglages']);
     links[0].click();
     assert.equal(window.location.pathname, '/chauffage/presets');
+  });
+
+  test('admins open the panel from the card\'s top right, as the panels of other cards', () => {
+    const card = createCard(setup());
+    const open = card.shadowRoot.querySelector('.chips .panel-open[data-panel-page=""]');
+    assert.equal(open.getAttribute('aria-label'), 'Ouvrir dans Chauffage');
+    open.click();
+    assert.equal(window.location.pathname, '/chauffage');
   });
 
   test('a user who is not an admin sees no link to the panel (it is for admins only)', () => {

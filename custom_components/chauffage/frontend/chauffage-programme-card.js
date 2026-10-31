@@ -2578,7 +2578,8 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     fill(`
         
-        ${this._config.chips === false ? '' : `<div class="chips">
+        ${this._config.chips === false ? '' : `<div class="chips${this._panelOpenHtml() ? ' with-open' : ''}">
+          ${this._panelOpenHtml()}
           ${chips}
           <span class="chip-sep"></span>
           <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
@@ -3178,6 +3179,15 @@ class ChauffageProgrammeCard extends HTMLElement {
   // On a dashboard, the card shows the weeks; the presets, the rules and the thermostats are set
   // in the Chauffage panel (admins only, as the panel). The legend of the presets ends with the
   // link to set them; the panel's tabs lead to the rest. In the panel, no link to the panel.
+  // The card's top right: the Chauffage panel, for admins, as the dashboards' own panels
+  _panelOpenHtml() {
+    if (this._config.view || this._config.panel) return '';
+    const hass = this._hass;
+    if (hass && hass.user && !hass.user.is_admin) return '';
+    const label = this._loc.t('openInPanel', { panel: panelTitle(hass) });
+    return `<button class="panel-open" data-panel-page="" title="${esc(label)}" aria-label="${esc(label)}"><ha-icon icon="chauffage:logo"></ha-icon></button>`;
+  }
+
   _settingsLinkHtml() {
     if (this._config.view || this._config.panel) return '';
     const hass = this._hass;
@@ -4217,6 +4227,11 @@ const STYLE = `
   .savebar .dirty { margin-right:auto; font-size:.9em; }
   .loading { color:var(--secondary-text-color); }
   .legend .settings-link { white-space:nowrap; }
+  .chips.with-open { position:relative; padding-right:44px; }
+  .panel-open { position:absolute; top:0; right:0; display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:var(--secondary-text-color);
+    cursor:pointer; --mdc-icon-size:22px; }
+  .panel-open:hover, .panel-open:focus-visible { background:var(--secondary-background-color); color:var(--primary-color); }
   .table-wrap { overflow-x:auto; }
   .pv-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
   .pv-list .cell { align-items:flex-start; min-width:0; box-sizing:border-box; padding:8px 10px; gap:2px;

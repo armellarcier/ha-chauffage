@@ -25,7 +25,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **A paused thermostat goes back to Chauffage with *Resume control*** (*Piloter*), the name of
   its switch. *Resume the schedule* now only ends an override.
 - **The schedule card's legend says where to set the presets.** For administrators, it ends with
-  *Set the presets*, which opens the panel. The three links at the top of the card are gone.
+  *Set the presets*, which opens the panel. The three links at the top of the card are gone. A
+  button with Chauffage's icon, at the top right of the card, opens the panel.
 - **On the panel's *Thermostats* tab, the whole row opens the thermostat's page.** Only a paused
   thermostat has a badge. The row's ⋮ opens a menu, as every ⋮ of the card, with *Pause*.
 - **A thermostat's page has one save bar for all its weeks**, at the bottom of the window. It

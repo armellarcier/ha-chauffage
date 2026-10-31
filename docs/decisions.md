@@ -732,6 +732,8 @@ A review of every surface, before the merge into `main`, settled these choices.
 - **The schedule card's link to the settings sits in its presets legend**, for admins: *Set the
   presets*. The card had three links (*Presets*, *Rules*, *Thermostats*) at its top, in another
   order than the panel's tabs. The legend showed the presets without saying where to set them.
+  A button with Chauffage's icon, at the card's top right, opens the panel, as the dashboards
+  open their own panels.
 - **Two ways to schedule a thermostat stay**: adding it to a card, or the panel. Removing one
   would gain little.
 - **A ⋮ button always opens a floating menu**, as in the card. The panel's list of thermostats
