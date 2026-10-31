@@ -13,10 +13,11 @@ from zoneinfo import ZoneInfo
 from unittest.mock import PropertyMock, patch
 
 import pytest
+from homeassistant.auth.const import GROUP_ID_USER
 from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser, async_fire_time_changed
 
 from custom_components.chauffage import model
 from custom_components.chauffage.const import DOMAIN
@@ -64,10 +65,13 @@ def entity_registry_enabled_by_default():
 
 @pytest.fixture
 def ws_client(hass_ws_client, hass_admin_user, hass_read_only_user):
-    """Websocket client whose token is created now (the bench's clock jumps ahead)."""
+    """Websocket client whose token is created now (the bench's clock jumps ahead). Not an admin:
+    a read-only user, or a user of the household (`read_only=False`)."""
 
-    async def connect(hass: HomeAssistant, admin: bool = True):
+    async def connect(hass: HomeAssistant, admin: bool = True, read_only: bool = True):
         user = hass_admin_user if admin else hass_read_only_user
+        if not admin and not read_only:
+            user = MockUser(groups=[await hass.auth.async_get_group(GROUP_ID_USER)]).add_to_hass(hass)
         refresh = await hass.auth.async_create_refresh_token(user, "https://example.com/")
         return await hass_ws_client(hass, hass.auth.async_create_access_token(refresh))
 

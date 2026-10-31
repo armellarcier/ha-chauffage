@@ -138,21 +138,14 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.doesNotMatch(menu(card).textContent, /Identifiant/);
   });
 
-  test('opens its details and history in Home Assistant (its switch, #39)', () => {
-    let received = null;
-    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
-    document.addEventListener('hass-more-info', intercept);
-    try {
-      const card = createCard(fakeHass());
-      openMenu(card, 'away');
-      // In the user's words: what it shows, not how Home Assistant models it
-      assert.equal(menu(card).querySelector('[data-more-info]').textContent.trim(), 'Détails et historique…');
-      menu(card).querySelector('[data-more-info="switch.chauffage_schedule_away"]').click();
-      assert.equal(received, 'switch.chauffage_schedule_away');
-      assert.equal(menu(card), null);
-    } finally {
-      document.removeEventListener('hass-more-info', intercept);
-    }
+  test('opens the schedule\'s page in the Chauffage panel, not its switch: no user path needs an entity', () => {
+    const card = createCard(fakeHass());
+    openMenu(card, 'away');
+    assert.equal(menu(card).querySelector('[data-more-info]'), null);
+    const open = menu(card).querySelector('[data-panel-page="schedules/away"]');
+    assert.equal(open.textContent.trim(), 'Ouvrir dans Chauffage');
+    open.click();
+    assert.equal(window.location.pathname, '/chauffage/schedules/away');
   });
 
   test('renames it, showing its id (used by automations)', async () => {
@@ -191,6 +184,14 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.equal($(card, '[data-act="schedule-move"][data-dir="1"]').disabled, true); // already last
   });
 
+  test('a schedule\'s sheet in the panel shows no tab: its menu, opened by the page\'s ⋮, does not move it', () => {
+    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
+    assert.equal($(card, '.tabs'), null);
+    card._scheduleAction('schedule-menu', {}, null);
+    assert.ok($(card, '[data-act="schedule-rename-open"]'));
+    assert.equal($(card, '[data-act="schedule-move"]'), null);
+  });
+
   test('deletes it after a confirmation', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
@@ -209,7 +210,7 @@ describe('the "⋮" menu of the open schedule', () => {
     for (const id of ['holiday', 'away']) {
       openMenu(card, id);
       assert.equal($(card, '[data-act="schedule-delete"]').disabled, true);
-      assert.match(menu(card).textContent, /utilisé par les règles/i);
+      assert.match(menu(card).textContent, /Une règle d’activation utilise ce planning/);
     }
   });
 

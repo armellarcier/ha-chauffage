@@ -6,7 +6,8 @@ chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the the
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set       {entity_id, override | null}: change (value, end) or remove an override;
-                             a new value is sent to the thermostat
+                             a new value is sent to the thermostat. Any user who may control the
+                             thermostat, not only an admin
 chauffage/schedule/activate  {schedule}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
                              or a copy), rename, move, delete (see model.plan_schedules)
@@ -33,6 +34,7 @@ from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.auth.permissions.const import POLICY_CONTROL
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
@@ -167,9 +169,13 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
     vol.Required("entity_id"): str,
     vol.Required("override"): vol.Any(None, dict),
 })
-@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    # Anyone who may control the thermostat, as with its knob or the set_override service: not
+    # only an admin
+    if not connection.user.permissions.check_entity(msg["entity_id"], POLICY_CONTROL):
+        connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+        return
     await _run(hass, connection, msg, lambda runtime: runtime.set_override(
         msg["entity_id"], msg["override"], source="card", context=connection.context(msg)))
 

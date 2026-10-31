@@ -1,24 +1,25 @@
-"""Base entities: follow the runtime's changes; per-thermostat ones are attached to the
-thermostat's device and created and removed with the scheduled thermostats."""
+"""Base entities: follow the runtime's changes; per-thermostat ones are on the scheduled
+thermostat's device, created and removed with the scheduled thermostats."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, TITLE, thermostat_unique_id
-from .runtime import DATA, ChauffageRuntime
+from .const import DOMAIN, SCHEDULED_THERMOSTAT_MODEL, TITLE, thermostat_unique_id
+from .runtime import DATA, ChauffageRuntime, device_by_identifier
 
-# From Home Assistant 2025.8, an entity is attached to the device given in its device_entry
-DEVICE_ENTRY_ATTACHES = (MAJOR_VERSION, MINOR_VERSION) >= (2025, 8)
+# From Home Assistant 2026.10, a device names its parent by the parent's id (`via_device` by
+# identifiers is deprecated, it stops working in 2027.8)
+VIA_DEVICE_ID = "via_device_id" in DeviceInfo.__annotations__
 
 
 def service_device(runtime: ChauffageRuntime) -> DeviceInfo:
@@ -56,8 +57,43 @@ class ChauffageEntity(Entity):
             self.async_write_ha_state()
 
 
+def scheduled_thermostat_identifier(runtime: ChauffageRuntime, climate: str) -> tuple[str, str]:
+    return DOMAIN, f"{runtime.entry.entry_id}_{climate}"
+
+
+def scheduled_thermostat_device(runtime: ChauffageRuntime, climate: str) -> DeviceInfo:
+    """The device of a scheduled thermostat: its page lists its Chauffage entities and opens its
+    weeks (the panel's route), in the thermostat's area, linked to the thermostat's own device."""
+    hass = runtime.hass
+    state = hass.states.get(climate)
+    thermostat = thermostat_device(hass, climate)
+    entity = er.async_get(hass).async_get(climate)
+    area_id = (entity and entity.area_id) or (thermostat and thermostat.area_id)
+    area = ar.async_get(hass).async_get_area(area_id) if area_id else None
+    # The thermostat's state may not be there yet at startup: its registry entry, or its device
+    name = (state and state.name) or (entity and (entity.name or entity.original_name)) \
+        or (thermostat and (thermostat.name_by_user or thermostat.name)) or climate
+    language = (hass.config.language or "en").split("-")[0]
+    info = DeviceInfo(
+        identifiers={scheduled_thermostat_identifier(runtime, climate)},
+        name=name,
+        manufacturer="ha-chauffage",
+        model=SCHEDULED_THERMOSTAT_MODEL.get(language, SCHEDULED_THERMOSTAT_MODEL["en"]),
+        # The Chauffage panel's address of the thermostat (frontend.py)
+        configuration_url=f"homeassistant://{DOMAIN}/thermostats/{climate}",
+    )
+    if area:
+        info["suggested_area"] = area.name
+    if thermostat and VIA_DEVICE_ID:
+        info["via_device_id"] = thermostat.id
+    elif thermostat and thermostat.identifiers:
+        # Older Home Assistant: the parent device by one of its identifiers
+        info["via_device"] = sorted(thermostat.identifiers)[0]
+    return info
+
+
 class ThermostatEntity(ChauffageEntity):
-    """An entity of one scheduled thermostat, on its device (else named after it)."""
+    """An entity of one scheduled thermostat, on the scheduled thermostat's device."""
 
     key: str  # in its unique id
     name_key: str | None = None  # its translation key, when not the key
@@ -66,20 +102,8 @@ class ThermostatEntity(ChauffageEntity):
         super().__init__(runtime)
         self.climate = climate
         self._attr_unique_id = thermostat_unique_id(runtime.entry.entry_id, climate, self.key)
-        self.device_entry = thermostat_device(runtime.hass, climate)
-        if self.device_entry is None:
-            # No device to attach to: the thermostat's name goes in the entity name
-            state = runtime.hass.states.get(climate)
-            name = state.name if state else climate
-            self._attr_translation_key = f"{self.name_key or self.key}_of"
-            self._attr_translation_placeholders = {"thermostat": name}
-        else:
-            self._attr_translation_key = self.name_key or self.key
-            if not DEVICE_ENTRY_ATTACHES:
-                # Older Home Assistant: attached through the device's identifiers
-                self._attr_device_info = DeviceInfo(
-                    identifiers=self.device_entry.identifiers, connections=self.device_entry.connections
-                )
+        self._attr_translation_key = self.name_key or self.key
+        self._attr_device_info = scheduled_thermostat_device(runtime, climate)
 
 
 class ThermostatSensorEntity(ThermostatEntity):
@@ -95,6 +119,7 @@ class ThermostatSensorEntity(ThermostatEntity):
 def async_follow(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback,
     ids: Callable[[ChauffageRuntime], Iterable[str]], make: Callable[[ChauffageRuntime, str], list[Entity]],
+    gone: Callable[[ChauffageRuntime, str], None] | None = None,
 ) -> None:
     """Entities made by `make` for each id `ids` gives (scheduled thermostats, schedules), removed
     when it goes: no list to maintain."""
@@ -117,6 +142,8 @@ def async_follow(
             for entity in known.pop(key):
                 if entity.entity_id and registry.async_get(entity.entity_id):
                     registry.async_remove(entity.entity_id)
+            if gone:
+                gone(runtime, key)
 
     sync()
     entry.async_on_unload(runtime.async_add_listener(sync))
@@ -128,4 +155,37 @@ def async_follow_thermostats(
     make: Callable[[ChauffageRuntime, str], list[ThermostatEntity]],
 ) -> None:
     """Entities made by `make` for each scheduled thermostat, removed when it is forgotten."""
-    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.scheduled, make)
+    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.scheduled, make, _remove_device)
+
+
+@callback
+def async_clean_devices(runtime: ChauffageRuntime) -> None:
+    """At setup, Chauffage keeps only its own devices: the service device and one per scheduled
+    thermostat. A device of a thermostat forgotten or renamed while Home Assistant was stopped
+    goes. So does what 0.7 left on a thermostat's own device: before HA 2025.8 it attached its
+    entities through the thermostat's device, so HA listed Chauffage among the device's
+    integrations; from HA 2026.8, HA split that into a device of Chauffage of its own. A device
+    that still holds an entity of Chauffage is left as it is."""
+    hass, entry_id = runtime.hass, runtime.entry.entry_id
+    devices, entities = dr.async_get(hass), er.async_get(hass)
+    keep = {(DOMAIN, entry_id)} | {scheduled_thermostat_identifier(runtime, c) for c in runtime.scheduled}
+    for device in dr.async_entries_for_config_entry(devices, entry_id):
+        if device.identifiers & keep:
+            continue
+        if any(e.platform == DOMAIN for e in er.async_entries_for_device(entities, device.id, include_disabled_entities=True)):
+            continue
+        try:
+            device.config_entry_id  # noqa: B018 - from HA 2026.8, a device has one integration
+        except AttributeError:
+            if len(device.config_entries) > 1:  # a thermostat's device, shared with its integration
+                devices.async_update_device(device.id, remove_config_entry_id=entry_id)
+                continue
+        devices.async_remove_device(device.id)
+
+
+@callback
+def _remove_device(runtime: ChauffageRuntime, climate: str) -> None:
+    """A forgotten thermostat: its device goes with its entities."""
+    device = device_by_identifier(runtime.hass, runtime.entry, scheduled_thermostat_identifier(runtime, climate))
+    if device:
+        dr.async_get(runtime.hass).async_remove_device(device.id)

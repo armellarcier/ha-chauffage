@@ -21,7 +21,10 @@ an independent project, not affiliated with Versatile Thermostat.
   at once. The card also draws the temperature measured over the last 7 days. The card works on
   phones too.
 - **A card for each thermostat.** The thermostat card shows what the thermostat does now, why,
-  and until when. You can set a temporary setpoint from it.
+  and until when. You can start an override from it.
+- **A Chauffage panel to set everything up.** Administrators find *Chauffage* in the sidebar.
+  The panel holds the schedules and their activation rules, the thermostats and the presets.
+  Each thermostat has its own page there, with its week in every schedule.
 - **Temporary overrides.** If you change a setpoint by hand, Chauffage keeps it for 2 hours
   (configurable), then goes back to the schedule. You can see and adjust the override from the
   card.
@@ -49,6 +52,10 @@ with the type *Integration*. Then install **ha-chauffage** and restart Home Assi
 ### 2. Add the integration
 
 Go to Settings → Devices & services → *Add integration*, and choose **Chauffage**.
+
+Chauffage then adds a **Chauffage** panel to the sidebar, for administrators. Open it: the
+panel welcomes you and lists your thermostats. Tick the ones Chauffage controls, then click
+*Schedule*. See [The Chauffage panel](#the-chauffage-panel).
 
 ### 3. Add the schedule card
 
@@ -84,11 +91,54 @@ name: Living room  # optional
 ```
 
 The card shows the measured temperature and what the thermostat does now, for example
-"Normal · Eco until 17:30, then Comfort", and today's slots. From the card, you can set a
-temporary setpoint and pause the thermostat. The card also opens the thermostat, its schedule,
-its *Control* switch and its device.
+"Normal · Eco until 17:30, then Comfort", and today's slots. From the card, you can start an
+override and pause the thermostat. The card also opens the thermostat and its schedule.
+Administrators open the thermostat's page in the Chauffage panel.
 
 The thermostat's more-info dialog shows the same information, under the thermostat's controls.
+Its link *Open in Chauffage* opens the thermostat's page in the Chauffage panel.
+
+## The Chauffage panel
+
+The **Chauffage** panel, in the sidebar, is where an administrator sets Chauffage up. The
+dashboard cards are for every day: they show what the heating does, switch the schedule and
+edit the weeks.
+
+To take *Chauffage* out of the sidebar, turn off the option *Show Chauffage in the sidebar* (see
+[Options](#options)).
+
+### The panel's pages
+
+The panel has three tabs:
+
+- **Thermostats.** Every scheduled thermostat, and the cards that show it. You can pause a
+  thermostat, forget it with ⋮, or schedule another one. Before your first thermostat, this tab
+  welcomes you: tick the thermostats Chauffage controls, then *Schedule*.
+- **Schedules.** The list of schedules, with the active one marked. A schedule's row opens its
+  page, and its ⋮ renames, moves or deletes it. *+ New schedule* creates an empty schedule or a
+  copy of another one. The [activation rules](#activation-rules) are below the list.
+- **Presets.** The table of the presets: their names, colors and temperatures, and what each one
+  does on each thermostat (see [Presets](#presets)).
+
+A schedule or a thermostat opens on a page of its own. The title of the page, for example
+"Thermostats › Living room", leads back to its list.
+
+- **A schedule's page** shows every thermostat's week in this schedule. The ⋮ next to the
+  page's title renames or deletes the schedule.
+- **A thermostat's page** shows the thermostat, whether Chauffage controls it, and its devices.
+  Below, its presets serve as the legend of its weeks, one week for each schedule. The ⋮ of a
+  week copies it to another schedule. *Group days* groups the identical days of every week, and
+  *History* draws the temperature measured over the last 7 days.
+
+### Open a thermostat's page
+
+- From the Chauffage panel, on the *Thermostats* tab, click the thermostat's name.
+- From the thermostat's more-info dialog, click *Open in Chauffage*.
+- From the device of the scheduled thermostat, click *Visit*. See
+  [On each scheduled thermostat's device](#on-each-scheduled-thermostats-device).
+
+Each page has its own address, for example `/chauffage/thermostats/climate.living_room`. You can
+link to a page from a dashboard or a notification.
 
 ## Updating
 
@@ -136,6 +186,7 @@ One schedule is active at a time. The **Active schedule** select (`select.chauff
 shows which one.
 
 - **From the card**, open the schedule's tab, then click *Activate*.
+- **From the Chauffage panel**, on the *Schedules* tab, click *Activate*.
 - **From an automation**, call `chauffage.activate_schedule` with the schedule's stable id. The
   select's `schedule_id` attribute gives the stable id of the active schedule.
 - **From a dashboard, a script or by voice**, use the select or the schedule's switch (see
@@ -159,7 +210,8 @@ actions:
 ## Activation rules
 
 Activation rules switch the schedule for you, without an automation. You write the rules in the
-card's *Rules* view. Only administrators can change the rules.
+Chauffage panel, on the *Schedules* tab, below the schedules. Only administrators can change the
+rules.
 
 ### How the rules work
 
@@ -254,10 +306,11 @@ If the thermostat has its own preset with the same name, Chauffage uses that pre
 Chauffage sets the preset's temperature. You can change this for each thermostat: choose one of
 the thermostat's own presets, or a temperature.
 
-### Set the presets in the card
+### Set the presets in the Chauffage panel
 
-Open the card's *Presets* view. Only administrators can change the presets. The table has a
-column for each preset, from the coldest to the warmest, and a row for each thermostat.
+Open the Chauffage panel, then the *Presets* tab. Only administrators can change the presets. The
+table has a column for each preset, from the coldest to the warmest, and a row for each
+thermostat. A thermostat's page in the panel shows its presets side by side, without the table.
 
 - **A column header** opens the preset: its name, its color and its default temperature. You can
   also delete the preset from there. To add a preset, click *+ Add a preset* under the table.
@@ -294,7 +347,7 @@ Chauffage doesn't support these devices yet:
   for manual changes.
 
 Some devices keep their preset when you change their setpoint by hand. For such a device, set
-every preset to a temperature in the card's *Presets* view.
+every preset to a temperature in the Chauffage panel, on the *Presets* tab.
 
 The [roadmap](ROADMAP.md) says what comes next, for example groups of thermostats.
 
@@ -308,7 +361,7 @@ can change this duration in the [options](#options).
 - **On the thermostat.** Change the setpoint or the preset by hand, with the knob or in Home
   Assistant. Chauffage makes your change an override.
 - **From the card**, or from the thermostat's more-info dialog. Choose a preset or a
-  temperature, and an end.
+  temperature, and an end. Every user can, not only administrators, as with the knob.
 - **From an automation**, with the `chauffage.set_override` action.
 
 A change made by an automation does not start an override. A command that a battery valve
@@ -322,21 +375,26 @@ also end the override from the card, or with the `chauffage.clear_override` acti
 
 ## Scheduled thermostats
 
-A thermostat is **scheduled** once you add it to a card. If you remove the thermostat from the
-card, the thermostat stays scheduled, because another card may show it. The thermostat stays
-scheduled until you forget it.
+A thermostat is **scheduled** once you add it to a card, or once you schedule it in the
+Chauffage panel: on the *Thermostats* tab, choose it under *Schedule another thermostat*. If you
+remove the thermostat from a card, the thermostat stays scheduled, because another card may show
+it. The thermostat stays scheduled until you forget it.
 
-The card's *Thermostats* view lists every scheduled thermostat, even the thermostats in no card.
-If you delete a thermostat's entity from Home Assistant, Settings → Repairs offers to forget the
-thermostat.
+The panel's *Thermostats* tab lists every scheduled thermostat, and the cards that show it. To
+forget a thermostat, open its ⋮ menu, in the list or next to the title of its page, then *Forget…*. If you delete a thermostat's entity from
+Home Assistant, Settings → Repairs offers to forget the thermostat.
 
 ### Pause a thermostat
 
-To pause a thermostat, turn off its **Control** switch. Chauffage keeps the thermostat's weeks,
-but stops sending it commands and stops making overrides. Pausing is handy for a room you run by
-hand for a few days, or at the end of the heating season.
+To pause a thermostat, click *Pause* under the thermostat's more-info dialog or in the
+Chauffage panel. You can also turn off the thermostat's **Control** switch.
 
-To resume the schedule, turn the **Control** switch back on.
+Chauffage keeps the thermostat's weeks, but stops sending it commands and stops making
+overrides. Pausing is handy for a room you run by hand for a few days, or at the end of the
+heating season.
+
+To give the thermostat back to Chauffage, click *Resume control* in the same places, or turn the
+**Control** switch back on.
 
 ## Entities
 
@@ -345,7 +403,13 @@ automations, scripts and by voice. The entities appear by themselves. They show 
 data and change it, as the card does. You can rename them and change their icons in Home
 Assistant.
 
-### On each thermostat's device
+### On each scheduled thermostat's device
+
+Chauffage gives each scheduled thermostat a device of its own, named after the thermostat, with
+the model *Scheduled thermostat*. The device is in the thermostat's area. When the thermostat has
+a device, for example the device of its valve, Chauffage's device is connected via it: the
+thermostat's device page lists it under *Connected devices*. The device's *Visit* button opens the
+thermostat's page in the Chauffage panel.
 
 | Entity | What it says |
 |---|---|
@@ -433,6 +497,9 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **Override duration.** 2 hours by default.
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
   every thermostat with temperatures, and you set all of them in the card.
+- **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
+  longer shows *Chauffage*. You still open the Chauffage panel from the cards, or from the
+  *Visit* button of a scheduled thermostat's device.
 
 ## Troubleshooting
 

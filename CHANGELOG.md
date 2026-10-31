@@ -9,6 +9,215 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- **You can take *Chauffage* out of the sidebar** (#57). Turn off the option *Show Chauffage in
+  the sidebar*, in Settings → Devices & services → Chauffage → *Configure*. You still open the
+  Chauffage panel from the cards, or from the *Visit* button of a scheduled thermostat's device.
+- **Every user can change an override from a card**, not only administrators, as with the
+  thermostat's knob. A read-only user still cannot.
+
+### Changed
+
+- **The block under a thermostat's more-info dialog is lighter.** Its foot keeps *Open in
+  Chauffage* and *Pause*, for administrators. The links to the thermostat's entities and device
+  are gone: the device's page lists them.
+- **A paused thermostat goes back to Chauffage with *Resume control*** (*Piloter*), the name of
+  its switch. *Resume the schedule* now only ends an override.
+- **The schedule card's legend says where to set the presets.** For administrators, it ends with
+  *Set the presets*, which opens the panel. The three links at the top of the card are gone. A
+  button with Chauffage's icon, at the top right of the card, opens the panel.
+- **On the panel's *Thermostats* tab, the whole row opens the thermostat's page.** Only a paused
+  thermostat has a badge. The row's ⋮ opens a menu, as every ⋮ of the card, with *Pause*.
+- **A thermostat's page has one save bar for all its weeks**, at the bottom of the window. It
+  names the weeks not saved yet.
+- **A week is copied from a ⋮ menu**, on the card and on a thermostat's page, not from a list that
+  acts as soon as you pick an option.
+- **The card's override editor follows the order of the more-info block**: the end, the value,
+  the durations, then *Resume the schedule*.
+- **One word for each thing**: an *override*, not a "temporary setpoint". In French, a
+  *créneau*, not a "plage".
+- **The panel's welcome says what Chauffage does in one sentence.**
+- **The panel's *Schedules* tab lists the schedules as the *Thermostats* tab lists the
+  thermostats.** A row opens the schedule's page, and its ⋮ renames, moves or deletes it.
+  *+ New schedule* also creates a copy of another schedule, checks the name, then opens the new
+  schedule's page.
+- **Each page of the panel has its ⋮ next to its title.** A schedule's page no longer shows a lone
+  tab, which offered to move the schedule. A thermostat's page can now forget the thermostat.
+- **No link leads to an entity any more.** A schedule's ⋮ on the card opens its page in the
+  panel, instead of the history of its switch. The active schedule's name shows its weeks, or its
+  page for an administrator. The *Thermostats* tab ends with a link to the integration's page,
+  instead of the *Chauffage* device.
+- A dashboard card ignores the options that the panel sets for its own pages, for example
+  `chips: false`. The README never documented them.
+
+### Fixed
+
+- **Scrolling the card with a finger no longer moves a slot** (#67). A mostly vertical swipe
+  scrolls the page, even when it starts on a slot's boundary. Moving a time by touch needs a few
+  pixels sideways first.
+- **Leaving a thermostat's page no longer loses its weeks not saved yet.** A link asks first:
+  stay, leave without saving, or save and leave. Closing or reloading the browser's page asks too.
+- **A *Chauffage* link no longer shows to a user who is not an administrator.** The panel is
+  for administrators only, so the link led nowhere.
+- **With the history shown, a slot's popover says what the slot measured.** A phone shows no
+  tooltip, so this text was out of reach on a phone.
+- **On a phone, the *+* of the schedule tabs stays on the card**, the active schedule keeps its
+  dot, and the hours of the time axis stay on one line.
+- **A thermostat's page no longer moves while it loads**, so a tap lands where you aimed.
+- **Texts that pointed to the card's former views now point to the panel's tabs.**
+
+## [0.8.0-beta.1] - 2026-10-31
+
+The first beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57). This
+beta gathers 0.8.0-alpha.1 to 0.8.0-alpha.4, below. It also holds everything in 0.7.0, for
+example the time fields in your profile's format. **You can upgrade from 0.7 directly**: the
+stored data keeps the format of 0.7.
+
+### Highlights
+
+- **The Chauffage panel**, in the sidebar, for administrators. The panel holds the thermostats,
+  the schedules and their activation rules, and the presets. Each thermostat and each schedule
+  has a page of its own.
+- **A device per scheduled thermostat.** The device holds the thermostat's Chauffage entities.
+  Its *Visit* button opens the thermostat's page in the panel.
+- **The schedule card keeps only the weeks.** The *Presets*, *Rules* and *Thermostats* views
+  moved to the panel.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+
+- **Your schedules, weeks, presets, overrides and rules stay as they are.** The stored data of
+  0.7 needs no migration. From 0.6, Chauffage migrates the stored data at start, as 0.7 does.
+- **Chauffage creates the new devices at start**, and moves its entities to them.
+- **The entities keep their ids**, so your dashboards and automations that use them keep working.
+- **An automation that targets the thermostat's device no longer finds Chauffage's entities.**
+  Target the scheduled thermostat's device, or the entities, instead.
+- **An entity of a thermostat without a device of its own is named after the new device**, for
+  example *Living room Control* instead of *Living room control*. Rename the entity in Home
+  Assistant if you prefer the former name.
+
+## [0.8.0-alpha.4] - 2026-10-29
+
+A cleaner upgrade from 0.7: Chauffage keeps only its own devices (#57).
+
+### Fixed
+
+- **A renamed thermostat no longer leaves its former device behind.** Chauffage keeps only its
+  own devices when it starts.
+- **Upgrading from 0.7 cleans the thermostat's own device.** On an installation that ran 0.7 on
+  Home Assistant before 2025.8, Chauffage stayed listed among the integrations of each
+  thermostat's device. From Home Assistant 2026.8, that became a duplicate device of the
+  thermostat, owned by Chauffage. Both go.
+
+### Upgrading
+
+Upgrading from 0.7 changes no stored data. The entities keep their ids, their names and their
+settings. An entity of a thermostat without a device of its own is now named after the new
+device, for example *Living room Control* instead of *Living room control*: rename it in Home
+Assistant if you prefer the former name.
+
+## [0.8.0-alpha.3] - 2026-10-29
+
+Copy and paste between the weeks of a thermostat's page, and its presets side by side (#57).
+
+### Changed
+
+- **A thermostat's page shows its presets side by side**, one item per preset: its name, its value
+  on this thermostat and where the value comes from. The table of a single row is gone.
+
+### Fixed
+
+- **A day copied in one week can be pasted in another week** of a thermostat's page in the
+  Chauffage panel, or of another card. *Paste* stayed greyed out in a week drawn before the copy.
+- **A new copy replaces the one before it**, and only the day copied last stands out as copied,
+  in every week.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+No stored data is migrated.
+
+## [0.8.0-alpha.2] - 2026-10-29
+
+A second alpha of the Chauffage panel (#57): it welcomes a new user, and a thermostat's page gets
+back the *History* switch.
+
+### Added
+
+- **The panel welcomes a new user.** Before the first thermostat, the *Thermostats* tab says what
+  Chauffage does in three steps, and lists every thermostat of Home Assistant to tick. Nothing is
+  ticked at first: a thermostat scheduled is controlled at once. *Schedule* schedules the
+  thermostats ticked, all at once. Then the tab says what to do next, until you close it.
+- **Without any thermostat in Home Assistant**, the welcome says so and leads to Settings →
+  Devices & services.
+- **Before the first thermostat, the *Schedules* and *Presets* tabs say so**, with a link to the
+  *Thermostats* tab.
+
+### Changed
+
+- **The *Thermostats* tab comes first**, and `/chauffage` opens it.
+
+### Fixed
+
+- **A thermostat's page has the *History* switch again**, beside *Group days*. With a history
+  turned on in a card, the page showed the history with no way to turn it off, and the days could
+  not be grouped any more.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+No stored data is migrated.
+
+## [0.8.0-alpha.1] - 2026-10-28
+
+A first alpha of the **Chauffage panel** and of a **device per scheduled thermostat** (#57). An
+alpha is for trying the new version on an installation you watch: the panel's pages and their
+layout may still change before the beta.
+
+### Added
+
+- **The Chauffage panel**, in the sidebar, for administrators. It holds what you set up: the
+  schedules and their activation rules, the thermostats, the presets. Each schedule and each
+  thermostat has a page of its own, with its own address, for example
+  `/chauffage/thermostats/climate.living_room`.
+- **A thermostat's page** shows the thermostat, whether Chauffage controls it (*Controlled* or
+  *Paused*), the cards that show it and its devices. Its presets serve as the legend of its
+  weeks, one week for each schedule. *Copy to…* copies a week to another schedule: the target
+  week asks to be saved, never the source.
+- **A schedule's page** shows every thermostat's week in this schedule.
+- **The *Thermostats* page** lists every scheduled thermostat and the dashboard cards that show
+  it. From there, you pause a thermostat, forget it, or schedule another one.
+- **A device per scheduled thermostat**, named after the thermostat, with the model *Scheduled
+  thermostat*. It holds the thermostat's *Control*, *Override* and *Planned preset* entities, in
+  the thermostat's area. When the thermostat has a device of its own, Chauffage's device is
+  connected via it. Its *Visit* button opens the thermostat's page in the panel.
+
+### Changed
+
+- **The schedule card no longer has the *Presets*, *Rules* and *Thermostats* views.** They moved
+  to the panel. The card keeps the weeks, and shows administrators three links to the panel's
+  pages.
+- **The thermostat's more-info dialog links to its page in the panel** (*Open in Chauffage*). The
+  link closes the dialog first.
+- Chauffage's entities of a thermostat move from the thermostat's own device to the scheduled
+  thermostat's device. A thermostat without a device of its own now has one too.
+- No more deprecation warning about `via_device` on Home Assistant 2026.10.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+No stored data is migrated: your schedules, weeks, presets and overrides stay as they are.
+
+- **The entities keep their ids**, so your dashboards and automations that use them keep working.
+  But they leave the thermostat's device: an automation that targets the **thermostat's device**
+  no longer finds them. Target the scheduled thermostat's device, or the entities, instead.
+- **The card's views moved to the Chauffage panel.** Open *Chauffage* in the sidebar to set the
+  presets, the rules and the thermostats.
+- Each scheduled thermostat now appears twice in the devices of its area: the thermostat's own
+  device, and the scheduled thermostat's device.
+
 ## [0.7.0] - 2026-10-31
 
 **Identical days on one row, a calendar of schedules, what Chauffage does to the thermostats and
@@ -798,7 +1007,12 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-beta.1...HEAD
+[0.8.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-beta.1
+[0.8.0-alpha.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.4
+[0.8.0-alpha.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.3
+[0.8.0-alpha.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.2
+[0.8.0-alpha.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.1
 [0.7.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0
 [0.7.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.6
 [0.7.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.5

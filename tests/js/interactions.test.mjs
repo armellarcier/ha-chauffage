@@ -47,6 +47,66 @@ describe('dragging a slot boundary', () => {
   });
 });
 
+describe('scrolling the week with a finger (#67)', () => {
+  const finger = (el, type, clientX, clientY) => {
+    const e = new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX, clientY });
+    Object.defineProperty(e, 'pointerType', { value: 'touch' });
+    el.dispatchEvent(e);
+  };
+  const salonMonday = (card) => geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]'));
+
+  test('a vertical swipe that starts on a handle moves no time, even with a bit of sideways', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]'); // 06:30
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 396, 140); // 6 px sideways, 40 px down: a scroll
+    finger(handle, 'pointermove', 420, 300);
+    finger(handle, 'pointerup', 420, 300);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    assert.ok(!card._dirty);
+  });
+
+  test('a finger moving a handle sideways still moves its time', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 420, 104);
+    finger(handle, 'pointerup', 420, 104);
+    assert.equal(day(card, 'climate.salon', 0)[1], '07:00 comfort');
+  });
+
+  test('a few pixels sideways are not a move: a finger is not that steady', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 396, 100);
+    finger(handle, 'pointerup', 396, 100);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+  });
+
+  test('a scroll that the browser takes over (pointercancel) puts the time back', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 420, 102);
+    finger(handle, 'pointercancel', 420, 102);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    assert.ok(!card._dirty);
+  });
+
+  test('a vertical swipe that starts on the selected slot does not move it', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
+    card._render();
+    const seg = salonMonday(card).querySelector('.seg[data-idx="1"]');
+    finger(seg, 'pointerdown', 450, 100);
+    finger(seg, 'pointermove', 456, 140);
+    finger(seg, 'pointermove', 480, 300);
+    finger(seg, 'pointerup', 480, 300);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+  });
+});
+
 describe('dragging a whole slot', () => {
   // Slot 1: 06:30 → 08:30 comfort, between 00:00 eco and 08:30 eco (until 17:30)
   const drag = (card, idx, fromMinutes, toMinutes, pointerType) => {
@@ -380,6 +440,15 @@ describe('row menu', () => {
     assert.deepEqual(day(card, 'climate.salon', 2), WEEKDAY);
   });
 
+  test('Escape closes it, as it closes the popovers', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
+    $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').click();
+    assert.ok($(card, '.menu'));
+    $(card, '.menu [data-act="fill-weekdays"]').focus();
+    $(card, '.menu [data-act="fill-weekdays"]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+    assert.equal($(card, '.menu'), null);
+  });
+
   test('a right click on a row opens it too; a click elsewhere closes it', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
     const bar = $(card, '.bar[data-climate="climate.salon"][data-day="1"]');
@@ -487,19 +556,46 @@ describe('editing a slot', () => {
 });
 
 describe('copying a week', () => {
-  test('to another thermostat and schedule', () => {
+  test('to another thermostat and schedule, from a menu: a list would act as soon as an option is picked', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    const select = $(card, '.copyweek');
-    select.value = 'climate.bureau|away';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.equal($(card, 'select.copyweek'), null);
+    $(card, '[data-act="copyweek-menu"]').click();
+    const menu = $(card, '.copyweek-menu');
+    assert.ok(menu.classList.contains('menu'));
+    menu.querySelector('[data-act="copy-week"][data-climate="climate.bureau"][data-schedule="away"]').click();
+    assert.equal($(card, '.copyweek-menu'), null);
     assert.deepEqual(day(card, 'climate.bureau', 0, 'away'), WEEKDAY);
     assert.equal(card._dirty, true);
+  });
+
+  test('its menu closes with a click elsewhere or Escape, copying nothing', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    $(card, '[data-act="copyweek-menu"]').click();
+    $(card, '.legend').click();
+    assert.equal($(card, '.copyweek-menu'), null);
+    $(card, '[data-act="copyweek-menu"]').click();
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal($(card, '.copyweek-menu'), null);
+    assert.equal(card._dirty, false);
   });
 });
 
 describe('the override popover in the card', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
+
+  test('the same editor as the more-info block: the end first, then the value, the durations, Resume the schedule', () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    $(card, '.override[data-climate="climate.salon"]').click();
+    const ed = $(card, '.override-ed');
+    const order = ['input.time[data-override-end]', '.presets', 'input[data-override-temperature]', '[data-act="override-add"]', '[data-act="override-del"]']
+      .map((s) => ed.querySelector(s));
+    for (let i = 1; i < order.length; i += 1) {
+      assert.ok(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `${i}: in the block's order`);
+    }
+    assert.equal(ed.querySelector('[data-act="override-del"]').textContent, 'Reprendre le planning');
+  });
 
   test('opens on a click; "+30 min" and the end time field', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
@@ -681,8 +777,7 @@ describe('error messages', () => {
 
   test('a preset change refused by the integration', async () => {
     const hass = failing(fakeIntegrationHass());
-    const card = createCard(hass);
-    $(card, '[data-act="view"][data-view="presets"]').click();
+    const card = createCard(hass, { view: 'presets' });
     $(card, '[data-kind="preset"][data-preset="eco"]').click();
     await card._action('cell-apply', {});
     assert.match($(card, '.msg').textContent, /boom/);
@@ -791,8 +886,8 @@ describe('edits in progress', () => {
 describe('the hint under the weeks', () => {
   test('speaks of the mouse, or of the finger on a touch screen', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    assert.match($(card, '.hint .mouse').textContent, /Clic sur une plage pour la modifier/);
-    assert.match($(card, '.hint .touch').textContent, /Toucher une plage pour la modifier/);
+    assert.match($(card, '.hint .mouse').textContent, /Clic sur un créneau pour le modifier/);
+    assert.match($(card, '.hint .touch').textContent, /Toucher un créneau pour le modifier/);
   });
 });
 
@@ -821,8 +916,7 @@ describe('presets without the thermostats\' own presets (option off)', () => {
     };
     const hass = fakeIntegrationHass({ data });
     hass.states['climate.salon'].attributes.preset_modes = ['comfort'];
-    const card = createCard(hass);
-    $(card, '[data-act="view"][data-view="presets"]').click();
+    const card = createCard(hass, { view: 'presets' });
     const cell = $(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(cell.querySelector('.pv-val').textContent, '20°'); // the preset's default, not the thermostat's own preset
     assert.equal(cell.querySelector('.pv-how').textContent, 'par défaut');

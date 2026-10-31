@@ -33,7 +33,7 @@ describe('configuration and loading', () => {
     const card = createCard(fakeHass());
     const haCard = card.shadowRoot.querySelector('ha-card');
     card._openMenu('climate.salon', 1, 0, 0); // a redraw, as most clicks
-    card.shadowRoot.querySelector('[data-act="view"][data-view="presets"]').click(); // another view
+    card.shadowRoot.querySelector('[data-act="group-days"]').click(); // another redraw
     assert.equal(card.shadowRoot.querySelector('ha-card'), haCard);
     assert.equal(card.shadowRoot.querySelectorAll('ha-card').length, 1);
   });
@@ -128,18 +128,12 @@ describe('activating a schedule', () => {
     assert.match(bar(card).textContent, /Activer « Absent »/);
   });
 
-  test('the active schedule\'s name opens the select of the active schedule (#39)', () => {
-    let received = null;
-    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
-    document.addEventListener('hass-more-info', intercept);
-    try {
-      const card = createCard(fakeHass({ schedule: 'Normal' }));
-      tab(card, 'away').click();
-      bar(card).querySelector('[data-more-info="select.chauffage_schedule"]').click();
-      assert.equal(received, 'select.chauffage_schedule');
-    } finally {
-      document.removeEventListener('hass-more-info', intercept);
-    }
+  test('the active schedule\'s name shows the active schedule\'s weeks, not an entity', () => {
+    const card = createCard(fakeHass({ schedule: 'Normal' }));
+    tab(card, 'away').click();
+    assert.equal(bar(card).querySelector('[data-more-info]'), null);
+    bar(card).querySelector('[data-show-schedule="normal"]').click();
+    assert.equal(card._schedule, 'normal');
   });
 
   test('the button activates the schedule in the integration', async () => {

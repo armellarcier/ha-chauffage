@@ -30,7 +30,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 |---|---|
 | Existing schedules are kept on upgrade | `I/test_schedule_list.py::an_existing_installation_keeps_its_schedules` |
 | Create a schedule empty (eco, or the first preset, all week) or as a copy of another one; the card opens it | `I/test_schedule_list.py::duplicating_*`, `::an_empty_schedule_*`, `::creating_a_schedule_does_not_touch_the_thermostats`, `C/schedules.test.mjs` (the "+" menu) |
-| Rename (stable id shown, active schedule kept), move, delete (with a confirmation; not the active one or the last one) | `I/test_schedule_list.py` (renaming, moving, deleting), `C/schedules.test.mjs` (the "⋮" menu) |
+| Rename (stable id shown, active schedule kept), move (not on a schedule's sheet, which shows one tab), delete (with a confirmation; not the active one or the last one) | `I/test_schedule_list.py` (renaming, moving, deleting), `C/schedules.test.mjs` (the "⋮" menu) |
 | Names required and unique; unknown ids refused; only admins manage schedules; unsaved weeks saved first | `I/test_schedule_list.py::a_name_must_be_set_and_not_taken`, `::unknown_ids_*`, `::only_admins_manage_schedules`, `C/schedules.test.mjs::unsaved edits *`, `::a name is needed *` |
 | Activating a schedule (card, select, automation) realigns every thermostat | `I/test_schedules.py::activating_a_schedule_applies_its_weeks`, `C/card.test.mjs` (activating a schedule), `C/card-integration.test.mjs::activating a schedule sends its id` |
 | An automation activates a schedule by its stable id, even once renamed; the select's `schedule_id` attribute | `I/test_schedule_list.py::an_automation_activates_a_schedule_by_its_id_*`, `::activating_an_unknown_schedule_says_so` |
@@ -99,7 +99,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Going back to what the slot gives ends the override (issue #19), only that thermostat's, and creates none: a preset picked by a user, or a setpoint changed by a user or on the device (knob), at the temperature of the slot's preset on this thermostat; a preset set by the thermostat itself does not; nor a thermostat coming back by itself to an override that holds the slot's value; an override set to the slot's preset lasts until its end, through later slots with the same preset and the thermostat reporting again | `I/test_overrides.py::going_back_to_the_scheduled_preset_*`, `::the_knob_turned_back_*`, `::the_thermostat_switching_back_*_by_itself_*`, `::a_thermostat_coming_back_by_itself_to_a_held_slot_value_*`, `::picking_the_scheduled_preset_by_hand_is_not_an_override`, `::a_slot_with_the_override_s_preset_does_not_end_it`, `I/test_engine.py::going_back_to_what_the_schedule_expects_resumes_it`, `::a_manual_setpoint_at_the_temperature_of_the_slot_s_preset_*`, `::an_override_already_at_what_the_slot_gives_is_kept`, `::the_temperature_of_a_thermostat_s_own_preset` |
 | End of an override: the schedule resumes, without a new override; ended while HA was stopped | `I/test_overrides.py::when_the_override_ends_*`, `::resuming_the_schedule_*`, `I/test_use_cases.py::an_override_that_ended_while_home_assistant_was_stopped` |
 | Change an override's value from the card or the thermostat's more-info dialog (a preset, or a temperature) until the same end: the thermostat follows, within its limits and step (error if it does not answer); changing only the end sends nothing | `I/test_overrides.py::changing_the_override_s_value_*`, `::changing_only_the_end_*`, `::an_override_changed_to_the_slot_s_preset_from_the_card_*`, `::an_override_s_temperature_is_fitted_to_the_thermostat`, `::the_override_of_a_change_by_hand_is_only_recorded`, `I/test_api.py::an_override_s_new_value_on_a_thermostat_that_does_not_answer`, `C/interactions.test.mjs` (the override popover, typing survives a redraw), `C/more-info.test.mjs` (a preset / a temperature picked in the block, typing survives a redraw, an ended override is not shown) |
-| Set a temporary setpoint from the card (today's row menu, "Temporary setpoint…"), the thermostat card or the thermostat's more-info dialog, with no override yet: a preset or a temperature, for the override duration; what the thermostat goes back to at the end is shown ("then Eco (schedule)") | `I/test_api.py::an_override_created_from_the_card`, `C/interactions.test.mjs` (the override popover: today's row menu, what the thermostat goes back to), `C/thermostat-card.test.mjs`, `C/more-info.test.mjs` (without an override, a preset or a temperature creates one; what the thermostat goes back to) |
+| Every user who may control the thermostat sets, changes and ends an override from a card, not only an admin, as with the knob and the services; a read-only user cannot | `I/test_api.py::anyone_at_home_sets_changes_and_ends_an_override_from_a_card`, `::a_read_only_user_cannot_change_an_override`, `C/more-info.test.mjs` ("a user who is not an admin sets") |
+| Start an override from the card (today's row menu, "New override…"), the thermostat card or the thermostat's more-info dialog, with no override yet: a preset or a temperature, for the override duration; what the thermostat goes back to at the end is shown ("then Eco (schedule)") | `I/test_api.py::an_override_created_from_the_card`, `C/interactions.test.mjs` (the override popover: today's row menu, what the thermostat goes back to), `C/thermostat-card.test.mjs`, `C/more-info.test.mjs` (without an override, a preset or a temperature creates one; what the thermostat goes back to) |
 | An override set to a preset (card, more-info dialog, service) shows that preset on every kind of thermostat, not its temperature; an override at a preset's temperature does not show that preset; a temperature or a change by hand replaces it; a preset deleted since is no longer highlighted; the service's preset is what that preset means on the thermostat (its mapping, its temperature), another value one of the thermostat's own presets (#23) | `I/test_overrides.py::an_override_set_to_a_preset_*`, `::an_override_set_to_a_temperature_has_no_preset`, `::a_change_by_hand_during_an_override_set_to_a_preset_*`, `::set_override_with_a_*`, `C/interactions.test.mjs` (an override set to a preset), `C/more-info.test.mjs` (an override set to a preset) |
 | Extend, shorten (not before now + 15 min), remove an override from the card (drag, buttons, time field) or the more-info dialog | `I/test_overrides.py::extending_*`, `::removing_the_override_*`, `C/card.test.mjs` (overrides), `C/interactions.test.mjs` (dragging the end, popover), `C/more-info.test.mjs` |
 | Services for automations: set (temperature / preset, duration / end), clear; errors; the value sent again to a thermostat that lost it, never what it already has | `I/test_api.py::set_override_*`, `I/test_edge_cases.py::set_override_*`, `::services_without_the_integration` |
@@ -127,7 +128,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Names of the days and of the thermostats aligned against their bars, the names column as wide as the longest name shown (up to a maximum) | `C/card.test.mjs` (today) |
 | Add a slot (double click, never merged with the next slot), insert, delete, change a slot's preset, move times (drag or fields: typed and applied on Enter or on leaving the field, Tab from the start to the end keeping the field typed in, small arrows by the step, a time off the step kept), close the editor | `C/card.test.mjs` (editing a day), `C/interactions.test.mjs` (slot editor buttons, double click, dragging, editing a slot) |
 | Move a whole slot by dragging it (same length, within its neighbors; by touch, the selected slot only) | `C/interactions.test.mjs` (dragging a whole slot) |
-| Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week; the row menu holds the day's actions only, and opens upwards when there is no room below it | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
+| On a phone, a vertical swipe scrolls the week and moves nothing, even when it starts on a boundary or on the selected slot; moving a time by touch needs 8 px sideways first; a scroll the browser takes over puts the time back (#67) | `C/interactions.test.mjs` ("scrolling the week with a finger") |
+| Copy / paste a day, fill weekdays / weekend / all / other thermostats, copy a week from a menu at the foot of the card (closed by a click elsewhere or Escape, not a list that acts as soon as an option is picked); the row menu holds the day's actions only, opens upwards when there is no room below it, and closes with Escape | `C/card.test.mjs` (copy / paste), `C/interactions.test.mjs` (row menu, copying a week) |
 | See identical days on one row, named after its days (*Mon–Fri*, *Mon, Wed, Fri*, *Sat, Sun* in a Sunday-first week, *Mon–Sun*; *Every day* in the menus), the days identical for every thermostat shown (#11) | `C/grouped-days.test.mjs` (rows of identical days) |
 | Edit a row of days at once: a slot and its popover, pasting, copying to the other thermostats; copying a day onto others joins their rows | `C/grouped-days.test.mjs` (editing a row) |
 | Show each day on its own row (*Group days*, kept on the device; `group_days: false`) to make one day different, which keeps its row once grouped again; the history shows each day, grouping the days hides it | `C/grouped-days.test.mjs` (grouping the days or not) |
@@ -135,7 +137,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Save, cancel; an edit undone saves nothing; a save from an outdated copy is refused; edits in progress are not replaced by changes saved elsewhere; unsaved edits shown by a bar with *Cancel* and *Save*, kept at the bottom of the window (#39), no buttons otherwise | `C/card.test.mjs` (saving), `C/card-integration.test.mjs::a save refused *`, `C/interactions.test.mjs` (edits in progress), `I/test_api.py::saving_from_an_outdated_copy_is_refused` |
 | Chips choose the thermostats shown: a name, with a mark when it is paused, off, missing or on a temporary setpoint (#39); a thermostat listed twice in the configuration is shown once | `C/card.test.mjs` (choosing the displayed thermostats, configuration) |
 | The hint speaks of the mouse, or of the finger on a touch screen | `C/interactions.test.mjs` (the hint under the weeks) |
-| Open in Home Assistant what the card names (#39): a thermostat (chip button, row names, row menu, paused notice, popovers, *Presets* and *Thermostats* views), a schedule's switch (*Details and history…* in its `⋮` menu), the active-schedule select (the bar of another schedule), a thermostat's *Control* switch and device, the *Chauffage* device (admins) | `C/card.test.mjs` (thermostat more-info dialog, activating a schedule), `C/interactions.test.mjs` (row menu), `C/schedules.test.mjs::opens its details and history *`, `C/thermostats-view.test.mjs`, `C/card-integration.test.mjs` (Presets view) |
+| Open in Home Assistant what the card names (#39): a thermostat (chip button, row names, row menu, paused notice, popovers, *Presets* and *Thermostats* views), a schedule's page in the panel (*Open in Chauffage* in its `⋮` menu, on a dashboard), the active schedule (its name in the bar of another schedule shows its tab; in the more-info block, its page in the panel, admins), the integration's page (the *Thermostats* page, admins); no user path needs an entity or the *Chauffage* device | `C/card.test.mjs` (thermostat more-info dialog, activating a schedule), `C/more-info.test.mjs` ("the active schedule's name"), `C/interactions.test.mjs` (row menu), `C/schedules.test.mjs::opens the schedule's page *`, `C/thermostats-view.test.mjs`, `C/card-integration.test.mjs` (Presets view) |
 | A thermostat shown with its own name or the card's; a name made of pieces (area, device) as HA makes it (2025.10+), its own name before | `C/card.test.mjs` (names of the thermostats) |
 | The page keeps its scroll when a card is redrawn (a menu, a slot, a view opened): the same frame (`ha-card`), filled again | `C/card.test.mjs::a redraw keeps the same ha-card *`, `C/thermostat-card.test.mjs::a redraw keeps the same ha-card *` |
 | Error messages (save, override, schedule, presets) | `C/interactions.test.mjs` (error messages) |
@@ -143,7 +145,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Card added but the integration is not set up: says so | `C/card-integration.test.mjs` (without the integration) |
 | Updated from HACS, Home Assistant not restarted yet (the card is newer than the running integration): asks for a restart | `C/card-integration.test.mjs` (an integration older than the card) |
 | A page left open across an update, or an older copy of the card loaded first (the card is older than the integration): asks to reload the page, with a button (#36) | `C/card-integration.test.mjs` (a card left open across an update), `I/test_api.py::the_card_is_told_the_version_of_the_integration` |
-| See the temperature measured over the last 7 days over each day, with the setpoint applied and the range per slot; choice kept; then only what is new every 5 minutes; recorder unavailable: says so; HA not restarted after an update: HA's own history | `C/history.test.mjs` |
+| See the temperature measured over the last 7 days over each day, with the setpoint applied and the range per slot, in the slot's tooltip and in its popover (a phone shows no tooltip); choice kept; then only what is new every 5 minutes; recorder unavailable: says so; HA not restarted after an update: HA's own history | `C/history.test.mjs` |
 | Show a day larger (row menu, or the name of the day with one thermostat shown): its own scale in degrees, the time, measured temperature and setpoint under the mouse or along a finger, a tap still selects a slot; hidden with the history | `C/history.test.mjs` (a day shown larger) |
 | An ended override is no longer shown, even before the integration removes it | `C/card.test.mjs::an override that has ended *` |
 | On the days the clocks change, an override is drawn at its time of day (one ending in the hour played twice, from its start for its length) and its end, dragged or picked, is the time chosen: in the hour played twice, the one still to come; in the hour skipped, when the clocks went forward (#43) | `C/calculations.test.mjs::on the day the clocks *`, `::an override ending in the hour played twice *`, `C/interactions.test.mjs` (dragging the end, on the days the clocks change) |
@@ -153,8 +155,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Place one scheduled thermostat in one's own dashboard (`custom:chauffage-thermostat-card`): its name (or the card's), the measured temperature, what it does now (preset and setpoint, or the temporary setpoint), why and until when, today with the current time, the week, in the block of the more-info dialog | `C/thermostat-card.test.mjs` |
-| From it: a temporary setpoint set, changed or ended; *Pause*, then *Resume* in its place (admins), at the foot of the block it shares with the more-info dialog | `C/thermostat-card.test.mjs` |
-| From it, open the thermostat, its schedule's switch, its *Control*, *Override* and *Planned preset* entities, its device (admins) | `C/thermostat-card.test.mjs`, `I/test_entities.py::the_card_is_told_*` |
+| From it: a temporary setpoint set, changed or ended; *Pause*, then *Control* in its place (admins), at the foot of the block it shares with the more-info dialog | `C/thermostat-card.test.mjs` |
+| From it, open the thermostat and its schedule's switch; an admin opens the thermostat's page in the panel | `C/thermostat-card.test.mjs`, `I/test_entities.py::the_card_is_told_*` |
 | A thermostat Chauffage does not schedule says how to schedule it; the integration missing, or a card older or newer than it, says so | `C/thermostat-card.test.mjs` |
 | In the *Add card* dialog (name in HA's language, preview), suggested for a thermostat (*By entity*), starting with a scheduled thermostat; a visual editor for the thermostat and its name | `C/thermostat-card.test.mjs` (in Home Assistant) |
 
@@ -165,7 +167,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
 | Its week (and the thermostat card's) shows identical days on one row, or each day with `group_days: false` (#11) | `C/grouped-days.test.mjs` (the week in the more-info block) |
 | The active schedule's name, current and next slot, override, +30 min, drag its end, end time field (typed to the minute, sent on Enter or on leaving it, even after a tap outside the card; kept through the redraws while typed; a time not whole shown again as it was; arrow keys by the hour or the step; small arrows by the step; moved by the arrows, the end moves by as much (before now: a step after now, not tomorrow; in three days: still in three days); in the card's popover and the thermostat card too), resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end, the end time field), `C/thermostat-card.test.mjs` |
-| At the foot of the block (#39): the thermostat's *Control*, *Override* and *Planned preset* entities and its device open (the device page closing the dialog, admins); *Pause*, or *Resume* in its place (admins) | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
+| At the foot of the block, for admins only: *Open in Chauffage* and *Pause*, or *Control* in its place (not a second "Resume"); no link to the thermostat's entities or devices, which the device's page and the panel's sheet list | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
 | Until when the planned preset really lasts and what comes next, as the planned preset sensor says: the next different preset, even on another day ("Eco until 06:30 (tomorrow), then Comfort", a weekend, "Eco all week"); sent again to the cards when it changes | `I/test_api.py::the_card_is_told_*`, `C/more-info.test.mjs` (until when the preset lasts, the next day, a weekend, all week), `C/i18n.test.mjs` (the more-info block in English) |
 
 ## Entities and API
@@ -185,6 +187,100 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A card's subscription goes on after the integration is reloaded (options changed, a thermostat renamed): the data sent again at once, then every change | `I/test_api.py::a_subscription_goes_on_after_the_integration_is_reloaded` |
 | Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings, pause, forget; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
 
+## Chauffage panel and devices (#57)
+
+The decisions behind these use cases are in
+[decisions.md](decisions.md#chauffage-panel-and-devices-57). The card's *Presets*,
+*Rules* and *Thermostats* views became pages of the panel: the rows above that name these views
+are proved by the same tests, on the panel's page.
+
+### The scheduled thermostat's device
+
+| Use case | Test |
+|---|---|
+| Each scheduled thermostat has a device of ours, which holds its *Control*, *Override* and *Planned preset* entities; their entity ids and unique ids do not change | `I/test_devices.py::each_scheduled_thermostat_has_a_device_holding_its_entities`, `::entities_keep_their_ids_on_the_scheduled_thermostat_s_device` |
+| A thermostat without a device of its own, for example a `generic_thermostat` written in YAML, also gets a device, and its entities are named after that device | `I/test_devices.py::entities_keep_their_ids_on_the_scheduled_thermostat_s_device` |
+| The device takes the thermostat's name, even at startup before the thermostat's state exists (its registry entry, else its device) | `I/test_devices.py::the_device_takes_the_thermostat_s_name_even_before_its_state_exists` |
+| The device goes in the thermostat's area | `I/test_devices.py::a_thermostat_with_a_device_of_its_own_gets_a_device_connected_via_it` |
+| The device's model follows Home Assistant's language: *Scheduled thermostat*, *Thermostat programmé* | `I/test_devices.py::each_scheduled_thermostat_has_a_device_*`, `::the_device_s_model_follows_home_assistant_s_language` |
+| The thermostat's device page lists the scheduled thermostat's device under *Connected devices*, and our device shows *Connected via* the thermostat (by its id from HA 2026.10, by its identifiers before) | `I/test_devices.py::a_thermostat_with_a_device_of_its_own_*`, `::before_home_assistant_2026_10_*` |
+| An admin opens a thermostat's weeks from its device page, with *Visit* (`homeassistant://chauffage/thermostats/<climate>`) | `I/test_devices.py::the_device_s_visit_link_opens_the_thermostat_s_weeks_in_the_panel` |
+| A forgotten thermostat's device disappears with its entities | `I/test_devices.py::a_forgotten_thermostat_s_device_goes_with_its_entities` |
+| A renamed thermostat's device follows it: the device of its former id goes | `I/test_devices.py::a_renamed_thermostat_s_device_follows_it` |
+| Upgrading from 0.7 changes no stored data | `I/test_upgrade_to_0_8.py::the_stored_data_does_not_change` |
+| Upgrading from 0.7, the entities keep their ids, their names and their settings, on the new device | `I/test_upgrade_to_0_8.py::the_entities_keep_their_ids_names_and_settings_on_the_new_device` |
+| Upgrading from 0.7, Chauffage leaves the thermostat's own device: no longer among its integrations (before HA 2026.8), no device of Chauffage split from it (from 2026.8) | `I/test_upgrade_to_0_8.py::chauffage_leaves_the_integrations_of_the_thermostat_s_device` |
+
+### The panel
+
+| Use case | Test |
+|---|---|
+| An admin finds *Chauffage* in the sidebar, with its own icon (`chauffage:logo`); the panel is for admins only | `I/test_frontend.py::the_chauffage_panel_is_registered_for_admins_with_its_own_icon`, `C/panel.test.mjs` ("the panel's icon") |
+| An admin takes *Chauffage* out of the sidebar with an option, on by default; the panel keeps its addresses, and the sidebar follows the option without a restart | `I/test_frontend.py::the_panel_is_in_the_sidebar_by_default`, `::an_admin_can_take_the_panel_out_of_the_sidebar`, `::the_sidebar_follows_the_option_without_a_restart` |
+| A dashboard card ignores the options the panel sets for its own pages, for example `chips: false` or `view: presets` written in its YAML | `C/panel.test.mjs` ("a dashboard card ignores the options") |
+| On a dashboard, an admin opens the Chauffage panel from the schedule card's top right, a button with Chauffage's icon | `C/panel.test.mjs` ("admins open the panel from the card's top right") |
+| On a dashboard, the legend of the schedule card's presets ends, for an admin, with *Set the presets*, which opens the panel's *Presets* tab; no other link to the panel; a non-admin sees none | `C/panel.test.mjs` ("the dashboard card and the panel") |
+| A list shows the panel's tabs (*Thermostats*, *Schedules*, *Presets*) and Home Assistant's menu button; a sheet shows no tabs, a breadcrumb title whose list is a link | `C/panel.test.mjs` ("lists and sheets") |
+| `/chauffage/rules` opens the *Schedules* page, where the rules are | `C/panel.test.mjs` ("its addresses") |
+| The first prototype's address of a thermostat (`/chauffage/<climate>`) redirects to its sheet | `C/panel.test.mjs` ("its addresses") |
+| A renamed thermostat's address redirects to its new id | `C/panel.test.mjs` ("its addresses") |
+| A deleted schedule's sheet goes back to the list of schedules | `C/panel.test.mjs` ("its addresses") |
+| The panel does not redirect before Home Assistant gives it its address | `C/panel.test.mjs` ("no redirect before Home Assistant gives the address") |
+
+### The panel's pages
+
+| Use case | Test |
+|---|---|
+| An admin activates a schedule from the *Schedules* page, which shows the active one with a badge | `C/panel.test.mjs` ("the Schedules page") |
+| The *Schedules* page lists the schedules as the *Thermostats* page lists the thermostats: the whole row opens the schedule's sheet; its ⋮ renames, moves up or down, deletes it | `C/panel.test.mjs` ("the Schedules page") |
+| An admin creates a schedule from the *Schedules* page, as with the card's +: empty or a copy, its name checked; then its sheet opens | `C/panel.test.mjs` ("+ New schedule creates") |
+| The *Schedules* page shows the activation rules below the schedules | `C/panel.test.mjs` ("shows the activation rules"), `C/rules.test.mjs` |
+| The *Thermostats* page lists every scheduled thermostat by name; only a paused one has a badge, *Paused*; the whole row opens the thermostat's sheet | `C/thermostats-view.test.mjs` ("lists every scheduled thermostat", "the whole row opens") |
+| The *Thermostats* page shows where each thermostat is shown ("Shown in *dashboard* › *view*", a link), found in cards nested in stacks, sections or conditional cards; a generated dashboard shows none | `C/thermostats-view.test.mjs` ("says where the dashboards show each thermostat") |
+| An admin schedules another thermostat from the *Thermostats* page: it gets the week of a new schedule in every schedule | `C/thermostats-view.test.mjs` ("schedules another thermostat") |
+| An admin forgets a thermostat from the *Thermostats* page after confirming, whatever the cards show; cancelling keeps it | `C/thermostats-view.test.mjs` ("forgets any thermostat", "the confirmation can be cancelled") |
+| The ⋮ of a thermostat's row opens a floating menu, as every ⋮ of the card, closed by ⋮ again, a click elsewhere or Escape: an admin pauses the thermostat or gives it back to Chauffage (*Control*), opens the thermostat and its devices, each named by its name and model, or forgets it | `C/thermostats-view.test.mjs` ("its ⋮ opens a floating menu", "its menu closes", "pauses a controlled thermostat") |
+| A thermostat's sheet shows the thermostat's tile, *Pause* or *Control*, *Paused* when it is, where it is shown, and its devices by name and model | `C/panel.test.mjs` ("its header") |
+| A thermostat's sheet shows its presets side by side as the legend of its weeks, one item per preset (its name, its value here, where it comes from), not a table of one row; the presets' definitions stay on the *Presets* tab | `C/panel.test.mjs` ("its presets first") |
+| A preset of a thermostat's sheet opens the editor of what it does on this thermostat | `C/panel.test.mjs` ("a preset of the list") |
+| A thermostat's sheet shows its week in every schedule, under *Weeks*, each headed by the schedule's name (a link to its sheet), the active one marked | `C/panel.test.mjs` ("its week in every schedule") |
+| Copy a thermostat's week to another schedule from the ⋮ menu of the week's heading on its sheet (closed by a click elsewhere or Escape): the target week shows the copy at once, unsaved, and the sheet's save bar names it ("The *Normal* week copied here"); the source week asks for nothing | `C/panel.test.mjs` ("copying a week to another schedule") |
+| A thermostat's sheet does not move while the cards that show it load: their line says "Shown in …" meanwhile | `C/panel.test.mjs` ("holds its place while they load") |
+| Leaving a thermostat's sheet with weeks not saved yet, by a link of the page: the save bar asks first (*Stay*, *Leave without saving*, *Save and leave*); closing or reloading the browser's page asks too | `C/panel.test.mjs` ("leaving the sheet with weeks not saved yet") |
+| A thermostat's sheet has one save bar for all its weeks, at the bottom of the window: it names the weeks not saved yet, in the order of the schedules; *Save* sends them in one call, each schedule's own week, against the thermostat's revision; a save refused because the weeks changed elsewhere says so and keeps the edits; *Cancel* puts every week back | `C/panel.test.mjs` ("one save bar for the whole sheet", "its Save sends", "its Save refused", "its Cancel") |
+| Copy a day in one schedule's week of a thermostat's sheet, then paste it in another schedule's week | `C/panel.test.mjs` ("a day copied in one schedule's week") |
+| A second copy replaces the first one, whatever week it comes from; only the day copied last stands out as copied | `C/panel.test.mjs` ("a second copy replaces the first one", "only the day copied last") |
+| Copy a week that has edits not saved yet: the target gets the week as shown, and the source keeps its own edits, still to save | `C/panel.test.mjs` ("a week with edits not saved yet") |
+| A week stacked on a thermostat's sheet has no foot (no legend, no copy menu, no empty message line), no tabs and no chips; the hint is shown once above the weeks | `C/panel.test.mjs` ("no foot under a stacked week") |
+| A schedule's sheet and the dashboard card keep the card's menu to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |
+| On a thermostat's sheet, today stands out only in the active schedule's week; a schedule's sheet still marks today | `C/panel.test.mjs` ("today stands out only", "keeps the card's list") |
+| The *Pause* button keeps its place when it turns into *Control*: the badge comes after it | `C/panel.test.mjs` ("Pause sends the pause") |
+| A thermostat's sheet says *Paused* in its header when it is; a paused thermostat's sheet says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
+| Ungrouping the days on a thermostat's sheet applies to every schedule, and is remembered in the browser with the cards' choice; the sheet's choice wins over the one remembered | `C/panel.test.mjs` ("ungrouping the days") |
+| A thermostat's sheet has the card's *History* switch, for all its weeks; grouping the days hides the history; a history turned on in a card does not stop the sheet from grouping the days | `C/panel.test.mjs` ("the history has its own switch") |
+| Outside the panel, the choice of grouping remembered in the browser wins over the card's option | `C/panel.test.mjs` ("outside the panel") |
+| A schedule's sheet shows every thermostat's week in that schedule, without tabs (the breadcrumb names it) and no "+"; the page's ⋮, next to the breadcrumb, renames or deletes the schedule, and does not move it | `C/panel.test.mjs` ("a schedule's sheet") |
+| A thermostat's sheet has its ⋮ next to the breadcrumb: open the thermostat, or forget it after a confirmation; the menu closes with a click elsewhere or Escape | `C/panel.test.mjs` ("its ⋮, next to the breadcrumb, opens the thermostat", "its ⋮ menu closes") |
+
+### Welcoming a new user
+
+| Use case | Test |
+|---|---|
+| The panel's tabs are *Thermostats*, *Schedules*, *Presets*; `/chauffage` opens *Thermostats* | `C/panel.test.mjs` ("lists and sheets", "its addresses") |
+| A new user, with no thermostat scheduled, is welcomed on the *Thermostats* page: what Chauffage does in a sentence, and every `climate` entity to tick, none ticked | `C/panel.test.mjs` ("welcoming a new user") |
+| The welcome schedules the thermostats ticked, all at once (*Schedule 2 thermostats*); the button waits for one ticked, and the welcome says the thermostats follow the week of a new schedule at once | `C/panel.test.mjs` ("welcoming a new user") |
+| With no `climate` entity at all, the welcome says so and links to Settings → Devices & services | `C/panel.test.mjs` ("welcoming a new user") |
+| Once the first thermostats are scheduled, the *Thermostats* page says what to do next, until the user closes it (remembered in the browser) | `C/panel.test.mjs` ("welcoming a new user") |
+| Before the first thermostat, the *Schedules* and *Presets* pages say so, with a link to the *Thermostats* tab | `C/panel.test.mjs` ("welcoming a new user") |
+
+### The more-info block and the thermostat card
+
+| Use case | Test |
+|---|---|
+| The more-info block and the thermostat card open the thermostat's sheet with "Open in *panel*", named as the panel is in the sidebar | `C/panel.test.mjs` ("its link says \"Open in\" the panel") |
+| From the more-info dialog, a link to the thermostat's sheet or to a device closes the dialog, then opens the page once the dialog has left the address | `C/panel.test.mjs` ("a page opens once the dialog is closed"), `C/more-info.test.mjs` ("Open in Chauffage opens the thermostat's page") |
+| The thermostat card of a thermostat Chauffage does not schedule says that an admin can schedule it in the panel's *Thermostats* page | `C/thermostat-card.test.mjs` |
+
 ## Not covered by automated tests
 
 - Exact placement of the menus and popovers on screen (needs a real browser layout): checked on
@@ -200,5 +296,11 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
   day's name beside its rows from 700 px, above them below; checked on the development HA at
   several window widths. The rules of the stylesheet are tested in `C/grouped-days.test.mjs`
   (the width of the card).
+- The layout of a thermostat's sheet in the panel (#57): the tile top right on a wide screen and
+  first on a phone, the presets fitting the width at 360 px without scrolling, the *Paused* badge
+  in the warning color: checked on the development HA.
+- The tile card at the top of a thermostat's sheet in the panel (#57): the panel loads
+  Home Assistant's card helpers through an internal of its frontend. Check it on the development
+  HA after each Home Assistant release.
 - Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the
   integration's): the second one does not register again (guarded), checked on the development HA.

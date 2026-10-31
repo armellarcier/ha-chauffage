@@ -47,6 +47,17 @@ describe('more-info block', () => {
     assert.doesNotMatch(text(el), /holiday/);
   });
 
+  test('the active schedule\'s name opens its page in the panel for an admin, and is plain text for others', () => {
+    const vacances = () => fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } });
+    const el = block(vacances(), 'climate.salon');
+    assert.equal(el.shadowRoot.querySelector('.title [data-more-info]'), null, 'not its switch');
+    el.shadowRoot.querySelector('.title [data-panel-page="schedules/holiday"]').click();
+    assert.equal(window.location.pathname, '/chauffage/schedules/holiday');
+    const hass = vacances();
+    hass.user = { is_admin: false };
+    assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.title [data-panel-page], .title [data-more-info]'), null);
+  });
+
   test('thermostat without a schedule: block hidden', () => {
     const el = block(fakeHass(), 'climate.bureau');
     assert.equal(el.style.display, 'none');
@@ -57,6 +68,20 @@ describe('more-info block', () => {
     assert.match(text(el), /21,5 °C/); // French decimal comma
     assert.match(text(el), /encore 1 h 30/);
     assert.equal(el.shadowRoot.querySelector('input.time[data-end]').value, '11:30');
+  });
+
+  test('a user who is not an admin sets, extends and ends an override too, as with the thermostat\'s knob', () => {
+    const hass = withTargets({});
+    hass.user = { is_admin: false };
+    const el = block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-new-override]').click();
+    el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
+    assert.equal(hass.events.at(-1).type, 'chauffage/override/set');
+    hass.push(integrationData({ overrides: { 'climate.salon': override } }));
+    el.shadowRoot.querySelector('button[data-min="30"]').click();
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+    el.shadowRoot.querySelector('[data-del]').click();
+    assert.deepEqual(hass.events.at(-1), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 
   test('+30 min extends the override', () => {
@@ -176,27 +201,23 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
   });
   const foot = (el) => el.shadowRoot.querySelector('.foot');
 
-  test('opens the thermostat\'s own entities: its control (the pause), its override, what it plans', () => {
+  test('holds Open in Chauffage and Pause only: the device\'s page lists the thermostat\'s entities', () => {
     const el = block(fakeHass(), 'climate.salon');
-    assert.match(foot(el).textContent.replace(/\s+/g, ' '), /Pilotage Dérogation Préréglage prévu/);
-    for (const id of ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']) {
-      foot(el).querySelector(`[data-more-info="${id}"]`).click();
-    }
-    assert.deepEqual(opened, ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']);
+    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent),
+      ['Ouvrir dans Chauffage', 'Mettre en pause']);
+    assert.equal(foot(el).querySelector('[data-more-info], [data-device]'), null);
   });
 
-  test('its device opens in its page, closing the dialog (admins)', () => {
+  test('Open in Chauffage opens the thermostat\'s page, closing the dialog', () => {
     const el = block(fakeHass(), 'climate.salon');
-    foot(el).querySelector('[data-device="salon-device"]').click();
+    foot(el).querySelector('[data-weeks="climate.salon"]').click();
     assert.deepEqual(opened, [null]); // the more-info dialog is closed
-    assert.equal(window.location.pathname, '/config/devices/device/salon-device');
+    assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
+  });
+
+  test('a user who is not an admin gets neither Open in Chauffage nor Pause (the panel is for admins)', () => {
     const hass = fakeHass();
     hass.user = { is_admin: false };
-    assert.equal(foot(block(hass, 'climate.salon')).querySelector('[data-device]'), null);
-  });
-
-  test('a thermostat without a device has no device link', () => {
-    const hass = fakeHass({ weeks: { 'climate.bureau': { Normal: Array(7).fill(['00:00 eco']) } } });
-    assert.equal(foot(block(hass, 'climate.bureau')).querySelector('[data-device]'), null);
+    assert.equal(foot(block(hass, 'climate.salon')), null);
   });
 });

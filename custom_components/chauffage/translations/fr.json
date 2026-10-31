@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Chauffage",
-        "description": "Plannings de chauffe hebdomadaires pour vos thermostats. Modifiez-les avec la carte Chauffage, changez de planning avec l'entité Planning actif."
+        "description": "Des plannings de chauffe pour la semaine de vos thermostats. Ensuite, ouvrez Chauffage dans la barre latérale pour choisir vos thermostats."
       },
       "import_package": {
         "title": "Import depuis le package",
@@ -19,14 +19,16 @@
     "step": {
       "init": {
         "title": "Options de Chauffage",
-        "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans la carte Chauffage (vue Préréglages).",
+        "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans le panneau Chauffage (onglet Préréglages).",
         "data": {
           "override_duration": "Durée des dérogations",
-          "use_presets": "Utiliser les préréglages des thermostats"
+          "use_presets": "Utiliser les préréglages des thermostats",
+          "show_in_sidebar": "Afficher Chauffage dans la barre latérale"
         },
         "data_description": {
           "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son planning.",
-          "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, entièrement réglée dans la carte."
+          "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
+          "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }
       }
     }
@@ -43,18 +45,11 @@
     },
     "switch": {
       "control": { "name": "Pilotage" },
-      "control_of": { "name": "Pilotage {thermostat}" },
       "schedule": { "name": "Planning {schedule}" }
     },
     "binary_sensor": {
       "override": {
         "name": "Dérogation",
-        "state_attributes": {
-          "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
-        }
-      },
-      "override_of": {
-        "name": "Dérogation {thermostat}",
         "state_attributes": {
           "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
         }
@@ -73,24 +68,8 @@
           "temperatures": { "name": "Températures des préréglages" }
         }
       },
-      "planned_preset_of": {
-        "name": "Préréglage prévu {thermostat}",
-        "state": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" },
-        "state_attributes": {
-          "preset_name": { "name": "Nom du préréglage" },
-          "target": { "name": "Consigne" },
-          "next_preset": { "name": "Préréglage suivant" },
-          "next_preset_name": { "name": "Nom du préréglage suivant" },
-          "next_start": { "name": "Début du créneau suivant" },
-          "temperatures": { "name": "Températures des préréglages" }
-        }
-      },
       "override_end": {
         "name": "Fin de dérogation",
-        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
-      },
-      "override_end_of": {
-        "name": "Fin de dérogation {thermostat}",
         "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
       }
     }
@@ -106,7 +85,7 @@
         "step": {
           "init": {
             "title": "{entity_id} a disparu",
-            "description": "Chauffage programme {entity_id}, mais cette entité n'existe plus dans Home Assistant. S'il a été renommé ou remplacé, ajoutez le nouveau thermostat dans une carte.",
+            "description": "Chauffage programme {entity_id}, mais cette entité n'existe plus dans Home Assistant. S'il a été renommé ou remplacé, programmez le nouveau thermostat dans le panneau Chauffage (onglet Thermostats).",
             "menu_options": { "forget": "L'oublier (supprimer ses semaines)", "keep": "Le garder (l'entité va revenir)" }
           }
         }
