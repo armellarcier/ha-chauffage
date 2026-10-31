@@ -171,10 +171,11 @@ describe('the panel\'s "Thermostats" page', () => {
     assert.equal(card.shadowRoot.querySelector('[data-device]'), null); // no settings pages
   });
 
-  test('the Chauffage device, with the switches of the schedules and the select, opens from it (admins)', () => {
+  test('the integration\'s page, with its options and diagnostics, opens from it (admins); not the Chauffage device', () => {
     const card = open(setup());
-    card.shadowRoot.querySelector('.th-foot [data-device="chauffage-device"]').click();
-    assert.equal(window.location.pathname, '/config/devices/device/chauffage-device');
+    assert.equal(card.shadowRoot.querySelector('.th-foot [data-device]'), null);
+    card.shadowRoot.querySelector('.th-foot [data-navigate]').click();
+    assert.equal(window.location.pathname, '/config/integrations/integration/chauffage');
   });
 
   test('an entity renamed in Home Assistant: the page follows at once', () => {

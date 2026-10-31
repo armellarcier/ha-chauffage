@@ -47,6 +47,17 @@ describe('more-info block', () => {
     assert.doesNotMatch(text(el), /holiday/);
   });
 
+  test('the active schedule\'s name opens its page in the panel for an admin, and is plain text for others', () => {
+    const vacances = () => fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } });
+    const el = block(vacances(), 'climate.salon');
+    assert.equal(el.shadowRoot.querySelector('.title [data-more-info]'), null, 'not its switch');
+    el.shadowRoot.querySelector('.title [data-panel-page="schedules/holiday"]').click();
+    assert.equal(window.location.pathname, '/chauffage/schedules/holiday');
+    const hass = vacances();
+    hass.user = { is_admin: false };
+    assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.title [data-panel-page], .title [data-more-info]'), null);
+  });
+
   test('thermostat without a schedule: block hidden', () => {
     const el = block(fakeHass(), 'climate.bureau');
     assert.equal(el.style.display, 'none');

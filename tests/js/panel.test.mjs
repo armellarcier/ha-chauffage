@@ -263,7 +263,7 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);
       assert.equal($(card, '.tabs'), null);
       assert.equal($(card, '[data-act="schedule-new"]'), null);
-      assert.equal($(card, '[data-panel-page]'), null); // in the panel, no links to the panel
+      assert.equal($(card, '[data-panel-page="presets"]'), null); // in the panel, no link to set the presets
     });
 
     test('its ⋮, next to the breadcrumb, renames or deletes the schedule; it does not move it', () => {

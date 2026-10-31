@@ -128,18 +128,12 @@ describe('activating a schedule', () => {
     assert.match(bar(card).textContent, /Activer « Absent »/);
   });
 
-  test('the active schedule\'s name opens the select of the active schedule (#39)', () => {
-    let received = null;
-    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
-    document.addEventListener('hass-more-info', intercept);
-    try {
-      const card = createCard(fakeHass({ schedule: 'Normal' }));
-      tab(card, 'away').click();
-      bar(card).querySelector('[data-more-info="select.chauffage_schedule"]').click();
-      assert.equal(received, 'select.chauffage_schedule');
-    } finally {
-      document.removeEventListener('hass-more-info', intercept);
-    }
+  test('the active schedule\'s name shows the active schedule\'s weeks, not an entity', () => {
+    const card = createCard(fakeHass({ schedule: 'Normal' }));
+    tab(card, 'away').click();
+    assert.equal(bar(card).querySelector('[data-more-info]'), null);
+    bar(card).querySelector('[data-show-schedule="normal"]').click();
+    assert.equal(card._schedule, 'normal');
   });
 
   test('the button activates the schedule in the integration', async () => {

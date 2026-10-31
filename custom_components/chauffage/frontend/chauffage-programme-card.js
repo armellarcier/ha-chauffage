@@ -60,7 +60,7 @@ const I18N = {
     resumeShort: 'Resume control',
     viewThermostats: 'Thermostats',
     device: 'Device',
-    chauffageDevice: 'Chauffage device: the switches of the schedules, the active schedule',
+    integrationPage: 'The Chauffage integration: its options and diagnostics',
     allThermostats: 'All thermostats',
     weeksTitle: 'Weeks',
     openInPanel: 'Open in {panel}',
@@ -277,7 +277,7 @@ const I18N = {
     resumeShort: 'Piloter',
     viewThermostats: 'Thermostats',
     device: 'Appareil',
-    chauffageDevice: 'Appareil Chauffage : interrupteurs des plannings, planning actif',
+    integrationPage: 'L’intégration Chauffage : ses options et ses diagnostics',
     allThermostats: 'Tous les thermostats',
     weeksTitle: 'Semaines',
     openInPanel: 'Ouvrir dans {panel}',
@@ -2903,9 +2903,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._toggleZoom(this._shown[0], Number(dayName.dataset.day));
         return;
       }
-      const tab = e.target.closest('.tab');
+      // A schedule's tab, or the active schedule's name in the bar: shows that schedule's weeks
+      const tab = e.target.closest('.tab, [data-show-schedule]');
       if (tab) {
-        this._schedule = tab.dataset.schedule;
+        this._schedule = tab.dataset.schedule || tab.dataset.showSchedule;
         this._schedEd = null;
         this._sel = null;
         this._overrideSel = null;
@@ -3000,9 +3001,10 @@ class ChauffageProgrammeCard extends HTMLElement {
   _scheduleBarHtml(active) {
     if (!this._schedule || this._schedule === active) return '';
     const t = this._loc.t;
-    // The active schedule's name opens the select that shows (and changes) it
-    const select = this._source().scheduleSelect();
-    const name = select ? entityLinkHtml(select, this._scheduleName(active)) : esc(this._scheduleName(active));
+    // The active schedule's name leads to it: its tab on a dashboard, its page in the panel
+    const name = !active ? '' : this._config.panel
+      ? `<span class="mi-link" role="link" tabindex="0" data-panel-page="schedules/${esc(active)}">${esc(this._scheduleName(active))}</span>`
+      : `<span class="mi-link" role="link" tabindex="0" data-show-schedule="${esc(active)}">${esc(this._scheduleName(active))}</span>`;
     const current = active ? t('activeScheduleBar', { schedule: name }) : esc(t('noActiveSchedule'));
     return `<div class="schedule-bar">
       <span>${current}</span>
@@ -3377,9 +3379,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     const add = editable && climates.length ? `<div class="th-add"><div class="th-add-title">${esc(t('addThermostat'))}</div>
         <div class="th-add-row"><select data-add-climate>${climates.map((c) => `<option value="${esc(c)}">${esc(this._name(c))}</option>`).join('')}</select>
         <button class="btn primary" data-act="thermostat-add">${esc(t('scheduleThermostat'))}</button></div></div>` : '';
-    const device = this._deviceLink(src.deviceId(), t('chauffageDevice'));
+    // The integration's page (admins): its options, its logs and its diagnostics
+    const integration = editable
+      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="/config/integrations/integration/chauffage">${esc(t('integrationPage'))}</span>` : '';
     return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div>${rows}${add}
-      ${device ? `<div class="th-foot">${device}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
+      ${integration ? `<div class="th-foot">${integration}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
   }
 
   // A thermostat's ⋮ menu on the Thermostats page, floating as every ⋮ menu of the card: Pause or
@@ -4403,13 +4407,16 @@ class ChauffageMoreInfo extends HTMLElement {
     this._send({ ...d, end: (endsAt < min ? min : endsAt).toISOString() });
   }
 
-  // The active schedule's name, opening its switch (#39), and the thermostat's week in it
+  // The active schedule's name, opening its page in the panel for an admin, and the thermostat's
+  // week in it
   _week() {
     const src = dataSource(this._hass);
     const schedule = src.activeSchedule();
     const name = schedule ? src.scheduleName(schedule) : '';
-    const entity = schedule && src.scheduleEntity(schedule);
-    return { schedule: entity ? entityLinkHtml(entity, name) : esc(name), week: activeWeek(src, this._entity) };
+    const admin = !(this._hass && this._hass.user && !this._hass.user.is_admin);
+    const link = schedule && admin
+      ? `<span class="mi-link" role="link" tabindex="0" data-panel-page="schedules/${esc(schedule)}">${esc(name)}</span>` : esc(name);
+    return { schedule: link, week: activeWeek(src, this._entity) };
   }
 
   _bar(segs, piece, showNow, big) {
@@ -4540,10 +4547,10 @@ class ChauffageMoreInfo extends HTMLElement {
       openMoreInfo(this, link.dataset.moreInfo);
       return;
     }
-    const device = e.target.closest('[data-device]');
-    if (device) {
-      // In the more-info dialog: closed first, the device page under it otherwise
-      leaveMoreInfo(this, () => openDevice(device.dataset.device));
+    const page = e.target.closest('[data-panel-page]');
+    if (page) {
+      // In the more-info dialog: closed first, the page under it otherwise
+      leaveMoreInfo(this, () => openPanel(page.dataset.panelPage));
       return;
     }
     const weeks = e.target.closest('[data-weeks]');

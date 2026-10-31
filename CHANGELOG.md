@@ -43,8 +43,10 @@ Each entry says whether the release **migrates stored data** and what to do when
   schedule's page.
 - **Each page of the panel has its ⋮ next to its title.** A schedule's page no longer shows a lone
   tab, which offered to move the schedule. A thermostat's page can now forget the thermostat.
-- **A schedule's ⋮ on the card opens its page in the panel**, instead of the history of its
-  switch.
+- **No link leads to an entity any more.** A schedule's ⋮ on the card opens its page in the
+  panel, instead of the history of its switch. The active schedule's name shows its weeks, or its
+  page for an administrator. The *Thermostats* tab ends with a link to the integration's page,
+  instead of the *Chauffage* device.
 - A dashboard card ignores the options that the panel sets for its own pages, for example
   `chips: false`. The README never documented them.
 

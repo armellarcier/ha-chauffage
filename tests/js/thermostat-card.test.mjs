@@ -80,11 +80,12 @@ describe('the thermostat card', () => {
     assert.equal(text($(card, '.tc-name')), 'Séjour');
   });
 
-  test('its name opens the thermostat, the schedule its switch (#39)', () => {
+  test('its name opens the thermostat, the active schedule\'s name its page in the panel (admins)', () => {
     const card = cardFor(setup());
     $(card, '.tc-name [data-more-info="climate.salon"]').click();
-    block(card).querySelector('[data-more-info="switch.chauffage_schedule_normal"]').click();
-    assert.deepEqual(opened, ['climate.salon', 'switch.chauffage_schedule_normal']);
+    assert.deepEqual(opened, ['climate.salon']);
+    block(card).querySelector('[data-panel-page="schedules/normal"]').click();
+    assert.equal(window.location.pathname, '/chauffage/schedules/normal');
   });
 
   test('its page in the panel opens from the foot of its block (admins)', () => {
