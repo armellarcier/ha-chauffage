@@ -12,9 +12,11 @@ version sur un vrai Home Assistant.
 - [Docker](https://docs.docker.com/get-docker/) pour le HA de développement. Sous Windows et
   macOS, utilisez Docker Desktop.
 
-La carte est un fichier JavaScript servi tel quel : il n'y a rien à compiler. Node et Python ne
-servent qu'aux tests automatisés. Si Node ou Python n'est pas installé, les tests tournent dans
-Docker.
+La carte est un fichier JavaScript servi tel quel : il n'y a rien à compiler. La seule
+bibliothèque de la carte, [Maskito](https://github.com/taiga-family/maskito), est copiée dans
+`custom_components/chauffage/frontend/vendor/` (voir [Mettre à jour Maskito](#mettre-à-jour-maskito)).
+Node et Python ne servent qu'aux tests automatisés. Si Node ou Python n'est pas installé, les
+tests tournent dans Docker.
 
 ## Le HA de développement
 
@@ -312,6 +314,17 @@ activent les versions bêta.
 
 Un changement des données stockées ou de l'installation passe d'abord par une bêta. Installez la
 bêta sur une vraie installation avant la version finale.
+
+## Mettre à jour Maskito
+
+Les champs d'heure de la carte utilisent le masque d'heure de Maskito. Pour changer de version de
+Maskito :
+
+1. Lancez `scripts/vendor-maskito.sh 5.7.0`, avec la nouvelle version. Le script télécharge le
+   cœur et le masque d'heure de Maskito dans `frontend/vendor/`, avec sa licence.
+2. Changez la version dans les deux lignes `import` en haut de la carte.
+3. Lancez `scripts/test.sh js`, puis essayez les champs d'heure dans le HA de développement, en
+   12 h et en 24 h.
 
 ## Traductions
 

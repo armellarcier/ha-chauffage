@@ -17,9 +17,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Changed
 
-- **A time field is now a list of times.** You pick a time in the list, and Chauffage applies
-  it at once. The list only offers the times you can choose, for example between the slot
-  before and the slot after.
+- **You type a time as digits.** For example, "1225" gives 12:25. On a 12 h clock, type "p"
+  for PM. Chauffage applies the time when you press Enter or leave the field.
+- **The small arrows of a time field** move the time by the step of the card, 15 minutes by
+  default. With the keyboard, ↑ and ↓ move the hours by an hour, and the minutes by the step.
+- **The end of an override can be any minute**, for example 12:07. It still ends at least
+  15 minutes from now.
 
 ## [0.7.0-beta.4] - 2026-10-28
 

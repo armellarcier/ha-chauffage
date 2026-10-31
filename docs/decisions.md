@@ -414,15 +414,26 @@ dashboards, automations, scripts and by voice without the card
   disabled buttons at the foot of a card several screens long (edits of Monday, Save after
   Sunday). A switch of schedule tab keeps the edits (they are saved together), and the bar
   stays.
-- **A time field is a list of times, not `<input type="time">`** (#63). A browser shows its
-  time input in the format of its own language, and a page cannot change it: an English
-  browser showed "8:30 AM" to a user whose profile says 24 hours. The list shows the times as
-  the rest of the card does. It also only offers the times on the step and within the limits,
-  for example between a slot's neighbors. A time off the step, set with another step, stays in
-  the list. A time picked with a mouse or a finger is sent at once. With the keyboard, a browser
-  changes the list at each arrow, so the end of an override chosen with the arrows waits for
-  Enter or for the focus to leave: otherwise the first arrow would send it and take the focus
-  away.
+- **A time field is a text field masked by Maskito, not `<input type="time">`** (#63). A
+  browser shows its time input in the format of its own language, and a page cannot change it:
+  an English browser showed "8:30 AM" to a user whose profile says 24 hours. A list of times
+  was tried first: it followed the profile, but it was slow to use, and it could not offer
+  every minute for the end of an override. HA's own `ha-time-input` is only loaded on the pages
+  that need it, and it is not a public API. So the card uses a text field, masked by
+  [Maskito](https://github.com/taiga-family/maskito): "1225" gives 12:25, and AM / PM on a 12 h
+  clock. Maskito is a tested, maintained library (Apache-2.0); its own masking code would have
+  been the hardest part to write and test here.
+  - **Maskito is copied in `frontend/vendor/`**, its core and its time mask only (22 kB), as
+    esm.sh builds them: the card has no build step. `scripts/vendor-maskito.sh` downloads them
+    again, with the license. Once the card is bundled (roadmap), Maskito becomes a dependency.
+  - **The time is applied on Enter or on leaving the field**, not at each key: the card is not
+    redrawn while a time is typed. Tab to the other time field applies the time once that
+    field has the focus, so that the redraw waits instead of replacing the field being typed in.
+  - **The small arrows and the arrow keys**, like those of `<input type="time">`. The small
+    arrows move the time by the step, and are out of the Tab order. The arrow keys move the
+    hours by an hour and the minutes by the step: Maskito's own step moved the hours by the step
+    too.
+  - **The end of an override is typed to the minute**: it needs no step, unlike the slots.
 
 ## Process
 
