@@ -9,6 +9,36 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-31
+
+**Identical days on one row, a calendar of schedules, what Chauffage does to the thermostats and
+why, and time fields in your profile's format.** This release gathers 0.7.0-beta.1 to
+0.7.0-beta.6, below. Nothing changed since 0.7.0-beta.6. **Migrates stored data**
+automatically (version 6, in 0.7.0-beta.2). Home Assistant 2025.1 or later.
+
+### Highlights
+
+- **Identical days share a row** in the cards, for example *Mon–Fri* (#11). Editing the row
+  edits each of its days.
+- **A calendar can pick the active schedule.** Name the events of a Home Assistant calendar
+  after your schedules, and add a rule that reads the calendar.
+- **The logbook says what Chauffage did to a thermostat, and why** (#49). The log and the
+  diagnostics say it too.
+- **Battery valves no longer create overrides by themselves.** A valve that applies a setpoint
+  late is no longer taken for a change made by hand.
+- **The time fields follow your profile's time format** (#63). You type a time the way you write
+  it, for example "1225" or "12h25".
+- **The card shows "Configuration error" after a restart?** Reload the page. The README
+  explains why, under *Troubleshooting* (#59).
+
+### Upgrading
+
+- From 0.6.x or a 0.7.0 beta: update from HACS, restart Home Assistant, then reload the browser
+  page.
+- Chauffage migrates the stored data at start. Your schedules, presets, overrides and rules are
+  kept.
+- To pick the schedule from a calendar, import the blueprint (README, *Activation rules*).
+
 ## [0.7.0-beta.6] - 2026-10-31
 
 Fixes to the time fields of 0.7.0-beta.5.
@@ -768,7 +798,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.6...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0
 [0.7.0-beta.6]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.6
 [0.7.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.5
 [0.7.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.4
