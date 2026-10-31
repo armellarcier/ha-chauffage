@@ -1,6 +1,6 @@
 {
   "name": "ha-chauffage",
-  "version": "0.8.0-alpha.4",
+  "version": "0.8.0-beta.1",
   "private": true,
   "license": "MIT",
   "type": "module",

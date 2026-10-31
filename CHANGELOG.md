@@ -9,6 +9,34 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.0-beta.1] - 2026-10-31
+
+The first beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57). This
+beta gathers 0.8.0-alpha.1 to 0.8.0-alpha.4, below. It also holds everything in 0.7.0, for
+example the time fields in your profile's format. **Does not migrate stored data.**
+
+### Highlights
+
+- **The Chauffage panel**, in the sidebar, for administrators. The panel holds the thermostats,
+  the schedules and their activation rules, and the presets. Each thermostat and each schedule
+  has a page of its own.
+- **A device per scheduled thermostat.** The device holds the thermostat's Chauffage entities.
+  Its *Visit* button opens the thermostat's page in the panel.
+- **The schedule card keeps only the weeks.** The *Presets*, *Rules* and *Thermostats* views
+  moved to the panel.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+Your schedules, weeks, presets and overrides stay as they are.
+
+- **The entities keep their ids**, so your dashboards and automations that use them keep working.
+- **An automation that targets the thermostat's device no longer finds Chauffage's entities.**
+  Target the scheduled thermostat's device, or the entities, instead.
+- **An entity of a thermostat without a device of its own is named after the new device**, for
+  example *Living room Control* instead of *Living room control*. Rename the entity in Home
+  Assistant if you prefer the former name.
+
 ## [0.8.0-alpha.4] - 2026-10-29
 
 A cleaner upgrade from 0.7: Chauffage keeps only its own devices (#57).
@@ -128,6 +156,7 @@ No stored data is migrated: your schedules, weeks, presets and overrides stay as
   presets, the rules and the thermostats.
 - Each scheduled thermostat now appears twice in the devices of its area: the thermostat's own
   device, and the scheduled thermostat's device.
+
 ## [0.7.0] - 2026-10-31
 
 **Identical days on one row, a calendar of schedules, what Chauffage does to the thermostats and
@@ -917,7 +946,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-alpha.4...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.8.0-beta.1...HEAD
+[0.8.0-beta.1]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-beta.1
 [0.8.0-alpha.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.4
 [0.8.0-alpha.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.3
 [0.8.0-alpha.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.8.0-alpha.2
