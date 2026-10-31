@@ -203,8 +203,7 @@ describe('editing a day', () => {
 
   test('moving a time cannot overlap the neighboring slot', () => {
     const card = createCard(fakeHass());
-    card._sel = { climate: 'climate.salon', day: 0, idx: 1 }; // 06:30 → 08:30 comfort
-    card._setEdge('start', '09:00');
+    card._setEdge('start', 9 * 60, { climate: 'climate.salon', day: 0, idx: 1 }); // 06:30 → 08:30 comfort
     assert.deepEqual(day(card, 'climate.salon', 0).slice(0, 3), ['00:00 eco', '08:15 comfort', '08:30 eco']);
   });
 

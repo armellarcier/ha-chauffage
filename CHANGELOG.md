@@ -9,6 +9,46 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **The time fields are narrower**, so the close button of a slot's popover stays on the same
+  row as the times. Each field is as wide as the times of your profile's format.
+- **On a 12 h clock, 12 typed without AM or PM is noon.** Before, "1230" typed in a morning
+  field gave 12:30 AM, just after midnight.
+- **↑ on AM or PM moves the end of an override 12 hours later.** Before, the end moved 12 hours
+  earlier.
+- **↑ and ↓ move the hours in every language.** Before, in a language that writes "08.30", for
+  example Finnish, the arrow keys always moved the minutes.
+
+## [0.7.0-beta.5] - 2026-10-31
+
+The time fields of the card follow the time format of your profile, and you type a time as
+digits.
+
+### Fixed
+
+- **The time fields follow the time format of your profile** (#63). Before, the fields of a
+  slot and of an override's end followed the language of your browser. An English browser
+  showed "8:30 AM" even if your profile says 24 hours.
+
+### Changed
+
+- **You type a time the way you write it.** For example, "1225", "12:25" and "12h25" all give
+  12:25, and "7" gives 7:00. On a 12 h clock, add "p" for PM, or type "19" for 7 PM. Without AM
+  or PM, the time keeps the period the field had. Chauffage applies the time when you press
+  Enter or leave the field, and shows it again in your format.
+- **The small arrows of a time field** move the time by the step of the card, 15 minutes by
+  default. With the keyboard, ↑ and ↓ move the hours by an hour, the minutes by the step, and
+  AM or PM by 12 hours.
+- **The end of an override can be any minute**, for example 12:07. It still ends at least
+  15 minutes from now. The arrows move the end by as much, so an end moved before now stays
+  15 minutes from now instead of jumping to tomorrow.
+
+### Upgrading
+
+Nothing to do: update from HACS (beta versions enabled), restart Home Assistant and reload the
+page. No stored data is migrated.
+
 ## [0.7.0-beta.4] - 2026-10-28
 
 More width for the bars of the weeks when the card is narrow, for example in a column of a
@@ -719,7 +759,8 @@ configuration folder and add the `configuration.yaml` lines given in the README.
 - From a pre-release installation: copy the new files and reload. The existing schedules are
   version 1, the current format: nothing is migrated.
 
-[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.4...HEAD
+[Unreleased]: https://github.com/armellarcier/ha-chauffage/compare/v0.7.0-beta.5...HEAD
+[0.7.0-beta.5]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.5
 [0.7.0-beta.4]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.4
 [0.7.0-beta.3]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.3
 [0.7.0-beta.2]: https://github.com/armellarcier/ha-chauffage/releases/tag/v0.7.0-beta.2
