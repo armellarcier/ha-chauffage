@@ -47,6 +47,66 @@ describe('dragging a slot boundary', () => {
   });
 });
 
+describe('scrolling the week with a finger (#67)', () => {
+  const finger = (el, type, clientX, clientY) => {
+    const e = new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX, clientY });
+    Object.defineProperty(e, 'pointerType', { value: 'touch' });
+    el.dispatchEvent(e);
+  };
+  const salonMonday = (card) => geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]'));
+
+  test('a vertical swipe that starts on a handle moves no time, even with a bit of sideways', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]'); // 06:30
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 396, 140); // 6 px sideways, 40 px down: a scroll
+    finger(handle, 'pointermove', 420, 300);
+    finger(handle, 'pointerup', 420, 300);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    assert.ok(!card._dirty);
+  });
+
+  test('a finger moving a handle sideways still moves its time', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 420, 104);
+    finger(handle, 'pointerup', 420, 104);
+    assert.equal(day(card, 'climate.salon', 0)[1], '07:00 comfort');
+  });
+
+  test('a few pixels sideways are not a move: a finger is not that steady', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 396, 100);
+    finger(handle, 'pointerup', 396, 100);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+  });
+
+  test('a scroll that the browser takes over (pointercancel) puts the time back', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    finger(handle, 'pointerdown', 390, 100);
+    finger(handle, 'pointermove', 420, 102);
+    finger(handle, 'pointercancel', 420, 102);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    assert.ok(!card._dirty);
+  });
+
+  test('a vertical swipe that starts on the selected slot does not move it', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
+    card._render();
+    const seg = salonMonday(card).querySelector('.seg[data-idx="1"]');
+    finger(seg, 'pointerdown', 450, 100);
+    finger(seg, 'pointermove', 456, 140);
+    finger(seg, 'pointermove', 480, 300);
+    finger(seg, 'pointerup', 480, 300);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+  });
+});
+
 describe('dragging a whole slot', () => {
   // Slot 1: 06:30 → 08:30 comfort, between 00:00 eco and 08:30 eco (until 17:30)
   const drag = (card, idx, fromMinutes, toMinutes, pointerType) => {

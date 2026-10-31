@@ -42,6 +42,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **Scrolling the card with a finger no longer moves a slot** (#67). A mostly vertical swipe
+  scrolls the page, even when it starts on a slot's boundary. Moving a time by touch needs a few
+  pixels sideways first.
 - **A *Chauffage* link no longer shows to a user who is not an administrator.** The panel is
   for administrators only, so the link led nowhere.
 - **With the history shown, a slot's popover says what the slot measured.** A phone shows no

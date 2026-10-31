@@ -1440,6 +1440,9 @@ function otherPreset(presets, id, next) {
 const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'chips', 'legend', 'copy_week', 'hint', 'today',
   'flat', 'paused_note', 'preset_definitions', 'history', 'savebar'];
 
+// How far a finger moves sideways before it moves a time or a slot (#67), in pixels
+const TOUCH_SLOP = 8;
+
 class ChauffageProgrammeCard extends HTMLElement {
   constructor() {
     super();
@@ -1903,6 +1906,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     const min = new Date(Date.now() + this._config.step * 60000);
     const f = endsAt < min ? min : endsAt;
     this._sendOverride(climate, { ...d, end: f.toISOString() });
+  }
+
+  // A drag abandoned (a scroll, #67): its slots go back to where they were, nothing to save
+  _cancelDrag() {
+    const d = this._drag;
+    if (!d) return;
+    this._drag = null;
+    const segs = this._week(d.climate)[d.day];
+    d.orig.forEach((start, i) => { if (segs[i]) segs[i].start = start; });
+    this._layoutBar(d.bar, segs);
+    d.bar.querySelectorAll('.handle.drag').forEach((el) => el.classList.remove('drag'));
   }
 
   async _save() {
@@ -2678,7 +2692,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         e.preventDefault();
         seg.setPointerCapture(e.pointerId);
         this._drag = {
-          move: true, climate, day, idx, bar, el: seg, x0: e.clientX, selected,
+          move: true, climate, day, idx, bar, el: seg, x0: e.clientX, y0: e.clientY, selected,
+          touch: e.pointerType === 'touch', orig: segs.map((s) => s.start),
           start: segs[idx].start, length: segs[idx + 1].start - segs[idx].start, moved: false,
         };
         return;
@@ -2689,7 +2704,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       h.setPointerCapture(e.pointerId);
       h.classList.add('drag');
       const bar = h.parentElement;
-      this._drag = { climate: bar.dataset.climate, day: Number(bar.dataset.day), idx: Number(h.dataset.idx), bar, el: h, moved: false };
+      const climate = bar.dataset.climate;
+      const day = Number(bar.dataset.day);
+      this._drag = {
+        climate, day, idx: Number(h.dataset.idx), bar, el: h, moved: false, x0: e.clientX, y0: e.clientY,
+        touch: e.pointerType === 'touch', orig: this._week(climate)[day].map((s) => s.start),
+      };
     });
 
     root.addEventListener('pointermove', (e) => {
@@ -2712,6 +2732,15 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
       const d = this._drag;
       if (!d) return;
+      // A finger (#67): a mostly vertical swipe is a scroll, and moves nothing; a move needs a few
+      // pixels sideways first, as a finger is not steady
+      if (d.touch && !d.started) {
+        const dx = Math.abs(e.clientX - d.x0);
+        const dy = Math.abs((e.clientY || 0) - (d.y0 || 0));
+        if (dy > dx && dy >= TOUCH_SLOP) { this._cancelDrag(); return; }
+        if (dx < TOUCH_SLOP) return;
+        d.started = true;
+      }
       const step = this._config.step;
       const segs = this._week(d.climate)[d.day];
       if (d.move) {
@@ -2768,7 +2797,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       else d.el.classList.remove('drag');
     };
     root.addEventListener('pointerup', endDrag);
-    root.addEventListener('pointercancel', endDrag);
+    // The browser took the gesture over (a scroll): the slots go back as they were (#67)
+    root.addEventListener('pointercancel', () => {
+      if (this._drag) this._cancelDrag();
+      else endDrag();
+    });
 
     // Right click (or long press on Android) on a row: opens the menu at the pointer
     root.addEventListener('contextmenu', (e) => {
@@ -4014,7 +4047,7 @@ const STYLE = `
   .seg.movable:active { cursor:grabbing; }
   .seg.movable.sel { touch-action:pan-y; } /* by touch, the selected slot slides sideways */
   .handle { position:absolute; top:-3px; bottom:-3px; width:18px; margin-left:-9px; z-index:2;
-    cursor:ew-resize; touch-action:none; }
+    cursor:ew-resize; touch-action:pan-y; } /* a vertical swipe scrolls the page (#67) */
   .handle::after { content:''; position:absolute; left:7px; top:3px; bottom:3px; width:4px; border-radius:2px;
     background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.4); }
   .tip { display:none; position:absolute; bottom:100%; left:50%; transform:translate(-50%,-2px); z-index:4;
