@@ -231,12 +231,12 @@ are proved by the same tests, on the panel's page.
 | An admin opens a schedule's sheet from its name or *Edit* | `C/panel.test.mjs` ("the Schedules page") |
 | An admin creates a schedule from the *Schedules* page, with the name field in the list | `C/panel.test.mjs` ("creates a schedule") |
 | The *Schedules* page shows the activation rules below the schedules | `C/panel.test.mjs` ("shows the activation rules"), `C/rules.test.mjs` |
-| The *Thermostats* page lists every scheduled thermostat by name, *Controlled* or *Paused*, with *Pause* or *Resume*; its name opens its sheet | `C/thermostats-view.test.mjs` |
+| The *Thermostats* page lists every scheduled thermostat by name; only a paused one has a badge, *Paused*; the whole row opens the thermostat's sheet | `C/thermostats-view.test.mjs` ("lists every scheduled thermostat", "the whole row opens") |
 | The *Thermostats* page shows where each thermostat is shown ("Shown in *dashboard* › *view*", a link), found in cards nested in stacks, sections or conditional cards; a generated dashboard shows none | `C/thermostats-view.test.mjs` ("says where the dashboards show each thermostat") |
 | An admin schedules another thermostat from the *Thermostats* page: it gets the week of a new schedule in every schedule | `C/thermostats-view.test.mjs` ("schedules another thermostat") |
 | An admin forgets a thermostat from the *Thermostats* page after confirming, whatever the cards show; cancelling keeps it | `C/thermostats-view.test.mjs` ("forgets any thermostat", "the confirmation can be cancelled") |
-| From the ⋮ menu of a thermostat's row, an admin opens the thermostat and its devices, each named by its name and model | `C/thermostats-view.test.mjs` ("the rarer actions wait behind ⋮") |
-| A thermostat's sheet shows the thermostat's tile, *Pause* or *Resume*, whether Chauffage controls it, where it is shown, and its devices by name and model | `C/panel.test.mjs` ("its header") |
+| The ⋮ of a thermostat's row opens a floating menu, as every ⋮ of the card, closed by ⋮ again, a click elsewhere or Escape: an admin pauses the thermostat or gives it back to Chauffage (*Control*), opens the thermostat and its devices, each named by its name and model, or forgets it | `C/thermostats-view.test.mjs` ("its ⋮ opens a floating menu", "its menu closes", "pauses a controlled thermostat") |
+| A thermostat's sheet shows the thermostat's tile, *Pause* or *Control*, *Paused* when it is, where it is shown, and its devices by name and model | `C/panel.test.mjs` ("its header") |
 | A thermostat's sheet shows its presets side by side as the legend of its weeks, one item per preset (its name, its value here, where it comes from), not a table of one row; the presets' definitions stay on the *Presets* tab | `C/panel.test.mjs` ("its presets first") |
 | A preset of a thermostat's sheet opens the editor of what it does on this thermostat | `C/panel.test.mjs` ("a preset of the list") |
 | A thermostat's sheet shows its week in every schedule, under *Weeks*, each headed by the schedule's name (a link to its sheet), the active one marked | `C/panel.test.mjs` ("its week in every schedule") |
@@ -247,8 +247,8 @@ are proved by the same tests, on the panel's page.
 | A week stacked on a thermostat's sheet has no foot (no legend, no copy list, no empty message line), no tabs and no chips; the hint is shown once above the weeks | `C/panel.test.mjs` ("no foot under a stacked week") |
 | A schedule's sheet and the dashboard card keep the card's list to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |
 | On a thermostat's sheet, today stands out only in the active schedule's week; a schedule's sheet still marks today | `C/panel.test.mjs` ("today stands out only", "keeps the card's list") |
-| The *Pause* button keeps its place when it turns into *Resume*: the badge comes after it | `C/panel.test.mjs` ("Pause sends the pause") |
-| A thermostat's sheet says *Controlled* or *Paused* in its header; a paused thermostat's sheet says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
+| The *Pause* button keeps its place when it turns into *Control*: the badge comes after it | `C/panel.test.mjs` ("Pause sends the pause") |
+| A thermostat's sheet says *Paused* in its header when it is; a paused thermostat's sheet says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
 | Ungrouping the days on a thermostat's sheet applies to every schedule, and is remembered in the browser with the cards' choice; the sheet's choice wins over the one remembered | `C/panel.test.mjs` ("ungrouping the days") |
 | A thermostat's sheet has the card's *History* switch, for all its weeks; grouping the days hides the history; a history turned on in a card does not stop the sheet from grouping the days | `C/panel.test.mjs` ("the history has its own switch") |
 | Outside the panel, the choice of grouping remembered in the browser wins over the card's option | `C/panel.test.mjs` ("outside the panel") |

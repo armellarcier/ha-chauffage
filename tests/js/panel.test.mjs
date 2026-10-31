@@ -270,7 +270,7 @@ describe('the Chauffage panel', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       await tick();
       assert.deepEqual($(el, '.tile .tile-card').config, { type: 'tile', entity: 'climate.salon', state_content: ['current_temperature', 'hvac_action'] });
-      assert.equal(text($(el, '.control')), 'Mettre en pause Piloté');
+      assert.equal(text($(el, '.control')), 'Mettre en pause'); // a badge only for the exception, Paused
       assert.match(text($(el, '.about')), /Appareils : Vanne salon \(TRV\), Salon \(Thermostat programmé\)/);
     });
 

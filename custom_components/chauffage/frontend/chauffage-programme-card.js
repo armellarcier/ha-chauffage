@@ -103,7 +103,6 @@ const I18N = {
     thermostatCardName: 'Scheduled thermostat',
     thermostatCardDescription: 'One thermostat scheduled by Chauffage: what it does now, why and until when, a temporary setpoint',
     thermostatsHint: 'Chauffage controls the scheduled thermostats. A paused thermostat stays scheduled: it keeps its weeks, but Chauffage does not control it.',
-    controlled: 'Controlled',
     pauseShort: 'Pause',
     forget: 'Forget…',
     forgetText: '{name} will no longer be scheduled. Its weeks and settings will be deleted.',
@@ -322,7 +321,6 @@ const I18N = {
     thermostatCardName: 'Thermostat programmé',
     thermostatCardDescription: 'Un thermostat programmé par Chauffage : ce qu’il fait, pourquoi et jusqu’à quand, une consigne temporaire',
     thermostatsHint: "Chauffage pilote les thermostats programmés. Un thermostat en pause reste programmé : il garde ses semaines, mais Chauffage ne le pilote pas.",
-    controlled: 'Piloté',
     pauseShort: 'Mettre en pause',
     forget: 'Oublier…',
     forgetText: '{name} ne sera plus programmé. Ses semaines et ses réglages seront supprimés.',
@@ -1209,11 +1207,16 @@ function deviceLinkHtml(hass, id, label) {
   return `<span class="mi-link" role="link" tabindex="0" data-device="${esc(id)}">${esc(label)}</span>`;
 }
 
-// A link to a device, named by the device itself: "Bureau (Thermostat programmé)" (admins)
-function deviceNamedLinkHtml(hass, id) {
+// A device named by itself: "Bureau (Thermostat programmé)"
+function deviceLabel(hass, id) {
   const d = id && hass && hass.devices && hass.devices[id];
   const name = d ? d.name_by_user || d.name || id : id;
-  return deviceLinkHtml(hass, id, d && d.model ? `${name} (${d.model})` : name);
+  return d && d.model ? `${name} (${d.model})` : name;
+}
+
+// A link to a device, named by the device itself (admins)
+function deviceNamedLinkHtml(hass, id) {
+  return deviceLinkHtml(hass, id, deviceLabel(hass, id));
 }
 
 // A thermostat's devices: its own, then the scheduled thermostat's (Chauffage), once each
@@ -1661,8 +1664,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell) return;
+      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell && !this._thMore) return;
       this._menu = null;
+      this._thMore = null;
+      this._forgetAsk = null;
       this._cell = null;
       this._schedEd = null;
       this._sel = null;
@@ -2763,6 +2768,13 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._render();
         return;
       }
+      // A thermostat's menu open (Thermostats page): a click elsewhere only closes it
+      if (this._thMore && !e.target.closest('.th-menu, [data-act="thermostat-more"]')) {
+        this._thMore = null;
+        this._forgetAsk = null;
+        this._render();
+        return;
+      }
       // Menu open: a click elsewhere only closes it
       if (this._menu && !e.target.closest('.menu, [data-act="menu"]')) {
         this._menu = null;
@@ -2777,6 +2789,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._overrideSel = null;
         this._menu = null;
         this._schedEd = null;
+        this._thMore = null;
         this._render();
         this._openMoreInfo(mi.dataset.moreInfo);
         return;
@@ -2786,6 +2799,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._sel = null;
         this._overrideSel = null;
         this._cell = null;
+        this._thMore = null;
         openDevice(device.dataset.device);
         return;
       }
@@ -3270,27 +3284,20 @@ class ChauffageProgrammeCard extends HTMLElement {
       const links = places.map((p) => `<span class="mi-link" role="link" tabindex="0" data-navigate="${esc(p.path)}">${esc(`${p.dashboard} › ${p.view}`)}</span>`);
       return `<div class="th-cards">${esc(t('inCards'))} ${links.join(', ')}</div>`;
     };
+    // A row opens the thermostat's sheet; only a paused thermostat has a badge, the exception. Its
+    // actions wait in its ⋮ menu (admins)
     const rows = scheduled.map((climate) => {
       const paused = src.paused(climate);
-      const open = this._thMore === climate;
-      const asking = this._forgetAsk === climate;
-      const btn = (act, label, cls = '') => `<button class="btn${cls}" data-act="${act}" data-climate="${esc(climate)}">${esc(t(label))}</button>`;
-      const actions = !editable ? '' : `${paused ? btn('resume', 'resumeShort', ' primary') : btn('pause', 'pauseShort')}
-        <button class="btn icon${open ? ' on' : ''}" data-act="thermostat-more" data-climate="${esc(climate)}" title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>`;
-      const more = !open ? '' : asking
-        ? `<div class="th-more"><span class="th-ask">${esc(t('forgetText', { name: this._name(climate) }))}</span>
-            ${btn('thermostat-forget-cancel', 'cancel')}${btn('thermostat-forget-confirm', 'forgetConfirm', ' danger')}</div>`
-        : `<div class="th-more">${[
-          `<span class="mi-link" role="link" tabindex="0" data-more-info="${esc(climate)}">${esc(t('openThermostat'))}</span>`,
-          ...thermostatDevices(this._hass, src, climate).map((id) => deviceNamedLinkHtml(this._hass, id)),
-        ].filter(Boolean).join('')}${btn('thermostat-forget', 'forget', ' danger')}</div>`;
+      const open = this._thMore && this._thMore.climate === climate;
+      const more = !editable ? ''
+        : `<button class="btn icon${open ? ' on' : ''}" data-act="thermostat-more" data-climate="${esc(climate)}" title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>`;
       return `<div class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}">
-        <div class="th-name">
-          <span class="th-title" role="link" tabindex="0" data-weeks="${esc(climate)}">${esc(this._name(climate))}</span>
-          <span class="th-badge${paused ? ' paused' : ''}">${esc(t(paused ? 'paused' : 'controlled'))}</span>
+        <div class="th-main" role="link" tabindex="0" data-weeks="${esc(climate)}">
+          <span class="th-title">${esc(this._name(climate))}</span>
+          ${paused ? `<span class="th-badge paused">${esc(t('paused'))}</span>` : ''}
           ${placesHtml(climate)}
         </div>
-        <div class="th-btns">${actions}</div>
+        <span class="th-chevron" aria-hidden="true">›</span>
         ${more}
       </div>`;
     }).join('');
@@ -3302,7 +3309,31 @@ class ChauffageProgrammeCard extends HTMLElement {
         <button class="btn primary" data-act="thermostat-add">${esc(t('scheduleThermostat'))}</button></div></div>` : '';
     const device = this._deviceLink(src.deviceId(), t('chauffageDevice'));
     return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div>${rows}${add}
-      ${device ? `<div class="th-foot">${device}</div>` : ''}</div>`;
+      ${device ? `<div class="th-foot">${device}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
+  }
+
+  // A thermostat's ⋮ menu on the Thermostats page, floating as every ⋮ menu of the card: Pause or
+  // Control, the thermostat and its devices, Forget (then its confirmation, in the menu)
+  _thermostatMenuHtml() {
+    const m = this._thMore;
+    if (!m || !this._source().scheduled().includes(m.climate)) return '';
+    const t = this._loc.t;
+    const src = this._source();
+    const ref = `data-climate="${esc(m.climate)}"`;
+    const item = (attrs, label, cls = 'mi') => `<button class="${cls}" ${attrs}><span>${label}</span></button>`;
+    const body = this._forgetAsk === m.climate
+      ? `<div class="mh">${esc(t('forgetText', { name: this._name(m.climate) }))}</div>
+        <div class="sched-btns"><button class="btn small danger" data-act="thermostat-forget-confirm" ${ref}>${esc(t('forgetConfirm'))}</button>
+        <button class="btn small" data-act="thermostat-forget-cancel" ${ref}>${esc(t('cancel'))}</button></div>`
+      : [
+        src.paused(m.climate) ? item(`data-act="resume" ${ref}`, esc(t('resumeShort'))) : item(`data-act="pause" ${ref}`, esc(t('pauseShort'))),
+        '<div class="sep"></div>',
+        item(`data-more-info="${esc(m.climate)}"`, esc(t('openThermostat'))),
+        ...thermostatDevices(this._hass, src, m.climate).map((id) => item(`data-device="${esc(id)}"`, esc(deviceLabel(this._hass, id)))),
+        '<div class="sep"></div>',
+        item(`data-act="thermostat-forget" ${ref}`, esc(t('forget')), 'mi danger'),
+      ].join('');
+    return `<div class="menu th-menu" style="top:${m.top}px;right:${m.right}px">${body}</div>`;
   }
 
   _forget(climate) {
@@ -3692,9 +3723,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._menu = null;
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
-    if (act === 'pause' || act === 'resume') return this._setPaused(ds.climate, act === 'pause');
+    if (act === 'pause' || act === 'resume') {
+      this._thMore = null;
+      return this._setPaused(ds.climate, act === 'pause');
+    }
     if (act === 'thermostat-more') {
-      this._thMore = this._thMore === ds.climate ? null : ds.climate;
+      // Under its button, as the row menu
+      const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
+      const b = el.getBoundingClientRect();
+      const m = this._thMore;
+      this._thMore = m && m.climate === ds.climate ? null
+        : { climate: ds.climate, top: b.bottom - card.top + 4, right: card.right - b.right };
       this._forgetAsk = null;
       return this._render();
     }
@@ -3702,7 +3741,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._forgetAsk = act === 'thermostat-forget' ? ds.climate : null;
       return this._render();
     }
-    if (act === 'thermostat-forget-confirm') return this._forget(ds.climate);
+    if (act === 'thermostat-forget-confirm') {
+      this._thMore = null;
+      return this._forget(ds.climate);
+    }
     if (act === 'thermostat-add') {
       // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
       const climate = this.shadowRoot.querySelector('[data-add-climate]').value;
@@ -3833,22 +3875,18 @@ const STYLE = `
   .paused-note span { flex:1 1 180px; }
   .bar.paused .seg { opacity:.45; }
   .th-hint { color:var(--secondary-text-color); font-size:.9em; margin-bottom:8px; }
-  .th-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:12px 0; border-top:1px solid var(--divider-color); }
-  .th-name { flex:1 1 160px; min-width:0; }
-  .th-title { font-size:1.05em; font-weight:500; cursor:pointer; color:var(--primary-text-color); }
-  .th-title:hover, .th-title:focus-visible { color:var(--primary-color); text-decoration:underline; }
+  /* A row is a link to the thermostat's sheet, as the rows of Home Assistant's settings */
+  .th-row { display:flex; align-items:center; gap:6px 10px; border-top:1px solid var(--divider-color); }
+  .th-main { flex:1 1 auto; min-width:0; padding:12px 0; cursor:pointer; }
+  .th-main:hover .th-title, .th-main:focus-visible .th-title { color:var(--primary-color); }
+  .th-title { font-size:1.05em; font-weight:500; color:var(--primary-text-color); }
+  .th-chevron { color:var(--secondary-text-color); font-size:1.4em; line-height:1; }
   .th-badge { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px; font-size:.75em; vertical-align:2px;
-    background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
-  .th-badge.paused { background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
+    background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
   .th-cards { margin-top:4px; font-size:.85em; color:var(--secondary-text-color); }
   .th-cards .mi-link { color:inherit; }
-  .th-btns { display:flex; flex-wrap:wrap; gap:6px; }
   .btn.icon { min-width:36px; padding:6px 8px; }
   .btn.icon.on { border-color:var(--primary-color); color:var(--primary-color); }
-  .th-more { flex-basis:100%; display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; padding:8px 10px;
-    border-radius:8px; background:var(--secondary-background-color); font-size:.9em; }
-  .th-more .btn.danger { margin-left:auto; }
-  .th-ask { flex:1 1 100%; color:var(--secondary-text-color); }
   .chip-sep { width:1px; align-self:stretch; margin:2px 2px; background:var(--divider-color); }
   .chip.tool { border-style:dashed; color:var(--secondary-text-color); background:transparent; }
   .chip.tool.on { border-style:solid; border-color:var(--primary-color); color:var(--primary-color); }
@@ -5322,7 +5360,7 @@ class ChauffagePanel extends HTMLElement {
       </div>
       <div class="control">
         <button class="btn${paused ? ' primary' : ''}" data-pause="${paused ? '0' : '1'}">${esc(t(paused ? 'resumeShort' : 'pauseShort'))}</button>
-        <span class="badge ${paused ? 'paused' : 'on'}">${esc(t(paused ? 'paused' : 'controlled'))}</span>
+        ${paused ? `<span class="badge paused">${esc(t('paused'))}</span>` : ''}
       </div>`;
   }
 

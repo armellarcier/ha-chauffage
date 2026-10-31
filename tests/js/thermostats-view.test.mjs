@@ -53,64 +53,81 @@ function open(hass) {
 }
 const row = (card, climate) => card.shadowRoot.querySelector(`.th-row[data-climate="${climate}"]`);
 const click = (card, climate, act) => row(card, climate).querySelector(`[data-act="${act}"]`).click();
+const menuOf = (card) => card.shadowRoot.querySelector('.th-menu');
 
 describe('the panel\'s "Thermostats" page', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  test('lists every scheduled thermostat by name, controlled or paused', () => {
+  test('lists every scheduled thermostat by name; only a paused one has a badge, the exception', () => {
     const card = open(setup());
     const rows = [...card.shadowRoot.querySelectorAll('.th-row')].map((r) => r.dataset.climate);
     assert.deepEqual(rows, ['climate.bureau', 'climate.cuisine', 'climate.salon']);
-    assert.match(text(row(card, 'climate.salon').querySelector('.th-badge')), /^Piloté$/);
+    assert.equal(row(card, 'climate.salon').querySelector('.th-badge'), null);
     assert.match(text(row(card, 'climate.cuisine').querySelector('.th-badge')), /^En pause$/);
   });
 
-  test('a thermostat\'s name opens its sheet in the panel', () => {
+  test('the whole row opens the thermostat\'s sheet in the panel, not only its name', () => {
     const card = open(setup());
-    row(card, 'climate.salon').querySelector('.th-title').click();
+    row(card, 'climate.salon').querySelector('.th-main').click();
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
   });
 
-  test('pauses a controlled thermostat and resumes a paused one', () => {
-    const hass = setup();
-    const card = open(hass);
-    click(card, 'climate.bureau', 'pause');
-    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
-    click(card, 'climate.cuisine', 'resume');
-    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.cuisine', paused: false });
-  });
-
-  test('the rarer actions wait behind ⋮: open the thermostat, its devices by their names, forget it', () => {
+  test('its ⋮ opens a floating menu, as every ⋮ of the card: pause, open the thermostat, its devices by their names, forget it', () => {
     const opened = [];
     const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
     document.addEventListener('hass-more-info', intercept);
     try {
       const card = open(setup());
-      assert.equal(row(card, 'climate.salon').querySelector('.th-more'), null);
+      assert.equal(menuOf(card), null);
+      assert.equal(row(card, 'climate.salon').querySelector('[data-act="pause"]'), null); // not on the row
       click(card, 'climate.salon', 'thermostat-more');
-      const more = row(card, 'climate.salon').querySelector('.th-more');
-      assert.match(text(more), /Ouvrir le thermostat.*Vanne salon \(TRV\).*Salon \(Thermostat programmé\).*Oublier/);
-      assert.doesNotMatch(text(more), /Son appareil|Appareil du thermostat/);
-      more.querySelector('[data-more-info="climate.salon"]').click();
+      assert.ok(menuOf(card).classList.contains('menu'));
+      assert.match(text(menuOf(card)), /Mettre en pause.*Ouvrir le thermostat.*Vanne salon \(TRV\).*Salon \(Thermostat programmé\).*Oublier/);
+      menuOf(card).querySelector('[data-more-info="climate.salon"]').click();
       assert.deepEqual(opened, ['climate.salon']);
-      row(card, 'climate.salon').querySelector('[data-device="salon-scheduled"]').click();
+      click(card, 'climate.salon', 'thermostat-more');
+      menuOf(card).querySelector('[data-device="salon-scheduled"]').click();
       assert.equal(window.location.pathname, '/config/devices/device/salon-scheduled');
-      click(card, 'climate.salon', 'thermostat-more'); // ⋮ again closes it
-      assert.equal(row(card, 'climate.salon').querySelector('.th-more'), null);
     } finally {
       document.removeEventListener('hass-more-info', intercept);
     }
+  });
+
+  test('its menu closes with ⋮ again, a click elsewhere or Escape', () => {
+    const card = open(setup());
+    click(card, 'climate.salon', 'thermostat-more');
+    click(card, 'climate.salon', 'thermostat-more');
+    assert.equal(menuOf(card), null);
+    click(card, 'climate.salon', 'thermostat-more');
+    card.shadowRoot.querySelector('.th-hint').click();
+    assert.equal(menuOf(card), null);
+    click(card, 'climate.salon', 'thermostat-more');
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal(menuOf(card), null);
+  });
+
+  test('pauses a controlled thermostat and gives a paused one back to Chauffage, from its menu', () => {
+    const hass = setup();
+    const card = open(hass);
+    click(card, 'climate.bureau', 'thermostat-more');
+    menuOf(card).querySelector('[data-act="pause"]').click();
+    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
+    assert.equal(menuOf(card), null);
+    click(card, 'climate.cuisine', 'thermostat-more');
+    assert.equal(text(menuOf(card).querySelector('[data-act="resume"]')), 'Piloter');
+    menuOf(card).querySelector('[data-act="resume"]').click();
+    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.cuisine', paused: false });
   });
 
   test('forgets any thermostat after a confirmation, even one a card shows: the page is not a card', () => {
     const hass = setup();
     const card = open(hass);
     click(card, 'climate.salon', 'thermostat-more');
-    click(card, 'climate.salon', 'thermostat-forget');
+    menuOf(card).querySelector('[data-act="thermostat-forget"]').click();
     assert.equal(hass.events.filter((m) => m.type === 'chauffage/thermostat/forget').length, 0);
-    assert.match(text(row(card, 'climate.salon')), /Ses semaines et ses réglages seront supprimés/);
-    click(card, 'climate.salon', 'thermostat-forget-confirm');
+    assert.match(text(menuOf(card)), /Ses semaines et ses réglages seront supprimés/);
+    menuOf(card).querySelector('[data-act="thermostat-forget-confirm"]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/forget', entity_id: 'climate.salon' });
   });
 
@@ -118,9 +135,9 @@ describe('the panel\'s "Thermostats" page', () => {
     const hass = setup();
     const card = open(hass);
     click(card, 'climate.cuisine', 'thermostat-more');
-    click(card, 'climate.cuisine', 'thermostat-forget');
-    click(card, 'climate.cuisine', 'thermostat-forget-cancel');
-    assert.equal(row(card, 'climate.cuisine').querySelector('[data-act="thermostat-forget-confirm"]'), null);
+    menuOf(card).querySelector('[data-act="thermostat-forget"]').click();
+    menuOf(card).querySelector('[data-act="thermostat-forget-cancel"]').click();
+    assert.equal(card.shadowRoot.querySelector('[data-act="thermostat-forget-confirm"]'), null);
     assert.equal(hass.events.filter((m) => m.type === 'chauffage/thermostat/forget').length, 0);
   });
 
@@ -168,13 +185,13 @@ describe('the panel\'s "Thermostats" page', () => {
     hass.entities['switch.salon_pilotage'] = { entity_id: 'switch.salon_pilotage', device_id: 'salon-scheduled' };
     hass.push(data); // the integration tells the cards (ENTITIES), nothing else changed
     click(card, 'climate.salon', 'thermostat-more');
-    assert.ok(row(card, 'climate.salon').querySelector('[data-device="salon-scheduled"]'));
+    assert.ok(menuOf(card).querySelector('[data-device="salon-scheduled"]'));
   });
 
   test('in English', () => {
     const card = open(setup({ locale: { language: 'en' } }));
     assert.match(text(row(card, 'climate.cuisine')), /Cuisine Paused/);
-    assert.match(text(row(card, 'climate.salon')), /Salon Controlled/);
+    assert.equal(text(row(card, 'climate.salon').querySelector('.th-title')), 'Salon');
     assert.match(text(card.shadowRoot.querySelector('.th-add')), /Schedule another thermostat/);
   });
 });
