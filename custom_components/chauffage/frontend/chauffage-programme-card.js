@@ -3521,8 +3521,8 @@ const LINK_STYLE = `
 // A time field and its small arrows (the card's popovers, the more-info block). Each arrow takes
 // a finger a few pixels beyond its edge, away from the other arrow.
 const TIME_FIELD_STYLE = `
-  input.time { width:6.5ch; font-variant-numeric:tabular-nums; }
-  input.time.h12 { width:9.5ch; }
+  input.time { width:5.5ch; font-variant-numeric:tabular-nums; }
+  input.time.h12 { width:8ch; }
   .time-field { display:inline-flex; align-items:stretch; vertical-align:middle; }
   .time-field input.time { border-radius:6px 0 0 6px; }
   .time-spin { display:flex; flex-direction:column; }
@@ -3711,7 +3711,7 @@ const STYLE = `
   .mi small { display:block; font-size:.8em; color:var(--secondary-text-color); }
   .sep { height:1px; margin:5px 0; background:var(--divider-color); }
   .hint { margin-top:10px; font-size:.8em; color:var(--secondary-text-color); }
-  .editor { position:absolute; z-index:9; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(460px, calc(100% - 16px));
+  .editor { position:absolute; z-index:9; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
     padding:10px 12px; border-radius:10px; background:var(--card-background-color);
     border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25);
     display:flex; flex-direction:column; gap:10px; }
