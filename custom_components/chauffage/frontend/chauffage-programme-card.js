@@ -845,12 +845,16 @@ const endOfField = (el, minutes) => (Number(el.dataset.moved)
 // The end of an override moved by `min` minutes (its arrows, its +30 min button)
 const endMovedBy = (end, min) => new Date(parseDate(end).getTime() + min * 60000);
 
+// Why VTherm is off: in specific_states on recent versions (10.5), a top-level attribute on older ones
+const offReason = (st) => (st.attributes.specific_states || {}).hvac_off_reason || st.attributes.hvac_off_reason;
+
 // An override on a thermostat turned off: Chauffage sends it nothing until it is on again, then
 // applies the override if it still runs. A warning, with no button: turning the thermostat on is
-// someone's choice
+// someone's choice. Not on a VTherm stopped by its auto start/stop: Chauffage sends it the override
+// at once (#74)
 function offNoteHtml(hass, climate, loc) {
   const st = hass.states[climate];
-  if (!st || st.state !== 'off') return '';
+  if (!st || st.state !== 'off' || offReason(st) === 'hvac_off_auto_start_stop') return '';
   const name = st.attributes.friendly_name || climate;
   return `<div class="off-note" role="status">${esc(loc.t('overrideOff', { name }))}</div>`;
 }

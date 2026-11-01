@@ -9,6 +9,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **A Versatile Thermostat turned off by its auto start/stop gets its slots again** (#74). Before,
+  Chauffage left it alone like a thermostat turned off by hand. The thermostat then missed the
+  next comfort slot and never started again. A thermostat turned off by hand is still left alone.
+
 ## [0.8.0-beta.2] - 2026-11-01
 
 The second beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57),
