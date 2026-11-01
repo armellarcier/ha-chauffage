@@ -173,12 +173,12 @@ const I18N = {
     presetFor: '{preset} · {name}',
     ownPreset: 'Thermostat preset',
     presetTemperature: 'Temperature',
-    presetAuto: 'Automatic ({value})',
-    presetAutoShort: 'Auto ({value})',
+    presetAuto: 'Default ({value})',
+    presetAutoShort: 'Default ({value})',
     apply: 'OK',
     viewSchedule: 'Schedule',
     viewPresets: 'Presets',
-    defaultHelp: 'Used by thermostats set to automatic that have no preset of their own named like this one.',
+    defaultHelp: 'The default temperature: for the thermostats that have no preset of their own for this one.',
     presetsIntro: 'A preset is an intent (Comfort, Eco…): each thermostat turns it into one of its own presets, or a temperature. Choose a preset or a cell to change it.',
     presetsUnknown: '? : the temperature of a thermostat’s own preset is known once it has been used.',
     defaultTemperature: '{value}° by default',
@@ -394,12 +394,12 @@ const I18N = {
     presetFor: '{preset} · {name}',
     ownPreset: 'Préréglage du thermostat',
     presetTemperature: 'Température',
-    presetAuto: 'Automatique ({value})',
-    presetAutoShort: 'Auto ({value})',
+    presetAuto: 'Par défaut ({value})',
+    presetAutoShort: 'Par défaut ({value})',
     apply: 'OK',
     viewSchedule: 'Planning',
     viewPresets: 'Préréglages',
-    defaultHelp: 'Utilisée par les thermostats en automatique qui n\'ont pas de préréglage du même nom.',
+    defaultHelp: 'La température par défaut : pour les thermostats qui n\'ont pas de préréglage à eux pour celui-ci.',
     presetsIntro: 'Un préréglage est une intention (Confort, Éco…) : chaque thermostat la traduit en un de ses propres préréglages, ou en une température. Choisissez un préréglage ou une case pour le modifier.',
     presetsUnknown: '? : la température d’un préréglage du thermostat est connue une fois qu’il a servi.',
     defaultTemperature: '{value}° par défaut',
@@ -3654,12 +3654,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       title = t('presetFor', { preset: preset.name, name: this._name(sel.climate) });
       const explicit = src.mapping(sel.climate)[preset.id];
       const st = this._hass.states[sel.climate];
-      // The thermostat's presets, the one named like this preset (what "automatic" uses) first
+      // The thermostat's presets, the one named like this preset (what "default" uses) first
       const own = ((st && st.attributes.preset_modes) || []).map(String)
         .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()))
         .sort((a, b) => (b === preset.id) - (a === preset.id));
-      // What "automatic" gives: the thermostat's own preset of the same name, then it is the first
-      // choice of the thermostat's presets (not the same as picking that preset: automatic follows
+      // What "default" gives: the thermostat's own preset of the same name, then it is the first
+      // choice of the thermostat's presets (not the same as picking that preset: default follows
       // the "use the thermostats' presets" option and the presets the thermostat has); otherwise
       // the preset's default temperature, a choice of its own
       const autoPreset = src.usePresets() && own.includes(preset.id);

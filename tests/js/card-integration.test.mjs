@@ -341,7 +341,7 @@ describe('the "Presets" view', () => {
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]'), null, 'no separate "automatic"');
     assert.ok(card.shadowRoot.querySelector('input[name="cell-kind"][value="preset"]').checked);
-    assert.deepEqual(presetOptions(card), [':Auto (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
+    assert.deepEqual(presetOptions(card), [':Par défaut (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
 
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'comfort'; // pinned, unlike automatic
     await card._action('cell-apply', {});
@@ -364,7 +364,7 @@ describe('the "Presets" view', () => {
   test('automatic stays a choice of its own when it gives a temperature', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
-    assert.match(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').parentElement.textContent, /Automatique \(7 °C\)/);
+    assert.match(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').parentElement.textContent, /Par défaut \(7 °C\)/);
     assert.deepEqual(presetOptions(card).map((o) => o.split(':')[0]), ['eco', 'comfort', 'away', 'boost']); // its own order
   });
 

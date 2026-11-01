@@ -48,6 +48,8 @@ Each entry says whether the release **migrates stored data** and what to do when
   the durations, then *Resume the schedule*.
 - **One word for each thing**: an *override*, not a "temporary setpoint". In French, a
   *créneau*, not a "plage".
+- **A preset nobody set for a thermostat is its *default***, everywhere: the editor said
+  "Automatic", "Auto" or "default". "Auto" is also Home Assistant's HVAC mode.
 - **The integration's texts say the same thing in the same words.** The `clear_override`
   service is now *End an override*. The logbook says "override ended (from the card)". The
   override duration option says it applies to every override. An error on a paused thermostat
