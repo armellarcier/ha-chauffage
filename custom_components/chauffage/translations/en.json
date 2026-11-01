@@ -26,7 +26,7 @@
           "show_in_sidebar": "Show Chauffage in the sidebar"
         },
         "data_description": {
-          "override_duration": "How long a manual change lasts before the thermostat resumes its schedule.",
+          "override_duration": "How long an override lasts, for example after a manual change, before the thermostat goes back to its schedule.",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
@@ -100,9 +100,9 @@
   "services": {
     "set_override": {
       "name": "Set an override",
-      "description": "Sets a scheduled thermostat's temperature or preset for a while, then it resumes its schedule (like a manual change).",
+      "description": "Sets a scheduled thermostat's temperature or preset for a while, then it resumes its schedule.",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." },
+        "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." },
         "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
         "preset": { "name": "Preset", "description": "A Chauffage preset, set to what it means on this thermostat (or one of the thermostat's own presets); or give a temperature." },
         "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
@@ -110,10 +110,10 @@
       }
     },
     "clear_override": {
-      "name": "Clear an override",
+      "name": "End an override",
       "description": "Ends a thermostat's override now: it resumes its schedule.",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." }
+        "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." }
       }
     },
     "activate_schedule": {
@@ -138,8 +138,8 @@
   },
   "exceptions": {
     "not_loaded": { "message": "The Chauffage integration is not set up." },
-    "not_scheduled": { "message": "{entity_id} has no schedule." },
-    "paused": { "message": "{entity_id} is paused: resume it to set an override." },
+    "not_scheduled": { "message": "Chauffage does not control {entity_id}." },
+    "paused": { "message": "{entity_id} is paused: click Resume control first." },
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
     "unknown_schedule": { "message": "There is no schedule with the id {schedule}." },
     "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." }

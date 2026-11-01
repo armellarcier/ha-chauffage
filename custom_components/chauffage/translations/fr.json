@@ -26,7 +26,7 @@
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale"
         },
         "data_description": {
-          "override_duration": "Combien de temps dure un changement manuel avant que le thermostat reprenne son planning.",
+          "override_duration": "Combien de temps dure une dérogation, par exemple après un changement manuel, avant que le thermostat revienne à son planning.",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
           "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }
@@ -100,9 +100,9 @@
   "services": {
     "set_override": {
       "name": "Créer une dérogation",
-      "description": "Règle la température ou le préréglage d'un thermostat programmé pour un temps donné, puis il reprend son planning (comme un changement manuel).",
+      "description": "Règle la température ou le préréglage d'un thermostat programmé pour un temps donné, puis il reprend son planning.",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un planning." },
+        "entity_id": { "name": "Thermostat", "description": "Un thermostat programmé par Chauffage." },
         "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un préréglage)." },
         "preset": { "name": "Préréglage", "description": "Un préréglage de Chauffage, réglé sur ce qu'il signifie pour ce thermostat (ou un préréglage du thermostat lui-même) ; ou indiquer une température." },
         "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },
@@ -113,7 +113,7 @@
       "name": "Terminer une dérogation",
       "description": "Termine la dérogation d'un thermostat : il reprend son planning.",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "Un thermostat qui a un planning." }
+        "entity_id": { "name": "Thermostat", "description": "Un thermostat programmé par Chauffage." }
       }
     },
     "activate_schedule": {
@@ -138,8 +138,8 @@
   },
   "exceptions": {
     "not_loaded": { "message": "L'intégration Chauffage n'est pas configurée." },
-    "not_scheduled": { "message": "{entity_id} n'a pas de planning." },
-    "paused": { "message": "{entity_id} est en pause : reprenez-le pour créer une dérogation." },
+    "not_scheduled": { "message": "Chauffage ne pilote pas {entity_id}." },
+    "paused": { "message": "{entity_id} est en pause : cliquez d'abord sur Piloter." },
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
     "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." },
     "active_schedule_off": { "message": "{schedule} est le planning actif : allumez un autre planning pour en changer." }

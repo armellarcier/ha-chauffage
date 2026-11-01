@@ -37,6 +37,10 @@ Each entry says whether the release **migrates stored data** and what to do when
   the durations, then *Resume the schedule*.
 - **One word for each thing**: an *override*, not a "temporary setpoint". In French, a
   *créneau*, not a "plage".
+- **The integration's texts say the same thing in the same words.** The `clear_override`
+  service is now *End an override*. The logbook says "override ended (from the card)". The
+  override duration option says it applies to every override. An error on a paused thermostat
+  says to click *Resume control*.
 - **The panel's welcome says what Chauffage does in one sentence.**
 - **The panel's *Schedules* tab lists the schedules as the *Thermostats* tab lists the
   thermostats.** A row opens the schedule's page, and its ⋮ activates, renames, moves or deletes it.
@@ -65,6 +69,7 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **On a phone, the *+* of the schedule tabs stays on the card**, the active schedule keeps its
   dot, and the hours of the time axis stay on one line.
 - **A thermostat's page no longer moves while it loads**, so a tap lands where you aimed.
+- **A schedule's page has room again under its first line of buttons.**
 - **On the panel's *Thermostats* and *Schedules* tabs, the whole row opens the page**, its
   chevron included. The lists now look like the list of the integration's page, and the link at
   the foot of the thermostats is shorter: *Integration page*.

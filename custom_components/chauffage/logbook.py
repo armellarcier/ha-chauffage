@@ -25,7 +25,7 @@ TEXTS = {
         },
         "reasons": {
             "expired": "expired", "thermostat": "back to the schedule on the thermostat",
-            "card": "removed from the card", "service": "removed by a service",
+            "card": "from the card", "service": "by a service",
             "paused": "thermostat paused", "forgotten": "thermostat forgotten",
         },
     },
@@ -39,7 +39,7 @@ TEXTS = {
         },
         "reasons": {
             "expired": "expirée", "thermostat": "retour au planning sur le thermostat",
-            "card": "retirée depuis la carte", "service": "retirée par un service",
+            "card": "depuis la carte", "service": "par un service",
             "paused": "thermostat en pause", "forgotten": "thermostat oublié",
         },
     },

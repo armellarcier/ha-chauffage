@@ -217,7 +217,7 @@ async def test_the_logbook_speaks_the_language_of_home_assistant(bench: Bench):
     bench.hass.config.language = "fr"
     await start(bench)
     assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="card")["message"] \
-        == "dérogation terminée (retirée depuis la carte)"
+        == "dérogation terminée (depuis la carte)"
 
 
 def test_every_source_and_reason_in_the_code_has_a_logbook_text_in_every_language():
