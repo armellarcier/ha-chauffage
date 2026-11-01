@@ -76,12 +76,10 @@ def async_describe_events(
         return str(data.get("value"))
 
     def until(end: Any) -> str:
-        """The end's time, with its day when the override does not end today."""
+        """The end's day and time: the same line whatever the day it is read."""
         if not end:
             return "?"
         local = dt_util.as_local(end)
-        if local.date() == dt_util.now().date():
-            return local.strftime("%H:%M")
         return f"{texts()['days'][local.weekday()]} {local.strftime('%H:%M')}"
 
     @callback

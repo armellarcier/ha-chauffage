@@ -167,10 +167,10 @@ async def test_the_logbook_tells_an_override_with_where_it_came_from_and_why_it_
     bench.hass.states.async_set("climate.salon", "heat", {"friendly_name": "Salon"})
     assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="preset",
                      value="boost", preset="boost", end="2026-10-12T12:00:00+02:00", source="service") == {
-        "name": "Salon", "message": "override started: Boost until 12:00 (by a service)", "entity_id": "climate.salon"}
+        "name": "Salon", "message": "override started: Boost until Monday 12:00 (by a service)", "entity_id": "climate.salon"}
     assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
                      value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="thermostat")["message"] \
-        == "override started: 21.5 °C until 12:00 (changed by hand)"
+        == "override started: 21.5 °C until Monday 12:00 (changed by hand)"
     assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="expired")["message"] \
         == "override ended (expired)"
 
@@ -218,14 +218,18 @@ async def test_the_logbook_speaks_the_language_of_home_assistant(bench: Bench):
     await start(bench)
     assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="card")["message"] \
         == "dérogation terminée (depuis la carte)"
-    # Numbers as the language writes them, and the day when the override does not end today
+    # Numbers as the language writes them, and the day of the end: the same line read on any day
     await bench.go_to("10:00")
     assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
                      value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
-        == "dérogation : 21,5 °C jusqu'à 12:00 (depuis la carte)"
+        == "dérogation : 21,5 °C jusqu'à lundi 12:00 (depuis la carte)"
     assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
                      value=21.0, preset=None, end="2026-10-13T06:00:00+02:00", source="card")["message"] \
         == "dérogation : 21 °C jusqu'à mardi 06:00 (depuis la carte)"
+    await bench.go_to("10:00", day=1)  # read the next day
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
+                     value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
+        == "dérogation : 21,5 °C jusqu'à lundi 12:00 (depuis la carte)"
 
 
 async def test_the_logbook_names_the_panel_when_a_change_comes_from_it(bench: Bench, ws_client):

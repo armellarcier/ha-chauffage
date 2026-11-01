@@ -92,7 +92,7 @@ Each entry says whether the release **migrates stored data** and what to do when
   not change, as the README says. Saving used to activate the rules' schedule every time.
 - **The logbook names the panel.** A schedule activated or an override changed from the panel used
   to say "from the card". The logbook also writes temperatures as your language does (21,5 °C in
-  French, 21 °C rather than 21.0 °C), names the day when an override does not end today, and says
+  French, 21 °C rather than 21.0 °C), names the day an override ends, and says
   "schedule activated: Away".
 - **Many schedules fit the card.** Each schedule tab is as wide as its name, within limits, and the
   tabs scroll sideways, as any scrolling area of your browser. A fade on a side says that more
