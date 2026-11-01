@@ -82,6 +82,17 @@ describe('the panel\'s "Thermostats" page', () => {
     assert.equal(window.location.pathname, '/chauffage/thermostats', 'its ⋮ opens its menu only');
   });
 
+  test('a row opens the thermostat\'s sheet with Enter or Space, as a link of Home Assistant', () => {
+    const card = open(setup());
+    for (const key of ['Enter', ' ']) {
+      window.history.pushState(null, '', '/chauffage/thermostats');
+      const link = row(card, 'climate.salon');
+      link.focus();
+      link.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true }));
+      assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon', key);
+    }
+  });
+
   test('its ⋮ opens a floating menu, as every ⋮ of the card: pause, open the thermostat, its devices by their names, forget it', () => {
     const opened = [];
     const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };

@@ -568,6 +568,29 @@ describe('copying a week', () => {
     assert.equal(card._dirty, true);
   });
 
+  test('its menu stays in the window: it opens on the side with more room, no taller than that room', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const button = $(card, '[data-act="copyweek-menu"]');
+    $(card, 'ha-card').getBoundingClientRect = () => ({ top: -500, bottom: 300, left: 0, right: 900, width: 900 });
+    // Near the top of the window (the page scrolled down): downwards
+    button.getBoundingClientRect = () => ({ top: 40, bottom: 72, left: 700, right: 880 });
+    button.click();
+    let menu = $(card, '.copyweek-menu');
+    assert.equal(menu.style.top, '576px');
+    assert.equal(menu.style.bottom, '');
+    assert.equal(menu.style.maxHeight, `${window.innerHeight - 72 - 16}px`);
+    $(card, '[data-act="copyweek-menu"]').click(); // closed
+    // Near the bottom of the window: upwards
+    $(card, 'ha-card').getBoundingClientRect = () => ({ top: 0, bottom: window.innerHeight, left: 0, right: 900, width: 900 });
+    const again = $(card, '[data-act="copyweek-menu"]');
+    again.getBoundingClientRect = () => ({ top: window.innerHeight - 60, bottom: window.innerHeight - 28, left: 700, right: 880 });
+    again.click();
+    menu = $(card, '.copyweek-menu');
+    assert.equal(menu.style.bottom, '64px');
+    assert.equal(menu.style.top, '');
+    assert.equal(menu.style.maxHeight, `${window.innerHeight - 60 - 16}px`);
+  });
+
   test('its menu closes with a click elsewhere or Escape, copying nothing', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     $(card, '[data-act="copyweek-menu"]').click();

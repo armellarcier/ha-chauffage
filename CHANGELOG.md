@@ -59,6 +59,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button
+  with more room, no taller than that room. It used to go off the top of the screen.
+- **The rows of the panel's lists open with Enter or Space**, and show where the keyboard focus
+  is. A schedule's ⋮ menu closes as soon as you pick *Activate*, *Move up* or *Move down*.
 - **Deleting or disabling the integration removes the *Chauffage* panel from the sidebar.** The
   panel used to stay, and opened on an empty page. A card now says that the integration is not
   set up, instead of showing "…" forever.

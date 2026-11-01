@@ -831,6 +831,18 @@ const endOfField = (el, minutes) => (Number(el.dataset.moved)
 // The end of an override moved by `min` minutes (its arrows, its +30 min button)
 const endMovedBy = (end, min) => new Date(parseDate(end).getTime() + min * 60000);
 
+// An element with role="link" (a row of the panel's lists, a link in a text) opens with Enter, and
+// a row with Space too, as a link of Home Assistant
+function linksByKeyboard(root) {
+  root.addEventListener('keydown', (e) => {
+    const link = e.target;
+    if (!link.matches || !link.matches('[role="link"]')) return;
+    if (e.key !== 'Enter' && !(e.key === ' ' && link.matches('.th-row'))) return;
+    e.preventDefault();
+    link.click();
+  });
+}
+
 // The listeners of the time fields of a card's shadow root. `done(field, next)` applies a field's
 // time (`next`: the field Tab goes to, if any).
 function listenTimeFields(host, done) {
@@ -1487,6 +1499,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    linksByKeyboard(this.shadowRoot);
     this._data = {};
     this._revisions = {};
     this._dirty = false;
@@ -2632,7 +2645,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Copying the week of the thermostat shown to another thermostat or schedule: a menu, as the
     // day's ⋮, opening upwards from the foot of the card
     const cw = this._copyWeekMenu;
-    const copyWeekMenu = !cw ? '' : `<div class="menu copyweek-menu" style="bottom:${cw.bottom}px;right:${cw.right}px">${
+    const copyWeekMenu = !cw ? '' : `<div class="menu copyweek-menu" style="${cw.top != null ? `top:${cw.top}px` : `bottom:${cw.bottom}px`};right:${cw.right}px;max-height:${Math.max(120, cw.maxHeight)}px">${
       this._thermostats.map((t) => {
         const items = schedules
           .filter((m) => !(t.entity === focus && m === this._schedule))
@@ -3205,6 +3218,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       list = keep.filter((m) => m.id !== ed.id);
     } else return;
     this._schedEd = null;
+    this._render(); // the menu closes at once, not when the integration answers
     if (this._dirty && !(await this._save())) return;
     try {
       const result = await this._source().setSchedules(list, this._revision);
@@ -3898,7 +3912,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'copyweek-menu') {
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
       const b = el.getBoundingClientRect();
-      this._copyWeekMenu = this._copyWeekMenu ? null : { bottom: card.bottom - b.top + 4, right: card.right - b.right };
+      // On the side of the button with more room in the window, no taller than that room
+      const below = window.innerHeight - b.bottom;
+      const right = card.right - b.right;
+      this._copyWeekMenu = this._copyWeekMenu ? null : below > b.top
+        ? { top: b.bottom - card.top + 4, right, maxHeight: below - 16 }
+        : { bottom: card.bottom - b.top + 4, right, maxHeight: b.top - 16 };
       return this._render();
     }
     if (act === 'copy-week') {
@@ -3976,7 +3995,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
     if (act === 'paste-day') return this._pasteFromClipboard(ds.climate, Number(ds.day));
-    if (act === 'activate-schedule') return this._activateSchedule(ds.schedule || this._schedule);
+    if (act === 'activate-schedule') {
+      if (this._schedEd) {
+        this._schedEd = null; // from a schedule's ⋮ menu: closed at once, as after every action
+        this._render();
+      }
+      return this._activateSchedule(ds.schedule || this._schedule);
+    }
     if (act === 'multi-sel') {
       this._multiSel = !this._multiSel;
       return this._render();
@@ -4073,6 +4098,7 @@ const STYLE = `
   .th-main { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:16px; min-height:48px;
     padding:12px 8px 12px 16px; }
   .th-row:hover, .th-row:focus-visible { background:rgba(127,127,127,.08); }
+  .th-row:focus-visible { outline:2px solid var(--primary-color); outline-offset:-2px; }
   .th-icon, .th-chevron { flex:none; color:var(--secondary-text-color); --mdc-icon-size:24px; }
   .th-text { flex:1 1 auto; min-width:0; }
   .th-title { font-size:14px; line-height:22px; color:var(--primary-text-color); overflow-wrap:anywhere; }
@@ -4297,7 +4323,7 @@ const STYLE = `
   .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
   .actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .copyweek { max-width:260px; text-align:left; }
-  .copyweek-menu { max-height:60vh; overflow-y:auto; }
+  .copyweek-menu { overflow-y:auto; }
   .msg { min-height:1.2em; margin-top:6px; font-size:.85em; color:var(--secondary-text-color); text-align:right; }
   ha-card.flat .msg:empty { min-height:0; margin:0; }
   .dirty { color:var(--warning-color,#ff9800); }
@@ -4434,6 +4460,7 @@ class ChauffageMoreInfo extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    linksByKeyboard(this.shadowRoot);
     this._pending = undefined; // override sent, waiting for the integration's update
     this._drag = null;
     const root = this.shadowRoot;
@@ -4811,6 +4838,7 @@ class ChauffageThermostatCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    linksByKeyboard(this.shadowRoot);
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
   }
 
@@ -5313,6 +5341,7 @@ class ChauffagePanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    linksByKeyboard(this.shadowRoot);
     this._unlisten = null;
     this._key = null;
     this._cards = [];

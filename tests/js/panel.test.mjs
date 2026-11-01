@@ -122,6 +122,7 @@ describe('the Chauffage panel', () => {
       $(list(el), '.sched-menu [data-act="activate-schedule"]').click();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/schedule/activate', schedule: 'holiday' });
       assert.equal(window.location.pathname, '/chauffage/schedules', 'activating does not open the sheet');
+      assert.equal($(list(el), '.sched-menu'), null, 'the menu closes after Activate');
     });
 
     test('the active schedule\'s ⋮ offers no Activate', () => {
