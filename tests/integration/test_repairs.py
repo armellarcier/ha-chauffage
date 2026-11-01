@@ -46,9 +46,20 @@ async def fix(bench: Bench, http_client, issue_id: str, choice: str) -> dict:
     return {"menu": flow["menu_options"], **result}
 
 
+async def scheduled_then_gone(bench: Bench, *entity_ids: str) -> None:
+    """Thermostats scheduled while they existed, then gone from Home Assistant (a card cannot
+    schedule a climate that does not exist)."""
+    for entity_id in entity_ids:
+        bench.hass.states.async_set(entity_id, "heat")
+    await bench.save_weeks({entity_id: WEEK for entity_id in entity_ids})
+    for entity_id in entity_ids:
+        bench.hass.states.async_remove(entity_id)
+    await bench.hass.async_block_till_done()
+
+
 async def test_a_thermostat_whose_entity_is_gone_raises_a_repair_at_start(bench: Bench, hass_storage):
     await start(bench)
-    await bench.save_weeks({"climate.grenier": WEEK})
+    await scheduled_then_gone(bench, "climate.grenier")
     await bench.advance(1)  # delayed save
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
@@ -95,7 +106,7 @@ async def test_an_entity_without_state_but_still_registered_is_not_gone(bench: B
 
 async def test_the_missing_repair_forgets_the_thermostat_or_keeps_it(bench: Bench, http_client):
     await start(bench)
-    await bench.save_weeks({"climate.grenier": WEEK, "climate.cave": WEEK})
+    await scheduled_then_gone(bench, "climate.grenier", "climate.cave")
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
     result = await fix(bench, http_client, MISSING, "forget")
@@ -109,7 +120,7 @@ async def test_the_missing_repair_forgets_the_thermostat_or_keeps_it(bench: Benc
 
 async def test_a_forgotten_thermostat_s_repairs_are_closed(bench: Bench):
     await start(bench)
-    await bench.save_weeks({"climate.grenier": WEEK})
+    await scheduled_then_gone(bench, "climate.grenier")
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
     await bench.runtime.forget("climate.grenier")

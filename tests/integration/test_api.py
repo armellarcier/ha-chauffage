@@ -106,6 +106,18 @@ async def test_invalid_schedules_are_refused(bench: Bench, ws_client):
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
 
 
+async def test_a_card_cannot_schedule_a_thermostat_that_does_not_exist(bench: Bench, ws_client):
+    """A card still listing a climate removed from Home Assistant: saving must not schedule a
+    ghost thermostat (no state, no registry entry)."""
+    await start(bench)
+    client = await ws_client(bench.hass)
+    week = [[["00:00", "comfort"]]] * 7
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.ghost": {"normal": week}}})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "invalid_format"
+    assert "climate.ghost" not in bench.runtime.scheduled
+
+
 async def test_overrides_and_active_schedule_from_the_card(bench: Bench, ws_client):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21)

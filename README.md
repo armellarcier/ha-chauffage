@@ -375,10 +375,13 @@ also end the override from the card, or with the `chauffage.clear_override` acti
 
 ## Scheduled thermostats
 
-A thermostat is **scheduled** once you add it to a card, or once you schedule it in the
+A thermostat is **scheduled** once you edit its week in a card, or once you schedule it in the
 Chauffage panel: on the *Thermostats* tab, choose it under *Schedule another thermostat*. If you
 remove the thermostat from a card, the thermostat stays scheduled, because another card may show
 it. The thermostat stays scheduled until you forget it.
+
+A card can show a thermostat that Chauffage does not schedule yet. The card then says so, and
+draws its week dimmed. Saving the week of another thermostat does not schedule it.
 
 The panel's *Thermostats* tab lists every scheduled thermostat, and the cards that show it. To
 forget a thermostat, open its ⋮ menu, in the list or next to the title of its page, then *Forget…*. If you delete a thermostat's entity from

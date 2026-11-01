@@ -55,6 +55,8 @@ const I18N = {
     resume: 'Resume the schedule',
     paused: 'Paused',
     pausedNote: '{name} is paused: Chauffage does not control it.',
+    unscheduledNote: 'Chauffage does not schedule {name} yet: edit its week to schedule it.',
+    unscheduledNoteReadOnly: 'Chauffage does not schedule {name}.',
     renamedNote: '{former} was renamed {entity} in Home Assistant: edit the card to use its new id.',
     pausedInfo: 'Paused: Chauffage does not control it.',
     resumeShort: 'Resume control',
@@ -273,6 +275,8 @@ const I18N = {
     resume: 'Reprendre le planning',
     paused: 'En pause',
     pausedNote: '{name} est en pause : Chauffage ne le pilote pas.',
+    unscheduledNote: 'Chauffage ne programme pas encore {name} : modifiez sa semaine pour le programmer.',
+    unscheduledNoteReadOnly: 'Chauffage ne programme pas {name}.',
     renamedNote: '{former} a été renommé {entity} dans Home Assistant : modifiez la carte pour utiliser son nouvel identifiant.',
     pausedInfo: 'En pause : Chauffage ne le pilote pas.',
     resumeShort: 'Piloter',
@@ -600,6 +604,8 @@ const toHM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m %
 const pct = (m) => ((m / DAY_MIN) * 100).toFixed(3);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = (x) => JSON.parse(JSON.stringify(x));
+// The day of a new schedule's week: eco all day
+const NEW_DAY = [{ start: 0, preset: 'eco' }];
 // An activation rule as the integration reads it (no schedule: the template gives it)
 const plainRule = (r) => ({ template: r.template, schedule: r.schedule || null });
 // HA dates: microseconds truncated to milliseconds (Safari rejects more than 3 decimals)
@@ -1777,6 +1783,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _load() {
     const src = this._source();
     this._data = {};
+    this._drawn = new Set();
     this._revision = src.revision;
     this._revisions = {};
     for (const [climate, bySchedule] of Object.entries(src.weeks())) {
@@ -1791,20 +1798,28 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._loadedWeeks = this._serialized();
   }
 
-  // {climate: JSON of its weeks by schedule}, to send only the thermostats changed
+  // {climate: JSON of its weeks by schedule}, to send only the thermostats changed. A week the
+  // card only drew (see _week) and nobody edited is left out: saving another thermostat must not
+  // schedule this one
   _serialized() {
     const out = {};
     for (const [climate, bySchedule] of Object.entries(this._data)) {
-      out[climate] = JSON.stringify(Object.fromEntries(Object.keys(bySchedule).sort()
-        .map((schedule) => [schedule, bySchedule[schedule].map(serializeDay)])));
+      const weeks = Object.keys(bySchedule).sort()
+        .map((schedule) => [schedule, bySchedule[schedule].map(serializeDay)])
+        .filter(([schedule, week]) => !(this._drawn && this._drawn.has(`${climate}|${schedule}`)
+          && JSON.stringify(week) === JSON.stringify(Array(7).fill(serializeDay(NEW_DAY)))));
+      if (weeks.length) out[climate] = JSON.stringify(Object.fromEntries(weeks));
     }
     return out;
   }
 
+  // A thermostat's week in a schedule; a week it does not have yet is drawn as a new schedule's
+  // week (eco all week)
   _week(climate, schedule = this._schedule) {
     if (!this._data[climate]) this._data[climate] = {};
     if (!this._data[climate][schedule]) {
-      this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map(() => [{ start: 0, preset: 'eco' }]);
+      this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map(() => NEW_DAY.map((s) => ({ ...s })));
+      (this._drawn || (this._drawn = new Set())).add(`${climate}|${schedule}`);
     }
     return this._data[climate][schedule];
   }
@@ -2189,6 +2204,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .slice(1)
       .map((s, j) => `<div class="handle" data-idx="${j + 1}" style="left:${pct(s.start)}%"><span class="tip">${this._loc.time(s.start)}</span></div>`)
       .join('');
+    const unscheduled = this._unscheduled(climate) ? ' unscheduled' : '';
     const paused = this._source().paused(climate);
     const now = showNow && !paused ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
     // The day copied last stands out, in whatever card it was copied (the copy is shared)
@@ -2197,7 +2213,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && days.includes(cs.day);
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
   }
 
   // Override drawn over the schedule (only in the active schedule's tab), on a row of days
@@ -2256,6 +2272,21 @@ class ChauffageProgrammeCard extends HTMLElement {
         <span>${withHtml(this._loc.t('pausedNote', { name: LINK_TOKEN }), this._moreInfoLink(climate))}</span>
         ${src.editable ? `<button class="btn" data-act="resume" data-climate="${esc(climate)}">${esc(this._loc.t('resumeShort'))}</button>` : ''}
       </div>`).join('');
+  }
+
+  // A thermostat of the card that Chauffage does not schedule: the card draws a new schedule's
+  // week for it, and editing that week schedules it
+  _unscheduledNotesHtml() {
+    const src = this._source();
+    if (!src.ready) return '';
+    const key = src.editable ? 'unscheduledNote' : 'unscheduledNoteReadOnly';
+    return this._shown.filter((climate) => this._unscheduled(climate)).map((climate) => `<div class="paused-note unscheduled-note">
+        <span>${withHtml(this._loc.t(key, { name: LINK_TOKEN }), this._moreInfoLink(climate))}</span></div>`).join('');
+  }
+
+  _unscheduled(climate) {
+    const src = this._source();
+    return src.ready && !!this._hass.states[climate] && !src.scheduled().includes(climate);
   }
 
   // Renders, then runs a change of the integration; its error, if any, is shown
@@ -2610,6 +2641,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>`}
         ${this._renamedNotesHtml()}
         ${this._config.paused_note === false ? '' : this._pausedNotesHtml()}
+        ${this._unscheduledNotesHtml()}
         ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs">${tabs}</div>`}
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}`}
@@ -4018,7 +4050,7 @@ const STYLE = `
   .paused-note { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-top:8px; padding:6px 10px;
     border-radius:8px; background:rgba(127,127,127,.12); color:var(--secondary-text-color); font-size:.9em; }
   .paused-note span { flex:1 1 180px; }
-  .bar.paused .seg { opacity:.45; }
+  .bar.paused .seg, .bar.unscheduled .seg { opacity:.45; }
   .th-hint { color:var(--secondary-text-color); font-size:.9em; margin-bottom:8px; }
   /* A row is a link to its sheet, chevron included, as the rows of the integration's page: they
      span the card, and its actions come after a divider */

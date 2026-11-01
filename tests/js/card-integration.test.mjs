@@ -58,6 +58,23 @@ describe('loading from the integration', () => {
 });
 
 describe('writing to the integration', () => {
+  test('saving one thermostat does not schedule a thermostat of the card that nobody edited', async () => {
+    const hass = fakeIntegrationHass(); // the salon is scheduled, the bureau is not
+    const card = createCard(hass);
+    assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]'), 'the bureau is shown');
+    card._split('climate.salon', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.salon']);
+  });
+
+  test('editing the week of a thermostat of the card that Chauffage does not schedule yet schedules it', async () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass);
+    card._split('climate.bureau', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
+  });
+
   test('Save sends the weeks of the thermostats changed, by schedule id, with the revision of each', async () => {
     const both = { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.bureau': { Normal: Array(7).fill(WEEKDAY) } };
     const hass = fakeIntegrationHass({ weeks: both });
@@ -73,14 +90,14 @@ describe('writing to the integration', () => {
     assert.equal(card._dirty, false);
   });
 
-  test('a thermostat added to the card is scheduled with the default week (docs/decisions.md)', async () => {
-    const hass = fakeIntegrationHass(); // only the salon is scheduled
-    const card = createCard(hass);
-    card._split('climate.salon', 0, 12 * 60);
-    await card._save();
-    const msg = lastCall(hass);
-    assert.deepEqual(Object.keys(msg.weeks).sort(), ['climate.bureau', 'climate.salon']);
-    assert.deepEqual(msg.revisions['climate.bureau'], null);
+  test('a thermostat of the card that Chauffage does not schedule yet says so, and how to schedule it', () => {
+    const card = createCard(fakeIntegrationHass());
+    const notes = [...card.shadowRoot.querySelectorAll('.unscheduled-note')].map((n) => n.textContent.replace(/\s+/g, ' ').trim());
+    assert.deepEqual(notes, ['Chauffage ne programme pas encore Bureau : modifiez sa semaine pour le programmer.']);
+    assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]').classList.contains('unscheduled'));
+    const hass = fakeIntegrationHass();
+    hass.user = { is_admin: false };
+    assert.match(createCard(hass).shadowRoot.querySelector('.unscheduled-note').textContent, /Chauffage ne programme pas Bureau\./);
   });
 
   test('the next save uses the revision the integration gave back', async () => {

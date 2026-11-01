@@ -398,11 +398,15 @@ pouvez aussi arrêter la dérogation depuis la carte, ou avec l'action `chauffag
 
 ## Thermostats programmés
 
-Un thermostat est **programmé** dès que vous l'ajoutez à une carte, ou dès que vous le
-programmez dans le panneau Chauffage : sur l'onglet *Thermostats*, choisissez-le sous
+Un thermostat est **programmé** dès que vous modifiez sa semaine dans une carte, ou dès que
+vous le programmez dans le panneau Chauffage : sur l'onglet *Thermostats*, choisissez-le sous
 *Programmer un autre thermostat*. Si vous retirez le thermostat d'une carte, il reste programmé,
 car une autre carte peut l'afficher. Le thermostat reste programmé jusqu'à ce que vous
 l'oubliiez.
+
+Une carte peut afficher un thermostat que Chauffage ne programme pas encore. La carte le dit
+alors, et dessine sa semaine en grisé. Enregistrer la semaine d'un autre thermostat ne le
+programme pas.
 
 L'onglet *Thermostats* du panneau liste tous les thermostats programmés, et les cartes qui les
 affichent. Pour oublier un thermostat, ouvrez son menu ⋮, dans la liste ou à côté du titre de sa page, puis *Oublier…*. Si vous supprimez

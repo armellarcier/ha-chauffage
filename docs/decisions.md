@@ -194,6 +194,12 @@ future contributor might question.
   tell a week drawn from a week edited, and deleting a schedule could unschedule a thermostat
   without a word. Values of the presets set first are kept for it, but schedule nothing (no
   switch, nothing to pause), as the weeks alone say what is scheduled.
+  **Amended by the UX review**: editing a thermostat's week in a card schedules it, not adding the
+  thermostat to the card. A card showing a thermostat that Chauffage does not schedule draws a new
+  schedule's week for it, dimmed, with a note, and does not send that week until someone edits it.
+  Before, saving any thermostat of the card scheduled them all: a user who scheduled 3 thermostats
+  in the panel found 5 controlled. The integration also refuses to schedule a climate that has
+  neither a state nor a registry entry.
 - **Paused: still scheduled, not controlled.** A paused thermostat keeps everything; Chauffage
   sends it nothing, does not turn manual changes into overrides and drops its current override; its
   sensors are unavailable. Resuming realigns it at once. Paused is not *off*: off is the
@@ -754,7 +760,7 @@ A review of every surface, before the merge into `main`, settled these choices.
   order than the panel's tabs. The legend showed the presets without saying where to set them.
   A button with Chauffage's icon, at the card's top right, opens the panel, as the dashboards
   open their own panels.
-- **Two ways to schedule a thermostat stay**: adding it to a card, or the panel. Removing one
+- **Two ways to schedule a thermostat stay**: editing its week in a card, or the panel. Removing one
   would gain little.
 - **A ⋮ button always opens a floating menu**, as in the card. The panel's list of thermostats
   unfolded a row of actions instead. A row of this list opens the thermostat's sheet, and its

@@ -59,6 +59,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **Saving a card no longer schedules thermostats you did not choose.** A card can show a
+  thermostat that Chauffage does not schedule yet: the card now says so, and dims its week.
+  Editing its week schedules it, but saving the week of another thermostat no longer does. A
+  card can no longer schedule a thermostat that does not exist in Home Assistant.
 - **Scrolling the card with a finger no longer moves a slot** (#67). A mostly vertical swipe
   scrolls the page, even when it starts on a slot's boundary. Moving a time by touch needs a few
   pixels sideways first.

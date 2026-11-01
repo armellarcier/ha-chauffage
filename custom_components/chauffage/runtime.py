@@ -429,6 +429,12 @@ class ChauffageRuntime:
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
         if any(self._renamed_to(entity_id) for entity_id in normalized):
             raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
+        # A card may list a climate removed from Home Assistant: never schedule a ghost
+        registry = er.async_get(self.hass)
+        for entity_id in normalized:
+            if (entity_id not in self.scheduled and self.hass.states.get(entity_id) is None
+                    and registry.async_get(entity_id) is None):
+                raise model.InvalidData(f"{entity_id} does not exist")
         if revisions is not None:
             scheduled = self.scheduled
             for entity_id in normalized:
