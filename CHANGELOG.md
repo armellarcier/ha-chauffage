@@ -11,6 +11,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Added
 
+- **An override on a thermostat that is turned off says so.** The card and the more-info dialog
+  warn that Chauffage applies the override once the thermostat is turned back on.
 - **You can change a schedule's icon from its ⋮ menu.** *Change the icon…* opens the settings of
   the schedule's switch, where Home Assistant sets the name and the icon of every entity.
 - **You can take *Chauffage* out of the sidebar** (#57). Turn off the option *Show Chauffage in

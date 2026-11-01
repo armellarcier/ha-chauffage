@@ -55,6 +55,7 @@ const I18N = {
     resume: 'Resume the schedule',
     paused: 'Paused',
     pausedNote: '{name} is paused: Chauffage does not control it.',
+    overrideOff: '{name} is off: Chauffage applies the override once it is turned back on.',
     unscheduledNote: 'Chauffage does not schedule {name} yet: edit its week to schedule it.',
     unscheduledNoteReadOnly: 'Chauffage does not schedule {name}.',
     renamedNote: '{former} was renamed {entity} in Home Assistant: edit the card to use its new id.',
@@ -275,6 +276,7 @@ const I18N = {
     resume: 'Reprendre le planning',
     paused: 'En pause',
     pausedNote: '{name} est en pause : Chauffage ne le pilote pas.',
+    overrideOff: '{name} est éteint : Chauffage lui appliquera la dérogation quand il sera rallumé.',
     unscheduledNote: 'Chauffage ne programme pas encore {name} : modifiez sa semaine pour le programmer.',
     unscheduledNoteReadOnly: 'Chauffage ne programme pas {name}.',
     renamedNote: '{former} a été renommé {entity} dans Home Assistant : modifiez la carte pour utiliser son nouvel identifiant.',
@@ -830,6 +832,16 @@ const endOfField = (el, minutes) => (Number(el.dataset.moved)
 
 // The end of an override moved by `min` minutes (its arrows, its +30 min button)
 const endMovedBy = (end, min) => new Date(parseDate(end).getTime() + min * 60000);
+
+// An override on a thermostat turned off: Chauffage sends it nothing until it is on again, then
+// applies the override if it still runs. A warning, with no button: turning the thermostat on is
+// someone's choice
+function offNoteHtml(hass, climate, loc) {
+  const st = hass.states[climate];
+  if (!st || st.state !== 'off') return '';
+  const name = st.attributes.friendly_name || climate;
+  return `<div class="off-note" role="status">${esc(loc.t('overrideOff', { name }))}</div>`;
+}
 
 // An element with role="link" (a row of the panel's lists, a link in a text) opens with Enter, and
 // a row with Space too, as a link of Home Assistant
@@ -2438,9 +2450,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${d ? `<span class="override-value">${esc(this._overrideLabel(d))}</span>` : ''}
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>`;
+    const offNote = offNoteHtml(this._hass, climate, this._loc);
     const values = `${value.presets}
       <div class="ed-head">${value.temperature}</div>`;
-    if (!d) return `<div class="editor override-ed">${head}${values}</div>`;
+    if (!d) return `<div class="editor override-ed">${head}${offNote}${values}</div>`;
     const endsAt = parseDate(d.end);
     const today = new Date();
     const dayLabel = endsAt.toDateString() === today.toDateString() ? t('today')
@@ -2450,6 +2463,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const then = thenText(this._source(), climate, d, this._loc);
     return `<div class="editor override-ed">
       ${head}
+      ${offNote}
       <div class="ed-head">
         <label>${esc(t('until'))} ${timeField(`data-override-end="${esc(climate)}" data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, this._config.step)}</label>
         <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
@@ -4094,6 +4108,8 @@ const STYLE = `
   .chip.on { background:var(--primary-color); border-color:var(--primary-color); color:var(--text-primary-color,#fff); }
   .chip.on .live { color:inherit; opacity:.85; }
   .chip.paused .live { font-style:italic; }
+  .off-note { margin:6px 0; padding:6px 10px; border-radius:8px; font-size:.9em;
+    background:rgba(255,152,0,.15); color:var(--primary-text-color); }
   .paused-note { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-top:8px; padding:6px 10px;
     border-radius:8px; background:rgba(127,127,127,.12); color:var(--secondary-text-color); font-size:.9em; }
   .paused-note span { flex:1 1 180px; }
@@ -4621,6 +4637,7 @@ class ChauffageMoreInfo extends HTMLElement {
           <label>${esc(t('until'))} ${timeField(`data-end data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, MORE_INFO_CFG.step)}</label>
           <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>
+        ${offNoteHtml(this._hass, this._entity, this._loc)}
         ${value.presets}
         <div class="line">${value.temperature}</div>
         <div class="btns">
@@ -4643,7 +4660,7 @@ class ChauffageMoreInfo extends HTMLElement {
       status = `<div class="status${value ? ' derogation' : ''}">
         <div class="line"><span><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}</span>
           <button data-new-override>${esc(t('newOverride'))}</button></div>
-        ${value ? `${value.presets}<div class="line">${value.temperature}</div>` : ''}
+        ${value ? `${offNoteHtml(this._hass, this._entity, this._loc)}${value.presets}<div class="line">${value.temperature}</div>` : ''}
       </div>`;
     }
 
@@ -4773,6 +4790,8 @@ class ChauffageMoreInfo extends HTMLElement {
 }
 
 const MORE_INFO_STYLE = `
+  .off-note { margin:6px 0; padding:6px 10px; border-radius:8px; font-size:.9em;
+    background:rgba(255,152,0,.15); color:var(--primary-text-color); }
   :host { display:block; margin:16px 0 8px; }
   .wrap { padding:14px 12px 4px 16px; border-top:1px solid var(--divider-color); }
   /* In the thermostat card: under its header */

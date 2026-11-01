@@ -390,6 +390,10 @@ défaut. Vous pouvez changer cette durée dans les [options](#options).
 Un changement fait par une automatisation ne crée pas de dérogation. Une commande qu'une vanne à
 pile applique en retard n'en crée pas non plus.
 
+Une dérogation sur un thermostat éteint attend : Chauffage ne lui envoie rien, puis lui applique
+la dérogation quand il est rallumé, si elle court encore. La carte et la fenêtre de détail le
+disent.
+
 ### Arrêter une dérogation
 
 Une dérogation s'arrête d'elle-même, et le thermostat reprend son planning. Pour l'arrêter plus

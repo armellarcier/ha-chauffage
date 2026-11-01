@@ -367,6 +367,10 @@ can change this duration in the [options](#options).
 A change made by an automation does not start an override. A command that a battery valve
 applies late does not start one either.
 
+An override on a thermostat that is turned off waits: Chauffage sends it nothing, then applies the
+override when the thermostat is turned back on, if the override still runs. The card and the
+more-info dialog say so.
+
 ### End an override
 
 An override ends by itself, and the thermostat goes back to its schedule. To end the override

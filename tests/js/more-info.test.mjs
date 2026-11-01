@@ -1,5 +1,5 @@
 // "Schedule" block injected into a thermostat's more-info dialog.
-import { fakeHass, cleanup, integrationData } from './helpers.mjs';
+import { fakeHass, cleanup, integrationData, createCard } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -219,5 +219,39 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
     const hass = fakeHass();
     hass.user = { is_admin: false };
     assert.equal(foot(block(hass, 'climate.salon')), null);
+  });
+});
+
+describe('an override on a thermostat turned off', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
+  afterEach(() => { mock.timers.reset(); cleanup(); });
+  const off = (hass) => { hass.states['climate.salon'] = { ...hass.states['climate.salon'], state: 'off' }; return hass; };
+  const note = (root) => root.querySelector('.off-note');
+  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+
+  test('the block warns that Chauffage applies it once the thermostat is on again, with no button', () => {
+    const el = block(off(fakeHass({ overrides: { 'climate.salon': override } })), 'climate.salon');
+    assert.match(note(el.shadowRoot).textContent, /Salon est éteint : Chauffage lui appliquera la dérogation quand il sera rallumé\./);
+    assert.equal(note(el.shadowRoot).getAttribute('role'), 'status');
+    assert.equal(note(el.shadowRoot).querySelector('button'), null);
+  });
+
+  test('the block warns too while an override is being set', () => {
+    const el = block(off(fakeHass()), 'climate.salon');
+    assert.equal(note(el.shadowRoot), null);
+    el.shadowRoot.querySelector('[data-new-override]').click();
+    assert.ok(note(el.shadowRoot));
+  });
+
+  test('the card\'s override editor warns', () => {
+    const card = createCard(off(fakeHass({ overrides: { 'climate.salon': override } })));
+    card._overrideSel = { climate: 'climate.salon' };
+    card._render();
+    assert.match(note(card.shadowRoot).textContent, /Salon est éteint/);
+  });
+
+  test('no warning on a thermostat that heats', () => {
+    const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
+    assert.equal(note(el.shadowRoot), null);
   });
 });
