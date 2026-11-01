@@ -12,18 +12,18 @@ Each entry says whether the release **migrates stored data** and what to do when
 ### Upgrading
 
 - **Upgrading from 0.7 renames the entities of a thermostat that has a device of its own.** They
-  move to the scheduled thermostat's device, named after the thermostat, so for example *Vanne
-  salon Override* becomes *Salon Override*. Their ids do not change, so dashboards and
-  automations keep working. Rename an entity in Home Assistant if you prefer its former name.
-- **The name of a scheduled thermostat's device no longer changes from one restart to the next.**
-  It follows the thermostat's name as Home Assistant builds it, even before the thermostat's
-  state is there.
+  move to the scheduled thermostat's device, named after the thermostat: for example *Vanne salon
+  Override* becomes *Salon Override*. Their ids do not change, so dashboards and automations keep
+  working. Rename an entity in Home Assistant if you prefer its former name.
+- **An automation that tests `source == "card"` no longer sees the changes made in the panel.**
+  The `source` of `chauffage_override_started` and `chauffage_schedule_activated`, and the
+  `reason` of `chauffage_override_ended`, are now `panel` for them.
 
 ### Added
 
-- **Every user can pause a thermostat and give it back to Chauffage** from the cards and the
-  more-info dialog, not only administrators, as with its *Control* switch. A read-only user still
-  cannot.
+- **Every user who may control a thermostat can change its override and pause it**, from the
+  cards and the more-info dialog, not only administrators. It is the same as with the thermostat's
+  knob and its *Control* switch. A read-only user still cannot.
 - **An override on a thermostat that is turned off says so.** The card and the more-info dialog
   warn that Chauffage applies the override once the thermostat is turned back on.
 - **You can change a schedule's icon from its ⋮ menu.** *Change the icon…* opens the settings of
@@ -31,90 +31,83 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **You can take *Chauffage* out of the sidebar** (#57). Turn off the option *Show Chauffage in
   the sidebar*, in Settings → Devices & services → Chauffage → *Configure*. You still open the
   Chauffage panel from the cards, or from the *Visit* button of a scheduled thermostat's device.
-- **Every user can change an override from a card**, not only administrators, as with the
-  thermostat's knob. A read-only user still cannot.
 
 ### Changed
 
 - **From a thermostat's more-info dialog, *Edit its week* leads to its week in the active
   schedule.** The link replaces *Open in Chauffage*. It opens the thermostat's page on that week,
   marked a moment, instead of the top of the page. A tap on the week shown in the dialog does the
-  same.
-- **A new schedule card shows all its thermostats at first.** The *Add card* dialog now writes
-  `show: all`. Your existing cards do not change.
-- **The events can say `panel`**: the `source` of `chauffage_override_started` and
-  `chauffage_schedule_activated`, and the `reason` of `chauffage_override_ended`, are `panel` for a
-  change made in the Chauffage panel. An automation that tests `source == "card"` no longer sees
-  these changes.
-- **The block under a thermostat's more-info dialog is lighter.** Its foot keeps *Open in
-  Chauffage* and *Pause*, for administrators. The links to the thermostat's entities and device
-  are gone: the device's page lists them.
+  same. The links to the thermostat's entities and device are gone from the dialog: the device's
+  page lists them.
 - **A paused thermostat goes back to Chauffage with *Resume control*** (*Piloter*), the name of
   its switch. *Resume the schedule* now only ends an override.
 - **The schedule card's legend says where to set the presets.** For administrators, it ends with
   *Set the presets*, which opens the panel. The three links at the top of the card are gone. A
   button with Chauffage's icon, at the top right of the card, opens the panel.
-- **On the panel's *Thermostats* tab, the whole row opens the thermostat's page.** Only a paused
-  thermostat has a badge. The row's ⋮ opens a menu, as every ⋮ of the card, with *Pause*.
+- **The panel's *Thermostats* and *Schedules* tabs list their items as the integration's page
+  does.** Each list is a card of its own, and the whole row opens the item's page, its chevron
+  included. Only a paused thermostat has a badge. A thermostat's ⋮ pauses it or forgets it. A
+  schedule's ⋮ activates, renames, moves or deletes it. *+ New schedule* also creates a copy of
+  another schedule, checks the name, then opens the new schedule's page. The *Thermostats* tab
+  ends with a link to the integration's page, instead of the *Chauffage* device.
+- **Each page of the panel has its ⋮ next to its title.** A schedule's page no longer shows a lone
+  tab, which offered to move the schedule. A thermostat's page can now forget the thermostat.
 - **A thermostat's page has one save bar for all its weeks**, at the bottom of the window. It
   names the weeks not saved yet.
 - **A week is copied from a ⋮ menu**, on the card and on a thermostat's page, not from a list that
   acts as soon as you pick an option.
+- **Many schedules fit the card.** Each schedule tab is as wide as its name, within limits, and the
+  tabs scroll sideways. A fade on a side says that more schedules are hidden there, and with a
+  mouse an arrow over it scrolls to them. The *+* stays in place, and the card opens on the active
+  schedule's tab, however far it is. With many schedules on a phone, a tab used to show only the
+  first letter of its name.
+- **A new schedule card shows all its thermostats at first.** The *Add card* dialog now writes
+  `show: all`. Your existing cards do not change.
 - **The card's override editor follows the order of the more-info block**: the end, the value,
   the durations, then *Resume the schedule*.
-- **One word for each thing**: an *override*, not a "temporary setpoint". In French, a
-  *créneau*, not a "plage".
-- **A preset nobody set for a thermostat is its *default***, everywhere: the editor said
-  "Automatic", "Auto" or "default". "Auto" is also Home Assistant's HVAC mode.
-- **The integration's texts say the same thing in the same words.** The `clear_override`
-  service is now *End an override*. The logbook says "override ended (from the card)". The
-  override duration option says it applies to every override. An error on a paused thermostat
-  says to click *Resume control*.
-- **The panel's welcome says what Chauffage does in one sentence.**
-- **The panel's *Schedules* tab lists the schedules as the *Thermostats* tab lists the
-  thermostats.** A row opens the schedule's page, and its ⋮ activates, renames, moves or deletes it.
-  *+ New schedule* also creates a copy of another schedule, checks the name, then opens the new
-  schedule's page.
-- **Each page of the panel has its ⋮ next to its title.** A schedule's page no longer shows a lone
-  tab, which offered to move the schedule. A thermostat's page can now forget the thermostat.
 - **No link leads to an entity any more.** A schedule's ⋮ on the card opens its page in the
   panel, instead of the history of its switch. The active schedule's name shows its weeks, or its
-  page for an administrator. The *Thermostats* tab ends with a link to the integration's page,
-  instead of the *Chauffage* device.
+  page for an administrator.
+- **One word for each thing**: an *override*, not a "temporary setpoint"; the *default* of a
+  preset, not "Automatic" or "Auto", which is Home Assistant's HVAC mode. In French, a *créneau*,
+  not a "plage".
+- **The integration's texts say the same thing in the same words.** The `clear_override`
+  service is now *End an override*. The override duration option says it applies to every
+  override. An error on a paused thermostat says to click *Resume control*.
+- **The logbook names the panel**, writes temperatures as your language does (21,5 °C in French,
+  21 °C rather than 21.0 °C), always names the day an override ends, and says "schedule
+  activated: Away".
+- **The panel's welcome says what Chauffage does in one sentence.**
 - A dashboard card ignores the options that the panel sets for its own pages, for example
-  `chips: false`. The README never documented them.
+  `week_only`. The README never documented them.
 
 ### Fixed
 
-- **The README says where the logbook shows the overrides**: in *Activity* without a filter, not
-  in the logbook filtered on the thermostat, where Home Assistant does not show them.
-- **Saving the activation rules keeps a schedule you chose by hand** when what the rules give did
-  not change, as the README says. Saving used to activate the rules' schedule every time.
-- **The logbook names the panel.** A schedule activated or an override changed from the panel used
-  to say "from the card". The logbook also writes temperatures as your language does (21,5 °C in
-  French, 21 °C rather than 21.0 °C), names the day an override ends, and says
-  "schedule activated: Away".
-- **Many schedules fit the card.** Each schedule tab is as wide as its name, within limits, and the
-  tabs scroll sideways, as any scrolling area of your browser. A fade on a side says that more
-  schedules are hidden there, and with a mouse an arrow over it scrolls to them. The *+* stays in
-  place, and the card opens on the active schedule's tab, however far it is. With many schedules on a phone, a tab used to show only the first letter of
-  its name.
-- **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button
-  with more room, no taller than that room. It used to go off the top of the screen.
-- **The rows of the panel's lists open with Enter or Space**, and show where the keyboard focus
-  is. A schedule's ⋮ menu closes as soon as you pick *Activate*, *Move up* or *Move down*.
-- **Deleting or disabling the integration removes the *Chauffage* panel from the sidebar.** The
-  panel used to stay, and opened on an empty page. A card now says that the integration is not
-  set up, instead of showing "…" forever.
 - **Saving a card no longer schedules thermostats you did not choose.** A card can show a
   thermostat that Chauffage does not schedule yet: the card now says so, and dims its week.
   Editing its week schedules it, but saving the week of another thermostat no longer does. A
   card can no longer schedule a thermostat that does not exist in Home Assistant.
+- **Saving the activation rules keeps a schedule you chose by hand** when what the rules give did
+  not change, as the README says. Saving used to activate the rules' schedule every time.
 - **Scrolling the card with a finger no longer moves a slot** (#67). A mostly vertical swipe
   scrolls the page, even when it starts on a slot's boundary. Moving a time by touch needs a few
   pixels sideways first.
-- **Leaving a thermostat's page no longer loses its weeks not saved yet.** A link asks first:
-  stay, leave without saving, or save and leave. Closing or reloading the browser's page asks too.
+- **A thermostat's page keeps the weeks not saved yet.** Leaving the page asks first: stay, leave
+  without saving, or save and leave. Closing or reloading the browser's page asks too. Switching
+  *Group days* or *History*, or a schedule created elsewhere, no longer drops them.
+- **Deleting or disabling the integration removes the *Chauffage* panel from the sidebar.** The
+  panel used to stay, and opened on an empty page. A card now says that the integration is not
+  set up, instead of showing "…" forever.
+- **The panel works with the keyboard.** An update of Home Assistant no longer takes the focus
+  away, and the rows of the lists open with Enter or Space. A ⋮ pressed again closes its menu.
+- **A pause or a resume refused by the integration says why** on the thermostat's page.
+- **A visit to the panel no longer changes the more-info dialog.** The dialog keeps the language,
+  the step and the grouping of days of the dashboard cards.
+- **A thermostat's device keeps its name from one restart to the next**, even when the
+  thermostat's state is not there yet at start. A thermostat no longer scheduled at start, for
+  example after a backup is restored, loses its device.
+- **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button
+  with more room, no taller than that room.
 - **A *Chauffage* link no longer shows to a user who is not an administrator.** The panel is
   for administrators only, so the link led nowhere.
 - **With the history shown, a slot's popover says what the slot measured.** A phone shows no
@@ -122,13 +115,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **On a phone, the *+* of the schedule tabs stays on the card**, the active schedule keeps its
   dot, and the hours of the time axis stay on one line.
 - **A thermostat's page no longer moves while it loads**, so a tap lands where you aimed.
-- **A schedule's page has room again under its first line of buttons.** Its ⋮ menu opens right under
-  its button.
-- **On the panel's *Thermostats* and *Schedules* tabs, the whole row opens the page**, its
-  chevron included. The lists now look like the list of the integration's page: each list is a card
-  of its own, and its texts and actions sit outside it, and the link at
-  the foot of the thermostats is shorter: *Integration page*.
 - **Texts that pointed to the card's former views now point to the panel's tabs.**
+- **The README says where the logbook shows the overrides**: in *Activity* without a filter, not
+  in the logbook filtered on the thermostat, where Home Assistant does not show them.
 
 ## [0.8.0-beta.1] - 2026-10-31
 
