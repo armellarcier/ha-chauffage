@@ -200,10 +200,12 @@ HA, with the French names *Normal*, *Vacances* and *Absent*.
 The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs). The browser clock is set to
 a Tuesday morning, with a demo override. The scenario then shows, in order:
 
-1. a *Télétravail* schedule created as a copy of *Normal*, and its Tuesday edited;
-2. the *Presets* view: a preset's popover, then a thermostat's cell;
+1. a *Télétravail* schedule created as a copy of *Normal*, its days shown one by one, and its
+   Tuesday edited;
+2. the Chauffage panel, opened from the card's top right, and its *Presets* tab: a preset's
+   popover, then a thermostat's cell;
 3. *Vacances* activated;
-4. a thermostat's more-info dialog;
+4. a thermostat's more-info dialog, then *Edit its week*, which opens its page in the panel;
 5. the thermostat cards of the *Pièces* view, with 30 more minutes for the living room's
    override;
 6. the living room's *History*, and one day shown larger. For this step, the scenario goes back

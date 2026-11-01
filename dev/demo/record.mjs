@@ -2,9 +2,10 @@
 // Playwright drives a real browser; the video is converted to docs/demo.gif afterwards.
 // The development HA has three schedules: Normal (active), Vacances, Absent. The browser clock
 // is set to a Tuesday morning, with a demo override on the living room.
-// Scenario: create a "Télétravail" schedule as a copy of Normal and edit its Tuesday, look at
-// the presets (a preset, then what a thermostat does with it), activate Vacances, then a
-// thermostat's more-info dialog, the thermostat cards of the "Pièces" view (a new development HA
+// Scenario: create a "Télétravail" schedule as a copy of Normal and edit its Tuesday, open the
+// presets in the Chauffage panel from the card's top right (a preset, then what a thermostat does
+// with it), activate Vacances, then a thermostat's more-info dialog and its page in the panel
+// (Edit its week), the thermostat cards of the "Pièces" view (a new development HA
 // has it) where the living room's temporary setpoint gets 30 more minutes, and the history: the
 // temperature measured over the last days (a new development HA starts with a simulated week),
 // a day shown larger. The history is real: for it, the browser clock goes back to the real time.
@@ -75,6 +76,12 @@ await lp.evaluate(() => {
   localStorage.removeItem('chauffage-programme-card:shown'); // start with every thermostat shown
   localStorage.removeItem('chauffage-programme-card:history'); // and without the history
 });
+// A run that failed half-way may have left its schedule: removed, so the name is free again
+const before = await subscribeOnce(lp);
+if (before.schedules.some((s) => s.name === CREATED)) {
+  await callWS(lp, { type: 'chauffage/schedules/set',
+    schedules: before.schedules.filter((s) => s.name !== CREATED).map((s) => ({ id: s.id })) });
+}
 // The override shows the thermostat's actual setpoint, so the card and the dialog agree
 OVERRIDE.value = await lp.evaluate(() =>
   document.querySelector('home-assistant').hass.states['climate.salon'].attributes.temperature);
@@ -134,6 +141,12 @@ await click(page.locator(`${card} .sched-menu [data-act="schedule-create"]`));
 await page.locator(`${card} .tab.on`, { hasText: CREATED }).waitFor();
 await pause(1200);
 
+// Each day on its own row, to edit Tuesday alone
+const grouping = page.locator(`${card} [data-act="group-days"]`);
+if (await grouping.evaluate((b) => b.classList.contains('on'))) {
+  await click(grouping);
+  await pause(900);
+}
 // Someone works from home on Tuesdays: the living room stays in Comfort during the day…
 await click(page.locator(`${bar('salon', 1)} .seg[data-idx="2"]`));
 await pause(900);
@@ -145,20 +158,30 @@ await pause(400);
 await drag(page.locator(`${bar('salon', 1)} .handle`).last(), -1 / 24, bar('salon', 1));
 await pause(1200);
 
-// The presets: what Comfort, Eco… mean for each thermostat, each cell saying what it is
-await click(page.locator(`${card} [data-act="view"][data-view="presets"]`));
+// The presets, in the Chauffage panel, opened from the card's top right: what Comfort, Eco… mean
+// for each thermostat, each cell saying what it is
+await click(page.locator(`${card} .panel-open`));
+await page.locator('chauffage-panel .tabs [data-navigate="/chauffage/presets"]').waitFor();
+await pause(1200);
+await click(page.locator('chauffage-panel .tabs [data-navigate="/chauffage/presets"]'));
+const panel = 'chauffage-panel chauffage-programme-card';
+await page.locator(`${panel} [data-act="cell"]`).first().waitFor()
+  .catch(async (e) => { await page.screenshot({ path: `${OUT}/failed.png` }); throw e; });
 await pause(1800);
 // A preset: its name, color and default temperature, in one popover
-await click(page.locator(`${card} [data-act="cell"][data-kind="preset"][data-preset="comfort"]`));
+await click(page.locator(`${panel} [data-act="cell"][data-kind="preset"][data-preset="comfort"]`));
 await pause(1800);
-await click(page.locator(`${card} [data-act="cell-close"]`));
+await click(page.locator(`${panel} [data-act="cell-close"]`));
 await pause(500);
 // What a thermostat does with it: its own preset, with a link to its device, where it is set
-await click(page.locator(`${card} [data-act="cell"][data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]`));
+await click(page.locator(`${panel} [data-act="cell"][data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]`));
 await pause(2200);
-await click(page.locator(`${card} [data-act="cell-close"]`));
+await click(page.locator(`${panel} [data-act="cell-close"]`));
 await pause(500);
-await click(page.locator(`${card} [data-act="view"][data-view="schedule"]`));
+// Back to the dashboard (the card's edits were not saved, as at the end)
+await page.goBack();
+await page.goBack();
+await page.locator(`${card} .bar`).first().waitFor();
 await pause(900);
 
 // Holidays: activate Vacances from the card
@@ -182,7 +205,12 @@ await pause(600);
 const block = page.locator('chauffage-moreinfo');
 if (await block.count()) await moveTo(block, { dx: 0.4, dy: 0.45 });
 await pause(2800);
-await page.keyboard.press('Escape');
+// Edit its week: the thermostat's page in the panel, on its week in the active schedule
+await click(block.locator('.foot [data-navigate]'));
+await page.locator('chauffage-panel h3[data-fill-schedule]').first().waitFor();
+await pause(3200);
+await page.goBack();
+await page.locator(`${card} .bar`).first().waitFor();
 await pause(700);
 
 // A dashboard of one's own: a thermostat card per room; the living room's temporary setpoint

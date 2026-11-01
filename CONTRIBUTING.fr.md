@@ -212,10 +212,13 @@ Le scénario se trouve dans [`dev/demo/record.mjs`](dev/demo/record.mjs). L'horl
 est réglée sur un mardi matin, avec une dérogation de démo. Le scénario montre ensuite, dans
 l'ordre :
 
-1. un planning *Télétravail* créé par copie de *Normal*, puis son mardi modifié ;
-2. la vue *Préréglages* : la fenêtre d'un préréglage, puis la case d'un thermostat ;
+1. un planning *Télétravail* créé par copie de *Normal*, ses jours affichés un par un, puis son
+   mardi modifié ;
+2. le panneau Chauffage, ouvert depuis le haut à droite de la carte, et son onglet
+   *Préréglages* : la fenêtre d'un préréglage, puis la case d'un thermostat ;
 3. l'activation de *Vacances* ;
-4. la fenêtre de détail d'un thermostat ;
+4. la fenêtre de détail d'un thermostat, puis *Modifier sa semaine*, qui ouvre sa page dans le
+   panneau ;
 5. les cartes thermostat de la vue *Pièces*, avec 30 minutes de plus pour la dérogation du
    salon ;
 6. l'*Historique* du salon, et une journée en grand. Pour cette étape, le scénario revient à
