@@ -55,6 +55,51 @@ async def test_a_thermostat_back_online_is_set_to_its_schedule(bench: Bench):
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
+AUTO_STOPPED = {"hvac_off_reason": "hvac_off_auto_start_stop"}
+
+
+async def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):
+    """VTherm's auto start/stop turns it off when the room needs no heating for a while. VTherm
+    keeps the preset asked and starts again when that preset needs heating: it must get the
+    next slots while it is off (#74)."""
+    bench.needs("vtherm")
+    await start(bench, "17:00")
+    bench.thermostat("climate.salon", "eco", state="off", **AUTO_STOPPED)
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "comfort"}
+    assert bench.overrides() == {}
+
+
+async def test_a_vtherm_starting_again_after_auto_start_stop_is_not_an_override(bench: Bench):
+    bench.needs("vtherm")
+    await start(bench, "17:30")
+    bench.thermostat("climate.salon", "comfort", state="off", **AUTO_STOPPED)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "comfort", context=Context())  # started again by VTherm
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {}
+    assert bench.overrides() == {}
+
+
+async def test_a_preset_picked_on_a_vtherm_stopped_by_auto_start_stop_is_an_override(bench: Bench):
+    bench.needs("vtherm")
+    await start(bench, "10:00")
+    bench.thermostat("climate.salon", "eco", state="off", **AUTO_STOPPED)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "comfort", state="off", context=Context(user_id="someone"), **AUTO_STOPPED)
+    await bench.hass.async_block_till_done()
+    override = bench.overrides()["climate.salon"]
+    assert (override["kind"], override["value"]) == ("preset", "comfort")
+
+
+async def test_a_vtherm_turned_off_by_hand_is_still_left_alone(bench: Bench):
+    bench.needs("vtherm")
+    await start(bench, "17:00")
+    bench.thermostat("climate.salon", "eco", state="off", hvac_off_reason="hvac_off_manual")
+    await bench.go_to("17:30")
+    assert bench.applied() == {}
+
+
 async def test_a_thermostat_coming_back_keeps_its_override(bench: Bench):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 22)

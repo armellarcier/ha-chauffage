@@ -92,6 +92,7 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),
         engine.temperature_value(attributes.get("target_temp_step")),
+        attributes.get("hvac_off_reason"),
     )
 
 
@@ -890,7 +891,7 @@ class ChauffageRuntime:
         target = engine.Target(override["kind"], override["value"])
         async with self._lock:
             current = thermostat(self.hass.states.get(entity_id))
-            if current is not None and current.state not in engine.IGNORED_STATES and self.needs(entity_id, target, current):
+            if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current):
                 await self.send(entity_id, target, "command applied late, back to the override")
 
     # ----- scheduling -----
@@ -960,7 +961,7 @@ class ChauffageRuntime:
     def _learn(self, state: State | None) -> bool:
         """While a thermostat is on a preset, its setpoint is that preset's temperature."""
         current = thermostat(state)
-        if current is None or current.state in engine.IGNORED_STATES or current.temperature is None:
+        if current is None or engine.ignored(current) or current.temperature is None:
             return False
         if engine.is_manual_preset(current.preset) or state.entity_id not in self.thermostats:
             return False
@@ -981,7 +982,7 @@ class ChauffageRuntime:
         if old is None or new is None or self.is_paused(new.entity_id):
             return
         applied = self._applied(new.entity_id, thermostat(old), thermostat(new))
-        if old.state in engine.IGNORED_STATES and new.state not in engine.IGNORED_STATES:
+        if engine.ignored(thermostat(old)) and not engine.ignored(thermostat(new)):
             # Turned back on, or back online: the thermostat may have missed slot changes
             catch_up = self.apply(include={new.entity_id}, reason=f"back from {old.state}")
             self.entry.async_create_task(self.hass, catch_up, "chauffage catch up")

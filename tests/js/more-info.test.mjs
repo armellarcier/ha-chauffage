@@ -267,4 +267,12 @@ describe('an override on a thermostat turned off', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
     assert.equal(note(el.shadowRoot), null);
   });
+
+  test('no warning on a VTherm stopped by its auto start/stop: Chauffage applies the override at once (#74)', () => {
+    const hass = off(fakeHass({ overrides: { 'climate.salon': override } }));
+    const st = hass.states['climate.salon'];
+    hass.states['climate.salon'] = { ...st, attributes: { ...st.attributes, hvac_off_reason: 'hvac_off_auto_start_stop' } };
+    const el = block(hass, 'climate.salon');
+    assert.equal(note(el.shadowRoot), null);
+  });
 });

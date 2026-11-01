@@ -396,6 +396,10 @@ Une dérogation sur un thermostat éteint attend : Chauffage ne lui envoie rien,
 la dérogation quand il est rallumé, si elle court encore. La carte et la fenêtre de détail le
 disent.
 
+Un Versatile Thermostat éteint par son démarrage/arrêt automatique (*auto start/stop*) n'est pas
+mis de côté. Chauffage continue de lui envoyer ses créneaux et sa dérogation : le thermostat
+redémarre ainsi quand la pièce a besoin de chauffer.
+
 ### Arrêter une dérogation
 
 Une dérogation s'arrête d'elle-même, et le thermostat reprend son planning. Pour l'arrêter plus

@@ -374,6 +374,10 @@ An override on a thermostat that is turned off waits: Chauffage sends it nothing
 override when the thermostat is turned back on, if the override still runs. The card and the
 more-info dialog say so.
 
+A Versatile Thermostat turned off by its auto start/stop is not left alone. Chauffage keeps
+sending it its slots and its override, so that the thermostat starts again when the room needs
+heating.
+
 ### End an override
 
 An override ends by itself, and the thermostat goes back to its schedule. To end the override

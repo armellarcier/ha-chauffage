@@ -847,10 +847,11 @@ const endMovedBy = (end, min) => new Date(parseDate(end).getTime() + min * 60000
 
 // An override on a thermostat turned off: Chauffage sends it nothing until it is on again, then
 // applies the override if it still runs. A warning, with no button: turning the thermostat on is
-// someone's choice
+// someone's choice. Not on a VTherm stopped by its auto start/stop: Chauffage sends it the override
+// at once (#74)
 function offNoteHtml(hass, climate, loc) {
   const st = hass.states[climate];
-  if (!st || st.state !== 'off') return '';
+  if (!st || st.state !== 'off' || st.attributes.hvac_off_reason === 'hvac_off_auto_start_stop') return '';
   const name = st.attributes.friendly_name || climate;
   return `<div class="off-note" role="status">${esc(loc.t('overrideOff', { name }))}</div>`;
 }
