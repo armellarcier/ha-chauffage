@@ -11,6 +11,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Added
 
+- **You can change a schedule's icon from its ⋮ menu.** *Change the icon…* opens the settings of
+  the schedule's switch, where Home Assistant sets the name and the icon of every entity.
 - **You can take *Chauffage* out of the sidebar** (#57). Turn off the option *Show Chauffage in
   the sidebar*, in Settings → Devices & services → Chauffage → *Configure*. You still open the
   Chauffage panel from the cards, or from the *Visit* button of a scheduled thermostat's device.

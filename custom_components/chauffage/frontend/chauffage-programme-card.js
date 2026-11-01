@@ -110,6 +110,7 @@ const I18N = {
     emptySchedule: 'Empty (Eco all week)',
     copyOfName: 'Copy of “{name}”',
     renameMenu: 'Rename…',
+    changeIcon: 'Change the icon…',
     deleteMenu: 'Delete…',
     create: 'Create',
     rename: 'Rename',
@@ -327,6 +328,7 @@ const I18N = {
     emptySchedule: 'Vide (Éco toute la semaine)',
     copyOfName: 'Copie de « {name} »',
     renameMenu: 'Renommer…',
+    changeIcon: 'Changer l’icône…',
     deleteMenu: 'Supprimer…',
     create: 'Créer',
     rename: 'Renommer',
@@ -1259,8 +1261,10 @@ function leaveMoreInfo(el, open) {
   wait();
 }
 
-function openMoreInfo(el, entityId) {
-  el.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
+// view: 'settings' opens the entity's settings (its name, its icon), as Home Assistant's own pages do
+function openMoreInfo(el, entityId, view) {
+  const detail = view ? { entityId, view } : { entityId };
+  el.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail }));
 }
 
 // Like HA's navigate(): the frontend follows the address
@@ -3085,7 +3089,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         // The list's rows have no Activate button: it broke their layout
         const activate = list && id !== this._activeSchedule()
           ? `${item('activate-schedule', esc(t('panelActivate')), `data-schedule="${esc(id)}"`)}<div class="sep"></div>` : '';
+        // The icon is the schedule switch's: set where Home Assistant sets every entity's icon
+        const icon = src.scheduleEntity(id) ? item('schedule-icon', esc(t('changeIcon'))) : '';
         body = `${activate}${open}${item('schedule-rename-open', esc(t('renameMenu')))}
+          ${icon}
           ${moves}
           <div class="sep"></div>
           ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
@@ -3117,6 +3124,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'schedule-close' || !ed) { this._schedEd = null; return this._render(); }
     if (act === 'schedule-pick') { ed.copy = ds.copy || null; ed.step = 'name'; return this._renderSchedMenu(); }
     if (act === 'schedule-rename-open') { ed.step = 'rename'; return this._renderSchedMenu(); }
+    if (act === 'schedule-icon') {
+      this._schedEd = null;
+      this._render();
+      return openMoreInfo(this, this._source().scheduleEntity(ed.id), 'settings');
+    }
     if (act === 'schedule-delete') { ed.step = 'delete'; return this._render(); }
     const keep = this._schedules().map((id) => ({ id }));
     const nameInput = this.shadowRoot.querySelector('input[data-sched-name]');

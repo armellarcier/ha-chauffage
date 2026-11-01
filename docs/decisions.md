@@ -733,6 +733,11 @@ A review of every surface, before the merge into `main`, settled these choices.
   thermostat card and the more-info block are for one thermostat, now. The panel is for
   configuration. The devices and the entities are for automations, voice and Home Assistant's
   history: no user path needs them.
+- **A schedule's icon is changed in its switch's settings.** The ⋮ menu of a schedule opens Home
+  Assistant's more-info dialog on its *Settings* view (`view: "settings"`), as Home Assistant's own
+  pages do for a scene. Renaming and picking an icon are Home Assistant's usual paths for an
+  entity, so Chauffage does not store an icon of its own. *Rename…* stays Chauffage's: the
+  schedule's name shows on the tabs, and the switch's name follows it.
 - **The more-info block stays, lighter.** Its foot keeps *Open in Chauffage* (admins only, as the
   panel) and *Pause*. The links to the *Control*, *Override* and *Planned preset* entities and to
   the device go: the device's page lists them, and the panel's sheet links both devices. The

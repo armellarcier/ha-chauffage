@@ -148,6 +148,23 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.equal(window.location.pathname, '/chauffage/schedules/away');
   });
 
+  test('changes its icon in its switch\'s settings, as for any entity of Home Assistant', () => {
+    const opened = [];
+    const intercept = (e) => { opened.push(e.detail); e.stopPropagation(); };
+    document.addEventListener('hass-more-info', intercept);
+    try {
+      const card = createCard(fakeHass());
+      openMenu(card, 'away');
+      const item = menu(card).querySelector('[data-act="schedule-icon"]');
+      assert.equal(item.textContent.trim(), 'Changer l’icône…');
+      item.click();
+      assert.deepEqual(opened, [{ entityId: 'switch.chauffage_schedule_away', view: 'settings' }]);
+      assert.equal(menu(card), null);
+    } finally {
+      document.removeEventListener('hass-more-info', intercept);
+    }
+  });
+
   test('renames it, showing its id (used by automations)', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
