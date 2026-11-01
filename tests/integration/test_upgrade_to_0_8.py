@@ -6,26 +6,14 @@ integration is reloaded with the code of 0.8."""
 import copy
 
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.chauffage.const import DOMAIN
 from conftest import WEEKDAY, Bench, every_day
 
-DOMAIN = "chauffage"
 WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7}, "climate.cuisine": {"normal": every_day(("00:00", "eco"))}}
 # The ids 0.7 gave: the salon's entities named after its device (a valve), the cuisine's after it
 SALON = ("switch.vanne_salon_control", "binary_sensor.vanne_salon_override", "sensor.vanne_salon_planned_preset")
 CUISINE = ("switch.cuisine_control", "binary_sensor.cuisine_override", "sensor.cuisine_planned_preset")
-
-
-def valve(bench: Bench) -> dr.DeviceEntry:
-    """climate.salon on the device of its valve, from another integration."""
-    other = MockConfigEntry(domain="test")
-    other.add_to_hass(bench.hass)
-    device = dr.async_get(bench.hass).async_get_or_create(
-        config_entry_id=other.entry_id, identifiers={("test", "valve")}, name="Vanne salon")
-    er.async_get(bench.hass).async_get_or_create("climate", "test", "valve", suggested_object_id="salon",
-                                                 device_id=device.id)
-    return device
 
 
 async def as_0_7_left_it(bench: Bench, own: dr.DeviceEntry, on_device_info: bool) -> dict:
@@ -73,14 +61,14 @@ async def upgrade(bench: Bench) -> None:
 
 
 async def test_the_stored_data_does_not_change(bench: Bench):
-    stored = await as_0_7_left_it(bench, valve(bench), on_device_info=False)
+    stored = await as_0_7_left_it(bench, bench.thermostat_on_a_valve(), on_device_info=False)
     await upgrade(bench)
     assert bench.storage[DOMAIN]["data"] == stored
     assert bench.runtime.thermostats.keys() == {"climate.salon", "climate.cuisine"}
 
 
 async def test_the_entities_keep_their_ids_names_and_settings_on_the_new_device(bench: Bench):
-    own = valve(bench)
+    own = bench.thermostat_on_a_valve()
     await as_0_7_left_it(bench, own, on_device_info=False)
     await upgrade(bench)
     entities, devices = er.async_get(bench.hass), dr.async_get(bench.hass)
@@ -102,7 +90,7 @@ async def test_the_entities_keep_their_ids_names_and_settings_on_the_new_device(
 async def test_chauffage_leaves_the_integrations_of_the_thermostat_s_device(bench: Bench):
     """Before HA 2025.8, 0.7 attached its entities through the thermostat's device: HA listed
     Chauffage among the device's integrations. 0.8 no longer puts anything on it."""
-    own = valve(bench)
+    own = bench.thermostat_on_a_valve()
     await as_0_7_left_it(bench, own, on_device_info=True)
     await upgrade(bench)
     devices = dr.async_get(bench.hass)

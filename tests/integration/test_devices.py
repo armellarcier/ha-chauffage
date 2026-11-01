@@ -3,8 +3,7 @@ page lists its Chauffage entities and opens its weeks in the Chauffage panel ("V
 
 from unittest.mock import patch
 
-from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from custom_components.chauffage.const import CONTROL_KEY, OVERRIDE_KEY, PLANNED_PRESET_KEY, thermostat_unique_id
 from conftest import WEEKDAY, Bench, every_day
@@ -35,20 +34,6 @@ def device_of(bench: Bench, entity_id: str | None = None) -> dr.DeviceEntry:
     return dr.async_get(bench.hass).async_get(entry.device_id)
 
 
-def the_thermostat_s_own_device(bench: Bench, area: str | None = None) -> dr.DeviceEntry:
-    """climate.salon on a device of another integration (a valve), in an area if given."""
-    other = MockConfigEntry(domain="test")
-    other.add_to_hass(bench.hass)
-    area_id = ar.async_get(bench.hass).async_create(area).id if area else None
-    device = dr.async_get(bench.hass).async_get_or_create(
-        config_entry_id=other.entry_id, identifiers={("test", "valve")}, name="Vanne salon")
-    if area_id:
-        device = dr.async_get(bench.hass).async_update_device(device.id, area_id=area_id)
-    er.async_get(bench.hass).async_get_or_create("climate", "test", "valve", suggested_object_id="salon",
-                                                 device_id=device.id)
-    return device
-
-
 async def test_each_scheduled_thermostat_has_a_device_holding_its_entities(bench: Bench):
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await start(bench)
@@ -64,13 +49,7 @@ async def test_the_device_is_named_as_home_assistant_names_the_thermostat_with_o
     """At startup the thermostat's state may not be there yet: the name comes from the registry,
     as Home Assistant builds it (its device's name, then its own), so it does not change from one
     restart to the next."""
-    other = MockConfigEntry(domain="test")
-    other.add_to_hass(bench.hass)
-    valve = dr.async_get(bench.hass).async_get_or_create(
-        config_entry_id=other.entry_id, identifiers={("test", "valve")}, name="Vanne salon")
-    er.async_get(bench.hass).async_get_or_create(
-        "climate", "test", "valve", suggested_object_id="salon", device_id=valve.id,
-        has_entity_name=True, original_name="Thermostat")
+    bench.thermostat_on_a_valve(has_entity_name=True, original_name="Thermostat")
     await start(bench)  # no state for climate.salon yet
     assert device_of(bench).name == "Vanne salon Thermostat"
     bench.thermostat("climate.salon", "eco", friendly_name="Vanne salon Thermostat")
@@ -116,7 +95,7 @@ async def test_the_device_s_model_follows_home_assistant_s_language(bench: Bench
 async def test_a_thermostat_with_a_device_of_its_own_gets_a_device_connected_via_it(bench: Bench):
     """The thermostat's device page lists ours under "Connected devices"; ours says "Connected via"
     the thermostat. Our entities move to our device; their ids do not change."""
-    own = the_thermostat_s_own_device(bench, area="Séjour")
+    own = bench.thermostat_on_a_valve(area="Séjour")
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await start(bench)
     device = device_of(bench)
@@ -130,7 +109,7 @@ async def test_a_thermostat_with_a_device_of_its_own_gets_a_device_connected_via
 async def test_before_home_assistant_2026_10_the_device_is_connected_by_the_thermostat_s_identifiers(bench: Bench):
     """`via_device_id` came with HA 2026.10; before it, `via_device` names the parent by an
     identifier (deprecated from 2026.10, it stops working in 2027.8)."""
-    own = the_thermostat_s_own_device(bench)
+    own = bench.thermostat_on_a_valve()
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     with patch("custom_components.chauffage.entity.VIA_DEVICE_ID", False):
         await start(bench)
@@ -140,7 +119,7 @@ async def test_before_home_assistant_2026_10_the_device_is_connected_by_the_ther
 async def test_the_device_takes_the_thermostat_s_name_even_before_its_state_exists(bench: Bench):
     """At startup the thermostat's integration may not have set its state yet: the name comes
     from its registry entry, else from its device."""
-    the_thermostat_s_own_device(bench)
+    bench.thermostat_on_a_valve()
     await start(bench)  # no state for climate.salon
     assert device_of(bench).name == "Vanne salon"
 

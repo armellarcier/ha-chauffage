@@ -257,7 +257,7 @@ def test_every_source_and_reason_in_the_code_has_a_logbook_text_in_every_languag
     in the logbook (CONTRIBUTING.md, "Conventions")."""
     code = "\n".join(p.read_text(encoding="utf-8") for p in COMPONENT.glob("*.py"))
     sources = set(re.findall(r'source="(\w+)"', code)) | set(websocket.SOURCES)  # sent by the card or the panel
-    reasons = set(re.findall(r'_drop_override\([^,()]+, "(\w+)"\)', code)) | {"card", "service", "thermostat", "panel"}
+    reasons = set(re.findall(r'_drop_override\([^,()]+, "(\w+)"\)', code)) | {"service", "thermostat"} | set(websocket.SOURCES)
     assert {"card", "service", "entity", "rules", "thermostat"} <= sources  # the scan finds them
     assert {"paused", "forgotten", "expired"} <= reasons
     for language, texts in logbook.TEXTS.items():

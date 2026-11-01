@@ -132,7 +132,7 @@ async def test_the_card_edits_the_presets(bench: Bench, ws_client):
 ])
 async def test_preset_and_mapping_changes_need_an_admin(bench: Bench, ws_client, command):
     await start(bench)
-    client = await ws_client(bench.hass, admin=False)
+    client = await ws_client(bench.hass, user="read_only")
     await client.send_json_auto_id(command)
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
