@@ -735,7 +735,7 @@ older one, the older one says so.
   in the sidebar, so the link follows a renamed panel or integration.
   **Amended by the UX review**: the link says what it does, *Edit its week* (*Modifier sa
   semaine*, the `editWeek` key), and opens the thermostat's page on its week in the active
-  schedule (`?week=<schedule>`), scrolled to it and marked a moment. A tap on the week shown in the
+  schedule (`?week=<schedule>`), scrolled to it, with no highlight: its *Active* badge is enough. A tap on the week shown in the
   block does the same. A tap on one day would be ambiguous with the days grouped, so the link goes
   to the week only. The page keeps the schedules' order: it scrolls, it does not move the active
   week first.
@@ -808,6 +808,9 @@ A review of every surface, before the merge into `main`, settled these choices.
   texts, the link to the integration's page and the action to add one sit outside that card.
   *+ New schedule* sits under the list, as the form to add a thermostat: the *Schedules* tab has a
   second section, the rules, so a floating button would not say which list it adds to.
+- **One attribute leads to a page**: `data-navigate`, holding the address, for every link to a page
+  of the panel or to a dashboard. Four attributes did it, and every click handler had to know them
+  all.
 - **The card's panel-only options are internal.** The panel passes them to the card in its own
   key, not as options a dashboard could set.
   The weeks stacked on a thermostat's page take one of them, `week_only`: the week alone, without

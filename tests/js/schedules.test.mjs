@@ -142,7 +142,7 @@ describe('the "⋮" menu of the open schedule', () => {
     const card = createCard(fakeHass());
     openMenu(card, 'away');
     assert.equal(menu(card).querySelector('[data-more-info]'), null);
-    const open = menu(card).querySelector('[data-panel-page="schedules/away"]');
+    const open = menu(card).querySelector('[data-navigate="/chauffage/schedules/away"]');
     assert.equal(open.textContent.trim(), 'Ouvrir dans Chauffage');
     open.click();
     assert.equal(window.location.pathname, '/chauffage/schedules/away');

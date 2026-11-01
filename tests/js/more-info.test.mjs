@@ -51,11 +51,11 @@ describe('more-info block', () => {
     const vacances = () => fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } });
     const el = block(vacances(), 'climate.salon');
     assert.equal(el.shadowRoot.querySelector('.title [data-more-info]'), null, 'not its switch');
-    el.shadowRoot.querySelector('.title [data-panel-page="schedules/holiday"]').click();
+    el.shadowRoot.querySelector('.title [data-navigate="/chauffage/schedules/holiday"]').click();
     assert.equal(window.location.pathname, '/chauffage/schedules/holiday');
     const hass = vacances();
     hass.user = { is_admin: false };
-    assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.title [data-panel-page], .title [data-more-info]'), null);
+    assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.title [data-navigate^="/chauffage"], .title [data-more-info]'), null);
   });
 
   test('thermostat without a schedule: block hidden', () => {
@@ -210,7 +210,7 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
 
   test('Edit its week opens the thermostat\'s page on its week in the active schedule, closing the dialog', () => {
     const el = block(fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } }), 'climate.salon');
-    foot(el).querySelector('[data-weeks="climate.salon"]').click();
+    foot(el).querySelector('[data-navigate^="/chauffage/thermostats/climate.salon"]').click();
     assert.deepEqual(opened, [null]); // the more-info dialog is closed
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
     assert.equal(window.location.search, '?week=holiday');

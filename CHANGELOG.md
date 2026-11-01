@@ -35,8 +35,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 ### Changed
 
 - **From a thermostat's more-info dialog, *Edit its week* leads to its week in the active
-  schedule.** The link replaces *Open in Chauffage*. It opens the thermostat's page on that week,
-  marked a moment, instead of the top of the page. A tap on the week shown in the dialog does the
+  schedule.** The link replaces *Open in Chauffage*. It opens the thermostat's page scrolled to that
+  week, instead of the top of the page. A tap on the week shown in the dialog does the
   same. The links to the thermostat's entities and device are gone from the dialog: the device's
   page lists them.
 - **A paused thermostat goes back to Chauffage with *Resume control*** (*Piloter*), the name of

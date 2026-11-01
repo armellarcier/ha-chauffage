@@ -1334,8 +1334,13 @@ function openDevice(id) {
 }
 
 // The Chauffage panel (frontend.py): a page, for example `presets`, or the overview
+// The address of a page of the Chauffage panel ("" for the panel itself)
+const panelPath = (page) => (page ? `/chauffage/${page}` : '/chauffage');
+// A thermostat's page, scrolled to its week in a schedule (see ChauffagePanel._scrollToWeek)
+const weeksPath = (climate, week) => panelPath(`thermostats/${climate}${week ? `?week=${encodeURIComponent(week)}` : ''}`);
+
 function openPanel(page) {
-  navigate(page ? `/chauffage/${page}` : '/chauffage');
+  navigate(panelPath(page));
 }
 
 // The Chauffage panel's title, as Home Assistant shows it in the sidebar
@@ -1343,12 +1348,6 @@ function panelTitle(hass) {
   const panel = hass && hass.panels && hass.panels.chauffage;
   return (panel && panel.title) || 'Chauffage';
 }
-// The weeks of one thermostat, in the Chauffage panel; `week`: the schedule whose week the page
-// scrolls to (see ChauffagePanel._scrollToWeek)
-function openWeeks(climate, week) {
-  openPanel(`thermostats/${climate}${week ? `?week=${encodeURIComponent(week)}` : ''}`);
-}
-
 // Where the dashboards show each thermostat, in a Chauffage card:
 // { climate: [{ dashboard, view, path }] }. Admins only (the dashboards' configs).
 // The placements, read once per connection (a page load): the card's list and the panel share them
@@ -3089,22 +3088,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         openDevice(device.dataset.device);
         return;
       }
-      // A page of the Chauffage panel (presets, rules, thermostats)
-      const page = !inRowActions(e) && e.target.closest('[data-panel-page]');
-      if (page) {
-        openPanel(page.dataset.panelPage);
-        return;
-      }
-      // A dashboard's view that shows a thermostat (the panel's Thermostats page)
-      const to = e.target.closest('[data-navigate]');
+      // A page of the panel, or a dashboard's view: its address (not from a row's actions)
+      const to = !inRowActions(e) && e.target.closest('[data-navigate]');
       if (to) {
         navigate(to.dataset.navigate);
-        return;
-      }
-      // A thermostat's page in the panel (its name, on the Thermostats page)
-      const weeks = !inRowActions(e) && e.target.closest('[data-weeks]');
-      if (weeks) {
-        openWeeks(weeks.dataset.weeks, weeks.dataset.week);
         return;
       }
       // Preset cell popover open: a click outside the popover / cells closes it
@@ -3223,7 +3210,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const t = this._loc.t;
     // The active schedule's name leads to it: its tab on a dashboard, its page in the panel
     const name = this._config.panel
-      ? `<span class="mi-link" role="link" tabindex="0" data-panel-page="schedules/${esc(active)}">${esc(this._scheduleName(active))}</span>`
+      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath(`schedules/${esc(active)}`)}">${esc(this._scheduleName(active))}</span>`
       : `<span class="mi-link" role="link" tabindex="0" data-show-schedule="${esc(active)}">${esc(this._scheduleName(active))}</span>`;
     const current = active ? t('activeScheduleBar', { schedule: name }) : esc(t('noActiveSchedule'));
     return `<div class="schedule-bar">
@@ -3277,7 +3264,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         // On a dashboard, the schedule's page in the panel; in the panel, the page is a row or
         // the page itself
         const open = this._config.panel ? ''
-          : `<button class="mi" data-panel-page="schedules/${esc(id)}"><span>${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span></button><div class="sep"></div>`;
+          : `<button class="mi" data-navigate="${panelPath(`schedules/${esc(id)}`)}"><span>${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span></button><div class="sep"></div>`;
         // A schedule's sheet shows one tab (`schedule_tabs: 'one'`): no tab to move it next to; the
         // list moves it up or down
         const list = this._view === 'schedules';
@@ -3425,14 +3412,14 @@ class ChauffageProgrammeCard extends HTMLElement {
     const hass = this._hass;
     if (!isAdmin(hass)) return '';
     const label = this._loc.t('openInPanel', { panel: panelTitle(hass) });
-    return `<button class="panel-open" data-panel-page="" title="${esc(label)}" aria-label="${esc(label)}"><ha-icon icon="chauffage:logo"></ha-icon></button>`;
+    return `<button class="panel-open" data-navigate="${panelPath('')}" title="${esc(label)}" aria-label="${esc(label)}"><ha-icon icon="chauffage:logo"></ha-icon></button>`;
   }
 
   _settingsLinkHtml() {
     if (this._config.panel) return '';
     const hass = this._hass;
     if (!isAdmin(hass)) return '';
-    return `<span class="mi-link settings-link" role="link" tabindex="0" data-panel-page="presets">${esc(this._loc.t('setPresets'))}</span>`;
+    return `<span class="mi-link settings-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}">${esc(this._loc.t('setPresets'))}</span>`;
   }
 
   // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
@@ -3609,7 +3596,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const more = !editable ? ''
         : `<button class="icon-btn${open ? ' on' : ''}" data-act="thermostat-more" data-climate="${esc(climate)}" title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
       const icon = (this._hass.states[climate] || { attributes: {} }).attributes.icon || 'mdi:thermostat';
-      return thRow(`class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}"`, `data-weeks="${esc(climate)}"`, icon,
+      return thRow(`class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}"`, `data-navigate="${esc(weeksPath(climate))}"`, icon,
         `${esc(this._name(climate))}${paused ? ` <span class="badge paused">${esc(t('paused'))}</span>` : ''}`,
         placesLine(climate), more);
     }).join('');
@@ -3661,7 +3648,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const open = this._schedEd && this._schedEd.kind === 'menu' && this._schedEd.id === id;
       const more = !src.editable ? ''
         : `<button class="icon-btn${open ? ' on' : ''}" data-act="schedule-menu" data-schedule="${esc(id)}" title="${esc(t('scheduleMenu'))}" aria-label="${esc(t('scheduleMenu'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
-      return thRow(`class="th-row" data-schedule="${esc(id)}"`, `data-panel-page="schedules/${esc(id)}"`,
+      return thRow(`class="th-row" data-schedule="${esc(id)}"`, `data-navigate="${panelPath(`schedules/${esc(id)}`)}"`,
         src.scheduleIcon(id) || 'mdi:calendar-clock',
         `${esc(this._scheduleName(id))}${id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}`,
         '', more);
@@ -4700,7 +4687,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const name = schedule ? src.scheduleName(schedule) : '';
     const admin = isAdmin(this._hass);
     const link = schedule && admin
-      ? `<span class="mi-link" role="link" tabindex="0" data-panel-page="schedules/${esc(schedule)}">${esc(name)}</span>` : esc(name);
+      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath(`schedules/${esc(schedule)}`)}">${esc(name)}</span>` : esc(name);
     return { schedule: link, week: activeWeek(src, this._entity) };
   }
 
@@ -4817,7 +4804,7 @@ class ChauffageMoreInfo extends HTMLElement {
   // Where "Edit its week" leads: the thermostat's page, scrolled to its week in the active schedule
   _weekLink() {
     const week = dataSource(this._hass).activeSchedule();
-    return `data-weeks="${esc(this._entity)}"${week ? ` data-week="${esc(week)}"` : ''}`;
+    return `data-navigate="${esc(weeksPath(this._entity, week))}"`;
   }
 
   // The foot: Edit its week (admins), and Pause, or Control in its place (anyone who may control
@@ -4843,15 +4830,10 @@ class ChauffageMoreInfo extends HTMLElement {
       openMoreInfo(this, link.dataset.moreInfo);
       return;
     }
-    const page = e.target.closest('[data-panel-page]');
-    if (page) {
+    const to = e.target.closest('[data-navigate]');
+    if (to) {
       // In the more-info dialog: closed first, the page under it otherwise
-      leaveMoreInfo(this, () => openPanel(page.dataset.panelPage));
-      return;
-    }
-    const weeks = e.target.closest('[data-weeks]');
-    if (weeks) {
-      leaveMoreInfo(this, () => openWeeks(weeks.dataset.weeks, weeks.dataset.week));
+      leaveMoreInfo(this, () => navigate(to.dataset.navigate));
       return;
     }
     const b = e.target.closest('button:not(.time-step)'); // the small arrows: listenTimeFields()
@@ -5636,7 +5618,7 @@ class ChauffagePanel extends HTMLElement {
   }
 
   // A thermostat's page reached for one week ("Edit its week", ?week=<schedule>): scrolled to that
-  // week, marked a moment. Once: the address loses ?week, so a reload or going back stays put
+  // week. Once: the address loses ?week, so a reload or going back stays put
   _scrollToWeek() {
     const week = new URLSearchParams(window.location.search).get('week');
     const heading = week && [...this.shadowRoot.querySelectorAll('h3[data-fill-schedule]')]
@@ -5644,7 +5626,6 @@ class ChauffagePanel extends HTMLElement {
     if (!heading) return;
     window.history.replaceState(window.history.state, '', window.location.pathname);
     heading.scrollIntoView({ block: 'start' });
-    heading.classList.add('arrived');
     // The parts above it (the tile, the presets, the weeks) draw a moment later and push it down:
     // scrolled to it again while they do, until the user scrolls or 3 s have passed
     const content = this.shadowRoot.querySelector('.content');
@@ -5672,14 +5653,14 @@ class ChauffagePanel extends HTMLElement {
     if (route.sheet) {
       const list = PANEL_TABS.find(([page]) => page === route.list);
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button>
-          <nav class="title crumbs"><a href="/chauffage/${route.list}" data-page="${route.list}">${esc(t(list[1]))}</a>
+          <nav class="title crumbs"><a href="/chauffage/${route.list}" data-navigate="/chauffage/${route.list}">${esc(t(list[1]))}</a>
             <span class="sep">›</span><span data-fill="crumb"></span></nav>
           ${src.editable ? `<button class="page-more" data-page-menu title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>` : ''}
           <div data-fill="page-menu"></div>
         </div>`;
     } else {
       const tabs = PANEL_TABS.map(([page, label]) =>
-        `<a href="/chauffage/${page}" class="tab${page === route.list ? ' on' : ''}" data-page="${page}">${esc(t(label))}</a>`).join('');
+        `<a href="/chauffage/${page}" class="tab${page === route.list ? ' on' : ''}" data-navigate="/chauffage/${page}">${esc(t(label))}</a>`).join('');
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div></div>
         <nav class="tabs">${tabs}</nav>`;
     }
@@ -5731,7 +5712,7 @@ class ChauffagePanel extends HTMLElement {
       // A user may create schedules or presets first: the page stays, and says where to start
       if (!scheduled) {
         html(`<div class="notice">${esc(t('noThermostatYet'))}
-          <a href="/chauffage/thermostats" data-page="thermostats">${esc(t('scheduleThermostats'))}</a></div>`);
+          <a href="/chauffage/thermostats" data-navigate="/chauffage/thermostats">${esc(t('scheduleThermostats'))}</a></div>`);
       }
       if (route.list === 'schedules') {
         html(`<h2>${esc(t('pageSchedules'))}</h2>`);
@@ -5771,7 +5752,7 @@ class ChauffagePanel extends HTMLElement {
       const menu = this._copyMenu === id ? `<div class="menu copy-menu"><div class="mh">${esc(t('copyTo'))}</div>${
         others.map((m) => `<button class="mi" data-copy-to="${esc(m)}"><span>${esc(src.scheduleName(m))}</span></button>`).join('')}</div>` : '';
       const copy = others.length ? `<button class="btn icon${menu ? ' on' : ''}" data-copy-menu="${esc(id)}" title="${esc(t('copyTo'))}" aria-label="${esc(t('copyTo'))}">⋮</button>${menu}` : '';
-      setHtml(h, `<span role="link" tabindex="0" data-page="schedules/${esc(id)}">${esc(src.scheduleName(id))}</span>${
+      setHtml(h, `<span role="link" tabindex="0" data-navigate="${panelPath(`schedules/${esc(id)}`)}">${esc(src.scheduleName(id))}</span>${
         id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}<span class="grow"></span>${copy}`);
     }
   }
@@ -5941,7 +5922,7 @@ class ChauffagePanel extends HTMLElement {
       this._update();
       return;
     }
-    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-page], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next]');
+    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -5982,12 +5963,8 @@ class ChauffagePanel extends HTMLElement {
         if (!this._dirtyWeeks().length && leave) leave();
         return;
       }
-      if ((ds.page != null || ds.navigate || ds.device) && this._dirtyWeeks().length) {
-        this._leave = () => {
-          if (ds.page != null) openPanel(ds.page);
-          else if (ds.navigate) navigate(ds.navigate);
-          else openDevice(ds.device);
-        };
+      if ((ds.navigate || ds.device) && this._dirtyWeeks().length) {
+        this._leave = () => (ds.navigate ? navigate(ds.navigate) : openDevice(ds.device));
         return this._fillSavebar();
       }
       if (ds.copyMenu) {
@@ -6003,7 +5980,6 @@ class ChauffagePanel extends HTMLElement {
         if (from && to) to._receiveWeek(route.id, from._week(route.id), from._scheduleName(from._schedule));
         return this._update();
       }
-      if (ds.page != null) return openPanel(ds.page);
       if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
       if (ds.navigate) return navigate(ds.navigate);
       if (ds.device) return openDevice(ds.device);
@@ -6084,9 +6060,8 @@ const PANEL_CSS = `
   .content { max-width:1100px; margin:0 auto; padding:8px 8px 24px; }
   h2 { margin:20px 8px 8px; font-size:16px; font-weight:500; }
   h3 { margin:16px 8px 6px; font-size:14px; font-weight:500; color:var(--secondary-text-color); }
-  /* The week a link led to ("Edit its week"), marked a moment */
-  h3.arrived { animation:arrived 2.5s ease-out; scroll-margin-top:72px; }
-  @keyframes arrived { from { background:rgba(var(--rgb-primary-color, 3, 169, 244), .25); color:var(--primary-color); } }
+  /* The week a link led to ("Edit its week"): under the toolbar once scrolled to */
+  h3[data-fill-schedule] { scroll-margin-top:72px; }
   h3 [role="link"] { cursor:pointer; }
   h3 [role="link"]:hover { color:var(--primary-color); text-decoration:underline; }
   .box { padding:8px 16px; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color);

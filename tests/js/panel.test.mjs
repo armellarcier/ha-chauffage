@@ -116,7 +116,7 @@ describe('the Chauffage panel', () => {
       const el = panel(hass, '/schedules');
       assert.deepEqual($$(list(el), '.th-row').map((r) => r.dataset.schedule), ['normal', 'away', 'holiday']);
       assert.equal(text(row(el, 'normal').querySelector('.th-main')), 'Normal Actif');
-      assert.equal(row(el, 'holiday').querySelector('[data-page], .name'), null, 'no Edit button: the row opens the sheet');
+      assert.equal(row(el, 'holiday').querySelector('button[data-navigate], .name'), null, 'no Edit button: the row opens the sheet');
       assert.equal(row(el, 'holiday').querySelector('[data-act="activate-schedule"]'), null, 'no button on the row: it broke the layout');
       row(el, 'holiday').querySelector('[data-act="schedule-menu"]').click();
       $(list(el), '.sched-menu [data-act="activate-schedule"]').click();
@@ -303,7 +303,7 @@ describe('the Chauffage panel', () => {
       for (const path of ['/schedules', '/presets']) {
         const el = panel(fresh(), path);
         assert.match(text($(el, '.notice')), /Aucun thermostat n'est encore programmé/, path);
-        $(el, '.notice [data-page="thermostats"]').click();
+        $(el, '.notice [data-navigate="/chauffage/thermostats"]').click();
         assert.equal(window.location.pathname, '/chauffage/thermostats', path);
         cleanup();
       }
@@ -325,7 +325,7 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);
       assert.equal($(card, '.tabs'), null);
       assert.equal($(card, '[data-act="schedule-new"]'), null);
-      assert.equal($(card, '[data-panel-page="presets"]'), null); // in the panel, no link to set the presets
+      assert.equal($(card, '[data-navigate="/chauffage/presets"]'), null); // in the panel, no link to set the presets
     });
 
     test('its ⋮, next to the breadcrumb, renames or deletes the schedule; it does not move it', () => {
@@ -459,7 +459,7 @@ describe('the Chauffage panel', () => {
       const heads = $$(el, 'h3[data-fill-schedule]');
       assert.match(text(heads[0]), /^Normal Actif/);
       assert.doesNotMatch(text(heads[1]), /Actif/);
-      heads[2].querySelector('[data-page]').click();
+      heads[2].querySelector('[data-navigate]').click();
       assert.equal(window.location.pathname, '/chauffage/schedules/holiday');
     });
 
@@ -642,7 +642,7 @@ describe('the Chauffage panel', () => {
         const hass = setup();
         const el = edited(hass);
         const before = window.location.pathname;
-        $(el, '.crumbs [data-page="thermostats"]').click();
+        $(el, '.crumbs [data-navigate="/chauffage/thermostats"]').click();
         assert.equal(window.location.pathname, before);
         assert.match(text($(el, '.sheet-savebar')), /pas enregistrées/);
       });
@@ -650,7 +650,7 @@ describe('the Chauffage panel', () => {
       test('Stay keeps the edits and the page', () => {
         const el = edited(setup());
         const before = window.location.pathname;
-        $(el, '.crumbs [data-page="thermostats"]').click();
+        $(el, '.crumbs [data-navigate="/chauffage/thermostats"]').click();
         $(el, '.sheet-savebar [data-leave-stay]').click();
         assert.equal(window.location.pathname, before);
         assert.ok(weeks(el)[1]._dirty);
@@ -660,7 +660,7 @@ describe('the Chauffage panel', () => {
       test('Leave drops the edits, then follows the link', () => {
         const hass = setup();
         const el = edited(hass);
-        $(el, '.crumbs [data-page="thermostats"]').click();
+        $(el, '.crumbs [data-navigate="/chauffage/thermostats"]').click();
         $(el, '.sheet-savebar [data-leave-discard]').click();
         assert.equal(window.location.pathname, '/chauffage/thermostats');
         assert.equal(saves(hass), 0);
@@ -669,7 +669,7 @@ describe('the Chauffage panel', () => {
       test('Save and leave saves, then follows the link', async () => {
         const hass = setup();
         const el = edited(hass);
-        $(el, '.crumbs [data-page="thermostats"]').click();
+        $(el, '.crumbs [data-navigate="/chauffage/thermostats"]').click();
         $(el, '.sheet-savebar [data-leave-save]').click();
         await tick();
         assert.equal(saves(hass), 1);
@@ -737,13 +737,13 @@ describe('the dashboard card and the panel', () => {
     assert.ok(card.shadowRoot.querySelector('.chips'), 'its chips');
     assert.ok(card.shadowRoot.querySelector('.tabs'), 'its schedule tabs');
     assert.equal(card._view, 'schedule', 'its weeks');
-    assert.ok(card.shadowRoot.querySelector('[data-panel-page]'), 'its link to the panel: it is not the panel');
+    assert.ok(card.shadowRoot.querySelector('[data-navigate^="/chauffage"]'), 'its link to the panel: it is not the panel');
   });
 
   test('admins set the presets from the legend of the presets: one link, where the card shows them', () => {
     const card = createCard(setup());
     assert.equal(card.shadowRoot.querySelector('[data-act="view"], .config-links'), null); // no links at the top
-    const links = [...card.shadowRoot.querySelectorAll('.legend [data-panel-page]')];
+    const links = [...card.shadowRoot.querySelectorAll('.legend [data-navigate^="/chauffage"]')];
     assert.deepEqual(links.map((l) => l.closest('.legend') && l.textContent), ['Régler les préréglages']);
     links[0].click();
     assert.equal(window.location.pathname, '/chauffage/presets');
@@ -751,7 +751,7 @@ describe('the dashboard card and the panel', () => {
 
   test('admins open the panel from the card\'s top right, as the panels of other cards', () => {
     const card = createCard(setup());
-    const open = card.shadowRoot.querySelector('.chips .panel-open[data-panel-page=""]');
+    const open = card.shadowRoot.querySelector('.chips .panel-open[data-navigate="/chauffage"]');
     assert.equal(open.getAttribute('aria-label'), 'Ouvrir dans Chauffage');
     open.click();
     assert.equal(window.location.pathname, '/chauffage');
@@ -760,7 +760,7 @@ describe('the dashboard card and the panel', () => {
   test('a user who is not an admin sees no link to the panel (it is for admins only)', () => {
     const hass = setup();
     hass.user = { is_admin: false };
-    assert.equal(createCard(hass).shadowRoot.querySelector('[data-panel-page]'), null);
+    assert.equal(createCard(hass).shadowRoot.querySelector('[data-navigate^="/chauffage"]'), null);
   });
 
   test('outside the panel, the choice of grouping kept in the browser wins over the card\'s option', () => {
@@ -780,7 +780,7 @@ describe('the more-info block and the panel', () => {
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = hass;
-    assert.equal(text(el.shadowRoot.querySelector('.foot [data-weeks]')), 'Modifier sa semaine');
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-navigate^="/chauffage/thermostats/"]')), 'Modifier sa semaine');
   });
 
   test('a thermostat\'s sheet reached for one week scrolls to it, and marks it a moment', () => {
@@ -797,7 +797,6 @@ describe('the more-info block and the panel', () => {
       el.route = { prefix: '/chauffage', path: '/thermostats/climate.salon' };
       const heading = $(el, 'h3[data-fill-schedule="away"]');
       assert.deepEqual(scrolled, [heading]);
-      assert.ok(heading.classList.contains('arrived'));
       assert.equal(window.location.search, '', 'once: a reload or going back does not scroll again');
     } finally {
       window.Element.prototype.scrollIntoView = original;

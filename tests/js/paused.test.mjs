@@ -129,7 +129,7 @@ describe('the more-info block of a paused thermostat', () => {
     hass.user = { is_admin: false };
     el.hass = { ...hass }; // a user who is not an admin pauses too, as with the Control switch
     assert.ok(el.shadowRoot.querySelector('.foot [data-pause]'));
-    assert.equal(el.shadowRoot.querySelector('.foot [data-weeks]'), null, 'the panel is for admins');
+    assert.equal(el.shadowRoot.querySelector('.foot [data-navigate^="/chauffage/thermostats/"]'), null, 'the panel is for admins');
   });
 
   test('a resume refused by the integration says why', async () => {

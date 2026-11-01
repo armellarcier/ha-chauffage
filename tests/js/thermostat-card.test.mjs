@@ -84,17 +84,17 @@ describe('the thermostat card', () => {
     const card = cardFor(setup());
     $(card, '.tc-name [data-more-info="climate.salon"]').click();
     assert.deepEqual(opened, ['climate.salon']);
-    block(card).querySelector('[data-panel-page="schedules/normal"]').click();
+    block(card).querySelector('[data-navigate="/chauffage/schedules/normal"]').click();
     assert.equal(window.location.pathname, '/chauffage/schedules/normal');
   });
 
   test('its page in the panel opens from the foot of its block (admins)', () => {
     const card = cardFor(setup());
-    block(card).querySelector('.foot [data-weeks="climate.salon"]').click();
+    block(card).querySelector('.foot [data-navigate^="/chauffage/thermostats/climate.salon"]').click();
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
     const hass = setup();
     hass.user = { is_admin: false };
-    assert.equal(block(cardFor(hass)).querySelector('.foot [data-weeks]'), null);
+    assert.equal(block(cardFor(hass)).querySelector('.foot [data-navigate^="/chauffage/thermostats/"]'), null);
   });
 
   test('a temporary setpoint, for the override duration', () => {
@@ -167,7 +167,7 @@ describe('the thermostat card', () => {
   test('in English', () => {
     const card = cardFor(setup({ locale: { language: 'en-US', time_format: 'language', number_format: 'language', first_weekday: 'language' } }));
     assert.equal(text($(card, '.tc-state')), 'Eco · 17°');
-    assert.equal(text(block(card).querySelector('.foot [data-weeks]')), 'Edit its week');
+    assert.equal(text(block(card).querySelector('.foot [data-navigate^="/chauffage/thermostats/"]')), 'Edit its week');
   });
 });
 
