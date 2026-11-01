@@ -2606,7 +2606,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>`}
         ${this._renamedNotesHtml()}
         ${this._config.paused_note === false ? '' : this._pausedNotesHtml()}
-        ${this._config.schedule_tabs === false ? '' : `${one ? '' : `<div class="tabs">${tabs}</div>`}
+        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs">${tabs}</div>`}
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}`}
         <div class="days" style="--day-w:${dayWidth}px">
@@ -4030,6 +4030,8 @@ const STYLE = `
   .chip-sep { width:1px; align-self:stretch; margin:2px 2px; background:var(--divider-color); }
   .chip.tool { border-style:dashed; color:var(--secondary-text-color); background:transparent; }
   .chip.tool.on { border-style:solid; border-color:var(--primary-color); color:var(--primary-color); }
+  /* A schedule's sheet shows no tab: the same space under the chips */
+  .no-tabs { height:12px; }
   .tabs { display:flex; gap:4px; margin:12px 0 10px; padding:3px; border-radius:10px;
     background:var(--secondary-background-color); }
   /* A long name shrinks with an ellipsis, so the ⋮ and the + stay on the card */
