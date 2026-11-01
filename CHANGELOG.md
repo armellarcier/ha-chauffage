@@ -9,11 +9,38 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.0-beta.3] - 2026-11-01
+
+The third beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57), with
+the fix of 0.7.1 for Versatile Thermostat's auto start/stop (#74).
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+No stored data is migrated. **You can upgrade from 0.7 or from an earlier 0.8 beta directly.**
+
 ### Fixed
 
 - **A Versatile Thermostat turned off by its auto start/stop gets its slots again** (#74). Before,
   Chauffage left it alone like a thermostat turned off by hand. The thermostat then missed the
   next comfort slot and never started again. A thermostat turned off by hand is still left alone.
+- **No warning on an override for a Versatile Thermostat turned off by its auto start/stop.** The
+  card and the more-info dialog warn only when the override waits for the thermostat to be turned
+  back on.
+
+## [0.7.1] - 2026-11-01
+
+A fix for Versatile Thermostat's auto start/stop (#74). No stored data is migrated.
+
+### Fixed
+
+- **A Versatile Thermostat turned off by its auto start/stop gets its slots again** (#74). Before,
+  Chauffage left it alone like a thermostat turned off by hand. The thermostat then missed the
+  next comfort slot and never started again. A thermostat turned off by hand is still left alone.
+
+### Upgrading
+
+Update from HACS, then restart Home Assistant.
 
 ## [0.8.0-beta.2] - 2026-11-01
 
