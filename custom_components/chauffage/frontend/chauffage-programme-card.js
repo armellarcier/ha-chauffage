@@ -4250,8 +4250,8 @@ const STYLE = `
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
   /* An icon chosen in HA stays on the line of the name, even on a narrow screen */
   .tab.with-icon { display:flex; align-items:center; justify-content:center; }
-  /* As tall as its drawing, not as a line of text: centered with the name */
-  .tab-icon { --mdc-icon-size:18px; flex:0 0 auto; display:flex; height:18px; margin-inline-end:4px; }
+  /* No line height of its own: as tall as its drawing, centered with the name */
+  .tab-icon { --mdc-icon-size:18px; flex:0 0 auto; line-height:0; margin-inline-end:4px; }
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
