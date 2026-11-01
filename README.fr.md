@@ -396,9 +396,10 @@ Une dérogation sur un thermostat éteint attend : Chauffage ne lui envoie rien,
 la dérogation quand il est rallumé, si elle court encore. La carte et la fenêtre de détail le
 disent.
 
-Un Versatile Thermostat éteint par son démarrage/arrêt automatique (*auto start/stop*) n'est pas
-mis de côté. Chauffage continue de lui envoyer ses créneaux et sa dérogation : le thermostat
-redémarre ainsi quand la pièce a besoin de chauffer.
+Un Versatile Thermostat éteint n'est pas mis de côté. Il peut avoir été éteint à la main, par
+une fenêtre ou par son démarrage/arrêt automatique (*auto start/stop*). Chauffage continue de
+lui envoyer ses créneaux et sa dérogation. Le thermostat reste éteint et les garde : il
+redémarre ainsi sur le bon préréglage.
 
 ### Arrêter une dérogation
 
@@ -604,7 +605,8 @@ version, et Chauffage les migre automatiquement.
 commencent. Il remet aussi sur leur planning les thermostats dont la dérogation se termine. Le
 programmateur remet chaque thermostat sur son planning au démarrage, à l'activation d'un
 planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat en dérogation,
-éteint ou indisponible. Une vanne injoignable ne bloque pas les autres thermostats.
+éteint ou indisponible. Un Versatile Thermostat éteint reçoit quand même ses créneaux. Une
+vanne injoignable ne bloque pas les autres thermostats.
 
 **Les changements manuels.** Une consigne changée à la main, ou un préréglage choisi par un
 utilisateur, devient une dérogation. Revenir à ce que demande le créneau arrête la dérogation.

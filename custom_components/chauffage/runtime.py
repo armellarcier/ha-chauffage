@@ -92,17 +92,17 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),
         engine.temperature_value(attributes.get("target_temp_step")),
-        off_reason(attributes),
+        is_vtherm(attributes),
     )
 
 
-def off_reason(attributes: Mapping[str, Any]) -> str | None:
-    """Why VTherm is off: in specific_states on recent versions (10.5), a top-level attribute on
-    older ones."""
+def is_vtherm(attributes: Mapping[str, Any]) -> bool:
+    """A Versatile Thermostat: it publishes the state asked (requested_state) and why it is off
+    (hvac_off_reason, in specific_states on recent versions, 10.5, a top-level attribute on older
+    ones)."""
     specific = attributes.get("specific_states")
-    if isinstance(specific, Mapping) and specific.get("hvac_off_reason"):
-        return specific["hvac_off_reason"]
-    return attributes.get("hvac_off_reason")
+    return ("requested_state" in attributes or "hvac_off_reason" in attributes
+            or (isinstance(specific, Mapping) and "hvac_off_reason" in specific))
 
 
 def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
@@ -764,7 +764,8 @@ class ChauffageRuntime:
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
-        if (new_value or resend) and self.needs(entity_id, target, current):
+        left_alone = current is not None and engine.ignored(current)  # sent when it is back
+        if (new_value or resend) and not left_alone and self.needs(entity_id, target, current):
             if not await self.send(entity_id, target, f"override set by {source}"):
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
@@ -890,18 +891,18 @@ class ChauffageRuntime:
             del self.data["pending"][entity_id]
         self._save()
 
-    async def _realign(self, entity_id: str) -> None:
-        """A command applied late, after the thermostat was meant to do something else: set back
-        to its override, or to its slot."""
+    async def _realign(self, entity_id: str, reason: str = "command applied late") -> None:
+        """A command applied late, after the thermostat was meant to do something else, or a
+        thermostat turned back on: set to its override, or to its slot."""
         override = self.data["overrides"].get(entity_id)
         if override is None:
-            await self.apply(include={entity_id}, reason="command applied late")
+            await self.apply(include={entity_id}, reason=reason)
             return
         target = engine.Target(override["kind"], override["value"])
         async with self._lock:
             current = thermostat(self.hass.states.get(entity_id))
             if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current):
-                await self.send(entity_id, target, "command applied late, back to the override")
+                await self.send(entity_id, target, f"{reason}, back to the override")
 
     # ----- scheduling -----
 
@@ -992,8 +993,11 @@ class ChauffageRuntime:
             return
         applied = self._applied(new.entity_id, thermostat(old), thermostat(new))
         if engine.ignored(thermostat(old)) and not engine.ignored(thermostat(new)):
-            # Turned back on, or back online: the thermostat may have missed slot changes
-            catch_up = self.apply(include={new.entity_id}, reason=f"back from {old.state}")
+            # Turned back on, or back online: the thermostat may have missed slot changes. Turned
+            # back on, it never got the override set while it was off
+            reason = f"back from {old.state}"
+            catch_up = (self._realign(new.entity_id, reason) if old.state == "off"
+                        else self.apply(include={new.entity_id}, reason=reason))
             self.entry.async_create_task(self.hass, catch_up, "chauffage catch up")
             return
         context = new.context

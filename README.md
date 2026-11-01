@@ -374,9 +374,9 @@ An override on a thermostat that is turned off waits: Chauffage sends it nothing
 override when the thermostat is turned back on, if the override still runs. The card and the
 more-info dialog say so.
 
-A Versatile Thermostat turned off by its auto start/stop is not left alone. Chauffage keeps
-sending it its slots and its override, so that the thermostat starts again when the room needs
-heating.
+A Versatile Thermostat that is turned off is not left alone. It may be turned off by hand, by a
+window or by its auto start/stop. Chauffage keeps sending it its slots and its override. The
+thermostat stays off and keeps them, so that it starts again on the right preset.
 
 ### End an override
 
@@ -572,7 +572,8 @@ Chauffage migrates it automatically.
 The scheduler also sends back to their schedule the thermostats whose override ends. The
 scheduler sets every thermostat to its schedule again at startup, when a schedule is activated,
 and when weeks are saved. The scheduler leaves alone a thermostat that has an override, is off
-or is unavailable. An unreachable valve does not stop the other thermostats.
+or is unavailable. A Versatile Thermostat that is off still gets its slots. An unreachable valve
+does not stop the other thermostats.
 
 **Manual changes.** A setpoint changed by hand, or a preset that a user chooses, becomes an
 override. Going back to what the slot asks for ends the override. Chauffage ignores its own

@@ -9,6 +9,20 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- **A Versatile Thermostat that is turned off gets its slots and its override, whatever turned it
+  off** (#74). Before, only a VTherm turned off by its auto start/stop got them. VTherm keeps the
+  preset while it is off and stays off, so it starts again on the right preset. This also fixes
+  a VTherm whose auto start/stop had just turned it off, before it published why.
+
+### Fixed
+
+- **An override set on a thermostat that is turned off waits until the thermostat is turned
+  back on**, as the README says. Before, Chauffage sent it at once, and some thermostats, such as
+  Tado, turn heating back on when they get a setpoint. A Versatile Thermostat still gets it at
+  once.
+
 ## [0.8.0-beta.3] - 2026-11-01
 
 The third beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57), with
