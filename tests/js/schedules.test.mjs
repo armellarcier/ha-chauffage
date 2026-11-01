@@ -359,6 +359,25 @@ test('an arrow scrolls smoothly with the browser\'s own animation, which stops w
 });
 
 
+test('a hidden card (no width) measures its tabs once more after drawing, not on every frame', async () => {
+  const card = createCard(fakeHass());
+  $(card, 'ha-card').updateComplete = Promise.resolve();
+  const frames = [];
+  let asked = 0;
+  const raf = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (f) => { asked += 1; frames.push(f); return asked; };
+  try {
+    card._render();
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      for (const f of frames.splice(0)) f(); // a frame passes; the card is still hidden
+    }
+    assert.equal(asked, 1);
+  } finally {
+    globalThis.requestAnimationFrame = raf;
+  }
+});
+
 test('only admins see "+" and "⋮"', () => {
   const hass = fakeHass();
   hass.user = { is_admin: false };

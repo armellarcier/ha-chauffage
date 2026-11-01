@@ -2582,6 +2582,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
     const tabsLeft = tabs ? tabs.scrollLeft : 0;
     this._draw();
+    this._tabsWait = false;
     this._placeTabs(tabsLeft);
     if (typing) this._restoreSchedName(typing.value, typing.focused);
     if (rule) this._restoreRuleCaret(rule);
@@ -2594,11 +2595,12 @@ class ChauffageProgrammeCard extends HTMLElement {
   _placeTabs(left) {
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
     if (!tabs) return;
-    // ha-card (a Lit component) shows its content asynchronously: measured once it is drawn
+    // ha-card (a Lit component) shows its content asynchronously: measured once more after it is
+    // drawn, once per render (a hidden card has no width: no measuring on every frame)
     const card = this.shadowRoot.querySelector('ha-card');
     if (!tabs.clientWidth && card && card.updateComplete instanceof Promise && !this._tabsWait) {
       this._tabsWait = true;
-      card.updateComplete.then(() => requestAnimationFrame(() => { this._tabsWait = false; this._placeTabs(left); }));
+      card.updateComplete.then(() => requestAnimationFrame(() => { if (this.isConnected) this._placeTabs(left); }));
       return;
     }
     tabs.scrollLeft = left;
