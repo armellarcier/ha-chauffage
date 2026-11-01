@@ -539,6 +539,11 @@ older one, the older one says so.
   a real upgrade of a development HA, from 0.7.0-beta.4 to 0.8.0-alpha.3. One visible change: an
   entity of a thermostat without a device of its own is now named after the new device, for
   example *Cuisine Pilotage* instead of *Pilotage Cuisine*.
+  **Amended by the review of the PR**: a thermostat with a device of its own is renamed too: its
+  entities move to the scheduled thermostat's device, named after the thermostat, so *Vanne salon
+  Override* becomes *Salon Override*. The changelog says so under *Upgrading*. The device's name
+  follows the thermostat's name as Home Assistant builds it from the registry, so it does not
+  change when the thermostat's state is not there yet at startup.
 - **A thermostat without a device of its own also gets one**, for example a `generic_thermostat`
   written in YAML. Every scheduled thermostat works the same way. So the entity names "*X* of
   *thermostat*" (the `*_of` translation keys) and the Home Assistant version switch

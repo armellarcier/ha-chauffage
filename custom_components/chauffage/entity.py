@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -61,6 +61,17 @@ def scheduled_thermostat_identifier(runtime: ChauffageRuntime, climate: str) -> 
     return DOMAIN, f"{runtime.entry.entry_id}_{climate}"
 
 
+def thermostat_name(state: State | None, entity: er.RegistryEntry | None, device: dr.DeviceEntry | None) -> str | None:
+    """The thermostat's name as Home Assistant builds it, from the registry first: the state may not
+    be there yet at startup, and the name must not change from one restart to the next."""
+    if entity and entity.name:
+        return entity.name
+    if entity and entity.has_entity_name and device:
+        device_name = device.name_by_user or device.name
+        return f"{device_name} {entity.original_name}" if entity.original_name else device_name
+    return (state and state.name) or (entity and entity.original_name) or (device and (device.name_by_user or device.name))
+
+
 def scheduled_thermostat_device(runtime: ChauffageRuntime, climate: str) -> DeviceInfo:
     """The device of a scheduled thermostat: its page lists its Chauffage entities and opens its
     weeks (the panel's route), in the thermostat's area, linked to the thermostat's own device."""
@@ -70,9 +81,7 @@ def scheduled_thermostat_device(runtime: ChauffageRuntime, climate: str) -> Devi
     entity = er.async_get(hass).async_get(climate)
     area_id = (entity and entity.area_id) or (thermostat and thermostat.area_id)
     area = ar.async_get(hass).async_get_area(area_id) if area_id else None
-    # The thermostat's state may not be there yet at startup: its registry entry, or its device
-    name = (state and state.name) or (entity and (entity.name or entity.original_name)) \
-        or (thermostat and (thermostat.name_by_user or thermostat.name)) or climate
+    name = thermostat_name(state, entity, thermostat) or climate
     language = (hass.config.language or "en").split("-")[0]
     info = DeviceInfo(
         identifiers={scheduled_thermostat_identifier(runtime, climate)},

@@ -93,6 +93,8 @@ async def test_the_entities_keep_their_ids_names_and_settings_on_the_new_device(
     cuisine = devices.async_get(entities.async_get("switch.cuisine_control").device_id)
     assert cuisine.name == "Cuisine"
     assert entities.async_get("switch.vanne_salon_control").name == "Chauffage du salon"
+    # Named after the new device, the thermostat's name, not the valve's: the changelog says so
+    assert bench.hass.states.get("binary_sensor.vanne_salon_override").name == "Salon Override"
     assert entities.async_get("binary_sensor.cuisine_override").disabled_by is er.RegistryEntryDisabler.USER
     assert bench.hass.states.get("switch.vanne_salon_control").state == "on"
 

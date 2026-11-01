@@ -9,6 +9,16 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+- **Upgrading from 0.7 renames the entities of a thermostat that has a device of its own.** They
+  move to the scheduled thermostat's device, named after the thermostat, so for example *Vanne
+  salon Override* becomes *Salon Override*. Their ids do not change, so dashboards and
+  automations keep working. Rename an entity in Home Assistant if you prefer its former name.
+- **The name of a scheduled thermostat's device no longer changes from one restart to the next.**
+  It follows the thermostat's name as Home Assistant builds it, even before the thermostat's
+  state is there.
+
 ### Added
 
 - **Every user can pause a thermostat and give it back to Chauffage** from the cards and the

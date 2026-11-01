@@ -60,6 +60,25 @@ async def test_each_scheduled_thermostat_has_a_device_holding_its_entities(bench
         assert device_of(bench, entity_id).id == device.id
 
 
+async def test_the_device_is_named_as_home_assistant_names_the_thermostat_with_or_without_its_state(bench: Bench):
+    """At startup the thermostat's state may not be there yet: the name comes from the registry,
+    as Home Assistant builds it (its device's name, then its own), so it does not change from one
+    restart to the next."""
+    other = MockConfigEntry(domain="test")
+    other.add_to_hass(bench.hass)
+    valve = dr.async_get(bench.hass).async_get_or_create(
+        config_entry_id=other.entry_id, identifiers={("test", "valve")}, name="Vanne salon")
+    er.async_get(bench.hass).async_get_or_create(
+        "climate", "test", "valve", suggested_object_id="salon", device_id=valve.id,
+        has_entity_name=True, original_name="Thermostat")
+    await start(bench)  # no state for climate.salon yet
+    assert device_of(bench).name == "Vanne salon Thermostat"
+    bench.thermostat("climate.salon", "eco", friendly_name="Vanne salon Thermostat")
+    assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert device_of(bench).name == "Vanne salon Thermostat"
+
+
 async def test_the_device_s_visit_link_opens_the_thermostat_s_weeks_in_the_panel(bench: Bench):
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await start(bench)
