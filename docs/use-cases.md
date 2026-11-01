@@ -22,7 +22,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | The card is served by the integration and loaded on every page | `I/test_frontend.py` |
 | The card is found after a reload, even when it loads before HA's frontend (scoped registry) | `C/registration.test.mjs` |
 | Set up the card from the dashboard's visual editor, laid out like HA's own cards: thermostats added, replaced, removed, reordered; an optional name on each thermostat's page (HA's name field from 2025.11, text before), shown under its row when it changes the name; showing them all, time step; options written in YAML kept (`language`), defaults left out; resized in a sections view (#10) | `C/editor.test.mjs` |
-| Add the card from HA's *Add card* dialog: live preview, every thermostat but only the first one shown (not the selection of this device), documentation link, name in HA's language; suggested for a thermostat (*By entity*); starts with the thermostats that have a schedule, or all of them | `C/card-picker.test.mjs` |
+| Add the card from HA's *Add card* dialog: live preview, every thermostat but only the first one shown (not the selection of this device), documentation link, name in HA's language; suggested for a thermostat (*By entity*); starts with the thermostats that have a schedule, or all of them, all shown at first (`show: all`; existing cards keep their choice) | `C/card-picker.test.mjs` |
 
 ## Schedules
 

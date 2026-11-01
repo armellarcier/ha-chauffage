@@ -27,14 +27,14 @@ describe('the card in the "Add card" dialog', () => {
     assert.match(entry().description, /Plannings de chauffe hebdomadaires/);
   });
 
-  test('a new card starts with the thermostats that already have a schedule in Chauffage', async () => {
+  test('a new card starts with the thermostats that already have a schedule in Chauffage, all shown at first', async () => {
     const hass = fakeHass({ data: integrationData({ weeks: {
       'climate.bureau': { Normal: Array(7).fill(WEEKDAY) },
       'climate.salon': { Normal: Array(7).fill(WEEKDAY) },
       'climate.removed': { Normal: Array(7).fill(WEEKDAY) }, // no longer in Home Assistant
     } }) });
     const stub = await ChauffageProgrammeCard.getStubConfig(hass);
-    assert.deepEqual(stub, { thermostats: ['climate.bureau', 'climate.salon'] });
+    assert.deepEqual(stub, { thermostats: ['climate.bureau', 'climate.salon'], show: 'all' }); // existing cards keep theirs
   });
 
   test('without schedules yet, or without the integration, a new card starts with every thermostat', async () => {

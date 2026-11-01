@@ -1555,7 +1555,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // A new card (Add card dialog): the thermostats that already have a schedule in Chauffage,
-  // otherwise every thermostat
+  // otherwise every thermostat, all shown at first (existing cards keep their choice)
   static async getStubConfig(hass) {
     const climates = Object.keys(hass.states).filter((e) => e.startsWith('climate.'));
     let src = dataSource(hass);
@@ -1567,7 +1567,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       src = dataSource(hass);
     }
     const scheduled = Object.keys(src.weeks()).filter((e) => hass.states[e]);
-    return { thermostats: scheduled.length ? scheduled : climates };
+    return { thermostats: scheduled.length ? scheduled : climates, show: 'all' };
   }
 
   // A dashboard's configuration: the options the Chauffage panel sets for its own pages are not
@@ -1710,15 +1710,21 @@ class ChauffageProgrammeCard extends HTMLElement {
       try { saved = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { /* ignore */ }
     }
     const fromSaved = Array.isArray(saved) ? all.filter((e) => saved.includes(e)) : [];
-    const fromConfig = show === 'all' ? all : Array.isArray(show) ? all.filter((e) => show.includes(e)) : [all[0]];
+    // In the "By card" list, a small preview: the first thermostat, even for a new card's `show: all`
+    const fromConfig = show === 'all' && !this._inCardPicker() ? all
+      : Array.isArray(show) ? all.filter((e) => show.includes(e)) : [all[0]];
     return fromSaved.length ? fromSaved : fromConfig.length ? fromConfig : [all[0]];
   }
 
   // HA sets `preview` on the cards it previews (suggestions, card editor), after their config;
   // the cards of the "By card" list are not marked, but shown in its <hui-card-picker>
   _isPreview() {
+    return !!this._previewed || this._inCardPicker();
+  }
+
+  _inCardPicker() {
     const root = this.getRootNode && this.getRootNode();
-    return !!this._previewed || !!(root && root.host && root.host.localName === 'hui-card-picker');
+    return !!(root && root.host && root.host.localName === 'hui-card-picker');
   }
 
   get preview() { return !!this._previewed; }

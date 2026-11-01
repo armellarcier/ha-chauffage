@@ -26,6 +26,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Changed
 
+- **A new schedule card shows all its thermostats at first.** The *Add card* dialog now writes
+  `show: all`. Your existing cards do not change.
 - **The events can say `panel`**: the `source` of `chauffage_override_started` and
   `chauffage_schedule_activated`, and the `reason` of `chauffage_override_ended`, are `panel` for a
   change made in the Chauffage panel. An automation that tests `source == "card"` no longer sees
