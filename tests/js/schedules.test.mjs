@@ -319,7 +319,7 @@ test('the tabs scroll natively, with no scrollbar: a fade where schedules are hi
   const card = createCard(fakeHass());
   const css = card.shadowRoot.querySelector('style').textContent;
   assert.match(css, /\.tabs-scroll \{[^}]*overflow-x:auto;[^}]*scrollbar-width:none/);
-  assert.match(css, /\.tabs-wrap\.more-right \.tabs-scroll \{ mask-image/);
+  assert.match(css, /.tabs-wrap.more-right .tabs-scroll { mask-image/);
   assert.match(css, /\.tab-arrow \{[^}]*position:absolute/, 'over the tabs: showing it moves nothing');
   assert.match(css, /@media \(hover:none\) \{ \.tab-arrow \{ display:none; \} \}/);
   // The wheel is the browser's (a trackpad, Shift + wheel): the card does not take it over

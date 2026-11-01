@@ -2588,9 +2588,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     const tool = on.nextElementSibling && on.nextElementSibling.matches('.tab-tool') ? on.nextElementSibling : on;
     const start = on.offsetLeft - tabs.offsetLeft;
     const end = tool.offsetLeft - tabs.offsetLeft + tool.offsetWidth;
-    // Clear of the fades (32 px), so its ⋮ is not dimmed
-    if (start - 32 < tabs.scrollLeft) tabs.scrollLeft = Math.max(0, start - 32);
-    else if (end + 32 > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = end + 32 - tabs.clientWidth;
+    // Clear of the fades (32 px, and the arrow's room with a mouse), so its ⋮ is not dimmed
+    const margin = 32 + (parseFloat(getComputedStyle(tabs.parentElement).getPropertyValue('--clear')) || 0);
+    if (start - margin < tabs.scrollLeft) tabs.scrollLeft = Math.max(0, start - margin);
+    else if (end + margin > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = end + margin - tabs.clientWidth;
     this._tabArrows();
   }
 
@@ -4226,17 +4227,21 @@ const STYLE = `
   .tabs-scroll::-webkit-scrollbar { display:none; }
   /* A fade on each side where schedules are hidden; with a mouse, an arrow over it. Not on a touch
      screen, where a finger scrolls */
-  .tabs-wrap.more-right .tabs-scroll { mask-image:linear-gradient(to left, transparent, #000 32px); }
-  .tabs-wrap.more-left .tabs-scroll { mask-image:linear-gradient(to right, transparent, #000 32px); }
-  .tabs-wrap.more-left.more-right .tabs-scroll { mask-image:linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
-  .tab-arrow { position:absolute; top:50%; transform:translateY(-50%); display:flex; align-items:center; justify-content:center;
-    width:28px; height:28px; padding:0; border:0; border-radius:50%; background:var(--card-background-color);
-    box-shadow:0 1px 3px rgba(0,0,0,.25); color:var(--secondary-text-color); cursor:pointer; --mdc-icon-size:20px;
-    opacity:0; pointer-events:none; transition:opacity .15s; }
+  /* --clear: the edge left plain grey under an arrow (with a mouse), then the fade */
+  .tabs-wrap { --clear:0px; }
+  .tabs-wrap.more-right .tabs-scroll { mask-image:linear-gradient(to left, transparent var(--clear), #000 calc(var(--clear) + 32px)); }
+  .tabs-wrap.more-left .tabs-scroll { mask-image:linear-gradient(to right, transparent var(--clear), #000 calc(var(--clear) + 32px)); }
+  .tabs-wrap.more-left.more-right .tabs-scroll { mask-image:linear-gradient(to right, transparent var(--clear),
+    #000 calc(var(--clear) + 32px), #000 calc(100% - var(--clear) - 32px), transparent calc(100% - var(--clear))); }
+  @media (hover:hover) { .tabs-wrap { --clear:28px; } }
+  /* A plain chevron: the fade to the grey of the tabs behind it gives it its contrast */
+  .tab-arrow { position:absolute; top:0; bottom:0; display:flex; align-items:center; justify-content:center;
+    width:32px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--secondary-text-color);
+    cursor:pointer; --mdc-icon-size:20px; opacity:0; pointer-events:none; transition:opacity .15s; }
   .tab-arrow[data-tabs-scroll="left"] { left:0; }
   .tab-arrow[data-tabs-scroll="right"] { right:0; }
   .tabs-wrap.more-left .tab-arrow[data-tabs-scroll="left"], .tabs-wrap.more-right .tab-arrow[data-tabs-scroll="right"] { opacity:1; pointer-events:auto; }
-  .tab-arrow:hover, .tab-arrow:focus-visible { color:var(--primary-text-color); }
+  .tab-arrow:hover, .tab-arrow:focus-visible { background:var(--card-background-color); color:var(--primary-text-color); }
   @media (hover:none) { .tab-arrow { display:none; } }
   /* A tab is as wide as its name (a long one shrinks with an ellipsis), and grows when there is
      room: a short name leaves no large empty space */
@@ -4245,7 +4250,8 @@ const STYLE = `
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
   /* An icon chosen in HA stays on the line of the name, even on a narrow screen */
   .tab.with-icon { display:flex; align-items:center; justify-content:center; }
-  .tab-icon { --mdc-icon-size:18px; flex:0 0 auto; margin-inline-end:4px; }
+  /* As tall as its drawing, not as a line of text: centered with the name */
+  .tab-icon { --mdc-icon-size:18px; flex:0 0 auto; display:flex; height:18px; margin-inline-end:4px; }
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
