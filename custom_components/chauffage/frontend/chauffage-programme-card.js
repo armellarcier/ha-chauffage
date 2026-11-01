@@ -64,7 +64,6 @@ const I18N = {
     viewThermostats: 'Thermostats',
     device: 'Device',
     integrationPage: 'Integration page',
-    allThermostats: 'All thermostats',
     weeksTitle: 'Weeks',
     openInPanel: 'Open in {panel}',
     editWeek: 'Edit its week',
@@ -179,7 +178,6 @@ const I18N = {
     presetAuto: 'Default ({value})',
     presetAutoShort: 'Default ({value})',
     apply: 'OK',
-    viewSchedule: 'Schedule',
     viewPresets: 'Presets',
     defaultHelp: 'The default temperature: for the thermostats that have no preset of their own for this one.',
     presetsIntro: 'A preset is an intent (Comfort, Eco…): each thermostat turns it into one of its own presets, or a temperature. Choose a preset or a cell to change it.',
@@ -288,7 +286,6 @@ const I18N = {
     viewThermostats: 'Thermostats',
     device: 'Appareil',
     integrationPage: 'Page de l’intégration',
-    allThermostats: 'Tous les thermostats',
     weeksTitle: 'Semaines',
     openInPanel: 'Ouvrir dans {panel}',
     editWeek: 'Modifier sa semaine',
@@ -403,7 +400,6 @@ const I18N = {
     presetAuto: 'Par défaut ({value})',
     presetAutoShort: 'Par défaut ({value})',
     apply: 'OK',
-    viewSchedule: 'Planning',
     viewPresets: 'Préréglages',
     defaultHelp: 'La température par défaut : pour les thermostats qui n\'ont pas de préréglage à eux pour celui-ci.',
     presetsIntro: 'Un préréglage est une intention (Confort, Éco…) : chaque thermostat la traduit en un de ses propres préréglages, ou en une température. Choisissez un préréglage ou une case pour le modifier.',
@@ -620,6 +616,8 @@ const setHtml = (el, html) => {
   HTML_OF.set(el, html);
   el.innerHTML = html;
 };
+// Admins only: the panel, the weeks, the presets (a hass without a user, as in the tests, is an admin)
+const isAdmin = (hass) => !(hass && hass.user && !hass.user.is_admin);
 // The day of a new schedule's week: eco all day
 const NEW_DAY = [{ start: 0, preset: 'eco' }];
 // An activation rule as the integration reads it (no schedule: the template gives it)
@@ -1213,7 +1211,7 @@ function makeDataSource(hass, available) {
     // What a thermostat follows now and the next different preset: { preset, next_preset, next_start }
     planned: (climate) => (d && d.planned && d.planned[climate]) || null,
     // Presets and mappings are set from the card by admins (the integration refuses the others)
-    editable: !!d && (!hass.user || !!hass.user.is_admin),
+    editable: !!d && isAdmin(hass),
     mapping: (climate) => (d && d.mappings && d.mappings[climate]) || {},
     usePresets: () => !d || d.use_presets !== false,
     presetTemperature: (climate, preset) => ((d && d.preset_temperatures && d.preset_temperatures[climate]) || {})[preset],
@@ -1257,7 +1255,7 @@ function deviceOf(hass, entity) {
 }
 
 function deviceLinkHtml(hass, id, label) {
-  if (!id || (hass && hass.user && !hass.user.is_admin)) return '';
+  if (!id || !isAdmin(hass)) return '';
   return `<span class="mi-link" role="link" tabindex="0" data-device="${esc(id)}">${esc(label)}</span>`;
 }
 
@@ -1528,6 +1526,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     linksByKeyboard(this.shadowRoot);
+    this._drawn = new Set(); // the weeks drawn but not edited, see _week
     this._data = {};
     this._revisions = {};
     this._dirty = false;
@@ -1618,7 +1617,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The view shown (a page of the Chauffage panel), else the weeks
     this._view = config.view || 'schedule';
     // In the panel, a thermostat's sheet shows the history or not for all its weeks (`history`)
-    if (config.panel && config.history != null) this._history.shown = !!config.history;
+    if (config.history != null) this._history.shown = !!config.history;
     if (this._hass) {
       this._setAside(this._source());
       this._render();
@@ -1869,7 +1868,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     for (const [climate, bySchedule] of Object.entries(this._data)) {
       const weeks = Object.keys(bySchedule).sort()
         .map((schedule) => [schedule, bySchedule[schedule].map(serializeDay)])
-        .filter(([schedule, week]) => !(this._drawn && this._drawn.has(`${climate}|${schedule}`)
+        .filter(([schedule, week]) => !(this._drawn.has(`${climate}|${schedule}`)
           && JSON.stringify(week) === JSON.stringify(Array(7).fill(serializeDay(NEW_DAY)))));
       if (weeks.length) out[climate] = JSON.stringify(Object.fromEntries(weeks));
     }
@@ -1882,7 +1881,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!this._data[climate]) this._data[climate] = {};
     if (!this._data[climate][schedule]) {
       this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map(() => NEW_DAY.map((s) => ({ ...s })));
-      (this._drawn || (this._drawn = new Set())).add(`${climate}|${schedule}`);
+      this._drawn.add(`${climate}|${schedule}`);
     }
     return this._data[climate][schedule];
   }
@@ -2730,6 +2729,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const st = this._hass.states[focus];
     // What each preset means for the focused thermostat (see _presetTemperature), then where to
     // set the presets
+    const panelOpen = this._panelOpenHtml();
     const legend = this._presets()
       .map((l) => {
         const target = this._targetOf(focus, l);
@@ -2752,8 +2752,8 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     fill(`
         
-        ${this._config.chips === false ? '' : `<div class="chips${this._panelOpenHtml() ? ' with-open' : ''}">
-          ${this._panelOpenHtml()}
+        ${this._config.chips === false ? '' : `<div class="chips${panelOpen ? ' with-open' : ''}">
+          ${panelOpen}
           ${chips}
           <span class="chip-sep"></span>
           <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
@@ -3193,7 +3193,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!this._schedule || this._schedule === active) return '';
     const t = this._loc.t;
     // The active schedule's name leads to it: its tab on a dashboard, its page in the panel
-    const name = !active ? '' : this._config.panel
+    const name = this._config.panel
       ? `<span class="mi-link" role="link" tabindex="0" data-panel-page="schedules/${esc(active)}">${esc(this._scheduleName(active))}</span>`
       : `<span class="mi-link" role="link" tabindex="0" data-show-schedule="${esc(active)}">${esc(this._scheduleName(active))}</span>`;
     const current = active ? t('activeScheduleBar', { schedule: name }) : esc(t('noActiveSchedule'));
@@ -3392,17 +3392,17 @@ class ChauffageProgrammeCard extends HTMLElement {
   // link to set them; the panel's tabs lead to the rest. In the panel, no link to the panel.
   // The card's top right: the Chauffage panel, for admins, as the dashboards' own panels
   _panelOpenHtml() {
-    if (this._config.view || this._config.panel) return '';
+    if (this._config.panel) return '';
     const hass = this._hass;
-    if (hass && hass.user && !hass.user.is_admin) return '';
+    if (!isAdmin(hass)) return '';
     const label = this._loc.t('openInPanel', { panel: panelTitle(hass) });
     return `<button class="panel-open" data-panel-page="" title="${esc(label)}" aria-label="${esc(label)}"><ha-icon icon="chauffage:logo"></ha-icon></button>`;
   }
 
   _settingsLinkHtml() {
-    if (this._config.view || this._config.panel) return '';
+    if (this._config.panel) return '';
     const hass = this._hass;
-    if (hass && hass.user && !hass.user.is_admin) return '';
+    if (!isAdmin(hass)) return '';
     return `<span class="mi-link settings-link" role="link" tabindex="0" data-panel-page="presets">${esc(this._loc.t('setPresets'))}</span>`;
   }
 
@@ -4091,14 +4091,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (act === 'override-del') return this._sendOverride(c, null);
       if (act === 'override-add') return this._setOverrideEnd(c, endMovedBy(d.end, Number(ds.min)));
     }
-    if (act === 'view') {
-      this._view = ds.view;
-      this._cell = null;
-      this._sel = null;
-      this._overrideSel = null;
-      this._msg = '';
-      return this._render();
-    }
     if (act === 'cell' || act.startsWith('cell-')) return this._cellAction(act, ds);
     if (act.startsWith('rule-') || act.startsWith('rules-')) return this._rulesAction(act, ds);
     if (act === 'save') return this._save();
@@ -4208,8 +4200,6 @@ const STYLE = `
   .paused-note span { flex:1 1 180px; }
   .bar.paused .seg, .bar.unscheduled .seg { opacity:.45; }
   .th-hint { color:var(--secondary-text-color); font-size:.9em; margin:12px 8px 8px; }
-  /* A row is a link to its sheet, chevron included, as the rows of the integration's page: they
-     span the card, and its actions come after a divider */
   /* The list is a card of its own, as on the integration's page: the first and the last rows touch
      its edges, a line between two rows; the texts and the actions to add one sit outside it */
   .th-list { overflow:hidden; background:var(--ha-card-background, var(--card-background-color));
@@ -4244,14 +4234,13 @@ const STYLE = `
   .tabs { display:flex; gap:4px; margin:12px 0 10px; padding:3px; border-radius:10px;
     background:var(--secondary-background-color); }
   /* Many schedules: the tabs keep a minimum width and scroll sideways, the "+" stays in place */
-  .tabs-wrap { position:relative; display:flex; flex:1; min-width:0; }
+  /* --clear: the edge left plain grey under an arrow (with a mouse), then the fade */
+  .tabs-wrap { position:relative; display:flex; flex:1; min-width:0; --clear:0px; }
   /* A native scrolling area, without a scrollbar (the fades and the arrows show it) */
   .tabs-scroll { display:flex; gap:4px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .tabs-scroll::-webkit-scrollbar { display:none; }
   /* A fade on each side where schedules are hidden; with a mouse, an arrow over it. Not on a touch
      screen, where a finger scrolls */
-  /* --clear: the edge left plain grey under an arrow (with a mouse), then the fade */
-  .tabs-wrap { --clear:0px; }
   .tabs-wrap.more-right .tabs-scroll { mask-image:linear-gradient(to left, transparent var(--clear), #000 calc(var(--clear) + 32px)); }
   .tabs-wrap.more-left .tabs-scroll { mask-image:linear-gradient(to right, transparent var(--clear), #000 calc(var(--clear) + 32px)); }
   .tabs-wrap.more-left.more-right .tabs-scroll { mask-image:linear-gradient(to right, transparent var(--clear),
@@ -4320,7 +4309,6 @@ const STYLE = `
     width:24px; height:24px; margin:-4px -8px -4px 2px; border-radius:50%; opacity:.7; cursor:pointer; }
   .chip-open:hover { opacity:1; background:rgba(127,127,127,.25); }
   .chip-open svg { width:15px; height:15px; fill:currentColor; }
-  .links { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:2px; font-size:.85em; color:var(--secondary-text-color); }
   .th-foot { margin:12px 8px 0; font-size:.9em; }
   .th-add { margin:16px 8px 0; }
   .th-add-title { font-weight:500; margin-bottom:8px; }
@@ -4684,7 +4672,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const src = dataSource(this._hass);
     const schedule = src.activeSchedule();
     const name = schedule ? src.scheduleName(schedule) : '';
-    const admin = !(this._hass && this._hass.user && !this._hass.user.is_admin);
+    const admin = isAdmin(this._hass);
     const link = schedule && admin
       ? `<span class="mi-link" role="link" tabindex="0" data-panel-page="schedules/${esc(schedule)}">${esc(name)}</span>` : esc(name);
     return { schedule: link, week: activeWeek(src, this._entity) };
@@ -4777,7 +4765,7 @@ class ChauffageMoreInfo extends HTMLElement {
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
         <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
-    const admin = !(this._hass.user && !this._hass.user.is_admin);
+    const admin = isAdmin(this._hass);
 
     this.shadowRoot.innerHTML = `<style>${MORE_INFO_STYLE}</style>
       <div class="wrap">
@@ -4800,18 +4788,18 @@ class ChauffageMoreInfo extends HTMLElement {
     if (typed !== null) restoreTyped(this.shadowRoot, OVERRIDE_TEMPERATURE, typed);
   }
 
-  // The foot, for admins: the thermostat's page in the panel, and Pause, or Control in its place.
-  // Its entities and its devices are on the device's page and on the panel's sheet
   // Where "Edit its week" leads: the thermostat's page, scrolled to its week in the active schedule
   _weekLink() {
     const week = dataSource(this._hass).activeSchedule();
     return `data-weeks="${esc(this._entity)}"${week ? ` data-week="${esc(week)}"` : ''}`;
   }
 
+  // The foot: Edit its week (admins), and Pause, or Control in its place (anyone who may control
+  // the thermostat). Its entities and its devices are on the device's page and on the panel's page
   _footHtml() {
     const t = this._loc.t;
     const src = dataSource(this._hass);
-    const admin = !(this._hass && this._hass.user && !this._hass.user.is_admin);
+    const admin = isAdmin(this._hass);
     // Its week in the active schedule, on the thermostat's page in the panel (admins, as the panel)
     const links = admin
       ? `<span class="mi-link" role="link" tabindex="0" ${this._weekLink()}>${esc(t('editWeek'))}</span>`
@@ -4819,7 +4807,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const paused = src.paused(this._entity);
     // Pause and Control: anyone who may control the thermostat, as with its Control switch
     const button = paused ? `<button data-resume>${esc(t('resumeShort'))}</button>` : `<button data-pause>${esc(t('pauseShort'))}</button>`;
-    return links || button ? `<div class="foot"><span class="links">${links}</span>${button}</div>` : '';
+    return `<div class="foot"><span class="links">${links}</span>${button}</div>`;
   }
 
   _onClick(e) {
@@ -6078,13 +6066,10 @@ const PANEL_CSS = `
   /* The week a link led to ("Edit its week"), marked a moment */
   h3.arrived { animation:arrived 2.5s ease-out; border-radius:6px; scroll-margin-top:72px; }
   @keyframes arrived { from { background:rgba(var(--rgb-primary-color, 3, 169, 244), .25); color:var(--primary-color); } }
-  h3 [role="link"], .name, .link { cursor:pointer; }
-  h3 [role="link"]:hover, .name:hover, .link:hover { color:var(--primary-color); text-decoration:underline; }
+  h3 [role="link"], .link { cursor:pointer; }
+  h3 [role="link"]:hover, .link:hover { color:var(--primary-color); text-decoration:underline; }
   .box { padding:8px 16px; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color);
     border:1px solid var(--divider-color); }
-  .row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 0; }
-  .box .row + .row { border-top:1px solid var(--divider-color); }
-  .name { font-weight:500; }
   .grow { flex:1; }
   .badge { padding:1px 8px; border-radius:10px; font-size:12px; background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
   .badge.on { background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
@@ -6094,17 +6079,11 @@ const PANEL_CSS = `
   .btn { border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color);
     padding:6px 12px; border-radius:8px; cursor:pointer; font:inherit; font-size:14px; min-height:36px; }
   .btn.primary { background:var(--primary-color); border-color:var(--primary-color); color:var(--text-primary-color, #fff); }
-  input[data-new-name] { flex:1 1 160px; min-height:36px; padding:0 10px; border:1px solid var(--divider-color); border-radius:8px;
-    background:var(--card-background-color); color:var(--primary-text-color); font:inherit; }
-  .muted { padding:4px 0; font-size:14px; color:var(--secondary-text-color); }
-  .links { display:flex; flex-wrap:wrap; gap:6px 16px; padding:6px 0 8px; font-size:14px; }
-  .links [data-device], .links .link { color:var(--primary-color); cursor:pointer; }
   .error { padding:6px 0; color:var(--error-color, #db4437); }
   .welcome { padding:16px 20px; margin-top:8px; }
   .welcome h2 { margin:4px 0 8px; font-size:20px; }
   .welcome h3 { margin:20px 0 8px; font-size:15px; font-weight:500; color:var(--primary-text-color); }
-  .welcome p, .welcome ol { margin:6px 0; line-height:1.5; }
-  .welcome ol { padding-left:22px; }
+  .welcome p { margin:6px 0; line-height:1.5; }
   .picks { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:6px 16px; }
   .pick { display:flex; align-items:center; gap:8px; min-height:40px; cursor:pointer; }
   .pick input { flex:none; width:18px; height:18px; margin:0; }
@@ -6139,7 +6118,8 @@ const PANEL_CSS = `
   }
   .sheet { padding:4px 16px 16px; }
   .sheet h2 { margin:16px 0 8px; }
-  .sheet h3 { margin:20px 0 6px; padding-top:12px; border-top:1px solid var(--divider-color); }
+  .sheet h3 { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:20px 0 6px;
+    padding-top:12px; border-top:1px solid var(--divider-color); }
   .sheet .h2-row { margin:24px 0 0; padding-top:16px; border-top:1px solid var(--divider-color); }
   .sheet .h2-row h2 { margin:0; }
   .sheet .hint { margin:4px 0 0; }
@@ -6152,8 +6132,6 @@ const PANEL_CSS = `
   .sheet-savebar .btns { display:flex; gap:8px; margin-left:auto; }
   .sheet-savebar.leaving { outline:2px solid var(--warning-color, #ffa600); }
   .sheet-savebar .error { flex-basis:100%; order:-1; font-size:13px; color:var(--error-color, #db4437); }
-  .sheet h3 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .sheet h3 { position:relative; }
   .page-more { min-width:40px; min-height:40px; border:0; border-radius:50%; background:transparent; color:inherit;
     font-size:20px; cursor:pointer; }
   .page-menu { top:52px; right:8px; color:var(--primary-text-color); }
