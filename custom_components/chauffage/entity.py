@@ -181,6 +181,10 @@ def async_clean_devices(runtime: ChauffageRuntime) -> None:
     for device in dr.async_entries_for_config_entry(devices, entry_id):
         if device.identifiers & keep:
             continue
+        # The device of a thermostat no longer scheduled goes with its entities
+        if any(domain == DOMAIN and key.startswith(f"{entry_id}_climate.") for domain, key in device.identifiers):
+            devices.async_remove_device(device.id)
+            continue
         if any(e.platform == DOMAIN for e in er.async_entries_for_device(entities, device.id, include_disabled_entities=True)):
             continue
         try:

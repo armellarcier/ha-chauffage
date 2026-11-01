@@ -79,6 +79,27 @@ async def test_the_device_is_named_as_home_assistant_names_the_thermostat_with_o
     assert device_of(bench).name == "Vanne salon Thermostat"
 
 
+async def test_a_thermostat_gone_from_the_data_while_home_assistant_was_stopped_loses_its_device(bench: Bench):
+    """For example a backup of the data restored: at start, the thermostat is not scheduled any
+    more. Its device and its entities, left in the registries, go."""
+    bench.thermostat("climate.salon", "eco", friendly_name="Salon")
+    await start(bench)
+    device_id = device_of(bench).id
+    await bench.advance(1)  # delayed save
+    assert await bench.hass.config_entries.async_unload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    data = bench.storage["chauffage"]["data"]
+    data["thermostats"].pop("climate.salon")
+    for name in ("weeks", "mappings", "overrides"):
+        if isinstance(data.get(name), dict):
+            data[name].pop("climate.salon", None)
+    assert await bench.hass.config_entries.async_setup(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert "climate.salon" not in bench.runtime.scheduled
+    assert dr.async_get(bench.hass).async_get(device_id) is None
+    assert entity_ids(bench) == [None, None, None]
+
+
 async def test_the_device_s_visit_link_opens_the_thermostat_s_weeks_in_the_panel(bench: Bench):
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await start(bench)
