@@ -48,6 +48,16 @@ describe('loading from the integration', () => {
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
 
+  test('the integration deleted or disabled (its services stay until a restart): the card says so, not "…" forever', async () => {
+    const hass = fakeIntegrationHass({ data: null });
+    hass.connection.subscribeMessage = () => Promise.reject({ code: 'not_loaded', message: 'The Chauffage integration is not set up' });
+    const card = createCard(hass);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(card.shadowRoot.querySelector('.loading'), null);
+    assert.match(card.shadowRoot.querySelector('.missing').textContent, /L’intégration Chauffage n’est pas configurée/);
+    assert.equal(card.shadowRoot.querySelector('.missing').getAttribute('role'), 'status');
+  });
+
   test('changes pushed by the integration are shown (schedule activated elsewhere)', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);

@@ -59,6 +59,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **Deleting or disabling the integration removes the *Chauffage* panel from the sidebar.** The
+  panel used to stay, and opened on an empty page. A card now says that the integration is not
+  set up, instead of showing "…" forever.
 - **Saving a card no longer schedules thermostats you did not choose.** A card can show a
   thermostat that Chauffage does not schedule yet: the card now says so, and dims its week.
   Editing its week schedules it, but saving the week of another thermostat no longer does. A

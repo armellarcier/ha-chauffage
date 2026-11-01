@@ -1043,6 +1043,9 @@ const filterActive = (raw) => {
 // One subscription per page, shared by every card and more-info block
 const INTEGRATION = {
   data: null,
+  // true: Home Assistant has the integration's services but no loaded entry (deleted or disabled;
+  // its services stay until a restart)
+  missing: false,
   seq: 0,
   listeners: new Set(),
   connection: null,
@@ -1054,6 +1057,11 @@ const INTEGRATION = {
       this.seq += 1;
       for (const listener of [...this.listeners]) listener();
     }, { type: 'chauffage/subscribe' }).catch((e) => {
+      if (e && e.code === 'not_loaded') {
+        this.missing = true;
+        for (const listener of [...this.listeners]) listener();
+        return;
+      }
       console.error('ha-chauffage: cannot subscribe to the integration', e);
       this.connection = null;
     });
@@ -1075,11 +1083,12 @@ function renamedTo(hass, src, entity) {
 let lastSource = { hass: null, data: null, src: null };
 
 function dataSource(hass) {
-  const available = integrationAvailable(hass);
-  if (available) INTEGRATION.connect(hass);
-  if (lastSource.src && lastSource.hass === hass && lastSource.data === INTEGRATION.data) return lastSource.src;
+  if (integrationAvailable(hass)) INTEGRATION.connect(hass);
+  const available = integrationAvailable(hass) && !INTEGRATION.missing;
+  if (lastSource.src && lastSource.hass === hass && lastSource.data === INTEGRATION.data
+    && lastSource.available === available) return lastSource.src;
   const src = makeDataSource(hass, available);
-  lastSource = { hass, data: INTEGRATION.data, src };
+  lastSource = { hass, data: INTEGRATION.data, available, src };
   return src;
 }
 
@@ -1590,6 +1599,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (src.available && !this._unlisten) {
       // Data pushed by the integration: same checks as a hass update
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+    }
+    if (src.available !== this._available) {
+      this._available = src.available; // the integration deleted or disabled, or back
+      need = true;
     }
     if (this._setAside(src)) need = true;
     const stamp = src.stamps.weeks;
@@ -2546,7 +2559,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (!this._source().available || this._source().outdated) {
       const text = this._source().outdated ? tr('restartNeeded') : tr('integrationMissing');
-      fill(`<div class="missing">${esc(text)}</div>`);
+      fill(`<div class="missing" role="status">${esc(text)}</div>`);
       return;
     }
     if (this._view === 'presets' && this._source().ready) {

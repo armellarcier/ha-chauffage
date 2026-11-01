@@ -63,3 +63,9 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
                                   "embed_iframe": False, "trust_external": False}},
         require_admin=True,
     )
+
+
+def async_remove_chauffage_panel(hass: HomeAssistant) -> None:
+    """The integration deleted or disabled: a panel left behind would open on an empty page."""
+    if "frontend" in hass.config.components:
+        async_remove_panel(hass, DOMAIN, warn_if_unknown=False)

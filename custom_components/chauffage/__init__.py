@@ -102,6 +102,7 @@ def _rename_schedule_entity(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
 async def async_unload_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) -> bool:
     runtime = entry.runtime_data
     runtime.async_stop()
+    frontend.async_remove_chauffage_panel(hass)
     await runtime.store.async_save(runtime.data)  # pending delayed save
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 

@@ -76,3 +76,14 @@ async def test_the_sidebar_follows_the_option_without_a_restart(bench: Bench):
                                                         "show_in_sidebar": shown})
         await bench.hass.async_block_till_done()
         assert sidebar_entry(bench) == expected
+
+
+async def test_the_panel_leaves_the_sidebar_when_the_integration_is_disabled_or_deleted(bench: Bench):
+    """A panel left behind would open on an empty page. The panel comes back with the integration."""
+    await setup_with_the_panel(bench)
+    assert await bench.hass.config_entries.async_unload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert "chauffage" not in bench.hass.data["frontend_panels"]
+    assert await bench.hass.config_entries.async_setup(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert sidebar_entry(bench) == ("Chauffage", "chauffage:logo")

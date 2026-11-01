@@ -70,6 +70,7 @@ export const INTEGRATION_DATA = () => integrationData();
 export function fakeHass({ data, weeks, overrides, schedule, paused, planned, locale = FRENCH, reply } = {}) {
   INTEGRATION.connection = null; // one subscription per page: reset between tests
   INTEGRATION.data = null;
+  INTEGRATION.missing = false;
   INTEGRATION.listeners.clear();
   if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, planned, language: locale.language });
   const events = [];
