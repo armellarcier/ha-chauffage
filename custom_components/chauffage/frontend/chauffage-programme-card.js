@@ -3544,9 +3544,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     const presets = this._presets();
     const sel = this._cell;
     const isSel = (kind, preset, climate) => sel && sel.kind === kind && sel.preset === preset && (sel.climate || null) === (climate || null);
-    const cell = (kind, preset, climate, inner, cls) => {
+    // `named`: the preset's name and color on the cell, shown on a phone, where the table becomes a
+    // row of cells per thermostat (no header above them)
+    const cell = (kind, preset, climate, inner, cls, named) => {
       const on = isSel(kind, preset, climate) ? ' on' : '';
-      const attrs = `data-act="cell" data-kind="${kind}" data-preset="${esc(preset || '')}"${climate ? ` data-climate="${esc(climate)}"` : ''}`;
+      const name = named ? ` data-name="${esc(named.name)}" style="--pc:${named.color}"` : '';
+      const attrs = `data-act="cell" data-kind="${kind}" data-preset="${esc(preset || '')}"${climate ? ` data-climate="${esc(climate)}"` : ''}${name}`;
       return editable ? `<button class="cell ${cls}${on}" ${attrs}>${inner}</button>` : `<span class="cell ${cls}">${inner}</span>`;
     };
     // A preset's header holds all of it: its color, name and default temperature
@@ -3584,7 +3587,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const rows = this._thermostats.map(({ entity }) => {
         const cells = presets.map((l) => {
           const w = what(entity, l);
-          return `<td>${cell('thermostat', l.id, entity, `<span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, w.cls)}</td>`;
+          return `<td>${cell('thermostat', l.id, entity, `<span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, w.cls, l)}</td>`;
         }).join('');
         return `<tr><th class="name">${this._moreInfoLink(entity)}</th>${cells}</tr>`;
       }).join('');
@@ -4348,6 +4351,20 @@ const STYLE = `
   .pv-list .pv-val { font-size:1.2em; }
   .pv-intro { margin:0 0 10px; }
   .pv-table { border-collapse:separate; border-spacing:0; width:100%; font-size:.9em; }
+  /* On a phone, a row of cells per thermostat, each naming its preset: no column cut off */
+  .presets-view { container:presets / inline-size; }
+  @container presets (max-width: 600px) {
+    .pv-table, .pv-table thead, .pv-table tbody { display:block; font-size:1em; }
+    .pv-table tr { display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:6px; padding:8px 0;
+      border-bottom:1px solid var(--divider-color); }
+    .pv-table th, .pv-table td { display:block; padding:0; white-space:normal; text-align:left; }
+    .pv-table thead th { border:0; padding:0; }
+    .pv-table thead th:first-child { display:none; }
+    .pv-table th.name { grid-column:1 / -1; position:static; }
+    .pv-table .cell { width:100%; box-sizing:border-box; align-items:flex-start; }
+    .pv-table td .cell::before { content:attr(data-name); display:block; font-weight:600; padding-left:6px;
+      border-left:4px solid var(--pc); }
+  }
   .pv-table th, .pv-table td { padding:2px; text-align:center; white-space:nowrap; }
   .pv-table thead th { border-bottom:1px solid var(--divider-color); padding-bottom:6px; }
   /* The names stay in place while the table scrolls sideways (narrow screens) */

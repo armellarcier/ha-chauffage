@@ -59,6 +59,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **The *Presets* tab fits a phone.** Under 600 px, each thermostat gets a row of cells, and each
+  cell names its preset. The table used to cut off the presets on the right, with no hint.
 - **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button
   with more room, no taller than that room. It used to go off the top of the screen.
 - **The rows of the panel's lists open with Enter or Space**, and show where the keyboard focus

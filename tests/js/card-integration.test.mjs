@@ -294,6 +294,16 @@ describe('the "Presets" view', () => {
     assert.equal(card.shadowRoot.querySelector('[data-kind="default"]'), null); // in the headers now
   });
 
+  test('on a phone, the table becomes a row of cells per thermostat, each cell naming its preset: no column cut off', () => {
+    const card = open(fakeIntegrationHass({ data: data() }));
+    const cell = card.shadowRoot.querySelector('[data-act="cell"][data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    assert.equal(cell.dataset.name, 'Confort');
+    assert.ok(cell.style.getPropertyValue('--pc'), 'the preset\'s color');
+    const css = card.shadowRoot.querySelector('style').textContent;
+    assert.match(css, /@container presets \(max-width: 600px\)/);
+    assert.match(css, /\.pv-table td \.cell::before \{ content:attr\(data-name\)/);
+  });
+
   test('a thermostat\'s name opens it; in a cell, its device, where its own presets are set (#39)', () => {
     const opened = [];
     const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
