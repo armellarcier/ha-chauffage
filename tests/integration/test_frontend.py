@@ -20,3 +20,61 @@ async def test_the_card_is_served_and_added_to_every_page(bench: Bench, hass_cli
     response = await client.get(url)
     assert response.status == 200
     assert "customElements.define('chauffage-programme-card'" in await response.text()
+
+
+async def setup_with_the_panel(bench: Bench, options: dict | None = None) -> str:
+    """Set up with the frontend; returns the card's module URL, added to every page."""
+    bench.hass.config.components.add("frontend")
+    with patch("custom_components.chauffage.frontend.add_extra_js_url") as add_extra_js_url:
+        await bench.setup(options)
+    return add_extra_js_url.call_args.args[1]
+
+
+def sidebar_entry(bench: Bench) -> tuple[str | None, str | None]:
+    """The panel's title and icon in the sidebar: a panel without a title is not shown there."""
+    panel = bench.hass.data["frontend_panels"]["chauffage"]
+    return panel.sidebar_title, panel.sidebar_icon
+
+
+async def test_the_chauffage_panel_is_in_the_sidebar_for_admins_with_its_own_icon(bench: Bench):
+    """The panel holds the configuration (#57): admins only, as every change of the websocket API
+    but activating a schedule, overrides and the pause. Its icon is the integration's own
+    (`chauffage:logo`, drawn by the card), not one tied to a name that may change."""
+    url = await setup_with_the_panel(bench)
+    assert sidebar_entry(bench) == ("Chauffage", "chauffage:logo")
+    panel = bench.hass.data["frontend_panels"]["chauffage"]
+    assert panel.require_admin is True
+    assert panel.config["_panel_custom"]["name"] == "chauffage-panel"
+    assert panel.config["_panel_custom"]["module_url"] == url  # the card's module
+
+
+async def test_an_admin_can_take_the_panel_out_of_the_sidebar(bench: Bench):
+    """The panel keeps its addresses, so the cards' links and the devices' *Visit* button still
+    open it."""
+    await setup_with_the_panel(bench, {"show_in_sidebar": False})
+    assert sidebar_entry(bench) == (None, None)
+    panel = bench.hass.data["frontend_panels"]["chauffage"]
+    assert panel.require_admin is True
+    assert panel.config["_panel_custom"]["name"] == "chauffage-panel"
+
+
+async def test_the_sidebar_follows_the_option_without_a_restart(bench: Bench):
+    await setup_with_the_panel(bench)
+    options = bench.hass.config_entries.options
+    for shown, expected in ((False, (None, None)), (True, ("Chauffage", "chauffage:logo"))):
+        flow = await options.async_init(bench.entry.entry_id)
+        await options.async_configure(flow["flow_id"], {"override_duration": 120, "use_presets": True,
+                                                        "show_in_sidebar": shown})
+        await bench.hass.async_block_till_done()
+        assert sidebar_entry(bench) == expected
+
+
+async def test_the_panel_leaves_the_sidebar_when_the_integration_is_disabled_or_deleted(bench: Bench):
+    """A panel left behind would open on an empty page. The panel comes back with the integration."""
+    await setup_with_the_panel(bench)
+    assert await bench.hass.config_entries.async_unload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert "chauffage" not in bench.hass.data["frontend_panels"]
+    assert await bench.hass.config_entries.async_setup(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    assert sidebar_entry(bench) == ("Chauffage", "chauffage:logo")

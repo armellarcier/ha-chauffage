@@ -22,7 +22,7 @@ async def test_the_options_form(bench: Bench):
     options = bench.hass.config_entries.options
     flow = await options.async_init(bench.entry.entry_id)
     assert flow["type"] == "form"
-    assert {str(key) for key in flow["data_schema"].schema} == {"override_duration", "use_presets"}
+    assert {str(key) for key in flow["data_schema"].schema} == {"override_duration", "use_presets", "show_in_sidebar"}
     result = await options.async_configure(flow["flow_id"], {"override_duration": 30, "use_presets": True})
     assert result["type"] == "create_entry"
     await bench.hass.async_block_till_done()
@@ -132,7 +132,7 @@ async def test_the_card_edits_the_presets(bench: Bench, ws_client):
 ])
 async def test_preset_and_mapping_changes_need_an_admin(bench: Bench, ws_client, command):
     await start(bench)
-    client = await ws_client(bench.hass, admin=False)
+    client = await ws_client(bench.hass, user="read_only")
     await client.send_json_auto_id(command)
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"

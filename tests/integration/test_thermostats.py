@@ -163,7 +163,7 @@ async def test_the_card_forgets_a_thermostat(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/thermostat/forget", "entity_id": "climate.salon"})
     assert not (await client.receive_json())["success"]
 
-    reader = await ws_client(bench.hass, admin=False)
+    reader = await ws_client(bench.hass, user="read_only")
     await reader.send_json_auto_id({"type": "chauffage/thermostat/forget", "entity_id": "climate.bureau"})
     assert not (await reader.receive_json())["success"]
     assert "climate.bureau" in bench.runtime.thermostats

@@ -5,9 +5,10 @@ chauffage/subscribe          everything the card needs, then again after every c
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
-chauffage/override/set       {entity_id, override | null}: change (value, end) or remove an override;
-                             a new value is sent to the thermostat
-chauffage/schedule/activate  {schedule}: activate a schedule (same as the select entity)
+chauffage/override/set       {entity_id, override | null, source?}: change (value, end) or remove an override;
+                             a new value is sent to the thermostat. Any user who may control the
+                             thermostat, not only an admin
+chauffage/schedule/activate  {schedule, source?}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
                              or a copy), rename, move, delete (see model.plan_schedules)
 chauffage/presets/set        {presets, replacements}: the presets (a removed preset used in the
@@ -20,7 +21,7 @@ chauffage/rules/set          {rules, default_schedule}: the activation rules ([{
 chauffage/rules/preview      {rules}: tries rules being typed, as the integration would, then again
                              when their entities change: {results, texts, errors}, one per rule
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled
-                             thermostat
+                             thermostat. Any user who may control the thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
@@ -33,6 +34,7 @@ from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.auth.permissions.const import POLICY_CONTROL
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
@@ -60,6 +62,15 @@ def _runtime(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
     return entries[0].runtime_data
 
 
+def _may_control(connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> bool:
+    """Overrides and pause: anyone who may control the thermostat, as with its knob, its Control
+    switch and the services, not only an admin. Answers "unauthorized" otherwise."""
+    if connection.user.permissions.check_entity(msg["entity_id"], POLICY_CONTROL):
+        return True
+    connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+    return False
+
+
 async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any],
                action: Callable[[ChauffageRuntime], Awaitable[Any]]) -> None:
     """Runs a change and answers with its result, or the error ("stale", "invalid_format",
@@ -78,6 +89,11 @@ async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
         connection.send_error(msg["id"], "thermostat_failed", f"{err} did not answer")
         return
     connection.send_result(msg["id"], result)
+
+
+# Where a change of the card or the panel comes from, told in the events and the logbook (an
+# older card sends none: "card")
+SOURCES = ("card", "panel")
 
 
 SUBSCRIBERS = f"{DOMAIN}_subscribers"
@@ -166,19 +182,25 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
     vol.Required("type"): "chauffage/override/set",
     vol.Required("entity_id"): str,
     vol.Required("override"): vol.Any(None, dict),
+    vol.Optional("source", default="card"): vol.In(SOURCES),
 })
-@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if not _may_control(connection, msg):
+        return
     await _run(hass, connection, msg, lambda runtime: runtime.set_override(
-        msg["entity_id"], msg["override"], source="card", context=connection.context(msg)))
+        msg["entity_id"], msg["override"], source=msg["source"], context=connection.context(msg)))
 
 
-@websocket_api.websocket_command({vol.Required("type"): "chauffage/schedule/activate", vol.Required("schedule"): str})
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/schedule/activate",
+    vol.Required("schedule"): str,
+    vol.Optional("source", default="card"): vol.In(SOURCES),
+})
 @websocket_api.async_response
 async def ws_activate_schedule(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.activate_schedule(
-        msg["schedule"], source="card", context=connection.context(msg)))
+        msg["schedule"], source=msg["source"], context=connection.context(msg)))
 
 
 @websocket_api.websocket_command({
@@ -223,9 +245,10 @@ async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveCo
     vol.Required("entity_id"): str,
     vol.Required("paused"): bool,
 })
-@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if not _may_control(connection, msg):
+        return
     await _run(hass, connection, msg, lambda runtime: runtime.set_paused(msg["entity_id"], msg["paused"]))
 
 

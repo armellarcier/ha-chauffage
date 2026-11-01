@@ -77,14 +77,15 @@ describe('a paused thermostat in the card', () => {
     assert.equal(hass.events.filter((m) => m.type === 'chauffage/thermostat/set').length, 0);
   });
 
-  test('for a user who is not an admin: the notice, but no button to pause or resume', () => {
+  test('a user who is not an admin resumes it too, as with its Control switch', () => {
     const hass = pausedSalon();
     hass.user = { is_admin: false };
     const card = createCard(hass);
     assert.ok(q(card, '.paused-note'));
-    assert.equal(q(card, '[data-act="resume"]'), null);
-    q(card, '[data-act="view"][data-view="thermostats"]').click();
-    assert.equal(q(card, '[data-act="pause"], [data-act="resume"]'), null);
+    q(card, '[data-act="resume"]').click();
+    assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
+    const page = createCard(hass, { view: 'thermostats' }); // the panel's Thermostats page
+    assert.equal(q(page, '[data-act="pause"], [data-act="resume"]'), null);
   });
 
   test('in English', () => {
@@ -114,20 +115,21 @@ describe('the more-info block of a paused thermostat', () => {
     // At the foot, in place of "Pause" (#39)
     assert.equal(el.shadowRoot.querySelector('[data-pause]'), null);
     assert.equal(el.shadowRoot.querySelector('.status [data-resume]'), null);
-    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Reprendre');
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Piloter'); // the name of the Control switch, not a second "Resume"
     el.shadowRoot.querySelector('[data-resume]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
   });
 
-  test('an active thermostat is paused from the foot of the block (admins)', () => {
+  test('an active thermostat is paused from the foot of the block', () => {
     const hass = pausedSalon();
     const el = block(hass, 'climate.bureau');
     assert.equal(text(el.shadowRoot.querySelector('.foot [data-pause]')), 'Mettre en pause');
     el.shadowRoot.querySelector('[data-pause]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
     hass.user = { is_admin: false };
-    el.hass = { ...hass }; // a user who is not an admin: no pause, no resume
-    assert.equal(el.shadowRoot.querySelector('[data-pause], [data-resume]'), null);
+    el.hass = { ...hass }; // a user who is not an admin pauses too, as with the Control switch
+    assert.ok(el.shadowRoot.querySelector('.foot [data-pause]'));
+    assert.equal(el.shadowRoot.querySelector('.foot [data-navigate^="/chauffage/thermostats/"]'), null, 'the panel is for admins');
   });
 
   test('a resume refused by the integration says why', async () => {

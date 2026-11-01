@@ -18,28 +18,32 @@ TEXTS = {
     "en": {
         "started": "override started: {value} until {end} ({source})",
         "ended": "override ended ({reason})",
-        "activated": "{schedule} activated ({source})",
+        "activated": "schedule activated: {schedule} ({source})",
+        "decimal": ".",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         "sources": {
-            "thermostat": "changed by hand", "card": "from the card", "service": "by a service",
+            "thermostat": "changed by hand", "card": "from the card", "panel": "from the panel", "service": "by a service",
             "entity": "from the select or a schedule switch", "rules": "by the activation rules",
         },
         "reasons": {
             "expired": "expired", "thermostat": "back to the schedule on the thermostat",
-            "card": "removed from the card", "service": "removed by a service",
+            "card": "from the card", "panel": "from the panel", "service": "by a service",
             "paused": "thermostat paused", "forgotten": "thermostat forgotten",
         },
     },
     "fr": {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
         "ended": "dérogation terminée ({reason})",
-        "activated": "{schedule} activé ({source})",
+        "activated": "planning activé : {schedule} ({source})",
+        "decimal": ",",
+        "days": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
         "sources": {
-            "thermostat": "changée à la main", "card": "depuis la carte", "service": "par un service",
+            "thermostat": "changée à la main", "card": "depuis la carte", "panel": "depuis le panneau", "service": "par un service",
             "entity": "depuis le sélecteur ou un interrupteur de planning", "rules": "par les règles d'activation",
         },
         "reasons": {
             "expired": "expirée", "thermostat": "retour au planning sur le thermostat",
-            "card": "retirée depuis la carte", "service": "retirée par un service",
+            "card": "depuis la carte", "panel": "depuis le panneau", "service": "par un service",
             "paused": "thermostat en pause", "forgotten": "thermostat oublié",
         },
     },
@@ -66,15 +70,24 @@ def async_describe_events(
         if preset:
             return preset["name"]
         if data.get("kind") == "temperature":
-            return f"{data.get('value')} {hass.config.units.temperature_unit}"
+            # 21 °C, not 21.0 °C; 21,5 °C in French
+            number = f"{round(float(data.get('value')), 1):g}".replace(".", texts()["decimal"])
+            return f"{number} {hass.config.units.temperature_unit}"
         return str(data.get("value"))
+
+    def until(end: Any) -> str:
+        """The end's day and time: the same line whatever the day it is read."""
+        if not end:
+            return "?"
+        local = dt_util.as_local(end)
+        return f"{texts()['days'][local.weekday()]} {local.strftime('%H:%M')}"
 
     @callback
     def started(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
         end = engine.parse_datetime(data.get("end"))
         return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"],
-                "message": t["started"].format(value=value(data), end=dt_util.as_local(end).strftime("%H:%M") if end else "?",
+                "message": t["started"].format(value=value(data), end=until(end),
                                                source=t["sources"].get(data.get("source"), data.get("source")))}
 
     @callback

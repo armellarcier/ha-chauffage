@@ -95,6 +95,16 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
     )
 
 
+def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
+    """One of the integration's devices, by its identifier."""
+    registry = dr.async_get(hass)
+    # From Home Assistant 2026.10, identifiers are only unique within a config entry: the
+    # lookup by identifiers alone is deprecated (it stops working in 2027.8)
+    if hasattr(registry, "async_get_device_by_identifier"):
+        return registry.async_get_device_by_identifier(identifier, entry.entry_id)
+    return registry.async_get_device(identifiers={identifier})
+
+
 def _describe(command: engine.Target | dict[str, Any]) -> str:
     """A command or an override, for the log: "preset eco", "temperature 21.5"."""
     if isinstance(command, engine.Target):
@@ -365,14 +375,7 @@ class ChauffageRuntime:
 
     def device_id(self) -> str | None:
         """The "Chauffage" device holding the global entities."""
-        registry = dr.async_get(self.hass)
-        identifier = (DOMAIN, self.entry.entry_id)
-        # From Home Assistant 2026.10, identifiers are only unique within a config entry: the
-        # lookup by identifiers alone is deprecated (it stops working in 2027.8)
-        if hasattr(registry, "async_get_device_by_identifier"):
-            device = registry.async_get_device_by_identifier(identifier, self.entry.entry_id)
-        else:
-            device = registry.async_get_device(identifiers={identifier})
+        device = device_by_identifier(self.hass, self.entry, (DOMAIN, self.entry.entry_id))
         return device.id if device else None
 
     def schedule_select(self) -> str | None:
@@ -426,6 +429,12 @@ class ChauffageRuntime:
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
         if any(self._renamed_to(entity_id) for entity_id in normalized):
             raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
+        # A card may list a climate removed from Home Assistant: never schedule a ghost
+        registry = er.async_get(self.hass)
+        for entity_id in normalized:
+            if (entity_id not in self.scheduled and self.hass.states.get(entity_id) is None
+                    and registry.async_get(entity_id) is None):
+                raise model.InvalidData(f"{entity_id} does not exist")
         if revisions is not None:
             scheduled = self.scheduled
             for entity_id in normalized:
@@ -630,7 +639,8 @@ class ChauffageRuntime:
     # ----- activation rules -----
 
     async def set_rules(self, rules: Any, default_schedule: Any) -> None:
-        """New activation rules, applied at once (even over a schedule chosen by hand)."""
+        """New activation rules. They activate their schedule when what they give changes, as
+        when their entities change: a schedule chosen by hand stays if the outcome is the same."""
         normalized = model.normalize_rules(rules, default_schedule, self.schedule_ids)
         for rule in normalized:
             try:
@@ -640,7 +650,7 @@ class ChauffageRuntime:
         self.data["rules"], self.data["default_schedule"] = normalized, default_schedule
         self._changed()
         self._track_rules()
-        await self.follow_rules(force=True)
+        await self.follow_rules()
 
     @callback
     def _track_rules(self) -> None:
@@ -727,6 +737,8 @@ class ChauffageRuntime:
         `resend` (the service: an automation setting it again puts back a thermostat that lost
         it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached; none
         on a paused thermostat."""
+        if entity_id not in self.scheduled:
+            raise model.InvalidData(f"not scheduled: {entity_id}")
         if override is not None and self.is_paused(entity_id):
             raise ThermostatPaused(f"paused: {entity_id}")
         if override is None:

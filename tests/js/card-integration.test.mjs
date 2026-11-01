@@ -48,6 +48,35 @@ describe('loading from the integration', () => {
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
 
+  test('the integration deleted or disabled (its services stay until a restart): the card says so, not "…" forever', async () => {
+    const hass = fakeIntegrationHass({ data: null });
+    hass.connection.subscribeMessage = () => Promise.reject({ code: 'not_loaded', message: 'The Chauffage integration is not set up' });
+    const card = createCard(hass);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(card.shadowRoot.querySelector('.loading'), null);
+    assert.match(card.shadowRoot.querySelector('.missing').textContent, /L’intégration Chauffage n’est pas configurée/);
+    assert.equal(card.shadowRoot.querySelector('.missing').getAttribute('role'), 'status');
+  });
+
+  test('the integration set up again: the card draws its weeks, with no page reload', async () => {
+    const hass = fakeIntegrationHass({ data: null });
+    const subscribe = hass.connection.subscribeMessage;
+    let loaded = false;
+    hass.connection.subscribeMessage = (cb, msg) => (loaded ? subscribe(cb, msg)
+      : Promise.reject({ code: 'not_loaded', message: 'The Chauffage integration is not set up' }));
+    const card = createCard(hass);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.ok(card.shadowRoot.querySelector('.missing'));
+    card.hass = { ...hass, states: { ...hass.states } }; // an update that does not bring it back: no new try
+    loaded = true;
+    // Set up again: Home Assistant shows its panel again
+    card.hass = { ...hass, panels: { ...hass.panels, chauffage: { url_path: 'chauffage' } } };
+    hass.push(INTEGRATION_DATA());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(card.shadowRoot.querySelector('.missing'), null);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+  });
+
   test('changes pushed by the integration are shown (schedule activated elsewhere)', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
@@ -58,6 +87,23 @@ describe('loading from the integration', () => {
 });
 
 describe('writing to the integration', () => {
+  test('saving one thermostat does not schedule a thermostat of the card that nobody edited', async () => {
+    const hass = fakeIntegrationHass(); // the salon is scheduled, the bureau is not
+    const card = createCard(hass);
+    assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]'), 'the bureau is shown');
+    card._split('climate.salon', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.salon']);
+  });
+
+  test('editing the week of a thermostat of the card that Chauffage does not schedule yet schedules it', async () => {
+    const hass = fakeIntegrationHass();
+    const card = createCard(hass);
+    card._split('climate.bureau', 0, 12 * 60);
+    await card._save();
+    assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
+  });
+
   test('Save sends the weeks of the thermostats changed, by schedule id, with the revision of each', async () => {
     const both = { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.bureau': { Normal: Array(7).fill(WEEKDAY) } };
     const hass = fakeIntegrationHass({ weeks: both });
@@ -73,14 +119,14 @@ describe('writing to the integration', () => {
     assert.equal(card._dirty, false);
   });
 
-  test('a thermostat added to the card is scheduled with the default week (docs/decisions.md)', async () => {
-    const hass = fakeIntegrationHass(); // only the salon is scheduled
-    const card = createCard(hass);
-    card._split('climate.salon', 0, 12 * 60);
-    await card._save();
-    const msg = lastCall(hass);
-    assert.deepEqual(Object.keys(msg.weeks).sort(), ['climate.bureau', 'climate.salon']);
-    assert.deepEqual(msg.revisions['climate.bureau'], null);
+  test('a thermostat of the card that Chauffage does not schedule yet says so, and how to schedule it', () => {
+    const card = createCard(fakeIntegrationHass());
+    const notes = [...card.shadowRoot.querySelectorAll('.unscheduled-note')].map((n) => n.textContent.replace(/\s+/g, ' ').trim());
+    assert.deepEqual(notes, ['Chauffage ne programme pas encore Bureau : modifiez sa semaine pour le programmer.']);
+    assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]').classList.contains('unscheduled'));
+    const hass = fakeIntegrationHass();
+    hass.user = { is_admin: false };
+    assert.match(createCard(hass).shadowRoot.querySelector('.unscheduled-note').textContent, /Chauffage ne programme pas Bureau\./);
   });
 
   test('the next save uses the revision the integration gave back', async () => {
@@ -244,8 +290,7 @@ describe('the "Presets" view', () => {
   });
   const open = (hass) => {
     hass.states['climate.salon'].attributes.preset_modes = ['eco', 'comfort', 'away', 'boost'];
-    const card = createCard(hass); // salon and bureau (bureau: no schedule, no presets)
-    card.shadowRoot.querySelector('[data-act="view"][data-view="presets"]').click();
+    const card = createCard(hass, { view: 'presets' }); // salon and bureau (bureau: no schedule, no presets)
     return card;
   };
   const squash = (el) => el.textContent.replace(/\s+/g, ' ').trim();
@@ -266,6 +311,15 @@ describe('the "Presets" view', () => {
     assert.match(squash(card.shadowRoot.querySelector('.pv-note')), /\? : la température d’un préréglage du thermostat est connue une fois qu’il a servi/);
     assert.equal(card.shadowRoot.querySelector('.chips'), null); // no thermostat selection here
     assert.equal(card.shadowRoot.querySelector('[data-kind="default"]'), null); // in the headers now
+  });
+
+  test('many presets stay on one line: the table scrolls sideways, the thermostats\' names stay in place', () => {
+    const card = open(fakeIntegrationHass({ data: data() }));
+    assert.ok(card.shadowRoot.querySelector('.table-wrap > table.pv-table'));
+    const css = card.shadowRoot.querySelector('style').textContent;
+    assert.match(css, /\.table-wrap \{ overflow-x:auto;/);
+    assert.match(css, /\.pv-table th, \.pv-table td \{[^}]*white-space:nowrap/);
+    assert.doesNotMatch(css, /@container presets/, 'no wrapping into rows on a phone');
   });
 
   test('a thermostat\'s name opens it; in a cell, its device, where its own presets are set (#39)', () => {
@@ -305,7 +359,7 @@ describe('the "Presets" view', () => {
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]'), null, 'no separate "automatic"');
     assert.ok(card.shadowRoot.querySelector('input[name="cell-kind"][value="preset"]').checked);
-    assert.deepEqual(presetOptions(card), [':Auto (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
+    assert.deepEqual(presetOptions(card), [':Par défaut (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
 
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'comfort'; // pinned, unlike automatic
     await card._action('cell-apply', {});
@@ -328,7 +382,7 @@ describe('the "Presets" view', () => {
   test('automatic stays a choice of its own when it gives a temperature', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
-    assert.match(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').parentElement.textContent, /Automatique \(7 °C\)/);
+    assert.match(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').parentElement.textContent, /Par défaut \(7 °C\)/);
     assert.deepEqual(presetOptions(card).map((o) => o.split(':')[0]), ['eco', 'comfort', 'away', 'boost']); // its own order
   });
 
@@ -408,10 +462,10 @@ describe('the "Presets" view', () => {
     assert.equal(cellText(card, 'comfort', 'climate.salon'), '19° son préréglage Confort');
   });
 
-  test('back to the schedule view', () => {
+  test('the page shows the presets alone: no views to switch, the panel tabs do it (#57)', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-act="view"][data-view="schedule"]');
-    assert.ok(card.shadowRoot.querySelector('.chips'));
+    assert.equal(card.shadowRoot.querySelector('[data-act="view"]'), null);
+    assert.equal(card.shadowRoot.querySelector('.chips'), null);
   });
 
   test('read only for non-admins', () => {

@@ -106,6 +106,18 @@ async def test_invalid_schedules_are_refused(bench: Bench, ws_client):
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
 
 
+async def test_a_card_cannot_schedule_a_thermostat_that_does_not_exist(bench: Bench, ws_client):
+    """A card still listing a climate removed from Home Assistant: saving must not schedule a
+    ghost thermostat (no state, no registry entry)."""
+    await start(bench)
+    client = await ws_client(bench.hass)
+    week = [[["00:00", "comfort"]]] * 7
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.ghost": {"normal": week}}})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "invalid_format"
+    assert "climate.ghost" not in bench.runtime.scheduled
+
+
 async def test_overrides_and_active_schedule_from_the_card(bench: Bench, ws_client):
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21)
@@ -156,10 +168,71 @@ async def test_an_override_s_new_value_on_a_thermostat_that_does_not_answer(benc
 
 async def test_writes_need_an_admin(bench: Bench, ws_client):
     await start(bench)
-    client = await ws_client(bench.hass, admin=False)
+    client = await ws_client(bench.hass, user="household")
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
+
+
+async def test_anyone_at_home_sets_changes_and_ends_an_override_from_a_card(bench: Bench, ws_client):
+    """As with the thermostat's knob, and the set_override and clear_override services, which any
+    user can call: a user who is not an admin changes an override from a card."""
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21)
+    client = await ws_client(bench.hass, user="household")
+    o = bench.overrides()["climate.salon"]
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    assert (await client.receive_json())["success"]
+    assert bench.overrides()["climate.salon"]["value"] == 22
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": None})
+    assert (await client.receive_json())["success"]
+    assert bench.overrides() == {}
+
+
+async def test_a_read_only_user_cannot_change_an_override(bench: Bench, ws_client):
+    """The user may not control the thermostat, as for its own controls in Home Assistant."""
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21)
+    client = await ws_client(bench.hass, user="read_only")
+    o = bench.overrides()["climate.salon"]
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "unauthorized"
+    assert bench.overrides()["climate.salon"] == o
+
+
+async def test_an_override_only_goes_to_a_scheduled_thermostat(bench: Bench, ws_client):
+    """Opening overrides to every user who may control an entity must not let them store an
+    override, or send climate commands, on an entity Chauffage does not schedule."""
+    await start(bench)
+    bench.hass.states.async_set("climate.grenier", "heat", {"temperature": 19})
+    client = await ws_client(bench.hass, user="household")
+    override = {"kind": "temperature", "value": 22, "start": "2026-10-12T08:00:00+02:00", "end": "2026-10-12T12:00:00+02:00"}
+    for entity_id in ("climate.grenier", "light.x"):
+        await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": entity_id, "override": override})
+        reply = await client.receive_json()
+        assert not reply["success"] and reply["error"]["code"] == "invalid_format", entity_id
+    assert bench.overrides() == {}
+    assert bench.temperature_calls == []
+
+
+async def test_anyone_at_home_pauses_and_resumes_a_thermostat_from_a_card(bench: Bench, ws_client):
+    """As with its Control switch, which any user who may control the thermostat can turn off."""
+    await start(bench)
+    client = await ws_client(bench.hass, user="household")
+    for paused in (True, False):
+        await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": paused})
+        assert (await client.receive_json())["success"]
+        assert bench.runtime.is_paused("climate.salon") is paused
+
+
+async def test_a_read_only_user_cannot_pause_a_thermostat(bench: Bench, ws_client):
+    await start(bench)
+    client = await ws_client(bench.hass, user="read_only")
+    await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": True})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "unauthorized"
+    assert not bench.runtime.is_paused("climate.salon")
 
 
 # ----- services -----

@@ -20,6 +20,9 @@ future contributor might question.
 - **Settings in the card, not in the options flow.** HA's option forms (generated fields, no
   layout, no preview) proved impractical for setting temperatures room by room. The options
   keep a single form of defaults (override duration, use of the thermostats' own presets).
+  **Amended by #57**: the settings move from the card to the Chauffage panel,
+  which reuses the card's views. The options flow keeps its single form. See
+  [The panel](#the-panel).
 
 ## Scheduling
 
@@ -160,6 +163,9 @@ future contributor might question.
   give another schedule (tomorrow's Tempo color), not at their next evaluation. The outcome last
   applied is stored (`rules_choice`), so a choice by hand also survives a restart; saving the rules
   applies them at once. Rules are evaluated once HA has started, when their entities are there.
+  **Amended by the UX review**: saving the rules applies them only when what they give changes, as
+  when their entities change. A schedule chosen by hand stays if the outcome is the same. Two
+  testers lost a *Holiday* chosen by hand when they edited a rule.
 
 ## Scheduled thermostats
 
@@ -179,6 +185,10 @@ future contributor might question.
   somewhere else than the living room's thermostat. A thermostat without a device (a
   `generic_thermostat` written in YAML) gets entities without a device, named after it, as HA
   does for any entity without one; not the *Chauffage* service device.
+  **Superseded by #57**: each scheduled thermostat now gets a device of ours,
+  including a thermostat without a device of its own. The reason is an address for its weeks
+  without injecting a block into the more-info dialog. See
+  [A device per scheduled thermostat](#devices).
 - **Adding a thermostat in a card schedules it**, active: no list to fill in, no step before the
   card works. **A scheduled thermostat is one with weeks, one in every schedule**: the weeks the
   card sent, and in the other schedules the week of a new schedule (eco all week, or the first
@@ -187,6 +197,12 @@ future contributor might question.
   tell a week drawn from a week edited, and deleting a schedule could unschedule a thermostat
   without a word. Values of the presets set first are kept for it, but schedule nothing (no
   switch, nothing to pause), as the weeks alone say what is scheduled.
+  **Amended by the UX review**: editing a thermostat's week in a card schedules it, not adding the
+  thermostat to the card. A card showing a thermostat that Chauffage does not schedule draws a new
+  schedule's week for it, dimmed, with a note, and does not send that week until someone edits it.
+  Before, saving any thermostat of the card scheduled them all: a user who scheduled 3 thermostats
+  in the panel found 5 controlled. The integration also refuses to schedule a climate that has
+  neither a state nor a registry entry.
 - **Paused: still scheduled, not controlled.** A paused thermostat keeps everything; Chauffage
   sends it nothing, does not turn manual changes into overrides and drops its current override; its
   sensors are unavailable. Resuming realigns it at once. Paused is not *off*: off is the
@@ -202,6 +218,8 @@ future contributor might question.
 - **In the card, a paused thermostat stays**, marked paused with a *Resume* button; its weeks
   can still be edited (to prepare the return), saving does not resume it; no override can be
   set on it.
+  **Amended by the UX review**: the button says *Resume control* (*Piloter*), after the switch. See
+  [The UX review](#the-ux-review-080-beta2).
 - **The cards do not tell the integration what they show.** Removing a thermostat from a card
   does not stop its schedule: it is paused or forgotten on purpose, from its switch or the
   card's *Thermostats* view, which lists every scheduled thermostat and marks the ones not in
@@ -213,6 +231,10 @@ future contributor might question.
   adding state and false alarms for what an explicit pause does. The integration does not read
   the dashboards either: their storage is internal to Lovelace, and YAML or generated dashboards
   would be missed.
+  **Amended by #57**: the *Thermostats* view moves from the card to the
+  Chauffage panel. The panel reads the dashboards' configurations in the browser, for admins
+  only, to say where each thermostat is shown. The integration still does not read them. See
+  [The panel's pages](#the-panels-pages).
 - **A repair for a thermostat whose entity is gone** from HA: forget it, or keep it (an entity
   made again with the same id, which closes the repair).
 - **A renamed `climate` entity is followed by the integration**, as HA's helpers follow their
@@ -421,6 +443,9 @@ dashboards, automations, scripts and by voice without the card
   ids of its entities: a thermostat without a device has entities named after it, not attached
   to it, that the card cannot find otherwise. What opens looks like a link (dotted underline),
   since a finger cannot hover it.
+  **Amended by #57**: every scheduled thermostat now has a device of ours, so no
+  entity is named after its thermostat any more. The integration still tells the cards the ids of
+  its entities. See [Devices](#devices).
 - **A cell of the *Presets* view says what it is, in words**: "its *Comfort* preset", "set
   here", "default", under the temperature. Symbols (`⟲`, `●`, grey) with a key under the table
   had to be learned, and could not be read at a glance on a phone. A preset's header holds all
@@ -429,7 +454,10 @@ dashboards, automations, scripts and by voice without the card
 - **Unsaved edits are said where the user is**: a bar sticky at the bottom of the window, not
   disabled buttons at the foot of a card several screens long (edits of Monday, Save after
   Sunday). A switch of schedule tab keeps the edits (they are saved together), and the bar
-  stays.
+  stays. **One save for every schedule of the card**: the user cannot miss a *Save* because
+  the tab shown is not the schedule edited. A thermostat's page in the panel is different: its
+  weeks are all shown at once, and one save bar at the bottom of the window saves them all (see
+  [The UX review](#the-ux-review-080-beta2)).
 - **A time field is a text field read by the card's own parser, not `<input type="time">`**
   (#63). A browser shows its time input in the format of its own language, and a page cannot
   change it: an English browser showed "8:30 AM" to a user whose profile says 24 hours. The
@@ -467,8 +495,339 @@ dashboards, automations, scripts and by voice without the card
     a field at "06:00 PM" means 7:15 PM. Except 12, which is noon: "1230" in a morning field
     means half past noon, not half past midnight.
 
+## Chauffage panel and devices (#57)
+
+These decisions come from [#57](https://github.com/armellarcier/ha-chauffage/issues/57), first
+tried as a prototype, then tested (version 0.8.0-alpha.1). Their use cases and tests are in
+[use-cases.md](use-cases.md#chauffage-panel-and-devices-57). When a decision here reverses an
+older one, the older one says so.
+
+### Devices
+
+- **A device per scheduled thermostat.** This reverses "A scheduled thermostat is stored data, not
+  a device or an entity" (see "Scheduled thermostats"). The scheduled thermostat stays stored
+  data, keyed by its `climate` entity id. Home Assistant shows it through a device of ours. The
+  reason is an official address for a thermostat's weeks. Without this device, the only way to
+  reach the weeks outside a dashboard was the block injected into the more-info dialog. Home
+  Assistant has no extension point for that dialog, so the injection breaks silently when Home
+  Assistant changes it.
+- **The device's name is the thermostat's name.** The device takes the name of the thermostat's
+  state. At startup, the state may not exist yet. The device then takes the name of the
+  thermostat's registry entry, else the name of the thermostat's device, else the entity id.
+- **The device's model says what it is**: *Scheduled thermostat*, or *Thermostat programmé* in
+  French. Home Assistant does not translate device models, so the integration picks the model in
+  Home Assistant's language. The manufacturer is *ha-chauffage*.
+- **The device goes in the thermostat's area.** The integration suggests the area of the
+  thermostat's entity, else the area of the thermostat's device.
+- **The device is connected via the thermostat's own device.** Home Assistant's page of the
+  thermostat's device then lists our device under *Connected devices*. Our device's page shows
+  *Connected via* the thermostat. From Home Assistant 2026.10, the device names its parent by the
+  parent's id (`via_device_id`); before, by one of the parent's identifiers (`via_device`,
+  deprecated in 2026.10, it stops working in 2027.8).
+- **The device's *Visit* button opens the thermostat's page in the panel.** The device's
+  `configuration_url` is `homeassistant://chauffage/thermostats/<climate>`.
+- **Forgetting a thermostat removes its device.**
+- **At setup, Chauffage keeps only its own devices**: the service device and one per scheduled
+  thermostat. A device of a thermostat renamed or forgotten while Home Assistant was stopped goes
+  (a rename reloads the integration, so a renamed thermostat's former device goes at once). So
+  does what 0.7 left on a thermostat's own device: before HA 2025.8, 0.7 attached its entities
+  through the thermostat's device, so HA listed Chauffage among the device's integrations; from HA
+  2026.8, HA split that into a device of Chauffage of its own, with the thermostat's identifiers.
+  A device that still holds an entity of Chauffage is never touched.
+- **Upgrading from 0.7 changes no stored data** (storage version 6 before and after). The
+  entities keep their ids, their names and their settings, and move to the new device. Checked on
+  a real upgrade of a development HA, from 0.7.0-beta.4 to 0.8.0-alpha.3. One visible change: an
+  entity of a thermostat without a device of its own is now named after the new device, for
+  example *Cuisine Pilotage* instead of *Pilotage Cuisine*.
+  **Amended by the review of the PR**: a thermostat with a device of its own is renamed too: its
+  entities move to the scheduled thermostat's device, named after the thermostat, so *Vanne salon
+  Override* becomes *Salon Override*. The changelog says so under *Upgrading*. The device's name
+  follows the thermostat's name as Home Assistant builds it from the registry, so it does not
+  change when the thermostat's state is not there yet at startup.
+- **A thermostat without a device of its own also gets one**, for example a `generic_thermostat`
+  written in YAML. Every scheduled thermostat works the same way. So the entity names "*X* of
+  *thermostat*" (the `*_of` translation keys) and the Home Assistant version switch
+  `DEVICE_ENTRY_ATTACHES` are gone.
+- **Entity ids and unique ids do not change.** Only their device changes. Dashboards and
+  automations that target the entities keep working.
+
+### The panel
+
+- **A *Chauffage* panel, for admins only** (`require_admin=True`). Every change of the websocket API
+  needs an admin, except activating a schedule, setting an override and pausing a thermostat:
+  those need the control of the thermostat (see [The UX review](#the-ux-review-080-beta2)). Home Assistant's device pages are also for admins
+  only.
+- **The panel's sidebar icon is our own icon**, `chauffage:logo`. The card's JavaScript registers it
+  in `window.customIcons`. The icon is drawn from the brand icon: bars of slots and a clock. The
+  icon does not depend on the integration's name, which may change. The limit: if the card's
+  JavaScript does not load, the icon is empty.
+- **The sidebar entry is an option, on by default** (*Show Chauffage in the sidebar*). An
+  integration should not force an entry into the sidebar. Out of the sidebar, the panel is
+  registered without a title or an icon: Home Assistant shows no entry for a panel without a
+  title, on every supported version, as for its own *Profile* panel. The panel keeps its
+  addresses, so the cards' links and the devices' *Visit* button still open it.
+  - **Not `show_in_sidebar`**: Home Assistant 2025.1 does not have it.
+  - **Not only the user's own setting**: each user can hide an entry from the sidebar, but on
+    each browser, one by one.
+- **Dashboard cards are for everyday use. The panel is for configuration.** The schedule card no
+  longer has the *Presets*, *Rules* and *Thermostats* views. Admins find *Set the presets* in the card's
+  legend, and a button with Chauffage's icon that opens the panel.
+- **The schedule card keeps its week editor**, and the panel has one too. The card is the only
+  place that compares the weeks of several thermostats side by side: a card is a group of
+  thermostats that the user chose to show together, for example the bedrooms. The panel shows one
+  thermostat, or one schedule for every thermostat.
+- **The panel has lists, then pages**, as Home Assistant's settings do. A list has the panel's
+  tabs: *Thermostats*, *Schedules* and *Presets*. *Thermostats* comes first (0.8.0-alpha.2):
+  everything starts from a scheduled thermostat, and a new user starts there. A page is about one schedule or one
+  thermostat. A page has no tabs. Its title is a breadcrumb, for example "Thermostats ›
+  Bureau", where "Thermostats" links to the list. A page keeps Home Assistant's menu button.
+- **Rejected: tabs on the pages.** A selected tab would change the page, and the page would have
+  two ways back. Tabs also say that the content is the tab's. On a phone, the page would show
+  two bars. Home Assistant does not do it.
+- **Rejected: a back arrow and a breadcrumb.** The page would have two ways back.
+- **Rejected: an *Overview* page.** Showing what the home does now is the dashboard cards' job.
+- **The activation rules are on the *Schedules* tab**, below the list. The rules decide which
+  schedule is active.
+
+### The panel's addresses
+
+- **One address per page.**
+
+  | Address | Page |
+  |---|---|
+  | `/chauffage` | Redirects to `/chauffage/thermostats`, the first tab |
+  | `/chauffage/schedules` | The schedules and the activation rules |
+  | `/chauffage/schedules/<id>` | A schedule's page |
+  | `/chauffage/thermostats` | The scheduled thermostats |
+  | `/chauffage/thermostats/<climate>` | A thermostat's page |
+  | `/chauffage/presets` | The presets |
+  | `/chauffage/rules` | Redirects to `/chauffage/schedules` |
+  | `/chauffage/<climate>` | The first prototype's address: redirects to `/chauffage/thermostats/<climate>` |
+
+- **A deleted schedule's page goes back to the list of schedules.**
+- **A thermostat's address uses its `climate` entity id**, not a device id. The entity id is the
+  scheduled thermostat's key in the storage, the services and the websocket API. A user can read
+  it, and write it in an automation. The entity id stays the same if the device is created again.
+  The downside: renaming the `climate` entity changes the address. So the address of a renamed
+  thermostat redirects to its new id, through the store's `renamed`.
+
+### The panel's pages
+
+- **The *Thermostats* tab: one row per scheduled thermostat**, sorted by name. A row shows the
+  thermostat's name, which opens its page. A badge says *Controlled* or *Paused*. The row says
+  where the dashboards show the thermostat, then gives the *Pause* or *Resume* button. The rarer
+  actions wait behind ⋮: open the thermostat, open its devices, forget it.
+  **Amended by the UX review**: only a paused thermostat has a badge, *Paused*, the
+  exception. The whole row opens the page, and *Pause* or *Control* moves to the row's ⋮ menu.
+- **Devices are named by their name and model everywhere**, for example "Bureau (Thermostat
+  programmé)", in the ⋮ menu of the *Thermostats* tab too. The labels "Its Chauffage device" and
+  "The thermostat's device" are gone: the model says which device is which.
+- **Any thermostat can be forgotten from the panel**, after a confirmation. The panel is not a
+  card, so "not in this card" no longer limits forgetting.
+- **"Shown in *dashboard* › *view*" is read from every dashboard's configuration, in the browser.**
+  The panel walks the stacks, the sections and the conditional cards. This amends "The integration
+  does not read the dashboards either" (see "Scheduled thermostats"): the integration still does
+  not, the panel does, for admins only. Home Assistant's generated dashboards have no
+  configuration, so they show no placement. A change of a dashboard needs a page reload.
+- **"Schedule another thermostat" on the *Thermostats* tab.** The admin picks a `climate` that
+  Chauffage does not schedule yet, then *Schedule*. Chauffage saves it with the week of a new
+  schedule in every schedule, as adding it to a card does.
+- **A thermostat's page starts with a header.** The header shows Home Assistant's own tile card for
+  the thermostat: the current temperature and what the thermostat does. A tap on the tile opens
+  the thermostat. The header also shows the *Pause* button, "Shown in", and "Devices: *name*
+  (*model*)".
+- **The tile is top right, aligned with the surface below.** On the left, the header shows "Shown
+  in…", "Devices: …" and the *Pause* button. On a phone, the tile comes first, above the rest.
+- **The *Pause* button does not move when it turns into *Resume*.** The badge comes after the
+  button, not before it.
+- **The header always says whether Chauffage controls the thermostat**, with a badge after the
+  button: *Controlled* (green) or *Paused*. *Paused* stands out (the warning color, bold): the
+  thermostat then runs by hand, and the user must see it at a glance.
+  **Amended by the UX review**: the header shows a badge only when the thermostat is
+  paused, as the *Thermostats* tab does.
+- **A paused thermostat's page says it is paused once**, in its header. The weeks stacked below
+  do not repeat the card's note "… is paused: Chauffage does not control it · Resume" (card
+  option `week_only`). The weeks stay dimmed, as in the card.
+- **The tile card relies on an internal of Home Assistant's frontend.** Outside a dashboard, Home
+  Assistant's card helpers do not exist yet. The panel loads the dashboards' code to get them
+  (`cardHelpers`), so the tile may break when Home Assistant changes that code.
+- **Then the page shows one surface**, in this order:
+  1. The thermostat's presets, side by side: for each preset, its color and name, its value on
+     this thermostat and where the value comes from. They are the legend of its weeks. The
+     presets' definitions stay on the *Presets* tab.
+  2. Its weeks, one per schedule, stacked, under the heading *Weeks* (*Semaines*). Each week's
+     heading is the schedule's name, a link to its page, with an *Active* badge on the active
+     schedule.
+- **The heading is *Weeks*, not *Its weeks*** (the `weeksTitle` key). The possessive read badly.
+- **A thermostat's presets are a row of items, not a table of one row** (after 0.8.0-alpha.2). A
+  table with a single row only repeated the table's headers. The items sit side by side and wrap:
+  four on a computer, two per line at 360 px, with no horizontal scroll. An item opens the same
+  editor as a cell of the *Presets* table.
+- **On a thermostat's page, copying a week starts from the week it copies.** Each week's heading
+  has a *Copy to…* list (*Copier vers…*) of the other schedules. The list copies this thermostat's
+  week in this schedule to the schedule chosen. The card's list at the foot of the weeks ("Copy
+  Bureau's week to…", every thermostat in every schedule) does not fit a page about one
+  thermostat, so the page hides it (card option `week_only`). A schedule's page and the
+  dashboard card keep that list.
+  **Amended by the UX review**: each week's heading has a ⋮ button, which opens a
+  menu of the other schedules. On the card, a button opens the same kind of menu. Nothing is
+  copied until the user picks a schedule in the menu.
+- **Copying week A to schedule B asks to save B, never A.** The copy lands in B's week at once,
+  unsaved: B's save bar appears, with the message "The *Normal* week copied here". Week A is not
+  touched. If A has edits not saved yet, the copy takes A as shown, and A keeps its own edits.
+  The prototype first put the copy in A's card: A's save bar asked to save A, and saving it in
+  fact saved B.
+- **A week stacked on a thermostat's page has no foot**: no legend, no copy list, and no empty
+  message line. So the page shows no empty space under each week.
+- **On a thermostat's page, today stands out only in the active schedule's week** (card option
+  `week_only`). The weeks of the other schedules do not mark today. A schedule's page and
+  the dashboard card still mark today.
+- **One *Group days* switch for all the weeks of a thermostat's page.** The switch shares its
+  choice with the cards. The choice is kept in this browser. The editing hint is shown once.
+- **A thermostat's page has the card's two switches, *Group days* and *History*** (0.8.0-alpha.2),
+  for all its weeks. As on the card, the history shows each day, so grouping the days hides it.
+  Both choices are the ones the cards keep in this browser. The alpha.1 had no *History* switch:
+  a history turned on in a card showed on the page, and the days could not be grouped any more.
+- **A day copied in one week can be pasted in any other week of the page**, for example from
+  *Normal* to *Away* on a thermostat's page, or from one dashboard card to another. Every card
+  reads the copied day when it is used, from this browser's storage. The alpha.2 read it once,
+  when the card was drawn: the other weeks of a page offered nothing to paste. A new copy
+  replaces the one before it, and only the day copied last stands out (dotted) in every card:
+  the place of the copied day is kept with the copy, not in the card that copied it.
+- **In the panel, the page's `group_days` wins** over the choice kept in the browser. The
+  prototype first did the opposite, and the switch did nothing.
+- **A schedule's page shows every thermostat's week in this schedule.** It shows this schedule's
+  tab only, with its ⋮ menu (rename, copy, delete), and no "+".
+  **Amended by the UX review**: the page shows no tab. A ⋮ button next to the page's
+  title renames or deletes the schedule. A copy starts from the "+" of the *Schedules* tab.
+- **The *Schedules* tab lists each schedule**, with an *Active* badge, *Activate* and *Edit*.
+  "+ New schedule" opens a name field in the list.
+  **Amended by the UX review**: the page follows the model of the *Thermostats* tab.
+  The whole row opens the schedule's page, and its ⋮ menu activates, renames, moves or deletes the schedule.
+  *Activate* left the row: the button made the rows uneven.
+  "+ New schedule" opens the card's "+" menu: an empty schedule or a copy.
+
+### Welcoming a new user (0.8.0-alpha.2)
+
+- **A new user goes to the panel first, with no thermostat scheduled yet.** The panel must not
+  show an empty page. Its *Thermostats* tab welcomes the user instead, and leads them to
+  schedule their first thermostats.
+- **The welcome says what Chauffage does in one sentence**, then lists the thermostats to tick.
+  Setting their weeks and adding a card to a dashboard come as the next steps.
+- **The welcome lists every `climate` entity, none ticked.** The user ticks the thermostats to
+  schedule, then *Schedule N thermostats*. Nothing is ticked at first, because scheduling a
+  thermostat controls it at once: it follows the week of a new schedule (eco all week). The
+  welcome says so before the button. A heat pump or an air conditioner may be a `climate` too,
+  and the user may not want Chauffage to control it.
+- **With no `climate` entity at all**, the welcome says that Home Assistant has no thermostat
+  yet, and links to Settings → Devices & services to add one.
+- **Once the first thermostats are scheduled, the page says what to do next**: open a
+  thermostat to set its weeks and its presets, add the *Heating schedules* card to a dashboard.
+  The next steps stay until the user closes them; this browser remembers it.
+- **Before the first thermostat, the *Schedules* and *Presets* tabs say so**, with a link to
+  the *Thermostats* tab. Their content stays: a user may create schedules first.
+
+### The more-info block
+
+- **The block injected in the more-info dialog stays.** See [The UX review](#the-ux-review-080-beta2).
+- **The block's link to the thermostat's page says "Open in Chauffage"** (*Ouvrir dans
+  Chauffage*, the `openInPanel` key). "Chauffage" is the panel's title as Home Assistant shows it
+  in the sidebar, so the link follows a renamed panel or integration.
+  **Amended by the UX review**: the link says what it does, *Edit its week* (*Modifier sa
+  semaine*, the `editWeek` key), and opens the thermostat's page on its week in the active
+  schedule (`?week=<schedule>`), scrolled to it, with no highlight: its *Active* badge is enough. A tap on the week shown in the
+  block does the same. A tap on one day would be ambiguous with the days grouped, so the link goes
+  to the week only. The page keeps the schedules' order: it scrolls, it does not move the active
+  week first.
+- **A link from the more-info dialog to a page closes the dialog first**, then opens the page
+  (`leaveMoreInfo`). The page is, for example, the thermostat's page or a device. Home Assistant
+  keeps the open dialog in the address (`?more-info-entity-id=`), and closes the dialog by going
+  back in the history. So the page opens only once the dialog has left the address. Otherwise,
+  going back undoes the navigation. The prototype first had this bug: the dialog stayed open, and
+  the page did not open.
+
+### The UX review (0.8.0-beta.2)
+
+A review of every surface, before the merge into `main`, settled these choices.
+
+- **One role per surface.** The schedule card is for every day, on a group of thermostats. The
+  thermostat card and the more-info block are for one thermostat, now. The panel is for
+  configuration. The devices and the entities are for automations, voice and Home Assistant's
+  history: no user path needs them.
+- **A schedule's icon is changed in its switch's settings.** The ⋮ menu of a schedule opens Home
+  Assistant's more-info dialog on its *Settings* view (`view: "settings"`), as Home Assistant's own
+  pages do for a scene. Renaming and picking an icon are Home Assistant's usual paths for an
+  entity, so Chauffage does not store an icon of its own. *Rename…* stays Chauffage's: the
+  schedule's name shows on the tabs, and the switch's name follows it.
+- **The more-info block stays, lighter.** Its foot keeps *Edit its week* (admins only, as the
+  panel) and *Pause* (anyone who may control the thermostat). The links to the *Control*, *Override* and *Planned preset* entities and to
+  the device go: the device's page lists them, and the panel's page links both devices. The
+  block keeps its preset chips and its temperature field: on a thermostat without presets, they
+  are the only way to pick a Chauffage preset.
+- **A pause ends with *Resume control*** (*Piloter*), after the *Control* switch. "Resume" stays for the
+  override only (*Resume the schedule*), so the block never shows two "Resume" buttons.
+- **A thermostat chip keeps its ↗ link to the more-info dialog.** With one thermostat shown, it
+  is the only link to the thermostat. Its tap area grows on a touch screen.
+- **A tap on a chip shows that thermostat only**, like a switch. *Multiple* stays the way to show
+  several thermostats.
+- **The schedule card's link to the settings sits in its presets legend**, for admins: *Set the
+  presets*. The card had three links (*Presets*, *Rules*, *Thermostats*) at its top, in another
+  order than the panel's tabs. The legend showed the presets without saying where to set them.
+  A button with Chauffage's icon, at the card's top right, opens the panel, as the dashboards
+  open their own panels.
+- **Two ways to schedule a thermostat stay**: editing its week in a card, or the panel. Removing one
+  would gain little.
+- **A ⋮ button always opens a floating menu**, as in the card. The panel's list of thermostats
+  unfolded a row of actions instead. A row of this list opens the thermostat's page, and its
+  badge only says *Paused*, the exception.
+- **A week is copied from a ⋮ menu**, not from a list that acts as soon as an option is picked.
+- **One save bar for a thermostat's page.** It names the weeks not saved yet, and saves them in
+  one call. On a phone, a bar under a week further up the page went unseen. A copy still marks
+  only its target week as not saved.
+- **Every user can set, change and end an override from a card.** The `chauffage.set_override`
+  and `chauffage.clear_override` services were already open to every user, and anyone can turn
+  the thermostat's knob. The websocket command keeps its format: only its permission changes.
+- **Every user who may control a thermostat can pause it and resume it from a card**, as with its
+  *Control* switch, which any such user could already turn off. The panel stays for admins: its
+  thermostat menu keeps *Pause*, and the more-info block keeps *Edit its week* for admins only.
+- **One word for each thing**, as the glossary says: *override* (*dérogation*), not "temporary
+  setpoint"; *slot* (*créneau*), not "plage"; the panel's *tabs* (*onglets*).
+- **The panel's lists look like the list of the integration's page**: an icon, the name and a
+  line under it, a chevron, then the actions after a divider. The whole row is one link, chevron
+  included, except its actions. The card copies this style with the theme's variables. It does not use
+  `ha-list-item-button`: that component is internal to Home Assistant's frontend, it was renamed
+  since 2025.1, and a dashboard may not load it. If Home Assistant restyles its lists, adjust the
+  copy.
+- **The schedule tabs scroll natively, with no scrollbar.** A fade shows on each side where
+  schedules are hidden. With a mouse, an arrow lies over the fade: it scrolls with the browser's
+  smooth scrolling, which stops when the user scrolls. The card does not take over the wheel. The
+  arrows are always in the page, shown by a class, so showing them moves no tab. On a touch screen,
+  the fade alone: a finger scrolls.
+- **The list is a card of its own**, on the *Thermostats* and *Schedules* tabs: its first and last
+  rows touch the card's edges, with a line between two rows, as on the integration's page. The
+  texts, the link to the integration's page and the action to add one sit outside that card.
+  *+ New schedule* sits under the list, as the form to add a thermostat: the *Schedules* tab has a
+  second section, the rules, so a floating button would not say which list it adds to.
+- **One attribute leads to a page**: `data-navigate`, holding the address, for every link to a page
+  of the panel or to a dashboard. Four attributes did it, and every click handler had to know them
+  all.
+- **The card's panel-only options are internal.** The panel passes them to the card in its own
+  key, not as options a dashboard could set.
+  The weeks stacked on a thermostat's page take one of them, `week_only`: the week alone, without
+  chips, tabs, hint, paused note, legend or save bar, today marked in the active schedule only.
+  Eight options always set together used to do it.
+
+### Open questions
+
+- **Two devices with the same name in the same area**: the thermostat's and ours. Should our device
+  carry a mark, for example "Bureau (Chauffage)"?
+- **The integration's name.** If the name changes, the `/chauffage/...` addresses need redirects.
+
 ## Process
 
+- **A prototype records its decisions and use cases as it goes**, and nothing is committed
+  without its tests. The decisions go in this file, the use cases in
+  [use-cases.md](use-cases.md), marked *pending* until their tests exist.
 - **Tests first, and the tests are the documentation** (CONTRIBUTING.md, "Tests first"); every
   behavior test runs on the three kinds of thermostats.
 - **A change to the stored data or the installation goes through a beta** installed on a real
@@ -484,6 +843,8 @@ dashboards, automations, scripts and by voice without the card
   `last_updated_timestamp`, `AddConfigEntryEntitiesCallback`) and attaching the sensors to the
   thermostat's device through `device_info` before 2025.8. 2024.10 would need a second
   options-flow code path and a recorder that behaves differently: not worth it for now.
+  With #57, the sensors are on a device of ours on every Home Assistant
+  version, so the switch at 2025.8 (`DEVICE_ENTRY_ATTACHES`) is gone. See [Devices](#devices).
 - **One vocabulary** ([glossary.md](glossary.md)), in the UI, the docs, the code and the data.
 - **Version 1.0** once ha-chauffage works with groups of thermostats and any thermostat.
 - **A new development HA starts with a simulated week of history** (dev/sim_rooms): the

@@ -138,17 +138,27 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.doesNotMatch(menu(card).textContent, /Identifiant/);
   });
 
-  test('opens its details and history in Home Assistant (its switch, #39)', () => {
-    let received = null;
-    const intercept = (e) => { received = e.detail.entityId; e.stopPropagation(); };
+  test('opens the schedule\'s page in the Chauffage panel, not its switch: no user path needs an entity', () => {
+    const card = createCard(fakeHass());
+    openMenu(card, 'away');
+    assert.equal(menu(card).querySelector('[data-more-info]'), null);
+    const open = menu(card).querySelector('[data-navigate="/chauffage/schedules/away"]');
+    assert.equal(open.textContent.trim(), 'Ouvrir dans Chauffage');
+    open.click();
+    assert.equal(window.location.pathname, '/chauffage/schedules/away');
+  });
+
+  test('changes its icon in its switch\'s settings, as for any entity of Home Assistant', () => {
+    const opened = [];
+    const intercept = (e) => { opened.push(e.detail); e.stopPropagation(); };
     document.addEventListener('hass-more-info', intercept);
     try {
       const card = createCard(fakeHass());
       openMenu(card, 'away');
-      // In the user's words: what it shows, not how Home Assistant models it
-      assert.equal(menu(card).querySelector('[data-more-info]').textContent.trim(), 'Détails et historique…');
-      menu(card).querySelector('[data-more-info="switch.chauffage_schedule_away"]').click();
-      assert.equal(received, 'switch.chauffage_schedule_away');
+      const item = menu(card).querySelector('[data-act="schedule-icon"]');
+      assert.equal(item.textContent.trim(), 'Changer l’icône…');
+      item.click();
+      assert.deepEqual(opened, [{ entityId: 'switch.chauffage_schedule_away', view: 'settings' }]);
       assert.equal(menu(card), null);
     } finally {
       document.removeEventListener('hass-more-info', intercept);
@@ -191,6 +201,25 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.equal($(card, '[data-act="schedule-move"][data-dir="1"]').disabled, true); // already last
   });
 
+  test('a schedule\'s sheet in the panel shows no tab: its menu, opened by the page\'s ⋮, does not move it', () => {
+    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
+    assert.equal($(card, '.tabs'), null);
+    card._scheduleAction('schedule-menu', {}, null);
+    assert.ok($(card, '[data-act="schedule-rename-open"]'));
+    assert.equal($(card, '[data-act="schedule-move"]'), null);
+  });
+
+  test('a menu opened by a button on the right, as the page\'s ⋮ above the card, lines up with the button\'s right edge', () => {
+    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
+    $(card, 'ha-card').getBoundingClientRect = () => ({ left: 100, right: 900, top: 60, bottom: 700, width: 800 });
+    const button = document.createElement('button');
+    button.getBoundingClientRect = () => ({ left: 860, right: 892, top: 8, bottom: 40, width: 32 });
+    card._scheduleAction('schedule-menu', {}, button);
+    assert.equal(menu(card).style.right, '8px');
+    assert.equal(menu(card).style.left, '');
+    assert.equal(menu(card).style.top, '-16px');
+  });
+
   test('deletes it after a confirmation', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
@@ -209,7 +238,7 @@ describe('the "⋮" menu of the open schedule', () => {
     for (const id of ['holiday', 'away']) {
       openMenu(card, id);
       assert.equal($(card, '[data-act="schedule-delete"]').disabled, true);
-      assert.match(menu(card).textContent, /utilisé par les règles/i);
+      assert.match(menu(card).textContent, /Une règle d’activation utilise ce planning/);
     }
   });
 
@@ -242,6 +271,111 @@ describe('closing the menus', () => {
     document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
     assert.equal(menu(card), null);
   });
+});
+
+test('with many schedules, the tabs keep a minimum width and scroll sideways; the "+" stays in place', () => {
+  const card = createCard(fakeHass());
+  const scroller = $(card, '.tabs > .tabs-wrap > .tabs-scroll');
+  assert.equal(scroller.querySelectorAll('.tab').length, 3);
+  assert.ok(scroller.querySelector('[data-act="schedule-menu"]'), 'the ⋮ goes with its tab');
+  assert.equal(scroller.querySelector('[data-act="schedule-new"]'), null);
+  assert.ok($(card, '.tabs > [data-act="schedule-new"]'));
+  const css = card.shadowRoot.querySelector('style').textContent;
+  assert.match(css, /\.tabs-scroll \{[^}]*overflow-x:auto/);
+  // A tab is as wide as its name, within limits: a short name leaves no large empty space
+  assert.match(css, /\.tab \{[^}]*flex:1 0 auto;[^}]*max-width:\d+px/);
+});
+
+// A scrolling area without a layout (jsdom): its sizes and its position, set by hand
+function scrollable(el, { width, client, left = 0 }) {
+  let x = left;
+  Object.defineProperty(el, 'scrollWidth', { configurable: true, value: width });
+  Object.defineProperty(el, 'clientWidth', { configurable: true, value: client });
+  Object.defineProperty(el, 'scrollLeft', { configurable: true, get: () => x, set: (v) => { x = Math.max(0, Math.min(v, width - client)); } });
+}
+
+test('an arrow on a side of the tabs shows that more schedules are hidden there, and scrolls to them', () => {
+  const card = createCard(fakeHass());
+  const scroller = $(card, '.tabs-scroll');
+  const wrap = $(card, '.tabs-wrap');
+  const shown = () => ['more-left', 'more-right'].map((c) => wrap.classList.contains(c));
+  // Always there, over the edges of the tabs: showing them moves nothing
+  assert.deepEqual([...wrap.querySelectorAll('[data-tabs-scroll]')].map((a) => a.dataset.tabsScroll), ['left', 'right']);
+  assert.deepEqual(shown(), [false, false], 'every tab fits: no arrow, no fade');
+  scrollable(scroller, { width: 600, client: 300 });
+  scroller.dispatchEvent(new window.Event('scroll'));
+  assert.deepEqual(shown(), [false, true]);
+  $(card, '[data-tabs-scroll="right"]').click();
+  assert.equal(scroller.scrollLeft, 240, 'most of a width, so the tab cut at the edge shows whole');
+  assert.deepEqual(shown(), [true, true]);
+  $(card, '[data-tabs-scroll="right"]').click();
+  assert.deepEqual(shown(), [true, false]);
+  $(card, '[data-tabs-scroll="left"]').click();
+  assert.equal(scroller.scrollLeft, 60);
+  assert.equal($(card, '[data-tabs-scroll="right"]').getAttribute('aria-label'), 'Plannings suivants');
+});
+
+test('the tabs scroll natively, with no scrollbar: a fade where schedules are hidden, arrows over it with a mouse', () => {
+  const card = createCard(fakeHass());
+  const css = card.shadowRoot.querySelector('style').textContent;
+  assert.match(css, /\.tabs-scroll \{[^}]*overflow-x:auto;[^}]*scrollbar-width:none/);
+  assert.match(css, /.tabs-wrap.more-right .tabs-scroll { mask-image/);
+  assert.match(css, /\.tab-arrow \{[^}]*position:absolute/, 'over the tabs: showing it moves nothing');
+  assert.match(css, /@media \(hover:none\) \{ \.tab-arrow \{ display:none; \} \}/);
+  // The wheel is the browser's (a trackpad, Shift + wheel): the card does not take it over
+  const scroller = $(card, '.tabs-scroll');
+  scrollable(scroller, { width: 600, client: 300 });
+  const wheel = new window.WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+  scroller.dispatchEvent(wheel);
+  assert.equal(wheel.defaultPrevented, false);
+  assert.equal(scroller.scrollLeft, 0);
+});
+
+test('on load, the tabs show the active schedule, however far it is, with its ⋮ clear of the fade', () => {
+  const card = createCard(fakeHass({ schedule: 'Vacances' }));
+  const scroller = $(card, '.tabs-scroll');
+  const on = $(card, '.tab.on');
+  assert.equal(on.dataset.schedule, 'holiday');
+  // Laid out by hand (jsdom has no layout): the active tab far on the right
+  scrollable(scroller, { width: 1000, client: 300 });
+  Object.defineProperty(scroller, 'offsetLeft', { configurable: true, value: 0 });
+  Object.defineProperty(on, 'offsetLeft', { configurable: true, value: 700 });
+  Object.defineProperty(on, 'offsetWidth', { configurable: true, value: 100 });
+  Object.defineProperty(on.nextElementSibling, 'offsetLeft', { configurable: true, value: 800 });
+  Object.defineProperty(on.nextElementSibling, 'offsetWidth', { configurable: true, value: 30 });
+  card._tabsShown = undefined; // as on load
+  card._placeTabs(0);
+  assert.equal(scroller.scrollLeft, 830 + 32 - 300);
+});
+
+test('an arrow scrolls smoothly with the browser\'s own animation, which stops when the user scrolls', () => {
+  const card = createCard(fakeHass());
+  const scroller = $(card, '.tabs-scroll');
+  scrollable(scroller, { width: 600, client: 300 });
+  const calls = [];
+  scroller.scrollBy = (options) => calls.push(options);
+  $(card, '[data-tabs-scroll="right"]').click();
+  assert.deepEqual(calls, [{ left: 240, behavior: 'smooth' }]);
+});
+
+
+test('a hidden card (no width) measures its tabs once more after drawing, not on every frame', async () => {
+  const card = createCard(fakeHass());
+  $(card, 'ha-card').updateComplete = Promise.resolve();
+  const frames = [];
+  let asked = 0;
+  const raf = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (f) => { asked += 1; frames.push(f); return asked; };
+  try {
+    card._render();
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      for (const f of frames.splice(0)) f(); // a frame passes; the card is still hidden
+    }
+    assert.equal(asked, 1);
+  } finally {
+    globalThis.requestAnimationFrame = raf;
+  }
 });
 
 test('only admins see "+" and "⋮"', () => {

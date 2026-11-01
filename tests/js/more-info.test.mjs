@@ -1,5 +1,5 @@
 // "Schedule" block injected into a thermostat's more-info dialog.
-import { fakeHass, cleanup, integrationData } from './helpers.mjs';
+import { fakeHass, cleanup, integrationData, createCard } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -47,6 +47,17 @@ describe('more-info block', () => {
     assert.doesNotMatch(text(el), /holiday/);
   });
 
+  test('the active schedule\'s name opens its page in the panel for an admin, and is plain text for others', () => {
+    const vacances = () => fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } });
+    const el = block(vacances(), 'climate.salon');
+    assert.equal(el.shadowRoot.querySelector('.title [data-more-info]'), null, 'not its switch');
+    el.shadowRoot.querySelector('.title [data-navigate="/chauffage/schedules/holiday"]').click();
+    assert.equal(window.location.pathname, '/chauffage/schedules/holiday');
+    const hass = vacances();
+    hass.user = { is_admin: false };
+    assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.title [data-navigate^="/chauffage"], .title [data-more-info]'), null);
+  });
+
   test('thermostat without a schedule: block hidden', () => {
     const el = block(fakeHass(), 'climate.bureau');
     assert.equal(el.style.display, 'none');
@@ -57,6 +68,20 @@ describe('more-info block', () => {
     assert.match(text(el), /21,5 °C/); // French decimal comma
     assert.match(text(el), /encore 1 h 30/);
     assert.equal(el.shadowRoot.querySelector('input.time[data-end]').value, '11:30');
+  });
+
+  test('a user who is not an admin sets, extends and ends an override too, as with the thermostat\'s knob', () => {
+    const hass = withTargets({});
+    hass.user = { is_admin: false };
+    const el = block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-new-override]').click();
+    el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
+    assert.equal(hass.events.at(-1).type, 'chauffage/override/set');
+    hass.push(integrationData({ overrides: { 'climate.salon': override } }));
+    el.shadowRoot.querySelector('button[data-min="30"]').click();
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
+    el.shadowRoot.querySelector('[data-del]').click();
+    assert.deepEqual(hass.events.at(-1), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 
   test('+30 min extends the override', () => {
@@ -176,27 +201,70 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
   });
   const foot = (el) => el.shadowRoot.querySelector('.foot');
 
-  test('opens the thermostat\'s own entities: its control (the pause), its override, what it plans', () => {
+  test('holds Edit its week and Pause only: the device\'s page lists the thermostat\'s entities', () => {
     const el = block(fakeHass(), 'climate.salon');
-    assert.match(foot(el).textContent.replace(/\s+/g, ' '), /Pilotage Dérogation Préréglage prévu/);
-    for (const id of ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']) {
-      foot(el).querySelector(`[data-more-info="${id}"]`).click();
-    }
-    assert.deepEqual(opened, ['switch.salon_control', 'binary_sensor.salon_override', 'sensor.salon_planned_preset']);
+    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent),
+      ['Modifier sa semaine', 'Mettre en pause']);
+    assert.equal(foot(el).querySelector('[data-more-info], [data-device]'), null);
   });
 
-  test('its device opens in its page, closing the dialog (admins)', () => {
-    const el = block(fakeHass(), 'climate.salon');
-    foot(el).querySelector('[data-device="salon-device"]').click();
+  test('Edit its week opens the thermostat\'s page on its week in the active schedule, closing the dialog', () => {
+    const el = block(fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } }), 'climate.salon');
+    foot(el).querySelector('[data-navigate^="/chauffage/thermostats/climate.salon"]').click();
     assert.deepEqual(opened, [null]); // the more-info dialog is closed
-    assert.equal(window.location.pathname, '/config/devices/device/salon-device');
+    assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
+    assert.equal(window.location.search, '?week=holiday');
+  });
+
+  test('the week shown in the block opens it too, for an admin', () => {
+    const el = block(fakeHass(), 'climate.salon');
+    const week = el.shadowRoot.querySelector('.week');
+    assert.equal(week.getAttribute('role'), 'link');
+    week.querySelector('.row').click();
+    assert.equal(`${window.location.pathname}${window.location.search}`, '/chauffage/thermostats/climate.salon?week=normal');
     const hass = fakeHass();
     hass.user = { is_admin: false };
-    assert.equal(foot(block(hass, 'climate.salon')).querySelector('[data-device]'), null);
+    assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.week[role="link"]'), null);
   });
 
-  test('a thermostat without a device has no device link', () => {
-    const hass = fakeHass({ weeks: { 'climate.bureau': { Normal: Array(7).fill(['00:00 eco']) } } });
-    assert.equal(foot(block(hass, 'climate.bureau')).querySelector('[data-device]'), null);
+  test('a user who is not an admin gets Pause, as with the Control switch, but not Edit its week (the panel is for admins)', () => {
+    const hass = fakeHass();
+    hass.user = { is_admin: false };
+    const el = block(hass, 'climate.salon');
+    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent), ['Mettre en pause']);
+  });
+});
+
+describe('an override on a thermostat turned off', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
+  afterEach(() => { mock.timers.reset(); cleanup(); });
+  const off = (hass) => { hass.states['climate.salon'] = { ...hass.states['climate.salon'], state: 'off' }; return hass; };
+  const note = (root) => root.querySelector('.off-note');
+  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+
+  test('the block warns that Chauffage applies it once the thermostat is on again, with no button', () => {
+    const el = block(off(fakeHass({ overrides: { 'climate.salon': override } })), 'climate.salon');
+    assert.match(note(el.shadowRoot).textContent, /Salon est éteint : Chauffage lui appliquera la dérogation quand il sera rallumé\./);
+    assert.equal(note(el.shadowRoot).getAttribute('role'), 'status');
+    assert.equal(note(el.shadowRoot).querySelector('button'), null);
+  });
+
+  test('the block warns too while an override is being set', () => {
+    const el = block(off(fakeHass()), 'climate.salon');
+    assert.equal(note(el.shadowRoot), null);
+    el.shadowRoot.querySelector('[data-new-override]').click();
+    assert.ok(note(el.shadowRoot));
+  });
+
+  test('the card\'s override editor warns', () => {
+    const card = createCard(off(fakeHass({ overrides: { 'climate.salon': override } })));
+    card._overrideSel = { climate: 'climate.salon' };
+    card._render();
+    assert.match(note(card.shadowRoot).textContent, /Salon est éteint/);
+  });
+
+  test('no warning on a thermostat that heats', () => {
+    const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
+    assert.equal(note(el.shadowRoot), null);
   });
 });

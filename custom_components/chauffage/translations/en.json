@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Chauffage",
-        "description": "Weekly heating schedules for your thermostats. Edit them with the Chauffage card, switch schedules with the Active schedule entity."
+        "description": "Weekly heating schedules for your thermostats. After setup, open Chauffage in the sidebar to choose your thermostats."
       },
       "import_package": {
         "title": "Import from the package",
@@ -19,14 +19,16 @@
     "step": {
       "init": {
         "title": "Chauffage options",
-        "description": "Default settings. Presets and what they mean for each thermostat are set in the Chauffage card (Presets view).",
+        "description": "Default settings. Presets and what they mean for each thermostat are set in the Chauffage panel (Presets tab).",
         "data": {
           "override_duration": "Override duration",
-          "use_presets": "Use the thermostats' presets"
+          "use_presets": "Use the thermostats' presets",
+          "show_in_sidebar": "Show Chauffage in the sidebar"
         },
         "data_description": {
-          "override_duration": "How long a manual change lasts before the thermostat resumes its schedule.",
-          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, all set in the card."
+          "override_duration": "How long an override lasts, for example after a manual change, before the thermostat goes back to its schedule.",
+          "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
+          "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
       }
     }
@@ -43,18 +45,11 @@
     },
     "switch": {
       "control": { "name": "Control" },
-      "control_of": { "name": "{thermostat} control" },
       "schedule": { "name": "{schedule} schedule" }
     },
     "binary_sensor": {
       "override": {
         "name": "Override",
-        "state_attributes": {
-          "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
-        }
-      },
-      "override_of": {
-        "name": "{thermostat} override",
         "state_attributes": {
           "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
         }
@@ -73,24 +68,8 @@
           "temperatures": { "name": "Preset temperatures" }
         }
       },
-      "planned_preset_of": {
-        "name": "{thermostat} planned preset",
-        "state": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" },
-        "state_attributes": {
-          "preset_name": { "name": "Preset name" },
-          "target": { "name": "Target" },
-          "next_preset": { "name": "Next preset" },
-          "next_preset_name": { "name": "Next preset name" },
-          "next_start": { "name": "Next slot start" },
-          "temperatures": { "name": "Preset temperatures" }
-        }
-      },
       "override_end": {
         "name": "Override end",
-        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
-      },
-      "override_end_of": {
-        "name": "{thermostat} override end",
         "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
       }
     }
@@ -106,7 +85,7 @@
         "step": {
           "init": {
             "title": "{entity_id} is gone",
-            "description": "Chauffage schedules {entity_id}, but this entity no longer exists in Home Assistant. If it was renamed or replaced, add the new thermostat to a card.",
+            "description": "Chauffage schedules {entity_id}, but this entity no longer exists in Home Assistant. If it was renamed or replaced, schedule the new thermostat in the Chauffage panel (Thermostats tab).",
             "menu_options": { "forget": "Forget it (delete its weeks)", "keep": "Keep it (the entity will come back)" }
           }
         }
@@ -121,9 +100,9 @@
   "services": {
     "set_override": {
       "name": "Set an override",
-      "description": "Sets a scheduled thermostat's temperature or preset for a while, then it resumes its schedule (like a manual change).",
+      "description": "Sets a scheduled thermostat's temperature or preset for a while, then it resumes its schedule.",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." },
+        "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." },
         "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
         "preset": { "name": "Preset", "description": "A Chauffage preset, set to what it means on this thermostat (or one of the thermostat's own presets); or give a temperature." },
         "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
@@ -131,10 +110,10 @@
       }
     },
     "clear_override": {
-      "name": "Clear an override",
+      "name": "End an override",
       "description": "Ends a thermostat's override now: it resumes its schedule.",
       "fields": {
-        "entity_id": { "name": "Thermostat", "description": "A thermostat that has a schedule." }
+        "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." }
       }
     },
     "activate_schedule": {
@@ -159,8 +138,8 @@
   },
   "exceptions": {
     "not_loaded": { "message": "The Chauffage integration is not set up." },
-    "not_scheduled": { "message": "{entity_id} has no schedule." },
-    "paused": { "message": "{entity_id} is paused: resume it to set an override." },
+    "not_scheduled": { "message": "Chauffage does not control {entity_id}." },
+    "paused": { "message": "{entity_id} is paused: click Resume control first." },
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
     "unknown_schedule": { "message": "There is no schedule with the id {schedule}." },
     "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." }

@@ -222,7 +222,7 @@ async def test_invalid_schedule_lists_are_refused_with_the_reason(bench: Bench, 
 
 async def test_only_admins_manage_schedules(bench: Bench, ws_client):
     await start(bench)
-    client = await ws_client(bench.hass, admin=False)
+    client = await ws_client(bench.hass, user="read_only")
     await client.send_json_auto_id({"type": "chauffage/schedules/set", "schedules": kept("normal")})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"

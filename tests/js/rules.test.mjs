@@ -14,9 +14,10 @@ function withRules({ rules = [RED, WHITE], results = [false, true], def = 'norma
 }
 
 function openRules(hass) {
-  const card = createCard(hass);
+  const card = createCard(hass, { view: 'rules' }); // the page of the Chauffage panel
   card._previewDelay = 0; // rules being typed are tried at once
-  $(card, '[data-act="view"][data-view="rules"]').click();
+  card._previewKey = null; // the first try again, without its delay
+  card._render();
   return card;
 }
 
@@ -72,7 +73,6 @@ describe('the Rules view', () => {
     const hass = fakeHass({ data: withRules({ language: 'en' }), locale: { language: 'en' } });
     const card = openRules(hass);
     assert.match($$(card, '.rule-state')[1].textContent, /true/i);
-    assert.match($(card, '[data-act="view"][data-view="rules"]').textContent, /Rules/);
   });
 });
 
@@ -229,11 +229,11 @@ describe('trying the rules while typing them', () => {
     assert.match($$(card, '.rule-result')[0].textContent, /unexpected '}'/);
   });
 
-  test('the try stops when leaving the view', async () => {
+  test('the try stops when leaving the page', async () => {
     const hass = fakeHass({ data: withRules() });
     const card = openRules(hass);
     await tick();
-    $(card, '[data-act="view"][data-view="schedule"]').click();
+    card.remove();
     await tick();
     assert.deepEqual(open(hass), []);
   });

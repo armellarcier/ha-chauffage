@@ -13,10 +13,12 @@ from zoneinfo import ZoneInfo
 from unittest.mock import PropertyMock, patch
 
 import pytest
+from homeassistant.auth.const import GROUP_ID_USER
 from homeassistant.core import Context, HomeAssistant, ServiceCall
+from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser, async_fire_time_changed
 
 from custom_components.chauffage import model
 from custom_components.chauffage.const import DOMAIN
@@ -64,11 +66,15 @@ def entity_registry_enabled_by_default():
 
 @pytest.fixture
 def ws_client(hass_ws_client, hass_admin_user, hass_read_only_user):
-    """Websocket client whose token is created now (the bench's clock jumps ahead)."""
+    """Websocket client whose token is created now (the bench's clock jumps ahead), for a `user`:
+    "admin", "household" (a user of the household, who may control the entities) or "read_only"."""
 
-    async def connect(hass: HomeAssistant, admin: bool = True):
-        user = hass_admin_user if admin else hass_read_only_user
-        refresh = await hass.auth.async_create_refresh_token(user, "https://example.com/")
+    async def connect(hass: HomeAssistant, user: str = "admin"):
+        if user == "household":
+            who = MockUser(groups=[await hass.auth.async_get_group(GROUP_ID_USER)]).add_to_hass(hass)
+        else:
+            who = {"admin": hass_admin_user, "read_only": hass_read_only_user}[user]
+        refresh = await hass.auth.async_create_refresh_token(who, "https://example.com/")
         return await hass_ws_client(hass, hass.auth.async_create_access_token(refresh))
 
     return connect
@@ -140,6 +146,20 @@ class Bench:
         """Skip the test for the other kinds of thermostats."""
         if self.kind not in kinds:
             pytest.skip(f"not relevant for {self.kind} thermostats")
+
+    def thermostat_on_a_valve(self, area: str | None = None, **entity: Any) -> dr.DeviceEntry:
+        """climate.salon registered on the device of its valve, from another integration, in an
+        area if given; `entity`: more of its registry entry (has_entity_name, original_name)."""
+        other = MockConfigEntry(domain="test")
+        other.add_to_hass(self.hass)
+        devices = dr.async_get(self.hass)
+        device = devices.async_get_or_create(config_entry_id=other.entry_id, identifiers={("test", "valve")},
+                                             name="Vanne salon")
+        if area:
+            device = devices.async_update_device(device.id, area_id=ar.async_get(self.hass).async_create(area).id)
+        er.async_get(self.hass).async_get_or_create("climate", "test", "valve", suggested_object_id="salon",
+                                                    device_id=device.id, **entity)
+        return device
 
     def thermostat(self, entity_id: str, preset: Any = "eco", temperature: float | None = None,
                    state: str = "heat", context: Context | None = None, **attributes) -> None:

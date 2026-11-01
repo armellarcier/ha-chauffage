@@ -40,7 +40,7 @@ async def record(bench: Bench, hhmm: str, current: float | None, day: int = 0, p
 
 async def history(bench: Bench, ws_client, start: float, admin: bool = True) -> dict:
     await async_wait_recording_done(bench.hass)
-    client = await ws_client(bench.hass, admin=admin)
+    client = await ws_client(bench.hass, user="admin" if admin else "read_only")
     await client.send_json_auto_id({
         "type": "chauffage/history",
         "entity_ids": ["climate.salon", "climate.bureau"],

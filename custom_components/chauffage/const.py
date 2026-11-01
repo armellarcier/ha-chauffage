@@ -8,6 +8,8 @@ CONF_OVERRIDE_DURATION = "override_duration"
 DEFAULT_OVERRIDE_DURATION = 120  # minutes
 CONF_USE_PRESETS = "use_presets"  # a preset uses the thermostat's climate preset with the same name
 DEFAULT_USE_PRESETS = True
+CONF_SHOW_IN_SIDEBAR = "show_in_sidebar"  # the Chauffage panel's entry in the sidebar
+DEFAULT_SHOW_IN_SIDEBAR = True
 
 # preset_mode values meaning "manual setpoint" (Versatile Thermostat: "none")
 MANUAL_PRESETS = frozenset({"", "none", "manual", "manuel"})
@@ -31,6 +33,13 @@ DEFAULT_PRESET_TEMPERATURE = 19.0
 DEFAULT_SCHEDULES = {
     "en": ["Normal"],
     "fr": ["Normal"],
+}
+
+# The model of a scheduled thermostat's device, by language (Home Assistant does not translate
+# device models)
+SCHEDULED_THERMOSTAT_MODEL = {
+    "en": "Scheduled thermostat",
+    "fr": "Thermostat programmé",
 }
 
 # Events, for automations (data: README, "Events")
