@@ -60,7 +60,7 @@ const I18N = {
     resumeShort: 'Resume control',
     viewThermostats: 'Thermostats',
     device: 'Device',
-    integrationPage: 'The Chauffage integration: its options and diagnostics',
+    integrationPage: 'Integration page',
     allThermostats: 'All thermostats',
     weeksTitle: 'Weeks',
     openInPanel: 'Open in {panel}',
@@ -277,7 +277,7 @@ const I18N = {
     resumeShort: 'Piloter',
     viewThermostats: 'Thermostats',
     device: 'Appareil',
-    integrationPage: 'L’intégration Chauffage : ses options et ses diagnostics',
+    integrationPage: 'Page de l’intégration',
     allThermostats: 'Tous les thermostats',
     weeksTitle: 'Semaines',
     openInPanel: 'Ouvrir dans {panel}',
@@ -1217,12 +1217,12 @@ function deviceNamedLinkHtml(hass, id) {
   return deviceLinkHtml(hass, id, deviceLabel(hass, id));
 }
 
-// A thermostat's devices: its own, then the scheduled thermostat's (Chauffage), once each
 // A row of the panel's lists, as the rows of the integration's page: an icon, a name and a line
-// under it, a chevron, all one link; then its actions, after a divider
+// under it, a chevron, then its actions after a divider. The whole row is one link, except its
+// actions
 function thRow(rowAttrs, linkAttrs, icon, title, sub, actions) {
-  return `<div ${rowAttrs}>
-    <div class="th-main" role="link" tabindex="0" ${linkAttrs}>
+  return `<div ${rowAttrs} role="link" tabindex="0" ${linkAttrs}>
+    <div class="th-main">
       <ha-icon class="th-icon" icon="${esc(icon)}"></ha-icon>
       <div class="th-text"><div class="th-title">${title}</div>${sub}</div>
       <ha-icon class="th-chevron" icon="mdi:chevron-right" aria-hidden="true"></ha-icon>
@@ -1231,6 +1231,10 @@ function thRow(rowAttrs, linkAttrs, icon, title, sub, actions) {
   </div>`;
 }
 
+// A click on the actions at the end of a row of the panel's lists: not a click on the row's link
+const inRowActions = (e) => !!e.target.closest('.th-actions');
+
+// A thermostat's devices: its own, then the scheduled thermostat's (Chauffage), once each
 function thermostatDevices(hass, src, climate) {
   return [deviceOf(hass, climate), deviceOf(hass, src.thermostatEntity(climate, 'control'))]
     .filter((id, i, list) => id && list.indexOf(id) === i);
@@ -2884,7 +2888,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         return;
       }
       // A page of the Chauffage panel (presets, rules, thermostats)
-      const page = e.target.closest('[data-panel-page]');
+      const page = !inRowActions(e) && e.target.closest('[data-panel-page]');
       if (page) {
         openPanel(page.dataset.panelPage);
         return;
@@ -2896,7 +2900,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         return;
       }
       // A thermostat's page in the panel (its name, on the Thermostats page)
-      const weeks = e.target.closest('[data-weeks]');
+      const weeks = !inRowActions(e) && e.target.closest('[data-weeks]');
       if (weeks) {
         openWeeks(weeks.dataset.weeks);
         return;
@@ -3078,7 +3082,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         const moves = this._config.schedule_tabs === 'one' ? ''
           : `${item('schedule-move', esc(t(list ? 'moveUp' : 'moveLeft')), 'data-dir="-1"', i <= 0)}
           ${item('schedule-move', esc(t(list ? 'moveDown' : 'moveRight')), 'data-dir="1"', i >= schedules.length - 1)}`;
-        body = `${open}${item('schedule-rename-open', esc(t('renameMenu')))}
+        // The list's rows have no Activate button: it broke their layout
+        const activate = list && id !== this._activeSchedule()
+          ? `${item('activate-schedule', esc(t('panelActivate')), `data-schedule="${esc(id)}"`)}<div class="sep"></div>` : '';
+        body = `${activate}${open}${item('schedule-rename-open', esc(t('renameMenu')))}
           ${moves}
           <div class="sep"></div>
           ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
@@ -3439,11 +3446,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       const open = this._schedEd && this._schedEd.kind === 'menu' && this._schedEd.id === id;
       const more = !src.editable ? ''
         : `<button class="icon-btn${open ? ' on' : ''}" data-act="schedule-menu" data-schedule="${esc(id)}" title="${esc(t('scheduleMenu'))}" aria-label="${esc(t('scheduleMenu'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
-      const activate = id === active ? '' : `<button class="btn" data-act="activate-schedule" data-schedule="${esc(id)}">${esc(t('panelActivate'))}</button>`;
       return thRow(`class="th-row" data-schedule="${esc(id)}"`, `data-panel-page="schedules/${esc(id)}"`,
         src.scheduleIcon(id) || 'mdi:calendar-clock',
         `${esc(this._scheduleName(id))}${id === active ? ` <span class="th-badge on">${esc(t('panelActive'))}</span>` : ''}`,
-        '', activate + more);
+        '', more);
     }).join('');
     const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
     return `<div class="thermostats-view schedules-view">${rows}${add}</div>${this._schedMenuHtml()}`;
@@ -4000,11 +4006,12 @@ const STYLE = `
   .th-hint { color:var(--secondary-text-color); font-size:.9em; margin-bottom:8px; }
   /* A row is a link to its sheet, chevron included, as the rows of the integration's page: they
      span the card, and its actions come after a divider */
-  .th-row { display:flex; align-items:center; margin:0 -16px; padding-right:8px; border-top:1px solid var(--divider-color); }
+  .th-row { display:flex; align-items:center; margin:0 -16px; padding-right:8px; border-top:1px solid var(--divider-color);
+    cursor:pointer; outline:none; }
   ha-card.flat .th-row { margin:0; }
   .th-main { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:16px; min-height:48px;
-    padding:12px 8px 12px 16px; cursor:pointer; outline:none; }
-  .th-main:hover, .th-main:focus-visible { background:rgba(127,127,127,.08); }
+    padding:12px 8px 12px 16px; }
+  .th-row:hover, .th-row:focus-visible { background:rgba(127,127,127,.08); }
   .th-icon, .th-chevron { flex:none; color:var(--secondary-text-color); --mdc-icon-size:24px; }
   .th-text { flex:1 1 auto; min-width:0; }
   .th-title { font-size:14px; line-height:22px; color:var(--primary-text-color); overflow-wrap:anywhere; }

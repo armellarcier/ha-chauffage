@@ -39,7 +39,7 @@ Each entry says whether the release **migrates stored data** and what to do when
   *créneau*, not a "plage".
 - **The panel's welcome says what Chauffage does in one sentence.**
 - **The panel's *Schedules* tab lists the schedules as the *Thermostats* tab lists the
-  thermostats.** A row opens the schedule's page, and its ⋮ renames, moves or deletes it.
+  thermostats.** A row opens the schedule's page, and its ⋮ activates, renames, moves or deletes it.
   *+ New schedule* also creates a copy of another schedule, checks the name, then opens the new
   schedule's page.
 - **Each page of the panel has its ⋮ next to its title.** A schedule's page no longer shows a lone
@@ -65,8 +65,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **On a phone, the *+* of the schedule tabs stays on the card**, the active schedule keeps its
   dot, and the hours of the time axis stay on one line.
 - **A thermostat's page no longer moves while it loads**, so a tap lands where you aimed.
-- **The chevron of a row opens the page too**, on the panel's *Thermostats* and *Schedules*
-  tabs. The lists now look like the list of the integration's page.
+- **On the panel's *Thermostats* and *Schedules* tabs, the whole row opens the page**, its
+  chevron included. The lists now look like the list of the integration's page, and the link at
+  the foot of the thermostats is shorter: *Integration page*.
 - **Texts that pointed to the card's former views now point to the panel's tabs.**
 
 ## [0.8.0-beta.1] - 2026-10-31

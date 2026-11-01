@@ -74,6 +74,12 @@ describe('the panel\'s "Thermostats" page', () => {
     window.history.pushState(null, '', '/chauffage/thermostats');
     row(card, 'climate.salon').querySelector('.th-chevron').click();
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
+    window.history.pushState(null, '', '/chauffage/thermostats');
+    row(card, 'climate.salon').querySelector('.th-divider').click(); // the row's end, around its ⋮
+    assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
+    window.history.pushState(null, '', '/chauffage/thermostats');
+    click(card, 'climate.salon', 'thermostat-more');
+    assert.equal(window.location.pathname, '/chauffage/thermostats', 'its ⋮ opens its menu only');
   });
 
   test('its ⋮ opens a floating menu, as every ⋮ of the card: pause, open the thermostat, its devices by their names, forget it', () => {
@@ -177,6 +183,7 @@ describe('the panel\'s "Thermostats" page', () => {
   test('the integration\'s page, with its options and diagnostics, opens from it (admins); not the Chauffage device', () => {
     const card = open(setup());
     assert.equal(card.shadowRoot.querySelector('.th-foot [data-device]'), null);
+    assert.equal(text(card.shadowRoot.querySelector('.th-foot')), 'Page de l’intégration', 'short: the page says the rest');
     card.shadowRoot.querySelector('.th-foot [data-navigate]').click();
     assert.equal(window.location.pathname, '/config/integrations/integration/chauffage');
   });

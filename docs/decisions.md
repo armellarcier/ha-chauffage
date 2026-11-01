@@ -688,7 +688,8 @@ older one, the older one says so.
 - **The *Schedules* page lists each schedule**, with an *Active* badge, *Activate* and *Edit*.
   "+ New schedule" opens a name field in the list.
   **Amended by the UX review**: the page follows the model of the *Thermostats* page.
-  The whole row opens the schedule's sheet, and its ⋮ menu renames, moves or deletes the schedule.
+  The whole row opens the schedule's sheet, and its ⋮ menu activates, renames, moves or deletes the schedule.
+  *Activate* left the row: the button made the rows uneven.
   "+ New schedule" opens the card's "+" menu: an empty schedule or a copy.
 
 ### Welcoming a new user (0.8.0-alpha.2)
@@ -764,7 +765,7 @@ A review of every surface, before the merge into `main`, settled these choices.
   setpoint"; *slot* (*créneau*), not "plage"; the panel's *tabs* (*onglets*).
 - **The panel's lists look like the list of the integration's page**: an icon, the name and a
   line under it, a chevron, then the actions after a divider. The whole row is one link, chevron
-  included. The card copies this style with the theme's variables. It does not use
+  included, except its actions. The card copies this style with the theme's variables. It does not use
   `ha-list-item-button`: that component is internal to Home Assistant's frontend, it was renamed
   since 2025.1, and a dashboard may not load it. If Home Assistant restyles its lists, adjust the
   copy.

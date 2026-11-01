@@ -111,22 +111,34 @@ describe('the Chauffage panel', () => {
     const list = (el) => cards(el).find((c) => c._config.view === 'schedules');
     const row = (el, id) => $(list(el), `.th-row[data-schedule="${id}"]`);
 
-    test('lists the schedules as the Thermostats tab lists the thermostats: the active one marked, the others can be activated', () => {
+    test('lists the schedules as the Thermostats tab lists the thermostats: the active one marked, the others activated from their ⋮', () => {
       const hass = setup();
       const el = panel(hass, '/schedules');
       assert.deepEqual($$(list(el), '.th-row').map((r) => r.dataset.schedule), ['normal', 'away', 'holiday']);
       assert.equal(text(row(el, 'normal').querySelector('.th-main')), 'Normal Actif');
       assert.equal(row(el, 'holiday').querySelector('[data-page], .name'), null, 'no Edit button: the row opens the sheet');
-      row(el, 'holiday').querySelector('[data-act="activate-schedule"]').click();
+      assert.equal(row(el, 'holiday').querySelector('[data-act="activate-schedule"]'), null, 'no button on the row: it broke the layout');
+      row(el, 'holiday').querySelector('[data-act="schedule-menu"]').click();
+      $(list(el), '.sched-menu [data-act="activate-schedule"]').click();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/schedule/activate', schedule: 'holiday' });
+      assert.equal(window.location.pathname, '/chauffage/schedules', 'activating does not open the sheet');
     });
 
-    test('the whole row opens the schedule\'s sheet, its chevron too', () => {
+    test('the active schedule\'s ⋮ offers no Activate', () => {
+      const el = panel(setup(), '/schedules');
+      row(el, 'normal').querySelector('[data-act="schedule-menu"]').click();
+      assert.equal($(list(el), '.sched-menu [data-act="activate-schedule"]'), null);
+    });
+
+    test('the whole row opens the schedule\'s sheet, its chevron and its end too', () => {
       const el = panel(setup(), '/schedules');
       row(el, 'away').querySelector('.th-main').click();
       assert.equal(window.location.pathname, '/chauffage/schedules/away');
       window.history.pushState(null, '', '/chauffage/schedules');
       row(el, 'away').querySelector('.th-chevron').click();
+      assert.equal(window.location.pathname, '/chauffage/schedules/away');
+      window.history.pushState(null, '', '/chauffage/schedules');
+      row(el, 'away').querySelector('.th-divider').click();
       assert.equal(window.location.pathname, '/chauffage/schedules/away');
     });
 

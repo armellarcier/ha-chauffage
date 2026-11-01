@@ -199,7 +199,7 @@ Un seul planning est actif à la fois. Le sélecteur **Planning actif**
 (`select.chauffage_schedule`) indique lequel.
 
 - **Depuis la carte**, ouvrez l'onglet du planning, puis cliquez sur *Activer*.
-- **Depuis le panneau Chauffage**, sur l'onglet *Plannings*, cliquez sur *Activer*.
+- **Depuis le panneau Chauffage**, sur l'onglet *Plannings*, ouvrez le menu ⋮ du planning, puis cliquez sur *Activer*.
 - **Depuis une automatisation**, appelez `chauffage.activate_schedule` avec l'identifiant stable
   du planning. L'attribut `schedule_id` du sélecteur donne l'identifiant stable du planning
   actif.

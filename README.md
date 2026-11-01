@@ -186,7 +186,7 @@ One schedule is active at a time. The **Active schedule** select (`select.chauff
 shows which one.
 
 - **From the card**, open the schedule's tab, then click *Activate*.
-- **From the Chauffage panel**, on the *Schedules* tab, click *Activate*.
+- **From the Chauffage panel**, on the *Schedules* tab, open the schedule's ⋮ menu, then click *Activate*.
 - **From an automation**, call `chauffage.activate_schedule` with the schedule's stable id. The
   select's `schedule_id` attribute gives the stable id of the active schedule.
 - **From a dashboard, a script or by voice**, use the select or the schedule's switch (see
