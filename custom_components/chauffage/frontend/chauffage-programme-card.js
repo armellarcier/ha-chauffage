@@ -4249,7 +4249,8 @@ const STYLE = `
     border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
   /* An icon chosen in HA, in the line of the name: the browser aligns it with the text */
-  .tab-icon { --mdc-icon-size:18px; display:inline-flex; vertical-align:-0.25em; margin-inline-end:4px; }
+  .tab-icon { --mdc-icon-size:18px; display:inline-flex; vertical-align:middle; margin-inline-end:4px; }
+  .tab-name { vertical-align:middle; }
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
