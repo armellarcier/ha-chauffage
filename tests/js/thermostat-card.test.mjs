@@ -167,7 +167,7 @@ describe('the thermostat card', () => {
   test('in English', () => {
     const card = cardFor(setup({ locale: { language: 'en-US', time_format: 'language', number_format: 'language', first_weekday: 'language' } }));
     assert.equal(text($(card, '.tc-state')), 'Eco · 17°');
-    assert.equal(text(block(card).querySelector('.foot [data-weeks]')), 'Open in Chauffage');
+    assert.equal(text(block(card).querySelector('.foot [data-weeks]')), 'Edit its week');
   });
 });
 

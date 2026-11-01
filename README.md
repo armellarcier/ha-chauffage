@@ -96,7 +96,8 @@ override and pause the thermostat. The card also opens the thermostat and its sc
 Administrators open the thermostat's page in the Chauffage panel.
 
 The thermostat's more-info dialog shows the same information, under the thermostat's controls.
-Its link *Open in Chauffage* opens the thermostat's page in the Chauffage panel.
+Its link *Edit its week*, or a tap on its week, opens the thermostat's page in the Chauffage
+panel, on its week in the active schedule.
 
 ## The Chauffage panel
 
@@ -133,7 +134,8 @@ A schedule or a thermostat opens on a page of its own. The title of the page, fo
 ### Open a thermostat's page
 
 - From the Chauffage panel, on the *Thermostats* tab, click the thermostat's name.
-- From the thermostat's more-info dialog, click *Open in Chauffage*.
+- From the thermostat's more-info dialog, click *Edit its week*: the page opens on its week in
+  the active schedule.
 - From the device of the scheduled thermostat, click *Visit*. See
   [On each scheduled thermostat's device](#on-each-scheduled-thermostats-device).
 

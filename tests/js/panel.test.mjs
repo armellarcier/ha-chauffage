@@ -675,14 +675,35 @@ describe('the dashboard card and the panel', () => {
 describe('the more-info block and the panel', () => {
   afterEach(() => cleanup());
 
-  test('its link says "Open in" the panel, named as the sidebar names it', () => {
+  test('its link says what it does, "Edit its week", whatever the panel is named', () => {
     const hass = setup();
     hass.panels.chauffage.title = 'Chauffe';
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = hass;
-    assert.equal(text(el.shadowRoot.querySelector('[data-weeks]')), 'Ouvrir dans Chauffe');
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-weeks]')), 'Modifier sa semaine');
+  });
+
+  test('a thermostat\'s sheet reached for one week scrolls to it, and marks it a moment', () => {
+    const scrolled = [];
+    const original = window.Element.prototype.scrollIntoView;
+    window.Element.prototype.scrollIntoView = function scrollIntoView() { scrolled.push(this); };
+    try {
+      window.history.replaceState(null, '', '/chauffage/thermostats/climate.salon?week=away');
+      const el = document.createElement('chauffage-panel');
+      document.body.appendChild(el);
+      const hass = setup();
+      el.hass = hass;
+      el.panel = hass.panels.chauffage;
+      el.route = { prefix: '/chauffage', path: '/thermostats/climate.salon' };
+      const heading = $(el, 'h3[data-fill-schedule="away"]');
+      assert.deepEqual(scrolled, [heading]);
+      assert.ok(heading.classList.contains('arrived'));
+      assert.equal(window.location.search, '', 'once: a reload or going back does not scroll again');
+    } finally {
+      window.Element.prototype.scrollIntoView = original;
+    }
   });
 
   test('from the more-info dialog, a page opens once the dialog is closed (it closes by going back)', async () => {

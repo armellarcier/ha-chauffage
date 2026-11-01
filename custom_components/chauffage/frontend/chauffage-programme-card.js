@@ -67,6 +67,7 @@ const I18N = {
     allThermostats: 'All thermostats',
     weeksTitle: 'Weeks',
     openInPanel: 'Open in {panel}',
+    editWeek: 'Edit its week',
     scheduleThermostat: 'Schedule',
     inCards: 'Shown in',
     inNoCard: 'Shown in no card',
@@ -290,6 +291,7 @@ const I18N = {
     allThermostats: 'Tous les thermostats',
     weeksTitle: 'Semaines',
     openInPanel: 'Ouvrir dans {panel}',
+    editWeek: 'Modifier sa semaine',
     scheduleThermostat: 'Programmer',
     inCards: 'Affiché dans',
     inNoCard: 'Affiché dans aucune carte',
@@ -1331,9 +1333,10 @@ function panelTitle(hass) {
   const panel = hass && hass.panels && hass.panels.chauffage;
   return (panel && panel.title) || 'Chauffage';
 }
-// The weeks of one thermostat, in the Chauffage panel
-function openWeeks(climate) {
-  openPanel(`thermostats/${climate}`);
+// The weeks of one thermostat, in the Chauffage panel; `week`: the schedule whose week the page
+// scrolls to (see ChauffagePanel._scrollToWeek)
+function openWeeks(climate, week) {
+  openPanel(`thermostats/${climate}${week ? `?week=${encodeURIComponent(week)}` : ''}`);
 }
 
 // Where the dashboards show each thermostat, in a Chauffage card:
@@ -3048,7 +3051,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       // A thermostat's page in the panel (its name, on the Thermostats page)
       const weeks = !inRowActions(e) && e.target.closest('[data-weeks]');
       if (weeks) {
-        openWeeks(weeks.dataset.weeks);
+        openWeeks(weeks.dataset.weeks, weeks.dataset.week);
         return;
       }
       // Preset cell popover open: a click outside the popover / cells closes it
@@ -4747,6 +4750,7 @@ class ChauffageMoreInfo extends HTMLElement {
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
         <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
+    const admin = !(this._hass.user && !this._hass.user.is_admin);
 
     this.shadowRoot.innerHTML = `<style>${MORE_INFO_STYLE}</style>
       <div class="wrap">
@@ -4757,7 +4761,9 @@ class ChauffageMoreInfo extends HTMLElement {
         ${this._bar(segs, rowPiece(pieces, [today]), true, true)}
         ${endDay}
         <div class="ticks">${ticks}</div>
-        <details><summary>${esc(t('week'))}</summary><div class="week">${rows}</div></details>
+        <details><summary>${esc(t('week'))}</summary>${admin
+          ? `<div class="week" role="link" tabindex="0" title="${esc(t('editWeek'))}" ${this._weekLink()}>${rows}</div>`
+          : `<div class="week">${rows}</div>`}</details>
         ${this._footHtml()}
       </div>`;
     // Keeps the "week" section open / closed across redraws
@@ -4769,12 +4775,19 @@ class ChauffageMoreInfo extends HTMLElement {
 
   // The foot, for admins: the thermostat's page in the panel, and Pause, or Control in its place.
   // Its entities and its devices are on the device's page and on the panel's sheet
+  // Where "Edit its week" leads: the thermostat's page, scrolled to its week in the active schedule
+  _weekLink() {
+    const week = dataSource(this._hass).activeSchedule();
+    return `data-weeks="${esc(this._entity)}"${week ? ` data-week="${esc(week)}"` : ''}`;
+  }
+
   _footHtml() {
     const t = this._loc.t;
     const src = dataSource(this._hass);
     const admin = !(this._hass && this._hass.user && !this._hass.user.is_admin);
+    // Its week in the active schedule, on the thermostat's page in the panel (admins, as the panel)
     const links = admin
-      ? `<span class="mi-link" role="link" tabindex="0" data-weeks="${esc(this._entity)}">${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span>`
+      ? `<span class="mi-link" role="link" tabindex="0" ${this._weekLink()}>${esc(t('editWeek'))}</span>`
       : '';
     const paused = src.paused(this._entity);
     // Pause and Control: anyone who may control the thermostat, as with its Control switch
@@ -4797,7 +4810,7 @@ class ChauffageMoreInfo extends HTMLElement {
     }
     const weeks = e.target.closest('[data-weeks]');
     if (weeks) {
-      leaveMoreInfo(this, () => openWeeks(weeks.dataset.weeks));
+      leaveMoreInfo(this, () => openWeeks(weeks.dataset.weeks, weeks.dataset.week));
       return;
     }
     const b = e.target.closest('button:not(.time-step)'); // the small arrows: listenTimeFields()
@@ -5572,12 +5585,37 @@ class ChauffagePanel extends HTMLElement {
       this._build(route, src);
     }
     this._fill(route, src);
+    if (route.sheet === 'thermostat') this._scrollToWeek();
     const menu = this.shadowRoot.querySelector('ha-menu-button');
     if (menu) {
       menu.hass = hass;
       menu.narrow = this._narrow;
     }
     for (const card of this._cards) card.hass = hass;
+  }
+
+  // A thermostat's page reached for one week ("Edit its week", ?week=<schedule>): scrolled to that
+  // week, marked a moment. Once: the address loses ?week, so a reload or going back stays put
+  _scrollToWeek() {
+    const week = new URLSearchParams(window.location.search).get('week');
+    const heading = week && [...this.shadowRoot.querySelectorAll('h3[data-fill-schedule]')]
+      .find((h) => h.dataset.fillSchedule === week);
+    if (!heading) return;
+    window.history.replaceState(window.history.state, '', window.location.pathname);
+    heading.scrollIntoView({ block: 'start' });
+    heading.classList.add('arrived');
+    // The parts above it (the tile, the presets, the weeks) draw a moment later and push it down:
+    // scrolled to it again while they do, until the user scrolls or 3 s have passed
+    const content = this.shadowRoot.querySelector('.content');
+    if (typeof ResizeObserver !== 'function' || !content) return;
+    const follow = new ResizeObserver(() => heading.isConnected && heading.scrollIntoView({ block: 'start' }));
+    const stop = () => {
+      follow.disconnect();
+      for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) window.removeEventListener(type, stop, true);
+    };
+    follow.observe(content);
+    for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) window.addEventListener(type, stop, true);
+    setTimeout(stop, 3000);
   }
 
   // Every scheduled thermostat, or every climate before the first one is scheduled
@@ -6000,6 +6038,9 @@ const PANEL_CSS = `
   .content { max-width:1100px; margin:0 auto; padding:8px 8px 24px; }
   h2 { margin:20px 8px 8px; font-size:16px; font-weight:500; }
   h3 { margin:16px 8px 6px; font-size:14px; font-weight:500; color:var(--secondary-text-color); }
+  /* The week a link led to ("Edit its week"), marked a moment */
+  h3.arrived { animation:arrived 2.5s ease-out; border-radius:6px; scroll-margin-top:72px; }
+  @keyframes arrived { from { background:rgba(var(--rgb-primary-color, 3, 169, 244), .25); color:var(--primary-color); } }
   h3 [role="link"], .name, .link { cursor:pointer; }
   h3 [role="link"]:hover, .name:hover, .link:hover { color:var(--primary-color); text-decoration:underline; }
   .box { padding:8px 16px; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color);

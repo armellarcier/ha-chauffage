@@ -99,8 +99,8 @@ thermostat et son planning. Les administrateurs ouvrent la page du thermostat da
 Chauffage.
 
 La fenêtre de détail du thermostat montre les mêmes informations, sous les commandes du
-thermostat. Son lien *Ouvrir dans Chauffage* ouvre la page du thermostat dans le panneau
-Chauffage.
+thermostat. Son lien *Modifier sa semaine*, ou un appui sur sa semaine, ouvre la page du
+thermostat dans le panneau Chauffage, sur sa semaine dans le planning actif.
 
 ## Le panneau Chauffage
 
@@ -140,7 +140,8 @@ Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, p
 ### Ouvrir la page d'un thermostat
 
 - Dans le panneau Chauffage, sur l'onglet *Thermostats*, cliquez sur le nom du thermostat.
-- Dans la fenêtre de détail du thermostat, cliquez sur *Ouvrir dans Chauffage*.
+- Dans la fenêtre de détail du thermostat, cliquez sur *Modifier sa semaine* : la page s'ouvre
+  sur sa semaine dans le planning actif.
 - Sur l'appareil du thermostat programmé, cliquez sur *Visiter*. Voir
   [Sur l'appareil de chaque thermostat programmé](#sur-lappareil-de-chaque-thermostat-programmé).
 

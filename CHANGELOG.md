@@ -26,6 +26,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Changed
 
+- **From a thermostat's more-info dialog, *Edit its week* leads to its week in the active
+  schedule.** The link replaces *Open in Chauffage*. It opens the thermostat's page on that week,
+  marked a moment, instead of the top of the page. A tap on the week shown in the dialog does the
+  same.
 - **A new schedule card shows all its thermostats at first.** The *Add card* dialog now writes
   `show: all`. Your existing cards do not change.
 - **The events can say `panel`**: the `source` of `chauffage_override_started` and

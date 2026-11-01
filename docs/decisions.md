@@ -727,6 +727,12 @@ older one, the older one says so.
 - **The block's link to the thermostat's sheet says "Open in Chauffage"** (*Ouvrir dans
   Chauffage*, the `openInPanel` key). "Chauffage" is the panel's title as Home Assistant shows it
   in the sidebar, so the link follows a renamed panel or integration.
+  **Amended by the UX review**: the link says what it does, *Edit its week* (*Modifier sa
+  semaine*, the `editWeek` key), and opens the thermostat's page on its week in the active
+  schedule (`?week=<schedule>`), scrolled to it and marked a moment. A tap on the week shown in the
+  block does the same. A tap on one day would be ambiguous with the days grouped, so the link goes
+  to the week only. The page keeps the schedules' order: it scrolls, it does not move the active
+  week first.
 - **A link from the more-info dialog to a page closes the dialog first**, then opens the page
   (`leaveMoreInfo`). The page is, for example, the thermostat's sheet or a device. Home Assistant
   keeps the open dialog in the address (`?more-info-entity-id=`), and closes the dialog by going

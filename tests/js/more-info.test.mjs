@@ -201,21 +201,33 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
   });
   const foot = (el) => el.shadowRoot.querySelector('.foot');
 
-  test('holds Open in Chauffage and Pause only: the device\'s page lists the thermostat\'s entities', () => {
+  test('holds Edit its week and Pause only: the device\'s page lists the thermostat\'s entities', () => {
     const el = block(fakeHass(), 'climate.salon');
     assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent),
-      ['Ouvrir dans Chauffage', 'Mettre en pause']);
+      ['Modifier sa semaine', 'Mettre en pause']);
     assert.equal(foot(el).querySelector('[data-more-info], [data-device]'), null);
   });
 
-  test('Open in Chauffage opens the thermostat\'s page, closing the dialog', () => {
-    const el = block(fakeHass(), 'climate.salon');
+  test('Edit its week opens the thermostat\'s page on its week in the active schedule, closing the dialog', () => {
+    const el = block(fakeHass({ schedule: 'Vacances', weeks: { 'climate.salon': { Vacances: Array(7).fill(['00:00 eco']) } } }), 'climate.salon');
     foot(el).querySelector('[data-weeks="climate.salon"]').click();
     assert.deepEqual(opened, [null]); // the more-info dialog is closed
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
+    assert.equal(window.location.search, '?week=holiday');
   });
 
-  test('a user who is not an admin gets Pause, as with the Control switch, but not Open in Chauffage (the panel is for admins)', () => {
+  test('the week shown in the block opens it too, for an admin', () => {
+    const el = block(fakeHass(), 'climate.salon');
+    const week = el.shadowRoot.querySelector('.week');
+    assert.equal(week.getAttribute('role'), 'link');
+    week.querySelector('.row').click();
+    assert.equal(`${window.location.pathname}${window.location.search}`, '/chauffage/thermostats/climate.salon?week=normal');
+    const hass = fakeHass();
+    hass.user = { is_admin: false };
+    assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.week[role="link"]'), null);
+  });
+
+  test('a user who is not an admin gets Pause, as with the Control switch, but not Edit its week (the panel is for admins)', () => {
     const hass = fakeHass();
     hass.user = { is_admin: false };
     const el = block(hass, 'climate.salon');
