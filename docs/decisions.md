@@ -775,6 +775,9 @@ A review of every surface, before the merge into `main`, settled these choices.
 - **Every user can set, change and end an override from a card.** The `chauffage.set_override`
   and `chauffage.clear_override` services were already open to every user, and anyone can turn
   the thermostat's knob. The websocket command keeps its format: only its permission changes.
+- **Every user who may control a thermostat can pause it and resume it from a card**, as with its
+  *Control* switch, which any such user could already turn off. The panel stays for admins: its
+  thermostat menu keeps *Pause*, and the more-info block keeps *Open in Chauffage* for admins only.
 - **One word for each thing**, as the glossary says: *override* (*dérogation*), not "temporary
   setpoint"; *slot* (*créneau*), not "plage"; the panel's *tabs* (*onglets*).
 - **The panel's lists look like the list of the integration's page**: an icon, the name and a

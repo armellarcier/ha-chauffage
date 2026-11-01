@@ -2304,12 +2304,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
   }
 
-  // A notice per paused thermostat shown, with a button to resume it (admins)
+  // A notice per paused thermostat shown, with a button to resume it (anyone who may control the
+  // thermostat, as with its Control switch)
   _pausedNotesHtml() {
     const src = this._source();
     return this._shown.filter((climate) => src.paused(climate)).map((climate) => `<div class="paused-note">
         <span>${withHtml(this._loc.t('pausedNote', { name: LINK_TOKEN }), this._moreInfoLink(climate))}</span>
-        ${src.editable ? `<button class="btn" data-act="resume" data-climate="${esc(climate)}">${esc(this._loc.t('resumeShort'))}</button>` : ''}
+        <button class="btn" data-act="resume" data-climate="${esc(climate)}">${esc(this._loc.t('resumeShort'))}</button>
       </div>`).join('');
   }
 
@@ -4700,8 +4701,8 @@ class ChauffageMoreInfo extends HTMLElement {
       ? `<span class="mi-link" role="link" tabindex="0" data-weeks="${esc(this._entity)}">${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span>`
       : '';
     const paused = src.paused(this._entity);
-    const button = !src.editable ? ''
-      : paused ? `<button data-resume>${esc(t('resumeShort'))}</button>` : `<button data-pause>${esc(t('pauseShort'))}</button>`;
+    // Pause and Control: anyone who may control the thermostat, as with its Control switch
+    const button = paused ? `<button data-resume>${esc(t('resumeShort'))}</button>` : `<button data-pause>${esc(t('pauseShort'))}</button>`;
     return links || button ? `<div class="foot"><span class="links">${links}</span>${button}</div>` : '';
   }
 

@@ -215,10 +215,11 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
   });
 
-  test('a user who is not an admin gets neither Open in Chauffage nor Pause (the panel is for admins)', () => {
+  test('a user who is not an admin gets Pause, as with the Control switch, but not Open in Chauffage (the panel is for admins)', () => {
     const hass = fakeHass();
     hass.user = { is_admin: false };
-    assert.equal(foot(block(hass, 'climate.salon')), null);
+    const el = block(hass, 'climate.salon');
+    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent), ['Mettre en pause']);
   });
 });
 

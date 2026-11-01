@@ -430,6 +430,9 @@ de dérogations. La pause est pratique pour une pièce que vous gérez à la mai
 Pour rendre le thermostat à Chauffage, cliquez sur *Piloter* aux mêmes endroits, ou rallumez
 l'interrupteur **Pilotage**.
 
+Tout utilisateur qui peut piloter le thermostat peut le mettre en pause et le rendre, pas seulement
+les administrateurs.
+
 ## Entités
 
 Tout ce que sait Chauffage s'utilise aussi sans la carte : sur les pages des appareils, dans les

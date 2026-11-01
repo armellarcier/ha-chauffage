@@ -11,6 +11,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Added
 
+- **Every user can pause a thermostat and give it back to Chauffage** from the cards and the
+  more-info dialog, not only administrators, as with its *Control* switch. A read-only user still
+  cannot.
 - **An override on a thermostat that is turned off says so.** The card and the more-info dialog
   warn that Chauffage applies the override once the thermostat is turned back on.
 - **You can change a schedule's icon from its ⋮ menu.** *Change the icon…* opens the settings of

@@ -403,6 +403,8 @@ heating season.
 To give the thermostat back to Chauffage, click *Resume control* in the same places, or turn the
 **Control** switch back on.
 
+Every user who may control the thermostat can pause it and give it back, not only administrators.
+
 ## Entities
 
 You can use everything Chauffage knows without the card: on the device pages, in dashboards,

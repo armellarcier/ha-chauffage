@@ -157,7 +157,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | Place one scheduled thermostat in one's own dashboard (`custom:chauffage-thermostat-card`): its name (or the card's), the measured temperature, what it does now (preset and setpoint, or the temporary setpoint), why and until when, today with the current time, the week, in the block of the more-info dialog | `C/thermostat-card.test.mjs` |
-| From it: a temporary setpoint set, changed or ended; *Pause*, then *Control* in its place (admins), at the foot of the block it shares with the more-info dialog | `C/thermostat-card.test.mjs` |
+| From it: a temporary setpoint set, changed or ended; *Pause*, then *Control* in its place (anyone who may control the thermostat), at the foot of the block it shares with the more-info dialog | `C/thermostat-card.test.mjs` |
 | From it, open the thermostat and its schedule's switch; an admin opens the thermostat's page in the panel | `C/thermostat-card.test.mjs`, `I/test_entities.py::the_card_is_told_*` |
 | A thermostat Chauffage does not schedule says how to schedule it; the integration missing, or a card older or newer than it, says so | `C/thermostat-card.test.mjs` |
 | In the *Add card* dialog (name in HA's language, preview), suggested for a thermostat (*By entity*), starting with a scheduled thermostat; a visual editor for the thermostat and its name | `C/thermostat-card.test.mjs` (in Home Assistant) |
@@ -169,7 +169,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
 | Its week (and the thermostat card's) shows identical days on one row, or each day with `group_days: false` (#11) | `C/grouped-days.test.mjs` (the week in the more-info block) |
 | The active schedule's name, current and next slot, override, +30 min, drag its end, end time field (typed to the minute, sent on Enter or on leaving it, even after a tap outside the card; kept through the redraws while typed; a time not whole shown again as it was; arrow keys by the hour or the step; small arrows by the step; moved by the arrows, the end moves by as much (before now: a step after now, not tomorrow; in three days: still in three days); in the card's popover and the thermostat card too), resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end, the end time field), `C/thermostat-card.test.mjs` |
-| At the foot of the block, for admins only: *Open in Chauffage* and *Pause*, or *Control* in its place (not a second "Resume"); no link to the thermostat's entities or devices, which the device's page and the panel's sheet list | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
+| At the foot of the block: *Open in Chauffage* for admins only, and *Pause*, or *Control* in its place, for anyone who may control the thermostat, as with its *Control* switch (not a second "Resume"); no link to the thermostat's entities or devices, which the device's page and the panel's sheet list | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
 | Until when the planned preset really lasts and what comes next, as the planned preset sensor says: the next different preset, even on another day ("Eco until 06:30 (tomorrow), then Comfort", a weekend, "Eco all week"); sent again to the cards when it changes | `I/test_api.py::the_card_is_told_*`, `C/more-info.test.mjs` (until when the preset lasts, the next day, a weekend, all week), `C/i18n.test.mjs` (the more-info block in English) |
 
 ## Entities and API
@@ -188,7 +188,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Scripts read the schedules (`chauffage.get_schedules`) and the week of thermostats in a schedule (`chauffage.get_week`, as `schedule.get_schedule`); unknown thermostat or schedule refused | `I/test_api.py::a_script_reads_*`, `::reading_the_week_of_an_unknown_*` |
 | History of the measured and target temperatures for the card: only these two, the state at the start first, gaps while unavailable, what was read kept in memory, any user, no recorder | `I/test_history.py` ×3 |
 | A card's subscription goes on after the integration is reloaded (options changed, a thermostat renamed): the data sent again at once, then every change | `I/test_api.py::a_subscription_goes_on_after_the_integration_is_reloaded` |
-| Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings, pause, forget; admins only for writes; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
+| Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings, pause, forget; admins only for writes, but overrides and pause for anyone who may control the thermostat; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
 
 ## Chauffage panel and devices (#57)
 

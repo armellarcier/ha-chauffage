@@ -149,7 +149,7 @@ describe('the thermostat card', () => {
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
     const other = setup();
     other.user = { is_admin: false };
-    assert.equal(block(cardFor(other)).querySelector('[data-pause]'), null);
+    assert.ok(block(cardFor(other)).querySelector('.foot [data-pause]'), 'not only an admin');
   });
 
   test('a thermostat Chauffage does not schedule yet says how to schedule it', () => {

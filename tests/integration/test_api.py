@@ -201,6 +201,25 @@ async def test_a_read_only_user_cannot_change_an_override(bench: Bench, ws_clien
     assert bench.overrides()["climate.salon"] == o
 
 
+async def test_anyone_at_home_pauses_and_resumes_a_thermostat_from_a_card(bench: Bench, ws_client):
+    """As with its Control switch, which any user who may control the thermostat can turn off."""
+    await start(bench)
+    client = await ws_client(bench.hass, admin=False, read_only=False)
+    for paused in (True, False):
+        await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": paused})
+        assert (await client.receive_json())["success"]
+        assert bench.runtime.is_paused("climate.salon") is paused
+
+
+async def test_a_read_only_user_cannot_pause_a_thermostat(bench: Bench, ws_client):
+    await start(bench)
+    client = await ws_client(bench.hass, admin=False)
+    await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": True})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "unauthorized"
+    assert not bench.runtime.is_paused("climate.salon")
+
+
 # ----- services -----
 
 async def test_set_override_drives_the_thermostat_and_records_the_override(bench: Bench):

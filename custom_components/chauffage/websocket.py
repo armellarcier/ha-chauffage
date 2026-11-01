@@ -21,7 +21,7 @@ chauffage/rules/set          {rules, default_schedule}: the activation rules ([{
 chauffage/rules/preview      {rules}: tries rules being typed, as the integration would, then again
                              when their entities change: {results, texts, errors}, one per rule
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled
-                             thermostat
+                             thermostat. Any user who may control the thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
@@ -239,9 +239,12 @@ async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveCo
     vol.Required("entity_id"): str,
     vol.Required("paused"): bool,
 })
-@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    # Anyone who may control the thermostat, as with its Control switch: not only an admin
+    if not connection.user.permissions.check_entity(msg["entity_id"], POLICY_CONTROL):
+        connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+        return
     await _run(hass, connection, msg, lambda runtime: runtime.set_paused(msg["entity_id"], msg["paused"]))
 
 
