@@ -2110,6 +2110,16 @@ class ChauffageProgrammeCard extends HTMLElement {
       });
   }
 
+  // A thermostat's page in the panel: its switches group the days and show the history of every
+  // week, in place, keeping the edits not saved yet
+  _setWeekView(groupDays, history) {
+    this._config.group_days = groupDays;
+    this._history.shown = history;
+    if (!history) this._zoom = null;
+    this._render();
+    if (history) this._refreshHistory(true);
+  }
+
   _toggleHistory() {
     const h = this._history;
     h.shown = !h.shown;
@@ -5582,9 +5592,9 @@ class ChauffagePanel extends HTMLElement {
       return;
     }
     // The page is built again when what it is made of changes; its live parts are filled each time
-    const key = JSON.stringify([route, src.ready, src.schedules(), Object.keys(src.weeks()).sort(), this._groupDays,
-      this._historyOn]);
-    if (key !== this._key) {
+    // Not while weeks are not saved: rebuilding would drop them (built again once saved or discarded)
+    const key = JSON.stringify([route, src.ready, src.schedules(), Object.keys(src.weeks()).sort()]);
+    if (key !== this._key && !this._dirtyWeeks().length) {
       this._key = key;
       this._build(route, src);
     }
@@ -5633,11 +5643,10 @@ class ChauffagePanel extends HTMLElement {
     const title = (this._panel && this._panel.title) || 'Chauffage';
     let head;
     if (route.sheet) {
-      const name = route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id);
       const list = PANEL_TABS.find(([page]) => page === route.list);
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button>
           <nav class="title crumbs"><a href="/chauffage/${route.list}" data-page="${route.list}">${esc(t(list[1]))}</a>
-            <span class="sep">›</span><span>${esc(name)}</span></nav>
+            <span class="sep">›</span><span data-fill="crumb"></span></nav>
           ${src.editable ? `<button class="page-more" data-page-menu title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>` : ''}
           <div data-fill="page-menu"></div>
         </div>`;
@@ -5710,6 +5719,8 @@ class ChauffagePanel extends HTMLElement {
   // The live parts: the list of schedules, a thermostat's control, the schedules' headings
   _fill(route, src) {
     const t = this._t;
+    const crumb = this.shadowRoot.querySelector('[data-fill="crumb"]');
+    if (crumb) crumb.textContent = route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id);
     const active = src.activeSchedule();
     this._fillSavebar();
     const sheet = this.shadowRoot.querySelector('[data-fill="thermostat"]');
@@ -5985,6 +5996,14 @@ class ChauffagePanel extends HTMLElement {
           localStorage.setItem(LS_GROUP, this._groupDays ? '1' : '0');
           localStorage.setItem(LS_HISTORY, this._historyOn ? '1' : '0');
         } catch (err) { /* ignore */ }
+        // In place: the weeks keep their edits not saved yet
+        const grouped = this._groupDays && !this._historyOn;
+        for (const [chip, on] of [['[data-group-days]', grouped], ['[data-history]', this._historyOn]]) {
+          const button = this.shadowRoot.querySelector(chip);
+          button.classList.toggle('on', on);
+          button.setAttribute('aria-pressed', String(on));
+        }
+        for (const card of Object.values(this._weekCards)) card._setWeekView(this._groupDays, this._historyOn);
         return this._update();
       }
       if ('closeNext' in ds) {

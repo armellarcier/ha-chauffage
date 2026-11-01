@@ -152,6 +152,17 @@ describe('the Chauffage panel', () => {
       assert.equal(window.location.pathname, '/chauffage/schedules/away');
     });
 
+    test('a schedule\'s page names it in its breadcrumb, renamed too', () => {
+      const hass = setup();
+      const el = panel(hass, '/schedules/away');
+      const crumb = () => text($(el, '.crumbs [data-fill="crumb"]'));
+      assert.equal(crumb(), 'Absent');
+      const data = integrationData({ weeks: WEEKS });
+      data.schedules = data.schedules.map((s) => (s.id === 'away' ? { ...s, name: 'Sortis' } : s));
+      hass.push(data);
+      assert.equal(crumb(), 'Sortis');
+    });
+
     test('its ⋮ menu renames, moves up or down, deletes the schedule', () => {
       const el = panel(setup(), '/schedules');
       row(el, 'away').querySelector('[data-act="schedule-menu"]').click();
@@ -486,6 +497,34 @@ describe('the Chauffage panel', () => {
       assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
       assert.equal(text($(away, '.msg')), 'Semaine Normal copiée ici');
       assert.deepEqual(away._week('climate.salon'), normal._week('climate.salon'));
+    });
+
+    test('switching Group days or History keeps the weeks not saved yet', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      $(el, '[data-copy-menu="normal"]').click();
+      $(el, '.copy-menu [data-copy-to="away"]').click();
+      const before = weeks(el);
+      for (const chip of ['[data-group-days]', '[data-history]']) {
+        $(el, chip).click();
+        assert.deepEqual(weeks(el), before, `${chip}: the same weeks, not new ones`);
+        assert.ok(before[1]._dirty);
+        assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
+      }
+      assert.equal(before[1]._config.group_days, false);
+      assert.equal(before[1]._history.shown, true);
+      assert.equal($(el, '[data-history]').getAttribute('aria-pressed'), 'true');
+    });
+
+    test('a schedule created elsewhere meanwhile does not drop the weeks not saved yet', () => {
+      const hass = setup();
+      const el = panel(hass, '/thermostats/climate.salon');
+      $(el, '[data-copy-menu="normal"]').click();
+      $(el, '.copy-menu [data-copy-to="away"]').click();
+      const data = integrationData({ weeks: WEEKS });
+      data.schedules = [...data.schedules, { id: 'guests', name: 'Invités' }];
+      hass.push(data);
+      assert.ok(weeks(el)[1]._dirty, 'still not saved, still there');
+      assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
     });
 
     test('one save bar for the whole sheet: it names the weeks not saved yet, none under a week', () => {
