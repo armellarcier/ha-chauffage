@@ -786,6 +786,11 @@ A review of every surface, before the merge into `main`, settled these choices.
   `ha-list-item-button`: that component is internal to Home Assistant's frontend, it was renamed
   since 2025.1, and a dashboard may not load it. If Home Assistant restyles its lists, adjust the
   copy.
+- **The list is a card of its own**, on the *Thermostats* and *Schedules* tabs: its first and last
+  rows touch the card's edges, with a line between two rows, as on the integration's page. The
+  texts, the link to the integration's page and the action to add one sit outside that card.
+  *+ New schedule* sits under the list, as the form to add a thermostat: the *Schedules* tab has a
+  second section, the rules, so a floating button would not say which list it adds to.
 - **The card's panel-only options are internal.** The panel passes them to the card in its own
   key, not as options a dashboard could set.
 

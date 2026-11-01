@@ -67,6 +67,16 @@ describe('the panel\'s "Thermostats" page', () => {
     assert.match(text(row(card, 'climate.cuisine').querySelector('.th-badge')), /^En pause$/);
   });
 
+  test('its rows fill a card of their own, edge to edge; the texts, the link and the form to add one sit outside it', () => {
+    const card = open(setup());
+    const list = card.shadowRoot.querySelector('.th-list');
+    assert.deepEqual([...list.children].map((r) => r.dataset.climate), ['climate.bureau', 'climate.cuisine', 'climate.salon']);
+    for (const outside of ['.th-hint', '.th-add', '.th-foot']) {
+      assert.ok(card.shadowRoot.querySelector(outside), outside);
+      assert.equal(list.querySelector(outside), null, outside);
+    }
+  });
+
   test('the whole row opens the thermostat\'s sheet in the panel, its chevron too, as the rows of the integration\'s page', () => {
     const card = open(setup());
     row(card, 'climate.salon').querySelector('.th-main').click();

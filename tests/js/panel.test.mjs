@@ -131,6 +131,15 @@ describe('the Chauffage panel', () => {
       assert.equal($(list(el), '.sched-menu [data-act="activate-schedule"]'), null);
     });
 
+    test('its rows fill a card of their own; + New schedule sits under it, as the form to add a thermostat', () => {
+      const el = panel(setup(), '/schedules');
+      const card = list(el);
+      assert.equal(card._config.flat, true, 'the list is the card: no card around it');
+      assert.deepEqual([...$(card, '.th-list').children].map((r) => r.dataset.schedule), ['normal', 'away', 'holiday']);
+      assert.equal($(card, '.th-list [data-act="schedule-new"]'), null);
+      assert.ok($(card, '.th-add [data-act="schedule-new"]'));
+    });
+
     test('the whole row opens the schedule\'s sheet, its chevron and its end too', () => {
       const el = panel(setup(), '/schedules');
       row(el, 'away').querySelector('.th-main').click();

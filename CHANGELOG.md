@@ -108,7 +108,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **A schedule's page has room again under its first line of buttons.** Its ⋮ menu opens right under
   its button.
 - **On the panel's *Thermostats* and *Schedules* tabs, the whole row opens the page**, its
-  chevron included. The lists now look like the list of the integration's page, and the link at
+  chevron included. The lists now look like the list of the integration's page: each list is a card
+  of its own, and its texts and actions sit outside it, and the link at
   the foot of the thermostats is shorter: *Integration page*.
 - **Texts that pointed to the card's former views now point to the panel's tabs.**
 

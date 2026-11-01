@@ -3509,7 +3509,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The integration's page (admins): its options, its logs and its diagnostics
     const integration = editable
       ? `<span class="mi-link" role="link" tabindex="0" data-navigate="/config/integrations/integration/chauffage">${esc(t('integrationPage'))}</span>` : '';
-    return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div>${rows}${add}
+    return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div><div class="th-list">${rows}</div>${add}
       ${integration ? `<div class="th-foot">${integration}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
   }
 
@@ -3554,7 +3554,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         '', more);
     }).join('');
     const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
-    return `<div class="thermostats-view schedules-view">${rows}${add}</div>${this._schedMenuHtml()}`;
+    return `<div class="thermostats-view schedules-view"><div class="th-list">${rows}</div>${add}</div>${this._schedMenuHtml()}`;
   }
 
   _forget(climate) {
@@ -4121,12 +4121,16 @@ const STYLE = `
     border-radius:8px; background:rgba(127,127,127,.12); color:var(--secondary-text-color); font-size:.9em; }
   .paused-note span { flex:1 1 180px; }
   .bar.paused .seg, .bar.unscheduled .seg { opacity:.45; }
-  .th-hint { color:var(--secondary-text-color); font-size:.9em; margin-bottom:8px; }
+  .th-hint { color:var(--secondary-text-color); font-size:.9em; margin:12px 8px 8px; }
   /* A row is a link to its sheet, chevron included, as the rows of the integration's page: they
      span the card, and its actions come after a divider */
-  .th-row { display:flex; align-items:center; margin:0 -16px; padding-right:8px; border-top:1px solid var(--divider-color);
-    cursor:pointer; outline:none; }
-  ha-card.flat .th-row { margin:0; }
+  /* The list is a card of its own, as on the integration's page: the first and the last rows touch
+     its edges, a line between two rows; the texts and the actions to add one sit outside it */
+  .th-list { overflow:hidden; background:var(--ha-card-background, var(--card-background-color));
+    border:1px solid var(--ha-card-border-color, var(--divider-color)); /* not the flat card's width: 0 */
+    border-radius:var(--ha-card-border-radius, 12px); box-shadow:var(--ha-card-box-shadow, none); }
+  .th-row { display:flex; align-items:center; padding-right:8px; cursor:pointer; outline:none; }
+  .th-row + .th-row { border-top:1px solid var(--divider-color); }
   .th-main { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:16px; min-height:48px;
     padding:12px 8px 12px 16px; }
   .th-row:hover, .th-row:focus-visible { background:rgba(127,127,127,.08); }
@@ -4208,8 +4212,8 @@ const STYLE = `
   .chip-open:hover { opacity:1; background:rgba(127,127,127,.25); }
   .chip-open svg { width:15px; height:15px; fill:currentColor; }
   .links { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:2px; font-size:.85em; color:var(--secondary-text-color); }
-  .th-foot { padding-top:10px; border-top:1px solid var(--divider-color); font-size:.9em; }
-  .th-add { padding:14px 0 10px; border-top:1px solid var(--divider-color); }
+  .th-foot { margin:12px 8px 0; font-size:.9em; }
+  .th-add { margin:16px 8px 0; }
   .th-add-title { font-weight:500; margin-bottom:8px; }
   .th-add-row { display:flex; gap:8px; align-items:center; }
   .th-add select { flex:1; min-width:0; min-height:36px; }
@@ -5577,7 +5581,7 @@ class ChauffagePanel extends HTMLElement {
       html('<div class="box welcome" data-fill="welcome"></div>'); // a new user: no empty page
     } else if (route.list === 'thermostats') {
       html('<div data-fill="next"></div>');
-      card({ view: 'thermostats' });
+      card({ view: 'thermostats', flat: true }); // its list is a card of its own
     } else {
       // A user may create schedules or presets first: the page stays, and says where to start
       if (!scheduled) {
@@ -5586,7 +5590,7 @@ class ChauffagePanel extends HTMLElement {
       }
       if (route.list === 'schedules') {
         html(`<h2>${esc(t('pageSchedules'))}</h2>`);
-        card({ view: 'schedules' });
+        card({ view: 'schedules', flat: true });
         html(`<h2>${esc(t('rulesHeading'))}</h2>`);
         card({ view: 'rules' });
       } else {
