@@ -9,7 +9,16 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.0-beta.2] - 2026-11-01
+
+The second beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57),
+after a review of every screen and of the code. The panel's lists, the schedule tabs and the
+links between Home Assistant and the panel change the most. **You can upgrade from 0.7 or from
+0.8.0-beta.1 directly**: the stored data keeps the format of 0.7.
+
 ### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
 
 - **Upgrading from 0.7 renames the entities of a thermostat that has a device of its own.** They
   move to the scheduled thermostat's device, named after the thermostat: for example *Vanne salon
