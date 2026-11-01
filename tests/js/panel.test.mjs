@@ -205,6 +205,17 @@ describe('the Chauffage panel', () => {
       box.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
+    test('an update of Home Assistant keeps the keyboard focus: the parts that did not change stay the same', () => {
+      const hass = fresh();
+      const el = panel(hass, '/thermostats');
+      pick(el, 'climate.salon');
+      const box = $(el, '.welcome input[data-pick="climate.salon"]');
+      box.focus();
+      el.hass = { ...hass, states: { ...hass.states } }; // a state changed elsewhere
+      assert.equal($(el, '.welcome input[data-pick="climate.salon"]'), box, 'the same box');
+      assert.equal(el.shadowRoot.activeElement, box);
+    });
+
     test('the Thermostats page welcomes them: what Chauffage does in a sentence, every thermostat to tick', () => {
       const el = panel(fresh(), '/thermostats');
       assert.equal(cards(el).length, 0, 'no empty list');

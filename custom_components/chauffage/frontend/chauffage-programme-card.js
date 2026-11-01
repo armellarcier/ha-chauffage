@@ -612,6 +612,14 @@ const toHM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m %
 const pct = (m) => ((m / DAY_MIN) * 100).toFixed(3);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = (x) => JSON.parse(JSON.stringify(x));
+// Writes an element's HTML only when it changes: an update of Home Assistant then keeps the
+// keyboard focus, and what is being clicked, in the parts that did not change
+const HTML_OF = new WeakMap();
+const setHtml = (el, html) => {
+  if (HTML_OF.get(el) === html) return;
+  HTML_OF.set(el, html);
+  el.innerHTML = html;
+};
 // The day of a new schedule's week: eco all day
 const NEW_DAY = [{ start: 0, preset: 'eco' }];
 // An activation rule as the integration reads it (no schedule: the template gives it)
@@ -5724,16 +5732,16 @@ class ChauffagePanel extends HTMLElement {
     const active = src.activeSchedule();
     this._fillSavebar();
     const sheet = this.shadowRoot.querySelector('[data-fill="thermostat"]');
-    if (sheet) sheet.innerHTML = this._controlHtml(route.id, src);
+    if (sheet) setHtml(sheet, this._controlHtml(route.id, src));
     const welcome = this.shadowRoot.querySelector('[data-fill="welcome"]');
-    if (welcome) welcome.innerHTML = this._welcomeHtml(src);
+    if (welcome) setHtml(welcome, this._welcomeHtml(src));
     const next = this.shadowRoot.querySelector('[data-fill="next"]');
     if (next) {
       let shown = false;
       try { shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending'; } catch (e) { /* ignore */ }
-      next.innerHTML = shown ? `<div class="box next-steps">
+      setHtml(next, shown ? `<div class="box next-steps">
           <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
-          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li></ul></div>` : '';
+          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li></ul></div>` : '');
     }
     // A week's heading: its schedule (a link to its sheet), and its ⋮ menu to copy it to another
     // schedule, as the card's menus
@@ -5743,8 +5751,8 @@ class ChauffagePanel extends HTMLElement {
       const menu = this._copyMenu === id ? `<div class="menu copy-menu"><div class="mh">${esc(t('copyTo'))}</div>${
         others.map((m) => `<button class="mi" data-copy-to="${esc(m)}"><span>${esc(src.scheduleName(m))}</span></button>`).join('')}</div>` : '';
       const copy = others.length ? `<button class="btn icon${menu ? ' on' : ''}" data-copy-menu="${esc(id)}" title="${esc(t('copyTo'))}" aria-label="${esc(t('copyTo'))}">⋮</button>${menu}` : '';
-      h.innerHTML = `<span role="link" tabindex="0" data-page="schedules/${esc(id)}">${esc(src.scheduleName(id))}</span>${
-        id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}<span class="grow"></span>${copy}`;
+      setHtml(h, `<span role="link" tabindex="0" data-page="schedules/${esc(id)}">${esc(src.scheduleName(id))}</span>${
+        id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}<span class="grow"></span>${copy}`);
     }
   }
 
@@ -5753,16 +5761,16 @@ class ChauffagePanel extends HTMLElement {
     const slot = this.shadowRoot.querySelector('[data-fill="page-menu"]');
     if (!slot) return;
     const route = panelRoute(this._route && this._route.path, dataSource(this._hass), this._hass);
-    if (!this._pageMenu || route.sheet !== 'thermostat') { slot.innerHTML = ''; return; }
+    if (!this._pageMenu || route.sheet !== 'thermostat') { setHtml(slot, ''); return; }
     const t = this._t;
     const climate = route.id;
-    slot.innerHTML = `<div class="menu page-menu">${this._pageForget
+    setHtml(slot, `<div class="menu page-menu">${this._pageForget
       ? `<div class="mh">${esc(t('forgetText', { name: this._name(climate) }))}</div>
         <div class="menu-btns"><button class="btn danger" data-forget-confirm>${esc(t('forgetConfirm'))}</button>
         <button class="btn" data-forget-cancel>${esc(t('cancel'))}</button></div>`
       : `<button class="mi" data-more-info="${esc(climate)}">${esc(t('openThermostat'))}</button>
         <div class="sep"></div>
-        <button class="mi danger" data-forget>${esc(t('forget'))}</button>`}</div>`;
+        <button class="mi danger" data-forget>${esc(t('forget'))}</button>`}</div>`);
   }
 
   // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
@@ -5778,23 +5786,23 @@ class ChauffagePanel extends HTMLElement {
     if (!slot) return;
     const t = this._t;
     const dirty = this._dirtyWeeks();
-    if (!dirty.length) { slot.innerHTML = ''; this._saveError = null; this._leave = null; return; }
+    if (!dirty.length) { setHtml(slot, ''); this._saveError = null; this._leave = null; return; }
     const names = dirty.map(([, card]) => card._scheduleName(card._schedule)).join(', ');
     if (this._leave) {
-      slot.innerHTML = `<div class="sheet-savebar leaving">
+      setHtml(slot, `<div class="sheet-savebar leaving">
         <span class="dirty">${esc(t('leaveUnsaved', { schedules: names }))}</span>
         <span class="btns"><button class="btn" data-leave-stay>${esc(t('leaveStay'))}</button>
         <button class="btn" data-leave-discard>${esc(t('leaveDiscard'))}</button>
         <button class="btn primary" data-leave-save>${esc(t('leaveSave'))}</button></span>
-      </div>`;
+      </div>`);
       return;
     }
-    slot.innerHTML = `<div class="sheet-savebar">
+    setHtml(slot, `<div class="sheet-savebar">
         <span class="dirty">${esc(t('unsavedWeeks', { schedules: names }))}</span>
         ${this._saveError ? `<span class="error">${esc(this._saveError)}</span>` : ''}
         <span class="btns"><button class="btn" data-sheet-cancel>${esc(t('cancel'))}</button>
         <button class="btn primary" data-sheet-save>${esc(t('save'))}</button></span>
-      </div>`;
+      </div>`);
   }
 
   // Cancel: every week goes back as it was saved
