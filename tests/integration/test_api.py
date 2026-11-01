@@ -201,6 +201,21 @@ async def test_a_read_only_user_cannot_change_an_override(bench: Bench, ws_clien
     assert bench.overrides()["climate.salon"] == o
 
 
+async def test_an_override_only_goes_to_a_scheduled_thermostat(bench: Bench, ws_client):
+    """Opening overrides to every user who may control an entity must not let them store an
+    override, or send climate commands, on an entity Chauffage does not schedule."""
+    await start(bench)
+    bench.hass.states.async_set("climate.grenier", "heat", {"temperature": 19})
+    client = await ws_client(bench.hass, admin=False, read_only=False)
+    override = {"kind": "temperature", "value": 22, "start": "2026-10-12T08:00:00+02:00", "end": "2026-10-12T12:00:00+02:00"}
+    for entity_id in ("climate.grenier", "light.x"):
+        await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": entity_id, "override": override})
+        reply = await client.receive_json()
+        assert not reply["success"] and reply["error"]["code"] == "invalid_format", entity_id
+    assert bench.overrides() == {}
+    assert bench.temperature_calls == []
+
+
 async def test_anyone_at_home_pauses_and_resumes_a_thermostat_from_a_card(bench: Bench, ws_client):
     """As with its Control switch, which any user who may control the thermostat can turn off."""
     await start(bench)

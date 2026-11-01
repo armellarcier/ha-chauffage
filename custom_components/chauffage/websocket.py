@@ -62,6 +62,15 @@ def _runtime(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
     return entries[0].runtime_data
 
 
+def _may_control(connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> bool:
+    """Overrides and pause: anyone who may control the thermostat, as with its knob, its Control
+    switch and the services, not only an admin. Answers "unauthorized" otherwise."""
+    if connection.user.permissions.check_entity(msg["entity_id"], POLICY_CONTROL):
+        return True
+    connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+    return False
+
+
 async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any],
                action: Callable[[ChauffageRuntime], Awaitable[Any]]) -> None:
     """Runs a change and answers with its result, or the error ("stale", "invalid_format",
@@ -177,10 +186,7 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
 })
 @websocket_api.async_response
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    # Anyone who may control the thermostat, as with its knob or the set_override service: not
-    # only an admin
-    if not connection.user.permissions.check_entity(msg["entity_id"], POLICY_CONTROL):
-        connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+    if not _may_control(connection, msg):
         return
     await _run(hass, connection, msg, lambda runtime: runtime.set_override(
         msg["entity_id"], msg["override"], source=msg["source"], context=connection.context(msg)))
@@ -241,9 +247,7 @@ async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveCo
 })
 @websocket_api.async_response
 async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    # Anyone who may control the thermostat, as with its Control switch: not only an admin
-    if not connection.user.permissions.check_entity(msg["entity_id"], POLICY_CONTROL):
-        connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+    if not _may_control(connection, msg):
         return
     await _run(hass, connection, msg, lambda runtime: runtime.set_paused(msg["entity_id"], msg["paused"]))
 

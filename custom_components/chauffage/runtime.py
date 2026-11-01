@@ -737,6 +737,8 @@ class ChauffageRuntime:
         `resend` (the service: an automation setting it again puts back a thermostat that lost
         it). ThermostatFailed, and nothing recorded, if the thermostat could not be reached; none
         on a paused thermostat."""
+        if entity_id not in self.scheduled:
+            raise model.InvalidData(f"not scheduled: {entity_id}")
         if override is not None and self.is_paused(entity_id):
             raise ThermostatPaused(f"paused: {entity_id}")
         if override is None:
