@@ -5874,7 +5874,8 @@ class ChauffagePanel extends HTMLElement {
       <div class="control">
         <button class="btn${paused ? ' primary' : ''}" data-pause="${paused ? '0' : '1'}">${esc(t(paused ? 'resumeShort' : 'pauseShort'))}</button>
         ${paused ? `<span class="badge paused">${esc(t('paused'))}</span>` : ''}
-      </div>`;
+      </div>
+      ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
   }
 
   // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and

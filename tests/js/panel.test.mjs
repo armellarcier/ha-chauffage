@@ -365,6 +365,14 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/thermostat/forget', entity_id: 'climate.salon' });
     });
 
+    test('a pause refused by the integration says why, on the thermostat\'s page', async () => {
+      const hass = setup({ reply: (msg) => { if (msg.type === 'chauffage/thermostat/set') throw { code: 'thermostat_failed', message: 'boom' }; } });
+      const el = panel(hass, '/thermostats/climate.salon');
+      $(el, '[data-fill="thermostat"] [data-pause]').click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.match(text($(el, '[data-fill="thermostat"] .error')), /boom/);
+    });
+
     test('its menus do not follow to another page (going back, the sidebar)', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       $(el, '.toolbar [data-page-menu]').click();
