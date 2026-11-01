@@ -112,12 +112,12 @@ To take *Chauffage* out of the sidebar, turn off the option *Show Chauffage in t
 
 The panel has three tabs:
 
-- **Thermostats.** Every scheduled thermostat, and the cards that show it. You can pause a
-  thermostat, forget it with ⋮, or schedule another one. Before your first thermostat, this tab
+- **Thermostats.** Every scheduled thermostat, and the cards that show it. A thermostat's ⋮ menu
+  pauses it or forgets it. You can also schedule another one. Before your first thermostat, this tab
   welcomes you: tick the thermostats Chauffage controls, then *Schedule*.
 - **Schedules.** The list of schedules, with the active one marked. A schedule's row opens its
-  page, and its ⋮ renames, moves or deletes it. *+ New schedule* creates an empty schedule or a
-  copy of another one. The [activation rules](#activation-rules) are below the list.
+  page, and its ⋮ activates, renames, moves or deletes it. *+ New schedule* creates an empty
+  schedule or a copy of another one. The [activation rules](#activation-rules) are below the list.
 - **Presets.** The table of the presets: their names, colors and temperatures, and what each one
   does on each thermostat (see [Presets](#presets)).
 
@@ -188,7 +188,8 @@ One schedule is active at a time. The **Active schedule** select (`select.chauff
 shows which one.
 
 - **From the card**, open the schedule's tab, then click *Activate*.
-- **From the Chauffage panel**, on the *Schedules* tab, open the schedule's ⋮ menu, then click *Activate*.
+- **From the Chauffage panel**, on the *Schedules* tab, open the schedule's ⋮ menu, then click
+  *Activate*.
 - **From an automation**, call `chauffage.activate_schedule` with the schedule's stable id. The
   select's `schedule_id` attribute gives the stable id of the active schedule.
 - **From a dashboard, a script or by voice**, use the select or the schedule's switch (see
@@ -390,8 +391,9 @@ A card can show a thermostat that Chauffage does not schedule yet. The card then
 draws its week dimmed. Saving the week of another thermostat does not schedule it.
 
 The panel's *Thermostats* tab lists every scheduled thermostat, and the cards that show it. To
-forget a thermostat, open its ⋮ menu, in the list or next to the title of its page, then *Forget…*. If you delete a thermostat's entity from
-Home Assistant, Settings → Repairs offers to forget the thermostat.
+forget a thermostat, open its ⋮ menu, in the list or next to the title of its page, then
+*Forget…*. If you delete a thermostat's entity from Home Assistant, Settings → Repairs offers to
+forget the thermostat.
 
 ### Pause a thermostat
 
