@@ -282,7 +282,63 @@ test('with many schedules, the tabs keep a minimum width and scroll sideways; th
   assert.ok($(card, '.tabs > [data-act="schedule-new"]'));
   const css = card.shadowRoot.querySelector('style').textContent;
   assert.match(css, /\.tabs-scroll \{[^}]*overflow-x:auto/);
-  assert.match(css, /\.tab \{[^}]*min-width:\d+px/);
+  // A tab is as wide as its name, within limits: a short name leaves no large empty space
+  assert.match(css, /\.tab \{[^}]*flex:1 0 auto;[^}]*max-width:\d+px/);
+});
+
+// A scrolling area without a layout (jsdom): its sizes and its position, set by hand
+function scrollable(el, { width, client, left = 0 }) {
+  let x = left;
+  Object.defineProperty(el, 'scrollWidth', { configurable: true, value: width });
+  Object.defineProperty(el, 'clientWidth', { configurable: true, value: client });
+  Object.defineProperty(el, 'scrollLeft', { configurable: true, get: () => x, set: (v) => { x = Math.max(0, Math.min(v, width - client)); } });
+}
+
+test('an arrow on a side of the tabs shows that more schedules are hidden there, and scrolls to them', () => {
+  const card = createCard(fakeHass());
+  const scroller = $(card, '.tabs-scroll');
+  const arrows = () => ['left', 'right'].map((side) => !$(card, `.tabs > [data-tabs-scroll="${side}"]`).hidden);
+  assert.deepEqual(arrows(), [false, false], 'every tab fits: no arrow');
+  scrollable(scroller, { width: 600, client: 300 });
+  scroller.dispatchEvent(new window.Event('scroll'));
+  assert.deepEqual(arrows(), [false, true]);
+  $(card, '[data-tabs-scroll="right"]').click();
+  assert.equal(scroller.scrollLeft, 240, 'most of a width, so the tab cut at the edge shows whole');
+  assert.deepEqual(arrows(), [true, true]);
+  $(card, '[data-tabs-scroll="right"]').click();
+  assert.deepEqual(arrows(), [true, false]);
+  $(card, '[data-tabs-scroll="left"]').click();
+  assert.equal(scroller.scrollLeft, 60);
+  assert.equal($(card, '[data-tabs-scroll="right"]').getAttribute('aria-label'), 'Plannings suivants');
+});
+
+test('a fade on each side where schedules are hidden; on a touch screen the fade alone, no arrows', () => {
+  const card = createCard(fakeHass());
+  const scroller = $(card, '.tabs-scroll');
+  const fades = () => ['more-left', 'more-right'].map((c) => scroller.classList.contains(c));
+  scrollable(scroller, { width: 600, client: 300, left: 150 });
+  scroller.dispatchEvent(new window.Event('scroll'));
+  assert.deepEqual(fades(), [true, true]);
+  scroller.scrollLeft = 300;
+  scroller.dispatchEvent(new window.Event('scroll'));
+  assert.deepEqual(fades(), [true, false]);
+  const css = card.shadowRoot.querySelector('style').textContent;
+  assert.match(css, /\.tabs-scroll\.more-right \{ mask-image/);
+  assert.match(css, /@media \(hover:none\) \{ \.tab-arrow \{ display:none; \} \}/);
+});
+
+test('the mouse wheel scrolls the tabs sideways, when they overflow', () => {
+  const card = createCard(fakeHass());
+  const scroller = $(card, '.tabs-scroll');
+  scrollable(scroller, { width: 600, client: 300 });
+  const wheel = new window.WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+  scroller.dispatchEvent(wheel);
+  assert.equal(scroller.scrollLeft, 100);
+  assert.equal(wheel.defaultPrevented, true, 'the page does not scroll meanwhile');
+  scrollable(scroller, { width: 300, client: 300 });
+  const page = new window.WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+  scroller.dispatchEvent(page);
+  assert.equal(page.defaultPrevented, false, 'no overflow: the page scrolls');
 });
 
 test('only admins see "+" and "⋮"', () => {

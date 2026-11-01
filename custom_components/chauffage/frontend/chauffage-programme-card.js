@@ -108,6 +108,8 @@ const I18N = {
     activate: 'Activate “{schedule}”',
     scheduleActivated: '“{schedule}” activated',
     newSchedule: 'New schedule',
+    tabsLeft: 'Previous schedules',
+    tabsRight: 'Next schedules',
     scheduleMenu: 'Rename, move or delete this schedule',
     scheduleName: 'Name',
     emptySchedule: 'Empty (Eco all week)',
@@ -329,6 +331,8 @@ const I18N = {
     activate: 'Activer « {schedule} »',
     scheduleActivated: 'Planning « {schedule} » activé',
     newSchedule: 'Nouveau planning',
+    tabsLeft: 'Plannings précédents',
+    tabsRight: 'Plannings suivants',
     scheduleMenu: 'Renommer, déplacer ou supprimer ce planning',
     scheduleName: 'Nom',
     emptySchedule: 'Vide (Éco toute la semaine)',
@@ -2566,15 +2570,37 @@ class ChauffageProgrammeCard extends HTMLElement {
   _placeTabs(left) {
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
     if (!tabs) return;
+    // ha-card (a Lit component) shows its content asynchronously: measured once it is drawn
+    const card = this.shadowRoot.querySelector('ha-card');
+    if (!tabs.clientWidth && card && card.updateComplete instanceof Promise && !this._tabsWait) {
+      this._tabsWait = true;
+      card.updateComplete.then(() => requestAnimationFrame(() => { this._tabsWait = false; this._placeTabs(left); }));
+      return;
+    }
     tabs.scrollLeft = left;
+    this._tabArrows();
     const on = tabs.querySelector('.tab.on');
     if (!on || this._tabsShown === this._schedule) return;
     this._tabsShown = this._schedule;
     const tool = on.nextElementSibling && on.nextElementSibling.matches('.tab-tool') ? on.nextElementSibling : on;
     const start = on.offsetLeft - tabs.offsetLeft;
     const end = tool.offsetLeft - tabs.offsetLeft + tool.offsetWidth;
-    if (start < tabs.scrollLeft) tabs.scrollLeft = start;
-    else if (end > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = end - tabs.clientWidth;
+    // Clear of the fades (32 px), so its ⋮ is not dimmed
+    if (start - 32 < tabs.scrollLeft) tabs.scrollLeft = Math.max(0, start - 32);
+    else if (end + 32 > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = end + 32 - tabs.clientWidth;
+    this._tabArrows();
+  }
+
+  // A fade and an arrow on each side where schedules are hidden
+  _tabArrows() {
+    const tabs = this.shadowRoot.querySelector('.tabs-scroll');
+    if (!tabs) return;
+    const left = tabs.scrollLeft > 1;
+    const right = tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1;
+    tabs.classList.toggle('more-left', left);
+    tabs.classList.toggle('more-right', right);
+    this.shadowRoot.querySelector('[data-tabs-scroll="left"]').hidden = !left;
+    this.shadowRoot.querySelector('[data-tabs-scroll="right"]').hidden = !right;
   }
 
   // Focus and caret of a rule's template, again once ha-card (a Lit component, rendered
@@ -2664,6 +2690,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}${icon ? ' with-icon' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}<span class="tab-name">${esc(this._scheduleName(m))}</span></button>${
         editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
       .join('');
+    // Arrows on the sides of the tabs, shown when schedules are hidden on that side (_tabArrows)
+    const tabsArrow = (side) => `<button class="tab-arrow" data-tabs-scroll="${side}" hidden
+      title="${esc(tr(side === 'left' ? 'tabsLeft' : 'tabsRight'))}" aria-label="${esc(tr(side === 'left' ? 'tabsLeft' : 'tabsRight'))}"><ha-icon icon="mdi:chevron-${side}"></ha-icon></button>`;
     // Out of the tabs' scrolling area: the "+" stays in place however many schedules there are
     const newTab = editable && !one ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '';
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span${h % 6 ? ' class="minor"' : ''} style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
@@ -2711,7 +2740,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${this._renamedNotesHtml()}
         ${this._config.paused_note === false ? '' : this._pausedNotesHtml()}
         ${this._unscheduledNotesHtml()}
-        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs"><div class="tabs-scroll">${tabs}</div>${newTab}</div>`}
+        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs">${tabsArrow('left')}<div class="tabs-scroll">${tabs}</div>${tabsArrow('right')}${newTab}</div>`}
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}`}
         <div class="days" style="--day-w:${dayWidth}px">
@@ -2773,6 +2802,26 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _bindEvents() {
     const root = this.shadowRoot;
+
+    // The schedule tabs scroll sideways: their arrows follow, scroll by most of a width (the tab cut
+    // at the edge then shows whole), and the mouse wheel scrolls them when they overflow
+    root.addEventListener('scroll', (e) => { if (e.target.matches && e.target.matches('.tabs-scroll')) this._tabArrows(); }, true);
+    root.addEventListener('click', (e) => {
+      const arrow = e.target.closest('[data-tabs-scroll]');
+      const tabs = arrow && root.querySelector('.tabs-scroll');
+      if (!tabs) return;
+      e.stopPropagation();
+      tabs.style.scrollBehavior = 'smooth';
+      tabs.scrollLeft += (arrow.dataset.tabsScroll === 'left' ? -1 : 1) * Math.round(tabs.clientWidth * 0.8);
+      this._tabArrows();
+    }, true);
+    root.addEventListener('wheel', (e) => {
+      const tabs = e.target.closest && e.target.closest('.tabs-scroll');
+      if (!tabs || tabs.scrollWidth <= tabs.clientWidth || !e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      tabs.scrollLeft += e.deltaY;
+      this._tabArrows();
+    }, { passive: false });
 
     // Readout of a day shown larger: under the mouse, or along a finger sliding on the bar
     root.addEventListener('pointerdown', (e) => {
@@ -4178,9 +4227,20 @@ const STYLE = `
   /* Many schedules: the tabs keep a minimum width and scroll sideways, the "+" stays in place */
   .tabs-scroll { display:flex; gap:4px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .tabs-scroll::-webkit-scrollbar { display:none; }
-  /* A long name shrinks with an ellipsis, down to the minimum width */
-  .tab { flex:1 1 0; min-width:96px; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tab-arrow { flex:none; display:flex; align-items:center; justify-content:center; width:32px; padding:0; border:0;
+    border-radius:8px; background:transparent; color:var(--secondary-text-color); cursor:pointer; --mdc-icon-size:20px; }
+  .tab-arrow[hidden] { display:none; }
+  /* A fade on each side where schedules are hidden; the arrows too with a mouse, not on a touch
+     screen, where a finger scrolls */
+  .tabs-scroll.more-right { mask-image:linear-gradient(to left, transparent, #000 32px); }
+  .tabs-scroll.more-left { mask-image:linear-gradient(to right, transparent, #000 32px); }
+  .tabs-scroll.more-left.more-right { mask-image:linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
+  @media (hover:none) { .tab-arrow { display:none; } }
+  .tab-arrow:hover, .tab-arrow:focus-visible { background:var(--card-background-color); color:var(--primary-text-color); }
+  /* A tab is as wide as its name (a long one shrinks with an ellipsis), and grows when there is
+     room: a short name leaves no large empty space */
+  .tab { flex:1 0 auto; min-width:44px; max-width:180px; display:flex; align-items:center; justify-content:center;
+    border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer; white-space:nowrap; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
   /* An icon chosen in HA stays on the line of the name, even on a narrow screen */
   .tab.with-icon { display:flex; align-items:center; justify-content:center; }

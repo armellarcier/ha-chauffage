@@ -80,9 +80,11 @@ Each entry says whether the release **migrates stored data** and what to do when
   to say "from the card". The logbook also writes temperatures as your language does (21,5 °C in
   French, 21 °C rather than 21.0 °C), names the day when an override does not end today, and says
   "schedule activated: Away".
-- **Many schedules fit the card.** Each schedule tab keeps a minimum width, and the tabs scroll
-  sideways. The *+* stays in place, and choosing a schedule scrolls its tab into view. With many
-  schedules on a phone, a tab used to show only the first letter of its name.
+- **Many schedules fit the card.** Each schedule tab is as wide as its name, within limits, and the
+  tabs scroll sideways. A fade on a side says that more schedules are hidden there. With a mouse,
+  an arrow scrolls to them, and so does the wheel. The *+* stays in place, and the schedule shown
+  scrolls into view. With many schedules on a phone, a tab used to show only the first letter of
+  its name.
 - **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button
   with more room, no taller than that room. It used to go off the top of the screen.
 - **The rows of the panel's lists open with Enter or Space**, and show where the keyboard focus
