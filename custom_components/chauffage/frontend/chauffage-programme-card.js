@@ -2688,7 +2688,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // On a schedule's sheet (schedule_tabs: 'one'): its tab alone, with its menu, and no new schedule
     const one = this._config.schedule_tabs === 'one';
     const tabs = (one ? schedules.filter((m) => m === this._schedule) : schedules)
-      .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}${icon ? ' with-icon' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}<span class="tab-name">${esc(this._scheduleName(m))}</span></button>${
+      .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}<span class="tab-name">${esc(this._scheduleName(m))}</span></button>${
         editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
       .join('');
     // Arrows on the sides of the tabs, shown when schedules are hidden on that side (_tabArrows)
@@ -4219,9 +4219,7 @@ const STYLE = `
   /* A schedule's sheet shows no tab: the same space under the chips */
   .no-tabs { height:12px; }
   .tabs { display:flex; gap:4px; margin:12px 0 10px; padding:3px; border-radius:10px;
-    background:var(--secondary-background-color);
-    /* A whole number: the icons and the names fall on whole pixels, not rounded apart */
-    line-height:20px; }
+    background:var(--secondary-background-color); }
   /* Many schedules: the tabs keep a minimum width and scroll sideways, the "+" stays in place */
   .tabs-wrap { position:relative; display:flex; flex:1; min-width:0; }
   /* A native scrolling area, without a scrollbar (the fades and the arrows show it) */
@@ -4247,14 +4245,11 @@ const STYLE = `
   @media (hover:none) { .tab-arrow { display:none; } }
   /* A tab is as wide as its name (a long one shrinks with an ellipsis), and grows when there is
      room: a short name leaves no large empty space */
-  .tab { flex:1 0 auto; min-width:44px; max-width:180px; display:flex; align-items:center; justify-content:center;
-    border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .tab { flex:1 0 auto; min-width:44px; max-width:180px; border:0; background:transparent; padding:7px 8px;
+    border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
-  /* An icon chosen in HA stays on the line of the name, even on a narrow screen */
-  /* Whole pixels, so the icon and the name are not rounded apart: the 18 px icon, with no line
-     height of its own, centered in the 20 px line, then 1 px higher (margin-bottom: 2 px), as the
-     letters sit above the middle of the line */
-  .tab-icon { --mdc-icon-size:18px; flex:0 0 auto; line-height:0; margin:0 4px 2px 0; }
+  /* An icon chosen in HA, in the line of the name: the browser aligns it with the text */
+  .tab-icon { --mdc-icon-size:18px; display:inline-flex; vertical-align:-0.25em; margin-inline-end:4px; }
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
@@ -4272,8 +4267,7 @@ const STYLE = `
     background:var(--secondary-background-color); color:var(--secondary-text-color); }
   .schedule-bar strong { color:var(--primary-text-color); }
   .btn.small { padding:4px 10px; font-size:.95em; }
-  .tab-name { min-width:0; overflow:hidden; text-overflow:ellipsis; }
-  .dot { display:inline-block; flex:none; width:8px; height:8px; border-radius:50%; margin-right:6px;
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;
     background:var(--success-color,#43a047); vertical-align:middle; }
 
   /* Grid: day | (name) | bar | tools. Its layout follows the width of the card (a card in a
