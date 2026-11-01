@@ -69,7 +69,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **On a phone, the *+* of the schedule tabs stays on the card**, the active schedule keeps its
   dot, and the hours of the time axis stay on one line.
 - **A thermostat's page no longer moves while it loads**, so a tap lands where you aimed.
-- **A schedule's page has room again under its first line of buttons.**
+- **A schedule's page has room again under its first line of buttons.** Its ⋮ menu opens right under
+  its button.
 - **On the panel's *Thermostats* and *Schedules* tabs, the whole row opens the page**, its
   chevron included. The lists now look like the list of the integration's page, and the link at
   the foot of the thermostats is shorter: *Integration page*.

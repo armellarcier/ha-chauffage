@@ -3091,7 +3091,8 @@ class ChauffageProgrammeCard extends HTMLElement {
           ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
       }
     }
-    return `<div class="menu sched-menu" style="top:${ed.top || 0}px;left:${ed.left || 0}px">${body}</div>`;
+    const side = ed.right != null ? `right:${ed.right}px` : `left:${ed.left || 0}px`;
+    return `<div class="menu sched-menu" style="top:${ed.top || 0}px;${side}">${body}</div>`;
   }
 
   // Schedule actions (admins): unsaved edits of the weeks are saved first
@@ -3103,11 +3104,14 @@ class ChauffageProgrammeCard extends HTMLElement {
       const kind = act === 'schedule-new' ? 'new' : 'menu';
       const id = (el && el.dataset.schedule) || this._schedule;
       if (ed && ed.kind === kind && (kind === 'new' || ed.id === id)) { this._schedEd = null; return this._render(); }
-      // Under the button, inside the card
+      // Under the button: from its left edge, or from its right edge for a button on the right
+      // (the page's ⋮, above the card), so the menu stays in the window
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
-      const b = el ? el.getBoundingClientRect() : { bottom: 0, left: 0 };
+      const b = el ? el.getBoundingClientRect() : { bottom: 0, left: 0, right: 0 };
+      const onRight = b.left - card.left > card.width / 2;
       const left = Math.max(8, Math.min(b.left - card.left, card.width - 280));
-      this._schedEd = { kind, id, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4, left };
+      this._schedEd = { kind, id, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4,
+        ...(onRight ? { right: Math.max(0, card.right - b.right) } : { left }) };
       return this._render();
     }
     if (act === 'schedule-close' || !ed) { this._schedEd = null; return this._render(); }

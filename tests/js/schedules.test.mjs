@@ -192,6 +192,17 @@ describe('the "⋮" menu of the open schedule', () => {
     assert.equal($(card, '[data-act="schedule-move"]'), null);
   });
 
+  test('a menu opened by a button on the right, as the page\'s ⋮ above the card, lines up with the button\'s right edge', () => {
+    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
+    $(card, 'ha-card').getBoundingClientRect = () => ({ left: 100, right: 900, top: 60, bottom: 700, width: 800 });
+    const button = document.createElement('button');
+    button.getBoundingClientRect = () => ({ left: 860, right: 892, top: 8, bottom: 40, width: 32 });
+    card._scheduleAction('schedule-menu', {}, button);
+    assert.equal(menu(card).style.right, '8px');
+    assert.equal(menu(card).style.left, '');
+    assert.equal(menu(card).style.top, '-16px');
+  });
+
   test('deletes it after a confirmation', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
