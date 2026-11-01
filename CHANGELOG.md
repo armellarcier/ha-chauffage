@@ -72,6 +72,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **The README says where the logbook shows the overrides**: in *Activity* without a filter, not
+  in the logbook filtered on the thermostat, where Home Assistant does not show them.
 - **Saving the activation rules keeps a schedule you chose by hand** when what the rules give did
   not change, as the README says. Saving used to activate the rules' schedule every time.
 - **The logbook names the panel.** A schedule activated or an override changed from the panel used

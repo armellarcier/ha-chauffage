@@ -514,10 +514,15 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 
 A thermostat didn't do what you expected? Here is where to look, in order.
 
-### 1. The thermostat's logbook
+### 1. The logbook
 
-The thermostat's logbook records every override. It shows where the override came from
-(the knob, the card or the `chauffage.set_override` action) and why it ended.
+Open *Activity* (the logbook) without a filter. Chauffage records every override there, under
+the thermostat's name. The line says where the override came from (the knob, the card, the panel
+or the `chauffage.set_override` action) and why it ended.
+
+If you filter the logbook on the thermostat, Home Assistant does not show these lines: it only
+shows there what the thermostat's own integration records. The thermostat's *Override* sensor
+shows when each override started and ended.
 
 Schedule changes are recorded in the logbook of the *Active schedule* select.
 

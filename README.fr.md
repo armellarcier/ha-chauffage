@@ -546,10 +546,15 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
 
 Un thermostat n'a pas fait ce que vous attendiez ? Voici où chercher, dans l'ordre.
 
-### 1. Le journal de bord du thermostat
+### 1. Le journal de bord
 
-Le journal de bord du thermostat note chaque dérogation. Il indique d'où vient la dérogation
-(la molette, la carte ou l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée.
+Ouvrez *Activité* (le journal de bord) sans filtre. Chauffage y note chaque dérogation, sous le
+nom du thermostat. La ligne indique d'où vient la dérogation (la molette, la carte, le panneau ou
+l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée.
+
+Si vous filtrez le journal de bord sur le thermostat, Home Assistant n'affiche pas ces lignes : il
+n'y montre que ce que note l'intégration du thermostat. Le capteur *Dérogation* du thermostat
+montre quand chaque dérogation a commencé et fini.
 
 Les changements de planning sont notés dans le journal de bord du sélecteur *Planning actif*.
 
