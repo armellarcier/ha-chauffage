@@ -472,9 +472,9 @@ Chauffage fires events that your automations can use, with the *Event* trigger:
 
 | Event | Data |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (changed by hand), `card` or `service`. Fired for a new override or a new value, not when only the end changes. |
-| `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `service`, `paused` or `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `entity` (the select or a schedule switch), `service` or `rules`. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. Fired for a new override or a new value, not when only the end changes. |
+| `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. |
+| `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `panel`, `entity` (the select or a schedule switch), `service` or `rules`. |
 
 Each event carries the context of what caused it. So the logbook says who changed the
 thermostat, used the card, called the action or chose the schedule.

@@ -5,10 +5,10 @@ chauffage/subscribe          everything the card needs, then again after every c
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
-chauffage/override/set       {entity_id, override | null}: change (value, end) or remove an override;
+chauffage/override/set       {entity_id, override | null, source?}: change (value, end) or remove an override;
                              a new value is sent to the thermostat. Any user who may control the
                              thermostat, not only an admin
-chauffage/schedule/activate  {schedule}: activate a schedule (same as the select entity)
+chauffage/schedule/activate  {schedule, source?}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
                              or a copy), rename, move, delete (see model.plan_schedules)
 chauffage/presets/set        {presets, replacements}: the presets (a removed preset used in the
@@ -80,6 +80,11 @@ async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
         connection.send_error(msg["id"], "thermostat_failed", f"{err} did not answer")
         return
     connection.send_result(msg["id"], result)
+
+
+# Where a change of the card or the panel comes from, told in the events and the logbook (an
+# older card sends none: "card")
+SOURCES = ("card", "panel")
 
 
 SUBSCRIBERS = f"{DOMAIN}_subscribers"
@@ -168,6 +173,7 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
     vol.Required("type"): "chauffage/override/set",
     vol.Required("entity_id"): str,
     vol.Required("override"): vol.Any(None, dict),
+    vol.Optional("source", default="card"): vol.In(SOURCES),
 })
 @websocket_api.async_response
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -177,14 +183,18 @@ async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveC
         connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
         return
     await _run(hass, connection, msg, lambda runtime: runtime.set_override(
-        msg["entity_id"], msg["override"], source="card", context=connection.context(msg)))
+        msg["entity_id"], msg["override"], source=msg["source"], context=connection.context(msg)))
 
 
-@websocket_api.websocket_command({vol.Required("type"): "chauffage/schedule/activate", vol.Required("schedule"): str})
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/schedule/activate",
+    vol.Required("schedule"): str,
+    vol.Optional("source", default="card"): vol.In(SOURCES),
+})
 @websocket_api.async_response
 async def ws_activate_schedule(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.activate_schedule(
-        msg["schedule"], source="card", context=connection.context(msg)))
+        msg["schedule"], source=msg["source"], context=connection.context(msg)))
 
 
 @websocket_api.websocket_command({

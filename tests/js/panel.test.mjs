@@ -120,7 +120,7 @@ describe('the Chauffage panel', () => {
       assert.equal(row(el, 'holiday').querySelector('[data-act="activate-schedule"]'), null, 'no button on the row: it broke the layout');
       row(el, 'holiday').querySelector('[data-act="schedule-menu"]').click();
       $(list(el), '.sched-menu [data-act="activate-schedule"]').click();
-      assert.deepEqual(hass.events.at(-1), { type: 'chauffage/schedule/activate', schedule: 'holiday' });
+      assert.deepEqual(hass.events.at(-1), { type: 'chauffage/schedule/activate', schedule: 'holiday', source: 'panel' }, 'the logbook names the panel');
       assert.equal(window.location.pathname, '/chauffage/schedules', 'activating does not open the sheet');
       assert.equal($(list(el), '.sched-menu'), null, 'the menu closes after Activate');
     });

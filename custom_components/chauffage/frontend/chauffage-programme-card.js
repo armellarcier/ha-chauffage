@@ -1169,9 +1169,10 @@ function makeDataSource(hass, available) {
       const against = revisions ? { revisions } : (revision != null ? { revision } : {});
       return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...against });
     },
-    setOverride: (climate, override) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override }),
+    // `source`: 'panel' from the panel, told in the logbook; none from a card (older integrations)
+    setOverride: (climate, override, source) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override, ...(source ? { source } : {}) }),
     overrideDuration: () => (d && d.override_duration) || 120, // minutes, an option of the integration
-    activateSchedule: (id) => hass.callWS({ type: 'chauffage/schedule/activate', schedule: id }),
+    activateSchedule: (id, source) => hass.callWS({ type: 'chauffage/schedule/activate', schedule: id, ...(source ? { source } : {}) }),
     // Create, rename, move, delete schedules: [{ id, name? } | { name, copy_of? }]
     setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
     presets: () => (d && d.presets) || [],
@@ -1942,7 +1943,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!override) this._overrideSel = null;
     this._render();
     try {
-      await this._source().setOverride(climate, override);
+      await this._source().setOverride(climate, override, this._changeSource());
     } catch (e) {
       delete this._overridePending[climate];
       this._msg = this._loc.t('error', { message: e.message || e.code || e });
@@ -3240,9 +3241,14 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._restoreSchedName(typed, true);
   }
 
+  // Where a change comes from, for the logbook: the panel, or a card (none: older integrations)
+  _changeSource() {
+    return this._config.panel ? 'panel' : undefined;
+  }
+
   async _activateSchedule(schedule) {
     try {
-      await this._source().activateSchedule(schedule);
+      await this._source().activateSchedule(schedule, this._changeSource());
       this._msg = this._loc.t('scheduleActivated', { schedule: this._scheduleName(schedule) });
     } catch (e) {
       this._msg = this._loc.t('error', { message: e.message || e.code || e });

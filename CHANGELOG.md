@@ -21,6 +21,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Changed
 
+- **The events can say `panel`**: the `source` of `chauffage_override_started` and
+  `chauffage_schedule_activated`, and the `reason` of `chauffage_override_ended`, are `panel` for a
+  change made in the Chauffage panel. An automation that tests `source == "card"` no longer sees
+  these changes.
 - **The block under a thermostat's more-info dialog is lighter.** Its foot keeps *Open in
   Chauffage* and *Pause*, for administrators. The links to the thermostat's entities and device
   are gone: the device's page lists them.
@@ -59,6 +63,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **The logbook names the panel.** A schedule activated or an override changed from the panel used
+  to say "from the card". The logbook also writes temperatures as your language does (21,5 °C in
+  French, 21 °C rather than 21.0 °C), names the day when an override does not end today, and says
+  "schedule activated: Away".
 - **The *Presets* tab fits a phone.** Under 600 px, each thermostat gets a row of cells, and each
   cell names its preset. The table used to cut off the presets on the right, with no hint.
 - **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button

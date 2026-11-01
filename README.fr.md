@@ -501,9 +501,9 @@ Chauffage émet des événements que vos automatisations peuvent utiliser, avec 
 
 | Événement | Données |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, et `source` : `thermostat` (changé à la main), `card` ou `service`. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
-| `chauffage_override_ended` | `entity_id`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `service`, `paused` ou `forgotten`. |
-| `chauffage_schedule_activated` | `schedule` (l'identifiant stable), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur *Planning actif*), et `source` : `card`, `entity` (le sélecteur ou un interrupteur de planning), `service` ou `rules`. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
+| `chauffage_override_ended` | `entity_id`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `panel`, `service`, `paused` ou `forgotten`. |
+| `chauffage_schedule_activated` | `schedule` (l'identifiant stable), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur *Planning actif*), et `source` : `card`, `panel`, `entity` (le sélecteur ou un interrupteur de planning), `service` ou `rules`. |
 
 Chaque événement porte le contexte de ce qui l'a causé. Le journal de bord indique donc qui a
 changé le thermostat, utilisé la carte, appelé l'action ou choisi le planning.

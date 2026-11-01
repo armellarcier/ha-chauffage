@@ -10,7 +10,7 @@ import pytest
 from homeassistant.core import Context, Event, callback
 
 from conftest import CTX_USER, KINDS, WEEKDAY, Bench, every_day
-from custom_components.chauffage import diagnostics, logbook
+from custom_components.chauffage import diagnostics, logbook, websocket
 
 LOGGER = "custom_components.chauffage.runtime"
 COMPONENT = Path(__file__).parents[2] / "custom_components" / "chauffage"
@@ -181,7 +181,7 @@ async def test_the_logbook_tells_a_schedule_activated_in_the_select_s_logbook(be
     select = bench.schedule_entity
     assert described(bench, "chauffage_schedule_activated", schedule="away", schedule_name="Away",
                      previous_schedule="normal", source="rules", entity_id=select) == {
-        "name": bench.hass.states.get(select).name, "message": "Away activated (by the activation rules)",
+        "name": bench.hass.states.get(select).name, "message": "schedule activated: Away (by the activation rules)",
         "entity_id": select}
 
 
@@ -218,14 +218,42 @@ async def test_the_logbook_speaks_the_language_of_home_assistant(bench: Bench):
     await start(bench)
     assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="card")["message"] \
         == "dérogation terminée (depuis la carte)"
+    # Numbers as the language writes them, and the day when the override does not end today
+    await bench.go_to("10:00")
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
+                     value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
+        == "dérogation : 21,5 °C jusqu'à 12:00 (depuis la carte)"
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
+                     value=21.0, preset=None, end="2026-10-13T06:00:00+02:00", source="card")["message"] \
+        == "dérogation : 21 °C jusqu'à mardi 06:00 (depuis la carte)"
+
+
+async def test_the_logbook_names_the_panel_when_a_change_comes_from_it(bench: Bench, ws_client):
+    """The panel used to pass for "the card" in the logbook and the events."""
+    await start(bench, "10:00")
+    bench.hass.config.language = "fr"
+    sources = []
+    bench.hass.bus.async_listen("chauffage_schedule_activated", lambda event: sources.append(event.data["source"]))
+    client = await ws_client(bench.hass)
+    await client.send_json_auto_id({"type": "chauffage/schedule/activate", "schedule": "away", "source": "panel"})
+    assert (await client.receive_json())["success"]
+    await client.send_json_auto_id({"type": "chauffage/schedule/activate", "schedule": "normal"})
+    assert (await client.receive_json())["success"]
+    await bench.hass.async_block_till_done()
+    assert sources == ["panel", "card"]  # a card, or an older one, sends no source
+    assert described(bench, "chauffage_schedule_activated", schedule="away", schedule_name="Absent",
+                     source="panel", entity_id=bench.schedule_entity)["message"] \
+        == "planning activé : Absent (depuis le panneau)"
+    assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="panel")["message"] \
+        == "dérogation terminée (depuis le panneau)"
 
 
 def test_every_source_and_reason_in_the_code_has_a_logbook_text_in_every_language():
     """A new source of overrides or schedules, or a new reason for an override to end, is told
     in the logbook (CONTRIBUTING.md, "Conventions")."""
     code = "\n".join(p.read_text(encoding="utf-8") for p in COMPONENT.glob("*.py"))
-    sources = set(re.findall(r'source="(\w+)"', code))
-    reasons = set(re.findall(r'_drop_override\([^,()]+, "(\w+)"\)', code)) | {"card", "service", "thermostat"}
+    sources = set(re.findall(r'source="(\w+)"', code)) | set(websocket.SOURCES)  # sent by the card or the panel
+    reasons = set(re.findall(r'_drop_override\([^,()]+, "(\w+)"\)', code)) | {"card", "service", "thermostat", "panel"}
     assert {"card", "service", "entity", "rules", "thermostat"} <= sources  # the scan finds them
     assert {"paused", "forgotten", "expired"} <= reasons
     for language, texts in logbook.TEXTS.items():
