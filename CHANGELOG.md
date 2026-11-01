@@ -80,8 +80,9 @@ Each entry says whether the release **migrates stored data** and what to do when
   to say "from the card". The logbook also writes temperatures as your language does (21,5 °C in
   French, 21 °C rather than 21.0 °C), names the day when an override does not end today, and says
   "schedule activated: Away".
-- **The *Presets* tab fits a phone.** Under 600 px, each thermostat gets a row of cells, and each
-  cell names its preset. The table used to cut off the presets on the right, with no hint.
+- **Many schedules fit the card.** Each schedule tab keeps a minimum width, and the tabs scroll
+  sideways. The *+* stays in place, and choosing a schedule scrolls its tab into view. With many
+  schedules on a phone, a tab used to show only the first letter of its name.
 - **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button
   with more room, no taller than that room. It used to go off the top of the screen.
 - **The rows of the panel's lists open with Enter or Space**, and show where the keyboard focus

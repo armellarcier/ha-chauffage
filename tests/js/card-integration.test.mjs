@@ -294,14 +294,13 @@ describe('the "Presets" view', () => {
     assert.equal(card.shadowRoot.querySelector('[data-kind="default"]'), null); // in the headers now
   });
 
-  test('on a phone, the table becomes a row of cells per thermostat, each cell naming its preset: no column cut off', () => {
+  test('many presets stay on one line: the table scrolls sideways, the thermostats\' names stay in place', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
-    const cell = card.shadowRoot.querySelector('[data-act="cell"][data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
-    assert.equal(cell.dataset.name, 'Confort');
-    assert.ok(cell.style.getPropertyValue('--pc'), 'the preset\'s color');
+    assert.ok(card.shadowRoot.querySelector('.table-wrap > table.pv-table'));
     const css = card.shadowRoot.querySelector('style').textContent;
-    assert.match(css, /@container presets \(max-width: 600px\)/);
-    assert.match(css, /\.pv-table td \.cell::before \{ content:attr\(data-name\)/);
+    assert.match(css, /\.table-wrap \{ overflow-x:auto;/);
+    assert.match(css, /\.pv-table th, \.pv-table td \{[^}]*white-space:nowrap/);
+    assert.doesNotMatch(css, /@container presets/, 'no wrapping into rows on a phone');
   });
 
   test('a thermostat\'s name opens it; in a cell, its device, where its own presets are set (#39)', () => {

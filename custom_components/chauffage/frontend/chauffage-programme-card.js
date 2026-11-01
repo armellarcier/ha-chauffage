@@ -2551,11 +2551,30 @@ class ChauffageProgrammeCard extends HTMLElement {
     const rule = area && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
     const field = focusedField(this.shadowRoot, OVERRIDE_TEMPERATURE);
     const temperature = field ? field.value : null;
+    const tabs = this.shadowRoot.querySelector('.tabs-scroll');
+    const tabsLeft = tabs ? tabs.scrollLeft : 0;
     this._draw();
+    this._placeTabs(tabsLeft);
     if (typing) this._restoreSchedName(typing.value, typing.focused);
     if (rule) this._restoreRuleCaret(rule);
     if (temperature !== null) restoreTyped(this.shadowRoot, `.override-ed ${OVERRIDE_TEMPERATURE}`, temperature);
     this._syncPreview();
+  }
+
+  // Many schedules: the tabs scroll sideways. A redraw keeps where they were scrolled; another
+  // schedule shown is scrolled into view
+  _placeTabs(left) {
+    const tabs = this.shadowRoot.querySelector('.tabs-scroll');
+    if (!tabs) return;
+    tabs.scrollLeft = left;
+    const on = tabs.querySelector('.tab.on');
+    if (!on || this._tabsShown === this._schedule) return;
+    this._tabsShown = this._schedule;
+    const tool = on.nextElementSibling && on.nextElementSibling.matches('.tab-tool') ? on.nextElementSibling : on;
+    const start = on.offsetLeft - tabs.offsetLeft;
+    const end = tool.offsetLeft - tabs.offsetLeft + tool.offsetWidth;
+    if (start < tabs.scrollLeft) tabs.scrollLeft = start;
+    else if (end > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = end - tabs.clientWidth;
   }
 
   // Focus and caret of a rule's template, again once ha-card (a Lit component, rendered
@@ -2644,7 +2663,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     const tabs = (one ? schedules.filter((m) => m === this._schedule) : schedules)
       .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}${icon ? ' with-icon' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}<span class="tab-name">${esc(this._scheduleName(m))}</span></button>${
         editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
-      .join('') + (editable && !one ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '');
+      .join('');
+    // Out of the tabs' scrolling area: the "+" stays in place however many schedules there are
+    const newTab = editable && !one ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '';
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span${h % 6 ? ' class="minor"' : ''} style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
     this._layoutRows();
@@ -2690,7 +2711,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${this._renamedNotesHtml()}
         ${this._config.paused_note === false ? '' : this._pausedNotesHtml()}
         ${this._unscheduledNotesHtml()}
-        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs">${tabs}</div>`}
+        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs"><div class="tabs-scroll">${tabs}</div>${newTab}</div>`}
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}`}
         <div class="days" style="--day-w:${dayWidth}px">
@@ -3571,12 +3592,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     const presets = this._presets();
     const sel = this._cell;
     const isSel = (kind, preset, climate) => sel && sel.kind === kind && sel.preset === preset && (sel.climate || null) === (climate || null);
-    // `named`: the preset's name and color on the cell, shown on a phone, where the table becomes a
-    // row of cells per thermostat (no header above them)
-    const cell = (kind, preset, climate, inner, cls, named) => {
+    const cell = (kind, preset, climate, inner, cls) => {
       const on = isSel(kind, preset, climate) ? ' on' : '';
-      const name = named ? ` data-name="${esc(named.name)}" style="--pc:${named.color}"` : '';
-      const attrs = `data-act="cell" data-kind="${kind}" data-preset="${esc(preset || '')}"${climate ? ` data-climate="${esc(climate)}"` : ''}${name}`;
+      const attrs = `data-act="cell" data-kind="${kind}" data-preset="${esc(preset || '')}"${climate ? ` data-climate="${esc(climate)}"` : ''}`;
       return editable ? `<button class="cell ${cls}${on}" ${attrs}>${inner}</button>` : `<span class="cell ${cls}">${inner}</span>`;
     };
     // A preset's header holds all of it: its color, name and default temperature
@@ -3614,7 +3632,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const rows = this._thermostats.map(({ entity }) => {
         const cells = presets.map((l) => {
           const w = what(entity, l);
-          return `<td>${cell('thermostat', l.id, entity, `<span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, w.cls, l)}</td>`;
+          return `<td>${cell('thermostat', l.id, entity, `<span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, w.cls)}</td>`;
         }).join('');
         return `<tr><th class="name">${this._moreInfoLink(entity)}</th>${cells}</tr>`;
       }).join('');
@@ -4157,8 +4175,11 @@ const STYLE = `
   .no-tabs { height:12px; }
   .tabs { display:flex; gap:4px; margin:12px 0 10px; padding:3px; border-radius:10px;
     background:var(--secondary-background-color); }
-  /* A long name shrinks with an ellipsis, so the ⋮ and the + stay on the card */
-  .tab { flex:1; min-width:0; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer;
+  /* Many schedules: the tabs keep a minimum width and scroll sideways, the "+" stays in place */
+  .tabs-scroll { display:flex; gap:4px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .tabs-scroll::-webkit-scrollbar { display:none; }
+  /* A long name shrinks with an ellipsis, down to the minimum width */
+  .tab { flex:1 1 0; min-width:96px; border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
   /* An icon chosen in HA stays on the line of the name, even on a narrow screen */
@@ -4377,6 +4398,7 @@ const STYLE = `
     width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:var(--secondary-text-color);
     cursor:pointer; --mdc-icon-size:22px; }
   .panel-open:hover, .panel-open:focus-visible { background:var(--secondary-background-color); color:var(--primary-color); }
+  /* Many presets stay on one line: the table scrolls sideways, the names of the thermostats stay */
   .table-wrap { overflow-x:auto; }
   .pv-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
   .pv-list .cell { align-items:flex-start; min-width:0; box-sizing:border-box; padding:8px 10px; gap:2px;
@@ -4384,20 +4406,6 @@ const STYLE = `
   .pv-list .pv-val { font-size:1.2em; }
   .pv-intro { margin:0 0 10px; }
   .pv-table { border-collapse:separate; border-spacing:0; width:100%; font-size:.9em; }
-  /* On a phone, a row of cells per thermostat, each naming its preset: no column cut off */
-  .presets-view { container:presets / inline-size; }
-  @container presets (max-width: 600px) {
-    .pv-table, .pv-table thead, .pv-table tbody { display:block; font-size:1em; }
-    .pv-table tr { display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:6px; padding:8px 0;
-      border-bottom:1px solid var(--divider-color); }
-    .pv-table th, .pv-table td { display:block; padding:0; white-space:normal; text-align:left; }
-    .pv-table thead th { border:0; padding:0; }
-    .pv-table thead th:first-child { display:none; }
-    .pv-table th.name { grid-column:1 / -1; position:static; }
-    .pv-table .cell { width:100%; box-sizing:border-box; align-items:flex-start; }
-    .pv-table td .cell::before { content:attr(data-name); display:block; font-weight:600; padding-left:6px;
-      border-left:4px solid var(--pc); }
-  }
   .pv-table th, .pv-table td { padding:2px; text-align:center; white-space:nowrap; }
   .pv-table thead th { border-bottom:1px solid var(--divider-color); padding-bottom:6px; }
   /* The names stay in place while the table scrolls sideways (narrow screens) */

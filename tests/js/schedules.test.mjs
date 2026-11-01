@@ -273,6 +273,18 @@ describe('closing the menus', () => {
   });
 });
 
+test('with many schedules, the tabs keep a minimum width and scroll sideways; the "+" stays in place', () => {
+  const card = createCard(fakeHass());
+  const scroller = $(card, '.tabs > .tabs-scroll');
+  assert.equal(scroller.querySelectorAll('.tab').length, 3);
+  assert.ok(scroller.querySelector('[data-act="schedule-menu"]'), 'the ⋮ goes with its tab');
+  assert.equal(scroller.querySelector('[data-act="schedule-new"]'), null);
+  assert.ok($(card, '.tabs > [data-act="schedule-new"]'));
+  const css = card.shadowRoot.querySelector('style').textContent;
+  assert.match(css, /\.tabs-scroll \{[^}]*overflow-x:auto/);
+  assert.match(css, /\.tab \{[^}]*min-width:\d+px/);
+});
+
 test('only admins see "+" and "⋮"', () => {
   const hass = fakeHass();
   hass.user = { is_admin: false };
