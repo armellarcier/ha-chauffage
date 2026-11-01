@@ -1609,8 +1609,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Without the thermostats renamed in Home Assistant (see _setAside)
     this._thermostats = this._configured;
     this._asideKey = '';
-    // The more-info block uses the same entities as the card
-    for (const k of Object.keys(MORE_INFO_CFG)) MORE_INFO_CFG[k] = this._config[k];
+    // The more-info block uses the options of the dashboard cards, not those of the panel's pages
+    if (!config.panel) for (const k of Object.keys(MORE_INFO_CFG)) MORE_INFO_CFG[k] = this._config[k];
     this._shown = this._initialShown();
     this._schedule = null;
     // The schedule shown first (the Chauffage panel's ?schedule=), else the active schedule

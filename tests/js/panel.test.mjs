@@ -1,7 +1,7 @@
 // The Chauffage panel (#57): where an admin configures Chauffage, lists then sheets, one address
 // per page (docs/decisions.md, "Chauffage panel and devices"). Dashboard cards link to it.
 import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { ChauffagePanel, leaveMoreInfo, ICONS, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { ChauffagePanel, leaveMoreInfo, ICONS, serializeDay, MORE_INFO_CFG } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -194,6 +194,21 @@ describe('the Chauffage panel', () => {
       assert.ok($(rules, '.rule, [data-act="rule-add"]'));
       assert.equal(cards(el).indexOf(rules), 1, 'below the list');
     });
+  });
+
+  test('a visit to the panel keeps the options the dashboard cards give the more-info block', () => {
+    createCard(setup(), { language: 'en', step: 30 }); // a dashboard card
+    panel(setup(), '/thermostats/climate.salon');
+    assert.deepEqual([MORE_INFO_CFG.language, MORE_INFO_CFG.step], ['en', 30]);
+    MORE_INFO_CFG.language = undefined;
+    MORE_INFO_CFG.step = 15;
+  });
+
+  test('the panel\'s tabs load no history: they never show one', () => {
+    localStorage.setItem('chauffage-programme-card:history', '1'); // shown on the dashboard cards
+    const hass = setup();
+    for (const path of ['/thermostats', '/schedules', '/presets']) panel(hass, path);
+    assert.deepEqual(hass.events.filter((m) => m.type === 'chauffage/history'), []);
   });
 
   describe('welcoming a new user', () => {
