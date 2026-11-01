@@ -55,7 +55,8 @@ async def test_a_thermostat_back_online_is_set_to_its_schedule(bench: Bench):
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
-AUTO_STOPPED = {"hvac_off_reason": "hvac_off_auto_start_stop"}
+# As VTherm 10 publishes it: the reason is in specific_states, not a top-level attribute
+AUTO_STOPPED = {"specific_states": {"is_on": False, "hvac_off_reason": "hvac_off_auto_start_stop"}}
 
 
 async def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):
@@ -68,6 +69,15 @@ async def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: B
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.salon": "comfort"}
     assert bench.overrides() == {}
+
+
+async def test_an_older_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):
+    """Older VTherm versions publish hvac_off_reason as a top-level attribute."""
+    bench.needs("vtherm")
+    await start(bench, "17:00")
+    bench.thermostat("climate.salon", "eco", state="off", hvac_off_reason="hvac_off_auto_start_stop")
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "comfort"}
 
 
 async def test_a_vtherm_starting_again_after_auto_start_stop_is_not_an_override(bench: Bench):
@@ -95,7 +105,8 @@ async def test_a_preset_picked_on_a_vtherm_stopped_by_auto_start_stop_is_an_over
 async def test_a_vtherm_turned_off_by_hand_is_still_left_alone(bench: Bench):
     bench.needs("vtherm")
     await start(bench, "17:00")
-    bench.thermostat("climate.salon", "eco", state="off", hvac_off_reason="hvac_off_manual")
+    bench.thermostat("climate.salon", "eco", state="off",
+                     specific_states={"is_on": False, "hvac_off_reason": "hvac_off_manual"})
     await bench.go_to("17:30")
     assert bench.applied() == {}
 

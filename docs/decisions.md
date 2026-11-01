@@ -80,7 +80,9 @@ future contributor might question.
 - **A VTherm turned off by its auto start/stop still gets its slots** (#74). VTherm turns itself
   off when the room needs no heating for a while, keeps the preset asked while it is off, and
   starts again when that preset needs heating. Left alone, it would never see the next comfort
-  slot, so it would never start again. Only the reason `hvac_off_auto_start_stop` counts. A
+  slot, so it would never start again. Only the reason `hvac_off_auto_start_stop` counts. VTherm
+  10.5 publishes the reason in the `specific_states` attribute, and older versions publish it as
+  an attribute of its own, so Chauffage reads both. A
   VTherm turned off by a window stays left alone: it starts again when the window closes, and the
   catch-up then sends it its slot.
 - **Commands applied late: in doubt, no override.** A battery valve (Zigbee, asleep most of the

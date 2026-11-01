@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta
 import logging
 from typing import Any
@@ -92,8 +92,17 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),
         engine.temperature_value(attributes.get("target_temp_step")),
-        attributes.get("hvac_off_reason"),
+        off_reason(attributes),
     )
+
+
+def off_reason(attributes: Mapping[str, Any]) -> str | None:
+    """Why VTherm is off: in specific_states on recent versions (10.5), a top-level attribute on
+    older ones."""
+    specific = attributes.get("specific_states")
+    if isinstance(specific, Mapping) and specific.get("hvac_off_reason"):
+        return specific["hvac_off_reason"]
+    return attributes.get("hvac_off_reason")
 
 
 def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
