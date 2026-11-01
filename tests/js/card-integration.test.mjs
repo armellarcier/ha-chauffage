@@ -58,6 +58,25 @@ describe('loading from the integration', () => {
     assert.equal(card.shadowRoot.querySelector('.missing').getAttribute('role'), 'status');
   });
 
+  test('the integration set up again: the card draws its weeks, with no page reload', async () => {
+    const hass = fakeIntegrationHass({ data: null });
+    const subscribe = hass.connection.subscribeMessage;
+    let loaded = false;
+    hass.connection.subscribeMessage = (cb, msg) => (loaded ? subscribe(cb, msg)
+      : Promise.reject({ code: 'not_loaded', message: 'The Chauffage integration is not set up' }));
+    const card = createCard(hass);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.ok(card.shadowRoot.querySelector('.missing'));
+    card.hass = { ...hass, states: { ...hass.states } }; // an update that does not bring it back: no new try
+    loaded = true;
+    // Set up again: Home Assistant shows its panel again
+    card.hass = { ...hass, panels: { ...hass.panels, chauffage: { url_path: 'chauffage' } } };
+    hass.push(INTEGRATION_DATA());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(card.shadowRoot.querySelector('.missing'), null);
+    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+  });
+
   test('changes pushed by the integration are shown (schedule activated elsewhere)', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);

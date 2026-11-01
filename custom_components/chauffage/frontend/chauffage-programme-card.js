@@ -1086,15 +1086,19 @@ const INTEGRATION = {
   listeners: new Set(),
   connection: null,
   connect(hass) {
+    // Set up again (its panel is back): subscribed again, with no page reload
+    if (this.missing && hass.panels && hass.panels.chauffage && hass.panels !== this.missingPanels) this.connection = null;
     if (!hass.connection || this.connection === hass.connection) return;
     this.connection = hass.connection;
     hass.connection.subscribeMessage((data) => {
+      this.missing = false;
       this.data = data;
       this.seq += 1;
       for (const listener of [...this.listeners]) listener();
     }, { type: 'chauffage/subscribe' }).catch((e) => {
       if (e && e.code === 'not_loaded') {
         this.missing = true;
+        this.missingPanels = hass.panels; // the panels then: a new set holding Chauffage's means it is back
         for (const listener of [...this.listeners]) listener();
         return;
       }

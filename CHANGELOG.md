@@ -97,7 +97,8 @@ Each entry says whether the release **migrates stored data** and what to do when
   *Group days* or *History*, or a schedule created elsewhere, no longer drops them.
 - **Deleting or disabling the integration removes the *Chauffage* panel from the sidebar.** The
   panel used to stay, and opened on an empty page. A card now says that the integration is not
-  set up, instead of showing "…" forever.
+  set up, instead of showing "…" forever. Once the integration is set up again, the card draws its
+  weeks, with no page reload.
 - **The panel works with the keyboard.** An update of Home Assistant no longer takes the focus
   away, and the rows of the lists open with Enter or Space. A ⋮ pressed again closes its menu.
 - **A pause or a resume refused by the integration says why** on the thermostat's page.
