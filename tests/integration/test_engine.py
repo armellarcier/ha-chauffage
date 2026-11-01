@@ -88,6 +88,15 @@ def test_off_unavailable_and_unknown_thermostats_are_ignored():
     assert targets(at("10:00"), {}, force=True) == []  # entity missing
 
 
+def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots():
+    """VTherm keeps the preset asked while it is off, and starts again when that preset needs
+    heating (#74). Turned off by hand, it is left alone."""
+    stopped = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, off_reason="hvac_off_auto_start_stop")
+    assert targets(at("10:00"), {"climate.bureau": stopped}, force=True) == [("climate.bureau", "comfort")]
+    manual = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, off_reason="hvac_off_manual")
+    assert targets(at("10:00"), {"climate.bureau": manual}, force=True) == []
+
+
 def test_overrides_are_left_alone_until_they_end_or_are_removed():
     thermostats = {"climate.salon": heat("none", 21.5), "climate.bureau": heat("eco")}
     overrides = {"climate.salon": {"end": at("12:00").isoformat()}}

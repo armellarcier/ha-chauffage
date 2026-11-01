@@ -16,6 +16,9 @@ from typing import Any
 from .const import MANUAL_PRESETS
 
 IGNORED_STATES = frozenset({"off", "unavailable", "unknown"})
+# Turned off by the thermostat itself, which keeps the preset asked and starts again when that
+# preset needs heating: VTherm's auto start/stop (#74). Such a thermostat still gets its slots.
+STOPPED_BY_ITSELF = frozenset({"hvac_off_auto_start_stop"})
 DEFAULT_STEP = 0.5
 
 
@@ -30,6 +33,14 @@ class Thermostat:
     min_temp: float | None = None
     max_temp: float | None = None
     step: float | None = None
+    off_reason: str | None = None  # VTherm's hvac_off_reason
+
+
+def ignored(thermostat: Thermostat) -> bool:
+    """A thermostat left alone: turned off (not by itself), unavailable or unknown."""
+    if thermostat.state == "off" and thermostat.off_reason in STOPPED_BY_ITSELF:
+        return False
+    return thermostat.state in IGNORED_STATES
 
 
 @dataclass(frozen=True)
@@ -221,7 +232,7 @@ def targets(
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
         target = resolve(preset, plan.presets, plan.mappings.get(entity_id), thermostat, plan.use_presets)
-        if target is None or thermostat.state in IGNORED_STATES:
+        if target is None or ignored(thermostat):
             continue
         if satisfied(target, thermostat) and pending.get(entity_id, target) == target:
             continue
@@ -238,7 +249,7 @@ def applied_command(pending: list[Target], before: Thermostat | None, after: The
     """Index of the latest command not applied yet that the thermostat has just taken (None: none).
     Only a change to it counts: a thermostat that already showed it (another report, its
     temperature) may still apply an older command."""
-    if after.state in IGNORED_STATES:
+    if ignored(after):
         return None
     return next((i for i in range(len(pending) - 1, -1, -1)
                  if satisfied(pending[i], after) and not (before and satisfied(pending[i], before))), None)
@@ -295,7 +306,7 @@ def manual_change(
       the slot's value past the next slots).
     - Otherwise: an override to that preset, or to that setpoint.
     """
-    if after.state in IGNORED_STATES or before.state in ("unavailable", "unknown"):
+    if ignored(after) or before.state in ("unavailable", "unknown"):
         return None
     manual = is_manual_preset(after.preset)
     picked = after.preset != before.preset and not manual and by_user

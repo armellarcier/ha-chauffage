@@ -510,6 +510,10 @@ programmateur remet chaque thermostat sur son planning au démarrage, à l'activ
 planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat en dérogation,
 éteint ou indisponible. Une vanne injoignable ne bloque pas les autres thermostats.
 
+Un Versatile Thermostat éteint par son démarrage/arrêt automatique (*auto start/stop*) n'est pas
+mis de côté. Le programmateur continue de lui envoyer ses créneaux et sa dérogation : le
+thermostat redémarre ainsi quand la pièce a besoin de chauffer.
+
 **Les changements manuels.** Une consigne changée à la main, ou un préréglage choisi par un
 utilisateur, devient une dérogation. Revenir à ce que demande le créneau arrête la dérogation.
 Chauffage ignore ses propres changements, grâce à leur contexte, et ceux des automatisations.

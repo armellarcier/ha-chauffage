@@ -9,6 +9,20 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-01
+
+A fix for Versatile Thermostat's auto start/stop (#74). No stored data is migrated.
+
+### Fixed
+
+- **A Versatile Thermostat turned off by its auto start/stop gets its slots again** (#74). Before,
+  Chauffage left it alone like a thermostat turned off by hand. The thermostat then missed the
+  next comfort slot and never started again. A thermostat turned off by hand is still left alone.
+
+### Upgrading
+
+Update from HACS, then restart Home Assistant.
+
 ## [0.7.0] - 2026-10-31
 
 **Identical days on one row, a calendar of schedules, what Chauffage does to the thermostats and

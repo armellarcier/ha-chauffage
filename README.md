@@ -485,6 +485,10 @@ scheduler sets every thermostat to its schedule again at startup, when a schedul
 and when weeks are saved. The scheduler leaves alone a thermostat that has an override, is off
 or is unavailable. An unreachable valve does not stop the other thermostats.
 
+A Versatile Thermostat turned off by its auto start/stop is not left alone. The scheduler keeps
+sending it its slots and its override, so that the thermostat starts again when the room needs
+heating.
+
 **Manual changes.** A setpoint changed by hand, or a preset that a user chooses, becomes an
 override. Going back to what the slot asks for ends the override. Chauffage ignores its own
 changes, thanks to their context, and the changes made by automations. Chauffage also ignores a
