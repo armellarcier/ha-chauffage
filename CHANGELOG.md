@@ -81,9 +81,9 @@ Each entry says whether the release **migrates stored data** and what to do when
   French, 21 °C rather than 21.0 °C), names the day when an override does not end today, and says
   "schedule activated: Away".
 - **Many schedules fit the card.** Each schedule tab is as wide as its name, within limits, and the
-  tabs scroll sideways. A fade on a side says that more schedules are hidden there. With a mouse,
-  an arrow scrolls to them, and so does the wheel. The *+* stays in place, and the schedule shown
-  scrolls into view. With many schedules on a phone, a tab used to show only the first letter of
+  tabs scroll sideways, as any scrolling area of your browser. A fade on a side says that more
+  schedules are hidden there, and with a mouse an arrow over it scrolls to them. The *+* stays in
+  place, and the card opens on the active schedule's tab, however far it is. With many schedules on a phone, a tab used to show only the first letter of
   its name.
 - **The menu *Copy the week of … to…* stays in the window.** It opens on the side of its button
   with more room, no taller than that room. It used to go off the top of the screen.

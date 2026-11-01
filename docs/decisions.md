@@ -786,6 +786,11 @@ A review of every surface, before the merge into `main`, settled these choices.
   `ha-list-item-button`: that component is internal to Home Assistant's frontend, it was renamed
   since 2025.1, and a dashboard may not load it. If Home Assistant restyles its lists, adjust the
   copy.
+- **The schedule tabs scroll natively, with no scrollbar.** A fade shows on each side where
+  schedules are hidden. With a mouse, an arrow lies over the fade: it scrolls with the browser's
+  smooth scrolling, which stops when the user scrolls. The card does not take over the wheel. The
+  arrows are always in the page, shown by a class, so showing them moves no tab. On a touch screen,
+  the fade alone: a finger scrolls.
 - **The list is a card of its own**, on the *Thermostats* and *Schedules* tabs: its first and last
   rows touch the card's edges, with a line between two rows, as on the integration's page. The
   texts, the link to the integration's page and the action to add one sit outside that card.

@@ -2595,12 +2595,9 @@ class ChauffageProgrammeCard extends HTMLElement {
   _tabArrows() {
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
     if (!tabs) return;
-    const left = tabs.scrollLeft > 1;
-    const right = tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1;
-    tabs.classList.toggle('more-left', left);
-    tabs.classList.toggle('more-right', right);
-    this.shadowRoot.querySelector('[data-tabs-scroll="left"]').hidden = !left;
-    this.shadowRoot.querySelector('[data-tabs-scroll="right"]').hidden = !right;
+    // Classes only: the arrows lie over the tabs, so showing them moves nothing
+    tabs.parentElement.classList.toggle('more-left', tabs.scrollLeft > 1);
+    tabs.parentElement.classList.toggle('more-right', tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
   }
 
   // Focus and caret of a rule's template, again once ha-card (a Lit component, rendered
@@ -2691,7 +2688,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
       .join('');
     // Arrows on the sides of the tabs, shown when schedules are hidden on that side (_tabArrows)
-    const tabsArrow = (side) => `<button class="tab-arrow" data-tabs-scroll="${side}" hidden
+    const tabsArrow = (side) => `<button class="tab-arrow" data-tabs-scroll="${side}"
       title="${esc(tr(side === 'left' ? 'tabsLeft' : 'tabsRight'))}" aria-label="${esc(tr(side === 'left' ? 'tabsLeft' : 'tabsRight'))}"><ha-icon icon="mdi:chevron-${side}"></ha-icon></button>`;
     // Out of the tabs' scrolling area: the "+" stays in place however many schedules there are
     const newTab = editable && !one ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '';
@@ -2740,7 +2737,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${this._renamedNotesHtml()}
         ${this._config.paused_note === false ? '' : this._pausedNotesHtml()}
         ${this._unscheduledNotesHtml()}
-        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs">${tabsArrow('left')}<div class="tabs-scroll">${tabs}</div>${tabsArrow('right')}${newTab}</div>`}
+        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs"><div class="tabs-wrap"><div class="tabs-scroll">${tabs}</div>${tabsArrow('left')}${tabsArrow('right')}</div>${newTab}</div>`}
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}`}
         <div class="days" style="--day-w:${dayWidth}px">
@@ -2803,25 +2800,20 @@ class ChauffageProgrammeCard extends HTMLElement {
   _bindEvents() {
     const root = this.shadowRoot;
 
-    // The schedule tabs scroll sideways: their arrows follow, scroll by most of a width (the tab cut
-    // at the edge then shows whole), and the mouse wheel scrolls them when they overflow
+    // The schedule tabs scroll natively (a finger, a trackpad, Shift + wheel): their fades and arrows
+    // follow. An arrow scrolls by most of a width (the tab cut at the edge then shows whole), with
+    // the browser's smooth scrolling, which stops when the user scrolls
     root.addEventListener('scroll', (e) => { if (e.target.matches && e.target.matches('.tabs-scroll')) this._tabArrows(); }, true);
     root.addEventListener('click', (e) => {
       const arrow = e.target.closest('[data-tabs-scroll]');
       const tabs = arrow && root.querySelector('.tabs-scroll');
       if (!tabs) return;
       e.stopPropagation();
-      tabs.style.scrollBehavior = 'smooth';
-      tabs.scrollLeft += (arrow.dataset.tabsScroll === 'left' ? -1 : 1) * Math.round(tabs.clientWidth * 0.8);
+      const left = (arrow.dataset.tabsScroll === 'left' ? -1 : 1) * Math.round(tabs.clientWidth * 0.8);
+      if (typeof tabs.scrollBy === 'function') tabs.scrollBy({ left, behavior: 'smooth' });
+      else tabs.scrollLeft += left; // no smooth scrolling (tests)
       this._tabArrows();
     }, true);
-    root.addEventListener('wheel', (e) => {
-      const tabs = e.target.closest && e.target.closest('.tabs-scroll');
-      if (!tabs || tabs.scrollWidth <= tabs.clientWidth || !e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      e.preventDefault();
-      tabs.scrollLeft += e.deltaY;
-      this._tabArrows();
-    }, { passive: false });
 
     // Readout of a day shown larger: under the mouse, or along a finger sliding on the bar
     root.addEventListener('pointerdown', (e) => {
@@ -4225,18 +4217,24 @@ const STYLE = `
   .tabs { display:flex; gap:4px; margin:12px 0 10px; padding:3px; border-radius:10px;
     background:var(--secondary-background-color); }
   /* Many schedules: the tabs keep a minimum width and scroll sideways, the "+" stays in place */
+  .tabs-wrap { position:relative; display:flex; flex:1; min-width:0; }
+  /* A native scrolling area, without a scrollbar (the fades and the arrows show it) */
   .tabs-scroll { display:flex; gap:4px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .tabs-scroll::-webkit-scrollbar { display:none; }
-  .tab-arrow { flex:none; display:flex; align-items:center; justify-content:center; width:32px; padding:0; border:0;
-    border-radius:8px; background:transparent; color:var(--secondary-text-color); cursor:pointer; --mdc-icon-size:20px; }
-  .tab-arrow[hidden] { display:none; }
-  /* A fade on each side where schedules are hidden; the arrows too with a mouse, not on a touch
+  /* A fade on each side where schedules are hidden; with a mouse, an arrow over it. Not on a touch
      screen, where a finger scrolls */
-  .tabs-scroll.more-right { mask-image:linear-gradient(to left, transparent, #000 32px); }
-  .tabs-scroll.more-left { mask-image:linear-gradient(to right, transparent, #000 32px); }
-  .tabs-scroll.more-left.more-right { mask-image:linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
+  .tabs-wrap.more-right .tabs-scroll { mask-image:linear-gradient(to left, transparent, #000 32px); }
+  .tabs-wrap.more-left .tabs-scroll { mask-image:linear-gradient(to right, transparent, #000 32px); }
+  .tabs-wrap.more-left.more-right .tabs-scroll { mask-image:linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
+  .tab-arrow { position:absolute; top:50%; transform:translateY(-50%); display:flex; align-items:center; justify-content:center;
+    width:28px; height:28px; padding:0; border:0; border-radius:50%; background:var(--card-background-color);
+    box-shadow:0 1px 3px rgba(0,0,0,.25); color:var(--secondary-text-color); cursor:pointer; --mdc-icon-size:20px;
+    opacity:0; pointer-events:none; transition:opacity .15s; }
+  .tab-arrow[data-tabs-scroll="left"] { left:0; }
+  .tab-arrow[data-tabs-scroll="right"] { right:0; }
+  .tabs-wrap.more-left .tab-arrow[data-tabs-scroll="left"], .tabs-wrap.more-right .tab-arrow[data-tabs-scroll="right"] { opacity:1; pointer-events:auto; }
+  .tab-arrow:hover, .tab-arrow:focus-visible { color:var(--primary-text-color); }
   @media (hover:none) { .tab-arrow { display:none; } }
-  .tab-arrow:hover, .tab-arrow:focus-visible { background:var(--card-background-color); color:var(--primary-text-color); }
   /* A tab is as wide as its name (a long one shrinks with an ellipsis), and grows when there is
      room: a short name leaves no large empty space */
   .tab { flex:1 0 auto; min-width:44px; max-width:180px; display:flex; align-items:center; justify-content:center;
