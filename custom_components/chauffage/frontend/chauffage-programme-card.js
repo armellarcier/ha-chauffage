@@ -4219,7 +4219,9 @@ const STYLE = `
   /* A schedule's sheet shows no tab: the same space under the chips */
   .no-tabs { height:12px; }
   .tabs { display:flex; gap:4px; margin:12px 0 10px; padding:3px; border-radius:10px;
-    background:var(--secondary-background-color); }
+    background:var(--secondary-background-color);
+    /* A whole number: the icons and the names fall on whole pixels, not rounded apart */
+    line-height:20px; }
   /* Many schedules: the tabs keep a minimum width and scroll sideways, the "+" stays in place */
   .tabs-wrap { position:relative; display:flex; flex:1; min-width:0; }
   /* A native scrolling area, without a scrollbar (the fades and the arrows show it) */
@@ -4249,9 +4251,10 @@ const STYLE = `
     border:0; background:transparent; padding:7px 8px; border-radius:8px; cursor:pointer; white-space:nowrap; }
   .tab.on { background:var(--card-background-color); box-shadow:0 1px 3px rgba(0,0,0,.25); font-weight:600; }
   /* An icon chosen in HA stays on the line of the name, even on a narrow screen */
-  .tab.with-icon { display:flex; align-items:center; justify-content:center; }
-  /* No line height of its own: as tall as its drawing, centered with the name */
-  .tab-icon { --mdc-icon-size:18px; flex:0 0 auto; line-height:0; margin-inline-end:4px; }
+  /* Whole pixels, so the icon and the name are not rounded apart: the 18 px icon, with no line
+     height of its own, centered in the 20 px line, then 1 px higher (margin-bottom: 2 px), as the
+     letters sit above the middle of the line */
+  .tab-icon { --mdc-icon-size:18px; flex:0 0 auto; line-height:0; margin:0 4px 2px 0; }
   .tab-tool { flex:0 0 auto; border:0; background:transparent; padding:7px 9px; border-radius:8px; cursor:pointer;
     color:var(--secondary-text-color); font-weight:600; }
   .tab-tool:hover { background:var(--card-background-color); }
