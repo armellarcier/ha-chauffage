@@ -1347,6 +1347,21 @@ function openWeeks(climate, week) {
 
 // Where the dashboards show each thermostat, in a Chauffage card:
 // { climate: [{ dashboard, view, path }] }. Admins only (the dashboards' configs).
+// The placements, read once per connection (a page load): the card's list and the panel share them
+const PLACEMENTS = new WeakMap();
+function placements(hass) {
+  const key = hass.connection || hass;
+  if (!PLACEMENTS.has(key)) PLACEMENTS.set(key, cardPlacements(hass).catch(() => ({})));
+  return PLACEMENTS.get(key);
+}
+
+// "Shown in dashboard › view, …", each a link; "…" while the dashboards are read (null)
+function placesHtml(t, places) {
+  if (!places) return `${esc(t('inCards'))} …`;
+  if (!places.length) return esc(t('inNoCard'));
+  return `${esc(t('inCards'))} ${places.map((p) => `<span class="mi-link" role="link" tabindex="0" data-navigate="${esc(p.path)}">${esc(`${p.dashboard} › ${p.view}`)}</span>`).join(', ')}`;
+}
+
 async function cardPlacements(hass) {
   const out = {};
   const add = (climate, place) => {
@@ -2118,6 +2133,15 @@ class ChauffageProgrammeCard extends HTMLElement {
         return this._hass.callWS({ type: 'history/history_during_period', ...msg, minimal_response: false, no_attributes: false, significant_changes_only: false })
           .then(rowsOfStates);
       });
+  }
+
+  // Cancel: the weeks go back as they were saved (the card's bar, or the panel's for a page)
+  _discard() {
+    this._dirty = false;
+    this._sel = null;
+    this._msg = '';
+    this._load();
+    this._render();
   }
 
   // A thermostat's page in the panel: its switches group the days and show the history of every
@@ -3568,15 +3592,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The cards that show each thermostat, read from the dashboards once
     if (this._placements === undefined) {
       this._placements = null;
-      cardPlacements(this._hass).then((p) => { this._placements = p; this._render(); }, () => { this._placements = {}; });
+      placements(this._hass).then((p) => { this._placements = p; this._render(); });
     }
-    const placesHtml = (climate) => {
-      if (!this._placements) return '';
-      const places = this._placements[climate] || [];
-      if (!places.length) return `<div class="th-cards">${esc(t('inNoCard'))}</div>`;
-      const links = places.map((p) => `<span class="mi-link" role="link" tabindex="0" data-navigate="${esc(p.path)}">${esc(`${p.dashboard} › ${p.view}`)}</span>`);
-      return `<div class="th-cards">${esc(t('inCards'))} ${links.join(', ')}</div>`;
-    };
+    const placesLine = (climate) => (this._placements
+      ? `<div class="th-cards">${placesHtml(t, this._placements[climate] || [])}</div>` : '');
     // A row opens the thermostat's sheet; only a paused thermostat has a badge, the exception. Its
     // actions wait in its ⋮ menu (admins)
     const rows = scheduled.map((climate) => {
@@ -3586,8 +3605,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         : `<button class="icon-btn${open ? ' on' : ''}" data-act="thermostat-more" data-climate="${esc(climate)}" title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
       const icon = (this._hass.states[climate] || { attributes: {} }).attributes.icon || 'mdi:thermostat';
       return thRow(`class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}"`, `data-weeks="${esc(climate)}"`, icon,
-        `${esc(this._name(climate))}${paused ? ` <span class="th-badge paused">${esc(t('paused'))}</span>` : ''}`,
-        placesHtml(climate), more);
+        `${esc(this._name(climate))}${paused ? ` <span class="badge paused">${esc(t('paused'))}</span>` : ''}`,
+        placesLine(climate), more);
     }).join('');
     // Schedule another thermostat: one of the climates Chauffage does not schedule yet
     const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.') && !scheduled.includes(e))
@@ -3639,7 +3658,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         : `<button class="icon-btn${open ? ' on' : ''}" data-act="schedule-menu" data-schedule="${esc(id)}" title="${esc(t('scheduleMenu'))}" aria-label="${esc(t('scheduleMenu'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
       return thRow(`class="th-row" data-schedule="${esc(id)}"`, `data-panel-page="schedules/${esc(id)}"`,
         src.scheduleIcon(id) || 'mdi:calendar-clock',
-        `${esc(this._scheduleName(id))}${id === active ? ` <span class="th-badge on">${esc(t('panelActive'))}</span>` : ''}`,
+        `${esc(this._scheduleName(id))}${id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}`,
         '', more);
     }).join('');
     const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
@@ -4094,13 +4113,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'cell' || act.startsWith('cell-')) return this._cellAction(act, ds);
     if (act.startsWith('rule-') || act.startsWith('rules-')) return this._rulesAction(act, ds);
     if (act === 'save') return this._save();
-    if (act === 'cancel') {
-      this._dirty = false;
-      this._sel = null;
-      this._msg = '';
-      this._load();
-      return this._render();
-    }
+    if (act === 'cancel') return this._discard();
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
     if (act === 'paste-day') return this._pasteFromClipboard(ds.climate, Number(ds.day));
     if (act === 'activate-schedule') {
@@ -4163,6 +4176,15 @@ const LINK_STYLE = `
   .mi-link:hover, .mi-link:focus-visible { color:var(--primary-color); text-decoration:underline; }
 `;
 
+// A badge: Active, or Paused, which must be seen at a glance (Chauffage sends nothing, the thermostat
+// runs by hand)
+const BADGE_STYLE = `
+  .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px;
+    background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
+  .badge.on { background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
+  .badge.paused { background:var(--warning-color, #ffa600); color:#000; font-weight:500; }
+`;
+
 // A time field and its small arrows (the card's popovers, the more-info block). Each arrow takes
 // a finger a few pixels beyond its edge, away from the other arrow.
 const TIME_FIELD_STYLE = `
@@ -4219,9 +4241,8 @@ const STYLE = `
   .icon-btn { flex:none; width:48px; height:48px; border:0; border-radius:50%; background:transparent; cursor:pointer;
     color:var(--secondary-text-color); --mdc-icon-size:24px; display:flex; align-items:center; justify-content:center; padding:0; }
   .icon-btn:hover, .icon-btn:focus-visible, .icon-btn.on { background:var(--secondary-background-color); color:var(--primary-text-color); }
-  .th-badge.on { background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
-  .th-badge { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px; font-size:.75em; vertical-align:2px;
-    background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
+  ${BADGE_STYLE}
+  .th-row .badge { margin-left:8px; vertical-align:2px; }
   .th-cards { font-size:12px; line-height:19px; color:var(--secondary-text-color); }
   .th-cards .mi-link { color:inherit; }
   .btn.icon { min-width:36px; padding:6px 8px; }
@@ -5801,11 +5822,7 @@ class ChauffagePanel extends HTMLElement {
   // Cancel: every week goes back as it was saved
   _discardSheet() {
     for (const card of this._dirtyWeeks().map(([, c]) => c)) {
-      card._dirty = false;
-      card._sel = null;
-      card._msg = '';
-      card._load();
-      card._render();
+      card._discard();
     }
     this._saveError = null;
     this._fillSavebar();
@@ -5846,15 +5863,13 @@ class ChauffagePanel extends HTMLElement {
     const hass = this._hass;
     if (this._placements === undefined) {
       this._placements = null;
-      cardPlacements(hass).then((p) => { this._placements = p; this._update(); }, () => { this._placements = {}; });
+      placements(hass).then((p) => { this._placements = p; this._update(); });
     }
     const paused = src.paused(climate);
     const places = this._placements ? this._placements[climate] || [] : null;
     // While the dashboards are read, the line already holds its place: the page does not move
     // under a finger about to tap
-    const shown = places == null ? `${esc(t('inCards'))} …` : places.length
-      ? `${esc(t('inCards'))} ${places.map((p) => `<span class="link" role="link" tabindex="0" data-navigate="${esc(p.path)}">${esc(`${p.dashboard} › ${p.view}`)}</span>`).join(', ')}`
-      : esc(t('inNoCard'));
+    const shown = placesHtml(t, places);
     // Its devices, by their names: the thermostat's, then the scheduled thermostat's (Chauffage)
     const devices = thermostatDevices(hass, src, climate).map((id) => deviceNamedLinkHtml(hass, id)).filter(Boolean);
     return `<div class="about">
@@ -6066,15 +6081,13 @@ const PANEL_CSS = `
   /* The week a link led to ("Edit its week"), marked a moment */
   h3.arrived { animation:arrived 2.5s ease-out; border-radius:6px; scroll-margin-top:72px; }
   @keyframes arrived { from { background:rgba(var(--rgb-primary-color, 3, 169, 244), .25); color:var(--primary-color); } }
-  h3 [role="link"], .link { cursor:pointer; }
-  h3 [role="link"]:hover, .link:hover { color:var(--primary-color); text-decoration:underline; }
+  h3 [role="link"] { cursor:pointer; }
+  h3 [role="link"]:hover { color:var(--primary-color); text-decoration:underline; }
   .box { padding:8px 16px; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color);
     border:1px solid var(--divider-color); }
   .grow { flex:1; }
-  .badge { padding:1px 8px; border-radius:10px; font-size:12px; background:rgba(127,127,127,.18); color:var(--secondary-text-color); }
-  .badge.on { background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
-  /* Paused: Chauffage sends nothing, the thermostat runs by hand; it must be seen at a glance */
-  .badge.paused { background:var(--warning-color, #ffa600); color:#000; font-weight:500; }
+  ${BADGE_STYLE}
+  ${LINK_STYLE}
   .control .badge { font-size:13px; padding:3px 10px; }
   .btn { border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color);
     padding:6px 12px; border-radius:8px; cursor:pointer; font:inherit; font-size:14px; min-height:36px; }
@@ -6154,7 +6167,6 @@ const PANEL_CSS = `
   .hint { margin:0 8px; font-size:12px; color:var(--secondary-text-color); }
   .hint .touch { display:none; }
   @media (hover:none) { .hint .mouse { display:none; } .hint .touch { display:inline; } }
-  [data-device] { color:var(--primary-color); cursor:pointer; }
 `;
 
 // The integration's own icons (`chauffage:<name>`), as HA's custom icon sets: the sidebar shows

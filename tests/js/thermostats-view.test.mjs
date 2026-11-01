@@ -63,8 +63,8 @@ describe('the panel\'s "Thermostats" page', () => {
     const card = open(setup());
     const rows = [...card.shadowRoot.querySelectorAll('.th-row')].map((r) => r.dataset.climate);
     assert.deepEqual(rows, ['climate.bureau', 'climate.cuisine', 'climate.salon']);
-    assert.equal(row(card, 'climate.salon').querySelector('.th-badge'), null);
-    assert.match(text(row(card, 'climate.cuisine').querySelector('.th-badge')), /^En pause$/);
+    assert.equal(row(card, 'climate.salon').querySelector('.badge'), null);
+    assert.match(text(row(card, 'climate.cuisine').querySelector('.badge')), /^En pause$/);
   });
 
   test('its rows fill a card of their own, edge to edge; the texts, the link and the form to add one sit outside it', () => {
