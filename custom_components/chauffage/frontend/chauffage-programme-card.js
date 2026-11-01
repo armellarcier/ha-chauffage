@@ -1777,8 +1777,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._overrideSel = null;
       this._render();
     };
+    // A press outside the card closes its menus; not the ⋮ of the panel's page, which opens and
+    // closes the menu of a schedule's page itself
     this._onDocDown = (e) => {
-      if (!e.composedPath().includes(this)) closePopups();
+      const path = e.composedPath();
+      if (!path.includes(this) && !path.some((n) => n.matches && n.matches('[data-page-menu]'))) closePopups();
     };
     this._onKey = (e) => {
       if (e.key === 'Escape') closePopups();

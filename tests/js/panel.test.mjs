@@ -321,6 +321,19 @@ describe('the Chauffage panel', () => {
       assert.equal(menu.querySelector('[data-act="schedule-move"]'), null);
     });
 
+    test('its ⋮ pressed again closes the menu, as every ⋮', () => {
+      const el = panel(setup(), '/schedules/holiday');
+      const press = () => {
+        const button = $(el, '.toolbar [data-page-menu]');
+        button.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, composed: true }));
+        button.click();
+      };
+      press();
+      assert.ok($(cards(el)[0], '.sched-menu'));
+      press();
+      assert.equal($(cards(el)[0], '.sched-menu'), null);
+    });
+
     test('keeps the card\'s list to copy a week, and marks today even when the schedule is not active', () => {
       const [card] = cards(panel(setup(), '/schedules/holiday'));
       assert.ok($(card, '[data-act="copyweek-menu"]'));
@@ -350,6 +363,18 @@ describe('the Chauffage panel', () => {
       assert.match(text($(el, '.page-menu')), /Ses semaines et ses réglages seront supprimés/);
       $(el, '.page-menu [data-forget-confirm]').click();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/thermostat/forget', entity_id: 'climate.salon' });
+    });
+
+    test('its menus do not follow to another page (going back, the sidebar)', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      $(el, '.toolbar [data-page-menu]').click();
+      $(el, '[data-copy-menu="normal"]').click();
+      for (const path of ['/thermostats', '/thermostats/climate.salon']) { // the list, then back
+        window.history.replaceState(null, '', `/chauffage${path}`);
+        el.route = { prefix: '/chauffage', path };
+      }
+      assert.equal($(el, '.page-menu'), null);
+      assert.equal($(el, '.copy-menu'), null);
     });
 
     test('its ⋮ menu closes with a click elsewhere or Escape', () => {
