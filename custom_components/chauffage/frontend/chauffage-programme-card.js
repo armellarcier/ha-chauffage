@@ -1530,8 +1530,7 @@ function otherPreset(presets, id, next) {
 
 // The card's options that only the Chauffage panel sets, for its pages: a page shows one view, a
 // thermostat's sheet stacks its weeks without their chips, tabs or foot, and saves them together
-const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'chips', 'legend', 'copy_week', 'hint', 'today',
-  'flat', 'paused_note', 'preset_definitions', 'history', 'savebar'];
+const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'week_only', 'flat', 'preset_definitions', 'history'];
 
 // How far a finger moves sideways before it moves a time or a slot (#67), in pixels
 const TOUCH_SLOP = 8;
@@ -2345,8 +2344,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       })
       .join('');
     // Today stands out, except in a week of an inactive schedule stacked under the active one's
-    // (a thermostat's sheet, `today: 'active'`): the active week marks it already
-    const today = days.includes(todayIdx()) && (this._config.today !== 'active' || this._schedule === this._activeSchedule());
+    // (a thermostat's page, `week_only`): the active week marks it already
+    const today = days.includes(todayIdx()) && (!this._config.week_only || this._schedule === this._activeSchedule());
     return `<div class="dgroup${today ? ' today' : ''}">
       <div class="day" data-day="${d}">${esc(this._loc.daysLabel(days))}</div>
       <div class="subs">${subs}</div>
@@ -2455,8 +2454,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   _editorHtml() {
     const t = this._loc.t;
     // In the words of a mouse, or of a finger on a touch screen (CSS)
-    // A thermostat's sheet stacks one card per schedule: it shows the hint once (`hint: false`)
-    const hint = this._config.hint === false ? ''
+    // A thermostat's page stacks one card per schedule: it shows the hint once (`week_only`)
+    const hint = this._config.week_only ? ''
       : `<div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`;
     if (this._overrideSel) return hint + this._overrideEditorHtml();
     if (!this._sel || !this._shown.includes(this._sel.climate)) { this._sel = null; return hint; }
@@ -2733,6 +2732,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const editable = src.editable;
     // On a schedule's sheet (schedule_tabs: 'one'): its tab alone, with its menu, and no new schedule
     const one = this._config.schedule_tabs === 'one';
+    // A week of a thermostat's page: the week alone (`week_only`)
+    const weekOnly = !!this._config.week_only;
     const tabs = (one ? schedules.filter((m) => m === this._schedule) : schedules)
       .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}<span class="tab-name">${esc(this._scheduleName(m))}</span></button>${
         editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
@@ -2776,7 +2777,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
     fill(`
         
-        ${this._config.chips === false ? '' : `<div class="chips${panelOpen ? ' with-open' : ''}">
+        ${weekOnly ? '' : `<div class="chips${panelOpen ? ' with-open' : ''}">
           ${panelOpen}
           ${chips}
           <span class="chip-sep"></span>
@@ -2786,9 +2787,9 @@ class ChauffageProgrammeCard extends HTMLElement {
           <button class="chip tool${this._history.shown ? ' on' : ''}${this._history.loading ? ' loading' : ''}" data-act="history" title="${esc(tr('historyTitle'))}">${esc(tr('history'))}</button>
         </div>`}
         ${this._renamedNotesHtml()}
-        ${this._config.paused_note === false ? '' : this._pausedNotesHtml()}
+        ${weekOnly ? '' : this._pausedNotesHtml()}
         ${this._unscheduledNotesHtml()}
-        ${this._config.schedule_tabs === false ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs"><div class="tabs-wrap"><div class="tabs-scroll">${tabs}</div>${tabsArrow('left')}${tabsArrow('right')}</div>${newTab}</div>`}
+        ${weekOnly ? '' : `${one ? '<div class="no-tabs"></div>' : `<div class="tabs"><div class="tabs-wrap"><div class="tabs-scroll">${tabs}</div>${tabsArrow('left')}${tabsArrow('right')}</div>${newTab}</div>`}
         ${this._schedMenuHtml()}
         ${this._scheduleBarHtml(active)}`}
         <div class="days" style="--day-w:${dayWidth}px">
@@ -2797,24 +2798,24 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>
         ${this._menuHtml()}
         ${this._editorHtml()}
-        <div class="foot"${this._config.legend === false && this._config.copy_week === false ? ' style="display:none"' : ''}>
-          <div class="legend">${this._config.legend === false ? '' : legend}</div>
-          <div class="actions"${this._config.copy_week === false ? ' style="display:none"' : ''}>
+        ${weekOnly ? '' : `<div class="foot">
+          <div class="legend">${legend}</div>
+          <div class="actions">
             <button class="btn copyweek${cw ? ' on' : ''}" data-act="copyweek-menu">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</button>
             ${copyWeekMenu}
           </div>
-        </div>
+        </div>`}
         <div class="msg">${esc(this._msg)}</div>
-        ${this._dirty && this._config.savebar !== false ? `<div class="savebar">
+        ${this._dirty && !weekOnly ? `<div class="savebar">
           <span class="dirty">${esc(tr('unsaved'))}</span>
           <button class="btn" data-act="cancel">${esc(tr('cancel'))}</button>
           <button class="btn primary" data-act="save">${esc(tr('save'))}</button>
         </div>` : ''}`,
       `${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}`);
     this._schedulePlaceEditor();
-    // A week of a thermostat's sheet (`savebar: false`): the sheet's own bar saves it, so the
+    // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
     // sheet hears when it has edits to save
-    if (this._config.savebar === false && this._dirty !== this._dirtyTold) {
+    if (this._config.week_only && this._dirty !== this._dirtyTold) {
       this._dirtyTold = this._dirty;
       this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
     }
@@ -5711,9 +5712,10 @@ class ChauffagePanel extends HTMLElement {
         <div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`);
       for (const id of src.schedules()) {
         part(`<h3 data-fill-schedule="${esc(id)}"></h3>`);
-        this._weekCards[id] = card({ thermostats: [route.id], schedule: id, schedule_tabs: false, chips: false,
-          legend: false, hint: false, group_days: this._groupDays, history: this._historyOn, flat: true,
-          copy_week: false, today: 'active', paused_note: false, savebar: false }, box);
+        // One week alone: no chips, tabs, hint, paused note, legend or save bar (the page has its own),
+        // today marked in the active schedule only
+        this._weekCards[id] = card({ thermostats: [route.id], schedule: id, week_only: true,
+          group_days: this._groupDays, history: this._historyOn, flat: true }, box);
       }
       html('<div data-fill="savebar"></div>');
     } else if (route.list === 'thermostats' && !scheduled) {

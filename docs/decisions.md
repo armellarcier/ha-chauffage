@@ -646,7 +646,7 @@ older one, the older one says so.
   paused, as the *Thermostats* page does.
 - **A paused thermostat's sheet says it is paused once**, in its header. The weeks stacked below
   do not repeat the card's note "… is paused: Chauffage does not control it · Resume" (card
-  option `paused_note: false`). The weeks stay dimmed, as in the card.
+  option `week_only`). The weeks stay dimmed, as in the card.
 - **The tile card relies on an internal of Home Assistant's frontend.** Outside a dashboard, Home
   Assistant's card helpers do not exist yet. The panel loads the dashboards' code to get them
   (`cardHelpers`), so the tile may break when Home Assistant changes that code.
@@ -666,7 +666,7 @@ older one, the older one says so.
   has a *Copy to…* list (*Copier vers…*) of the other schedules. The list copies this thermostat's
   week in this schedule to the schedule chosen. The card's list at the foot of the weeks ("Copy
   Bureau's week to…", every thermostat in every schedule) does not fit a page about one
-  thermostat, so the sheet hides it (card option `copy_week: false`). A schedule's sheet and the
+  thermostat, so the sheet hides it (card option `week_only`). A schedule's sheet and the
   dashboard card keep that list.
   **Amended by the UX review**: each week's heading has a ⋮ button, which opens a
   menu of the other schedules. On the card, a button opens the same kind of menu. Nothing is
@@ -679,7 +679,7 @@ older one, the older one says so.
 - **A week stacked on a thermostat's sheet has no foot**: no legend, no copy list, and no empty
   message line. So the sheet shows no empty space under each week.
 - **On a thermostat's sheet, today stands out only in the active schedule's week** (card option
-  `today: 'active'`). The weeks of the other schedules do not mark today. A schedule's sheet and
+  `week_only`). The weeks of the other schedules do not mark today. A schedule's sheet and
   the dashboard card still mark today.
 - **One *Group days* switch for all the weeks of a thermostat's sheet.** The switch shares its
   choice with the cards. The choice is kept in this browser. The editing hint is shown once.
@@ -809,6 +809,9 @@ A review of every surface, before the merge into `main`, settled these choices.
   second section, the rules, so a floating button would not say which list it adds to.
 - **The card's panel-only options are internal.** The panel passes them to the card in its own
   key, not as options a dashboard could set.
+  The weeks stacked on a thermostat's page take one of them, `week_only`: the week alone, without
+  chips, tabs, hint, paused note, legend or save bar, today marked in the active schedule only.
+  Eight options always set together used to do it.
 
 ### Open questions
 

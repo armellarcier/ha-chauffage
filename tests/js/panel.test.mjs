@@ -466,7 +466,7 @@ describe('the Chauffage panel', () => {
     test('no foot under a stacked week: no legend, no copy list, no hint; the hint once above them', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       for (const card of weeks(el)) {
-        assert.equal($(card, '.foot').style.display, 'none');
+        assert.equal($(card, '.foot'), null);
         assert.equal($(card, '.hint'), null);
         assert.equal($(card, '.tabs'), null);
         assert.equal($(card, '.chips'), null);
@@ -731,7 +731,7 @@ describe('the dashboard card and the panel', () => {
 
   test('a dashboard card ignores the options the panel sets for its own pages', () => {
     const card = document.createElement('chauffage-programme-card');
-    card.setConfig({ thermostats: ['climate.salon', 'climate.bureau'], chips: false, schedule_tabs: false, view: 'presets', panel: true, savebar: false });
+    card.setConfig({ thermostats: ['climate.salon', 'climate.bureau'], week_only: true, schedule_tabs: false, view: 'presets', panel: true });
     document.body.appendChild(card);
     card.hass = setup();
     assert.ok(card.shadowRoot.querySelector('.chips'), 'its chips');
