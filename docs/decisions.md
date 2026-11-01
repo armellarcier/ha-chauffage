@@ -163,6 +163,9 @@ future contributor might question.
   give another schedule (tomorrow's Tempo color), not at their next evaluation. The outcome last
   applied is stored (`rules_choice`), so a choice by hand also survives a restart; saving the rules
   applies them at once. Rules are evaluated once HA has started, when their entities are there.
+  **Amended by the UX review**: saving the rules applies them only when what they give changes, as
+  when their entities change. A schedule chosen by hand stays if the outcome is the same. Two
+  testers lost a *Holiday* chosen by hand when they edited a rule.
 
 ## Scheduled thermostats
 

@@ -63,6 +63,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **Saving the activation rules keeps a schedule you chose by hand** when what the rules give did
+  not change, as the README says. Saving used to activate the rules' schedule every time.
 - **The logbook names the panel.** A schedule activated or an override changed from the panel used
   to say "from the card". The logbook also writes temperatures as your language does (21,5 °C in
   French, 21 °C rather than 21.0 °C), names the day when an override does not end today, and says

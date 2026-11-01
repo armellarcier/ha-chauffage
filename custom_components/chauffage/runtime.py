@@ -639,7 +639,8 @@ class ChauffageRuntime:
     # ----- activation rules -----
 
     async def set_rules(self, rules: Any, default_schedule: Any) -> None:
-        """New activation rules, applied at once (even over a schedule chosen by hand)."""
+        """New activation rules. They activate their schedule when what they give changes, as
+        when their entities change: a schedule chosen by hand stays if the outcome is the same."""
         normalized = model.normalize_rules(rules, default_schedule, self.schedule_ids)
         for rule in normalized:
             try:
@@ -649,7 +650,7 @@ class ChauffageRuntime:
         self.data["rules"], self.data["default_schedule"] = normalized, default_schedule
         self._changed()
         self._track_rules()
-        await self.follow_rules(force=True)
+        await self.follow_rules()
 
     @callback
     def _track_rules(self) -> None:

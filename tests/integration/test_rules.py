@@ -153,6 +153,18 @@ async def test_saving_the_rules_applies_them_at_once_and_they_are_kept(bench: Be
     assert (stored["rules"], stored["default_schedule"]) == ([RED], "normal")
 
 
+async def test_saving_rules_whose_outcome_did_not_change_keeps_a_schedule_chosen_by_hand(bench: Bench):
+    """A user who picked Holiday by hand, then edited a rule, kept losing Holiday: the rules only
+    win when what they give changes, as the README and the panel say."""
+    await start(bench, "red")
+    await set_rules(bench, [RED], "normal")
+    await bench.activate_schedule("Holiday")
+    await set_rules(bench, [RED, {"template": "{{ false }}", "schedule": "normal"}], "normal")  # still away
+    assert active(bench) == "holiday"
+    await set_rules(bench, [{"template": "{{ true }}", "schedule": "normal"}], "normal")  # a new outcome
+    assert active(bench) == "normal"
+
+
 async def test_without_rules_the_schedule_is_only_chosen_by_hand(bench: Bench):
     await start(bench, "blue")
     await set_rules(bench, [RED], "normal")
