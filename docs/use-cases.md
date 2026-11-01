@@ -30,7 +30,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 |---|---|
 | Existing schedules are kept on upgrade | `I/test_schedule_list.py::an_existing_installation_keeps_its_schedules` |
 | Create a schedule empty (eco, or the first preset, all week) or as a copy of another one; the card opens it | `I/test_schedule_list.py::duplicating_*`, `::an_empty_schedule_*`, `::creating_a_schedule_does_not_touch_the_thermostats`, `C/schedules.test.mjs` (the "+" menu) |
-| Rename (stable id shown, active schedule kept), move (not on a schedule's sheet, which shows one tab), delete (with a confirmation; not the active one or the last one) | `I/test_schedule_list.py` (renaming, moving, deleting), `C/schedules.test.mjs` (the "⋮" menu) |
+| Rename (stable id shown, active schedule kept), move (not on a schedule's page, which shows one tab), delete (with a confirmation; not the active one or the last one) | `I/test_schedule_list.py` (renaming, moving, deleting), `C/schedules.test.mjs` (the "⋮" menu) |
 | Names required and unique; unknown ids refused; only admins manage schedules; unsaved weeks saved first | `I/test_schedule_list.py::a_name_must_be_set_and_not_taken`, `::unknown_ids_*`, `::only_admins_manage_schedules`, `C/schedules.test.mjs::unsaved edits *`, `::a name is needed *` |
 | Activating a schedule (card, select, automation) realigns every thermostat | `I/test_schedules.py::activating_a_schedule_applies_its_weeks`, `C/card.test.mjs` (activating a schedule), `C/card-integration.test.mjs::activating a schedule sends its id` |
 | An automation activates a schedule by its stable id, even once renamed; the select's `schedule_id` attribute | `I/test_schedule_list.py::an_automation_activates_a_schedule_by_its_id_*`, `::activating_an_unknown_schedule_says_so` |
@@ -139,7 +139,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Save, cancel; an edit undone saves nothing; a save from an outdated copy is refused; edits in progress are not replaced by changes saved elsewhere; unsaved edits shown by a bar with *Cancel* and *Save*, kept at the bottom of the window (#39), no buttons otherwise | `C/card.test.mjs` (saving), `C/card-integration.test.mjs::a save refused *`, `C/interactions.test.mjs` (edits in progress), `I/test_api.py::saving_from_an_outdated_copy_is_refused` |
 | Chips choose the thermostats shown: a name, with a mark when it is paused, off, missing or on a temporary setpoint (#39); a thermostat listed twice in the configuration is shown once | `C/card.test.mjs` (choosing the displayed thermostats, configuration) |
 | The hint speaks of the mouse, or of the finger on a touch screen | `C/interactions.test.mjs` (the hint under the weeks) |
-| Open in Home Assistant what the card names (#39): a thermostat (chip button, row names, row menu, paused notice, popovers, *Presets* and *Thermostats* views), a schedule's page in the panel (*Open in Chauffage* in its `⋮` menu, on a dashboard), the active schedule (its name in the bar of another schedule shows its tab; in the more-info block, its page in the panel, admins), the integration's page (the *Thermostats* page, admins); no user path needs an entity or the *Chauffage* device | `C/card.test.mjs` (thermostat more-info dialog, activating a schedule), `C/more-info.test.mjs` ("the active schedule's name"), `C/interactions.test.mjs` (row menu), `C/schedules.test.mjs::opens the schedule's page *`, `C/thermostats-view.test.mjs`, `C/card-integration.test.mjs` (Presets view) |
+| Open in Home Assistant what the card names (#39): a thermostat (chip button, row names, row menu, paused notice, popovers, *Presets* and *Thermostats* views), a schedule's page in the panel (*Open in Chauffage* in its `⋮` menu, on a dashboard), the active schedule (its name in the bar of another schedule shows its tab; in the more-info block, its page in the panel, admins), the integration's page (the *Thermostats* tab, admins); no user path needs an entity or the *Chauffage* device | `C/card.test.mjs` (thermostat more-info dialog, activating a schedule), `C/more-info.test.mjs` ("the active schedule's name"), `C/interactions.test.mjs` (row menu), `C/schedules.test.mjs::opens the schedule's page *`, `C/thermostats-view.test.mjs`, `C/card-integration.test.mjs` (Presets view) |
 | A thermostat shown with its own name or the card's; a name made of pieces (area, device) as HA makes it (2025.10+), its own name before | `C/card.test.mjs` (names of the thermostats) |
 | The page keeps its scroll when a card is redrawn (a menu, a slot, a view opened): the same frame (`ha-card`), filled again | `C/card.test.mjs::a redraw keeps the same ha-card *`, `C/thermostat-card.test.mjs::a redraw keeps the same ha-card *` |
 | Error messages (save, override, schedule, presets) | `C/interactions.test.mjs` (error messages) |
@@ -169,7 +169,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Schedule and override block injected in a scheduled thermostat's dialog only | `C/interactions.test.mjs` (the more-info dialog) |
 | Its week (and the thermostat card's) shows identical days on one row, or each day with `group_days: false` (#11) | `C/grouped-days.test.mjs` (the week in the more-info block) |
 | The active schedule's name, current and next slot, override, +30 min, drag its end, end time field (typed to the minute, sent on Enter or on leaving it, even after a tap outside the card; kept through the redraws while typed; a time not whole shown again as it was; arrow keys by the hour or the step; small arrows by the step; moved by the arrows, the end moves by as much (before now: a step after now, not tomorrow; in three days: still in three days); in the card's popover and the thermostat card too), resume | `C/more-info.test.mjs`, `C/interactions.test.mjs` (dragging the end, the end time field), `C/thermostat-card.test.mjs` |
-| At the foot of the block: *Edit its week* for admins only, which opens the thermostat's page on its week in the active schedule (the week shown in the block too), scrolled to it and marked a moment, and *Pause*, or *Control* in its place, for anyone who may control the thermostat, as with its *Control* switch (not a second "Resume"); no link to the thermostat's entities or devices, which the device's page and the panel's sheet list | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
+| At the foot of the block: *Edit its week* for admins only, which opens the thermostat's page on its week in the active schedule (the week shown in the block too), scrolled to it and marked a moment, and *Pause*, or *Control* in its place, for anyone who may control the thermostat, as with its *Control* switch (not a second "Resume"); no link to the thermostat's entities or devices, which the device's page and the panel's page list | `C/more-info.test.mjs` (the foot of the block), `C/paused.test.mjs` (the more-info block) |
 | Until when the planned preset really lasts and what comes next, as the planned preset sensor says: the next different preset, even on another day ("Eco until 06:30 (tomorrow), then Comfort", a weekend, "Eco all week"); sent again to the cards when it changes | `I/test_api.py::the_card_is_told_*`, `C/more-info.test.mjs` (until when the preset lasts, the next day, a weekend, all week), `C/i18n.test.mjs` (the more-info block in English) |
 
 ## Entities and API
@@ -225,66 +225,66 @@ are proved by the same tests, on the panel's page.
 | A dashboard card ignores the options the panel sets for its own pages, for example `week_only: true` or `view: presets` written in its YAML | `C/panel.test.mjs` ("a dashboard card ignores the options") |
 | On a dashboard, an admin opens the Chauffage panel from the schedule card's top right, a button with Chauffage's icon | `C/panel.test.mjs` ("admins open the panel from the card's top right") |
 | On a dashboard, the legend of the schedule card's presets ends, for an admin, with *Set the presets*, which opens the panel's *Presets* tab; no other link to the panel; a non-admin sees none | `C/panel.test.mjs` ("the dashboard card and the panel") |
-| A list shows the panel's tabs (*Thermostats*, *Schedules*, *Presets*) and Home Assistant's menu button; a sheet shows no tabs, a breadcrumb title whose list is a link | `C/panel.test.mjs` ("lists and sheets") |
-| `/chauffage/rules` opens the *Schedules* page, where the rules are | `C/panel.test.mjs` ("its addresses") |
-| The first prototype's address of a thermostat (`/chauffage/<climate>`) redirects to its sheet | `C/panel.test.mjs` ("its addresses") |
+| A list shows the panel's tabs (*Thermostats*, *Schedules*, *Presets*) and Home Assistant's menu button; a page shows no tabs, a breadcrumb title whose list is a link | `C/panel.test.mjs` ("lists and sheets") |
+| `/chauffage/rules` opens the *Schedules* tab, where the rules are | `C/panel.test.mjs` ("its addresses") |
+| The first prototype's address of a thermostat (`/chauffage/<climate>`) redirects to its page | `C/panel.test.mjs` ("its addresses") |
 | A renamed thermostat's address redirects to its new id | `C/panel.test.mjs` ("its addresses") |
-| A deleted schedule's sheet goes back to the list of schedules | `C/panel.test.mjs` ("its addresses") |
+| A deleted schedule's page goes back to the list of schedules | `C/panel.test.mjs` ("its addresses") |
 | The panel does not redirect before Home Assistant gives it its address | `C/panel.test.mjs` ("no redirect before Home Assistant gives the address") |
 
 ### The panel's pages
 
 | Use case | Test |
 |---|---|
-| An admin activates a schedule from the *Schedules* page, which shows the active one with a badge | `C/panel.test.mjs` ("the Schedules page") |
-| The *Schedules* page lists the schedules as the *Thermostats* page lists the thermostats: the whole row opens the schedule's sheet, its chevron included; its ⋮ activates it, renames it, moves it up or down, deletes it | `C/panel.test.mjs` ("the Schedules page") |
-| An admin creates a schedule from the *Schedules* page, as with the card's +: empty or a copy, its name checked; then its sheet opens | `C/panel.test.mjs` ("+ New schedule creates") |
-| The *Schedules* page shows the activation rules below the schedules | `C/panel.test.mjs` ("shows the activation rules"), `C/rules.test.mjs` |
-| The *Thermostats* page lists every scheduled thermostat by name; only a paused one has a badge, *Paused*; the whole row opens the thermostat's sheet, its chevron included, as on the integration's page , or with Enter or Space from the keyboard | `C/thermostats-view.test.mjs` ("lists every scheduled thermostat", "the whole row opens") |
-| The *Thermostats* page shows where each thermostat is shown ("Shown in *dashboard* › *view*", a link), found in cards nested in stacks, sections or conditional cards; a generated dashboard shows none | `C/thermostats-view.test.mjs` ("says where the dashboards show each thermostat") |
-| An admin schedules another thermostat from the *Thermostats* page: it gets the week of a new schedule in every schedule | `C/thermostats-view.test.mjs` ("schedules another thermostat") |
-| An admin forgets a thermostat from the *Thermostats* page after confirming, whatever the cards show; cancelling keeps it | `C/thermostats-view.test.mjs` ("forgets any thermostat", "the confirmation can be cancelled") |
+| An admin activates a schedule from the *Schedules* tab, which shows the active one with a badge | `C/panel.test.mjs` ("the Schedules page") |
+| The *Schedules* tab lists the schedules as the *Thermostats* tab lists the thermostats: the whole row opens the schedule's page, its chevron included; its ⋮ activates it, renames it, moves it up or down, deletes it | `C/panel.test.mjs` ("the Schedules page") |
+| An admin creates a schedule from the *Schedules* tab, as with the card's +: empty or a copy, its name checked; then its page opens | `C/panel.test.mjs` ("+ New schedule creates") |
+| The *Schedules* tab shows the activation rules below the schedules | `C/panel.test.mjs` ("shows the activation rules"), `C/rules.test.mjs` |
+| The *Thermostats* tab lists every scheduled thermostat by name; only a paused one has a badge, *Paused*; the whole row opens the thermostat's page, its chevron included, as on the integration's page , or with Enter or Space from the keyboard | `C/thermostats-view.test.mjs` ("lists every scheduled thermostat", "the whole row opens") |
+| The *Thermostats* tab shows where each thermostat is shown ("Shown in *dashboard* › *view*", a link), found in cards nested in stacks, sections or conditional cards; a generated dashboard shows none | `C/thermostats-view.test.mjs` ("says where the dashboards show each thermostat") |
+| An admin schedules another thermostat from the *Thermostats* tab: it gets the week of a new schedule in every schedule | `C/thermostats-view.test.mjs` ("schedules another thermostat") |
+| An admin forgets a thermostat from the *Thermostats* tab after confirming, whatever the cards show; cancelling keeps it | `C/thermostats-view.test.mjs` ("forgets any thermostat", "the confirmation can be cancelled") |
 | The ⋮ of a thermostat's row opens a floating menu, as every ⋮ of the card, closed by ⋮ again, a click elsewhere or Escape: an admin pauses the thermostat or gives it back to Chauffage (*Control*), opens the thermostat and its devices, each named by its name and model, or forgets it | `C/thermostats-view.test.mjs` ("its ⋮ opens a floating menu", "its menu closes", "pauses a controlled thermostat") |
-| A thermostat's sheet shows the thermostat's tile, *Pause* or *Control*, *Paused* when it is, where it is shown, and its devices by name and model | `C/panel.test.mjs` ("its header") |
-| A thermostat's sheet shows its presets side by side as the legend of its weeks, one item per preset (its name, its value here, where it comes from), not a table of one row; the presets' definitions stay on the *Presets* tab | `C/panel.test.mjs` ("its presets first") |
-| A preset of a thermostat's sheet opens the editor of what it does on this thermostat | `C/panel.test.mjs` ("a preset of the list") |
-| A thermostat's sheet shows its week in every schedule, under *Weeks*, each headed by the schedule's name (a link to its sheet), the active one marked | `C/panel.test.mjs` ("its week in every schedule") |
-| Copy a thermostat's week to another schedule from the ⋮ menu of the week's heading on its sheet (closed by a click elsewhere or Escape): the target week shows the copy at once, unsaved, and the sheet's save bar names it ("The *Normal* week copied here"); the source week asks for nothing | `C/panel.test.mjs` ("copying a week to another schedule") |
-| A thermostat's sheet does not move while the cards that show it load: their line says "Shown in …" meanwhile | `C/panel.test.mjs` ("holds its place while they load") |
-| Leaving a thermostat's sheet with weeks not saved yet, by a link of the page: the save bar asks first (*Stay*, *Leave without saving*, *Save and leave*); closing or reloading the browser's page asks too | `C/panel.test.mjs` ("leaving the sheet with weeks not saved yet") |
-| A thermostat's sheet has one save bar for all its weeks, at the bottom of the window: it names the weeks not saved yet, in the order of the schedules; *Save* sends them in one call, each schedule's own week, against the thermostat's revision; a save refused because the weeks changed elsewhere says so and keeps the edits; *Cancel* puts every week back | `C/panel.test.mjs` ("one save bar for the whole sheet", "its Save sends", "its Save refused", "its Cancel") |
-| Copy a day in one schedule's week of a thermostat's sheet, then paste it in another schedule's week | `C/panel.test.mjs` ("a day copied in one schedule's week") |
+| A thermostat's page shows the thermostat's tile, *Pause* or *Control*, *Paused* when it is, where it is shown, and its devices by name and model | `C/panel.test.mjs` ("its header") |
+| A thermostat's page shows its presets side by side as the legend of its weeks, one item per preset (its name, its value here, where it comes from), not a table of one row; the presets' definitions stay on the *Presets* tab | `C/panel.test.mjs` ("its presets first") |
+| A preset of a thermostat's page opens the editor of what it does on this thermostat | `C/panel.test.mjs` ("a preset of the list") |
+| A thermostat's page shows its week in every schedule, under *Weeks*, each headed by the schedule's name (a link to its page), the active one marked | `C/panel.test.mjs` ("its week in every schedule") |
+| Copy a thermostat's week to another schedule from the ⋮ menu of the week's heading on its page (closed by a click elsewhere or Escape): the target week shows the copy at once, unsaved, and the page's save bar names it ("The *Normal* week copied here"); the source week asks for nothing | `C/panel.test.mjs` ("copying a week to another schedule") |
+| A thermostat's page does not move while the cards that show it load: their line says "Shown in …" meanwhile | `C/panel.test.mjs` ("holds its place while they load") |
+| Leaving a thermostat's page with weeks not saved yet, by a link of the page: the save bar asks first (*Stay*, *Leave without saving*, *Save and leave*); closing or reloading the browser's page asks too | `C/panel.test.mjs` ("leaving the sheet with weeks not saved yet") |
+| A thermostat's page has one save bar for all its weeks, at the bottom of the window: it names the weeks not saved yet, in the order of the schedules; *Save* sends them in one call, each schedule's own week, against the thermostat's revision; a save refused because the weeks changed elsewhere says so and keeps the edits; *Cancel* puts every week back | `C/panel.test.mjs` ("one save bar for the whole page", "its Save sends", "its Save refused", "its Cancel") |
+| Copy a day in one schedule's week of a thermostat's page, then paste it in another schedule's week | `C/panel.test.mjs` ("a day copied in one schedule's week") |
 | A second copy replaces the first one, whatever week it comes from; only the day copied last stands out as copied | `C/panel.test.mjs` ("a second copy replaces the first one", "only the day copied last") |
 | Copy a week that has edits not saved yet: the target gets the week as shown, and the source keeps its own edits, still to save | `C/panel.test.mjs` ("a week with edits not saved yet") |
-| A week stacked on a thermostat's sheet has no foot (no legend, no copy menu, no empty message line), no tabs and no chips; the hint is shown once above the weeks | `C/panel.test.mjs` ("no foot under a stacked week") |
-| A schedule's sheet and the dashboard card keep the card's menu to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |
-| On a thermostat's sheet, today stands out only in the active schedule's week; a schedule's sheet still marks today | `C/panel.test.mjs` ("today stands out only", "keeps the card's list") |
+| A week stacked on a thermostat's page has no foot (no legend, no copy menu, no empty message line), no tabs and no chips; the hint is shown once above the weeks | `C/panel.test.mjs` ("no foot under a stacked week") |
+| A schedule's page and the dashboard card keep the card's menu to copy a week | `C/panel.test.mjs` ("keeps the card's list to copy a week") |
+| On a thermostat's page, today stands out only in the active schedule's week; a schedule's page still marks today | `C/panel.test.mjs` ("today stands out only", "keeps the card's list") |
 | The *Pause* button keeps its place when it turns into *Control*: the badge comes after it | `C/panel.test.mjs` ("Pause sends the pause") |
-| A thermostat's sheet says *Paused* in its header when it is; a paused thermostat's sheet says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
-| Ungrouping the days on a thermostat's sheet applies to every schedule, and is remembered in the browser with the cards' choice; the sheet's choice wins over the one remembered | `C/panel.test.mjs` ("ungrouping the days") |
-| A thermostat's sheet has the card's *History* switch, for all its weeks; grouping the days hides the history; a history turned on in a card does not stop the sheet from grouping the days | `C/panel.test.mjs` ("the history has its own switch") |
+| A thermostat's page says *Paused* in its header when it is; a paused thermostat's page says it once, not under each of its weeks | `C/panel.test.mjs` ("its header", "a paused thermostat") |
+| Ungrouping the days on a thermostat's page applies to every schedule, and is remembered in the browser with the cards' choice; the page's choice wins over the one remembered | `C/panel.test.mjs` ("ungrouping the days") |
+| A thermostat's page has the card's *History* switch, for all its weeks; grouping the days hides the history; a history turned on in a card does not stop the page from grouping the days | `C/panel.test.mjs` ("the history has its own switch") |
 | Outside the panel, the choice of grouping remembered in the browser wins over the card's option | `C/panel.test.mjs` ("outside the panel") |
-| A schedule's sheet shows every thermostat's week in that schedule, without tabs (the breadcrumb names it) and no "+"; the page's ⋮, next to the breadcrumb, renames or deletes the schedule, and does not move it | `C/panel.test.mjs` ("a schedule's sheet") |
-| A thermostat's sheet has its ⋮ next to the breadcrumb: open the thermostat, or forget it after a confirmation; the menu closes with a click elsewhere or Escape | `C/panel.test.mjs` ("its ⋮, next to the breadcrumb, opens the thermostat", "its ⋮ menu closes") |
+| A schedule's page shows every thermostat's week in that schedule, without tabs (the breadcrumb names it) and no "+"; the page's ⋮, next to the breadcrumb, renames or deletes the schedule, and does not move it | `C/panel.test.mjs` ("a schedule's sheet") |
+| A thermostat's page has its ⋮ next to the breadcrumb: open the thermostat, or forget it after a confirmation; the menu closes with a click elsewhere or Escape | `C/panel.test.mjs` ("its ⋮, next to the breadcrumb, opens the thermostat", "its ⋮ menu closes") |
 
 ### Welcoming a new user
 
 | Use case | Test |
 |---|---|
-| The panel's tabs are *Thermostats*, *Schedules*, *Presets*; `/chauffage` opens *Thermostats* | `C/panel.test.mjs` ("lists and sheets", "its addresses") |
-| A new user, with no thermostat scheduled, is welcomed on the *Thermostats* page: what Chauffage does in a sentence, and every `climate` entity to tick, none ticked | `C/panel.test.mjs` ("welcoming a new user") |
+| The panel's tabs are *Thermostats*, *Schedules*, *Presets*; `/chauffage` opens *Thermostats* | `C/panel.test.mjs` ("lists and pages", "its addresses") |
+| A new user, with no thermostat scheduled, is welcomed on the *Thermostats* tab: what Chauffage does in a sentence, and every `climate` entity to tick, none ticked | `C/panel.test.mjs` ("welcoming a new user") |
 | The welcome schedules the thermostats ticked, all at once (*Schedule 2 thermostats*); the button waits for one ticked, and the welcome says the thermostats follow the week of a new schedule at once | `C/panel.test.mjs` ("welcoming a new user") |
 | With no `climate` entity at all, the welcome says so and links to Settings → Devices & services | `C/panel.test.mjs` ("welcoming a new user") |
-| Once the first thermostats are scheduled, the *Thermostats* page says what to do next, until the user closes it (remembered in the browser) | `C/panel.test.mjs` ("welcoming a new user") |
-| Before the first thermostat, the *Schedules* and *Presets* pages say so, with a link to the *Thermostats* tab | `C/panel.test.mjs` ("welcoming a new user") |
+| Once the first thermostats are scheduled, the *Thermostats* tab says what to do next, until the user closes it (remembered in the browser) | `C/panel.test.mjs` ("welcoming a new user") |
+| Before the first thermostat, the *Schedules* and *Presets* tabs say so, with a link to the *Thermostats* tab | `C/panel.test.mjs` ("welcoming a new user") |
 
 ### The more-info block and the thermostat card
 
 | Use case | Test |
 |---|---|
-| The more-info block and the thermostat card open the thermostat's sheet with "Open in *panel*", named as the panel is in the sidebar | `C/panel.test.mjs` ("its link says \"Open in\" the panel") |
-| From the more-info dialog, a link to the thermostat's sheet or to a device closes the dialog, then opens the page once the dialog has left the address | `C/panel.test.mjs` ("a page opens once the dialog is closed"), `C/more-info.test.mjs` ("Open in Chauffage opens the thermostat's page") |
-| The thermostat card of a thermostat Chauffage does not schedule says that an admin can schedule it in the panel's *Thermostats* page | `C/thermostat-card.test.mjs` |
+| The more-info block and the thermostat card open the thermostat's page with "Open in *panel*", named as the panel is in the sidebar | `C/panel.test.mjs` ("its link says \"Open in\" the panel") |
+| From the more-info dialog, a link to the thermostat's page or to a device closes the dialog, then opens the page once the dialog has left the address | `C/panel.test.mjs` ("a page opens once the dialog is closed"), `C/more-info.test.mjs` ("Open in Chauffage opens the thermostat's page") |
+| The thermostat card of a thermostat Chauffage does not schedule says that an admin can schedule it in the panel's *Thermostats* tab | `C/thermostat-card.test.mjs` |
 
 ## Not covered by automated tests
 
@@ -301,10 +301,10 @@ are proved by the same tests, on the panel's page.
   day's name beside its rows from 700 px, above them below; checked on the development HA at
   several window widths. The rules of the stylesheet are tested in `C/grouped-days.test.mjs`
   (the width of the card).
-- The layout of a thermostat's sheet in the panel (#57): the tile top right on a wide screen and
+- The layout of a thermostat's page in the panel (#57): the tile top right on a wide screen and
   first on a phone, the presets fitting the width at 360 px without scrolling, the *Paused* badge
   in the warning color: checked on the development HA.
-- The tile card at the top of a thermostat's sheet in the panel (#57): the panel loads
+- The tile card at the top of a thermostat's page in the panel (#57): the panel loads
   Home Assistant's card helpers through an internal of its frontend. Check it on the development
   HA after each Home Assistant release.
 - Two copies of the card loaded at once (a copy left in `www/` by the v0.1 package, and the
