@@ -6081,7 +6081,7 @@ const PANEL_CSS = `
   h2 { margin:20px 8px 8px; font-size:16px; font-weight:500; }
   h3 { margin:16px 8px 6px; font-size:14px; font-weight:500; color:var(--secondary-text-color); }
   /* The week a link led to ("Edit its week"), marked a moment */
-  h3.arrived { animation:arrived 2.5s ease-out; border-radius:6px; scroll-margin-top:72px; }
+  h3.arrived { animation:arrived 2.5s ease-out; scroll-margin-top:72px; }
   @keyframes arrived { from { background:rgba(var(--rgb-primary-color, 3, 169, 244), .25); color:var(--primary-color); } }
   h3 [role="link"] { cursor:pointer; }
   h3 [role="link"]:hover { color:var(--primary-color); text-decoration:underline; }
