@@ -14,6 +14,10 @@ thermostats without presets, thermostats with presets, and
 **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**. ha-chauffage is
 an independent project, not affiliated with Versatile Thermostat.
 
+**When you change a setpoint by hand.** Chauffage keeps your setpoint until the next slot, at
+most 2 hours. Say you raise the living room to 22 °C at 21:30, and eco starts at 22:30. The
+living room goes back to eco at 22:30. [Overrides](#overrides) says how to keep it longer.
+
 - **Schedules.** You create and name as many schedules as you need, for example *Normal*,
   *Remote work* or *Holidays*. Each schedule holds a week for each thermostat. One schedule is
   active at a time, and you can switch it from the card or from an automation.
@@ -25,11 +29,8 @@ an independent project, not affiliated with Versatile Thermostat.
 - **A Chauffage panel to set everything up.** Administrators find *Chauffage* in the sidebar.
   The panel holds the schedules and their activation rules, the thermostats and the presets.
   Each thermostat has its own page there, with its week in every schedule.
-- **Temporary overrides.** If you change a setpoint by hand, Chauffage keeps it for 2 hours
-  (configurable), then goes back to the schedule. You can see and adjust the override from the
-  card.
-
-  The override ends as soon as you set the thermostat back to the planned setpoint.
+- **Temporary overrides.** You can see and adjust each override from the card, and start one
+  for as long as you need.
 
 > The project's name is French: *chauffage* means heating. The integration and the card speak
 > English and French.
@@ -360,8 +361,19 @@ The [roadmap](ROADMAP.md) says what comes next, for example groups of thermostat
 
 ## Overrides
 
-An override is a temporary change on one thermostat. An override lasts 2 hours by default. You
-can change this duration in the [options](#options).
+**Your thermostat went back to its schedule?** You changed its setpoint by hand, and Chauffage
+kept your change for a while only. Chauffage calls this temporary change an *override*.
+
+**How long a change by hand lasts.** Your change lasts until the next slot that changes the
+thermostat's setpoint, and 2 hours at most. For example, you raise the office at 18:30, and its
+next slot is at 6:00: the office goes back to its schedule at 20:30. A slot that starts less
+than 30 minutes after your change does not count. The card says why the override ends then,
+next to its end: *next slot* or *after 2 h*.
+
+**Keep a change longer.** Set the end of the override on the card, or in the thermostat's
+more-info dialog. For example, set it to tomorrow 18:00. An end that you choose stays: the
+next slots don't end the override. You can also change the 2 hours, or keep every change by hand
+for the whole duration, in the [options](#options).
 
 ### Start an override
 
@@ -369,6 +381,7 @@ can change this duration in the [options](#options).
   Assistant. Chauffage makes your change an override.
 - **From the card**, or from the thermostat's more-info dialog. Choose a preset or a
   temperature, and an end. Every user can, not only administrators, as with the knob.
+  A new override lasts the override duration. Then you can change its end.
 - **From an automation**, with the `chauffage.set_override` action.
 
 A change made by an automation does not start an override. A command that a battery valve
@@ -515,7 +528,11 @@ actions:
 
 To change the options, go to Settings → Devices & services → Chauffage → *Configure*.
 
-- **Override duration.** 2 hours by default.
+- **Override duration.** How long a setpoint changed by hand lasts, at most. 2 hours by default.
+  A new override started from the card lasts this long too.
+- **End of a change by hand.** *At the next slot, at the latest after the duration* by default.
+  The override of a change by hand ends earlier if a slot changes the thermostat's setpoint first.
+  Choose *After the duration* to keep every change by hand for the whole duration.
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
   every thermostat with temperatures, and you set all of them in the card.
 - **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
@@ -579,10 +596,10 @@ and when weeks are saved. The scheduler leaves alone a thermostat that has an ov
 or is unavailable. An unreachable valve does not stop the other thermostats.
 
 **Manual changes.** A setpoint changed by hand, or a preset that a user chooses, becomes an
-override. Going back to what the slot asks for ends the override. Chauffage ignores its own
-changes, thanks to their context, and the changes made by automations. Chauffage also ignores a
-command that a battery valve applies late: Chauffage remembers the commands not yet applied for
-a day.
+override, until the next slot or the end of the override duration. Going back to what the slot
+asks for ends the override. Chauffage ignores its own changes, thanks to their context, and the
+changes made by automations. Chauffage also ignores a command that a battery valve applies late:
+Chauffage remembers the commands not yet applied for a day.
 
 **The card.** The integration serves the card and loads it on every page, for the card and the
 block in the more-info dialog. The card talks to the integration over the websocket API, for

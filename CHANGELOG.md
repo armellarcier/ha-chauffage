@@ -9,6 +9,34 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+- **A setpoint changed by hand may now end earlier** (#83). Before, Chauffage kept it for the
+  whole override duration, 2 hours by default. Now the override ends at the next slot that
+  changes the thermostat's setpoint, if that slot comes first. To keep the old behavior, choose
+  *After the duration* for the new option *End of a change by hand*, in Settings → Devices &
+  services → Chauffage → *Configure*.
+
+No stored data is migrated. An override started before the upgrade keeps its end.
+
+### Changed
+
+- **A setpoint changed by hand lasts until the next slot, at most 2 hours** (#83). Say you raise
+  the living room at 21:30, and eco starts at 22:30: the living room goes back to eco at 22:30,
+  not at 23:30. A slot that starts less than 30 minutes after your change does not count, and
+  neither does a slot that gives the thermostat the same setpoint. An end that you choose on the
+  card, or that an automation gives to `chauffage.set_override`, stays as it is.
+
+### Added
+
+- **The option *End of a change by hand*** (#83). *At the next slot, at the latest after the
+  duration* is the default. *After the duration* keeps every change by hand for the whole
+  override duration.
+- **The override block says why the override ends then** (#83): *next slot* or *after 2 h*. You
+  find the block in the thermostat's more-info dialog, on the thermostat card, and in the card's
+  override popover.
+- **The panel's next steps say what a change by hand does** (#83), with a link to the options.
+
 ## [0.8.0-beta.3] - 2026-11-01
 
 The third beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57), with

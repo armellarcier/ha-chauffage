@@ -57,7 +57,35 @@ future contributor might question.
   already has that value: the thermostat coming back to it by itself does not end an override
   held past the next slots. A slot change never ends an override, even to a slot with the
   override's value: an override set for a day during the first comfort slot must still hold
-  when the next eco slot starts.
+  when the next eco slot starts. **Amended by #83**: the end of a change by hand is computed
+  from the next slot when the override starts (see below). Once computed, the end is an end like
+  any other, and a slot change still never ends an override.
+- **A change by hand ends at the next slot, at the latest after the override duration** (#83).
+  A fixed duration failed in a common case: the living room raised at 21:30, during a comfort
+  slot that ends at 22:30, heated until 23:30. A classic thermostat keeps a change until the next
+  scheduled change, but that rule fails in another case: the office turned up at 18:30, whose
+  next slot is at 6:00, would heat all night. So the override of a change by hand ends at the
+  first of the two. The rule only sets the default end of a change detected on the thermostat.
+  An end chosen on the card, in the panel or given to `chauffage.set_override` is the user's
+  choice, so it stays: an override set until tomorrow 18:00 must hold through the night's slots.
+  The option *End of a change by hand* brings back the fixed duration. The rule is the default,
+  because it is what most users expect of a thermostat.
+  - **A slot starting less than 30 minutes after the change does not count.** Raised at 17:28,
+    with comfort at 17:30, the override would last 2 minutes: the user would see their change
+    undone at once. The next slot that changes the target counts instead.
+  - **A slot giving the same target as the slot before it does not count.** Such a slot changes
+    nothing on the thermostat, so it is not a "scheduled change". The target is compared on
+    this thermostat: two presets at the same temperature give the same target. The same preset
+    on both sides of midnight is one slot.
+  - **The end is computed once, when the override starts, from the active schedule.** A schedule
+    activated later does not move the end. Recomputing it would make the end of an override
+    jump without anyone touching the thermostat, and the stored end would no longer be the
+    truth. A new change by hand computes a new end.
+  - **The override says why it ends then**, in an optional `ends_at` key: `next_slot` or
+    `duration`. The card shows "next slot" or "after 2 h" from it. The key is optional, so the
+    stored format needs no migration: an override stored before #83 simply shows no reason. An
+    end changed on the card drops the key, because the end is then the user's choice. A new
+    value keeps it, with the same end.
 - **Holding the slot's preset past the next slots is done from the card**, not by hand: the
   override popover (opened on an override, or from today's row menu, "Temporary setpoint…"),
   and the block in the thermostat's more-info dialog, create an override or change its value (a

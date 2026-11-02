@@ -14,6 +14,11 @@ fonctionne avec les thermostats sans préréglages, avec préréglages, et avec
 **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**. ha-chauffage est
 un projet indépendant, sans lien avec Versatile Thermostat.
 
+**Quand vous changez une consigne à la main.** Chauffage garde votre consigne jusqu'au prochain
+créneau, 2 heures au plus. Vous montez le salon à 22 °C à 21 h 30, et l'éco commence à
+22 h 30 ? Le salon repasse en éco à 22 h 30. [Dérogations](#dérogations) explique comment la
+garder plus longtemps.
+
 - **Plannings.** Vous créez autant de plannings que nécessaire, par exemple *Normal*,
   *Télétravail* ou *Vacances*. Chaque planning contient une semaine par thermostat. Un seul
   planning est actif à la fois, et vous en changez depuis la carte ou par une automatisation.
@@ -26,11 +31,8 @@ un projet indépendant, sans lien avec Versatile Thermostat.
   barre latérale. Le panneau rassemble les plannings et leurs règles d'activation, les
   thermostats et les préréglages. Chaque thermostat y a sa propre page, avec sa semaine dans
   chaque planning.
-- **Dérogations.** Si vous changez une consigne à la main, Chauffage la garde 2 heures
-  (réglable), puis revient au planning. Vous pouvez voir et modifier la dérogation depuis la
-  carte.
-
-  La dérogation s'arrête dès que vous remettez le thermostat sur la consigne prévue.
+- **Dérogations.** Vous voyez et modifiez chaque dérogation depuis la carte. Vous pouvez aussi
+  en créer une, pour le temps qu'il vous faut.
 
 ## Installation
 
@@ -380,8 +382,22 @@ La [feuille de route](ROADMAP.fr.md) présente la suite, par exemple les groupes
 
 ## Dérogations
 
-Une dérogation est un changement temporaire sur un thermostat. Une dérogation dure 2 heures par
-défaut. Vous pouvez changer cette durée dans les [options](#options).
+**Votre thermostat a repris son planning ?** Vous avez changé sa consigne à la main, et
+Chauffage n'a gardé votre changement qu'un temps. Chauffage appelle ce changement temporaire une
+*dérogation*.
+
+**Combien de temps dure un changement à la main.** Votre changement dure jusqu'au prochain
+créneau qui change la consigne du thermostat, et 2 heures au plus. Par exemple, vous montez le
+bureau à 18 h 30, et son prochain créneau est à 6 h : le bureau reprend son planning à 20 h 30.
+Un créneau qui commence moins de 30 minutes après votre changement ne compte pas. La carte dit
+pourquoi la dérogation s'arrête à ce moment, à côté de sa fin : *prochain créneau* ou *au bout
+de 2 h*.
+
+**Garder un changement plus longtemps.** Réglez la fin de la dérogation sur la carte, ou dans la
+fenêtre de détail du thermostat. Par exemple, réglez-la sur demain 18 h. Une fin que vous
+choisissez reste : les créneaux suivants n'arrêtent pas la dérogation. Dans les
+[options](#options), vous pouvez aussi changer les 2 heures, ou garder chaque changement à la
+main pendant toute la durée.
 
 ### Créer une dérogation
 
@@ -390,6 +406,8 @@ défaut. Vous pouvez changer cette durée dans les [options](#options).
 - **Depuis la carte**, ou depuis la fenêtre de détail du thermostat. Choisissez un préréglage ou
   une température, et une fin. Tous les utilisateurs le peuvent, pas seulement les
   administrateurs, comme avec la molette.
+  Une nouvelle dérogation dure le temps réglé dans les options. Vous pouvez ensuite changer sa
+  fin.
 - **Depuis une automatisation**, avec l'action `chauffage.set_override`.
 
 Un changement fait par une automatisation ne crée pas de dérogation. Une commande qu'une vanne à
@@ -543,7 +561,12 @@ actions:
 Pour changer les options, allez dans Paramètres → Appareils et services → Chauffage →
 *Configurer*.
 
-- **Durée des dérogations.** 2 heures par défaut.
+- **Durée des dérogations.** Combien de temps dure une consigne changée à la main, au plus.
+  2 heures par défaut. Une dérogation créée depuis la carte dure aussi ce temps.
+- **Fin d'un changement à la main.** *Au prochain créneau, au plus tard après la durée* par
+  défaut. La dérogation d'un changement à la main s'arrête plus tôt si un créneau change la
+  consigne du thermostat avant. Choisissez *Après la durée* pour garder chaque changement à la
+  main pendant toute la durée.
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Si vous la désactivez,
   Chauffage pilote tous les thermostats en température, et vous réglez toutes les températures
   dans la carte.
@@ -610,7 +633,8 @@ planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat 
 éteint ou indisponible. Une vanne injoignable ne bloque pas les autres thermostats.
 
 **Les changements manuels.** Une consigne changée à la main, ou un préréglage choisi par un
-utilisateur, devient une dérogation. Revenir à ce que demande le créneau arrête la dérogation.
+utilisateur, devient une dérogation, jusqu'au prochain créneau ou la fin de la durée des
+dérogations. Revenir à ce que demande le créneau arrête la dérogation.
 Chauffage ignore ses propres changements, grâce à leur contexte, et ceux des automatisations.
 Chauffage ignore aussi une commande qu'une vanne à pile applique en retard : il garde en mémoire
 pendant un jour les commandes pas encore appliquées.
