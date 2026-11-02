@@ -161,6 +161,11 @@ def test_no_next_slot_before_the_limit():
     assert next_change(until=at("22:30")) is None
 
 
+def test_no_next_slot_in_a_week_on_a_single_preset():
+    weeks = {"climate.salon": {"normal": [[["00:00", "eco"]]] * 7}}
+    assert next_change(weeks=weeks, until=at("18:00", day=10)) is None
+
+
 def test_a_slot_of_an_unknown_preset_changes_nothing():
     weeks = {"climate.salon": {"normal": [[["00:00", "eco"], ["19:00", "gone"], ["20:00", "comfort"]]] * 7}}
     assert next_change(weeks=weeks) == at("20:00")
