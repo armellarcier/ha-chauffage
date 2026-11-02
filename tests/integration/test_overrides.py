@@ -94,7 +94,9 @@ async def test_a_thermostat_added_to_the_schedules_is_watched_without_configurat
 # ----- during an override -----
 
 async def test_a_slot_change_does_not_overwrite_an_override(bench: Bench):
-    await start(bench)
+    """An override ends at its end, not at a slot change (with "after the duration", a change by
+    hand ends 2 hours later, whatever the slots)."""
+    await start(bench, {"manual_override_end": "duration"})
     await bench.go_to("17:00")
     await bench.manual_setpoint("climate.salon", 21.5)  # override until 19:00
     await bench.go_to("17:30")  # start of the comfort slot

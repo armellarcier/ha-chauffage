@@ -40,15 +40,20 @@ from homeassistant.util import dt as dt_util
 from . import engine, model, repairs
 from .history import TemperatureHistory
 from .const import (
+    CONF_MANUAL_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
     CONTROL_KEY,
+    DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
     DOMAIN,
     EVENT_OVERRIDE_ENDED,
     EVENT_OVERRIDE_STARTED,
     EVENT_SCHEDULE_ACTIVATED,
+    DURATION,
+    MIN_MANUAL_OVERRIDE,
+    NEXT_SLOT,
     OVERRIDE_END_KEY,
     OVERRIDE_KEY,
     PLANNED_PRESET_KEY,
@@ -231,6 +236,11 @@ class ChauffageRuntime:
         return int(self.entry.options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION))
 
     @property
+    def manual_override_end(self) -> str:
+        """When a change by hand ends: NEXT_SLOT (at the latest after the duration) or DURATION."""
+        return self.entry.options.get(CONF_MANUAL_OVERRIDE_END, DEFAULT_MANUAL_OVERRIDE_END)
+
+    @property
     def retrying(self) -> set[str]:
         """The thermostats whose last command failed, sent again at the next minutes."""
         return set(self._retry)
@@ -350,6 +360,7 @@ class ChauffageRuntime:
             "use_presets": self.use_presets,
             "revision": self.data["revision"],
             "override_duration": self.override_duration,
+            "manual_override_end": self.manual_override_end,
             "rules": self.data["rules"],
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
@@ -763,6 +774,11 @@ class ChauffageRuntime:
             override["value"] = engine.fit_temperature(override["value"], current)
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
+        # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
+        if before is None or before.get("end") != override["end"] or "ends_at" not in before:
+            override.pop("ends_at", None)
+        else:
+            override["ends_at"] = before["ends_at"]
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
         if (new_value or resend) and self.needs(entity_id, target, current):
             if not await self.send(entity_id, target, f"override set by {source}"):
@@ -814,6 +830,21 @@ class ChauffageRuntime:
         start = dt_util.now().replace(microsecond=0)
         end = end or start + timedelta(minutes=minutes or self.override_duration)
         return {"kind": kind, "value": value, "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
+
+    def manual_override(self, entity_id: str, kind: str, value: Any, current: engine.Thermostat | None) -> dict[str, Any]:
+        """The override of a change by hand (#83): it ends at the next slot that changes the
+        thermostat's target in the active schedule, at the latest after the override duration.
+        A slot starting less than MIN_MANUAL_OVERRIDE minutes after the change does not count.
+        Computed once, now: a schedule activated later does not move the end."""
+        override = self.new_override(kind, value)
+        if self.manual_override_end == NEXT_SLOT:
+            # In the local time zone (not a fixed offset): the slots follow its DST changes
+            start, end = (dt_util.as_local(engine.parse_datetime(override[key])) for key in ("start", "end"))
+            slot = self.plan().next_change(entity_id, start, current,
+                                           not_before=start + timedelta(minutes=MIN_MANUAL_OVERRIDE), until=end)
+            if slot is not None:
+                return override | {"end": slot.isoformat(), "ends_at": NEXT_SLOT}
+        return override | {"ends_at": DURATION}
 
     def preset_override(self, entity_id: str, preset_id: str, minutes: int | None = None,
                         end: datetime | None = None) -> dict[str, Any] | None:
@@ -1032,4 +1063,4 @@ class ChauffageRuntime:
                 resume = self.set_override(new.entity_id, None, source="thermostat", context=context)
                 self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
-        self.record_override(new.entity_id, self.new_override(*change), context)
+        self.record_override(new.entity_id, self.manual_override(new.entity_id, *change, after), context)

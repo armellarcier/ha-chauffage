@@ -22,11 +22,13 @@
         "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans le panneau Chauffage (onglet Préréglages).",
         "data": {
           "override_duration": "Durée des dérogations",
+          "manual_override_end": "Fin d'un changement à la main",
           "use_presets": "Utiliser les préréglages des thermostats",
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale"
         },
         "data_description": {
-          "override_duration": "Combien de temps dure une dérogation, par exemple après un changement manuel, avant que le thermostat revienne à son planning.",
+          "override_duration": "Combien de temps dure une consigne changée à la main, au plus, avant que le thermostat reprenne son planning. Une dérogation créée depuis la carte dure aussi ce temps.",
+          "manual_override_end": "Quand s'arrête une consigne changée à la main sur le thermostat. Au prochain créneau : la dérogation s'arrête au début du prochain créneau qui change la consigne du thermostat, sauf si la durée des dérogations finit avant. Une fin choisie sur la carte reste celle que vous avez choisie.",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
           "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }
@@ -93,6 +95,9 @@
     }
   },
   "selector": {
+    "manual_override_end": {
+      "options": { "next_slot": "Au prochain créneau, au plus tard après la durée", "duration": "Après la durée" }
+    },
     "preset": {
       "options": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" }
     }

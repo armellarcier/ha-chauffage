@@ -22,11 +22,13 @@
         "description": "Default settings. Presets and what they mean for each thermostat are set in the Chauffage panel (Presets tab).",
         "data": {
           "override_duration": "Override duration",
+          "manual_override_end": "End of a change by hand",
           "use_presets": "Use the thermostats' presets",
           "show_in_sidebar": "Show Chauffage in the sidebar"
         },
         "data_description": {
-          "override_duration": "How long an override lasts, for example after a manual change, before the thermostat goes back to its schedule.",
+          "override_duration": "How long a setpoint changed by hand lasts, at most, before the thermostat goes back to its schedule. An override created on the card lasts this long too.",
+          "manual_override_end": "When a setpoint changed by hand on the thermostat ends. At the next slot: the override ends when the next slot changes the thermostat's target, unless the override duration ends first. An end you choose on the card stays as you chose it.",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
@@ -93,6 +95,9 @@
     }
   },
   "selector": {
+    "manual_override_end": {
+      "options": { "next_slot": "At the next slot, at the latest after the duration", "duration": "After the duration" }
+    },
     "preset": {
       "options": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" }
     }

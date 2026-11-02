@@ -22,11 +22,22 @@ async def test_the_options_form(bench: Bench):
     options = bench.hass.config_entries.options
     flow = await options.async_init(bench.entry.entry_id)
     assert flow["type"] == "form"
-    assert {str(key) for key in flow["data_schema"].schema} == {"override_duration", "use_presets", "show_in_sidebar"}
-    result = await options.async_configure(flow["flow_id"], {"override_duration": 30, "use_presets": True})
+    assert {str(key) for key in flow["data_schema"].schema} == {
+        "override_duration", "manual_override_end", "use_presets", "show_in_sidebar"}
+    result = await options.async_configure(flow["flow_id"], {"override_duration": 30, "manual_override_end": "duration",
+                                                             "use_presets": True})
     assert result["type"] == "create_entry"
     await bench.hass.async_block_till_done()
     assert bench.runtime.override_duration == 30
+    assert bench.runtime.manual_override_end == "duration"
+
+
+async def test_a_change_by_hand_ends_at_the_next_slot_by_default(bench: Bench):
+    await start(bench)
+    flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
+    result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": 120})
+    await bench.hass.async_block_till_done()
+    assert result["data"]["manual_override_end"] == "next_slot"
 
 
 async def test_without_presets_every_thermostat_is_driven_by_temperature(bench: Bench):

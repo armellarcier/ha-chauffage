@@ -2,7 +2,7 @@
 
 If the package (v0.1) is installed, the form says what will be imported (schedules, overrides,
 active schedule); the import itself happens when the entry is set up (see importer.py).
-Options: default settings (override duration, use of the thermostats' climate presets) and the
+Options: default settings (override duration, when a change by hand ends, use of the thermostats' climate presets) and the
 Chauffage panel's entry in the sidebar. Presets and what they mean per thermostat are set in
 the panel.
 """
@@ -19,13 +19,17 @@ from homeassistant.helpers import selector
 
 from . import importer
 from .const import (
+    CONF_MANUAL_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_SHOW_IN_SIDEBAR,
     CONF_USE_PRESETS,
+    DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_SHOW_IN_SIDEBAR,
     DEFAULT_USE_PRESETS,
     DOMAIN,
+    DURATION,
+    NEXT_SLOT,
     TITLE,
 )
 
@@ -72,6 +76,13 @@ class ChauffageOptionsFlow(OptionsFlow):
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=15, max=1440, step=15, unit_of_measurement="min",
                                               mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_MANUAL_OVERRIDE_END,
+                default=options.get(CONF_MANUAL_OVERRIDE_END, DEFAULT_MANUAL_OVERRIDE_END),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[NEXT_SLOT, DURATION], translation_key=CONF_MANUAL_OVERRIDE_END,
+                                              mode=selector.SelectSelectorMode.LIST)
             ),
             vol.Required(
                 CONF_USE_PRESETS, default=options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS),

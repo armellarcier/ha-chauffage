@@ -141,6 +141,31 @@ def test_no_override_when_nothing_relevant_changed_or_the_thermostat_is_off():
     assert engine.manual_change(heat("eco", 17, state="unavailable"), heat("none", 21), by_user=True) is None
 
 
+# ----- the end of a change by hand -----
+
+def next_change(entity_id="climate.salon", weeks=WEEKS, now=None, until=None, presets=PRESETS):
+    now = now or at("18:00")
+    plan = engine.Plan(weeks, "normal", presets, {}, {})
+    return plan.next_change(entity_id, now, heat(), not_before=now, until=until or now + timedelta(days=2))
+
+
+def test_the_next_slot_that_changes_the_target():
+    assert next_change() == at("22:30")
+
+
+def test_no_next_slot_without_a_week():
+    assert next_change("climate.cuisine") is None
+
+
+def test_no_next_slot_before_the_limit():
+    assert next_change(until=at("22:30")) is None
+
+
+def test_a_slot_of_an_unknown_preset_changes_nothing():
+    weeks = {"climate.salon": {"normal": [[["00:00", "eco"], ["19:00", "gone"], ["20:00", "comfort"]]] * 7}}
+    assert next_change(weeks=weeks) == at("20:00")
+
+
 # ----- data rules -----
 
 def test_days_are_normalized_like_in_the_card():
@@ -172,6 +197,12 @@ def test_overrides_are_validated():
     assert o["value"] == 21.5
     with pytest.raises(model.InvalidData):
         model.normalize_override({"kind": "temp", "value": 21, "start": "a", "end": "b"})
+
+
+def test_an_override_keeps_why_it_ends_if_the_reason_is_known():
+    base = {"kind": "temperature", "value": 21, "start": "a", "end": "b"}
+    assert model.normalize_override({**base, "ends_at": "next_slot"})["ends_at"] == "next_slot"
+    assert "ends_at" not in model.normalize_override({**base, "ends_at": "whenever"})
 
 
 # ----- presets → climate presets or temperatures -----

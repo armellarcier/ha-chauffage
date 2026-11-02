@@ -9,7 +9,7 @@ See tests/integration/test_engine.py.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
@@ -194,6 +194,40 @@ class Plan:
     def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
         preset, _ = self.preset_at(entity_id, now)
         return resolve(preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets)
+
+    def next_change(self, entity_id: str, now: datetime, thermostat: Thermostat | None, *,
+                    not_before: datetime, until: datetime) -> datetime | None:
+        """Start of the next slot that changes the thermostat's target, from `not_before` and
+        before `until` (None: no such slot). A slot giving the same target as the slot before it
+        changes nothing on the thermostat, so it does not count."""
+        week = self.weeks.get(entity_id, {}).get(self.schedule)
+        if not week or len(week) != 7:
+            return None
+        previous = self.expected(entity_id, now, thermostat)
+        mapping = self.mappings.get(entity_id)
+        hhmm = now.strftime("%H:%M")
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        for offset in range(8):
+            for start, preset in week[(now.weekday() + offset) % 7]:
+                if offset == 0 and start <= hhmm:
+                    continue
+                hours, minutes = (int(x) for x in start.split(":"))
+                # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
+                when = (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes)
+                if _utc(when) >= _utc(until):
+                    return None
+                target = resolve(preset, self.presets, mapping, thermostat, self.use_presets)
+                if target is None or target == previous:
+                    continue
+                previous = target
+                if _utc(when) >= _utc(not_before):
+                    return when
+        return None
+
+
+def _utc(when: datetime) -> datetime:
+    """Datetimes sharing a time zone compare by wall-clock time: compare instants instead."""
+    return when.astimezone(timezone.utc)
 
 
 def targets(
