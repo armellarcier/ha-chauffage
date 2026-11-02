@@ -285,6 +285,21 @@ describe('the Chauffage panel', () => {
       assert.equal($(panel(setup(), '/thermostats'), '.next-steps'), null, 'a user who did not start here sees none');
     });
 
+    test('the next steps say how long a setpoint changed by hand lasts, with a link to the option', () => {
+      const hass = fresh();
+      const el = panel(hass, '/thermostats');
+      pick(el, 'climate.salon');
+      $(el, '[data-start]').click();
+      hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } }));
+      assert.match(text($(el, '.next-steps')),
+        /Une consigne changée à la main dure jusqu'au prochain créneau, 2 h au plus\. Ensuite, le thermostat reprend son planning\./);
+      const duration = integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } });
+      hass.push({ ...duration, manual_override_end: 'duration', override_duration: 90 });
+      assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure 1 h 30\. Ensuite/);
+      $(el, '.next-steps [data-navigate]').click();
+      assert.equal(window.location.pathname, '/config/integrations/integration/chauffage');
+    });
+
     test('the next steps stay closed once closed, on this browser', () => {
       const hass = fresh();
       const el = panel(hass, '/thermostats');

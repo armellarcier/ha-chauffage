@@ -70,6 +70,19 @@ describe('more-info block', () => {
     assert.equal(el.shadowRoot.querySelector('input.time[data-end]').value, '11:30');
   });
 
+  test('an override from a change by hand says why it ends then: the next slot, or after the duration', () => {
+    const slot = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), 'climate.salon');
+    assert.match(text(slot), /aujourd'hui · prochain créneau · encore 1 h 30/);
+    cleanup();
+    const duration = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'duration' } } }), 'climate.salon');
+    assert.match(text(duration), /aujourd'hui · au bout de 2 h · encore 1 h 30/);
+  });
+
+  test('an override with an end chosen on the card gives no reason for its end', () => {
+    const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
+    assert.doesNotMatch(text(el), /prochain créneau|au bout de/);
+  });
+
   test('a user who is not an admin sets, extends and ends an override too, as with the thermostat\'s knob', () => {
     const hass = withTargets({});
     hass.user = { is_admin: false };

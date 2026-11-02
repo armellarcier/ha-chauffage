@@ -50,6 +50,9 @@ const I18N = {
     tomorrow: 'tomorrow',
     remaining: '{duration} left',
     duration: '{h}h {mm}',
+    hours: '{h} h',
+    endsNextSlot: 'next slot',
+    endsAfter: 'after {duration}',
     thenSchedule: 'then {preset} (schedule)',
     newOverride: 'New override…',
     resume: 'Resume the schedule',
@@ -89,6 +92,9 @@ const I18N = {
     nextTitle: 'Next steps',
     nextWeeks: 'Open a thermostat to set its weeks and its presets.',
     nextCard: 'Add the card to a dashboard: Add card → Heating schedules.',
+    nextOverride: 'A setpoint you change by hand lasts until the next slot, at most {duration}. Then the thermostat goes back to its schedule.',
+    nextOverrideDuration: 'A setpoint you change by hand lasts {duration}. Then the thermostat goes back to its schedule.',
+    nextOverrideOption: 'Change it in the integration options',
     nextClose: 'Close',
     noThermostatYet: 'No thermostat is scheduled yet.',
     scheduleThermostats: 'Schedule thermostats',
@@ -272,6 +278,9 @@ const I18N = {
     tomorrow: 'demain',
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
+    hours: '{h} h',
+    endsNextSlot: 'prochain créneau',
+    endsAfter: 'au bout de {duration}',
     thenSchedule: 'puis {preset} (planning)',
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
@@ -311,6 +320,9 @@ const I18N = {
     nextTitle: 'Et maintenant',
     nextWeeks: 'Ouvrez un thermostat pour régler ses semaines et ses préréglages.',
     nextCard: 'Ajoutez la carte à un tableau de bord : Ajouter une carte → Plannings de chauffe.',
+    nextOverride: "Une consigne changée à la main dure jusqu'au prochain créneau, {duration} au plus. Ensuite, le thermostat reprend son planning.",
+    nextOverrideDuration: 'Une consigne changée à la main dure {duration}. Ensuite, le thermostat reprend son planning.',
+    nextOverrideOption: "Le régler dans les options de l'intégration",
     nextClose: 'Fermer',
     noThermostatYet: "Aucun thermostat n'est encore programmé.",
     scheduleThermostats: 'Programmer des thermostats',
@@ -927,6 +939,20 @@ function durationText(min, locale = DEFAULT_LOCALE) {
     : `${min} min`;
 }
 
+// A duration in a sentence: "2 h" for whole hours, else as durationText ("1 h 30", "45 min")
+function roundDurationText(min, locale = DEFAULT_LOCALE) {
+  return min >= 60 && min % 60 === 0 ? locale.t('hours', { h: min / 60 }) : durationText(min, locale);
+}
+
+// Why an override from a change by hand ends then (#83): "next slot", or "after 2 h"; '' for an
+// end chosen on the card, the panel or by the service
+function endReasonText(d, loc) {
+  if (d.ends_at === 'next_slot') return loc.t('endsNextSlot');
+  if (d.ends_at !== 'duration') return '';
+  const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
+  return loc.t('endsAfter', { duration: roundDurationText(minutes, loc) });
+}
+
 // ---------- data sources ----------
 // The card reads and writes through the Chauffage integration's websocket API. The source gives
 // the data in the format the card works with: schedules by id, "HH:MM preset" slots,
@@ -1204,6 +1230,8 @@ function makeDataSource(hass, available) {
     // `source`: 'panel' from the panel, told in the logbook; none from a card (older integrations)
     setOverride: (climate, override, source) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override, ...(source ? { source } : {}) }),
     overrideDuration: () => (d && d.override_duration) || 120, // minutes, an option of the integration
+    // When a change by hand ends: 'next_slot' (at the latest after the duration) or 'duration'
+    manualOverrideEnd: () => (d && d.manual_override_end) || 'next_slot',
     activateSchedule: (id, source) => hass.callWS({ type: 'chauffage/schedule/activate', schedule: id, ...(source ? { source } : {}) }),
     // Create, rename, move, delete schedules: [{ id, name? } | { name, copy_of? }]
     setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
@@ -2525,12 +2553,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     const remaining = Math.max(0, Math.round((endsAt - today) / 60000));
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
     const then = thenText(this._source(), climate, d, this._loc);
+    const reason = endReasonText(d, this._loc);
     return `<div class="editor override-ed">
       ${head}
       ${offNote}
       <div class="ed-head">
         <label>${esc(t('until'))} ${timeField(`data-override-end="${esc(climate)}" data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, this._config.step)}</label>
-        <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
+        <span class="muted">${esc(dayLabel)}${reason ? ` · ${esc(reason)}` : ''} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
       </div>
       ${values}
       <div class="ed-actions start">
@@ -4743,11 +4772,12 @@ class ChauffageMoreInfo extends HTMLElement {
         ? t('today') : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
       const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
       const then = thenText(dataSource(this._hass), this._entity, d, this._loc);
+      const reason = endReasonText(d, this._loc);
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
           <label>${esc(t('until'))} ${timeField(`data-end data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, MORE_INFO_CFG.step)}</label>
-          <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
+          <span class="muted">${esc(dayLabel)}${reason ? ` · ${esc(reason)}` : ''} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
         </div>
         ${offNoteHtml(this._hass, this._entity, this._loc)}
         ${value.presets}
@@ -5746,7 +5776,8 @@ class ChauffagePanel extends HTMLElement {
       try { shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending'; } catch (e) { /* ignore */ }
       setHtml(next, shown ? `<div class="box next-steps">
           <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
-          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li></ul></div>` : '');
+          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li><li>${esc(this._nextOverrideText(src))}
+            <span class="mi-link" role="link" tabindex="0" data-navigate="/config/integrations/integration/chauffage">${esc(t('nextOverrideOption'))}</span></li></ul></div>` : '');
     }
     // A week's heading: its schedule (a link to its sheet), and its ⋮ menu to copy it to another
     // schedule, as the card's menus
@@ -5876,6 +5907,13 @@ class ChauffagePanel extends HTMLElement {
 
   // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
   // every climate of Home Assistant to tick (none at first: Chauffage controls it at once)
+  // How long a setpoint changed by hand lasts, as the integration's options say (#83)
+  _nextOverrideText(src) {
+    const loc = makeLocale(this._hass);
+    const duration = roundDurationText(src.overrideDuration(), loc);
+    return loc.t(src.manualOverrideEnd() === 'duration' ? 'nextOverrideDuration' : 'nextOverride', { duration });
+  }
+
   _welcomeHtml(src) {
     const t = this._t;
     const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.'))
@@ -6097,6 +6135,7 @@ const PANEL_CSS = `
   .next-head { display:flex; align-items:center; gap:8px; }
   .next-head h2 { flex:1; margin:8px 0; }
   .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
+  .next-steps [role="link"] { cursor:pointer; color:var(--primary-color); text-decoration:underline; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
