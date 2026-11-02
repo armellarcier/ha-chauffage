@@ -11,7 +11,7 @@ from homeassistant.core import Context
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from conftest import KINDS, WEEKDAY, WEEKEND, Bench
+from conftest import KINDS, MANUAL_PRESET, WEEKDAY, WEEKEND, Bench
 from custom_components.chauffage import engine, model
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
@@ -139,6 +139,18 @@ async def test_an_override_on_a_turned_off_thermostat_waits_until_it_is_turned_b
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
+async def test_an_override_on_an_unavailable_thermostat_is_sent_when_it_is_back_online(bench: Bench):
+    """A Zigbee valve away when the override is set gets it as soon as it is back."""
+    await start(bench, "10:00")
+    bench.thermostat("climate.salon", "eco", state="unavailable")
+    await bench.hass.async_block_till_done()
+    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "eco")  # back online
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
 async def test_a_thermostat_turned_off_that_is_not_a_vtherm_is_left_alone(bench: Bench):
     """Tado, evohome or Netatmo turn heating back on when they get a setpoint."""
     await start(bench, "17:00")
@@ -148,13 +160,15 @@ async def test_a_thermostat_turned_off_that_is_not_a_vtherm_is_left_alone(bench:
 
 
 async def test_a_thermostat_coming_back_keeps_its_override(bench: Bench):
+    """Back online on its override, it gets nothing: not its slot, not the override again."""
     await start(bench)
     await bench.manual_setpoint("climate.salon", 22)
-    bench.thermostat("climate.salon", "eco", state="unavailable")
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 22, state="unavailable")
     await bench.hass.async_block_till_done()
-    bench.thermostat("climate.salon", "eco")
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 22)
     await bench.hass.async_block_till_done()
     assert bench.applied() == {}
+    assert bench.overrides()["climate.salon"]["value"] == 22
 
 
 # ----- failed commands -----

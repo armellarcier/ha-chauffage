@@ -23,6 +23,8 @@ Each entry says whether the release **migrates stored data** and what to do when
   back on**, as the README says. Before, Chauffage sent it at once, and some thermostats, such as
   Tado, turn heating back on when they get a setpoint. A Versatile Thermostat still gets it at
   once.
+- **An override set on an unavailable thermostat is sent when the thermostat is back online.**
+  Before, the thermostat came back on its slot and never got the override.
 
 ## [0.8.0-beta.3] - 2026-11-01
 

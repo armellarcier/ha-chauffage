@@ -986,19 +986,17 @@ class ChauffageRuntime:
     @callback
     def _state_changed(self, event: Event[EventStateChangedData]) -> None:
         old, new = event.data["old_state"], event.data["new_state"]
-        before = self.temperatures_of(old)
-        if not self._learn(new) and before != self.temperatures_of(new):
+        if not self._learn(new) and self.temperatures_of(old) != self.temperatures_of(new):
             self._notify()  # published by the thermostat: the card shows them
         # Paused thermostats are followed for their preset temperatures only
         if old is None or new is None or self.is_paused(new.entity_id):
             return
-        applied = self._applied(new.entity_id, self.current(old), self.current(new))
-        if engine.ignored(self.current(old)) and not engine.ignored(self.current(new)):
-            # Turned back on, or back online: the thermostat may have missed slot changes. Turned
-            # back on, it never got the override set while it was off
-            reason = f"back from {old.state}"
-            catch_up = (self._realign(new.entity_id, reason) if old.state == "off"
-                        else self.apply(include={new.entity_id}, reason=reason))
+        before, after = self.current(old), self.current(new)
+        applied = self._applied(new.entity_id, before, after)
+        if engine.ignored(before) and not engine.ignored(after):
+            # Turned back on, or back online: the thermostat may have missed slot changes, and
+            # never got the override set while it was away
+            catch_up = self._realign(new.entity_id, f"back from {old.state}")
             self.entry.async_create_task(self.hass, catch_up, "chauffage catch up")
             return
         context = new.context
@@ -1016,13 +1014,12 @@ class ChauffageRuntime:
             _LOGGER.info("%s: applied late a command sent at %s (%s): not an override, %s",
                          new.entity_id, _time(applied["sent"]), _describe(applied), then)
             return
-        after = self.current(new)
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
         preset_temperature = self.preset_temperature(new, expected.value) \
             if expected is not None and expected.kind == "preset" else None
         current = self.data["overrides"].get(new.entity_id)
         change = engine.manual_change(
-            self.current(old), after, by_user=context.user_id is not None, expected=expected,
+            before, after, by_user=context.user_id is not None, expected=expected,
             preset_temperature=preset_temperature,
             override=engine.Target(current["kind"], current["value"]) if current else None,
         )
