@@ -88,13 +88,15 @@ def test_off_unavailable_and_unknown_thermostats_are_ignored():
     assert targets(at("10:00"), {}, force=True) == []  # entity missing
 
 
-def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots():
-    """VTherm keeps the preset asked while it is off, and starts again when that preset needs
-    heating (#74). Turned off by hand, it is left alone."""
-    stopped = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, off_reason="hvac_off_auto_start_stop")
-    assert targets(at("10:00"), {"climate.bureau": stopped}, force=True) == [("climate.bureau", "comfort")]
-    manual = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, off_reason="hvac_off_manual")
-    assert targets(at("10:00"), {"climate.bureau": manual}, force=True) == []
+def test_a_vtherm_turned_off_still_gets_its_slots():
+    """VTherm keeps the preset asked while it is off, whatever turned it off, and starts again
+    on it (#74). Another thermostat turned off is left alone."""
+    vtherm = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, vtherm=True)
+    assert targets(at("10:00"), {"climate.bureau": vtherm}, force=True) == [("climate.bureau", "comfort")]
+    other = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5)
+    assert targets(at("10:00"), {"climate.bureau": other}, force=True) == []
+    unavailable = Thermostat("unavailable", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, vtherm=True)
+    assert targets(at("10:00"), {"climate.bureau": unavailable}, force=True) == []
 
 
 def test_overrides_are_left_alone_until_they_end_or_are_removed():

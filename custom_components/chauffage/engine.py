@@ -16,9 +16,6 @@ from typing import Any
 from .const import MANUAL_PRESETS
 
 IGNORED_STATES = frozenset({"off", "unavailable", "unknown"})
-# Turned off by the thermostat itself, which keeps the preset asked and starts again when that
-# preset needs heating: VTherm's auto start/stop (#74). Such a thermostat still gets its slots.
-STOPPED_BY_ITSELF = frozenset({"hvac_off_auto_start_stop"})
 DEFAULT_STEP = 0.5
 
 
@@ -33,12 +30,14 @@ class Thermostat:
     min_temp: float | None = None
     max_temp: float | None = None
     step: float | None = None
-    off_reason: str | None = None  # VTherm's hvac_off_reason
+    vtherm: bool = False  # Versatile Thermostat
 
 
 def ignored(thermostat: Thermostat) -> bool:
-    """A thermostat left alone: turned off (not by itself), unavailable or unknown."""
-    if thermostat.state == "off" and thermostat.off_reason in STOPPED_BY_ITSELF:
+    """A thermostat left alone: turned off, unavailable or unknown. Not a VTherm turned off: it
+    keeps the preset asked while off, stays off, and starts again on it, for example after its
+    auto start/stop (#74). Others may turn heating back on when they get a setpoint (Tado)."""
+    if thermostat.state == "off" and thermostat.vtherm:
         return False
     return thermostat.state in IGNORED_STATES
 

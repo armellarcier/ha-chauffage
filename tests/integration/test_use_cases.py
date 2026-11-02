@@ -11,7 +11,7 @@ from homeassistant.core import Context
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from conftest import KINDS, WEEKDAY, WEEKEND, Bench
+from conftest import KINDS, MANUAL_PRESET, WEEKDAY, WEEKEND, Bench
 from custom_components.chauffage import engine, model
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
@@ -55,34 +55,31 @@ async def test_a_thermostat_back_online_is_set_to_its_schedule(bench: Bench):
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
-# As VTherm 10 publishes it: the reason is in specific_states, not a top-level attribute
+# As VTherm 10.5 publishes it: the reason is in specific_states
 AUTO_STOPPED = {"specific_states": {"is_on": False, "hvac_off_reason": "hvac_off_auto_start_stop"}}
+TURNED_OFF = {"specific_states": {"is_on": False, "hvac_off_reason": "hvac_off_manual"}}
+
+
+async def start_vtherm(bench: Bench, hhmm: str) -> None:
+    """climate.salon is a Versatile Thermostat: registered by its integration."""
+    bench.needs("vtherm")
+    bench.versatile_thermostat("climate.salon")
+    await start(bench, hhmm)
 
 
 async def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):
     """VTherm's auto start/stop turns it off when the room needs no heating for a while. VTherm
     keeps the preset asked and starts again when that preset needs heating: it must get the
     next slots while it is off (#74)."""
-    bench.needs("vtherm")
-    await start(bench, "17:00")
+    await start_vtherm(bench, "17:00")
     bench.thermostat("climate.salon", "eco", state="off", **AUTO_STOPPED)
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.salon": "comfort"}
     assert bench.overrides() == {}
 
 
-async def test_an_older_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):
-    """Older VTherm versions publish hvac_off_reason as a top-level attribute."""
-    bench.needs("vtherm")
-    await start(bench, "17:00")
-    bench.thermostat("climate.salon", "eco", state="off", hvac_off_reason="hvac_off_auto_start_stop")
-    await bench.go_to("17:30")
-    assert bench.applied() == {"climate.salon": "comfort"}
-
-
 async def test_a_vtherm_starting_again_after_auto_start_stop_is_not_an_override(bench: Bench):
-    bench.needs("vtherm")
-    await start(bench, "17:30")
+    await start_vtherm(bench, "17:30")
     bench.thermostat("climate.salon", "comfort", state="off", **AUTO_STOPPED)
     await bench.hass.async_block_till_done()
     bench.thermostat("climate.salon", "comfort", context=Context())  # started again by VTherm
@@ -92,8 +89,7 @@ async def test_a_vtherm_starting_again_after_auto_start_stop_is_not_an_override(
 
 
 async def test_a_preset_picked_on_a_vtherm_stopped_by_auto_start_stop_is_an_override(bench: Bench):
-    bench.needs("vtherm")
-    await start(bench, "10:00")
+    await start_vtherm(bench, "10:00")
     bench.thermostat("climate.salon", "eco", state="off", **AUTO_STOPPED)
     await bench.hass.async_block_till_done()
     bench.thermostat("climate.salon", "comfort", state="off", context=Context(user_id="someone"), **AUTO_STOPPED)
@@ -102,23 +98,77 @@ async def test_a_preset_picked_on_a_vtherm_stopped_by_auto_start_stop_is_an_over
     assert (override["kind"], override["value"]) == ("preset", "comfort")
 
 
-async def test_a_vtherm_turned_off_by_hand_is_still_left_alone(bench: Bench):
-    bench.needs("vtherm")
+async def test_a_vtherm_turned_off_by_hand_still_gets_its_slots(bench: Bench):
+    """VTherm keeps the preset asked while it is off, whatever turned it off, and stays off: the
+    slot is waiting when it is turned back on."""
+    await start_vtherm(bench, "17:00")
+    bench.thermostat("climate.salon", "eco", state="off", **TURNED_OFF)
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_a_vtherm_is_recognized_by_its_integration_not_by_its_attributes(bench: Bench):
+    """VTherm moved hvac_off_reason once, and publishes none right after being turned off. A
+    thermostat of another integration with the same attributes is left alone."""
+    await start_vtherm(bench, "17:00")
+    bench.thermostat("climate.salon", "eco", state="off")  # no attribute of VTherm's
+    bench.thermostat("climate.bureau", "eco", state="off", hvac_off_reason="hvac_off_manual", **TURNED_OFF)
+    await bench.save_weeks({**SCHEDULES, "climate.bureau": SCHEDULES["climate.salon"]})
+    bench.applied()
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_an_override_on_a_turned_off_vtherm_is_sent_at_once(bench: Bench):
+    await start_vtherm(bench, "10:00")
+    bench.thermostat("climate.salon", "eco", state="off", **TURNED_OFF)
+    await bench.hass.async_block_till_done()
+    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_an_override_on_a_turned_off_thermostat_waits_until_it_is_turned_back_on(bench: Bench):
+    """A thermostat that is not a VTherm could turn heating back on when it gets the override."""
+    await start(bench, "10:00")
+    bench.thermostat("climate.salon", "eco", state="off")
+    await bench.hass.async_block_till_done()
+    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "eco", context=Context(user_id="someone"))  # turned back on
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_an_override_on_an_unavailable_thermostat_is_sent_when_it_is_back_online(bench: Bench):
+    """A Zigbee valve away when the override is set gets it as soon as it is back."""
+    await start(bench, "10:00")
+    bench.thermostat("climate.salon", "eco", state="unavailable")
+    await bench.hass.async_block_till_done()
+    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "eco")  # back online
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_a_thermostat_turned_off_that_is_not_a_vtherm_is_left_alone(bench: Bench):
+    """Tado, evohome or Netatmo turn heating back on when they get a setpoint."""
     await start(bench, "17:00")
-    bench.thermostat("climate.salon", "eco", state="off",
-                     specific_states={"is_on": False, "hvac_off_reason": "hvac_off_manual"})
+    bench.thermostat("climate.salon", "eco", state="off")
     await bench.go_to("17:30")
     assert bench.applied() == {}
 
 
 async def test_a_thermostat_coming_back_keeps_its_override(bench: Bench):
+    """Back online on its override, it gets nothing: not its slot, not the override again."""
     await start(bench)
     await bench.manual_setpoint("climate.salon", 22)
-    bench.thermostat("climate.salon", "eco", state="unavailable")
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 22, state="unavailable")
     await bench.hass.async_block_till_done()
-    bench.thermostat("climate.salon", "eco")
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 22)
     await bench.hass.async_block_till_done()
     assert bench.applied() == {}
+    assert bench.overrides()["climate.salon"]["value"] == 22
 
 
 # ----- failed commands -----
