@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from datetime import datetime, timedelta
 import logging
 from typing import Any
@@ -79,7 +79,11 @@ class ThermostatPaused(model.InvalidData):
     """An override asked for a paused thermostat."""
 
 
-def thermostat(state: State | None) -> engine.Thermostat | None:
+VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
+
+
+def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat | None:
+    """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current)."""
     if state is None:
         return None
     attributes = state.attributes
@@ -92,17 +96,8 @@ def thermostat(state: State | None) -> engine.Thermostat | None:
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),
         engine.temperature_value(attributes.get("target_temp_step")),
-        is_vtherm(attributes),
+        vtherm,
     )
-
-
-def is_vtherm(attributes: Mapping[str, Any]) -> bool:
-    """A Versatile Thermostat: it publishes the state asked (requested_state) and why it is off
-    (hvac_off_reason, in specific_states on recent versions, 10.5, a top-level attribute on older
-    ones)."""
-    specific = attributes.get("specific_states")
-    return ("requested_state" in attributes or "hvac_off_reason" in attributes
-            or (isinstance(specific, Mapping) and "hvac_off_reason" in specific))
 
 
 def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
@@ -283,6 +278,12 @@ class ChauffageRuntime:
     def learned_temperatures(self) -> dict[str, dict[str, float]]:
         return {entity_id: t["preset_temperatures"] for entity_id, t in self.thermostats.items() if t["preset_temperatures"]}
 
+    def current(self, state: State | None) -> engine.Thermostat | None:
+        """What the scheduler needs to know about a thermostat. A Versatile Thermostat is
+        recognized by its integration, not by its attributes: VTherm moved some of them (#74)."""
+        entry = er.async_get(self.hass).async_get(state.entity_id) if state is not None else None
+        return thermostat(state, entry is not None and entry.platform == VTHERM)
+
     def preset_temperature(self, state: State, preset: str) -> float | None:
         """Temperature a thermostat's own preset gives (published, else learned): the one the
         card shows, and the one a manual setpoint is compared with."""
@@ -316,7 +317,7 @@ class ChauffageRuntime:
         """What each preset means for a thermostat (mapping set by hand, else the default)."""
         presets = self.presets_by_id
         mapping = self.thermostats.get(entity_id, {}).get("mapping") or None
-        current = thermostat(self.hass.states.get(entity_id))
+        current = self.current(self.hass.states.get(entity_id))
         out = {}
         for preset_id in presets:
             target = engine.resolve(preset_id, presets, mapping, current, self.use_presets)
@@ -758,7 +759,7 @@ class ChauffageRuntime:
             await self.apply(resumed=entity_id, reason=f"override ended ({source})")
             return
         override = model.normalize_override(override)
-        current = thermostat(self.hass.states.get(entity_id))
+        current = self.current(self.hass.states.get(entity_id))
         if override["kind"] == "temperature" and current is not None:
             override["value"] = engine.fit_temperature(override["value"], current)
         target = engine.Target(override["kind"], override["value"])
@@ -900,7 +901,7 @@ class ChauffageRuntime:
             return
         target = engine.Target(override["kind"], override["value"])
         async with self._lock:
-            current = thermostat(self.hass.states.get(entity_id))
+            current = self.current(self.hass.states.get(entity_id))
             if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current):
                 await self.send(entity_id, target, f"{reason}, back to the override")
 
@@ -915,7 +916,7 @@ class ChauffageRuntime:
             todo = engine.targets(
                 self.plan(),
                 now,
-                {e: t for e in self.active if (t := thermostat(self.hass.states.get(e)))},
+                {e: t for e in self.active if (t := self.current(self.hass.states.get(e)))},
                 force=force,
                 resumed=resumed,
                 ended=ended or (),
@@ -970,7 +971,7 @@ class ChauffageRuntime:
     @callback
     def _learn(self, state: State | None) -> bool:
         """While a thermostat is on a preset, its setpoint is that preset's temperature."""
-        current = thermostat(state)
+        current = self.current(state)
         if current is None or engine.ignored(current) or current.temperature is None:
             return False
         if engine.is_manual_preset(current.preset) or state.entity_id not in self.thermostats:
@@ -991,8 +992,8 @@ class ChauffageRuntime:
         # Paused thermostats are followed for their preset temperatures only
         if old is None or new is None or self.is_paused(new.entity_id):
             return
-        applied = self._applied(new.entity_id, thermostat(old), thermostat(new))
-        if engine.ignored(thermostat(old)) and not engine.ignored(thermostat(new)):
+        applied = self._applied(new.entity_id, self.current(old), self.current(new))
+        if engine.ignored(self.current(old)) and not engine.ignored(self.current(new)):
             # Turned back on, or back online: the thermostat may have missed slot changes. Turned
             # back on, it never got the override set while it was off
             reason = f"back from {old.state}"
@@ -1015,13 +1016,13 @@ class ChauffageRuntime:
             _LOGGER.info("%s: applied late a command sent at %s (%s): not an override, %s",
                          new.entity_id, _time(applied["sent"]), _describe(applied), then)
             return
-        after = thermostat(new)
+        after = self.current(new)
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
         preset_temperature = self.preset_temperature(new, expected.value) \
             if expected is not None and expected.kind == "preset" else None
         current = self.data["overrides"].get(new.entity_id)
         change = engine.manual_change(
-            thermostat(old), after, by_user=context.user_id is not None, expected=expected,
+            self.current(old), after, by_user=context.user_id is not None, expected=expected,
             preset_temperature=preset_temperature,
             override=engine.Target(current["kind"], current["value"]) if current else None,
         )

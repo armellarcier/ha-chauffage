@@ -88,9 +88,13 @@ future contributor might question.
   so it would never start again. A first fix (0.7.1) only counted the reason
   `hvac_off_auto_start_stop`. That reason moved once, from a top-level attribute to
   `specific_states` (VTherm 10.5), and VTherm publishes no reason right after being turned off.
-  Chauffage now recognizes VTherm by its attributes (`requested_state`, or `hvac_off_reason`
-  anywhere) and leaves the decision to VTherm, as for its safety mode. Checked on VTherm 10.5: a
-  VTherm turned off by hand stays off when it gets a preset or a setpoint.
+  Chauffage now leaves the decision to VTherm, as for its safety mode. Checked on VTherm 10.5: a
+  VTherm turned off by hand stays off when it gets a preset or a setpoint. Older versions are
+  not checked; they are rare, and the risk is accepted.
+- **VTherm is recognized by its integration, not by its attributes**: the platform of its entity
+  in the entity registry is `versatile_thermostat`, in the integration and in the card
+  (`hass.entities`). The attributes VTherm publishes have changed between versions, and another
+  integration could publish the same names. The name of an integration does not change.
 - **Commands applied late: in doubt, no override.** A battery valve (Zigbee, asleep most of the
   time) may apply a command an hour or more later, even after a call that failed; its state in
   HA does not change meanwhile. Seen in production on a Tuya valve: comfort sent at 7:00, still

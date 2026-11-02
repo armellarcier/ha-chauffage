@@ -270,18 +270,16 @@ describe('an override on a thermostat turned off', () => {
 
   test('no warning on a VTherm turned off: Chauffage sends it the override at once, and VTherm keeps it (#74)', () => {
     const hass = off(fakeHass({ overrides: { 'climate.salon': override } }));
-    const st = hass.states['climate.salon'];
-    const turnedOff = { is_on: false, hvac_off_reason: 'hvac_off_manual' };
-    hass.states['climate.salon'] = { ...st, attributes: { ...st.attributes, specific_states: turnedOff } };
+    hass.entities['climate.salon'] = { ...hass.entities['climate.salon'], platform: 'versatile_thermostat' };
     const el = block(hass, 'climate.salon');
     assert.equal(note(el.shadowRoot), null);
   });
 
-  test('no warning either on an older VTherm, which publishes hvac_off_reason at the top level', () => {
+  test('a VTherm is recognized by its integration, not by its attributes', () => {
     const hass = off(fakeHass({ overrides: { 'climate.salon': override } }));
     const st = hass.states['climate.salon'];
     hass.states['climate.salon'] = { ...st, attributes: { ...st.attributes, hvac_off_reason: 'hvac_off_manual' } };
     const el = block(hass, 'climate.salon');
-    assert.equal(note(el.shadowRoot), null);
+    assert.ok(note(el.shadowRoot));
   });
 });

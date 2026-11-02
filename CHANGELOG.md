@@ -13,8 +13,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 - **A Versatile Thermostat that is turned off gets its slots and its override, whatever turned it
   off** (#74). Before, only a VTherm turned off by its auto start/stop got them. VTherm keeps the
-  preset while it is off and stays off, so it starts again on the right preset. This also fixes
-  a VTherm whose auto start/stop had just turned it off, before it published why.
+  preset while it is off and stays off, so it starts again on the right preset. Chauffage now
+  recognizes a VTherm by its integration, not by the attributes it publishes. This also fixes a
+  VTherm whose auto start/stop had just turned it off, before it published why.
 
 ### Fixed
 
