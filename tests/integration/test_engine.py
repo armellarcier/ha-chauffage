@@ -143,9 +143,9 @@ def test_no_override_when_nothing_relevant_changed_or_the_thermostat_is_off():
 
 # ----- the end of a change by hand -----
 
-def next_change(entity_id="climate.salon", weeks=WEEKS, now=None, until=None, presets=PRESETS):
+def next_change(entity_id="climate.salon", weeks=WEEKS, now=None, until=None):
     now = now or at("18:00")
-    plan = engine.Plan(weeks, "normal", presets, {}, {})
+    plan = engine.Plan(weeks, "normal", PRESETS, {}, {})
     return plan.next_change(entity_id, now, heat(), not_before=now, until=until or now + timedelta(days=2))
 
 

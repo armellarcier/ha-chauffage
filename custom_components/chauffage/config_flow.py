@@ -2,9 +2,9 @@
 
 If the package (v0.1) is installed, the form says what will be imported (schedules, overrides,
 active schedule); the import itself happens when the entry is set up (see importer.py).
-Options: default settings (override duration, when a change by hand ends, use of the thermostats' climate presets) and the
-Chauffage panel's entry in the sidebar. Presets and what they mean per thermostat are set in
-the panel.
+Options: default settings (override duration, when a change by hand ends, use of the
+thermostats' climate presets) and the Chauffage panel's entry in the sidebar. Presets and what
+they mean per thermostat are set in the panel.
 """
 
 from __future__ import annotations

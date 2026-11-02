@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from conftest import CTX_USER, KINDS, PARIS, Bench, every_day
+from conftest import CTX_USER, KINDS, MONDAY, PARIS, Bench, every_day
 from homeassistant.util import dt as dt_util
 
 
@@ -38,9 +38,8 @@ def end_of(override: dict) -> datetime:
 
 
 def at(hhmm: str, day: int = 0) -> datetime:
-    """HH:MM on day `day` (0 = Monday 2026-10-12), Paris time."""
     h, m = (int(x) for x in hhmm.split(":"))
-    return datetime(2026, 10, 12 + day, h, m, tzinfo=PARIS)
+    return MONDAY + timedelta(days=day, hours=h, minutes=m)
 
 
 # ----- the rule -----

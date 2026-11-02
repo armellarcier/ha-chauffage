@@ -5905,8 +5905,6 @@ class ChauffagePanel extends HTMLElement {
       ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
   }
 
-  // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
-  // every climate of Home Assistant to tick (none at first: Chauffage controls it at once)
   // How long a setpoint changed by hand lasts, as the integration's options say (#83)
   _nextOverrideText(src) {
     const loc = makeLocale(this._hass);
@@ -5914,6 +5912,8 @@ class ChauffagePanel extends HTMLElement {
     return loc.t(src.manualOverrideEnd() === 'duration' ? 'nextOverrideDuration' : 'nextOverride', { duration });
   }
 
+  // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
+  // every climate of Home Assistant to tick (none at first: Chauffage controls it at once)
   _welcomeHtml(src) {
     const t = this._t;
     const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.'))

@@ -8,6 +8,7 @@ See tests/integration/test_engine.py.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -146,21 +147,25 @@ def slot_at(day: list[list[str]], hhmm: str) -> tuple[str | None, bool]:
     return preset, starts_now
 
 
-def current_and_next(week: list[list[list[str]]], now: datetime) -> tuple[str | None, str | None, datetime | None]:
-    """Preset planned now, then the next different one and when it starts (within 7 days)."""
+def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[datetime, str]]:
+    """(start, preset) of the slots starting after now, for 7 days, in order."""
     hhmm = now.strftime("%H:%M")
-    current, _ = slot_at(week[now.weekday()], hhmm)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     for offset in range(8):
-        day = (now.weekday() + offset) % 7
-        for start, preset in week[day]:
+        for start, preset in week[(now.weekday() + offset) % 7]:
             if offset == 0 and start <= hhmm:
                 continue
-            if preset != current:
-                hours, minutes = (int(x) for x in start.split(":"))
-                # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
-                when = (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes)
-                return current, preset, when
+            hours, minutes = (int(x) for x in start.split(":"))
+            # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
+            yield (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes), preset
+
+
+def current_and_next(week: list[list[list[str]]], now: datetime) -> tuple[str | None, str | None, datetime | None]:
+    """Preset planned now, then the next different one and when it starts (within 7 days)."""
+    current, _ = slot_at(week[now.weekday()], now.strftime("%H:%M"))
+    for when, preset in slots_after(week, now):
+        if preset != current:
+            return current, preset, when
     return current, None, None
 
 
@@ -185,9 +190,14 @@ class Plan:
     overrides: dict[str, Any]
     use_presets: bool = True
 
-    def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
+    def week(self, entity_id: str) -> list[list[list[str]]] | None:
+        """The thermostat's week in the active schedule (None: none, or not 7 days)."""
         week = self.weeks.get(entity_id, {}).get(self.schedule)
-        if not week or len(week) != 7:
+        return week if week and len(week) == 7 else None
+
+    def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
+        week = self.week(entity_id)
+        if week is None:
             return None, False
         return slot_at(week[now.weekday()], now.strftime("%H:%M"))
 
@@ -200,28 +210,20 @@ class Plan:
         """Start of the next slot that changes the thermostat's target, from `not_before` and
         before `until` (None: no such slot). A slot giving the same target as the slot before it
         changes nothing on the thermostat, so it does not count."""
-        week = self.weeks.get(entity_id, {}).get(self.schedule)
-        if not week or len(week) != 7:
+        week = self.week(entity_id)
+        if week is None:
             return None
         previous = self.expected(entity_id, now, thermostat)
         mapping = self.mappings.get(entity_id)
-        hhmm = now.strftime("%H:%M")
-        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        for offset in range(8):
-            for start, preset in week[(now.weekday() + offset) % 7]:
-                if offset == 0 and start <= hhmm:
-                    continue
-                hours, minutes = (int(x) for x in start.split(":"))
-                # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
-                when = (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes)
-                if _utc(when) >= _utc(until):
-                    return None
-                target = resolve(preset, self.presets, mapping, thermostat, self.use_presets)
-                if target is None or target == previous:
-                    continue
-                previous = target
-                if _utc(when) >= _utc(not_before):
-                    return when
+        for when, preset in slots_after(week, now):
+            if _utc(when) >= _utc(until):
+                return None
+            target = resolve(preset, self.presets, mapping, thermostat, self.use_presets)
+            if target is None or target == previous:
+                continue
+            previous = target
+            if _utc(when) >= _utc(not_before):
+                return when
         return None
 
 
