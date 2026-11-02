@@ -44,9 +44,12 @@ sur une version par trimestre depuis, sur la dernière version, et chaque semain
 
 ### 1. Installer l'intégration depuis HACS
 
-Dans HACS, ouvrez ⋮ → *Dépôts personnalisés*. Ajoutez
-`https://github.com/armellarcier/ha-chauffage` avec le type *Intégration*. Installez ensuite
-**ha-chauffage**, puis redémarrez Home Assistant.
+[![Ouvrir ha-chauffage dans HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=armellarcier&repository=ha-chauffage&category=integration)
+
+Le bouton ouvre ha-chauffage dans le HACS de votre Home Assistant. Cliquez sur *Télécharger*,
+puis redémarrez Home Assistant.
+
+Sans le bouton, ouvrez HACS et cherchez **ha-chauffage**.
 
 ### 2. Ajouter l'intégration
 

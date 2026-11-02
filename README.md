@@ -46,8 +46,12 @@ every week on the beta.
 
 ### 1. Install the integration from HACS
 
-In HACS, open ⋮ → *Custom repositories*. Add `https://github.com/armellarcier/ha-chauffage`
-with the type *Integration*. Then install **ha-chauffage** and restart Home Assistant.
+[![Open ha-chauffage in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=armellarcier&repository=ha-chauffage&category=integration)
+
+The button opens ha-chauffage in the HACS of your Home Assistant. Click *Download*, then restart
+Home Assistant.
+
+Without the button, open HACS and search for **ha-chauffage**.
 
 ### 2. Add the integration
 
