@@ -238,6 +238,16 @@ async def test_an_end_changed_from_the_card_no_longer_says_why(bench: Bench):
     assert "ends_at" not in o
 
 
+async def test_the_same_end_sent_again_from_the_card_keeps_why_the_override_ends(bench: Bench):
+    """The card sends the end in UTC: the same instant, written another way."""
+    await start(bench, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    o = bench.overrides()["climate.salon"]
+    utc_end = dt_util.as_utc(end_of(o)).isoformat().replace("+00:00", "Z")
+    await bench.set_override("climate.salon", {**o, "end": utc_end})
+    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
+
+
 async def test_a_value_changed_from_the_card_keeps_why_the_override_ends(bench: Bench):
     await start(bench, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)

@@ -775,7 +775,9 @@ class ChauffageRuntime:
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
         # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
-        if before is None or before.get("end") != override["end"] or "ends_at" not in before:
+        # Compared as instants: the card sends the same end in UTC
+        same_end = before is not None and engine.parse_datetime(before.get("end")) == engine.parse_datetime(override["end"])
+        if not same_end or "ends_at" not in before:
             override.pop("ends_at", None)
         else:
             override["ends_at"] = before["ends_at"]
