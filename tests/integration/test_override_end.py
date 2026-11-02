@@ -143,7 +143,9 @@ async def test_a_midnight_slot_with_the_same_preset_does_not_end_it(bench: Bench
     """Eco until midnight, eco again from midnight: the duration applies."""
     await start(bench, hhmm="23:30")
     await bench.manual_setpoint("climate.salon", 22)
-    assert end_of(bench.overrides()["climate.salon"]) == at("01:30", day=1)
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == at("01:30", day=1)
+    assert o["ends_at"] == "duration"
 
 
 async def test_a_change_on_sunday_evening_ends_at_monday_s_first_slot(bench: Bench):
@@ -280,3 +282,8 @@ async def test_the_option_after_the_duration_brings_back_the_fixed_duration(benc
 async def test_the_card_knows_how_a_change_by_hand_ends(bench: Bench):
     await start(bench)
     assert bench.runtime.snapshot()["manual_override_end"] == "next_slot"
+
+
+async def test_the_card_knows_when_a_change_by_hand_ends_after_the_duration(bench: Bench):
+    await start(bench, {"manual_override_end": "duration"})
+    assert bench.runtime.snapshot()["manual_override_end"] == "duration"

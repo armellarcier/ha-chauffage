@@ -111,7 +111,8 @@ async def test_a_forced_realignment_spares_overridden_thermostats(bench: Bench):
     assert bench.applied() == {"climate.bureau": "eco"}
 
 
-async def test_a_new_manual_change_restarts_the_2_hours(bench: Bench):
+async def test_a_new_change_by_hand_far_from_the_next_slot_restarts_the_duration(bench: Bench):
+    """Changed at 10:00 then at 10:30, comfort at 17:30: 2 hours from the second change."""
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21)
     await bench.advance(30)
