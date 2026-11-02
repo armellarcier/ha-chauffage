@@ -392,14 +392,15 @@ défaut. Vous pouvez changer cette durée dans les [options](#options).
 Un changement fait par une automatisation ne crée pas de dérogation. Une commande qu'une vanne à
 pile applique en retard n'en crée pas non plus.
 
-Une dérogation sur un thermostat éteint attend : Chauffage ne lui envoie rien, puis lui applique
-la dérogation quand il est rallumé, si elle court encore. La carte et la fenêtre de détail le
-disent.
+**Un thermostat éteint.** Chauffage n'envoie rien à un thermostat éteint, pas même une
+dérogation. Certains thermostats, comme Tado, rallumeraient le chauffage en recevant une
+consigne. Une dérogation posée entre-temps attend. Chauffage l'applique quand vous rallumez le
+thermostat, si la dérogation court encore. La carte et la fenêtre de détail vous préviennent.
 
-Un Versatile Thermostat éteint n'est pas mis de côté. Il peut avoir été éteint à la main, par
-une fenêtre ou par son démarrage/arrêt automatique (*auto start/stop*). Chauffage continue de
-lui envoyer ses créneaux et sa dérogation. Le thermostat reste éteint et les garde : il
-redémarre ainsi sur le bon préréglage.
+**Un Versatile Thermostat éteint.** Le Versatile Thermostat fait exception. Chauffage continue
+de lui envoyer ses créneaux et sa dérogation, qu'il ait été éteint à la main, par une fenêtre ou
+par son démarrage/arrêt automatique (*auto start/stop*). Versatile Thermostat reste éteint et
+les garde : il redémarre ainsi sur le bon préréglage. La carte n'affiche pas d'avertissement.
 
 ### Arrêter une dérogation
 
