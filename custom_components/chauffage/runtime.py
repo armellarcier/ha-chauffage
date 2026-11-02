@@ -828,7 +828,8 @@ class ChauffageRuntime:
 
     def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
         start = dt_util.now().replace(microsecond=0)
-        end = end or start + timedelta(minutes=minutes or self.override_duration)
+        # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
+        end = end or dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=minutes or self.override_duration))
         return {"kind": kind, "value": value, "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
 
     def manual_override(self, entity_id: str, kind: str, value: Any, current: engine.Thermostat | None) -> dict[str, Any]:
@@ -840,8 +841,9 @@ class ChauffageRuntime:
         if self.manual_override_end == NEXT_SLOT:
             # In the local time zone (not a fixed offset): the slots follow its DST changes
             start, end = (dt_util.as_local(engine.parse_datetime(override[key])) for key in ("start", "end"))
-            slot = self.plan().next_change(entity_id, start, current,
-                                           not_before=start + timedelta(minutes=MIN_MANUAL_OVERRIDE), until=end)
+            # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
+            not_before = dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
+            slot = self.plan().next_change(entity_id, start, current, not_before=not_before, until=end)
             if slot is not None:
                 return override | {"end": slot.isoformat(), "ends_at": NEXT_SLOT}
         return override | {"ends_at": DURATION}

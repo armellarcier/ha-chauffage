@@ -37,6 +37,12 @@ No stored data is migrated. An override started before the upgrade keeps its end
   override popover.
 - **The panel's next steps say what a change by hand does** (#83), with a link to the options.
 
+### Fixed
+
+- **An override started in the hour repeated when summer time ends lasts its full duration.**
+  Before, an override started at 2:10 winter time with a 30-minute duration ended at 2:40 summer
+  time, an hour before it started. Chauffage then ended it at once and undid your change.
+
 ## [0.8.0-beta.3] - 2026-11-01
 
 The third beta of the **Chauffage panel** and of a **device per scheduled thermostat** (#57), with

@@ -148,7 +148,8 @@ def slot_at(day: list[list[str]], hhmm: str) -> tuple[str | None, bool]:
 
 
 def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[datetime, str]]:
-    """(start, preset) of the slots starting after now, for 7 days, in order."""
+    """(start, preset) of the slots starting after now, for 7 days, in order. Every start is
+    an instant after now."""
     hhmm = now.strftime("%H:%M")
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     for offset in range(8):
@@ -157,7 +158,12 @@ def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[da
                 continue
             hours, minutes = (int(x) for x in start.split(":"))
             # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
-            yield (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes), preset
+            when = (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes, fold=0)
+            if _utc(when) <= _utc(now):
+                # Now is in the second pass of the hour repeated when summer time ends: the slot
+                # starts in that second pass too (its time of day is after now's)
+                when = when.replace(fold=1)
+            yield when, preset
 
 
 def current_and_next(week: list[list[list[str]]], now: datetime) -> tuple[str | None, str | None, datetime | None]:

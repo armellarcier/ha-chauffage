@@ -1,7 +1,7 @@
 """The end of a change by hand (issue #83): at the next slot that changes the thermostat's
 target, at the latest after the override duration."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -170,6 +170,39 @@ async def test_the_next_slot_keeps_its_time_when_summer_time_ends(bench: Bench):
     assert end_of(o).utcoffset() == timedelta(hours=1)
     await bench.go_to("03:00", day=13)
     assert bench.overrides() == {}
+
+
+async def test_a_change_in_the_repeated_hour_ends_at_the_next_slot_after_it(bench: Bench):
+    """Regression: Sunday 25 October 2026, 3:00 → 2:00. Raised at 2:10 winter time (the second
+    2:10), comfort at 2:45: the end is 2:45 winter time, never before the change."""
+    schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("02:45", "comfort"), ("12:00", "eco"))}}
+    await start(bench, schedules=schedules, hhmm="00:30", day=13)
+    await bench.advance(160)  # 2:10 winter time, 01:10 UTC
+    bench.applied()
+    await bench.manual_setpoint("climate.salon", 22)
+
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == datetime(2026, 10, 25, 1, 45, tzinfo=timezone.utc)  # 2:45 winter time
+    assert end_of(o).utcoffset() == timedelta(hours=1)
+    assert o["ends_at"] == "next_slot"
+    await bench.advance(1)
+    assert "climate.salon" in bench.overrides()
+    assert bench.applied() == {}
+
+
+async def test_a_change_in_the_repeated_hour_ends_after_the_duration_in_real_time(bench: Bench):
+    """Regression: raised at 2:10 winter time with a 30-minute duration, no slot before: the end
+    is 2:40 winter time, not 2:40 summer time (before the change)."""
+    await start(bench, {"override_duration": 30}, hhmm="00:30", day=13)
+    await bench.advance(160)  # 2:10 winter time, 01:10 UTC
+    bench.applied()
+    await bench.manual_setpoint("climate.salon", 22)
+
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == datetime(2026, 10, 25, 1, 40, tzinfo=timezone.utc)  # 2:40 winter time
+    assert o["ends_at"] == "duration"
+    await bench.advance(1)
+    assert "climate.salon" in bench.overrides()
 
 
 # ----- what keeps its end -----
