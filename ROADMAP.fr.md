@@ -29,13 +29,7 @@ qui s'applique l'emportant, un planning par défaut sinon. Voir le
 
 ## À court terme
 
-1. **Liste par défaut de HACS** : demande déposée avec la 0.4.0
-   ([hacs/default#11827](https://github.com/hacs/default/pull/11827), toutes les vérifications au
-   vert), en attente de la relecture de l'équipe HACS (cela peut prendre des mois). D'ici là,
-   ha-chauffage s'installe comme *dépôt personnalisé* HACS (HACS n'affiche pas d'icône pour
-   ceux-ci ; Home Assistant l'affiche une fois l'intégration installée). Le dépôt doit garder un
-   seul `manifest.json` (le climate simulé du HA de développement utilise `manifest.dev.json`).
-2. **Thermostats programmés**
+1. **Thermostats programmés**
    ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)) : l'intégration tient la
    liste des thermostats qu'elle programme, les cartes ne font que les afficher (plusieurs cartes,
    un thermostat dans plusieurs). Un thermostat se met en pause sans rien perdre (un interrupteur

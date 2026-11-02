@@ -853,6 +853,9 @@ A review of every surface, before the merge into `main`, settled these choices.
   options-flow code path and a recorder that behaves differently: not worth it for now.
   With #57, the sensors are on a device of ours on every Home Assistant
   version, so the switch at 2025.8 (`DEVICE_ENTRY_ATTACHES`) is gone. See [Devices](#devices).
+- **The repository keeps a single `manifest.json`.** HACS lists ha-chauffage in its default
+  repositories, and its checks expect one manifest. The development HA's simulated climate uses
+  `manifest.dev.json` for this reason.
 - **One vocabulary** ([glossary.md](glossary.md)), in the UI, the docs, the code and the data.
 - **Version 1.0** once ha-chauffage works with groups of thermostats and any thermostat.
 - **A new development HA starts with a simulated week of history** (dev/sim_rooms): the

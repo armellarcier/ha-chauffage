@@ -27,13 +27,7 @@ applies winning, a default schedule otherwise. See the [README](README.md#activa
 
 ## Short term
 
-1. **HACS default list**: submitted with 0.4.0
-   ([hacs/default#11827](https://github.com/hacs/default/pull/11827), every check passing),
-   waiting for the HACS team's review (it can take months). Until then ha-chauffage is a HACS
-   *custom repository* (HACS shows no icon for those; Home Assistant does, once installed). The
-   repository must keep a single `manifest.json` (the development HA's simulated climate uses
-   `manifest.dev.json`).
-2. **Scheduled thermostats**
+1. **Scheduled thermostats**
    ([#27](https://github.com/armellarcier/ha-chauffage/issues/27)): the integration keeps the
    list of thermostats it schedules, the cards only show them (several cards, a thermostat in
    several). A thermostat is paused without losing anything (a *Control* switch per
