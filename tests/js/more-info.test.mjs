@@ -86,6 +86,14 @@ describe('more-info block', () => {
     assert.match(text(el), /lundi, dans une semaine, aucun créneau prévu ⚙ · encore 7 j/);
   });
 
+  test('a time left over a day counts whole days, then the hours left: 1 day 12 h is not 2 days', () => {
+    const long = { ...override, end: '2026-10-13T22:30:00+02:00' }; // 36 h 30 from Monday 10:00
+    assert.match(text(block(fakeHass({ overrides: { 'climate.salon': long } }), 'climate.salon')), /encore 1 j 12 h/);
+    cleanup();
+    const english = { language: 'en', time_format: '24', number_format: 'language', first_weekday: 'monday' };
+    assert.match(text(block(fakeHass({ locale: english, overrides: { 'climate.salon': long } }), 'climate.salon')), /1 d 12 h left/);
+  });
+
   test('an override with an end chosen on the card gives no reason for its end', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
     assert.doesNotMatch(text(el), /, au prochain créneau|après le changement/);

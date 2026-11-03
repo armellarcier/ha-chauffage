@@ -51,6 +51,7 @@ const I18N = {
     remaining: '{duration} left',
     duration: '{h}h {mm}',
     durationDays: '{d} d',
+    durationDaysHours: '{d} d {h} h',
     hours: '{h} h',
     endsNextSlot: 'at the next slot',
     endsAfter: '{duration} after the change',
@@ -302,6 +303,7 @@ const I18N = {
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
     durationDays: '{d} j',
+    durationDaysHours: '{d} j {h} h',
     hours: '{h} h',
     endsNextSlot: 'au prochain créneau',
     endsAfter: '{duration} après le changement',
@@ -1530,9 +1532,13 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   return `${esc(day)}${reason ? `, ${why}` : ''} · ${esc(t('remaining', { duration: remainingText(remaining, loc) }))}${then ? ` · ${esc(then)}` : ''}`;
 }
 
-// A time left: "1 h 30", "45 min"; in days past a day ("7 d"), for a change kept a week (#83)
+// A time left: "1 h 30", "45 min"; past a day, the whole days then the whole hours left ("1 d 11 h",
+// "7 d"), for a change kept a week (#83). Never rounded up: 1 d 12 h is not 2 d.
 function remainingText(min, loc) {
-  return min >= DAY_MIN ? loc.t('durationDays', { d: Math.round(min / DAY_MIN) }) : durationText(min, loc);
+  if (min < DAY_MIN) return durationText(min, loc);
+  const d = Math.floor(min / DAY_MIN);
+  const h = Math.floor((min % DAY_MIN) / 60);
+  return h ? loc.t('durationDaysHours', { d, h }) : loc.t('durationDays', { d });
 }
 
 // The button that sets an override's end to the next slot (#83): "Until 17:30 (next slot)", with the
