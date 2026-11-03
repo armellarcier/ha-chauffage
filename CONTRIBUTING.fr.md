@@ -208,8 +208,29 @@ DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh      # Playwright + ffmp
 La démo a besoin des données d'exemple, de la vue *Pièces* et de la semaine simulée d'un HA de
 développement neuf, avec les noms français *Normal*, *Vacances* et *Absent*.
 
-Le scénario se trouve dans [`dev/demo/record.mjs`](dev/demo/record.mjs). L'horloge du navigateur
-est réglée sur un mardi matin, avec une dérogation de démo. Le scénario montre ensuite, dans
+### L'heure de la démo
+
+La démo se déroule à l'heure réelle du HA de développement, dans son fuseau horaire.
+L'intégration calcule la fin d'un changement à la main avec sa propre horloge : le navigateur ne
+peut donc pas simuler l'heure.
+
+Enregistrez la démo entre 21 h et 22 h, à l'heure du HA de développement. Un changement à la
+main se termine alors au prochain créneau, à 22 h 30, et la carte affiche « prochain créneau ». À
+une autre heure, le changement à la main se termine au bout de 2 heures.
+
+Pour enregistrer à une autre heure, donnez au second HA de développement un fuseau horaire où il
+est entre 21 h et 22 h, avant de le démarrer. Par exemple, à 1 h à Paris, il est 21 h dans
+`Etc/GMT+3` :
+
+```bash
+sed -i 's|Europe/Paris|Etc/GMT+3|' /tmp/ha-fresh/configuration.yaml
+```
+
+`scripts/demo.sh` vous prévient quand le HA de développement n'est pas entre 21 h et 22 h.
+
+### Le scénario
+
+Le scénario se trouve dans [`dev/demo/record.mjs`](dev/demo/record.mjs). Il montre, dans
 l'ordre :
 
 1. un planning *Télétravail* créé par copie de *Normal*, ses jours affichés un par un, puis son
@@ -217,12 +238,13 @@ l'ordre :
 2. le panneau Chauffage, ouvert depuis le haut à droite de la carte, et son onglet
    *Préréglages* : la fenêtre d'un préréglage, puis la case d'un thermostat ;
 3. l'activation de *Vacances* ;
-4. la fenêtre de détail d'un thermostat, puis *Modifier sa semaine*, qui ouvre sa page dans le
+4. la fenêtre de détail d'un thermostat. La consigne du salon monte d'un degré avec le + de la
+   fenêtre. La consigne devient une dérogation, et la fenêtre dit jusqu'à quand et pourquoi :
+   « prochain créneau ». Puis *Modifier sa semaine* ouvre la page du thermostat dans le
    panneau ;
 5. les cartes thermostat de la vue *Pièces*, avec 30 minutes de plus pour la dérogation du
    salon ;
-6. l'*Historique* du salon, et une journée en grand. Pour cette étape, le scénario revient à
-   l'heure réelle, car l'historique est réel.
+6. l'*Historique* du salon, et une journée en grand.
 
 À la fin, le scénario remet tout en état : il supprime la dérogation et le nouveau planning,
 réactive *Normal*, et n'enregistre pas les modifications des semaines.

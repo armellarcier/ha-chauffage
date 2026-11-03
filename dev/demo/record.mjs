@@ -1,14 +1,16 @@
 // Records the README demo against the development HA (run through scripts/demo.sh).
 // Playwright drives a real browser; the video is converted to docs/demo.gif afterwards.
-// The development HA has three schedules: Normal (active), Vacances, Absent. The browser clock
-// is set to a Tuesday morning, with a demo override on the living room.
+// The development HA has three schedules: Normal (active), Vacances, Absent.
+// The demo runs at the real time of the development HA, in its time zone: the integration
+// computes the end of a change by hand from its own clock. Between 21:00 and 22:00, a change by
+// hand ends at the next slot, 22:30 (less than 2 hours away); at another hour, after 2 hours.
 // Scenario: create a "Télétravail" schedule as a copy of Normal and edit its Tuesday, open the
 // presets in the Chauffage panel from the card's top right (a preset, then what a thermostat does
-// with it), activate Vacances, then a thermostat's more-info dialog and its page in the panel
-// (Edit its week), the thermostat cards of the "Pièces" view (a new development HA
-// has it) where the living room's temporary setpoint gets 30 more minutes, and the history: the
-// temperature measured over the last days (a new development HA starts with a simulated week),
-// a day shown larger. The history is real: for it, the browser clock goes back to the real time.
+// with it), activate Vacances, then a thermostat's more-info dialog: its setpoint raised by hand
+// becomes an override, which says when and why it ends; its page in the panel (Edit its week),
+// the thermostat cards of the "Pièces" view (a new development HA has it) where the living room's
+// override gets 30 more minutes, and the history: the temperature measured over the last days (a
+// new development HA starts with a simulated week), a day shown larger.
 // Nothing is kept: the edits are not saved, the created schedule and the override are removed
 // and Normal is active again at the end.
 import { chromium } from 'playwright';
@@ -19,20 +21,6 @@ const DASHBOARD = `${HA}/chauffage-dev/planning`;
 const VIEWPORT = { width: 880, height: 640 };
 const OUT = '/demo/out';
 const CREATED = 'Télétravail';
-
-// Demo time: next Tuesday 10:05; demo override on the living room from 08:45 to 11:30
-function nextTuesday(hh, mm) {
-  const d = new Date();
-  d.setDate(d.getDate() + ((2 - d.getDay() + 7) % 7 || 7));
-  d.setHours(hh, mm, 0, 0);
-  return d;
-}
-const NOW = nextTuesday(10, 5);
-const REAL_NOW = Date.now();
-const OVERRIDE = {
-  kind: 'temperature', value: 21.5,
-  start: nextTuesday(8, 45).toISOString(), end: nextTuesday(11, 30).toISOString(),
-};
 
 const card = 'chauffage-programme-card';
 const bar = (climate, day) => `${card} .bar[data-climate="climate.${climate}"][data-day="${day}"]`;
@@ -63,7 +51,7 @@ const subscribeOnce = (page) => page.evaluate(() => new Promise((resolve) => {
 const browser = await chromium.launch({ channel: 'chromium', args: ['--lang=fr-FR'] });
 const LOCALE = { locale: 'fr-FR', timezoneId: 'Europe/Paris' };
 
-// 1. Log in once (not recorded), keep the session and create the demo override
+// 1. Log in once (not recorded) and keep the session
 const login = await browser.newContext({ viewport: VIEWPORT, ...LOCALE });
 const lp = await login.newPage();
 await lp.goto(DASHBOARD);
@@ -82,19 +70,20 @@ if (before.schedules.some((s) => s.name === CREATED)) {
   await callWS(lp, { type: 'chauffage/schedules/set',
     schedules: before.schedules.filter((s) => s.name !== CREATED).map((s) => ({ id: s.id })) });
 }
-// The override shows the thermostat's actual setpoint, so the card and the dialog agree
-OVERRIDE.value = await lp.evaluate(() =>
-  document.querySelector('home-assistant').hass.states['climate.salon'].attributes.temperature);
-await setOverride(lp, 'climate.salon', OVERRIDE);
+// No override on the living room: the demo creates one by hand
+await setOverride(lp, 'climate.salon', null);
+// The browser follows the development HA's time zone, so the card and the integration agree
+const timezoneId = await lp.evaluate(() => document.querySelector('home-assistant').hass.config.time_zone);
+const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', timeZone: timezoneId }).format(new Date()));
+if (hour !== 21) console.warn(`${hour} h in ${timezoneId}: the change by hand ends after 2 hours, not at the next slot`);
 const session = await login.storageState();
 await login.close();
 
-// 2. Recorded session, on Tuesday morning
+// 2. Recorded session, at the development HA's time
 const context = await browser.newContext({
-  viewport: VIEWPORT, ...LOCALE, colorScheme: 'light', storageState: session,
+  viewport: VIEWPORT, ...LOCALE, timezoneId, colorScheme: 'light', storageState: session,
   recordVideo: { dir: OUT, size: VIEWPORT },
 });
-await context.clock.setFixedTime(NOW);
 await context.addInitScript(CURSOR);
 const page = await context.newPage();
 const t0 = Date.now();
@@ -128,7 +117,7 @@ async function drag(locator, dxRatioOfDay, barSelector) {
 }
 
 await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height - 40);
-await pause(1500); // Normal is active; Tuesday: the override is shown on the living room row
+await pause(1500); // Normal is active
 
 // A new schedule: a copy of Normal, named "Télétravail"; the card opens it
 await click(page.locator(`${card} [data-act="schedule-new"]`));
@@ -190,21 +179,34 @@ await pause(900);
 await click(page.locator(`${card} [data-act="activate-schedule"]`));
 await pause(1400);
 
-// Show only the living room, then its more-info dialog: schedule and override
+// Show only the living room, then its more-info dialog
 await click(page.locator(`${card} .chip[data-climate="climate.salon"]`), { dx: 0.25 });
 await pause(1200);
 await click(page.locator(`${card} .chip[data-climate="climate.salon"] .chip-open`));
 await pause(1200);
-// The "Planning" block sits under the thermostat controls: scroll the dialog down to it
+// A change by hand: the living room raised by one degree, with the dialog's +
+const step = await page.evaluate(() =>
+  document.querySelector('home-assistant').hass.states['climate.salon'].attributes.target_temp_step || 0.5);
+const plus = page.locator('ha-state-control-climate-temperature ha-outlined-icon-button').last();
+await moveTo(plus);
+await pause(500);
+for (let i = 0; i < Math.round(1 / step); i++) {
+  await click(plus, { steps: 2 });
+  await pause(150);
+}
+// The setpoint becomes an override; the "Planning" block, under the thermostat controls, says
+// until when and why (the next slot, or after 2 hours): scroll the dialog down to it
+const block = page.locator('chauffage-moreinfo');
+await block.locator('.status.derogation').waitFor({ timeout: 20000 });
+await pause(800);
 await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height * 0.6, { steps: 15 });
 for (let i = 0; i < 8; i++) {
   await page.mouse.wheel(0, 80);
   await pause(60);
 }
 await pause(600);
-const block = page.locator('chauffage-moreinfo');
-if (await block.count()) await moveTo(block, { dx: 0.4, dy: 0.45 });
-await pause(2800);
+await moveTo(block.locator('.status.derogation .muted').first(), { dx: 0.3 });
+await pause(3500);
 // Edit its week: the thermostat's page in the panel, on its week in the active schedule
 await click(block.locator('.foot [data-navigate]'));
 await page.locator('chauffage-panel h3[data-fill-schedule]').first().waitFor();
@@ -213,8 +215,8 @@ await page.goBack();
 await page.locator(`${card} .bar`).first().waitFor();
 await pause(700);
 
-// A dashboard of one's own: a thermostat card per room; the living room's temporary setpoint
-// gets 30 more minutes from its card
+// A dashboard of one's own: a thermostat card per room; the living room's override gets 30 more
+// minutes from its card
 // (through the dashboard's tabs: going to the address would reload Home Assistant)
 await click(page.getByRole('tab', { name: 'Pièces' }));
 const salonCard = page.locator('chauffage-thermostat-card').filter({ hasText: 'Salon' }).first();
@@ -231,16 +233,15 @@ await click(page.getByRole('tab', { name: 'Chauffage' }));
 await page.locator(`${card} .bar`).first().waitFor();
 await pause(600);
 
-// The history of the living room: its last days as they were measured (back to the real time,
-// the history being real), on Normal, the schedule followed during those days
-await context.clock.setFixedTime(new Date(REAL_NOW));
+// The history of the living room: its last days as they were measured, on Normal, the schedule
+// followed during those days
 await click(page.locator(`${card} .tab`, { hasText: 'Normal' }));
 await pause(800);
 await click(page.locator(`${card} [data-act="history"]`));
 await page.locator(`${card} svg.history`).first().waitFor();
 await pause(2200);
 // Yesterday, larger: the scale in degrees, and the values along the day under the mouse
-const yesterday = (new Date(REAL_NOW).getDay() + 5) % 7;
+const yesterday = await page.evaluate(() => (new Date().getDay() + 5) % 7);
 await click(page.locator(`${card} .day[data-day="${yesterday}"]`));
 await pause(1000);
 const zoomed = page.locator(`${card} .bar.zoom`);
@@ -255,7 +256,7 @@ const video = page.video();
 await context.close();
 writeFileSync(`${OUT}/timing.json`, JSON.stringify({ video: await video.path(), start, end }));
 
-// 3. Clean up (not recorded): remove the demo override and the created schedule, activate Normal
+// 3. Clean up (not recorded): remove the override and the created schedule, activate Normal
 const restore = await browser.newContext({ viewport: VIEWPORT, ...LOCALE, storageState: session });
 const rp = await restore.newPage();
 await rp.goto(DASHBOARD);
