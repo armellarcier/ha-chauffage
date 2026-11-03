@@ -533,8 +533,8 @@ Chauffage fires events that your automations can use, with the *Event* trigger:
 
 | Event | Data |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. For a change by hand, `ends_at` says why it ends then: `duration`, `next_slot` or `no_next_slot`. Fired for a new override or a new value, not when only the end changes. |
-| `chauffage_override_ended` | `entity_id`, `start`, `end`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. For a change by hand, `ends_at` as above. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. `ends_at` says why the override ends then, when Chauffage knows it: `duration`, `next_slot` or `no_next_slot` for a change by hand, and `next_slot` for an end set to the next slot on the card. Fired for a new override or a new value, not when only the end changes. |
+| `chauffage_override_ended` | `entity_id`, `start`, `end`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. `ends_at` as above, when Chauffage knows it. |
 | `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `panel`, `entity` (the select or a schedule switch), `service` or `rules`. |
 
 Each event carries the context of what caused it. So the logbook says who changed the
