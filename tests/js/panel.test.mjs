@@ -336,6 +336,8 @@ describe('the Chauffage panel', () => {
   });
 
   describe('the Settings page: changes by hand (#83)', () => {
+    // Without Home Assistant's <ha-form>, as here, the duration is a native select
+    // (panel-ha-form.test.mjs: with it)
     const withSettings = (settings, more = {}) => {
       const data = { ...integrationData({ weeks: WEEKS, language: (more.locale || {}).language || 'fr' }), ...settings };
       return setup({ data, ...more });

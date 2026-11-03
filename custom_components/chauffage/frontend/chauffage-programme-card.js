@@ -5871,7 +5871,11 @@ class ChauffagePanel extends HTMLElement {
     } else if (route.list === 'settings') {
       // The settings of changes by hand (#83): no thermostat needed
       seenNewSetting();
-      html('<div class="override-settings" data-fill="settings"></div>');
+      // The duration's field stays across updates: Home Assistant's dropdown, once open, stays open
+      html(`<div class="override-settings"><h2>${esc(t('overridesTitle'))}</h2>
+        <div class="box"><p>${esc(t('overrideEndIntro'))}</p>
+          <div class="duration-row"><div class="duration-field"></div><span data-fill="settings-saved"></span></div>
+          <div data-fill="settings"></div></div></div>`);
     } else {
       // A user may create schedules or presets first: the page stays, and says where to start
       if (!scheduled) {
@@ -5918,7 +5922,7 @@ class ChauffagePanel extends HTMLElement {
             <button class="btn" data-close-new-setting>${esc(t('nextClose'))}</button></div>` : '');
     }
     const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
-    if (settings) setHtml(settings, this._settingsHtml(src));
+    if (settings) this._fillSettings(settings, src);
     // A week's heading: its schedule (a link to its sheet), and its ⋮ menu to copy it to another
     // schedule, as the card's menus
     for (const h of this.shadowRoot.querySelectorAll('[data-fill-schedule]')) {
@@ -6056,7 +6060,7 @@ class ChauffagePanel extends HTMLElement {
   // The Settings page: changes by hand (#83). The duration first, then the three ends of a change
   // by hand, each labelled with the user's own duration, with a sentence and the example of the
   // living room and the office
-  _settingsHtml(src) {
+  _fillSettings(settings, src) {
     const loc = makeLocale(this._hass);
     const t = loc.t;
     // A setting just sent shows at once, until the integration gives it back
@@ -6067,7 +6071,8 @@ class ChauffagePanel extends HTMLElement {
     const minutes = (this._settingsPending && pending.override_duration) || src.overrideDuration();
     const duration = roundDurationText(minutes, loc);
     const current = (this._settingsPending && pending.manual_override_end) || src.manualOverrideEnd();
-    const ro = !src.editable || this._settingsBusy ? ' disabled' : '';
+    const disabled = !src.editable || !!this._settingsBusy;
+    const ro = disabled ? ' disabled' : '';
     // The living room raised at 21:30, eco at 22:30; the office at 18:30, comfort at 6:00
     const salon = [21 * 60 + 30, 22 * 60 + 30];
     const bureau = [18 * 60 + 30, 6 * 60];
@@ -6085,26 +6090,64 @@ class ChauffagePanel extends HTMLElement {
           <span class="choice-text">${esc(t(text))}</span>
           <span class="example">${esc(example(end))}</span></span>
       </label>`).join('');
-    // 15, 30, 45 minutes, then whole hours; a value set elsewhere (the options, the entity) stays
-    const steps = [15, 30, 45, ...Array.from({ length: 24 }, (_, i) => (i + 1) * 60)];
-    if (!steps.includes(minutes)) steps.push(minutes);
-    const options = steps.sort((a, b) => a - b)
-      .map((m) => `<option value="${m}"${m === minutes ? ' selected' : ''}>${esc(roundDurationText(m, loc))}</option>`).join('');
-    return `<h2>${esc(t('overridesTitle'))}</h2>
-      <div class="box">
-        <p>${esc(t('overrideEndIntro'))}</p>
-        <div class="duration-row">
-          <label for="override-duration">${esc(t('overrideDurationTitle'))}</label>
-          <select id="override-duration" class="duration" data-override-duration${ro}>${options}</select>
-          ${this._settingsSaved ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : ''}
-        </div>
-        <p class="note">${esc(t('overrideDurationText'))}${current === 'next_slot' ? ` ${esc(t('overrideDurationUnused'))}` : ''}</p>
+    const field = this.shadowRoot.querySelector('.override-settings .duration-field');
+    if (field) this._fillDuration(field, minutes, disabled, loc);
+    const saved = this.shadowRoot.querySelector('[data-fill="settings-saved"]');
+    if (saved) setHtml(saved, this._settingsSaved ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
+    setHtml(settings, `<p class="note">${esc(t('overrideDurationText'))}${current === 'next_slot' ? ` ${esc(t('overrideDurationUnused'))}` : ''}</p>
         <p class="scenario">${esc(t('overrideScenario', { salonAt: loc.time(salon[0]), salonSlot: loc.time(salon[1]),
           bureauAt: loc.time(bureau[0]), bureauSlot: loc.time(bureau[1]) }))}</p>
         <div class="choices" role="radiogroup" aria-label="${esc(t('overrideEndTitle'))}">${choices}</div>
         <p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>
-        ${this._settingsError ? `<div class="error">${esc(this._settingsError)}</div>` : ''}
-      </div>`;
+        ${this._settingsError ? `<div class="error">${esc(this._settingsError)}</div>` : ''}`);
+  }
+
+  // The duration of a change by hand: Home Assistant's own dropdown (<ha-form>, stable across
+  // Home Assistant versions), kept across updates so that, once open, it stays open. Before Home
+  // Assistant's fields are loaded (and in the tests), a native select, replaced once they are.
+  // 15, 30, 45 minutes, then whole hours; a value set elsewhere (the options, the entity) stays
+  _fillDuration(field, minutes, disabled, loc) {
+    const steps = [15, 30, 45, ...Array.from({ length: 24 }, (_, i) => (i + 1) * 60)];
+    if (!steps.includes(minutes)) steps.push(minutes);
+    const options = steps.sort((a, b) => a - b).map((m) => ({ value: String(m), label: roundDurationText(m, loc) }));
+    if (!customElements.get('ha-form')) {
+      this._durationForm = null;
+      setHtml(field, `<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
+        <select id="override-duration" data-override-duration${disabled ? ' disabled' : ''}>${options.map((o) =>
+          `<option value="${o.value}"${o.value === String(minutes) ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`);
+      if (!this._waitingForm) {
+        this._waitingForm = true;
+        customElements.whenDefined('ha-form').then(() => this._update());
+      }
+      return;
+    }
+    let form = this._durationForm;
+    if (!form || form.parentNode !== field) {
+      form = document.createElement('ha-form');
+      form.computeLabel = () => this._t('overrideDurationTitle');
+      form.addEventListener('value-changed', (e) => {
+        e.stopPropagation();
+        const value = Number(e.detail.value && e.detail.value.override_duration);
+        // Compared with the duration shown: Home Assistant's form may already hold the new value
+        if (value && value !== form._minutes) this._setSettings({ override_duration: value });
+      });
+      HTML_OF.delete(field);
+      field.replaceChildren(form);
+      this._durationForm = form;
+    }
+    // Only what changed is set again: a new schema would draw the dropdown again, and close it
+    if (form.hass !== this._hass) form.hass = this._hass;
+    const key = JSON.stringify(options);
+    if (form._optionsKey !== key) {
+      form._optionsKey = key;
+      form.schema = [{ name: 'override_duration', required: true, selector: { select: { mode: 'dropdown', options } } }];
+    }
+    // …and the duration shown again after a refused change
+    if (form._minutes !== minutes || !form.data || form.data.override_duration !== String(minutes)) {
+      form._minutes = minutes;
+      form.data = { override_duration: String(minutes) };
+    }
+    if (form.disabled !== disabled) form.disabled = disabled;
   }
 
   // A setting sent at once: the controls wait for the answer, then say it is saved
@@ -6373,14 +6416,19 @@ const PANEL_CSS = `
   .override-settings .note { font-size:13px; color:var(--secondary-text-color); }
   .choices { display:flex; flex-direction:column; gap:8px; margin:8px 0; }
   .choice { display:flex; align-items:flex-start; gap:12px; padding:10px 12px; min-height:44px; box-sizing:border-box;
-    border:1px solid var(--divider-color); border-radius:8px; cursor:pointer; }
-  .choice:has(input:checked) { border-color:var(--primary-color); }
+    border:1px solid var(--ha-card-border-color, var(--divider-color)); border-radius:var(--ha-card-border-radius, 12px);
+    cursor:pointer; }
+  /* The choice made: a 2 px border, as Home Assistant's own boxes to choose from */
+  .choice:has(input:checked) { border-color:var(--primary-color); box-shadow:inset 0 0 0 1px var(--primary-color); }
   .choice input { flex:0 0 auto; width:20px; height:20px; margin:2px 0 0; accent-color:var(--primary-color); }
   .choice > span { display:flex; flex-direction:column; gap:2px; min-width:0; }
   .choice-label { font-weight:500; }
   .choice-text, .choice .example { font-size:14px; color:var(--secondary-text-color); }
-  .override-settings select.duration { font:inherit; font-size:16px; min-height:44px; padding:6px 10px; border-radius:8px;
-    border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); }
+  /* The duration: Home Assistant's dropdown, or meanwhile a native select styled as the panel's others */
+  .duration-field { flex:1 1 240px; max-width:400px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
+  .duration-field ha-form { display:block; flex:1 1 100%; }
+  .duration-field select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color); max-width:100%;
+    background:var(--card-background-color); color:var(--primary-text-color); font:inherit; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
