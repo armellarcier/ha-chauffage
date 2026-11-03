@@ -7,9 +7,10 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import ChauffageConfigEntry
+from . import ChauffageConfigEntry, model
 from .const import DOMAIN, OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP
 from .entity import ChauffageEntity, service_device
 
@@ -41,4 +42,11 @@ class OverrideDurationNumber(ChauffageEntity, NumberEntity):
         return self.runtime.override_duration
 
     async def async_set_native_value(self, value: float) -> None:
-        self.runtime.set_override_settings(override_duration=int(value))
+        # Home Assistant checks the minimum and the maximum, not the step
+        try:
+            self.runtime.set_override_settings(override_duration=value)
+        except model.InvalidData as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="invalid_override_duration",
+                translation_placeholders={"value": f"{value:g}", "step": str(OVERRIDE_DURATION_STEP)},
+            ) from err

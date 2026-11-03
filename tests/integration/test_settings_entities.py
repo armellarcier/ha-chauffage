@@ -4,6 +4,7 @@ the options flow, the panel and the entities always agree."""
 
 import pytest
 from homeassistant.const import EntityCategory
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from conftest import KINDS, WEEKDAY, Bench
@@ -146,3 +147,13 @@ async def test_only_an_admin_changes_the_settings(bench: Bench, ws_client):
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
     assert bench.entry.options == {}
+
+
+@pytest.mark.parametrize("value", [20, 50])
+async def test_the_number_refuses_a_duration_off_the_steps_with_a_clear_error(bench: Bench, value):
+    """Home Assistant checks the minimum and the maximum: Chauffage explains the step."""
+    await start(bench, {"override_duration": 90})
+    with pytest.raises(ServiceValidationError) as err:
+        await call(bench, "number", "set_value", {"entity_id": NUMBER, "value": value})
+    assert err.value.translation_key == "invalid_override_duration"
+    assert bench.entry.options == {"override_duration": 90}
