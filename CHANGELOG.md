@@ -32,17 +32,24 @@ by default: the new settings below change nothing until you choose another end.
   a next-slot choice, the living room goes back to eco at 22:30, not at 23:30. A slot that starts
   less than 15 minutes after your change does not count. An end that you choose on the card, or
   that an automation gives to `chauffage.set_override`, stays as it is.
-- **A *Settings* tab in the Chauffage panel** (#83). Its *Overrides* section shows the two
-  settings of overrides, each with an example computed with your own override duration.
+- **A *Settings* tab in the Chauffage panel** (#83). Its *Changes by hand* section shows the
+  override duration and the three ends, each with an example computed with your own duration.
+  Existing users see a one-time notice about it on the *Thermostats* tab.
 - **Two entities on the *Chauffage* device** (#83): the select *End of a change by hand*
   (`select.chauffage_manual_override_end`) and the number *Override duration*
   (`number.chauffage_override_duration`). An automation can change the settings with them. The
   panel, the options and the entities always agree.
-- **The override block says why the override ends then** (#83): *after 2 h*, *next slot*, or
-  *no slot changes it*. You find the block in the thermostat's more-info dialog, on the
-  thermostat card, and in the card's override popover.
-- **The panel's next steps say what a change by hand does** (#83), with a link to the *Settings*
-  tab.
+- **The override block says why the override ends then** (#83), for example "today, at the next
+  slot" or "today, 2 h after the change". An administrator taps these words to open the
+  *Settings* tab. You find the block in the thermostat's more-info dialog, on the thermostat
+  card, and in the card's override popover.
+- **Until the next slot, for one override** (#83). A button under the override sets its end to
+  the next slot, whatever the setting.
+- **The logbook and the events say why a change by hand ends** (#83). The logbook says "until
+  the next slot" when the override starts, and "override ended at the next slot" or "override
+  ended after 2 h" when it expires. The override events carry `start` and `ends_at`.
+- **The panel's next steps say what a change by hand does** (#83), with a button to the
+  *Settings* tab.
 
 ### Fixed
 

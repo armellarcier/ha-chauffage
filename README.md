@@ -14,8 +14,8 @@ thermostats without presets, thermostats with presets, and
 **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**. ha-chauffage is
 an independent project, not affiliated with Versatile Thermostat.
 
-**When you change a setpoint by hand.** Chauffage keeps your setpoint for 2 hours, then the
-thermostat goes back to its schedule. Say you raise the living room to 22 °C at 21:30: the living
+**What happens when you change a setpoint by hand.** Chauffage keeps your setpoint for 2 hours,
+then the thermostat goes back to its schedule. Say you raise the living room to 22 °C at 21:30: the living
 room goes back to its schedule at 23:30. You can choose another end, for example the next slot,
 as on a classic thermostat. [Overrides](#overrides) explains the choices.
 
@@ -30,8 +30,8 @@ as on a classic thermostat. [Overrides](#overrides) explains the choices.
 - **A Chauffage panel to set everything up.** Administrators find *Chauffage* in the sidebar.
   The panel holds the schedules and their activation rules, the thermostats and the presets.
   Each thermostat has its own page there, with its week in every schedule.
-- **Temporary overrides.** You can see and adjust each override from the card, and start one
-  for as long as you need.
+- **Overrides.** A setpoint you change by hand is an override: you see it, and change its end, on
+  the card. You can also start one from the card, for as long as you need.
 
 > The project's name is French: *chauffage* means heating. The integration and the card speak
 > English and French.
@@ -126,7 +126,7 @@ The panel has four tabs:
   schedule or a copy of another one. The [activation rules](#activation-rules) are below the list.
 - **Presets.** The table of the presets: their names, colors and temperatures, and what each one
   does on each thermostat (see [Presets](#presets)).
-- **Settings.** How a setpoint changed by hand ends, and the override duration (see
+- **Settings.** How long a setpoint changed by hand lasts, and how it ends (see
   [Overrides](#overrides)).
 
 A schedule or a thermostat opens on a page of its own. The title of the page, for example
@@ -368,7 +368,9 @@ The [roadmap](ROADMAP.md) says what comes next, for example groups of thermostat
 kept your change for a while only. Chauffage calls this temporary change an *override*.
 
 **How long a change by hand lasts.** By default, your change lasts 2 hours, whatever the
-schedule. The card says why the override ends then, next to its end: *after 2 h* or *next slot*.
+schedule. A change by hand is a change on the thermostat, with its knob, or in Home Assistant.
+The card says why the override ends then, next to its end: *today, 2 h after the change* or
+*today, at the next slot*. An administrator taps these words to open the *Settings* tab.
 
 ### Choose how a change by hand ends
 
@@ -394,6 +396,9 @@ choose *Until the next slot* during the holidays.
 
 Set the end of the override on the card, or in the thermostat's more-info dialog. For example,
 set it to tomorrow 18:00. An end that you choose stays: the next slots don't end the override.
+
+To keep one change until the next slot, whatever the setting, tap *Until the next slot* under the
+override, on the card or in the more-info dialog.
 
 ### Start an override
 
@@ -486,7 +491,7 @@ On an installation from before 0.6, the planned preset sensor keeps its former i
 | **Active schedule** (select, `select.chauffage_schedule`) | The active schedule. Choose another option to activate another schedule. Attributes: `schedule_id`, and `rules_choice` (the schedule the activation rules give, empty without rules). |
 | **&lt;Schedule&gt; schedule** (a switch for each schedule, `switch.chauffage_schedule_<id>`) | On for the active schedule. Turn on a switch to activate its schedule. You cannot turn off the active schedule: turn on another one. The card shows the switch's icon on the schedule's tab. To change the icon, open the schedule's ⋮ menu, then *Change the icon…*. |
 | **End of a change by hand** (select, `select.chauffage_manual_override_end`) | How a setpoint changed by hand ends: `duration`, `next_slot_within_duration` or `next_slot` (see [Overrides](#choose-how-a-change-by-hand-ends)). Choose another option to change the setting. |
-| **Override duration** (number, `number.chauffage_override_duration`) | The override duration, in minutes, by steps of 15 minutes. Set another value to change the setting. |
+| **Override duration** (number, `number.chauffage_override_duration`) | The override duration, in minutes, by steps of 15 minutes. For example, 120 is 2 hours. Set another value to change the setting. |
 
 ### Voice assistants
 
@@ -527,8 +532,8 @@ Chauffage fires events that your automations can use, with the *Event* trigger:
 
 | Event | Data |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. Fired for a new override or a new value, not when only the end changes. |
-| `chauffage_override_ended` | `entity_id`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. For a change by hand, `ends_at` says why it ends then: `duration`, `next_slot` or `no_next_slot`. Fired for a new override or a new value, not when only the end changes. |
+| `chauffage_override_ended` | `entity_id`, `start`, `end`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. For a change by hand, `ends_at` as above. |
 | `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `panel`, `entity` (the select or a schedule switch), `service` or `rules`. |
 
 Each event carries the context of what caused it. So the logbook says who changed the
@@ -552,11 +557,11 @@ actions:
 
 To change the options, go to Settings → Devices & services → Chauffage → *Configure*.
 
-- **Override duration.** How long a setpoint changed by hand lasts, 2 hours by default. A new
-  override started from the card lasts this long too. *Until the next slot* doesn't use it.
 - **End of a change by hand.** *For the override duration* by default. You can also choose
   *Until the next slot, at most the override duration*, or *Until the next slot* (see
   [Choose how a change by hand ends](#choose-how-a-change-by-hand-ends)).
+- **Override duration.** How long a setpoint changed by hand lasts, 2 hours by default. A new
+  override started from the card lasts this long too. *Until the next slot* doesn't use it.
 
 You can also change these two settings in the panel's *Settings* tab, or with their entities.
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
@@ -573,7 +578,8 @@ A thermostat didn't do what you expected? Here is where to look, in order.
 
 Open *Activity* (the logbook) without a filter. Chauffage records every override there, under
 the thermostat's name. The line says where the override came from (the knob, the card, the panel
-or the `chauffage.set_override` action) and why it ended.
+or the `chauffage.set_override` action) and why it ended. For a change by hand, the line also says why
+the override ends then, for example "until the next slot", and "override ended at the next slot".
 
 If you filter the logbook on the thermostat, Home Assistant does not show these lines: it only
 shows there what the thermostat's own integration records. The thermostat's *Override* sensor

@@ -14,8 +14,8 @@ fonctionne avec les thermostats sans préréglages, avec préréglages, et avec
 **[Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat)**. ha-chauffage est
 un projet indépendant, sans lien avec Versatile Thermostat.
 
-**Quand vous changez une consigne à la main.** Chauffage garde votre consigne 2 heures, puis le
-thermostat reprend son planning. Vous montez le salon à 22 °C à 21 h 30 ? Le salon reprend son
+**Ce qui se passe quand vous changez une consigne à la main.** Chauffage garde votre consigne
+2 heures, puis le thermostat reprend son planning. Vous montez le salon à 22 °C à 21 h 30 ? Le salon reprend son
 planning à 23 h 30. Vous pouvez choisir une autre fin, par exemple le prochain créneau, comme sur
 un thermostat classique. [Dérogations](#dérogations) explique les choix.
 
@@ -31,8 +31,9 @@ un thermostat classique. [Dérogations](#dérogations) explique les choix.
   barre latérale. Le panneau rassemble les plannings et leurs règles d'activation, les
   thermostats et les préréglages. Chaque thermostat y a sa propre page, avec sa semaine dans
   chaque planning.
-- **Dérogations.** Vous voyez et modifiez chaque dérogation depuis la carte. Vous pouvez aussi
-  en créer une, pour le temps qu'il vous faut.
+- **Dérogations.** Une consigne que vous changez à la main est une dérogation : vous la voyez, et
+  vous changez sa fin, sur la carte. Vous pouvez aussi en créer une depuis la carte, pour le
+  temps qu'il vous faut.
 
 ## Installation
 
@@ -130,7 +131,7 @@ Le panneau a quatre onglets :
   [règles d'activation](#règles-dactivation) se trouvent sous la liste.
 - **Préréglages.** Le tableau des préréglages : leurs noms, leurs couleurs et leurs
   températures, et ce que fait chacun sur chaque thermostat (voir [Préréglages](#préréglages)).
-- **Réglages.** Comment se termine une consigne changée à la main, et la durée des dérogations
+- **Réglages.** Combien de temps dure une consigne changée à la main, et comment elle se termine
   (voir [Dérogations](#dérogations)).
 
 Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, par exemple
@@ -389,8 +390,10 @@ Chauffage n'a gardé votre changement qu'un temps. Chauffage appelle ce changeme
 *dérogation*.
 
 **Combien de temps dure un changement à la main.** Par défaut, votre changement dure 2 heures,
-quel que soit le planning. La carte dit pourquoi la dérogation s'arrête à ce moment, à côté de
-sa fin : *au bout de 2 h* ou *prochain créneau*.
+quel que soit le planning. Un changement à la main se fait sur le thermostat, avec sa molette,
+ou dans Home Assistant. La carte dit pourquoi la dérogation s'arrête à ce moment, à côté de sa
+fin : *aujourd'hui, 2 h après le changement* ou *aujourd'hui, au prochain créneau*. Un
+administrateur touche ces mots pour ouvrir l'onglet *Réglages*.
 
 ### Choisir comment se termine un changement à la main
 
@@ -419,6 +422,9 @@ peut choisir *Jusqu'au prochain créneau* pendant les vacances.
 Réglez la fin de la dérogation sur la carte, ou dans la fenêtre de détail du thermostat. Par
 exemple, réglez-la sur demain 18 h. Une fin que vous choisissez reste : les créneaux suivants
 n'arrêtent pas la dérogation.
+
+Pour garder un seul changement jusqu'au prochain créneau, quel que soit le réglage, touchez
+*Jusqu'au prochain créneau* sous la dérogation, sur la carte ou dans la fenêtre de détail.
 
 ### Créer une dérogation
 
@@ -517,7 +523,7 @@ identifiant, `sensor.<thermostat>_planning` en français. Chauffage active ce ca
 | **Planning actif** (sélecteur, `select.chauffage_schedule`) | Le planning actif. Choisissez une autre option pour activer un autre planning. Attributs : `schedule_id`, et `rules_choice` (le planning que donnent les règles d'activation, vide sans règles). |
 | **Planning &lt;nom&gt;** (un interrupteur par planning, `switch.chauffage_schedule_<id>`) | Allumé pour le planning actif. Allumez un interrupteur pour activer son planning. Vous ne pouvez pas éteindre le planning actif : allumez-en un autre. La carte affiche l'icône de l'interrupteur sur l'onglet du planning. Pour changer l'icône, ouvrez le menu ⋮ du planning, puis *Changer l'icône…*. |
 | **Fin d'un changement à la main** (sélecteur, `select.chauffage_manual_override_end`) | Comment se termine une consigne changée à la main : `duration`, `next_slot_within_duration` ou `next_slot` (voir [Dérogations](#choisir-comment-se-termine-un-changement-à-la-main)). Choisissez une autre option pour changer le réglage. |
-| **Durée des dérogations** (nombre, `number.chauffage_override_duration`) | La durée des dérogations, en minutes, par pas de 15 minutes. Réglez une autre valeur pour changer le réglage. |
+| **Durée des dérogations** (nombre, `number.chauffage_override_duration`) | La durée des dérogations, en minutes, par pas de 15 minutes. Par exemple, 120 vaut 2 heures. Réglez une autre valeur pour changer le réglage. |
 
 ### Assistants vocaux
 
@@ -560,8 +566,8 @@ Chauffage émet des événements que vos automatisations peuvent utiliser, avec 
 
 | Événement | Données |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `end`, et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
-| `chauffage_override_ended` | `entity_id`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `panel`, `service`, `paused` ou `forgotten`. |
+| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. Pour un changement à la main, `ends_at` dit pourquoi il s'arrête à ce moment : `duration`, `next_slot` ou `no_next_slot`. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
+| `chauffage_override_ended` | `entity_id`, `start`, `end`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `panel`, `service`, `paused` ou `forgotten`. Pour un changement à la main, `ends_at` comme ci-dessus. |
 | `chauffage_schedule_activated` | `schedule` (l'identifiant stable), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur *Planning actif*), et `source` : `card`, `panel`, `entity` (le sélecteur ou un interrupteur de planning), `service` ou `rules`. |
 
 Chaque événement porte le contexte de ce qui l'a causé. Le journal de bord indique donc qui a
@@ -586,13 +592,13 @@ actions:
 Pour changer les options, allez dans Paramètres → Appareils et services → Chauffage →
 *Configurer*.
 
-- **Durée des dérogations.** Combien de temps dure une consigne changée à la main, 2 heures par
-  défaut. Une nouvelle dérogation créée depuis la carte dure aussi ce temps. *Jusqu'au prochain
-  créneau* ne s'en sert pas.
 - **Fin d'un changement à la main.** *Pendant la durée des dérogations* par défaut. Vous pouvez
   aussi choisir *Jusqu'au prochain créneau, au plus la durée des dérogations*, ou *Jusqu'au
   prochain créneau* (voir
   [Choisir comment se termine un changement à la main](#choisir-comment-se-termine-un-changement-à-la-main)).
+- **Durée des dérogations.** Combien de temps dure une consigne changée à la main, 2 heures par
+  défaut. Une nouvelle dérogation créée depuis la carte dure aussi ce temps. *Jusqu'au prochain
+  créneau* ne s'en sert pas.
 
 Vous pouvez aussi changer ces deux réglages dans l'onglet *Réglages* du panneau, ou avec leurs
 entités.
@@ -611,7 +617,9 @@ Un thermostat n'a pas fait ce que vous attendiez ? Voici où chercher, dans l'or
 
 Ouvrez *Activité* (le journal de bord) sans filtre. Chauffage y note chaque dérogation, sous le
 nom du thermostat. La ligne indique d'où vient la dérogation (la molette, la carte, le panneau ou
-l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée.
+l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée. Pour un changement à la main, la ligne dit
+aussi pourquoi la dérogation s'arrête à ce moment, par exemple « jusqu'au prochain créneau », puis
+« dérogation terminée au prochain créneau ».
 
 Si vous filtrez le journal de bord sur le thermostat, Home Assistant n'affiche pas ces lignes : il
 n'y montre que ce que note l'intégration du thermostat. Le capteur *Dérogation* du thermostat
