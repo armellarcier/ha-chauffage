@@ -205,7 +205,7 @@ computes the end of a change by hand from its own clock, so the browser can't fa
 The scenario sets *End of a change by hand* to *Until the next slot, at most the override
 duration* before it starts, and sets it back at the end. Record the demo between 21:00 and 22:00,
 the development HA's time. A change by hand then ends at the next slot, at 22:30, and the card
-says "next slot". At another hour, the change by hand ends after 2 hours.
+says "today, at the next slot". At another hour, the change by hand ends after 2 hours.
 
 To record at another hour, give the second development HA a time zone where it is between 21:00
 and 22:00, before you start it. For example, at 01:00 in Paris, it is 21:00 in `Etc/GMT+3`:
@@ -226,8 +226,8 @@ The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs). It shows, in
    popover, then a thermostat's cell;
 3. *Vacances* activated;
 4. a thermostat's more-info dialog. The living room's setpoint is raised by one degree with the
-   dialog's +. The setpoint becomes an override, and the dialog says until when and why: "next
-   slot". Then *Edit its week* opens the thermostat's page in the panel;
+   dialog's +. The setpoint becomes an override, and the dialog says until when and why: "today,
+   at the next slot". Then *Edit its week* opens the thermostat's page in the panel;
 5. the thermostat cards of the *Pièces* view, with 30 more minutes for the living room's
    override;
 6. the living room's *History*, and one day shown larger.

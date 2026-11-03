@@ -217,8 +217,8 @@ peut donc pas simuler l'heure.
 Avant de commencer, le scénario règle *Fin d'un changement à la main* sur *Jusqu'au prochain
 créneau, au plus la durée des dérogations*, et remet le réglage à la fin. Enregistrez la démo
 entre 21 h et 22 h, à l'heure du HA de développement. Un changement à la main se termine alors
-au prochain créneau, à 22 h 30, et la carte affiche « prochain créneau ». À une autre heure, le
-changement à la main se termine au bout de 2 heures.
+au prochain créneau, à 22 h 30, et la carte affiche « aujourd'hui, au prochain créneau ». À
+une autre heure, le changement à la main se termine au bout de 2 heures.
 
 Pour enregistrer à une autre heure, donnez au second HA de développement un fuseau horaire où il
 est entre 21 h et 22 h, avant de le démarrer. Par exemple, à 1 h à Paris, il est 21 h dans
@@ -242,8 +242,8 @@ l'ordre :
 3. l'activation de *Vacances* ;
 4. la fenêtre de détail d'un thermostat. La consigne du salon monte d'un degré avec le + de la
    fenêtre. La consigne devient une dérogation, et la fenêtre dit jusqu'à quand et pourquoi :
-   « prochain créneau ». Puis *Modifier sa semaine* ouvre la page du thermostat dans le
-   panneau ;
+   « aujourd'hui, au prochain créneau ». Puis *Modifier sa semaine* ouvre la page du
+   thermostat dans le panneau ;
 5. les cartes thermostat de la vue *Pièces*, avec 30 minutes de plus pour la dérogation du
    salon ;
 6. l'*Historique* du salon, et une journée en grand.
