@@ -11,8 +11,9 @@
 // the thermostat cards of the "Pièces" view (a new development HA has it) where the living room's
 // override gets 30 more minutes, and the history: the temperature measured over the last days (a
 // new development HA starts with a simulated week), a day shown larger.
-// Nothing is kept: the edits are not saved, the created schedule and the override are removed
-// and Normal is active again at the end.
+// Nothing is kept: the edits are not saved, the created schedule and the override are removed,
+// Normal is active again and the end of a change by hand is set back at the end. The demo sets
+// it to "until the next slot, at most the override duration" (the default is the duration).
 import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
 
@@ -72,6 +73,11 @@ if (before.schedules.some((s) => s.name === CREATED)) {
 }
 // No override on the living room: the demo creates one by hand
 await setOverride(lp, 'climate.salon', null);
+// A change by hand ends at the next slot, at most after the override duration: the setting is
+// restored at the end (a run that fails half-way leaves it, the log says which it was)
+const setting = before.manual_override_end || 'duration';
+console.log(`End of a change by hand before the demo: ${setting}`);
+await callWS(lp, { type: 'chauffage/settings/set', manual_override_end: 'next_slot_within_duration' });
 // The browser follows the development HA's time zone, so the card and the integration agree
 const timezoneId = await lp.evaluate(() => document.querySelector('home-assistant').hass.config.time_zone);
 const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', timeZone: timezoneId }).format(new Date()));
@@ -256,13 +262,15 @@ const video = page.video();
 await context.close();
 writeFileSync(`${OUT}/timing.json`, JSON.stringify({ video: await video.path(), start, end }));
 
-// 3. Clean up (not recorded): remove the override and the created schedule, activate Normal
+// 3. Clean up (not recorded): remove the override and the created schedule, activate Normal, and
+// set the end of a change by hand back
 const restore = await browser.newContext({ viewport: VIEWPORT, ...LOCALE, storageState: session });
 const rp = await restore.newPage();
 await rp.goto(DASHBOARD);
 await rp.locator(`${card} .bar`).first().waitFor();
 await setOverride(rp, 'climate.salon', null);
 await callWS(rp, { type: 'chauffage/schedule/activate', schedule: 'normal' });
+await callWS(rp, { type: 'chauffage/settings/set', manual_override_end: setting });
 const data = await subscribeOnce(rp);
 await callWS(rp, {
   type: 'chauffage/schedules/set',

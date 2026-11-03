@@ -214,9 +214,11 @@ La démo se déroule à l'heure réelle du HA de développement, dans son fuseau
 L'intégration calcule la fin d'un changement à la main avec sa propre horloge : le navigateur ne
 peut donc pas simuler l'heure.
 
-Enregistrez la démo entre 21 h et 22 h, à l'heure du HA de développement. Un changement à la
-main se termine alors au prochain créneau, à 22 h 30, et la carte affiche « prochain créneau ». À
-une autre heure, le changement à la main se termine au bout de 2 heures.
+Avant de commencer, le scénario règle *Fin d'un changement à la main* sur *Jusqu'au prochain
+créneau, au plus la durée des dérogations*, et remet le réglage à la fin. Enregistrez la démo
+entre 21 h et 22 h, à l'heure du HA de développement. Un changement à la main se termine alors
+au prochain créneau, à 22 h 30, et la carte affiche « prochain créneau ». À une autre heure, le
+changement à la main se termine au bout de 2 heures.
 
 Pour enregistrer à une autre heure, donnez au second HA de développement un fuseau horaire où il
 est entre 21 h et 22 h, avant de le démarrer. Par exemple, à 1 h à Paris, il est 21 h dans
@@ -247,7 +249,9 @@ l'ordre :
 6. l'*Historique* du salon, et une journée en grand.
 
 À la fin, le scénario remet tout en état : il supprime la dérogation et le nouveau planning,
-réactive *Normal*, et n'enregistre pas les modifications des semaines.
+réactive *Normal*, remet *Fin d'un changement à la main* comme avant, et n'enregistre pas les
+modifications des semaines. Si un enregistrement s'arrête en route, son journal donne le
+réglage à remettre.
 
 ## Essayer une version sur un vrai Home Assistant
 

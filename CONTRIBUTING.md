@@ -202,9 +202,10 @@ HA, with the French names *Normal*, *Vacances* and *Absent*.
 The demo runs at the real time of the development HA, in its time zone. The integration
 computes the end of a change by hand from its own clock, so the browser can't fake the time.
 
-Record the demo between 21:00 and 22:00, the development HA's time. A change by hand then ends
-at the next slot, at 22:30, and the card says "next slot". At another hour, the change by hand
-ends after 2 hours.
+The scenario sets *End of a change by hand* to *Until the next slot, at most the override
+duration* before it starts, and sets it back at the end. Record the demo between 21:00 and 22:00,
+the development HA's time. A change by hand then ends at the next slot, at 22:30, and the card
+says "next slot". At another hour, the change by hand ends after 2 hours.
 
 To record at another hour, give the second development HA a time zone where it is between 21:00
 and 22:00, before you start it. For example, at 01:00 in Paris, it is 21:00 in `Etc/GMT+3`:
@@ -232,7 +233,8 @@ The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs). It shows, in
 6. the living room's *History*, and one day shown larger.
 
 At the end, the scenario restores everything: it removes the override and the new schedule,
-activates *Normal* again, and does not save the edits of the weeks.
+activates *Normal* again, sets *End of a change by hand* back, and does not save the edits of
+the weeks. If a run stops half-way, its log gives the setting to set back.
 
 ## Trying a version on a real Home Assistant
 
