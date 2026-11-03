@@ -492,7 +492,7 @@ On an installation from before 0.6, the planned preset sensor keeps its former i
 | **Active schedule** (select, `select.chauffage_schedule`) | The active schedule. Choose another option to activate another schedule. Attributes: `schedule_id`, and `rules_choice` (the schedule the activation rules give, empty without rules). |
 | **&lt;Schedule&gt; schedule** (a switch for each schedule, `switch.chauffage_schedule_<id>`) | On for the active schedule. Turn on a switch to activate its schedule. You cannot turn off the active schedule: turn on another one. The card shows the switch's icon on the schedule's tab. To change the icon, open the schedule's ⋮ menu, then *Change the icon…*. |
 | **End of a change by hand** (select, `select.chauffage_manual_override_end`) | How a setpoint changed by hand ends: `duration`, `next_slot_within_duration` or `next_slot` (see [Overrides](#choose-how-a-change-by-hand-ends)). Choose another option to change the setting. |
-| **Override duration** (number, `number.chauffage_override_duration`) | The override duration, in minutes, by steps of 15 minutes. For example, 120 is 2 hours. Set another value to change the setting. |
+| **Override duration** (number, `number.chauffage_override_duration`) | The override duration, in minutes, from 15 minutes to 24 hours. For example, 120 is 2 hours. Set another value to change the setting. |
 
 ### Voice assistants
 

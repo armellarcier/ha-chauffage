@@ -50,11 +50,11 @@ async def test_the_select_shows_the_three_ends_of_a_change_by_hand_and_the_defau
     assert state.state == "duration"
 
 
-async def test_the_number_shows_the_override_duration_in_minutes_by_steps_of_15(bench: Bench):
+async def test_the_number_shows_the_override_duration_in_minutes_by_steps_of_1(bench: Bench):
     await start(bench, {"override_duration": 90})
     state = bench.hass.states.get(NUMBER)
     assert float(state.state) == 90
-    assert (state.attributes["min"], state.attributes["max"], state.attributes["step"]) == (15, 1440, 15)
+    assert (state.attributes["min"], state.attributes["max"], state.attributes["step"]) == (15, 1440, 1)
     assert state.attributes["unit_of_measurement"] == "min"
 
 
@@ -130,8 +130,8 @@ async def test_the_panel_changes_one_setting_at_a_time(bench: Bench, ws_client):
 
 
 @pytest.mark.parametrize("settings", [{"manual_override_end": "whenever"}, {"override_duration": 10},
-                                      {"override_duration": 50}, {"override_duration": 1455}])
-async def test_the_panel_cannot_set_an_unknown_end_or_a_duration_off_the_steps(bench: Bench, ws_client, settings):
+                                      {"override_duration": 1455}])
+async def test_the_panel_cannot_set_an_unknown_end_or_a_duration_out_of_range(bench: Bench, ws_client, settings):
     await start(bench)
     client = await ws_client(bench.hass)
     await client.send_json({"id": 1, "type": "chauffage/settings/set", **settings})
@@ -149,11 +149,30 @@ async def test_only_an_admin_changes_the_settings(bench: Bench, ws_client):
     assert bench.entry.options == {}
 
 
-@pytest.mark.parametrize("value", [20, 50])
-async def test_the_number_refuses_a_duration_off_the_steps_with_a_clear_error(bench: Bench, value):
-    """Home Assistant checks the minimum and the maximum: Chauffage explains the step."""
+@pytest.mark.parametrize("value", [50.5])
+async def test_the_number_refuses_a_duration_that_is_not_whole_minutes_with_a_clear_error(bench: Bench, value):
+    """Home Assistant checks the minimum and the maximum: Chauffage explains the rest."""
     await start(bench, {"override_duration": 90})
     with pytest.raises(ServiceValidationError) as err:
         await call(bench, "number", "set_value", {"entity_id": NUMBER, "value": value})
     assert err.value.translation_key == "invalid_override_duration"
+    assert bench.entry.options == {"override_duration": 90}
+
+
+async def test_any_whole_number_of_minutes_is_a_duration_the_15_minutes_are_the_arrows_step(bench: Bench, ws_client):
+    """50 minutes from the number entity, 2 h 40 from the panel."""
+    await start(bench)
+    await call(bench, "number", "set_value", {"entity_id": NUMBER, "value": 50})
+    assert bench.entry.options["override_duration"] == 50
+    client = await ws_client(bench.hass)
+    await client.send_json({"id": 1, "type": "chauffage/settings/set", "override_duration": 160})
+    assert (await client.receive_json())["success"]
+    assert bench.runtime.override_duration == 160
+
+
+@pytest.mark.parametrize("value", [10, 1500])
+async def test_the_number_refuses_a_duration_out_of_range(bench: Bench, value):
+    await start(bench, {"override_duration": 90})
+    with pytest.raises(ServiceValidationError):
+        await call(bench, "number", "set_value", {"entity_id": NUMBER, "value": value})
     assert bench.entry.options == {"override_duration": 90}

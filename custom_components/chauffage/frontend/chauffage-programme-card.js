@@ -11,7 +11,8 @@
 const VERSION = '0.8.0-beta.3';
 
 const DAY_MIN = 1440;
-// The duration of a change by hand, in minutes: the same rule as the integration's
+// The duration of a change by hand, in minutes: the range of the integration; its arrows move it by
+// 15 minutes, a step that is not a rule
 const OVERRIDE_DURATION_MIN = 15, OVERRIDE_DURATION_MAX = 1440, OVERRIDE_DURATION_STEP = 15;
 
 // ---------- i18n ----------
@@ -121,7 +122,7 @@ const I18N = {
     overrideTomorrow: 'tomorrow {time}',
     overrideNextSlotMeans: 'A slot that starts less than 15 min after the change does not count. An end chosen on the card stays.',
     overrideDurationTitle: 'Duration of a change by hand',
-    overrideDurationInvalid: 'Choose a duration from {min} to {max} minutes, in steps of {step}.',
+    overrideDurationInvalid: 'Choose a duration from {min} to {max}, in hours and minutes: 2:45.',
     overrideDurationText: 'An override created on the card lasts this long too.',
     overrideDurationUnused: 'With Until the next slot, the override duration only applies to new overrides created on the card.',
     nextClose: 'Close',
@@ -376,7 +377,7 @@ const I18N = {
     overrideTomorrow: 'demain {time}',
     overrideNextSlotMeans: 'Un créneau qui commence moins de 15 min après le changement ne compte pas. Une fin choisie sur la carte reste.',
     overrideDurationTitle: "Durée d'un changement à la main",
-    overrideDurationInvalid: 'Choisissez une durée de {min} à {max} minutes, par pas de {step}.',
+    overrideDurationInvalid: 'Choisissez une durée de {min} à {max}, en heures et minutes : 2:45.',
     overrideDurationText: 'Une dérogation créée depuis la carte dure aussi ce temps.',
     overrideDurationUnused: "Avec Jusqu'au prochain créneau, la durée ne sert qu'aux nouvelles dérogations créées depuis la carte.",
     nextClose: 'Fermer',
@@ -801,8 +802,8 @@ const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 // - a time, in the format of the user's profile: a browser shows <input type="time"> in the format
 //   of its own language. "1225" gives 12:25. The arrow keys on its hours move it by an hour, on
 //   AM / PM by 12 hours;
-// - a duration, from `min` to `max` by steps of `step`: "2 h 45". "165", "2:45", "2h45", "2 h 45"
-//   and "2h" are read too.
+// - a duration, from `min` to `max`, moved by `step` by its arrows: "2 h 45", read as a time is:
+//   "245", "2:45", "2h45" and "2 h 45" give 2 h 45.
 
 const STEPPED_KINDS = {
   time: {
@@ -818,9 +819,10 @@ const STEPPED_KINDS = {
   },
   duration: {
     format: (m, loc) => roundDurationText(m, loc),
-    read: (el) => parseDuration(el.value),
+    read: (el) => typedDuration(el.value),
     fit: (m, el) => Math.min(Number(el.dataset.max), Math.max(Number(el.dataset.min), m)),
-    valid: (m, el) => m >= Number(el.dataset.min) && m <= Number(el.dataset.max) && m % Number(el.dataset.step) === 0,
+    // Any whole number of minutes in the range: the step is the arrows' only
+    valid: (m, el) => m >= Number(el.dataset.min) && m <= Number(el.dataset.max),
     widest: (loc) => roundDurationText(23 * 60 + 45, loc),
     titles: (step, loc) => [loc.t('longer', { duration: durationText(step, loc) }), loc.t('shorter', { duration: durationText(step, loc) })],
     arrowKey: null, // the field's step, wherever the caret is
@@ -851,26 +853,26 @@ function durationField(attr, minutes, loc, { step, min, max, disabled = false })
   return steppedField('duration', attr, minutes, loc, step, ` data-min="${min}" data-max="${max}"${disabled ? ' disabled' : ''}`);
 }
 
-// A duration typed by hand, in minutes: "165", "2:45", "2h45", "2 h 45", "2h", "45 min"; null if
-// it is not a duration
-function parseDuration(text) {
-  const s = String(text).toLowerCase().replace(/\s/g, '');
-  let r = /^(\d+)(?:min|mn|m)?$/.exec(s);
-  if (r) return Number(r[1]);
-  r = /^(\d+)[:h](?:(\d{1,2})(?:min|mn|m)?)?$/.exec(s);
-  if (!r || (r[2] && Number(r[2]) > 59)) return null;
-  return Number(r[1]) * 60 + Number(r[2] || 0);
+// A duration typed by hand, read as a time is (parseTime), as hours and minutes: "4" is 4 h 00,
+// "0040" 40 min, "245" and "2:45" 2 h 45, up to "24" (24 h), with no AM / PM. A duration under an
+// hour reads as the field shows it too: "45 min". Null if it is not a duration.
+function typedDuration(text) {
+  const shown = /^\s*(\d{1,2})\s*min\s*$/i.exec(text);
+  if (shown) return Number(shown[1]);
+  const t = parseTime(text, [], { hours: 24, ampm: false });
+  return t && t.h * 60 + t.m;
 }
 
 // A time typed by hand, read the way people write it: "1225", "12:25", "12.25", "12h25", "7" (7:00),
 // "730" (7:30), with or without AM / PM, before or after: "7p", "7:30 pm", or the words of the
 // user's language (`periods`, from Intl). Returns { h, m, pm }, pm being null when neither AM nor PM
-// is typed; null if it is not a time.
-function parseTime(text, periods = []) {
+// is typed; null if it is not a time. `hours`: the most hours without AM / PM; `ampm`: false for a
+// duration, which has none.
+function parseTime(text, periods = [], { hours = 23, ampm = true } = {}) {
   const compact = (s) => String(s).toLowerCase().replace(/[\s.]/g, '');
   let rest = compact(text);
   let pm = null;
-  const words = [...periods.map((w, i) => [compact(w), i === 1]), ['am', false], ['pm', true], ['a', false], ['p', true]]
+  const words = (ampm ? [...periods.map((w, i) => [compact(w), i === 1]), ['am', false], ['pm', true], ['a', false], ['p', true]] : [])
     .filter(([w]) => w)
     .sort((a, b) => b[0].length - a[0].length);
   for (const [w, isPm] of words) {
@@ -884,7 +886,7 @@ function parseTime(text, periods = []) {
   if (!r) return null;
   const h = Number(r[1]);
   const m = r[2] ? Number(r[2]) : 0;
-  if (m > 59 || h > (pm === null ? 23 : 12) || (pm !== null && h < 1)) return null;
+  if (m > 59 || h > (pm === null ? hours : 12) || (pm !== null && h < 1)) return null;
   return { h, m, pm };
 }
 
@@ -6162,9 +6164,9 @@ class ChauffagePanel extends HTMLElement {
         ${this._settingsError && this._settingsErrorAt !== 'duration' ? `<div class="error">${esc(this._settingsError)}</div>` : ''}`);
   }
 
-  // The duration of a change by hand: a stepped field, the same as the end of an override, in
-  // hours and minutes ("2 h 45"), moved by 15 minutes from 15 minutes to 24 hours. Sent once left,
-  // on Enter, or at once by its small arrows; a duration off the steps is refused here.
+  // The duration of a change by hand: a stepped field, the same as the end of an override, in hours
+  // and minutes ("2 h 45"), from 15 minutes to 24 hours, moved by 15 minutes by its arrows. Sent once
+  // left, on Enter, or at once by its small arrows; a duration out of range is refused here.
   _fillDuration(field, minutes, disabled, loc) {
     setHtml(field, `<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
       ${durationField('id="override-duration" data-override-duration', minutes, loc,
@@ -6174,7 +6176,8 @@ class ChauffagePanel extends HTMLElement {
   // The duration field left, on Enter or moved by its arrows
   _durationDone(el) {
     timeFieldDone(this, el, (minutes) => this._setSettings({ override_duration: minutes }), () => {
-      this._settingsError = this._t('overrideDurationInvalid', { min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, step: OVERRIDE_DURATION_STEP });
+      const loc = this._loc;
+      this._settingsError = loc.t('overrideDurationInvalid', { min: roundDurationText(OVERRIDE_DURATION_MIN, loc), max: roundDurationText(OVERRIDE_DURATION_MAX, loc) });
       this._settingsErrorAt = 'duration';
       this._settingsSaved = false;
       this._update();

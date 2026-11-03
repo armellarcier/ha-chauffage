@@ -71,11 +71,14 @@ class ChauffageOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            # The same rule as the number entity and the panel: the selector checks the minimum
-            # and the maximum, not the step
-            if user_input.get(CONF_OVERRIDE_DURATION, OVERRIDE_DURATION_STEP) % OVERRIDE_DURATION_STEP:
+            # The same rule as the number entity and the panel: a whole number of minutes. The
+            # selector checks the minimum and the maximum.
+            duration = user_input.get(CONF_OVERRIDE_DURATION)
+            if duration is not None and duration % OVERRIDE_DURATION_STEP:
                 errors[CONF_OVERRIDE_DURATION] = "invalid_override_duration"
             else:
+                if duration is not None:
+                    user_input = {**user_input, CONF_OVERRIDE_DURATION: int(duration)}
                 return self.async_create_entry(data={**self.config_entry.options, **user_input})
         options = {**self.config_entry.options, **(user_input or {})}
         schema = vol.Schema({

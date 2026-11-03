@@ -76,7 +76,7 @@ future contributor might question.
   - **A slot starting less than 15 minutes after the change does not count**, with both
     next-slot choices. Raised at 17:50, with comfort at 18:00, the override would last 10
     minutes: the user would see their change undone at once. The next slot that changes the
-    target counts instead. 15 minutes is the step of the override duration: a shorter minimum
+    target counts instead. 15 minutes is the step of the duration's arrows: a shorter minimum
     would undo a change made a few minutes before a slot, a longer one would skip short slots.
   - **A slot giving the same target as the slot before it does not count.** Such a slot changes
     nothing on the thermostat, so it is not a "scheduled change". The target is compared on
@@ -366,14 +366,16 @@ dashboards, automations, scripts and by voice without the card
   the integration's options, the only state of a setting, as the schedule switches read and
   write the active schedule. Configuration entities, because they are settings, not everyday
   actions. Fixed entity ids, `select.chauffage_manual_override_end` and
-  `number.chauffage_override_duration`, whatever the language. The number moves by steps of 15
-  minutes, from 15 minutes to 24 hours, as the options flow.
-- **One rule for the override duration, on every path**: a multiple of 15 minutes, from 15
-  minutes to 24 hours. Home Assistant checks the minimum and the maximum of a number entity and
-  of a number selector, but not the step. So Chauffage checks the step itself. The options flow
-  shows a form error, the number entity raises a `ServiceValidationError` with a translated
-  message, and `chauffage/settings/set` answers `invalid_format`. Before this check, a number
-  entity set to 50 gave "Unknown error", and the options flow saved 50.
+  `number.chauffage_override_duration`, whatever the language. The number takes any whole
+  number of minutes, from 15 minutes to 24 hours, as the options flow.
+- **One rule for the override duration, on every path**: any whole number of minutes, from 15
+  minutes to 24 hours. The 15 minutes are only the step of the panel's arrows, not a rule: 50
+  minutes or 2 h 40 are durations too. The number entity and the options flow have a step of 1.
+  Home Assistant checks their minimum and maximum. Chauffage checks the whole minutes itself:
+  the options flow shows a form error, and the number entity raises a `ServiceValidationError`
+  with a translated message, not "Unknown error". `chauffage/settings/set` answers
+  `invalid_format`. A first version required a multiple of 15 minutes, so a number entity set to
+  50 gave "Unknown error".
 - **Home Assistant's own building blocks**: an entity's name and icon are customized in Home
   Assistant (entity registry), not stored by ha-chauffage. The card reads the icon chosen for a
   schedule's switch (`hass.entities`) and shows it on the schedule's tab; no icon by default (the
@@ -855,9 +857,11 @@ older one, the older one says so.
     ▲▼"): a text in hours and minutes, "2 h 45", with two small arrows that move it by 15 minutes,
     from 15 minutes to 24 hours. One implementation serves both fields: the markup, the arrows,
     the arrow keys, the reading of a typed value on leaving or on Enter, and the style. A kind of
-    field says how to show, read and move its value. "165", "2:45", "2h45" and "2 h 45" are read.
-    A value off the 15-minute steps, or out of range, is refused next to the field, and the field
-    shows the duration kept. A first version used a list of 15, 30, 45 minutes and whole hours,
+    field says how to show, read and move its value. A duration is typed as a time is,
+    with the same parsing: "4" is 4 h, "0040" 40 minutes, "245", "2:45" and "2h45" are 2 h 45.
+    "165" is no time, so no duration either. From 2 h 40, the arrows go to 2 h 45 or 2 h 30, as
+    those of a time field. A value out of range, or not a duration, is refused next to the field,
+    and the field shows the duration kept. A first version used a list of 15, 30, 45 minutes and whole hours,
     then Home Assistant's dropdown: neither could give 2 h 45.
   - **A change is sent at once**, as in Home Assistant's settings. The controls wait for the
     answer, then say "Saved". The note on the entities lives in the README only.

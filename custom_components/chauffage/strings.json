@@ -35,7 +35,7 @@
       }
     },
     "error": {
-      "invalid_override_duration": "Choose a multiple of 15 minutes."
+      "invalid_override_duration": "Choose a whole number of minutes."
     }
   },
   "entity": {
@@ -166,6 +166,6 @@
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
     "unknown_schedule": { "message": "There is no schedule with the id {schedule}." },
     "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." },
-    "invalid_override_duration": { "message": "{value} minutes is not a valid override duration. Choose a multiple of {step} minutes." }
+    "invalid_override_duration": { "message": "{value} minutes is not a valid override duration. Choose a whole number of minutes." }
   }
 }

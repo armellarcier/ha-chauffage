@@ -34,7 +34,11 @@ by default: the new settings below change nothing until you choose another end.
   that an automation gives to `chauffage.set_override`, stays as it is.
 - **A *Settings* tab in the Chauffage panel** (#83). Its *Changes by hand* section shows the
   override duration and the three ends, each with an example computed with your own duration.
-  Existing users see a one-time notice about it on the *Thermostats* tab.
+  You type the duration in hours and minutes, as a time, for example `2:45`, or move it by 15
+  minutes with its small arrows. Existing users see a one-time notice about it on the
+  *Thermostats* tab.
+- **The override duration is any whole number of minutes**, from 15 minutes to 24 hours, in the
+  panel, the options and the number entity. For example, 50 minutes.
 - **Two entities on the *Chauffage* device** (#83): the select *End of a change by hand*
   (`select.chauffage_manual_override_end`) and the number *Override duration*
   (`number.chauffage_override_duration`). An automation can change the settings with them. The

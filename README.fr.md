@@ -524,7 +524,7 @@ identifiant, `sensor.<thermostat>_planning` en français. Chauffage active ce ca
 | **Planning actif** (sélecteur, `select.chauffage_schedule`) | Le planning actif. Choisissez une autre option pour activer un autre planning. Attributs : `schedule_id`, et `rules_choice` (le planning que donnent les règles d'activation, vide sans règles). |
 | **Planning &lt;nom&gt;** (un interrupteur par planning, `switch.chauffage_schedule_<id>`) | Allumé pour le planning actif. Allumez un interrupteur pour activer son planning. Vous ne pouvez pas éteindre le planning actif : allumez-en un autre. La carte affiche l'icône de l'interrupteur sur l'onglet du planning. Pour changer l'icône, ouvrez le menu ⋮ du planning, puis *Changer l'icône…*. |
 | **Fin d'un changement à la main** (sélecteur, `select.chauffage_manual_override_end`) | Comment se termine une consigne changée à la main : `duration`, `next_slot_within_duration` ou `next_slot` (voir [Dérogations](#choisir-comment-se-termine-un-changement-à-la-main)). Choisissez une autre option pour changer le réglage. |
-| **Durée des dérogations** (nombre, `number.chauffage_override_duration`) | La durée des dérogations, en minutes, par pas de 15 minutes. Par exemple, 120 vaut 2 heures. Réglez une autre valeur pour changer le réglage. |
+| **Durée des dérogations** (nombre, `number.chauffage_override_duration`) | La durée des dérogations, en minutes, de 15 minutes à 24 heures. Par exemple, 120 vaut 2 heures. Réglez une autre valeur pour changer le réglage. |
 
 ### Assistants vocaux
 

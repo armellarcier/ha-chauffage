@@ -35,7 +35,7 @@
       }
     },
     "error": {
-      "invalid_override_duration": "Choisissez un multiple de 15 minutes."
+      "invalid_override_duration": "Choisissez un nombre entier de minutes."
     }
   },
   "entity": {
@@ -166,6 +166,6 @@
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
     "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." },
     "active_schedule_off": { "message": "{schedule} est le planning actif : allumez un autre planning pour en changer." },
-    "invalid_override_duration": { "message": "{value} minutes n'est pas une durée de dérogation valable. Choisissez un multiple de {step} minutes." }
+    "invalid_override_duration": { "message": "{value} minutes n'est pas une durée de dérogation valable. Choisissez un nombre entier de minutes." }
   }
 }

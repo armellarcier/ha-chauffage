@@ -170,12 +170,31 @@ async def test_what_was_learned_on_a_forgotten_thermostat_is_dropped(bench: Benc
     assert bench.runtime.learned_temperatures == {}
 
 
-@pytest.mark.parametrize("duration", [50, 100])
-async def test_the_options_form_refuses_a_duration_off_the_steps(bench: Bench, duration):
-    """The same rule as the number entity and the panel: a multiple of 15 minutes."""
+async def test_the_options_form_takes_any_whole_number_of_minutes(bench: Bench):
+    """The same rule as the number entity and the panel: 15 minutes are only the arrows' step."""
     await start(bench, {"override_duration": 90})
     flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
-    result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": duration})
+    key = next(k for k in flow["data_schema"].schema if str(k) == "override_duration")
+    assert flow["data_schema"].schema[key].config["step"] == 1
+    result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": 50})
+    assert result["type"] == "create_entry"
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.override_duration == 50
+
+
+@pytest.mark.parametrize("duration", [10, 1500])
+async def test_the_options_form_refuses_a_duration_out_of_range(bench: Bench, duration):
+    await start(bench, {"override_duration": 90})
+    flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
+    with pytest.raises(Exception):
+        await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": duration})
+    assert bench.runtime.override_duration == 90
+
+
+async def test_the_options_form_refuses_a_duration_that_is_not_whole_minutes(bench: Bench):
+    await start(bench, {"override_duration": 90})
+    flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
+    result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": 50.5})
     assert result["type"] == "form"
     assert result["errors"] == {"override_duration": "invalid_override_duration"}
     assert bench.runtime.override_duration == 90

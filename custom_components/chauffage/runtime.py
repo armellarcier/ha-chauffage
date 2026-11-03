@@ -265,7 +265,7 @@ class ChauffageRuntime:
                               override_duration: int | None = None) -> None:
         """Changes the settings of overrides in the integration's options, as the options flow
         does: from the configuration entities and the panel. InvalidData for an unknown end or
-        a duration off the steps."""
+        a duration out of range or not in whole minutes."""
         options: dict[str, Any] = {}
         if manual_override_end is not None:
             if manual_override_end not in MANUAL_OVERRIDE_ENDS:
@@ -274,7 +274,7 @@ class ChauffageRuntime:
         if override_duration is not None:
             if (not OVERRIDE_DURATION_MIN <= override_duration <= OVERRIDE_DURATION_MAX
                     or override_duration % OVERRIDE_DURATION_STEP):
-                raise model.InvalidData(f"override duration off the steps: {override_duration}")
+                raise model.InvalidData(f"override duration out of range or not in whole minutes: {override_duration}")
             options[CONF_OVERRIDE_DURATION] = int(override_duration)
         if options:
             self.hass.config_entries.async_update_entry(self.entry, options={**self.entry.options, **options})

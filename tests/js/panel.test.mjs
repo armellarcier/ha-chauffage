@@ -480,8 +480,20 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: 150 });
     });
 
-    test('a duration is typed as people write it: 165, 2:45, 2h45, 2 h 45; the choices then say 2 h 45', async () => {
-      for (const typed of ['165', '2:45', '2h45', '2 h 45']) {
+    test('from a duration off the steps, its arrows go to the next step, as those of a time field', async () => {
+      for (const [dir, sent] of [[1, 165], [-1, 150]]) {
+        const hass = withSettings({ override_duration: 160 }); // 2 h 40
+        const el = panel(hass, '/settings');
+        assert.equal(durationInput(el).value, '2 h 40');
+        arrow(el, dir);
+        await tick();
+        assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: sent }, `${dir}`);
+        cleanup();
+      }
+    });
+
+    test('a duration is typed as a time is, in hours and minutes: 245, 2:45, 2h45, 2 h 45; the choices then say 2 h 45', async () => {
+      for (const typed of ['245', '2:45', '2h45', '2 h 45']) {
         const hass = withSettings({});
         const el = panel(hass, '/settings');
         leave(durationInput(el), typed);
@@ -492,10 +504,14 @@ describe('the Chauffage panel', () => {
         assert.equal(label(el, 'duration'), 'Pendant 2 h 45 (par défaut)', typed);
         cleanup();
       }
-      const hass = withSettings({ override_duration: 60 });
-      leave(durationInput(panel(hass, '/settings')), '2h');
-      await tick();
-      assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: 120 });
+      // "4" is 4 h, "12" 12 h, "0040" 40 minutes, "24" a day, "2h40" off the arrows' steps
+      for (const [typed, minutes] of [['4', 240], ['12', 720], ['0040', 40], ['24', 1440], ['2h40', 160], ['45 min', 45]]) {
+        const hass = withSettings({});
+        leave(durationInput(panel(hass, '/settings')), typed);
+        await tick();
+        assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: minutes }, typed);
+        cleanup();
+      }
     });
 
     test('Enter sends the duration typed', async () => {
@@ -509,15 +525,16 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: 180 });
     });
 
-    test('a duration off the 15-minute steps, out of range or not a duration is refused: the field says why and shows the duration kept', async () => {
-      for (const typed of ['50', '2h10', '10', '1500', '25h', 'abc']) {
+    test('a duration out of range or not hours and minutes is refused: the field says why and shows the duration kept', async () => {
+      // "165" is no h:mm, as in a time field; "0010" is 10 minutes, "2430" more than a day
+      for (const typed of ['165', '0010', '2430', '25', '2pm', 'abc']) {
         const hass = withSettings({});
         const el = panel(hass, '/settings');
         const sent = hass.events.length;
         leave(durationInput(el), typed);
         await tick();
         assert.equal(hass.events.length, sent, typed);
-        assert.equal(text($(el, '.override-settings .duration-row .error')), 'Choisissez une durée de 15 à 1440 minutes, par pas de 15.', typed);
+        assert.equal(text($(el, '.override-settings .duration-row .error')), 'Choisissez une durée de 15 min à 24 h, en heures et minutes : 2:45.', typed);
         assert.equal(durationInput(el).value, '2 h', typed);
         cleanup();
       }
