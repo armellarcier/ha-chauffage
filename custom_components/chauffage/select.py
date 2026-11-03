@@ -1,22 +1,29 @@
-"""Select entity: the active schedule. Its options are the schedules' names; the `schedule_id`
-attribute gives the active schedule's stable id, for automations (with the
-chauffage.activate_schedule service), `rules_choice` the one the activation rules give."""
+"""Select entities, on the Chauffage device.
+
+*Active schedule*: its options are the schedules' names; the `schedule_id` attribute gives the
+active schedule's stable id, for automations (with the chauffage.activate_schedule service),
+`rules_choice` the one the activation rules give.
+
+*End of a change by hand* (#83): how a setpoint changed by hand ends. It holds no state of its
+own: it reads and writes the integration's options, so that the options flow, the panel and the
+entity always agree."""
 
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry
-from .const import SCHEDULE_ENTITY
+from .const import CONF_MANUAL_OVERRIDE_END, DOMAIN, MANUAL_OVERRIDE_ENDS, SCHEDULE_ENTITY
 from .entity import ChauffageEntity, service_device
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ChauffageConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    async_add_entities([ActiveScheduleSelect(entry.runtime_data)])
+    async_add_entities([ActiveScheduleSelect(entry.runtime_data), ManualOverrideEndSelect(entry.runtime_data)])
 
 
 class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
@@ -49,3 +56,23 @@ class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         schedule_id = next(s["id"] for s in self.runtime.data["schedules"] if s["name"] == option)
         await self.runtime.activate_schedule(schedule_id, source="entity", context=self._context)
+
+
+class ManualOverrideEndSelect(ChauffageEntity, SelectEntity):
+    _attr_translation_key = CONF_MANUAL_OVERRIDE_END
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options = list(MANUAL_OVERRIDE_ENDS)
+
+    def __init__(self, runtime) -> None:
+        super().__init__(runtime)
+        self._attr_unique_id = f"{runtime.entry.entry_id}_{CONF_MANUAL_OVERRIDE_END}"
+        # Same id whatever the language (automations refer to it)
+        self.entity_id = f"select.{DOMAIN}_{CONF_MANUAL_OVERRIDE_END}"
+        self._attr_device_info = service_device(runtime)
+
+    @property
+    def current_option(self) -> str:
+        return self.runtime.manual_override_end
+
+    async def async_select_option(self, option: str) -> None:
+        self.runtime.set_override_settings(manual_override_end=option)

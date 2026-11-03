@@ -209,6 +209,7 @@ def test_overrides_are_validated():
 def test_an_override_keeps_why_it_ends_if_the_reason_is_known():
     base = {"kind": "temperature", "value": 21, "start": "a", "end": "b"}
     assert model.normalize_override({**base, "ends_at": "next_slot"})["ends_at"] == "next_slot"
+    assert model.normalize_override({**base, "ends_at": "no_next_slot"})["ends_at"] == "no_next_slot"
     assert "ends_at" not in model.normalize_override({**base, "ends_at": "whenever"})
 
 

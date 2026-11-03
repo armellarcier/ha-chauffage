@@ -27,8 +27,8 @@
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale"
         },
         "data_description": {
-          "override_duration": "Combien de temps dure une consigne changée à la main, au plus, avant que le thermostat reprenne son planning. Une dérogation créée depuis la carte dure aussi ce temps.",
-          "manual_override_end": "Quand s'arrête une consigne changée à la main sur le thermostat. Au prochain créneau : la dérogation s'arrête au début du prochain créneau qui change la consigne du thermostat, sauf si la durée des dérogations finit avant. Une fin choisie sur la carte reste celle que vous avez choisie.",
+          "override_duration": "Combien de temps dure une consigne changée à la main, au plus, avant que le thermostat reprenne son planning. Ne sert pas avec Jusqu'au prochain créneau. Une nouvelle dérogation créée depuis la carte dure aussi ce temps.",
+          "manual_override_end": "Quand s'arrête une consigne changée à la main sur le thermostat. Le prochain créneau est le prochain qui change la consigne du thermostat, au moins 15 minutes après le changement. Une fin choisie sur la carte reste celle que vous avez choisie. Vous pouvez aussi changer ce réglage dans le panneau Chauffage (onglet Réglages).",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
           "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }
@@ -43,7 +43,18 @@
           "schedule_id": { "name": "Identifiant du planning" },
           "rules_choice": { "name": "Planning selon les règles" }
         }
+      },
+      "manual_override_end": {
+        "name": "Fin d'un changement à la main",
+        "state": {
+          "duration": "Pendant la durée des dérogations",
+          "next_slot_within_duration": "Jusqu'au prochain créneau, au plus la durée des dérogations",
+          "next_slot": "Jusqu'au prochain créneau"
+        }
       }
+    },
+    "number": {
+      "override_duration": { "name": "Durée des dérogations" }
     },
     "switch": {
       "control": { "name": "Pilotage" },
@@ -96,7 +107,11 @@
   },
   "selector": {
     "manual_override_end": {
-      "options": { "next_slot": "Au prochain créneau, au plus tard après la durée", "duration": "Après la durée" }
+      "options": {
+        "duration": "Pendant la durée des dérogations",
+        "next_slot_within_duration": "Jusqu'au prochain créneau, au plus la durée des dérogations",
+        "next_slot": "Jusqu'au prochain créneau"
+      }
     },
     "preset": {
       "options": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" }

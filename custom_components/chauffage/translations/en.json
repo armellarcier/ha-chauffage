@@ -27,8 +27,8 @@
           "show_in_sidebar": "Show Chauffage in the sidebar"
         },
         "data_description": {
-          "override_duration": "How long a setpoint changed by hand lasts, at most, before the thermostat goes back to its schedule. An override created on the card lasts this long too.",
-          "manual_override_end": "When a setpoint changed by hand on the thermostat ends. At the next slot: the override ends when the next slot changes the thermostat's target, unless the override duration ends first. An end you choose on the card stays as you chose it.",
+          "override_duration": "How long a setpoint changed by hand lasts, at most, before the thermostat goes back to its schedule. Not used with Until the next slot. A new override created on the card lasts this long too.",
+          "manual_override_end": "When a setpoint changed by hand on the thermostat ends. The next slot is the next one that changes the thermostat's target, at least 15 minutes after the change. An end you choose on the card stays as you chose it. You can also change this setting in the Chauffage panel (Settings tab).",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
@@ -43,7 +43,18 @@
           "schedule_id": { "name": "Schedule id" },
           "rules_choice": { "name": "Schedule from the rules" }
         }
+      },
+      "manual_override_end": {
+        "name": "End of a change by hand",
+        "state": {
+          "duration": "For the override duration",
+          "next_slot_within_duration": "Until the next slot, at most the override duration",
+          "next_slot": "Until the next slot"
+        }
       }
+    },
+    "number": {
+      "override_duration": { "name": "Override duration" }
     },
     "switch": {
       "control": { "name": "Control" },
@@ -96,7 +107,11 @@
   },
   "selector": {
     "manual_override_end": {
-      "options": { "next_slot": "At the next slot, at the latest after the duration", "duration": "After the duration" }
+      "options": {
+        "duration": "For the override duration",
+        "next_slot_within_duration": "Until the next slot, at most the override duration",
+        "next_slot": "Until the next slot"
+      }
     },
     "preset": {
       "options": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" }

@@ -28,8 +28,10 @@ from .const import (
     DEFAULT_SHOW_IN_SIDEBAR,
     DEFAULT_USE_PRESETS,
     DOMAIN,
-    DURATION,
-    NEXT_SLOT,
+    MANUAL_OVERRIDE_ENDS,
+    OVERRIDE_DURATION_MAX,
+    OVERRIDE_DURATION_MIN,
+    OVERRIDE_DURATION_STEP,
     TITLE,
 )
 
@@ -74,14 +76,15 @@ class ChauffageOptionsFlow(OptionsFlow):
             vol.Required(
                 CONF_OVERRIDE_DURATION, default=options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION),
             ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=15, max=1440, step=15, unit_of_measurement="min",
+                selector.NumberSelectorConfig(min=OVERRIDE_DURATION_MIN, max=OVERRIDE_DURATION_MAX,
+                                              step=OVERRIDE_DURATION_STEP, unit_of_measurement="min",
                                               mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Required(
                 CONF_MANUAL_OVERRIDE_END,
                 default=options.get(CONF_MANUAL_OVERRIDE_END, DEFAULT_MANUAL_OVERRIDE_END),
             ): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[NEXT_SLOT, DURATION], translation_key=CONF_MANUAL_OVERRIDE_END,
+                selector.SelectSelectorConfig(options=list(MANUAL_OVERRIDE_ENDS), translation_key=CONF_MANUAL_OVERRIDE_END,
                                               mode=selector.SelectSelectorMode.LIST)
             ),
             vol.Required(

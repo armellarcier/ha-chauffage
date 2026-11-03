@@ -1,7 +1,11 @@
 {
   "entity": {
     "select": {
-      "active_schedule": { "default": "mdi:home-thermometer" }
+      "active_schedule": { "default": "mdi:home-thermometer" },
+      "manual_override_end": { "default": "mdi:timer-cog-outline" }
+    },
+    "number": {
+      "override_duration": { "default": "mdi:timer-outline" }
     },
     "switch": {
       "control": { "default": "mdi:play-circle-outline", "state": { "off": "mdi:pause-circle-outline" } },

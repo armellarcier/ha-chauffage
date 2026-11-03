@@ -1,11 +1,16 @@
-"""The end of a change by hand (issue #83): at the next slot that changes the thermostat's
-target, at the latest after the override duration."""
+"""The end of a change by hand (issue #83), by the setting *End of a change by hand*:
+
+- `duration` (the default): after the override duration;
+- `next_slot_within_duration`: at the next slot that changes the thermostat's target, at the
+  latest after the override duration;
+- `next_slot`: at the next slot that changes the thermostat's target, however far.
+"""
 
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from conftest import CTX_USER, KINDS, MONDAY, PARIS, Bench, every_day
+from conftest import CTX_USER, KINDS, MANUAL_PRESET, MONDAY, PARIS, Bench, every_day
 from homeassistant.util import dt as dt_util
 
 
@@ -15,7 +20,10 @@ def thermostat_kind(request) -> str:
     return request.param
 
 
-# The living room: comfort in the evening. The office: eco all week.
+WITHIN = {"manual_override_end": "next_slot_within_duration"}
+NEXT_SLOT = {"manual_override_end": "next_slot"}
+
+# The living room: comfort in the evening. The office: comfort in the morning only.
 EVENING = every_day(("00:00", "eco"), ("20:00", "comfort"), ("22:30", "eco"))
 SCHEDULES = {
     "climate.salon": {"normal": EVENING},
@@ -42,11 +50,33 @@ def at(hhmm: str, day: int = 0) -> datetime:
     return MONDAY + timedelta(days=day, hours=h, minutes=m)
 
 
-# ----- the rule -----
+# ----- the default: the override duration -----
+
+async def test_by_default_a_change_by_hand_lasts_the_override_duration(bench: Bench):
+    """The living room raised at 21:30, eco at 22:30: the change lasts until 23:30, as before #83."""
+    await start(bench, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == at("23:30")
+    assert o["ends_at"] == "duration"
+    await bench.go_to("22:30")
+    assert bench.applied() == {}
+    await bench.go_to("23:30")
+    assert bench.applied() == {"climate.salon": "eco"}
+
+
+async def test_by_default_a_change_far_from_the_next_slot_lasts_the_override_duration(bench: Bench):
+    await start(bench, hhmm="18:30")
+    await bench.manual_setpoint("climate.bureau", 21)
+    assert end_of(bench.overrides()["climate.bureau"]) == at("20:30")
+
+
+# ----- until the next slot, at most the override duration -----
 
 async def test_a_change_by_hand_ends_at_the_next_slot(bench: Bench):
     """The living room raised at 21:30, eco at 22:30: back to eco at 22:30, not at 23:30."""
-    await start(bench, hhmm="21:00")  # comfort slot
+    await start(bench, WITHIN, hhmm="21:00")  # comfort slot
     await bench.go_to("21:30")
     await bench.manual_setpoint("climate.salon", 22)
 
@@ -62,7 +92,7 @@ async def test_a_change_by_hand_ends_at_the_next_slot(bench: Bench):
 
 async def test_a_change_by_hand_far_from_the_next_slot_ends_after_the_duration(bench: Bench):
     """The office turned up at 18:30, next slot at 6:00: back to eco at 20:30."""
-    await start(bench, hhmm="18:30")
+    await start(bench, WITHIN, hhmm="18:30")
     await bench.manual_setpoint("climate.bureau", 21)
 
     o = bench.overrides()["climate.bureau"]
@@ -72,14 +102,14 @@ async def test_a_change_by_hand_far_from_the_next_slot_ends_after_the_duration(b
 
 async def test_a_change_on_the_device_ends_at_the_next_slot(bench: Bench):
     """The knob, with no user in Home Assistant: the same rule."""
-    await start(bench, hhmm="21:30")
+    await start(bench, WITHIN, hhmm="21:30")
     await bench.change_on_device("climate.salon", 22)
     assert end_of(bench.overrides()["climate.salon"]) == at("22:30")
 
 
 async def test_a_preset_picked_on_the_thermostat_ends_at_the_next_slot(bench: Bench):
     bench.needs("vtherm", "standard")
-    await start(bench, hhmm="19:00")  # eco, comfort at 20:00
+    await start(bench, WITHIN, hhmm="19:00")  # eco, comfort at 20:00
     bench.thermostat("climate.salon", "boost", context=CTX_USER)
     await bench.hass.async_block_till_done()
     o = bench.overrides()["climate.salon"]
@@ -87,17 +117,17 @@ async def test_a_preset_picked_on_the_thermostat_ends_at_the_next_slot(bench: Be
     assert end_of(o) == at("20:00")
 
 
-async def test_a_slot_starting_less_than_30_minutes_after_the_change_does_not_end_it(bench: Bench):
-    """Raised at 17:28, comfort at 17:30: the override would last 2 minutes. The next slot that
-    changes the target counts: eco at 18:30."""
-    schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("17:30", "comfort"), ("18:30", "eco"))}}
-    await start(bench, schedules=schedules, hhmm="17:28")
+async def test_a_slot_starting_less_than_15_minutes_after_the_change_does_not_end_it(bench: Bench):
+    """Raised at 17:50, comfort at 18:00: the override would last 10 minutes. The next slot that
+    changes the target counts: eco at 19:00."""
+    schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("18:00", "comfort"), ("19:00", "eco"))}}
+    await start(bench, WITHIN, schedules=schedules, hhmm="17:50")
     await bench.manual_setpoint("climate.salon", 22)
-    assert end_of(bench.overrides()["climate.salon"]) == at("18:30")
+    assert end_of(bench.overrides()["climate.salon"]) == at("19:00")
 
 
-async def test_a_slot_starting_30_minutes_after_the_change_ends_it(bench: Bench):
-    await start(bench, hhmm="22:00")
+async def test_a_slot_starting_15_minutes_after_the_change_ends_it(bench: Bench):
+    await start(bench, WITHIN, hhmm="22:15")
     await bench.manual_setpoint("climate.salon", 22)
     assert end_of(bench.overrides()["climate.salon"]) == at("22:30")
 
@@ -106,7 +136,7 @@ async def test_a_slot_giving_the_same_target_does_not_end_it(bench: Bench):
     """Comfort, then comfort again at 21:00: nothing changes on the thermostat at 21:00."""
     schedules = {"climate.salon": {"normal": every_day(
         ("00:00", "eco"), ("20:00", "comfort"), ("21:00", "comfort"), ("21:45", "eco"))}}
-    await start(bench, schedules=schedules, hhmm="20:15")
+    await start(bench, WITHIN, schedules=schedules, hhmm="20:15")
     await bench.manual_setpoint("climate.salon", 22)
     assert end_of(bench.overrides()["climate.salon"]) == at("21:45")
 
@@ -115,14 +145,14 @@ async def test_two_presets_giving_the_same_temperature_do_not_end_it(bench: Benc
     """Comfort, then boost mapped to the same temperature on this thermostat."""
     schedules = {"climate.salon": {"normal": every_day(
         ("00:00", "eco"), ("20:00", "comfort"), ("21:00", "boost"), ("21:45", "eco"))}}
-    await start(bench, schedules=schedules, hhmm="20:15")
+    await start(bench, WITHIN, schedules=schedules, hhmm="20:15")
     await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 20}, "boost": {"temperature": 20}})
     await bench.manual_setpoint("climate.salon", 22)
     assert end_of(bench.overrides()["climate.salon"]) == at("21:45")
 
 
 async def test_a_week_with_a_single_preset_ends_after_the_duration(bench: Bench):
-    await start(bench, schedules={"climate.salon": {"normal": every_day(("00:00", "eco"))}})
+    await start(bench, WITHIN, schedules={"climate.salon": {"normal": every_day(("00:00", "eco"))}})
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     assert end_of(o) == at("12:00")
@@ -130,18 +160,16 @@ async def test_a_week_with_a_single_preset_ends_after_the_duration(bench: Bench)
 
 
 async def test_a_new_change_by_hand_computes_the_end_again(bench: Bench):
-    await start(bench, hhmm="19:00")
+    await start(bench, WITHIN, hhmm="19:00")
     await bench.manual_setpoint("climate.salon", 21)  # ends at 20:00
     await bench.go_to("20:45")  # comfort since 20:00, when the override ended
     await bench.manual_setpoint("climate.salon", 23)
     assert end_of(bench.overrides()["climate.salon"]) == at("22:30")
 
 
-# ----- limits: midnight, Sunday to Monday, summer time -----
-
 async def test_a_midnight_slot_with_the_same_preset_does_not_end_it(bench: Bench):
     """Eco until midnight, eco again from midnight: the duration applies."""
-    await start(bench, hhmm="23:30")
+    await start(bench, WITHIN, hhmm="23:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     assert end_of(o) == at("01:30", day=1)
@@ -152,7 +180,7 @@ async def test_a_change_on_sunday_evening_ends_at_monday_s_first_slot(bench: Ben
     weekday = [["00:00", "eco"], ["08:00", "comfort"], ["22:00", "eco"]]
     sunday = [["00:00", "eco"], ["08:00", "comfort"]]  # comfort until midnight
     schedules = {"climate.salon": {"normal": [weekday] * 6 + [sunday]}}
-    await start(bench, schedules=schedules, hhmm="22:45", day=6)
+    await start(bench, WITHIN, schedules=schedules, hhmm="22:45", day=6)
     await bench.manual_setpoint("climate.salon", 22)
 
     assert end_of(bench.overrides()["climate.salon"]) == at("00:00", day=7)
@@ -164,7 +192,7 @@ async def test_a_change_on_sunday_evening_ends_at_monday_s_first_slot(bench: Ben
 async def test_the_next_slot_keeps_its_time_when_summer_time_ends(bench: Bench):
     """Sunday 25 October 2026, 3:00 → 2:00. Raised at 1:30, comfort at 3:00 (winter time)."""
     schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("03:00", "comfort"), ("12:00", "eco"))}}
-    await start(bench, {"override_duration": 240}, schedules=schedules, hhmm="01:30", day=13)
+    await start(bench, WITHIN | {"override_duration": 240}, schedules=schedules, hhmm="01:30", day=13)
     await bench.manual_setpoint("climate.salon", 22)
 
     o = bench.overrides()["climate.salon"]
@@ -178,7 +206,7 @@ async def test_a_change_in_the_repeated_hour_ends_at_the_next_slot_after_it(benc
     """Regression: Sunday 25 October 2026, 3:00 → 2:00. Raised at 2:10 winter time (the second
     2:10), comfort at 2:45: the end is 2:45 winter time, never before the change."""
     schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("02:45", "comfort"), ("12:00", "eco"))}}
-    await start(bench, schedules=schedules, hhmm="00:30", day=13)
+    await start(bench, WITHIN, schedules=schedules, hhmm="00:30", day=13)
     await bench.advance(160)  # 2:10 winter time, 01:10 UTC
     bench.applied()
     await bench.manual_setpoint("climate.salon", 22)
@@ -207,19 +235,108 @@ async def test_a_change_in_the_repeated_hour_ends_after_the_duration_in_real_tim
     assert "climate.salon" in bench.overrides()
 
 
+# ----- until the next slot, however far -----
+
+async def test_a_change_by_hand_lasts_until_the_next_slot_however_far(bench: Bench):
+    """The office turned up at 18:30, next slot at 6:00: the office heats until 6:00, as on a
+    classic thermostat."""
+    await start(bench, NEXT_SLOT, hhmm="18:30")
+    await bench.manual_setpoint("climate.bureau", 21)
+
+    o = bench.overrides()["climate.bureau"]
+    assert end_of(o) == at("06:00", day=1)
+    assert o["ends_at"] == "next_slot"
+    await bench.go_to("05:59", day=1)
+    assert bench.applied() == {}
+    await bench.go_to("06:00", day=1)
+    assert bench.applied() == {"climate.bureau": "comfort"}
+    assert bench.overrides() == {}
+
+
+async def test_until_the_next_slot_a_close_slot_ends_the_change_too(bench: Bench):
+    await start(bench, NEXT_SLOT, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    assert end_of(bench.overrides()["climate.salon"]) == at("22:30")
+
+
+async def test_until_the_next_slot_a_slot_less_than_15_minutes_away_does_not_count(bench: Bench):
+    """Raised at 17:50, comfort at 18:00, eco at 19:00: the change lasts until 19:00."""
+    schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("18:00", "comfort"), ("19:00", "eco"))}}
+    await start(bench, NEXT_SLOT, schedules=schedules, hhmm="17:50")
+    await bench.manual_setpoint("climate.salon", 22)
+    assert end_of(bench.overrides()["climate.salon"]) == at("19:00")
+
+
+async def test_until_the_next_slot_the_same_preset_after_midnight_does_not_count(bench: Bench):
+    """The living room raised at 23:30: eco again at midnight changes nothing, comfort at 20:00
+    the next day does."""
+    await start(bench, NEXT_SLOT, hhmm="23:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    assert end_of(bench.overrides()["climate.salon"]) == at("20:00", day=1)
+
+
+async def test_until_the_next_slot_a_change_on_saturday_ends_on_monday(bench: Bench):
+    weekday = [["00:00", "eco"], ["06:00", "comfort"], ["08:00", "eco"]]
+    weekend = [["00:00", "eco"]]
+    schedules = {"climate.salon": {"normal": [weekday] * 5 + [weekend] * 2}}
+    await start(bench, NEXT_SLOT, schedules=schedules, hhmm="10:00", day=5)
+    await bench.manual_setpoint("climate.salon", 22)
+    assert end_of(bench.overrides()["climate.salon"]) == at("06:00", day=7)
+
+
+async def test_until_the_next_slot_the_slot_keeps_its_time_across_the_end_of_summer_time(bench: Bench):
+    """Raised on Saturday 24 October 2026 at 22:00, comfort on Sunday at 8:00, winter time."""
+    schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("08:00", "comfort"), ("09:00", "eco"))}}
+    await start(bench, NEXT_SLOT, schedules=schedules, hhmm="22:00", day=12)
+    await bench.manual_setpoint("climate.salon", 22)
+
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == datetime(2026, 10, 25, 8, 0, tzinfo=PARIS)
+    assert end_of(o).utcoffset() == timedelta(hours=1)
+
+
+async def test_until_the_next_slot_a_week_on_a_single_preset_keeps_the_change_for_a_week(bench: Bench):
+    """No slot ever changes the target: the change lasts until the user ends it, or until the
+    thermostat goes back to its slot. Its end is a week later, so that every override has one."""
+    await start(bench, NEXT_SLOT, schedules={"climate.salon": {"normal": every_day(("00:00", "eco"))}})
+    await bench.manual_setpoint("climate.salon", 22)
+
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == at("10:00", day=7)
+    assert o["ends_at"] == "no_next_slot"
+    await bench.go_to("10:00", day=3)
+    assert "climate.salon" in bench.overrides()
+
+
+async def test_until_the_next_slot_going_back_to_the_slot_ends_the_change(bench: Bench):
+    await start(bench, NEXT_SLOT, schedules={"climate.salon": {"normal": every_day(("00:00", "eco"))}})
+    await bench.manual_setpoint("climate.salon", 22)
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 17, context=CTX_USER)  # eco's value
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+
+
 # ----- what keeps its end -----
 
 async def test_a_schedule_switched_during_the_override_does_not_move_its_end(bench: Bench):
     away = every_day(("00:00", "eco"), ("21:45", "comfort"))
     schedules = {"climate.salon": {"normal": EVENING, "away": away}}
-    await start(bench, schedules=schedules, hhmm="21:30")
+    await start(bench, NEXT_SLOT, schedules=schedules, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     await bench.activate_schedule("Away")
     assert end_of(bench.overrides()["climate.salon"]) == at("22:30")
 
 
-async def test_an_override_set_from_the_card_keeps_its_end(bench: Bench):
+async def test_a_setting_changed_during_the_override_does_not_move_its_end(bench: Bench):
     await start(bench, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    bench.hass.config_entries.async_update_entry(bench.entry, options=NEXT_SLOT)
+    await bench.hass.async_block_till_done()
+    assert end_of(bench.overrides()["climate.salon"]) == at("23:30")
+
+
+async def test_an_override_set_from_the_card_keeps_its_end(bench: Bench):
+    await start(bench, NEXT_SLOT, hhmm="21:30")
     override = bench.runtime.new_override("temperature", 22, minutes=24 * 60)
     await bench.set_override("climate.salon", override)
     o = bench.overrides()["climate.salon"]
@@ -231,7 +348,7 @@ async def test_an_override_set_from_the_card_keeps_its_end(bench: Bench):
 
 async def test_an_end_changed_from_the_card_no_longer_says_why(bench: Bench):
     """+30 min on the card: the end is the user's choice, neither the slot nor the duration."""
-    await start(bench, hhmm="21:30")
+    await start(bench, WITHIN, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     await bench.set_override("climate.salon", {**o, "end": (end_of(o) + timedelta(minutes=30)).isoformat()})
@@ -242,7 +359,7 @@ async def test_an_end_changed_from_the_card_no_longer_says_why(bench: Bench):
 
 async def test_the_same_end_sent_again_from_the_card_keeps_why_the_override_ends(bench: Bench):
     """The card sends the end in UTC: the same instant, written another way."""
-    await start(bench, hhmm="21:30")
+    await start(bench, WITHIN, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     utc_end = dt_util.as_utc(end_of(o)).isoformat().replace("+00:00", "Z")
@@ -251,7 +368,7 @@ async def test_the_same_end_sent_again_from_the_card_keeps_why_the_override_ends
 
 
 async def test_a_value_changed_from_the_card_keeps_why_the_override_ends(bench: Bench):
-    await start(bench, hhmm="21:30")
+    await start(bench, WITHIN, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     await bench.set_override("climate.salon", {**o, "value": 23})
@@ -259,7 +376,7 @@ async def test_a_value_changed_from_the_card_keeps_why_the_override_ends(bench: 
 
 
 async def test_the_set_override_service_keeps_its_end(bench: Bench):
-    await start(bench, hhmm="21:30")
+    await start(bench, NEXT_SLOT, hhmm="21:30")
     await bench.hass.services.async_call("chauffage", "set_override", {
         "entity_id": "climate.salon", "temperature": 22, "duration": 180}, blocking=True)
     o = bench.overrides()["climate.salon"]
@@ -267,23 +384,27 @@ async def test_the_set_override_service_keeps_its_end(bench: Bench):
     assert "ends_at" not in o
 
 
-# ----- the option -----
+# ----- the setting -----
 
-async def test_the_option_after_the_duration_brings_back_the_fixed_duration(bench: Bench):
-    await start(bench, {"manual_override_end": "duration"}, hhmm="21:30")
+async def test_the_setting_is_read_for_each_thermostat(bench: Bench):
+    """One setting for every thermostat today, read through one function that takes the
+    thermostat, so that a setting per thermostat can come later."""
+    await start(bench, NEXT_SLOT)
+    assert bench.runtime.manual_override_end_of("climate.salon") == "next_slot"
+    assert bench.runtime.manual_override_end_of("climate.bureau") == "next_slot"
+
+
+async def test_an_unknown_setting_lasts_the_override_duration(bench: Bench):
+    await start(bench, {"manual_override_end": "whenever"}, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
-    o = bench.overrides()["climate.salon"]
-    assert end_of(o) == at("23:30")
-    assert o["ends_at"] == "duration"
-    await bench.go_to("22:30")
-    assert bench.applied() == {}
+    assert end_of(bench.overrides()["climate.salon"]) == at("23:30")
 
 
 async def test_the_card_knows_how_a_change_by_hand_ends(bench: Bench):
     await start(bench)
-    assert bench.runtime.snapshot()["manual_override_end"] == "next_slot"
-
-
-async def test_the_card_knows_when_a_change_by_hand_ends_after_the_duration(bench: Bench):
-    await start(bench, {"manual_override_end": "duration"})
     assert bench.runtime.snapshot()["manual_override_end"] == "duration"
+
+
+async def test_the_card_knows_the_setting_chosen(bench: Bench):
+    await start(bench, NEXT_SLOT)
+    assert bench.runtime.snapshot()["manual_override_end"] == "next_slot"
