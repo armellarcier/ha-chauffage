@@ -298,6 +298,7 @@ describe('the Chauffage panel', () => {
       assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure jusqu'au prochain créneau, 1 h 30 au plus\. Ensuite/);
       hass.push({ ...data, manual_override_end: 'next_slot' });
       assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure jusqu'au prochain créneau\. Ensuite/);
+      assert.equal(text($(el, '.next-steps .btn[data-navigate]')), "Choisir la fin d'un changement à la main");
       $(el, '.next-steps [data-navigate]').click();
       assert.equal(window.location.pathname, '/chauffage/settings');
     });
@@ -334,30 +335,52 @@ describe('the Chauffage panel', () => {
     });
   });
 
-  describe('the Settings page: overrides (#83)', () => {
+  describe('the Settings page: changes by hand (#83)', () => {
     const withSettings = (settings, more = {}) => {
       const data = { ...integrationData({ weeks: WEEKS, language: (more.locale || {}).language || 'fr' }), ...settings };
       return setup({ data, ...more });
     };
+    const section = (el) => $(el, '.override-settings');
     const choices = (el) => $$(el, '.override-settings [data-override-end]');
+    const label = (el, value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.choice-label'));
+    const example = (el, value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.example'));
+    const change = (input, value) => {
+      if (input.type === 'radio') input.checked = true;
+      else input.value = value;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
 
-    test('shows how a change by hand ends, the three choices, the current one checked', () => {
+    test('one name for the section and the setting: changes by hand, made on the thermostat or in Home Assistant', () => {
       const el = panel(withSettings({}), '/settings');
-      assert.match(text($(el, '.override-settings')), /^Dérogations/);
+      assert.equal(text($(el, '.override-settings h2')), 'Changements à la main');
+      assert.match(text(section(el)), /Quand vous changez une consigne à la main, sur le thermostat ou dans Home Assistant/);
+      assert.doesNotMatch(text(section(el)), /Dérogations|Fin d'un changement/);
+      assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), "Fin d'un changement à la main");
+    });
+
+    test('the choices carry the user\'s duration and mark the default; the current one is checked', () => {
+      const el = panel(withSettings({}), '/settings');
       assert.deepEqual(choices(el).map((c) => c.value), ['duration', 'next_slot_within_duration', 'next_slot']);
       assert.deepEqual(choices(el).map((c) => c.checked), [true, false, false]);
-      assert.equal(choices(el)[0].type, 'radio');
-      assert.match(text($(el, '.override-settings')),
-        /Pendant la durée des dérogations La consigne dure 2 h, quel que soit le planning\./);
-      assert.match(text($(el, '.override-settings')),
-        /La consigne dure jusqu'au prochain créneau, comme sur un thermostat classique\./);
+      assert.equal(label(el, 'duration'), 'Pendant 2 h (par défaut)');
+      assert.equal(label(el, 'next_slot_within_duration'), "Jusqu'au prochain créneau, 2 h au plus");
+      assert.equal(label(el, 'next_slot'), "Jusqu'au prochain créneau");
+      cleanup();
+      const short = panel(withSettings({ override_duration: 90 }), '/settings');
+      assert.equal(label(short, 'duration'), 'Pendant 1 h 30 (par défaut)');
+    });
+
+    test('the duration comes first, above the choices that use it', () => {
+      const el = panel(withSettings({}), '/settings');
+      const duration = $(el, '.override-settings select[data-override-duration]');
+      assert.ok(duration.compareDocumentPosition(choices(el)[0]) & Node.DOCUMENT_POSITION_FOLLOWING);
+      assert.doesNotMatch(text(section(el)), /deux premiers choix/);
     });
 
     test('gives the example of the living room and the office, computed with the user\'s duration', () => {
-      const example = (el, value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.example'));
       const el = panel(withSettings({}), '/settings');
-      assert.match(text($(el, '.override-settings .scenario')),
-        /Exemple : vous montez le salon à 21:30, son prochain créneau est à 22:30\. Vous montez le bureau à 18:30, son prochain créneau est à 06:00\./);
+      assert.match(text(section(el)),
+        /Par exemple, vous montez le salon à 21:30, son prochain créneau est à 22:30, et le bureau à 18:30, son prochain créneau est à 06:00\./);
       assert.equal(example(el, 'duration'), "Salon jusqu'à 23:30 · bureau jusqu'à 20:30");
       assert.equal(example(el, 'next_slot_within_duration'), "Salon jusqu'à 22:30 · bureau jusqu'à 20:30");
       assert.equal(example(el, 'next_slot'), "Salon jusqu'à 22:30 · bureau jusqu'à demain 06:00");
@@ -370,36 +393,45 @@ describe('the Chauffage panel', () => {
       assert.equal(example(long, 'duration'), "Salon jusqu'à demain 21:30 · bureau jusqu'à demain 18:30");
     });
 
-    test('a choice is sent to the integration at once', async () => {
+    test('the note on the next slot only comes with the next-slot choices', () => {
+      assert.equal($(panel(withSettings({}), '/settings'), '.override-settings .slot-note'), null);
+      cleanup();
+      for (const end of ['next_slot_within_duration', 'next_slot']) {
+        const el = panel(withSettings({ manual_override_end: end }), '/settings');
+        assert.match(text($(el, '.override-settings .slot-note')), /au moins 15 minutes après votre changement/, end);
+        cleanup();
+      }
+    });
+
+    test('the durations: 15, 30, 45 minutes, then whole hours up to 24 h; a value off the list stays shown', () => {
+      const el = panel(withSettings({}), '/settings');
+      const options = [...$(el, '.override-settings select[data-override-duration]').options];
+      assert.deepEqual(options.slice(0, 5).map((o) => o.textContent), ['15 min', '30 min', '45 min', '1 h', '2 h']);
+      assert.equal(options.length, 27);
+      assert.equal(options.at(-1).textContent, '24 h');
+      cleanup();
+      const off = $(panel(withSettings({ override_duration: 90 }), '/settings'), '.override-settings select[data-override-duration]');
+      assert.equal(off.value, '90');
+      assert.deepEqual([...off.options].slice(3, 6).map((o) => o.textContent), ['1 h', '1 h 30', '2 h']);
+    });
+
+    test('a choice is sent at once, the controls wait for the answer, then say it is saved', async () => {
       const hass = withSettings({});
       const el = panel(hass, '/settings');
-      const next = choices(el).find((c) => c.value === 'next_slot');
-      next.checked = true;
-      next.dispatchEvent(new Event('change', { bubbles: true }));
+      change(choices(el)[2]);
+      assert.ok(choices(el).every((c) => c.disabled), 'disabled while it is sent');
       await tick();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', manual_override_end: 'next_slot' });
+      assert.ok(choices(el).every((c) => !c.disabled));
+      assert.equal(text($(el, '.override-settings .saved')), 'Enregistré ✓');
     });
 
-    test('the override duration is a list of durations by steps of 15 minutes, sent at once', async () => {
-      const hass = withSettings({ override_duration: 90 });
+    test('a duration is sent at once', async () => {
+      const hass = withSettings({});
       const el = panel(hass, '/settings');
-      const duration = $(el, '.override-settings select[data-override-duration]');
-      assert.equal(duration.value, '90');
-      assert.equal(duration.options.length, 96);
-      assert.deepEqual([...duration.options].slice(0, 5).map((o) => o.textContent), ['15 min', '30 min', '45 min', '1 h', '1 h 15']);
-      assert.equal(duration.options[95].textContent, '24 h');
-      assert.match(text($(el, '.override-settings')), /Durée des dérogations/);
-      duration.value = '240';
-      duration.dispatchEvent(new Event('change', { bubbles: true }));
+      change($(el, '.override-settings select[data-override-duration]'), '240');
       await tick();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: 240 });
-    });
-
-    test('says when the duration is not used: with Until the next slot', () => {
-      const el = panel(withSettings({ manual_override_end: 'next_slot' }), '/settings');
-      assert.match(text($(el, '.override-settings .duration-note')), /ne sert qu'aux nouvelles dérogations créées depuis la carte/);
-      cleanup();
-      assert.equal($(panel(withSettings({}), '/settings'), '.override-settings .duration-note'), null);
     });
 
     test('follows the settings changed elsewhere (the options, the entities)', () => {
@@ -413,24 +445,52 @@ describe('the Chauffage panel', () => {
     test('a change refused by the integration says why', async () => {
       const hass = withSettings({}, { reply: () => { throw { code: 'unauthorized', message: 'Unauthorized' }; } });
       const el = panel(hass, '/settings');
-      const next = choices(el)[2];
-      next.checked = true;
-      next.dispatchEvent(new Event('change', { bubbles: true }));
+      change(choices(el)[2]);
       await tick();
       assert.match(text($(el, '.override-settings .error')), /Unauthorized/);
-    });
-
-    test('says where else to find the settings: the entities of the Chauffage device', () => {
-      const el = panel(withSettings({}), '/settings');
-      $(el, '.override-settings [data-device]').click();
-      assert.equal(window.location.pathname, '/config/devices/device/chauffage-device');
+      assert.equal($(el, '.override-settings .saved'), null);
     });
 
     test('speaks English', () => {
       const el = panel(withSettings({}, { locale: { language: 'en' } }), '/settings');
-      assert.match(text($(el, '.override-settings')), /^Overrides/);
-      assert.match(text($(el, '.override-settings')), /For the override duration A setpoint changed by hand lasts 2 h, whatever the schedule\./);
+      assert.equal(text($(el, '.override-settings h2')), 'Changes by hand');
+      assert.equal(label(el, 'duration'), 'For 2 h (default)');
+      assert.equal(label(el, 'next_slot_within_duration'), 'Until the next slot, 2 h at most');
       assert.equal(text($$(el, '.override-settings .example')[2]), 'Living room until 10:30 PM · office until tomorrow 6:00 AM');
+    });
+  });
+
+  describe('telling existing users about the new setting (#83)', () => {
+    test('the Thermostats tab says once: new, choose how long a setpoint changed by hand lasts', () => {
+      const el = panel(setup(), '/thermostats');
+      assert.match(text($(el, '.notice.new-setting')), /Nouveau : choisissez combien de temps dure une consigne changée à la main\./);
+      $(el, '.new-setting [data-navigate="/chauffage/settings"]').click();
+      assert.equal(window.location.pathname, '/chauffage/settings');
+    });
+
+    test('closed, it stays closed on this browser', () => {
+      const el = panel(setup(), '/thermostats');
+      $(el, '.new-setting [data-close-new-setting]').click();
+      assert.equal($(el, '.new-setting'), null);
+      el.remove(); // the panel opened again, in the same browser
+      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
+    });
+
+    test('once the Settings tab is open, the notice is gone', () => {
+      panel(setup(), '/settings').remove();
+      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
+    });
+
+    test('a new user gets the next steps instead', () => {
+      const hass = setup({ weeks: {} });
+      const el = panel(hass, '/thermostats');
+      const box = $(el, '.welcome input[data-pick="climate.salon"]');
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      $(el, '[data-start]').click();
+      hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } }));
+      assert.ok($(el, '.next-steps'));
+      assert.equal($(el, '.new-setting'), null);
     });
   });
 
