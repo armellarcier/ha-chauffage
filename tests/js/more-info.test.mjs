@@ -78,6 +78,11 @@ describe('more-info block', () => {
     assert.match(text(duration), /aujourd'hui · au bout de 2 h · encore 1 h 30/);
   });
 
+  test('an override kept until the next slot, with no slot changing it, says so', () => {
+    const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'no_next_slot' } } }), 'climate.salon');
+    assert.match(text(el), /aujourd'hui · aucun créneau ne la change · encore 1 h 30/);
+  });
+
   test('an override with an end chosen on the card gives no reason for its end', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
     assert.doesNotMatch(text(el), /prochain créneau|au bout de/);

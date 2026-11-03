@@ -53,6 +53,7 @@ const I18N = {
     hours: '{h} h',
     endsNextSlot: 'next slot',
     endsAfter: 'after {duration}',
+    endsNoNextSlot: 'no slot changes it',
     thenSchedule: 'then {preset} (schedule)',
     newOverride: 'New override…',
     resume: 'Resume the schedule',
@@ -94,7 +95,27 @@ const I18N = {
     nextCard: 'Add the card to a dashboard: Add card → Heating schedules.',
     nextOverride: 'A setpoint you change by hand lasts until the next slot, at most {duration}. Then the thermostat goes back to its schedule.',
     nextOverrideDuration: 'A setpoint you change by hand lasts {duration}. Then the thermostat goes back to its schedule.',
-    nextOverrideOption: 'Change it in the integration options',
+    nextOverrideNextSlot: 'A setpoint you change by hand lasts until the next slot. Then the thermostat goes back to its schedule.',
+    nextOverrideOption: 'Choose how it ends',
+    pageSettings: 'Settings',
+    overridesTitle: 'Overrides',
+    overrideEndTitle: 'End of a change by hand',
+    overrideEndIntro: 'When you change a setpoint by hand, on the thermostat or in Home Assistant, Chauffage keeps it for a while. Then the thermostat goes back to its schedule.',
+    overrideScenario: 'Example: you raise the living room at {salonAt}, its next slot is at {salonSlot}. You raise the office at {bureauAt}, its next slot is at {bureauSlot}.',
+    overrideEndDuration: 'For the override duration',
+    overrideEndDurationText: 'A setpoint changed by hand lasts {duration}, whatever the schedule.',
+    overrideEndWithin: 'Until the next slot, at most the override duration',
+    overrideEndWithinText: 'A setpoint changed by hand lasts until the next slot, {duration} at most.',
+    overrideEndNextSlot: 'Until the next slot',
+    overrideEndNextSlotText: 'A setpoint changed by hand lasts until the next slot, as on a classic thermostat.',
+    overrideExample: 'Living room until {salon} · office until {bureau}',
+    overrideTomorrow: 'tomorrow {time}',
+    overrideNextSlotMeans: 'The next slot is the first one that changes the thermostat\'s setpoint, at least 15 minutes after your change. An end you choose on the card stays as you chose it.',
+    overrideDurationTitle: 'Override duration',
+    overrideDurationText: 'How long a setpoint changed by hand lasts with the first two choices. A new override created on the card lasts this long too.',
+    overrideDurationUnused: 'With Until the next slot, the override duration only applies to new overrides created on the card.',
+    overrideEntities: 'Automations and dashboards can change these settings too, with two entities of the Chauffage device.',
+    overrideOpenDevice: 'Open the device',
     nextClose: 'Close',
     noThermostatYet: 'No thermostat is scheduled yet.',
     scheduleThermostats: 'Schedule thermostats',
@@ -281,6 +302,7 @@ const I18N = {
     hours: '{h} h',
     endsNextSlot: 'prochain créneau',
     endsAfter: 'au bout de {duration}',
+    endsNoNextSlot: 'aucun créneau ne la change',
     thenSchedule: 'puis {preset} (planning)',
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
@@ -322,7 +344,27 @@ const I18N = {
     nextCard: 'Ajoutez la carte à un tableau de bord : Ajouter une carte → Plannings de chauffe.',
     nextOverride: "Une consigne changée à la main dure jusqu'au prochain créneau, {duration} au plus. Ensuite, le thermostat reprend son planning.",
     nextOverrideDuration: 'Une consigne changée à la main dure {duration}. Ensuite, le thermostat reprend son planning.',
-    nextOverrideOption: "Le régler dans les options de l'intégration",
+    nextOverrideNextSlot: "Une consigne changée à la main dure jusqu'au prochain créneau. Ensuite, le thermostat reprend son planning.",
+    nextOverrideOption: 'Choisir comment elle se termine',
+    pageSettings: 'Réglages',
+    overridesTitle: 'Dérogations',
+    overrideEndTitle: "Fin d'un changement à la main",
+    overrideEndIntro: 'Quand vous changez une consigne à la main, sur le thermostat ou dans Home Assistant, Chauffage la garde un moment. Ensuite, le thermostat reprend son planning.',
+    overrideScenario: 'Exemple : vous montez le salon à {salonAt}, son prochain créneau est à {salonSlot}. Vous montez le bureau à {bureauAt}, son prochain créneau est à {bureauSlot}.',
+    overrideEndDuration: 'Pendant la durée des dérogations',
+    overrideEndDurationText: 'La consigne dure {duration}, quel que soit le planning.',
+    overrideEndWithin: "Jusqu'au prochain créneau, au plus la durée des dérogations",
+    overrideEndWithinText: "La consigne dure jusqu'au prochain créneau, {duration} au plus.",
+    overrideEndNextSlot: "Jusqu'au prochain créneau",
+    overrideEndNextSlotText: "La consigne dure jusqu'au prochain créneau, comme sur un thermostat classique.",
+    overrideExample: "Salon jusqu'à {salon} · bureau jusqu'à {bureau}",
+    overrideTomorrow: 'demain {time}',
+    overrideNextSlotMeans: 'Le prochain créneau est le premier qui change la consigne du thermostat, au moins 15 minutes après votre changement. Une fin choisie sur la carte reste celle que vous avez choisie.',
+    overrideDurationTitle: 'Durée des dérogations',
+    overrideDurationText: 'Combien de temps dure une consigne changée à la main avec les deux premiers choix. Une nouvelle dérogation créée depuis la carte dure aussi ce temps.',
+    overrideDurationUnused: "Avec Jusqu'au prochain créneau, la durée ne sert qu'aux nouvelles dérogations créées depuis la carte.",
+    overrideEntities: "Les automatisations et les tableaux de bord peuvent aussi changer ces réglages, avec deux entités de l'appareil Chauffage.",
+    overrideOpenDevice: "Ouvrir l'appareil",
     nextClose: 'Fermer',
     noThermostatYet: "Aucun thermostat n'est encore programmé.",
     scheduleThermostats: 'Programmer des thermostats',
@@ -944,10 +986,12 @@ function roundDurationText(min, locale = DEFAULT_LOCALE) {
   return min >= 60 && min % 60 === 0 ? locale.t('hours', { h: min / 60 }) : durationText(min, locale);
 }
 
-// Why an override from a change by hand ends then (#83): "next slot", or "after 2 h"; '' for an
-// end chosen on the card, the panel or by the service
+// Why an override from a change by hand ends then (#83): "next slot", "after 2 h", or "no slot
+// changes it" (kept a week until the next slot). '' for an end chosen on the card, the panel or by
+// the service
 function endReasonText(d, loc) {
   if (d.ends_at === 'next_slot') return loc.t('endsNextSlot');
+  if (d.ends_at === 'no_next_slot') return loc.t('endsNoNextSlot');
   if (d.ends_at !== 'duration') return '';
   const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
   return loc.t('endsAfter', { duration: roundDurationText(minutes, loc) });
@@ -1230,8 +1274,11 @@ function makeDataSource(hass, available) {
     // `source`: 'panel' from the panel, told in the logbook; none from a card (older integrations)
     setOverride: (climate, override, source) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override, ...(source ? { source } : {}) }),
     overrideDuration: () => (d && d.override_duration) || 120, // minutes, an option of the integration
-    // When a change by hand ends: 'next_slot' (at the latest after the duration) or 'duration'
-    manualOverrideEnd: () => (d && d.manual_override_end) || 'next_slot',
+    // How a change by hand ends (#83): 'duration' (the default), 'next_slot_within_duration' or
+    // 'next_slot'
+    manualOverrideEnd: () => (d && d.manual_override_end) || 'duration',
+    // The settings of overrides, in the integration's options: { manual_override_end?, override_duration? }
+    setSettings: (settings) => hass.callWS({ type: 'chauffage/settings/set', ...settings }),
     activateSchedule: (id, source) => hass.callWS({ type: 'chauffage/schedule/activate', schedule: id, ...(source ? { source } : {}) }),
     // Create, rename, move, delete schedules: [{ id, name? } | { name, copy_of? }]
     setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
@@ -5502,7 +5549,8 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
 //  Dashboards keep the cards, for everyday use.
 // =====================================================================
 // Thermostats first: everything starts from a scheduled thermostat, and a new user starts there
-const PANEL_TABS = [['thermostats', 'viewThermostats'], ['schedules', 'pageSchedules'], ['presets', 'viewPresets']];
+const PANEL_TABS = [['thermostats', 'viewThermostats'], ['schedules', 'pageSchedules'], ['presets', 'viewPresets'],
+  ['settings', 'pageSettings']];
 // The next steps after the welcome: 'pending' once the first thermostats are scheduled from it,
 // 'closed' once the user closed them (this browser)
 const LS_NEXT_STEPS = 'chauffage-panel:next-steps';
@@ -5554,6 +5602,9 @@ class ChauffagePanel extends HTMLElement {
         this._update();
         return;
       }
+      // The settings of overrides: sent at once, as Home Assistant's own settings
+      if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
+      else if (e.target.matches('[data-override-duration]')) this._setSettings({ override_duration: Number(e.target.value) });
     });
     // Closing or reloading the browser's page with weeks not saved yet: the browser asks
     this._onUnload = (e) => {
@@ -5699,6 +5750,10 @@ class ChauffagePanel extends HTMLElement {
         <nav class="tabs">${tabs}</nav>`;
     }
     this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>${head}<div class="content"></div>`;
+    // On a phone the tabs scroll sideways: the current one is in view, the last one (Settings) too
+    const nav = this.shadowRoot.querySelector('.tabs');
+    const on = nav && nav.querySelector('.tab.on');
+    if (on && on.offsetLeft + on.offsetWidth > nav.clientWidth) nav.scrollLeft = on.offsetLeft + on.offsetWidth - nav.clientWidth;
     this._cards = [];
     if (!src.ready) return;
     const content = this.shadowRoot.querySelector('.content');
@@ -5742,6 +5797,9 @@ class ChauffagePanel extends HTMLElement {
     } else if (route.list === 'thermostats') {
       html('<div data-fill="next"></div>');
       card({ view: 'thermostats', flat: true }); // its list is a card of its own
+    } else if (route.list === 'settings') {
+      // The settings of overrides (#83): no thermostat needed
+      html('<div class="override-settings" data-fill="settings"></div>');
     } else {
       // A user may create schedules or presets first: the page stays, and says where to start
       if (!scheduled) {
@@ -5777,8 +5835,10 @@ class ChauffagePanel extends HTMLElement {
       setHtml(next, shown ? `<div class="box next-steps">
           <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
           <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li><li>${esc(this._nextOverrideText(src))}
-            <span class="mi-link" role="link" tabindex="0" data-navigate="/config/integrations/integration/chauffage">${esc(t('nextOverrideOption'))}</span></li></ul></div>` : '');
+            <span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath('settings')}">${esc(t('nextOverrideOption'))}</span></li></ul></div>` : '');
     }
+    const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
+    if (settings) setHtml(settings, this._settingsHtml(src));
     // A week's heading: its schedule (a link to its sheet), and its ⋮ menu to copy it to another
     // schedule, as the card's menus
     for (const h of this.shadowRoot.querySelectorAll('[data-fill-schedule]')) {
@@ -5905,11 +5965,68 @@ class ChauffagePanel extends HTMLElement {
       ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
   }
 
-  // How long a setpoint changed by hand lasts, as the integration's options say (#83)
+  // How long a setpoint changed by hand lasts, as the settings of overrides say (#83)
   _nextOverrideText(src) {
     const loc = makeLocale(this._hass);
     const duration = roundDurationText(src.overrideDuration(), loc);
-    return loc.t(src.manualOverrideEnd() === 'duration' ? 'nextOverrideDuration' : 'nextOverride', { duration });
+    const key = { duration: 'nextOverrideDuration', next_slot: 'nextOverrideNextSlot' }[src.manualOverrideEnd()] || 'nextOverride';
+    return loc.t(key, { duration });
+  }
+
+  // The Settings page: how a change by hand ends, and the override duration (#83). Each choice
+  // says what it does, with the example of the issue computed with the user's own duration
+  _settingsHtml(src) {
+    const loc = makeLocale(this._hass);
+    const t = loc.t;
+    const minutes = src.overrideDuration();
+    const duration = roundDurationText(minutes, loc);
+    const current = src.manualOverrideEnd();
+    const ro = src.editable ? '' : ' disabled';
+    // The living room raised at 21:30, eco at 22:30; the office at 18:30, comfort at 6:00
+    const salon = [21 * 60 + 30, 22 * 60 + 30];
+    const bureau = [18 * 60 + 30, 6 * 60];
+    const at = (m) => (m >= 24 * 60 ? t('overrideTomorrow', { time: loc.time(m % (24 * 60)) }) : loc.time(m));
+    const example = (end) => t('overrideExample', { salon: at(end(...salon)), bureau: at(end(...bureau)) });
+    const untilSlot = (start, slot) => (slot > start ? slot : slot + 24 * 60);
+    const choices = [
+      ['duration', 'overrideEndDuration', 'overrideEndDurationText', (start) => start + minutes],
+      ['next_slot_within_duration', 'overrideEndWithin', 'overrideEndWithinText',
+        (start, slot) => Math.min(untilSlot(start, slot), start + minutes)],
+      ['next_slot', 'overrideEndNextSlot', 'overrideEndNextSlotText', untilSlot],
+    ].map(([value, label, text, end]) => `<label class="choice">
+        <input type="radio" name="override-end" value="${value}" data-override-end${value === current ? ' checked' : ''}${ro}>
+        <span><span class="choice-label">${esc(t(label))}</span>
+          <span class="choice-text">${esc(t(text, { duration }))}</span>
+          <span class="example">${esc(example(end))}</span></span>
+      </label>`).join('');
+    const steps = Array.from({ length: (24 * 60) / 15 }, (_, i) => (i + 1) * 15);
+    const options = steps.map((m) => `<option value="${m}"${m === minutes ? ' selected' : ''}>${esc(roundDurationText(m, loc))}</option>`).join('');
+    const device = src.deviceId();
+    return `<h2>${esc(t('overridesTitle'))}</h2>
+      <div class="box">
+        <h3>${esc(t('overrideEndTitle'))}</h3>
+        <p>${esc(t('overrideEndIntro'))}</p>
+        <p class="scenario">${esc(t('overrideScenario', { salonAt: loc.time(salon[0]), salonSlot: loc.time(salon[1]),
+          bureauAt: loc.time(bureau[0]), bureauSlot: loc.time(bureau[1]) }))}</p>
+        <div class="choices" role="radiogroup" aria-label="${esc(t('overrideEndTitle'))}">${choices}</div>
+        <p class="note">${esc(t('overrideNextSlotMeans'))}</p>
+        <h3><label for="override-duration">${esc(t('overrideDurationTitle'))}</label></h3>
+        <p>${esc(t('overrideDurationText'))}</p>
+        <select id="override-duration" class="duration" data-override-duration${ro}>${options}</select>
+        ${current === 'next_slot' ? `<p class="note duration-note">${esc(t('overrideDurationUnused'))}</p>` : ''}
+        ${this._settingsError ? `<div class="error">${esc(this._settingsError)}</div>` : ''}
+        ${device ? `<p class="note">${esc(t('overrideEntities'))} ${deviceLinkHtml(this._hass, device, t('overrideOpenDevice'))}</p>` : ''}
+      </div>`;
+  }
+
+  async _setSettings(settings) {
+    this._settingsError = null;
+    try {
+      await dataSource(this._hass).setSettings(settings);
+    } catch (err) {
+      this._settingsError = this._t('error', { message: err.message || err.code || err });
+    }
+    this._update();
   }
 
   // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
@@ -6136,6 +6253,24 @@ const PANEL_CSS = `
   .next-head h2 { flex:1; margin:8px 0; }
   .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
   .next-steps [role="link"] { cursor:pointer; color:var(--primary-color); text-decoration:underline; }
+  /* The Settings page: big targets for a finger, nothing wider than a phone */
+  .override-settings { max-width:720px; }
+  .override-settings .box { padding:8px 16px 16px; }
+  .override-settings h3 { margin:16px 0 4px; font-size:15px; color:var(--primary-text-color); }
+  .override-settings p { margin:4px 0 8px; line-height:1.5; }
+  .override-settings .scenario { padding:8px 12px; border-radius:8px; background:var(--secondary-background-color); }
+  .override-settings .note { font-size:13px; color:var(--secondary-text-color); }
+  .override-settings [data-device] { cursor:pointer; color:var(--primary-color); text-decoration:underline; }
+  .choices { display:flex; flex-direction:column; gap:8px; margin:8px 0; }
+  .choice { display:flex; align-items:flex-start; gap:12px; padding:10px 12px; min-height:44px; box-sizing:border-box;
+    border:1px solid var(--divider-color); border-radius:8px; cursor:pointer; }
+  .choice:has(input:checked) { border-color:var(--primary-color); }
+  .choice input { flex:0 0 auto; width:20px; height:20px; margin:2px 0 0; accent-color:var(--primary-color); }
+  .choice > span { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .choice-label { font-weight:500; }
+  .choice-text, .choice .example { font-size:14px; color:var(--secondary-text-color); }
+  .override-settings select.duration { font:inherit; font-size:16px; min-height:44px; padding:6px 10px; border-radius:8px;
+    border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
