@@ -33,6 +33,9 @@
           "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }
       }
+    },
+    "error": {
+      "invalid_override_duration": "Choisissez un multiple de 15 minutes."
     }
   },
   "entity": {

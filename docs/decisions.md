@@ -366,6 +366,12 @@ dashboards, automations, scripts and by voice without the card
   actions. Fixed entity ids, `select.chauffage_manual_override_end` and
   `number.chauffage_override_duration`, whatever the language. The number moves by steps of 15
   minutes, from 15 minutes to 24 hours, as the options flow.
+- **One rule for the override duration, on every path**: a multiple of 15 minutes, from 15
+  minutes to 24 hours. Home Assistant checks the minimum and the maximum of a number entity and
+  of a number selector, but not the step. So Chauffage checks the step itself. The options flow
+  shows a form error, the number entity raises a `ServiceValidationError` with a translated
+  message, and `chauffage/settings/set` answers `invalid_format`. Before this check, a number
+  entity set to 50 gave "Unknown error", and the options flow saved 50.
 - **Home Assistant's own building blocks**: an entity's name and icon are customized in Home
   Assistant (entity registry), not stored by ha-chauffage. The card reads the icon chosen for a
   schedule's switch (`hass.entities`) and shows it on the schedule's tab; no icon by default (the

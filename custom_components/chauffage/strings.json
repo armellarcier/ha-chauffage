@@ -33,6 +33,9 @@
           "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
       }
+    },
+    "error": {
+      "invalid_override_duration": "Choose a multiple of 15 minutes."
     }
   },
   "entity": {

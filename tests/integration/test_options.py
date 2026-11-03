@@ -168,3 +168,14 @@ async def test_what_was_learned_on_a_forgotten_thermostat_is_dropped(bench: Benc
     bench.thermostat("climate.cuisine", "comfort")
     await bench.hass.async_block_till_done()
     assert bench.runtime.learned_temperatures == {}
+
+
+@pytest.mark.parametrize("duration", [50, 100])
+async def test_the_options_form_refuses_a_duration_off_the_steps(bench: Bench, duration):
+    """The same rule as the number entity and the panel: a multiple of 15 minutes."""
+    await start(bench, {"override_duration": 90})
+    flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
+    result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": duration})
+    assert result["type"] == "form"
+    assert result["errors"] == {"override_duration": "invalid_override_duration"}
+    assert bench.runtime.override_duration == 90

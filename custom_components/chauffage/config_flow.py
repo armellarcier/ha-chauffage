@@ -69,9 +69,15 @@ class ChauffageOptionsFlow(OptionsFlow):
     """Default settings, and the panel's entry in the sidebar. Presets are set in the panel."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(data={**self.config_entry.options, **user_input})
-        options = self.config_entry.options
+            # The same rule as the number entity and the panel: the selector checks the minimum
+            # and the maximum, not the step
+            if user_input.get(CONF_OVERRIDE_DURATION, OVERRIDE_DURATION_STEP) % OVERRIDE_DURATION_STEP:
+                errors[CONF_OVERRIDE_DURATION] = "invalid_override_duration"
+            else:
+                return self.async_create_entry(data={**self.config_entry.options, **user_input})
+        options = {**self.config_entry.options, **(user_input or {})}
         schema = vol.Schema({
             vol.Required(
                 CONF_OVERRIDE_DURATION, default=options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION),
@@ -94,4 +100,4 @@ class ChauffageOptionsFlow(OptionsFlow):
                 CONF_SHOW_IN_SIDEBAR, default=options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR),
             ): selector.BooleanSelector(),
         })
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
