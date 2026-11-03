@@ -26,6 +26,11 @@ No stored data is migrated. An override started before the upgrade keeps its end
   not at 23:30. A slot that starts less than 30 minutes after your change does not count, and
   neither does a slot that gives the thermostat the same setpoint. An end that you choose on the
   card, or that an automation gives to `chauffage.set_override`, stays as it is.
+- **A Versatile Thermostat that is turned off gets its slots and its override, whatever turned it
+  off** (#74). Before, only a VTherm turned off by its auto start/stop got them. VTherm keeps the
+  preset while it is off and stays off, so it starts again on the right preset. Chauffage now
+  recognizes a VTherm by its integration, not by the attributes it publishes. This also fixes a
+  VTherm whose auto start/stop had just turned it off, before it published why.
 
 ### Added
 
@@ -42,6 +47,12 @@ No stored data is migrated. An override started before the upgrade keeps its end
 - **An override started in the hour repeated when summer time ends lasts its full duration.**
   Before, an override started at 2:10 winter time with a 30-minute duration ended at 2:40 summer
   time, an hour before it started. Chauffage then ended it at once and undid your change.
+- **An override set on a thermostat that is turned off waits until the thermostat is turned
+  back on**, as the README says. Before, Chauffage sent it at once, and some thermostats, such as
+  Tado, turn heating back on when they get a setpoint. A Versatile Thermostat still gets it at
+  once.
+- **An override set on an unavailable thermostat is sent when the thermostat is back online.**
+  Before, the thermostat came back on its slot and never got the override.
 
 ## [0.8.0-beta.3] - 2026-11-01
 

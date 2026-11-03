@@ -147,6 +147,12 @@ class Bench:
         if self.kind not in kinds:
             pytest.skip(f"not relevant for {self.kind} thermostats")
 
+    def versatile_thermostat(self, entity_id: str = "climate.salon") -> None:
+        """`entity_id` registered by Versatile Thermostat's integration, before its first state."""
+        domain, object_id = entity_id.split(".")
+        er.async_get(self.hass).async_get_or_create(domain, "versatile_thermostat", object_id,
+                                                    suggested_object_id=object_id)
+
     def thermostat_on_a_valve(self, area: str | None = None, **entity: Any) -> dr.DeviceEntry:
         """climate.salon registered on the device of its valve, from another integration, in an
         area if given; `entity`: more of its registry entry (has_entity_name, original_name)."""
