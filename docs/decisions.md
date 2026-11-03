@@ -60,32 +60,57 @@ future contributor might question.
   when the next eco slot starts. **Amended by #83**: the end of a change by hand is computed
   from the next slot when the override starts (see below). Once computed, the end is an end like
   any other, and a slot change still never ends an override.
-- **A change by hand ends at the next slot, at the latest after the override duration** (#83).
-  A fixed duration failed in a common case: the living room raised at 21:30, during a comfort
-  slot that ends at 22:30, heated until 23:30. A classic thermostat keeps a change until the next
-  scheduled change, but that rule fails in another case: the office turned up at 18:30, whose
-  next slot is at 6:00, would heat all night. So the override of a change by hand ends at the
-  first of the two. The rule only sets the default end of a change detected on the thermostat.
-  An end chosen on the card, in the panel or given to `chauffage.set_override` is the user's
-  choice, so it stays: an override set until tomorrow 18:00 must hold through the night's slots.
-  The option *End of a change by hand* brings back the fixed duration. The rule is the default,
-  because it is what most users expect of a thermostat.
-  - **A slot starting less than 30 minutes after the change does not count.** Raised at 17:28,
-    with comfort at 17:30, the override would last 2 minutes: the user would see their change
-    undone at once. The next slot that changes the target counts instead.
+- **The user chooses how a change by hand ends** (#83). A fixed duration fails in a common case:
+  the living room raised at 21:30, during a comfort slot that ends at 22:30, heats until 23:30.
+  A classic thermostat keeps a change until the next scheduled change, but that rule fails in
+  another case: the office turned up at 18:30, whose next slot is at 6:00, heats all night. No
+  rule suits every home, so the setting *End of a change by hand* has three choices: the
+  override duration (`duration`), the next slot within the duration
+  (`next_slot_within_duration`), and the next slot however far (`next_slot`). The setting only
+  sets the end of a change detected on the thermostat. An end chosen on the card, in the panel or
+  given to `chauffage.set_override` is the user's choice, so it stays: an override set until
+  tomorrow 18:00 must hold through the night's slots.
+  - **The default is the override duration**, the behavior before #83. Existing users see no
+    change after the upgrade, and a user who wants the next slot chooses it. The value names
+    say what the end is, so a fourth choice can come without renaming the others.
+  - **A slot starting less than 15 minutes after the change does not count**, with both
+    next-slot choices. Raised at 17:50, with comfort at 18:00, the override would last 10
+    minutes: the user would see their change undone at once. The next slot that changes the
+    target counts instead. 15 minutes is the step of the override duration: a shorter minimum
+    would undo a change made a few minutes before a slot, a longer one would skip short slots.
   - **A slot giving the same target as the slot before it does not count.** Such a slot changes
     nothing on the thermostat, so it is not a "scheduled change". The target is compared on
     this thermostat: two presets at the same temperature give the same target. The same preset
     on both sides of midnight is one slot.
+  - **Without a next slot, *Until the next slot* keeps the change a week.** A week on a single
+    preset has no slot that changes the target. The change should then last until the user ends
+    it, or until the thermostat goes back to its slot. An override without an end would touch
+    every reader of the override: the stored data, the scheduler that ends overrides, the
+    card's timeline and time field, the *Override end* sensor, the events, the logbook and the
+    services. A week is long enough to mean "until you end it" in a home, and every reader keeps
+    working. The override says why it ends then: `no_next_slot`, shown as "no slot changes it".
   - **The end is computed once, when the override starts, from the active schedule.** A schedule
-    activated later does not move the end. Recomputing it would make the end of an override
-    jump without anyone touching the thermostat, and the stored end would no longer be the
-    truth. A new change by hand computes a new end.
-  - **The override says why it ends then**, in an optional `ends_at` key: `next_slot` or
-    `duration`. The card shows "next slot" or "after 2 h" from it. The key is optional, so the
-    stored format needs no migration: an override stored before #83 simply shows no reason. An
-    end changed on the card drops the key, because the end is then the user's choice. A new
-    value keeps it, with the same end.
+    activated later, or the setting changed later, does not move the end. Recomputing it would
+    make the end of an override jump without anyone touching the thermostat, and the stored end
+    would no longer be the truth. A new change by hand computes a new end.
+  - **One setting for every thermostat, read through one function that takes the thermostat**
+    (`manual_override_end_of`). Some users will want a setting per room, for example 30 minutes
+    for the bathroom. A setting per thermostat can then come without changing the rule. Not
+    before a request: a choice per thermostat is one more thing to understand.
+  - **The override says why it ends then**, in an optional `ends_at` key: `duration`,
+    `next_slot` or `no_next_slot`. The card shows "after 2 h", "next slot" or "no slot changes
+    it" from it. The key is optional, so the stored format needs no migration: an override
+    stored before #83 simply shows no reason. An end changed on the card drops the key, because
+    the end is then the user's choice. A new value keeps it, with the same end.
+- **The settings of overrides live in the options, the panel and two entities** (#83). Users
+  did not find the override duration, three clicks away from the card in the integration's
+  options. The panel's *Settings* tab shows both settings, each choice with one sentence and the
+  example of the living room and the office computed with the user's own duration. The *Chauffage*
+  device gets two configuration entities, the select *End of a change by hand* and the number
+  *Override duration*, so a dashboard or an automation can change them, for example *Until the
+  next slot* during the holidays. The options stay the only state: the entities and the panel
+  read and write them (see "Entities"), so the options flow, the panel and the entities always
+  agree. A change of the options notifies the entities and the cards.
 - **Holding the slot's preset past the next slots is done from the card**, not by hand: the
   override popover (opened on an override, or from today's row menu, "Temporary setpoint…"),
   and the block in the thermostat's more-info dialog, create an override or change its value (a
@@ -313,6 +338,13 @@ dashboards, automations, scripts and by voice without the card
   schedule, the weeks, the overrides, the paused thermostats); entities show it and change it
   through the same methods as the card (`activate_schedule`, `set_paused`…). The select and the
   schedule switches cannot disagree.
+- **The settings of overrides are configuration entities** (#83): the select *End of a change
+  by hand* and the number *Override duration*, on the *Chauffage* device. They read and write
+  the integration's options, the only state of a setting, as the schedule switches read and
+  write the active schedule. Configuration entities, because they are settings, not everyday
+  actions. Fixed entity ids, `select.chauffage_manual_override_end` and
+  `number.chauffage_override_duration`, whatever the language. The number moves by steps of 15
+  minutes, from 15 minutes to 24 hours, as the options flow.
 - **Home Assistant's own building blocks**: an entity's name and icon are customized in Home
   Assistant (entity registry), not stored by ha-chauffage. The card reads the icon chosen for a
   schedule's switch (`hass.entities`) and shows it on the schedule's tab; no icon by default (the
@@ -772,6 +804,17 @@ older one, the older one says so.
   The next steps stay until the user closes them; this browser remembers it.
 - **Before the first thermostat, the *Schedules* and *Presets* tabs say so**, with a link to
   the *Thermostats* tab. Their content stays: a user may create schedules first.
+- **The next steps say what a change by hand does** (#83), with the current setting, for example
+  "A setpoint you change by hand lasts 2 hours. Then the thermostat goes back to its schedule."
+  Overrides surprise users: the knob is turned, and two hours later the thermostat goes back to
+  its schedule. The step links to the *Settings* tab.
+- **A *Settings* tab, last**, holds the *Overrides* section (#83). The *Presets* tab was the other
+  candidate, but the overrides are not presets, and a tab of its own can later hold the other
+  options. The choices are radio buttons, each a whole row to tap. The override duration is a
+  list of durations by steps of 15 minutes: the phone's own picker, no typing. A change is sent
+  at once, as in Home Assistant's settings. On a phone, the tabs scroll sideways and the current
+  tab scrolls into view. The *Settings* tab shows no "no thermostat yet" notice: its settings do
+  not need one.
 
 ### The more-info block
 

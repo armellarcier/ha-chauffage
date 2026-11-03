@@ -11,21 +11,11 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Upgrading
 
-- **A setpoint changed by hand may now end earlier** (#83). Before, Chauffage kept it for the
-  whole override duration, 2 hours by default. Now the override ends at the next slot that
-  changes the thermostat's setpoint, if that slot comes first. To keep the old behavior, choose
-  *After the duration* for the new option *End of a change by hand*, in Settings → Devices &
-  services → Chauffage → *Configure*.
-
-No stored data is migrated. An override started before the upgrade keeps its end.
+No stored data is migrated. A setpoint changed by hand still lasts the override duration, 2 hours
+by default: the new settings below change nothing until you choose another end.
 
 ### Changed
 
-- **A setpoint changed by hand lasts until the next slot, at most 2 hours** (#83). Say you raise
-  the living room at 21:30, and eco starts at 22:30: the living room goes back to eco at 22:30,
-  not at 23:30. A slot that starts less than 30 minutes after your change does not count, and
-  neither does a slot that gives the thermostat the same setpoint. An end that you choose on the
-  card, or that an automation gives to `chauffage.set_override`, stays as it is.
 - **A Versatile Thermostat that is turned off gets its slots and its override, whatever turned it
   off** (#74). Before, only a VTherm turned off by its auto start/stop got them. VTherm keeps the
   preset while it is off and stays off, so it starts again on the right preset. Chauffage now
@@ -34,13 +24,25 @@ No stored data is migrated. An override started before the upgrade keeps its end
 
 ### Added
 
-- **The option *End of a change by hand*** (#83). *At the next slot, at the latest after the
-  duration* is the default. *After the duration* keeps every change by hand for the whole
-  override duration.
-- **The override block says why the override ends then** (#83): *next slot* or *after 2 h*. You
-  find the block in the thermostat's more-info dialog, on the thermostat card, and in the card's
-  override popover.
-- **The panel's next steps say what a change by hand does** (#83), with a link to the options.
+- **Choose how a setpoint changed by hand ends** (#83). The new setting *End of a change by hand*
+  has three choices. *For the override duration* is the default and keeps today's behavior.
+  *Until the next slot, at most the override duration* ends the change at the next slot if that
+  slot comes first. *Until the next slot* keeps the change until the next slot, however far, as
+  on a classic thermostat. Say you raise the living room at 21:30, and eco starts at 22:30: with
+  a next-slot choice, the living room goes back to eco at 22:30, not at 23:30. A slot that starts
+  less than 15 minutes after your change does not count. An end that you choose on the card, or
+  that an automation gives to `chauffage.set_override`, stays as it is.
+- **A *Settings* tab in the Chauffage panel** (#83). Its *Overrides* section shows the two
+  settings of overrides, each with an example computed with your own override duration.
+- **Two entities on the *Chauffage* device** (#83): the select *End of a change by hand*
+  (`select.chauffage_manual_override_end`) and the number *Override duration*
+  (`number.chauffage_override_duration`). An automation can change the settings with them. The
+  panel, the options and the entities always agree.
+- **The override block says why the override ends then** (#83): *after 2 h*, *next slot*, or
+  *no slot changes it*. You find the block in the thermostat's more-info dialog, on the
+  thermostat card, and in the card's override popover.
+- **The panel's next steps say what a change by hand does** (#83), with a link to the *Settings*
+  tab.
 
 ### Fixed
 
