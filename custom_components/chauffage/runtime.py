@@ -128,6 +128,18 @@ def _describe(command: engine.Target | dict[str, Any]) -> str:
     return f"{command['kind']} {command['value']}"
 
 
+def _end_data(override: dict[str, Any]) -> dict[str, Any]:
+    """An override's start and end in local time, and why it ends then if known (a change by
+    hand, #83), for the events and the logbook."""
+    out = {}
+    for key in ("start", "end"):
+        if when := engine.parse_datetime(override.get(key)):
+            out[key] = dt_util.as_local(when).isoformat()
+    if override.get("ends_at"):
+        out["ends_at"] = override["ends_at"]
+    return out
+
+
 def _time(iso: str) -> str:
     """Local time of an ISO date, for the log."""
     when = engine.parse_datetime(iso)
@@ -815,10 +827,12 @@ class ChauffageRuntime:
         # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
         # Compared as instants: the card sends the same end in UTC
         same_end = before is not None and engine.parse_datetime(before.get("end")) == engine.parse_datetime(override["end"])
-        if not same_end or "ends_at" not in before:
-            override.pop("ends_at", None)
-        else:
+        if override.get("ends_at") == NEXT_SLOT and self.is_next_slot(entity_id, override["end"], current):
+            pass  # "Until the next slot" on the card: checked here, not taken on trust
+        elif same_end and "ends_at" in before:
             override["ends_at"] = before["ends_at"]
+        else:
+            override.pop("ends_at", None)
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
         if (new_value or resend) and not left_alone and self.needs(entity_id, target, current):
@@ -826,6 +840,15 @@ class ChauffageRuntime:
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
         self._changed()
+
+    def is_next_slot(self, entity_id: str, end: str, current: engine.Thermostat | None) -> bool:
+        """Whether `end` is the start of the next slot that changes the thermostat's target, as
+        for a change by hand made now (at least MIN_MANUAL_OVERRIDE minutes away, within a week)."""
+        now = dt_util.now()
+        not_before = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
+        until = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MAX_MANUAL_OVERRIDE))
+        slot = self.plan().next_change(entity_id, now, current, not_before=not_before, until=until)
+        return slot is not None and slot == engine.parse_datetime(end)
 
     @callback
     def record_override(self, entity_id: str, override: dict[str, Any], context: Context | None = None) -> None:
@@ -852,8 +875,8 @@ class ChauffageRuntime:
         info = self.override_info(entity_id)
         if before is None or any(before.get(key) != override.get(key) for key in ("kind", "value", "preset")):
             _LOGGER.info("%s: override started by %s: %s until %s", entity_id, source, _describe(override), info["end"])
-            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source},
-                                     context=context)
+            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source,
+                                                              **_end_data(override)}, context=context)
         elif before.get("end") != override.get("end"):
             _LOGGER.info("%s: override until %s, set by %s", entity_id, info["end"], source)
 
@@ -864,7 +887,8 @@ class ChauffageRuntime:
         if override is None:
             return False
         _LOGGER.info("%s: override ended (%s): %s", entity_id, reason, _describe(override))
-        self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason}, context=context)
+        self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason, **_end_data(override)},
+                                 context=context)
         return True
 
     def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:

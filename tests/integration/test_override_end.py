@@ -408,3 +408,41 @@ async def test_the_card_knows_how_a_change_by_hand_ends(bench: Bench):
 async def test_the_card_knows_the_setting_chosen(bench: Bench):
     await start(bench, NEXT_SLOT)
     assert bench.runtime.snapshot()["manual_override_end"] == "next_slot"
+
+
+# ----- the end set to the next slot from the card (#83, iteration 1) -----
+
+async def test_an_end_set_to_the_next_slot_on_the_card_says_next_slot(bench: Bench):
+    """By default the change lasts until 23:30; "Until the next slot" on the card sets 22:30."""
+    await start(bench, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    o = bench.overrides()["climate.salon"]
+    await bench.set_override("climate.salon", {**o, "end": at("22:30").isoformat(), "ends_at": "next_slot"})
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == at("22:30")
+    assert o["ends_at"] == "next_slot"
+
+
+async def test_a_new_override_from_the_card_until_the_next_slot_says_next_slot(bench: Bench):
+    await start(bench, hhmm="21:30")
+    override = bench.runtime.new_override("temperature", 22, end=at("22:30"))
+    await bench.set_override("climate.salon", override | {"ends_at": "next_slot"})
+    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
+
+
+async def test_an_end_said_to_be_the_next_slot_that_is_not_says_nothing(bench: Bench):
+    """The integration checks the next slot itself: 23:00 is no slot."""
+    await start(bench, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    o = bench.overrides()["climate.salon"]
+    await bench.set_override("climate.salon", {**o, "end": at("23:00").isoformat(), "ends_at": "next_slot"})
+    assert "ends_at" not in bench.overrides()["climate.salon"]
+
+
+async def test_an_end_moved_from_the_next_slot_no_longer_says_next_slot(bench: Bench):
+    """+30 min on an override ending at the next slot: the card sends the former reason along."""
+    await start(bench, WITHIN, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    o = bench.overrides()["climate.salon"]
+    await bench.set_override("climate.salon", {**o, "end": (end_of(o) + timedelta(minutes=30)).isoformat()})
+    assert "ends_at" not in bench.overrides()["climate.salon"]
