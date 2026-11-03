@@ -467,12 +467,16 @@ class ChauffageRuntime:
         return engine.current_and_next(week, now or dt_util.now())
 
     def planned_presets(self) -> dict[str, dict[str, Any]]:
-        """What each scheduled thermostat follows now, and the next different preset."""
+        """What each scheduled thermostat follows now, the next different preset, and the next
+        slot a change made now would end at (the card's button *Until the next slot*, #83):
+        computed here, in Home Assistant's time zone, not in the browser's."""
         out = {}
         for entity_id in self.scheduled:
             current, next_preset, next_start = self.planned(entity_id)
+            slot = self.next_slot_end(entity_id, self.current(self.hass.states.get(entity_id)))
             out[entity_id] = {"preset": current, "next_preset": next_preset,
-                              "next_start": next_start.isoformat() if next_start else None}
+                              "next_start": next_start.isoformat() if next_start else None,
+                              "next_slot_end": slot.isoformat() if slot else None}
         return out
 
     # ----- writing -----
@@ -843,13 +847,17 @@ class ChauffageRuntime:
         self._keep_override(entity_id, override, source, context)
         self._changed()
 
-    def is_next_slot(self, entity_id: str, end: str, current: engine.Thermostat | None) -> bool:
-        """Whether `end` is the start of the next slot that changes the thermostat's target, as
-        for a change by hand made now (at least MIN_MANUAL_OVERRIDE minutes away, within a week)."""
+    def next_slot_end(self, entity_id: str, current: engine.Thermostat | None) -> datetime | None:
+        """The start of the next slot that changes the thermostat's target, as for a change by
+        hand made now: at least MIN_MANUAL_OVERRIDE minutes away, within a week. None without one."""
         now = dt_util.now()
         not_before = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
         until = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MAX_MANUAL_OVERRIDE))
-        slot = self.plan().next_change(entity_id, now, current, not_before=not_before, until=until)
+        return self.plan().next_change(entity_id, now, current, not_before=not_before, until=until)
+
+    def is_next_slot(self, entity_id: str, end: str, current: engine.Thermostat | None) -> bool:
+        """Whether `end` is the next slot a change made now would end at (next_slot_end)."""
+        slot = self.next_slot_end(entity_id, current)
         return slot is not None and slot == engine.parse_datetime(end)
 
     @callback

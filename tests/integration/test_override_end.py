@@ -424,6 +424,55 @@ async def test_the_card_knows_the_setting_chosen(bench: Bench):
     assert bench.runtime.snapshot()["manual_override_end"] == "next_slot"
 
 
+# ----- the next slot published for the card's button (#83) -----
+
+async def test_the_card_is_told_the_next_slot_a_change_made_now_would_end_at(bench: Bench):
+    """The integration computes it in Home Assistant's time zone: a phone in another time zone
+    shows and sends the same instant."""
+    await start(bench, hhmm="21:30")
+    planned = bench.runtime.snapshot()["planned"]
+    assert dt_util.parse_datetime(planned["climate.salon"]["next_slot_end"]) == at("22:30")
+    assert dt_util.parse_datetime(planned["climate.bureau"]["next_slot_end"]) == at("06:00", day=1)
+
+
+async def test_the_next_slot_published_skips_a_slot_less_than_15_minutes_away(bench: Bench):
+    await start(bench, hhmm="22:20")
+    planned = bench.runtime.snapshot()["planned"]["climate.salon"]
+    assert dt_util.parse_datetime(planned["next_slot_end"]) == at("20:00", day=1)
+
+
+async def test_no_next_slot_is_published_for_a_week_on_a_single_preset(bench: Bench):
+    await start(bench, schedules={"climate.salon": {"normal": every_day(("00:00", "eco"))}})
+    assert bench.runtime.snapshot()["planned"]["climate.salon"]["next_slot_end"] is None
+
+
+async def test_the_card_is_told_when_the_next_slot_moves_on(bench: Bench):
+    """At 22:16 the slot of 22:30 is less than 15 minutes away: the button shows the next one."""
+    from custom_components.chauffage.websocket import _Subscriber
+
+    class Connection:  # the card's websocket
+        def __init__(self) -> None:
+            self.sent: list[str | None] = []
+
+        def send_message(self, message: dict) -> None:
+            self.sent.append(message["event"]["planned"]["climate.salon"]["next_slot_end"])
+
+    await start(bench, hhmm="22:10")
+    card = Connection()
+    _Subscriber(card, 1).attach(bench.runtime)
+    await bench.go_to("22:16")
+    assert [dt_util.parse_datetime(end) for end in card.sent] == [at("22:30"), at("20:00", day=1)]
+
+
+async def test_the_next_slot_published_is_accepted_as_the_next_slot(bench: Bench):
+    await start(bench, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    o = bench.overrides()["climate.salon"]
+    end = bench.runtime.snapshot()["planned"]["climate.salon"]["next_slot_end"]
+    await bench.set_override("climate.salon", {**o, "end": end, "ends_at": "next_slot"})
+    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
+
+
 # ----- the end set to the next slot from the card (#83, iteration 1) -----
 
 async def test_an_end_set_to_the_next_slot_on_the_card_says_next_slot(bench: Bench):

@@ -1536,43 +1536,17 @@ function remainingText(min, loc) {
 }
 
 // The button that sets an override's end to the next slot (#83): "Until 17:30 (next slot)", with the
-// day when it is not today. None without a next slot, or when the override already ends then
+// day when it is not today. The integration computes the next slot, in Home Assistant's time zone,
+// as for a change by hand made now; the button keeps the instant (data-at) and sends exactly it.
+// None without a next slot (or from an older integration), or when the override already ends then
 // (compared to the minute: the integration writes its end in its own offset)
 function nextSlotButton(src, climate, d, loc, attrs) {
-  const at = nextSlotEnd(src, climate);
+  const iso = (src.planned(climate) || {}).next_slot_end;
+  const at = iso ? parseDate(iso) : null;
   if (!at || d.ends_at === 'next_slot' || Math.floor(at / 60000) === Math.floor(parseDate(d.end) / 60000)) return '';
   const time = loc.time(minutesOf(at));
   const when = at.toDateString() === new Date().toDateString() ? time : `${loc.days[(at.getDay() + 6) % 7].toLowerCase()} ${time}`;
-  return `<button ${attrs}>${esc(loc.t('untilNextSlot', { time: when }))}</button>`;
-}
-
-// When the next slot that changes the thermostat's setpoint starts, as the integration computes
-// it for a change by hand (#83): at least 15 minutes from now, within a week; null without one.
-// Two presets giving the same setpoint on this thermostat are the same; a preset it cannot take
-// changes nothing.
-const MIN_MANUAL_OVERRIDE = 15; // minutes, as the integration
-function nextSlotEnd(src, climate, now = new Date()) {
-  const week = activeWeek(src, climate);
-  if (!week) return null;
-  const targets = src.targets(climate);
-  const known = Object.keys(targets).length > 0; // an older integration gives none: compare presets
-  const key = (preset) => (!known ? preset : targets[preset] ? JSON.stringify(targets[preset]) : null);
-  let previous = key(presetAt(week, now));
-  const notBefore = now.getTime() + MIN_MANUAL_OVERRIDE * 60000;
-  const until = now.getTime() + 7 * DAY_MIN * 60000;
-  for (let offset = 0; offset <= 7; offset += 1) {
-    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
-    for (const s of week[(day.getDay() + 6) % 7]) {
-      const at = atMinutes(day, s.start, now);
-      if (at <= now) continue;
-      if (at.getTime() >= until) return null;
-      const k = key(s.preset);
-      if (k === null || k === previous) continue;
-      previous = k;
-      if (at.getTime() >= notBefore) return at;
-    }
-  }
-  return null;
+  return `<button ${attrs} data-at="${esc(iso)}">${esc(loc.t('untilNextSlot', { time: when }))}</button>`;
 }
 
 // What the schedule does now, until when, and what comes next: "Eco until 17:30, then Comfort"
@@ -4243,10 +4217,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
       if (act === 'override-del') return this._sendOverride(c, null);
       if (act === 'override-add') return this._setOverrideEnd(c, endMovedBy(d.end, Number(ds.min)));
-      if (act === 'override-next-slot') {
-        const at = nextSlotEnd(this._source(), c);
-        return at && this._sendOverride(c, { ...d, end: at.toISOString(), ends_at: 'next_slot' });
-      }
+      // The instant on the button: the one its label shows
+      if (act === 'override-next-slot') return this._sendOverride(c, { ...d, end: ds.at, ends_at: 'next_slot' });
     }
     if (act === 'cell' || act.startsWith('cell-')) return this._cellAction(act, ds);
     if (act.startsWith('rule-') || act.startsWith('rules-')) return this._rulesAction(act, ds);
@@ -4997,10 +4969,8 @@ class ChauffageMoreInfo extends HTMLElement {
     }
     if (!d) return;
     if (b.hasAttribute('data-del')) return this._send(null);
-    if (b.hasAttribute('data-next-slot')) {
-      const at = nextSlotEnd(dataSource(this._hass), this._entity);
-      return at && this._send({ ...d, end: at.toISOString(), ends_at: 'next_slot' });
-    }
+    // The instant on the button: the one its label shows
+    if (b.hasAttribute('data-next-slot')) return this._send({ ...d, end: b.dataset.at, ends_at: 'next_slot' });
     this._setEnd(endMovedBy(d.end, Number(b.dataset.min)));
   }
 

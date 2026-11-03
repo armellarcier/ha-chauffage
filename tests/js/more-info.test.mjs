@@ -13,6 +13,8 @@ function block(hass, entity) {
 const text = (el) => el.shadowRoot.textContent.replace(/\s+/g, ' ');
 const planned = (preset, next, start) => ({ preset, next_preset: next, next_start: start });
 const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+// The next slot a change made now would end at, as the integration publishes it (#83)
+const nextSlot = (end) => ({ planned: { 'climate.salon': { ...planned('eco', 'comfort', '2026-10-12T17:30:00+02:00'), next_slot_end: end } } });
 
 describe('more-info block', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') })); // Monday
@@ -106,10 +108,11 @@ describe('more-info block', () => {
   });
 
   test('the button sets the end of the override to the next slot, and shows its time', () => {
-    const hass = fakeHass({ overrides: { 'climate.salon': override } }); // Monday 10:00, comfort at 17:30
+    const hass = fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot('2026-10-12T17:30:00+02:00') }); // Monday 10:00
     const el = block(hass, 'climate.salon');
     const button = el.shadowRoot.querySelector('[data-next-slot]');
     assert.equal(button.textContent, "Jusqu'à 17:30 (prochain créneau)");
+    assert.equal(button.dataset.at, '2026-10-12T17:30:00+02:00');
     button.click();
     const sent = hass.events.at(-1).override;
     assert.equal(new Date(sent.end).toISOString(), '2026-10-12T15:30:00.000Z');
@@ -118,32 +121,39 @@ describe('more-info block', () => {
 
   test('a next slot on another day names the day', () => {
     mock.timers.setTime(new Date('2026-10-12T23:00:00+02:00').getTime()); // comfort at 06:30 on Tuesday
-    const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-13T01:00:00+02:00' } } }), 'climate.salon');
+    const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-13T01:00:00+02:00' } },
+      ...nextSlot('2026-10-13T06:30:00+02:00') }), 'climate.salon');
     assert.equal(el.shadowRoot.querySelector('[data-next-slot]').textContent, "Jusqu'à mardi 06:30 (prochain créneau)");
   });
 
   test('an override that already ends at the next slot has no button, whatever the way its end is written', () => {
     // The integration's end, in another offset and with seconds, against the card's Date
     for (const end of ['2026-10-12T17:30:00+02:00', '2026-10-12T15:30:00+00:00', '2026-10-12T17:30:20+02:00']) {
-      const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, end } } }), 'climate.salon');
+      const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, end } }, ...nextSlot('2026-10-12T17:30:00+02:00') }), 'climate.salon');
       assert.equal(el.shadowRoot.querySelector('[data-next-slot]'), null, end);
       cleanup();
     }
-    const said = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), 'climate.salon');
+    const said = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } }, ...nextSlot('2026-10-12T17:30:00+02:00') }), 'climate.salon');
     assert.equal(said.shadowRoot.querySelector('[data-next-slot]'), null, 'ends_at next_slot');
   });
 
   test('with no slot ahead, there is no button to the next slot', () => {
-    const weeks = { 'climate.salon': { Normal: Array(7).fill(['00:00 eco']) } };
-    const el = block(fakeHass({ weeks, overrides: { 'climate.salon': override } }), 'climate.salon');
+    const el = block(fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot(null) }), 'climate.salon');
     assert.equal(el.shadowRoot.querySelector('[data-next-slot]'), null);
+    cleanup();
+    // An older integration publishes no next slot: no button rather than a guess
+    const older = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
+    assert.equal(older.shadowRoot.querySelector('[data-next-slot]'), null);
   });
 
-  test('the next slot is the first one that changes the setpoint, at least 15 minutes away', () => {
-    mock.timers.setTime(new Date('2026-10-12T17:20:00+02:00').getTime()); // comfort at 17:30: too close
-    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-12T19:00:00+02:00' } } });
-    block(hass, 'climate.salon').shadowRoot.querySelector('[data-next-slot]').click();
-    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T20:30:00.000Z'); // eco at 22:30
+  test('the button shows and sends the next slot the integration computed, in its own time zone', () => {
+    // 18:15 is no slot of this week: the integration's answer wins over any computation in the browser
+    const hass = fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot('2026-10-12T18:15:00+02:00') });
+    const button = block(hass, 'climate.salon').shadowRoot.querySelector('[data-next-slot]');
+    assert.equal(button.textContent, "Jusqu'à 18:15 (prochain créneau)");
+    mock.timers.setTime(new Date('2026-10-12T10:20:00+02:00').getTime()); // the click sends what the label shows
+    button.click();
+    assert.equal(hass.events.at(-1).override.end, '2026-10-12T18:15:00+02:00');
   });
 
   test('a moved end no longer says it is the next slot', () => {
@@ -153,7 +163,7 @@ describe('more-info block', () => {
   });
 
   test("the card's override popover offers the button to the next slot, and the reason opens the settings", () => {
-    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'duration' } } });
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'duration' } }, ...nextSlot('2026-10-12T17:30:00+02:00') });
     const card = createCard(hass, { show: ['climate.salon'] });
     card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click();
     const editor = card.shadowRoot.querySelector('.override-ed');

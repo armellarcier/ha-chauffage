@@ -115,10 +115,12 @@ future contributor might question.
     afternoon should not have to change the setting for every thermostat. The button shows the
     time, "Until 17:30 (next slot)", so that it is not mistaken for the setting, and so that the
     user sees it may shorten the override. It is hidden when the override already ends then,
-    compared to the minute. The card computes the
-    next slot as the integration does and sends it with `ends_at: next_slot`. The integration
-    keeps that reason only if the end really is the next slot: the reason is never taken on
-    trust from the card.
+    compared to the minute. The integration computes the next slot, in Home Assistant's time
+    zone, and publishes it for each thermostat with the planned preset. The card shows that
+    instant and sends exactly it, with `ends_at: next_slot`. A first version computed the next
+    slot in the browser, so a phone in another time zone sent a wrong instant. The integration
+    keeps the reason only if the end really is the next slot: the reason is never taken on trust
+    from the card.
   - **The logbook and the events say why.** The started line ends with "(changed by hand, until
     the next slot)", and an expired change by hand ends with "override ended at the next slot"
     rather than "(expired)". The events carry `start` and `ends_at`, so the logbook can say "after
