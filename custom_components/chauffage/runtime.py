@@ -825,8 +825,10 @@ class ChauffageRuntime:
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
         # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
-        # Compared as instants: the card sends the same end in UTC
-        same_end = before is not None and engine.parse_datetime(before.get("end")) == engine.parse_datetime(override["end"])
+        # Compared as instants: the card sends the same end in UTC. A new start makes a new
+        # override: a duration counted from the former start would be wrong.
+        same_end = before is not None and all(
+            engine.parse_datetime(before.get(key)) == engine.parse_datetime(override.get(key)) for key in ("start", "end"))
         if override.get("ends_at") == NEXT_SLOT and self.is_next_slot(entity_id, override["end"], current):
             pass  # "Until the next slot" on the card: checked here, not taken on trust
         elif same_end and "ends_at" in before:

@@ -384,6 +384,20 @@ async def test_the_set_override_service_keeps_its_end(bench: Bench):
     assert "ends_at" not in o
 
 
+async def test_a_new_override_with_the_same_end_no_longer_says_why(bench: Bench):
+    """A change by hand at 21:30 lasts until 23:30. At 22:00, an automation sets a new override
+    until 23:30: the same end, but a new start, so the reason of the change by hand is gone."""
+    await start(bench, hhmm="21:30")
+    await bench.manual_setpoint("climate.salon", 22)
+    assert bench.overrides()["climate.salon"]["ends_at"] == "duration"
+    await bench.go_to("22:00")
+    await bench.hass.services.async_call("chauffage", "set_override", {
+        "entity_id": "climate.salon", "temperature": 22, "duration": 90}, blocking=True)
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == at("23:30")
+    assert "ends_at" not in o
+
+
 # ----- the setting -----
 
 async def test_the_setting_is_read_for_each_thermostat(bench: Bench):
