@@ -423,8 +423,9 @@ Réglez la fin de la dérogation sur la carte, ou dans la fenêtre de détail du
 exemple, réglez-la sur demain 18 h. Une fin que vous choisissez reste : les créneaux suivants
 n'arrêtent pas la dérogation.
 
-Pour garder un seul changement jusqu'au prochain créneau, quel que soit le réglage, touchez
-*Jusqu'au prochain créneau* sous la dérogation, sur la carte ou dans la fenêtre de détail.
+Pour garder un seul changement jusqu'au prochain créneau, quel que soit le réglage, touchez le
+bouton sous la dérogation, sur la carte ou dans la fenêtre de détail. Le bouton affiche l'heure,
+par exemple *Jusqu'à 17:30 (prochain créneau)* : il peut aussi raccourcir la dérogation.
 
 ### Créer une dérogation
 
@@ -592,13 +593,13 @@ actions:
 Pour changer les options, allez dans Paramètres → Appareils et services → Chauffage →
 *Configurer*.
 
+- **Durée des dérogations.** Combien de temps dure une consigne changée à la main, 2 heures par
+  défaut. Une nouvelle dérogation créée depuis la carte dure aussi ce temps. *Jusqu'au prochain
+  créneau* ne s'en sert pas.
 - **Fin d'un changement à la main.** *Pendant la durée des dérogations* par défaut. Vous pouvez
   aussi choisir *Jusqu'au prochain créneau, au plus la durée des dérogations*, ou *Jusqu'au
   prochain créneau* (voir
   [Choisir comment se termine un changement à la main](#choisir-comment-se-termine-un-changement-à-la-main)).
-- **Durée des dérogations.** Combien de temps dure une consigne changée à la main, 2 heures par
-  défaut. Une nouvelle dérogation créée depuis la carte dure aussi ce temps. *Jusqu'au prochain
-  créneau* ne s'en sert pas.
 
 Vous pouvez aussi changer ces deux réglages dans l'onglet *Réglages* du panneau, ou avec leurs
 entités.

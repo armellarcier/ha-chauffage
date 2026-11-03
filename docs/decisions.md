@@ -102,16 +102,20 @@ future contributor might question.
     an override stored before #83 simply shows no reason. An end changed on the card drops the
     key, because the end is then the user's choice. A new value keeps it, with the same end.
   - **The reason is part of the end, in words**: "today, at the next slot", "today, 2 h after the
-    change", "no slot ahead". A first version listed "today · after 2 h · 2 h 00 left": three
-    fragments, and the duration twice. With a reason, "then Eco" drops "(schedule)", which the
-    reason already implies. The same line serves the card's popover, the more-info dialog and
-    the thermostat card.
+    change", "in a week, no slot ahead". A first version listed "today · after 2 h · 2 h 00 left":
+    three fragments, and the duration twice. "then Eco (schedule)" keeps one form, with or
+    without a reason. A time left over a day counts in days, "7 d left". The same line serves
+    the card's popover, the more-info dialog and the thermostat card. For an administrator, a ⚙
+    after the reason shows on a phone that the words open the settings.
   - **The reason leads to the setting.** Existing users never see the panel's next steps, and
     the surprise happens on the override. So for an administrator the reason is a link to the
     *Settings* tab. A user who is not an administrator cannot open the panel, so the reason stays
     plain text. Existing users also get a one-time notice on the *Thermostats* tab.
   - **"Until the next slot", for one override.** A user who wants one change to last the
-    afternoon should not have to change the setting for every thermostat. The card computes the
+    afternoon should not have to change the setting for every thermostat. The button shows the
+    time, "Until 17:30 (next slot)", so that it is not mistaken for the setting, and so that the
+    user sees it may shorten the override. It is hidden when the override already ends then,
+    compared to the minute. The card computes the
     next slot as the integration does and sends it with `ends_at: next_slot`. The integration
     keeps that reason only if the end really is the next slot: the reason is never taken on
     trust from the card.
@@ -830,13 +834,15 @@ older one, the older one says so.
   other options. On a 360 px phone the four tabs fit, with tighter padding.
   - **One name**: the section and the setting are "changes by hand". A first version titled the
     section *Overrides* and the setting *End of a change by hand*, two names for one thing.
-  - **The duration first, then the choices that use it.** Each choice carries the user's
+  - **The duration first, then the choices that use it**, in the panel, the options flow and the
+    README. Each choice carries the user's
     duration, "For 2 h (default)", "Until the next slot, 2 h at most", so the labels explain
     themselves. The entity's states and the options flow keep static labels with "the override
     duration", as they cannot follow a value.
   - **Radio buttons, each a whole row to tap**, with one sentence and the example of the living
     room and the office. The example's slot times are in one sentence above the choices, not in a
-    grey box. The note on the 15 minutes only comes with the next-slot choices.
+    grey box. One note under the choices, always shown, says that a slot less than 15 minutes
+    away does not count and that an end chosen on the card stays.
   - **The durations are 15, 30, 45 minutes, then whole hours to 24 h**: the phone's own picker,
     short. A value set elsewhere, for example 90 minutes from the options, stays in the list.
   - **A change is sent at once**, as in Home Assistant's settings. The controls wait for the

@@ -397,8 +397,9 @@ choose *Until the next slot* during the holidays.
 Set the end of the override on the card, or in the thermostat's more-info dialog. For example,
 set it to tomorrow 18:00. An end that you choose stays: the next slots don't end the override.
 
-To keep one change until the next slot, whatever the setting, tap *Until the next slot* under the
-override, on the card or in the more-info dialog.
+To keep one change until the next slot, whatever the setting, tap the button under the override,
+on the card or in the more-info dialog. The button shows the time, for example *Until 17:30 (next
+slot)*: it may also shorten the override.
 
 ### Start an override
 
@@ -557,11 +558,11 @@ actions:
 
 To change the options, go to Settings → Devices & services → Chauffage → *Configure*.
 
+- **Override duration.** How long a setpoint changed by hand lasts, 2 hours by default. A new
+  override started from the card lasts this long too. *Until the next slot* doesn't use it.
 - **End of a change by hand.** *For the override duration* by default. You can also choose
   *Until the next slot, at most the override duration*, or *Until the next slot* (see
   [Choose how a change by hand ends](#choose-how-a-change-by-hand-ends)).
-- **Override duration.** How long a setpoint changed by hand lasts, 2 hours by default. A new
-  override started from the card lasts this long too. *Until the next slot* doesn't use it.
 
 You can also change these two settings in the panel's *Settings* tab, or with their entities.
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives

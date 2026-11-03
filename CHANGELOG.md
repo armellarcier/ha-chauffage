@@ -43,8 +43,8 @@ by default: the new settings below change nothing until you choose another end.
   slot" or "today, 2 h after the change". An administrator taps these words to open the
   *Settings* tab. You find the block in the thermostat's more-info dialog, on the thermostat
   card, and in the card's override popover.
-- **Until the next slot, for one override** (#83). A button under the override sets its end to
-  the next slot, whatever the setting.
+- **Until the next slot, for one override** (#83). A button under the override, for example
+  "Until 17:30 (next slot)", sets its end to the next slot, whatever the setting.
 - **The logbook and the events say why a change by hand ends** (#83). The logbook says "until
   the next slot" when the override starts, and "override ended at the next slot" or "override
   ended after 2 h" when it expires. The override events carry `start` and `ends_at`.
