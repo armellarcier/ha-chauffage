@@ -11,6 +11,8 @@
 const VERSION = '0.8.0-beta.3';
 
 const DAY_MIN = 1440;
+// The duration of a change by hand, in minutes: the same rule as the integration's
+const OVERRIDE_DURATION_MIN = 15, OVERRIDE_DURATION_MAX = 1440, OVERRIDE_DURATION_STEP = 15;
 
 // ---------- i18n ----------
 // UI texts in English and French. The language follows the user's Home Assistant language
@@ -46,6 +48,8 @@ const I18N = {
     until: 'until',
     earlier: '{duration} earlier',
     later: '{duration} later',
+    longer: '{duration} more',
+    shorter: '{duration} less',
     today: 'today',
     tomorrow: 'tomorrow',
     remaining: '{duration} left',
@@ -117,6 +121,7 @@ const I18N = {
     overrideTomorrow: 'tomorrow {time}',
     overrideNextSlotMeans: 'A slot that starts less than 15 min after the change does not count. An end chosen on the card stays.',
     overrideDurationTitle: 'Duration of a change by hand',
+    overrideDurationInvalid: 'Choose a duration from {min} to {max} minutes, in steps of {step}.',
     overrideDurationText: 'An override created on the card lasts this long too.',
     overrideDurationUnused: 'With Until the next slot, the override duration only applies to new overrides created on the card.',
     nextClose: 'Close',
@@ -298,6 +303,8 @@ const I18N = {
     until: 'jusqu\'à',
     earlier: '{duration} plus tôt',
     later: '{duration} plus tard',
+    longer: '{duration} de plus',
+    shorter: '{duration} de moins',
     today: 'aujourd\'hui',
     tomorrow: 'demain',
     remaining: 'encore {duration}',
@@ -369,6 +376,7 @@ const I18N = {
     overrideTomorrow: 'demain {time}',
     overrideNextSlotMeans: 'Un créneau qui commence moins de 15 min après le changement ne compte pas. Une fin choisie sur la carte reste.',
     overrideDurationTitle: "Durée d'un changement à la main",
+    overrideDurationInvalid: 'Choisissez une durée de {min} à {max} minutes, par pas de {step}.',
     overrideDurationText: 'Une dérogation créée depuis la carte dure aussi ce temps.',
     overrideDurationUnused: "Avec Jusqu'au prochain créneau, la durée ne sert qu'aux nouvelles dérogations créées depuis la carte.",
     nextClose: 'Fermer',
@@ -785,23 +793,73 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
 
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 
-// ---------- time fields ----------
-// A time field in the format of the user's profile (#63): a browser shows <input type="time"> in
-// the format of its own language. A text field instead, read by parseTime() when it is left or on
-// Enter: "1225" gives 12:25. Its small arrows, like those of <input type="time">, and the arrow
-// keys on its minutes, move the time by `step` minutes; the arrow keys on its hours by an hour, on
-// AM / PM by 12 hours.
+// ---------- stepped fields: a time, a duration ----------
+// One field for a value in minutes, typed or moved by small arrows (#63, #83). A text field, read
+// when it is left or on Enter. Its small arrows, like those of <input type="time">, and the arrow
+// keys move the value by the field's step. A kind (STEPPED_KINDS) says how to show, read and move
+// its value:
+// - a time, in the format of the user's profile: a browser shows <input type="time"> in the format
+//   of its own language. "1225" gives 12:25. The arrow keys on its hours move it by an hour, on
+//   AM / PM by 12 hours;
+// - a duration, from `min` to `max` by steps of `step`: "2 h 45". "165", "2:45", "2h45", "2 h 45"
+//   and "2h" are read too.
 
-function timeField(attr, minutes, loc, step) {
+const STEPPED_KINDS = {
+  time: {
+    format: (m, loc) => loc.time(m),
+    read: (el, loc) => typedTime(el, loc),
+    // A time moved past midnight goes round the clock
+    fit: (m) => ((m % DAY_MIN) + DAY_MIN) % DAY_MIN,
+    valid: () => true,
+    // As wide as the longest time of the profile's format ("10:45 PM", "10:45 p. m.")
+    widest: (loc) => loc.time(22 * 60 + 45),
+    titles: (step, loc) => [loc.t('later', { duration: durationText(step, loc) }), loc.t('earlier', { duration: durationText(step, loc) })],
+    arrowKey: arrowInTime,
+  },
+  duration: {
+    format: (m, loc) => roundDurationText(m, loc),
+    read: (el) => parseDuration(el.value),
+    fit: (m, el) => Math.min(Number(el.dataset.max), Math.max(Number(el.dataset.min), m)),
+    valid: (m, el) => m >= Number(el.dataset.min) && m <= Number(el.dataset.max) && m % Number(el.dataset.step) === 0,
+    widest: (loc) => roundDurationText(23 * 60 + 45, loc),
+    titles: (step, loc) => [loc.t('longer', { duration: durationText(step, loc) }), loc.t('shorter', { duration: durationText(step, loc) })],
+    arrowKey: null, // the field's step, wherever the caret is
+  },
+};
+const kindOf = (el) => STEPPED_KINDS[el.dataset.kind] || STEPPED_KINDS.time;
+
+// A stepped field of a `kind`, on `minutes`. `attr`: the attributes that say what it is for.
+function steppedField(kind, attr, minutes, loc, step, more = '') {
+  const k = STEPPED_KINDS[kind];
   // Out of the Tab order: the arrow keys do the same from the field
-  const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}">${icon}</button>`;
-  // As wide as the longest time of the profile's format ("10:45 PM", "10:45 p. m."), counting a
-  // character of Chinese or Japanese as two
-  const width = [...loc.time(22 * 60 + 45)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
+  const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}"${more.includes('disabled') ? ' disabled' : ''}>${icon}</button>`;
+  // Counting a character of Chinese or Japanese as two
+  const width = [...k.widest(loc)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
+  const [up, down] = k.titles(step, loc);
   // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
   return `<span class="time-field"><input type="text" class="time" style="width:calc(${width}ch + 2px)" inputmode="numeric"
-    autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}" value="${esc(loc.time(minutes))}"><span
-    class="time-spin">${button(1, ICON_UP, loc.t('later', { duration: durationText(step, loc) }))}${button(-1, ICON_DOWN, loc.t('earlier', { duration: durationText(step, loc) }))}</span></span>`;
+    autocomplete="off" ${attr} data-kind="${kind}" data-step="${step}" data-minutes="${minutes}"${more} value="${esc(k.format(minutes, loc))}"><span
+    class="time-spin">${button(1, ICON_UP, up)}${button(-1, ICON_DOWN, down)}</span></span>`;
+}
+
+function timeField(attr, minutes, loc, step) {
+  return steppedField('time', attr, minutes, loc, step);
+}
+
+// A duration field, from `min` to `max` minutes by `step` (the panel's duration of a change by hand)
+function durationField(attr, minutes, loc, { step, min, max, disabled = false }) {
+  return steppedField('duration', attr, minutes, loc, step, ` data-min="${min}" data-max="${max}"${disabled ? ' disabled' : ''}`);
+}
+
+// A duration typed by hand, in minutes: "165", "2:45", "2h45", "2 h 45", "2h", "45 min"; null if
+// it is not a duration
+function parseDuration(text) {
+  const s = String(text).toLowerCase().replace(/\s/g, '');
+  let r = /^(\d+)(?:min|mn|m)?$/.exec(s);
+  if (r) return Number(r[1]);
+  r = /^(\d+)[:h](?:(\d{1,2})(?:min|mn|m)?)?$/.exec(s);
+  if (!r || (r[2] && Number(r[2]) > 59)) return null;
+  return Number(r[1]) * 60 + Number(r[2] || 0);
 }
 
 // A time typed by hand, read the way people write it: "1225", "12:25", "12.25", "12h25", "7" (7:00),
@@ -844,46 +902,60 @@ function typedTime(el, loc) {
 // (11:47 + 15 min: + 13 min, to 12:00)
 const moveBy = (m, delta, grid = 1) => (delta > 0 ? Math.floor(m / grid) : Math.ceil(m / grid)) * grid + delta - m;
 
-// The time of a field moved by its arrows: `move(minutes, step)` gives how far. The field keeps
-// how far its arrows moved it (`moved`, in minutes), for the end of an override. False if the
-// field holds no time.
-function moveFieldTime(el, loc, move) {
-  const m = typedTime(el, loc);
+// The value of a stepped field moved by its arrows: `move(minutes, step)` gives how far. The field
+// keeps how far its arrows moved it (`moved`, in minutes), for the end of an override. False if
+// the field holds no value.
+function moveField(el, loc, move) {
+  const k = kindOf(el);
+  const m = k.read(el, loc);
   if (m === null) return false;
-  const by = move(m, Number(el.dataset.step));
-  el.dataset.moved = Number(el.dataset.moved || 0) + by;
-  el.value = loc.time((((m + by) % DAY_MIN) + DAY_MIN) % DAY_MIN);
+  const to = k.fit(m + move(m, Number(el.dataset.step)), el);
+  el.dataset.moved = Number(el.dataset.moved || 0) + to - m;
+  el.value = k.format(to, loc);
   return true;
 }
 
 // ↑ / ↓ in a time field: on the hours, an hour; on the minutes, the field's step; elsewhere on a
 // 12 h clock (AM / PM), 12 hours. The hours and minutes are the first two groups of digits, as the
 // separator depends on the language ("08:30", "08.30", "08 h 30").
-function arrowInTimeField(e, loc) {
-  const el = e.target;
-  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+function arrowInTime(el, dir, loc) {
   const pos = el.selectionStart || 0;
   const [hours, minutes] = [...el.value.matchAll(/\d+/g)].map((r) => [r.index, r.index + r[0].length]);
   const on = (part) => part && pos >= part[0] && pos <= part[1];
-  const dir = e.key === 'ArrowUp' ? 1 : -1;
-  const move = (m, step) => {
+  return (m, step) => {
     if (on(hours)) return 60 * dir;
     if (loc.hour12 && !on(minutes)) return 12 * 60 * dir;
     return moveBy(m, step * dir, step);
   };
-  if (!moveFieldTime(el, loc, move)) return;
-  e.preventDefault();
-  el.setSelectionRange(pos, pos);
 }
 
-// A time field left (or Enter, or its small arrows): `apply(minutes)` once per new time, and the
-// time shown again in the profile's format. Then the redraws held back while it was typed in are
-// done, and a time that is not one is shown again as it was.
-function timeFieldDone(host, el, apply) {
-  const minutes = typedTime(el, host._loc);
-  if (minutes === null) host._redrawLater = true;
+// ↑ / ↓ in a stepped field: by the kind's own rule, else by the field's step
+function arrowInField(e, loc) {
+  const el = e.target;
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  const dir = e.key === 'ArrowUp' ? 1 : -1;
+  const k = kindOf(el);
+  const pos = el.selectionStart || 0;
+  const move = k.arrowKey ? k.arrowKey(el, dir, loc) : (m, step) => moveBy(m, step * dir, step);
+  if (!moveField(el, loc, move)) return;
+  e.preventDefault();
+  if (k.arrowKey) el.setSelectionRange(pos, pos);
+}
+
+// A stepped field left (or Enter, or its small arrows): `apply(minutes)` once per new value, and
+// the value shown again in its format. Then the redraws held back while it was typed in are done.
+// A value that is not one is shown again as it was; with `refuse`, a value the kind does not
+// accept (a duration off the steps) too, and `refuse()` says why.
+function timeFieldDone(host, el, apply, refuse = null) {
+  const k = kindOf(el);
+  const minutes = k.read(el, host._loc);
+  if (refuse && (minutes === null || !k.valid(minutes, el))) {
+    el.value = k.format(Number(el.dataset.minutes), host._loc);
+    delete el.dataset.moved;
+    refuse();
+  } else if (minutes === null) host._redrawLater = true;
   else {
-    el.value = host._loc.time(minutes);
+    el.value = k.format(minutes, host._loc);
     if (minutes !== Number(el.dataset.minutes) || Number(el.dataset.moved)) {
       el.dataset.minutes = minutes; // applied once
       apply(minutes);
@@ -942,7 +1014,7 @@ function listenTimeFields(host, done) {
   root.addEventListener('keydown', (e) => {
     if (!isTime(e.target)) return;
     if (e.key === 'Enter') e.target.blur(); // applied on leaving the field
-    else arrowInTimeField(e, host._loc);
+    else arrowInField(e, host._loc);
   });
   // The small arrows: the field keeps the focus (a redraw would take the button away before its click)
   root.addEventListener('mousedown', (e) => { if (e.target.closest('.time-step')) e.preventDefault(); });
@@ -951,7 +1023,7 @@ function listenTimeFields(host, done) {
     if (!button) return;
     const el = button.closest('.time-field').querySelector('input.time');
     const dir = Number(button.dataset.timeStep);
-    if (!moveFieldTime(el, host._loc, (m, step) => moveBy(m, step * dir, step))) return;
+    if (!moveField(el, host._loc, (m, step) => moveBy(m, step * dir, step))) return;
     if (root.activeElement === el) el.blur(); // applied by its focusout
     else done(el);
   });
@@ -4301,6 +4373,10 @@ const BADGE_STYLE = `
   .badge.paused { background:var(--warning-color, #ffa600); color:#000; font-weight:500; }
 `;
 
+// The box of a field typed in: a time field, a number (the more-info block, the panel)
+const FIELD_BOX = 'font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);'
+  + ' background:var(--card-background-color); color:var(--primary-text-color);';
+
 // A time field and its small arrows (the card's popovers, the more-info block). Each arrow takes
 // a finger a few pixels beyond its edge, away from the other arrow.
 const TIME_FIELD_STYLE = `
@@ -5071,8 +5147,7 @@ const MORE_INFO_STYLE = `
     background:var(--primary-text-color); color:var(--card-background-color); }
   .override-handle:hover .tip, .override-handle.drag .tip { display:block; }
   .line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
-  input.time, input[type=number] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
-    background:var(--card-background-color); color:var(--primary-text-color); }
+  input.time, input[type=number] { ${FIELD_BOX} }
   input[type=number] { width:5em; }
   ${TIME_FIELD_STYLE}
   .presets { display:flex; flex-wrap:wrap; gap:6px; }
@@ -5641,6 +5716,8 @@ class ChauffagePanel extends HTMLElement {
     this._picked = new Set(); // the welcome: the thermostats ticked
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
+    // The duration of a change by hand: a stepped field, as the cards' time fields
+    listenTimeFields(this, (el) => this._durationDone(el));
     this.shadowRoot.addEventListener('change', (e) => {
       const box = e.target.closest('[data-pick]');
       if (box) {
@@ -5651,7 +5728,6 @@ class ChauffagePanel extends HTMLElement {
       }
       // The settings of overrides: sent at once, as Home Assistant's own settings
       if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
-      else if (e.target.matches('[data-override-duration]')) this._setSettings({ override_duration: Number(e.target.value) });
     });
     // Closing or reloading the browser's page with weeks not saved yet: the browser asks
     this._onUnload = (e) => {
@@ -5714,6 +5790,10 @@ class ChauffagePanel extends HTMLElement {
     this._unlisten = null;
     document.removeEventListener('keydown', this._onKey);
     window.removeEventListener('beforeunload', this._onUnload);
+  }
+
+  get _loc() {
+    return makeLocale(this._hass);
   }
 
   get _t() {
@@ -6069,61 +6149,36 @@ class ChauffagePanel extends HTMLElement {
     const field = this.shadowRoot.querySelector('.override-settings .duration-field');
     if (field) this._fillDuration(field, minutes, disabled, loc);
     const saved = this.shadowRoot.querySelector('[data-fill="settings-saved"]');
-    if (saved) setHtml(saved, this._settingsSaved ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
+    if (saved) {
+      setHtml(saved, this._settingsError && this._settingsErrorAt === 'duration'
+        ? `<span class="error" role="alert">${esc(this._settingsError)}</span>`
+        : this._settingsSaved ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
+    }
     setHtml(settings, `<p class="note">${esc(t('overrideDurationText'))}${current === 'next_slot' ? ` ${esc(t('overrideDurationUnused'))}` : ''}</p>
         <p class="scenario">${esc(t('overrideScenario', { salonAt: loc.time(salon[0]), salonSlot: loc.time(salon[1]),
           bureauAt: loc.time(bureau[0]), bureauSlot: loc.time(bureau[1]) }))}</p>
         <div class="choices" role="radiogroup" aria-label="${esc(t('overrideEndTitle'))}">${choices}</div>
         <p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>
-        ${this._settingsError ? `<div class="error">${esc(this._settingsError)}</div>` : ''}`);
+        ${this._settingsError && this._settingsErrorAt !== 'duration' ? `<div class="error">${esc(this._settingsError)}</div>` : ''}`);
   }
 
-  // The duration of a change by hand: Home Assistant's own dropdown (<ha-form>, stable across
-  // Home Assistant versions), kept across updates so that, once open, it stays open. Before Home
-  // Assistant's fields are loaded (and in the tests), a native select, replaced once they are.
-  // 15, 30, 45 minutes, then whole hours; a value set elsewhere (the options, the entity) stays
+  // The duration of a change by hand: a stepped field, the same as the end of an override, in
+  // hours and minutes ("2 h 45"), moved by 15 minutes from 15 minutes to 24 hours. Sent once left,
+  // on Enter, or at once by its small arrows; a duration off the steps is refused here.
   _fillDuration(field, minutes, disabled, loc) {
-    const steps = [15, 30, 45, ...Array.from({ length: 24 }, (_, i) => (i + 1) * 60)];
-    if (!steps.includes(minutes)) steps.push(minutes);
-    const options = steps.sort((a, b) => a - b).map((m) => ({ value: String(m), label: roundDurationText(m, loc) }));
-    if (!customElements.get('ha-form')) {
-      this._durationForm = null;
-      setHtml(field, `<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
-        <select id="override-duration" data-override-duration${disabled ? ' disabled' : ''}>${options.map((o) =>
-          `<option value="${o.value}"${o.value === String(minutes) ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`);
-      if (!this._waitingForm) {
-        this._waitingForm = true;
-        customElements.whenDefined('ha-form').then(() => this._update());
-      }
-      return;
-    }
-    let form = this._durationForm;
-    if (!form || form.parentNode !== field) {
-      form = document.createElement('ha-form');
-      form.computeLabel = () => this._t('overrideDurationTitle');
-      form.addEventListener('value-changed', (e) => {
-        e.stopPropagation();
-        const value = Number(e.detail.value && e.detail.value.override_duration);
-        // Compared with the duration shown: Home Assistant's form may already hold the new value
-        if (value && value !== form._minutes) this._setSettings({ override_duration: value });
-      });
-      HTML_OF.delete(field);
-      field.replaceChildren(form);
-      this._durationForm = form;
-    }
-    // Only what changed is set again: a new schema would draw the dropdown again, and close it
-    if (form.hass !== this._hass) form.hass = this._hass;
-    const key = JSON.stringify(options);
-    if (form._optionsKey !== key) {
-      form._optionsKey = key;
-      form.schema = [{ name: 'override_duration', required: true, selector: { select: { mode: 'dropdown', options } } }];
-    }
-    // …and the duration shown again after a refused change
-    if (form._minutes !== minutes || !form.data || form.data.override_duration !== String(minutes)) {
-      form._minutes = minutes;
-      form.data = { override_duration: String(minutes) };
-    }
-    if (form.disabled !== disabled) form.disabled = disabled;
+    setHtml(field, `<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
+      ${durationField('id="override-duration" data-override-duration', minutes, loc,
+        { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`);
+  }
+
+  // The duration field left, on Enter or moved by its arrows
+  _durationDone(el) {
+    timeFieldDone(this, el, (minutes) => this._setSettings({ override_duration: minutes }), () => {
+      this._settingsError = this._t('overrideDurationInvalid', { min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, step: OVERRIDE_DURATION_STEP });
+      this._settingsErrorAt = 'duration';
+      this._settingsSaved = false;
+      this._update();
+    });
   }
 
   // A setting sent at once: the controls wait for the answer, then say it is saved
@@ -6140,6 +6195,7 @@ class ChauffagePanel extends HTMLElement {
       this._savedTimer = setTimeout(() => { this._settingsSaved = false; this._update(); }, 3000);
     } catch (err) {
       this._settingsError = this._t('error', { message: err.message || err.code || err });
+      this._settingsErrorAt = 'override_duration' in settings ? 'duration' : 'end';
       this._settingsPending = null;
     }
     this._settingsBusy = false;
@@ -6400,11 +6456,10 @@ const PANEL_CSS = `
   .choice > span { display:flex; flex-direction:column; gap:2px; min-width:0; }
   .choice-label { font-weight:500; }
   .choice-text, .choice .example { font-size:14px; color:var(--secondary-text-color); }
-  /* The duration: Home Assistant's dropdown, or meanwhile a native select styled as the panel's others */
-  .duration-field { flex:1 1 240px; max-width:400px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
-  .duration-field ha-form { display:block; flex:1 1 100%; }
-  .duration-field select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color); max-width:100%;
-    background:var(--card-background-color); color:var(--primary-text-color); font:inherit; }
+  /* The duration: a stepped field, the same as the end of an override */
+  .duration-field { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
+  input.time { ${FIELD_BOX} }
+  ${TIME_FIELD_STYLE}
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }

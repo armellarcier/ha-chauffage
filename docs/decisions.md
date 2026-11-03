@@ -851,8 +851,14 @@ older one, the older one says so.
     room and the office. The example's slot times are in one sentence above the choices, not in a
     grey box. One note under the choices, always shown, says that a slot less than 15 minutes
     away does not count and that an end chosen on the card stays.
-  - **The durations are 15, 30, 45 minutes, then whole hours to 24 h**: the phone's own picker,
-    short. A value set elsewhere, for example 90 minutes from the options, stays in the list.
+  - **The duration is a stepped field, the same code as the end of an override** ("until 01:30
+    ▲▼"): a text in hours and minutes, "2 h 45", with two small arrows that move it by 15 minutes,
+    from 15 minutes to 24 hours. One implementation serves both fields: the markup, the arrows,
+    the arrow keys, the reading of a typed value on leaving or on Enter, and the style. A kind of
+    field says how to show, read and move its value. "165", "2:45", "2h45" and "2 h 45" are read.
+    A value off the 15-minute steps, or out of range, is refused next to the field, and the field
+    shows the duration kept. A first version used a list of 15, 30, 45 minutes and whole hours,
+    then Home Assistant's dropdown: neither could give 2 h 45.
   - **A change is sent at once**, as in Home Assistant's settings. The controls wait for the
     answer, then say "Saved". The note on the entities lives in the README only.
   - The *Settings* tab shows no "no thermostat yet" notice: its settings do not need one.
