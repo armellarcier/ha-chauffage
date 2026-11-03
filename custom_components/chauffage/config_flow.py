@@ -74,18 +74,18 @@ class ChauffageOptionsFlow(OptionsFlow):
         options = self.config_entry.options
         schema = vol.Schema({
             vol.Required(
-                CONF_MANUAL_OVERRIDE_END,
-                default=options.get(CONF_MANUAL_OVERRIDE_END, DEFAULT_MANUAL_OVERRIDE_END),
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=list(MANUAL_OVERRIDE_ENDS), translation_key=CONF_MANUAL_OVERRIDE_END,
-                                              mode=selector.SelectSelectorMode.LIST)
-            ),
-            vol.Required(
                 CONF_OVERRIDE_DURATION, default=options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=OVERRIDE_DURATION_MIN, max=OVERRIDE_DURATION_MAX,
                                               step=OVERRIDE_DURATION_STEP, unit_of_measurement="min",
                                               mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_MANUAL_OVERRIDE_END,
+                default=options.get(CONF_MANUAL_OVERRIDE_END, DEFAULT_MANUAL_OVERRIDE_END),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=list(MANUAL_OVERRIDE_ENDS), translation_key=CONF_MANUAL_OVERRIDE_END,
+                                              mode=selector.SelectSelectorMode.LIST)
             ),
             vol.Required(
                 CONF_USE_PRESETS, default=options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS),

@@ -244,9 +244,9 @@ describe('the time fields follow the profile\'s time format', () => {
   test("why an override from a change by hand ends then, in the card's popover", () => {
     const slot = createCard(fakeHass({ locale: english('24'), overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), { show: ['climate.salon'] });
     slot.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click();
-    assert.match(slot.shadowRoot.querySelector('.override-ed').textContent, /today, at the next slot · 1h 30 left · then Eco/);
+    assert.match(slot.shadowRoot.querySelector('.override-ed').textContent, /today, at the next slot ⚙ · 1h 30 left · then Eco \(schedule\)/);
     const duration = createCard(fakeHass({ locale: english('24'), overrides: { 'climate.salon': { ...override, ends_at: 'duration' } } }), { show: ['climate.salon'] });
     duration.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click();
-    assert.match(duration.shadowRoot.querySelector('.override-ed').textContent, /today, 2 h after the change · 1h 30 left/);
+    assert.match(duration.shadowRoot.querySelector('.override-ed').textContent, /today, 2 h after the change ⚙ · 1h 30 left/);
   });
 });

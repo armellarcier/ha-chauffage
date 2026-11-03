@@ -350,10 +350,13 @@ describe('the Chauffage panel', () => {
       input.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
-    test('one name for the section and the setting: changes by hand, made on the thermostat or in Home Assistant', () => {
+    test('one name for the section and the setting: changes by hand; the intro names the override', () => {
       const el = panel(withSettings({}), '/settings');
       assert.equal(text($(el, '.override-settings h2')), 'Changements à la main');
-      assert.match(text(section(el)), /Quand vous changez une consigne à la main, sur le thermostat ou dans Home Assistant/);
+      assert.match(text(section(el)),
+        /Quand vous changez une consigne à la main, Chauffage la garde, puis le thermostat reprend son planning\. Choisissez quand\. Chauffage appelle ce changement temporaire une dérogation\./);
+      assert.equal(text($(el, '.override-settings .duration-row label')), "Durée d'un changement à la main");
+      assert.match(text(section(el)), /Une dérogation créée depuis la carte dure aussi ce temps\./);
       assert.doesNotMatch(text(section(el)), /Dérogations|Fin d'un changement/);
       assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), "Fin d'un changement à la main");
     });
@@ -365,6 +368,8 @@ describe('the Chauffage panel', () => {
       assert.equal(label(el, 'duration'), 'Pendant 2 h (par défaut)');
       assert.equal(label(el, 'next_slot_within_duration'), "Jusqu'au prochain créneau, 2 h au plus");
       assert.equal(label(el, 'next_slot'), "Jusqu'au prochain créneau");
+      const sentence = (value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.choice-text'));
+      assert.equal(sentence('next_slot_within_duration'), 'Plus tôt si un créneau commence avant.');
       cleanup();
       const short = panel(withSettings({ override_duration: 90 }), '/settings');
       assert.equal(label(short, 'duration'), 'Pendant 1 h 30 (par défaut)');
@@ -393,12 +398,11 @@ describe('the Chauffage panel', () => {
       assert.equal(example(long, 'duration'), "Salon jusqu'à demain 21:30 · bureau jusqu'à demain 18:30");
     });
 
-    test('the note on the next slot only comes with the next-slot choices', () => {
-      assert.equal($(panel(withSettings({}), '/settings'), '.override-settings .slot-note'), null);
-      cleanup();
-      for (const end of ['next_slot_within_duration', 'next_slot']) {
+    test('one note under the choices, always: the 15 minutes, and an end chosen on the card', () => {
+      for (const end of ['duration', 'next_slot_within_duration', 'next_slot']) {
         const el = panel(withSettings({ manual_override_end: end }), '/settings');
-        assert.match(text($(el, '.override-settings .slot-note')), /au moins 15 minutes après votre changement/, end);
+        assert.equal(text($(el, '.override-settings .slot-note')),
+          'Un créneau qui commence moins de 15 min après le changement ne compte pas. Une fin choisie sur la carte reste.', end);
         cleanup();
       }
     });

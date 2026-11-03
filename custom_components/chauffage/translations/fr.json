@@ -28,7 +28,7 @@
         },
         "data_description": {
           "override_duration": "Combien de temps dure une consigne changée à la main, au plus, avant que le thermostat reprenne son planning. Ne sert pas avec Jusqu'au prochain créneau. Une nouvelle dérogation créée depuis la carte dure aussi ce temps.",
-          "manual_override_end": "Quand s'arrête une consigne changée à la main sur le thermostat. Le prochain créneau est le premier qui change la consigne du thermostat, au moins 15 minutes après le changement. Un changement à la main se fait sur le thermostat ou dans Home Assistant. Une fin choisie sur la carte reste celle que vous avez choisie. Vous pouvez aussi changer ce réglage dans le panneau Chauffage (onglet Réglages).",
+          "manual_override_end": "Quand s'arrête une consigne changée à la main. Le prochain créneau est le premier qui change la consigne du thermostat, au moins 15 minutes après le changement. Un changement à la main se fait sur le thermostat ou dans Home Assistant. Une fin choisie sur la carte reste celle que vous avez choisie. Vous pouvez aussi changer ce réglage dans le panneau Chauffage (onglet Réglages).",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
           "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }

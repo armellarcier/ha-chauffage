@@ -50,14 +50,14 @@ const I18N = {
     tomorrow: 'tomorrow',
     remaining: '{duration} left',
     duration: '{h}h {mm}',
+    durationDays: '{d} d',
     hours: '{h} h',
     endsNextSlot: 'at the next slot',
     endsAfter: '{duration} after the change',
-    endsNoNextSlot: 'no slot ahead',
+    endsNoNextSlot: 'in a week, no slot ahead',
     thenSchedule: 'then {preset} (schedule)',
-    thenPreset: 'then {preset}',
     endsChoose: 'Choose how a change by hand ends',
-    untilNextSlot: 'Until the next slot',
+    untilNextSlot: 'Until {time} (next slot)',
     newSettingNotice: 'New: choose how long a setpoint changed by hand lasts.',
     newOverride: 'New override…',
     resume: 'Resume the schedule',
@@ -104,19 +104,19 @@ const I18N = {
     pageSettings: 'Settings',
     overridesTitle: 'Changes by hand',
     overrideEndTitle: 'End of a change by hand',
-    overrideEndIntro: 'When you change a setpoint by hand, on the thermostat or in Home Assistant, Chauffage keeps it for a while. Then the thermostat goes back to its schedule.',
+    overrideEndIntro: 'When you change a setpoint by hand, Chauffage keeps it, then the thermostat goes back to its schedule. Choose when. Chauffage calls this temporary change an override.',
     overrideScenario: 'For example, you raise the living room at {salonAt}, its next slot is at {salonSlot}, and the office at {bureauAt}, its next slot is at {bureauSlot}.',
     overrideEndDuration: 'For {duration} (default)',
     overrideEndDurationText: 'Whatever the schedule.',
     overrideEndWithin: 'Until the next slot, {duration} at most',
-    overrideEndWithinText: 'The next slot ends it, if it comes first.',
+    overrideEndWithinText: 'Sooner if a slot starts first.',
     overrideEndNextSlot: 'Until the next slot',
     overrideEndNextSlotText: 'However far, as on a classic thermostat.',
     overrideExample: 'Living room until {salon} · office until {bureau}',
     overrideTomorrow: 'tomorrow {time}',
-    overrideNextSlotMeans: 'The next slot is the first one that changes the thermostat\'s setpoint, at least 15 minutes after your change. An end you choose on the card stays as you chose it.',
-    overrideDurationTitle: 'Duration',
-    overrideDurationText: 'A new override created on the card lasts this long too.',
+    overrideNextSlotMeans: 'A slot that starts less than 15 min after the change does not count. An end chosen on the card stays.',
+    overrideDurationTitle: 'Duration of a change by hand',
+    overrideDurationText: 'An override created on the card lasts this long too.',
     overrideDurationUnused: 'With Until the next slot, the override duration only applies to new overrides created on the card.',
     nextClose: 'Close',
     noThermostatYet: 'No thermostat is scheduled yet.',
@@ -301,14 +301,14 @@ const I18N = {
     tomorrow: 'demain',
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
+    durationDays: '{d} j',
     hours: '{h} h',
     endsNextSlot: 'au prochain créneau',
     endsAfter: '{duration} après le changement',
-    endsNoNextSlot: 'aucun créneau prévu',
+    endsNoNextSlot: 'dans une semaine, aucun créneau prévu',
     thenSchedule: 'puis {preset} (planning)',
-    thenPreset: 'puis {preset}',
     endsChoose: 'Choisir comment se termine un changement à la main',
-    untilNextSlot: "Jusqu'au prochain créneau",
+    untilNextSlot: "Jusqu'à {time} (prochain créneau)",
     newSettingNotice: 'Nouveau : choisissez combien de temps dure une consigne changée à la main.',
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
@@ -355,19 +355,19 @@ const I18N = {
     pageSettings: 'Réglages',
     overridesTitle: 'Changements à la main',
     overrideEndTitle: "Fin d'un changement à la main",
-    overrideEndIntro: 'Quand vous changez une consigne à la main, sur le thermostat ou dans Home Assistant, Chauffage la garde un moment. Ensuite, le thermostat reprend son planning.',
+    overrideEndIntro: 'Quand vous changez une consigne à la main, Chauffage la garde, puis le thermostat reprend son planning. Choisissez quand. Chauffage appelle ce changement temporaire une dérogation.',
     overrideScenario: 'Par exemple, vous montez le salon à {salonAt}, son prochain créneau est à {salonSlot}, et le bureau à {bureauAt}, son prochain créneau est à {bureauSlot}.',
     overrideEndDuration: 'Pendant {duration} (par défaut)',
     overrideEndDurationText: 'Quel que soit le planning.',
     overrideEndWithin: "Jusqu'au prochain créneau, {duration} au plus",
-    overrideEndWithinText: "Le prochain créneau l'arrête, s'il arrive avant.",
+    overrideEndWithinText: 'Plus tôt si un créneau commence avant.',
     overrideEndNextSlot: "Jusqu'au prochain créneau",
     overrideEndNextSlotText: 'Aussi loin soit-il, comme sur un thermostat classique.',
     overrideExample: "Salon jusqu'à {salon} · bureau jusqu'à {bureau}",
     overrideTomorrow: 'demain {time}',
-    overrideNextSlotMeans: 'Le prochain créneau est le premier qui change la consigne du thermostat, au moins 15 minutes après votre changement. Une fin choisie sur la carte reste celle que vous avez choisie.',
-    overrideDurationTitle: 'Durée',
-    overrideDurationText: 'Une nouvelle dérogation créée depuis la carte dure aussi ce temps.',
+    overrideNextSlotMeans: 'Un créneau qui commence moins de 15 min après le changement ne compte pas. Une fin choisie sur la carte reste.',
+    overrideDurationTitle: "Durée d'un changement à la main",
+    overrideDurationText: 'Une dérogation créée depuis la carte dure aussi ce temps.',
     overrideDurationUnused: "Avec Jusqu'au prochain créneau, la durée ne sert qu'aux nouvelles dérogations créées depuis la carte.",
     nextClose: 'Fermer',
     noThermostatYet: "Aucun thermostat n'est encore programmé.",
@@ -1507,11 +1507,10 @@ function overrideValueHtml(d, src, climate, attrs, loc) {
   return { presets: `<div class="presets">${presets}</div>`, temperature };
 }
 
-// "then Eco (schedule)": what the thermostat goes back to at the override's end. "then Eco" when
-// the end already says why (a change by hand, #83): the schedule is then implied
-function thenText(src, climate, d, loc, short = false) {
+// "then Eco (schedule)": what the thermostat goes back to at the override's end
+function thenText(src, climate, d, loc) {
   const preset = presetAt(activeWeek(src, climate), parseDate(d.end));
-  return preset ? loc.t(short ? 'thenPreset' : 'thenSchedule', { preset: presetOf(presetsOf(src, loc), preset, loc).name }) : '';
+  return preset ? loc.t('thenSchedule', { preset: presetOf(presetsOf(src, loc), preset, loc).name }) : '';
 }
 
 // The end of an override, in words, under its time field: "today, at the next slot · 45 min left
@@ -1525,10 +1524,26 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const remaining = Math.max(0, Math.round((endsAt - now) / 60000));
   const reason = endReasonText(d, loc);
   const why = reason && isAdmin(hass)
-    ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath('settings')}" title="${esc(t('endsChoose'))}">${esc(reason)}</span>`
+    ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath('settings')}" title="${esc(t('endsChoose'))}">${esc(reason)} <span aria-hidden="true">⚙</span></span>`
     : esc(reason);
-  const then = thenText(src, climate, d, loc, !!reason);
-  return `${esc(day)}${reason ? `, ${why}` : ''} · ${esc(t('remaining', { duration: durationText(remaining, loc) }))}${then ? ` · ${esc(then)}` : ''}`;
+  const then = thenText(src, climate, d, loc);
+  return `${esc(day)}${reason ? `, ${why}` : ''} · ${esc(t('remaining', { duration: remainingText(remaining, loc) }))}${then ? ` · ${esc(then)}` : ''}`;
+}
+
+// A time left: "1 h 30", "45 min"; in days past a day ("7 d"), for a change kept a week (#83)
+function remainingText(min, loc) {
+  return min >= DAY_MIN ? loc.t('durationDays', { d: Math.round(min / DAY_MIN) }) : durationText(min, loc);
+}
+
+// The button that sets an override's end to the next slot (#83): "Until 17:30 (next slot)", with the
+// day when it is not today. None without a next slot, or when the override already ends then
+// (compared to the minute: the integration writes its end in its own offset)
+function nextSlotButton(src, climate, d, loc, attrs) {
+  const at = nextSlotEnd(src, climate);
+  if (!at || d.ends_at === 'next_slot' || Math.floor(at / 60000) === Math.floor(parseDate(d.end) / 60000)) return '';
+  const time = loc.time(minutesOf(at));
+  const when = at.toDateString() === new Date().toDateString() ? time : `${loc.days[(at.getDay() + 6) % 7].toLowerCase()} ${time}`;
+  return `<button ${attrs}>${esc(loc.t('untilNextSlot', { time: when }))}</button>`;
 }
 
 // When the next slot that changes the thermostat's setpoint starts, as the integration computes
@@ -2647,8 +2662,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!d) return `<div class="editor override-ed">${head}${offNote}${values}</div>`;
     const endsAt = parseDate(d.end);
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
-    const nextSlot = nextSlotEnd(this._source(), climate);
-    const toNextSlot = nextSlot && nextSlot.getTime() !== endsAt.getTime(); // not when it already ends then
     return `<div class="editor override-ed">
       ${head}
       ${offNote}
@@ -2659,7 +2672,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       ${values}
       <div class="ed-actions start">
         ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
-        ${toNextSlot ? `<button class="btn" data-act="override-next-slot">${esc(t('untilNextSlot'))}</button>` : ''}
+        ${nextSlotButton(this._source(), climate, d, this._loc, 'class="btn" data-act="override-next-slot"')}
       </div>
       <div class="ed-actions">
         <button class="btn danger" data-act="override-del">${esc(t('resume'))}</button>
@@ -4869,8 +4882,6 @@ class ChauffageMoreInfo extends HTMLElement {
       const endsAt = parseDate(d.end);
       const lastPiece = pieces.find((p) => p.isLast);
       const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
-      const nextSlot = nextSlotEnd(dataSource(this._hass), this._entity);
-      const toNextSlot = nextSlot && nextSlot.getTime() !== endsAt.getTime(); // not when it already ends then
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
@@ -4882,7 +4893,7 @@ class ChauffageMoreInfo extends HTMLElement {
         <div class="line">${value.temperature}</div>
         <div class="btns">
           ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
-          ${toNextSlot ? `<button data-next-slot>${esc(t('untilNextSlot'))}</button>` : ''}
+          ${nextSlotButton(dataSource(this._hass), this._entity, d, this._loc, 'data-next-slot')}
           <button class="danger" data-del>${esc(t('resume'))}</button>
         </div>
       </div>`;
@@ -6079,7 +6090,6 @@ class ChauffagePanel extends HTMLElement {
     if (!steps.includes(minutes)) steps.push(minutes);
     const options = steps.sort((a, b) => a - b)
       .map((m) => `<option value="${m}"${m === minutes ? ' selected' : ''}>${esc(roundDurationText(m, loc))}</option>`).join('');
-    const nextSlot = current !== 'duration';
     return `<h2>${esc(t('overridesTitle'))}</h2>
       <div class="box">
         <p>${esc(t('overrideEndIntro'))}</p>
@@ -6092,7 +6102,7 @@ class ChauffagePanel extends HTMLElement {
         <p class="scenario">${esc(t('overrideScenario', { salonAt: loc.time(salon[0]), salonSlot: loc.time(salon[1]),
           bureauAt: loc.time(bureau[0]), bureauSlot: loc.time(bureau[1]) }))}</p>
         <div class="choices" role="radiogroup" aria-label="${esc(t('overrideEndTitle'))}">${choices}</div>
-        ${nextSlot ? `<p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>` : ''}
+        <p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>
         ${this._settingsError ? `<div class="error">${esc(this._settingsError)}</div>` : ''}
       </div>`;
   }

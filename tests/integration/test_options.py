@@ -45,8 +45,8 @@ async def test_the_options_form_offers_the_three_ends_of_a_change_by_hand(bench:
     flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
     key = next(k for k in flow["data_schema"].schema if str(k) == "manual_override_end")
     assert flow["data_schema"].schema[key].config["options"] == ["duration", "next_slot_within_duration", "next_slot"]
-    # The end first, then the duration it uses
-    assert [str(k) for k in flow["data_schema"].schema][:2] == ["manual_override_end", "override_duration"]
+    # The duration first, then the ends that use it, as in the panel
+    assert [str(k) for k in flow["data_schema"].schema][:2] == ["override_duration", "manual_override_end"]
 
 
 async def test_without_presets_every_thermostat_is_driven_by_temperature(bench: Bench):
