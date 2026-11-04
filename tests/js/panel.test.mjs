@@ -835,6 +835,38 @@ describe('the Chauffage panel after an update', () => {
     assert.ok($(el, 'ha-menu-button'), 'the sidebar stays reachable on a phone');
   });
 
+  // The panel says what the cards say, instead of an empty page under its tabs
+  test('the panel asks to restart Home Assistant when the integration is older', () => {
+    const data = { ...integrationData({ weeks: WEEKS }), version: '0.0.1' };
+    const el = panel(setup({ data }), '/thermostats');
+    assert.match(text($(el, '.missing')), /redémarrez Home Assistant/);
+    assert.equal($(el, '.missing').getAttribute('role'), 'status');
+    assert.ok($(el, '.tabs'), 'the tabs stay');
+    assert.equal(cards(el).length, 0);
+  });
+
+  test('the panel says when the integration is not set up', async () => {
+    const hass = setup({ data: null });
+    hass.connection.subscribeMessage = () => Promise.reject({ code: 'not_loaded', message: 'The Chauffage integration is not set up' });
+    const el = panel(hass, '/thermostats');
+    await tick();
+    assert.match(text($(el, '.missing')), /n’est pas configurée/);
+  });
+
+  test('the panel shows "…" while it waits for the integration', () => {
+    const el = panel(setup({ data: null }), '/schedules');
+    assert.equal(text($(el, '.content .loading')), '…');
+    assert.ok($(el, '.tabs'), 'the tabs stay');
+  });
+
+  test('the panel shows its page once the data comes', () => {
+    const hass = setup({ data: null });
+    const el = panel(hass, '/schedules');
+    hass.push(integrationData({ weeks: WEEKS }));
+    assert.equal($(el, '.content .loading'), null);
+    assert.match(text($(el, '.content')), /Règles d'activation/);
+  });
+
   test('a second copy of the same version of the card does not stop the panel', () => {
     const get = customElements.get.bind(customElements);
     class SameVersionCopy extends HTMLElement { static get version() { return VERSION; } }

@@ -69,6 +69,8 @@ export const INTEGRATION_DATA = () => integrationData();
  */
 export function fakeHass({ data, weeks, overrides, schedule, paused, planned, locale = FRENCH, reply } = {}) {
   INTEGRATION.connection = null; // one subscription per page: reset between tests
+  INTEGRATION.subscribed = null;
+  clearTimeout(INTEGRATION.timer);
   INTEGRATION.data = null;
   INTEGRATION.missing = false;
   INTEGRATION.listeners.clear();
