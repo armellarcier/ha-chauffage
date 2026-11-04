@@ -15,9 +15,9 @@ thermostats without presets, thermostats with presets, and
 an independent project, not affiliated with Versatile Thermostat.
 
 **What happens when you change a setpoint by hand.** Chauffage keeps your setpoint for 2 hours,
-then the thermostat goes back to its schedule. Say you raise the living room to 22 °C at 21:30: the living
-room goes back to its schedule at 23:30. You can choose another end, for example the next slot,
-as on a classic thermostat. [Overrides](#overrides) explains the choices.
+then the thermostat goes back to its schedule. Say you raise the living room to 22 °C at 21:30:
+the living room goes back to its schedule at 23:30. You can choose another end, for example the
+next slot, as on a classic thermostat. [Overrides](#overrides) explains the choices.
 
 - **Schedules.** You create and name as many schedules as you need, for example *Normal*,
   *Remote work* or *Holidays*. Each schedule holds a week for each thermostat. One schedule is
@@ -379,9 +379,9 @@ the card or of the more-info dialog.
 
 ### Choose how a change by hand ends
 
-Open the settings: tap the reason of an override's end, or the ⚙ of the Chauffage panel.
-Choose one of three ends for a change by hand.
-Take a living room with a comfort slot until 22:30, and an office whose next slot is at 6:00:
+Open the settings: tap the reason of an override's end, or the ⚙ of the Chauffage panel. Choose
+one of three ends for a change by hand. Take a living room with a comfort slot until 22:30, and an
+office whose next slot is at 6:00:
 
 | End of a change by hand | Your change lasts… | Living room raised at 21:30 | Office raised at 18:30 |
 |---|---|---|---|
@@ -565,19 +565,19 @@ actions:
 To change the options, go to Settings → Devices & services → Chauffage → *Configure*.
 
 - **Override duration.** How long a setpoint changed by hand lasts, 2 hours by default. A new
-  override started from the card lasts this long too. *Until the next slot* doesn't use it.
+  override started from the card lasts this long too. With *Until the next slot*, a change by
+  hand doesn't use it.
 - **End of a change by hand.** *For the override duration* by default. You can also choose
   *Until the next slot, at most the override duration*, or *Until the next slot* (see
   [Choose how a change by hand ends](#choose-how-a-change-by-hand-ends)).
-
-You can also change these two settings in the settings dialog, from the ⚙ of the panel, or with
-their entities. At the foot of the settings dialog, *Other Chauffage options* leads to these
-options.
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
   every thermostat with temperatures, and you set all of them in the card.
 - **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
   longer shows *Chauffage*. You still open the Chauffage panel from the cards, or from the
   *Visit* button of a scheduled thermostat's device.
+
+You can also change the first two settings in the settings dialog, from the ⚙ of the panel, or
+with their entities.
 
 ## Troubleshooting
 
@@ -587,8 +587,9 @@ A thermostat didn't do what you expected? Here is where to look, in order.
 
 Open *Activity* (the logbook) without a filter. Chauffage records every override there, under
 the thermostat's name. The line says where the override came from (the knob, the card, the panel
-or the `chauffage.set_override` action) and why it ended. For a change by hand, the line also says why
-the override ends then, for example "until the next slot", and "override ended at the next slot".
+or the `chauffage.set_override` action) and why it ended. For a change by hand, the line also
+says why the override ends then, for example "until the next slot", and "override ended at the
+next slot".
 
 If you filter the logbook on the thermostat, Home Assistant does not show these lines: it only
 shows there what the thermostat's own integration records. The thermostat's *Override* sensor

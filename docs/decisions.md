@@ -88,7 +88,7 @@ future contributor might question.
     every reader of the override: the stored data, the scheduler that ends overrides, the
     card's timeline and time field, the *Override end* sensor, the events, the logbook and the
     services. A week is long enough to mean "until you end it" in a home, and every reader keeps
-    working. The override says why it ends then: `no_next_slot`, shown as "no slot changes it".
+    working. The override says why it ends then: `no_next_slot`, shown as "no slot ahead".
   - **The end is computed once, when the override starts, from the active schedule.** A schedule
     activated later, or the setting changed later, does not move the end. Recomputing it would
     make the end of an override jump without anyone touching the thermostat, and the stored end
@@ -876,14 +876,12 @@ older one, the older one says so.
     The link leaves the view: the dialog closes first, its history entry is taken back, then the
     page opens. Back then returns to the view under the dialog.
   - **`/chauffage/settings` still works**: it opens the *Thermostats* tab and the dialog on top.
-  - **The panel's tabs get back their normal padding**: three tabs fit on a 360 px phone.
   - **One name**: the section and the setting are "changes by hand". A first version titled the
     section *Overrides* and the setting *End of a change by hand*, two names for one thing.
   - **The duration first, then the choices that use it**, in the dialog, the options flow and the
-    README. Each choice carries the user's
-    duration, "For 2 h (default)", "Until the next slot, 2 h at most", so the labels explain
-    themselves. The entity's states and the options flow keep static labels with "the override
-    duration", as they cannot follow a value.
+    README. Each choice carries the user's duration, "For 2 h (default)", "Until the next slot, 2 h
+    at most", so the labels explain themselves. The entity's states and the options flow keep
+    static labels with "the override duration", as they cannot follow a value.
   - **Radio buttons, each a whole row to tap**, with one sentence and the example of the living
     room and the office. The example's slot times are in one sentence above the choices, not in a
     grey box. One note under the choices, always shown, says that a slot less than 15 minutes
@@ -892,15 +890,16 @@ older one, the older one says so.
     ▲▼"): a text in hours and minutes, "2 h 45", with two small arrows that move it by 15 minutes,
     from 15 minutes to 24 hours. One implementation serves both fields: the markup, the arrows,
     the arrow keys, the reading of a typed value on leaving or on Enter, and the style. A kind of
-    field says how to show, read and move its value. A duration is typed as a time is,
-    with the same parsing: "4" is 4 h, "0040" 40 minutes, "245", "2:45" and "2h45" are 2 h 45.
-    "165" is no time, so no duration either. From 2 h 40, the arrows go to 2 h 45 or 2 h 30, as
-    those of a time field. A value out of range, or not a duration, is refused next to the field,
-    and the field shows the duration kept. A first version used a list of 15, 30, 45 minutes and whole hours,
-    then Home Assistant's dropdown: neither could give 2 h 45.
+    field says how to show, read and move its value. A duration is typed as a time is, with the
+    same parsing: "4" is 4 h, "0040" 40 minutes, "245", "2:45" and "2h45" are 2 h 45. "165" is no
+    time, so no duration either. From 2 h 40, the arrows go to 2 h 45 or 2 h 30, as those of a
+    time field. A value out of range, or not a duration, is refused next to the field, and the
+    field shows the duration kept. A first version used a list of 15, 30, 45 minutes and whole
+    hours, then Home Assistant's dropdown: neither could give 2 h 45.
   - **A change is sent at once**, as in Home Assistant's settings. The controls wait for the
-    answer, then say "Saved". The note on the entities lives in the README only.
-  - The settings dialog shows no "no thermostat yet" notice: its settings do not need one.
+    answer, then say "Saved".
+  - **The dialog says nothing of the entities, nor that no thermostat is scheduled yet.** The
+    README documents the entities, and the settings work without a thermostat.
 
 ### The more-info block
 

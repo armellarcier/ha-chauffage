@@ -15,9 +15,9 @@ fonctionne avec les thermostats sans préréglages, avec préréglages, et avec
 un projet indépendant, sans lien avec Versatile Thermostat.
 
 **Ce qui se passe quand vous changez une consigne à la main.** Chauffage garde votre consigne
-2 heures, puis le thermostat reprend son planning. Vous montez le salon à 22 °C à 21 h 30 ? Le salon reprend son
-planning à 23 h 30. Vous pouvez choisir une autre fin, par exemple le prochain créneau, comme sur
-un thermostat classique. [Dérogations](#dérogations) explique les choix.
+2 heures, puis le thermostat reprend son planning. Vous montez le salon à 22 °C à 21 h 30 ? Le
+salon reprend son planning à 23 h 30. Vous pouvez choisir une autre fin, par exemple le prochain
+créneau, comme sur un thermostat classique. [Dérogations](#dérogations) explique les choix.
 
 - **Plannings.** Vous créez autant de plannings que nécessaire, par exemple *Normal*,
   *Télétravail* ou *Vacances*. Chaque planning contient une semaine par thermostat. Un seul
@@ -133,11 +133,11 @@ Le panneau a trois onglets :
   températures, et ce que fait chacun sur chaque thermostat (voir [Préréglages](#préréglages)).
 
 **Réglages.** Le bouton ⚙, en haut à droite du panneau, ouvre les réglages : combien de temps
-dure une consigne changée à la main, et comment elle se termine (voir [Dérogations](#dérogations)).
-Les réglages s'ouvrent dans une fenêtre, par-dessus la page où vous êtes. Fermez la fenêtre, ou
-faites Retour dans votre navigateur, et vous retrouvez cette page. En bas de la fenêtre, *Autres
-options de Chauffage* ouvre la page de l'intégration dans Home Assistant : son bouton *Configurer*
-donne les autres [options](#options).
+dure une consigne changée à la main, et comment elle se termine (voir
+[Dérogations](#dérogations)). Les réglages s'ouvrent dans une fenêtre, par-dessus la page où vous
+êtes. Fermez la fenêtre, ou faites Retour dans votre navigateur, et vous retrouvez cette page.
+En bas de la fenêtre, *Autres options de Chauffage* ouvre la page de l'intégration dans Home
+Assistant : son bouton *Configurer* donne les autres [options](#options).
 
 Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, par exemple
 « Thermostats › Salon », ramène à sa liste.
@@ -404,9 +404,8 @@ détail du thermostat.
 ### Choisir comment se termine un changement à la main
 
 Ouvrez les réglages : touchez la raison de la fin d'une dérogation, ou le bouton ⚙ du panneau
-Chauffage. Choisissez l'une des trois fins d'un
-changement à la main. Prenons un salon en confort jusqu'à 22 h 30, et un bureau dont le
-prochain créneau est à 6 h :
+Chauffage. Choisissez l'une des trois fins d'un changement à la main. Prenons un salon en confort
+jusqu'à 22 h 30, et un bureau dont le prochain créneau est à 6 h :
 
 | Fin d'un changement à la main | Votre changement dure… | Salon monté à 21 h 30 | Bureau monté à 18 h 30 |
 |---|---|---|---|
@@ -601,22 +600,21 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
 *Configurer*.
 
 - **Durée des dérogations.** Combien de temps dure une consigne changée à la main, 2 heures par
-  défaut. Une nouvelle dérogation créée depuis la carte dure aussi ce temps. *Jusqu'au prochain
-  créneau* ne s'en sert pas.
+  défaut. Une nouvelle dérogation créée depuis la carte dure aussi ce temps. Avec *Jusqu'au
+  prochain créneau*, un changement à la main ne s'en sert pas.
 - **Fin d'un changement à la main.** *Pendant la durée des dérogations* par défaut. Vous pouvez
   aussi choisir *Jusqu'au prochain créneau, au plus la durée des dérogations*, ou *Jusqu'au
   prochain créneau* (voir
   [Choisir comment se termine un changement à la main](#choisir-comment-se-termine-un-changement-à-la-main)).
-
-Vous pouvez aussi changer ces deux réglages dans la fenêtre des réglages, avec le bouton ⚙ du
-panneau, ou avec leurs entités. En bas de la fenêtre des réglages, *Autres options de Chauffage*
-mène à ces options.
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Si vous la désactivez,
   Chauffage pilote tous les thermostats en température, et vous réglez toutes les températures
   dans la carte.
 - **Afficher Chauffage dans la barre latérale.** Activée par défaut. Si vous la désactivez, la
   barre latérale n'affiche plus *Chauffage*. Vous ouvrez toujours le panneau Chauffage depuis les
   cartes, ou avec le bouton *Visiter* de l'appareil d'un thermostat programmé.
+
+Vous pouvez aussi changer les deux premiers réglages dans la fenêtre des réglages, avec le
+bouton ⚙ du panneau, ou avec leurs entités.
 
 ## Dépannage
 
@@ -626,9 +624,9 @@ Un thermostat n'a pas fait ce que vous attendiez ? Voici où chercher, dans l'or
 
 Ouvrez *Activité* (le journal de bord) sans filtre. Chauffage y note chaque dérogation, sous le
 nom du thermostat. La ligne indique d'où vient la dérogation (la molette, la carte, le panneau ou
-l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée. Pour un changement à la main, la ligne dit
-aussi pourquoi la dérogation s'arrête à ce moment, par exemple « jusqu'au prochain créneau », puis
-« dérogation terminée au prochain créneau ».
+l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée. Pour un changement à la main,
+la ligne dit aussi pourquoi la dérogation s'arrête à ce moment, par exemple « jusqu'au prochain
+créneau », puis « dérogation terminée au prochain créneau ».
 
 Si vous filtrez le journal de bord sur le thermostat, Home Assistant n'affiche pas ces lignes : il
 n'y montre que ce que note l'intégration du thermostat. Le capteur *Dérogation* du thermostat
