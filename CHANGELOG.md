@@ -9,6 +9,26 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-04
+
+No stored data is migrated.
+
+### Fixed
+
+- **The Chauffage panel no longer shows a blank page after an update.** Home Assistant could
+  serve the page from its cache, with the former card, while the panel loaded the new one. The
+  panel now asks to reload the page, with a *Reload* button, as the cards do.
+- **One reload is enough to finish an update, in the companion app too.** The *Reload* button
+  now empties the browser's cache of Home Assistant's pages first. Before, the first reload could
+  get the former page again, and the companion app has no hard reload.
+
+### Upgrading
+
+Update from HACS, restart Home Assistant, then reload the browser page. If the panel is still
+blank in the companion app, reset the app's frontend cache once. On Android, the setting is in
+*Settings* › *Companion app* › *Troubleshooting* › *Reset frontend cache*. On iOS, it is in
+*Settings* › *Companion App* › *Debugging*. From 0.8.1 on, the *Reload* button does it for you.
+
 ## [0.8.0] - 2026-11-04
 
 **The Chauffage panel and a device per scheduled thermostat** (#57). This release gathers
