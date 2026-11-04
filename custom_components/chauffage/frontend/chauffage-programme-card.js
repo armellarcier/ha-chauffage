@@ -5998,27 +5998,38 @@ class ChauffageSettingsDialog extends HTMLElement {
     const minutes = (this._settingsPending && pending.override_duration) || src.overrideDuration();
     const duration = roundDurationText(minutes, loc);
     const current = (this._settingsPending && pending.manual_override_end) || src.manualOverrideEnd();
-    const disabled = !src.editable || !!this._settingsBusy;
-    const ro = disabled ? ' disabled' : '';
-    const choices = [
-      ['duration', 'overrideEndDuration'],
-      ['next_slot_within_duration', 'overrideEndWithin'],
-      ['next_slot', 'overrideEndNextSlot'],
-    ].map(([value, label]) => `<label class="choice">
-        <input type="radio" name="override-end" value="${value}" data-override-end${value === current ? ' checked' : ''}${ro}>
-        <span class="choice-label">${esc(t(label, { duration }))}</span>
-      </label>`).join('');
+    // A control waits for the answer to its own setting only
+    const busy = this._settingsBusy || {};
     const field = this.shadowRoot.querySelector('.override-settings .duration-field');
-    if (field) this._fillDuration(field, minutes, disabled, loc);
+    if (field) this._fillDuration(field, minutes, !src.editable || !!busy.override_duration, loc);
     const saved = this.shadowRoot.querySelector('[data-fill="settings-saved"]');
     if (saved) {
       setHtml(saved, this._settingsError && this._settingsErrorAt === 'duration'
         ? `<span class="error" role="alert">${esc(this._settingsError)}</span>`
         : this._settingsSaved ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
     }
-    setHtml(settings, `<div class="choices" role="radiogroup" aria-label="${esc(t('overrideEndTitle'))}">${choices}</div>
+    // The choices are drawn once, then updated in place: a click on a choice lands, even when the
+    // press on it has just left the duration field and sent the duration
+    const choices = [
+      ['duration', 'overrideEndDuration'],
+      ['next_slot_within_duration', 'overrideEndWithin'],
+      ['next_slot', 'overrideEndNextSlot'],
+    ];
+    setHtml(settings, `<div class="choices" role="radiogroup" aria-label="${esc(t('overrideEndTitle'))}">${choices.map(([value]) => `<label class="choice">
+        <input type="radio" name="override-end" value="${value}" data-override-end>
+        <span class="choice-label"></span>
+      </label>`).join('')}</div>
         <p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>
-        ${this._settingsError && this._settingsErrorAt !== 'duration' ? `<div class="error">${esc(this._settingsError)}</div>` : ''}`);
+        <div data-fill="settings-end-error"></div>`);
+    choices.forEach(([value, label], i) => {
+      const choice = settings.querySelectorAll('.choice')[i];
+      const input = choice.querySelector('input');
+      input.checked = value === current;
+      input.disabled = !src.editable || !!busy.manual_override_end;
+      choice.querySelector('.choice-label').textContent = t(label, { duration });
+    });
+    setHtml(settings.querySelector('[data-fill="settings-end-error"]'), this._settingsError && this._settingsErrorAt !== 'duration'
+      ? `<div class="error">${esc(this._settingsError)}</div>` : '');
   }
 
   // The duration of a change by hand: a stepped field, the same as the end of an override, in hours
@@ -6041,13 +6052,20 @@ class ChauffageSettingsDialog extends HTMLElement {
     });
   }
 
-  // A setting sent at once: the controls wait for the answer, then say it is saved
-  async _setSettings(settings) {
+  // A setting sent at once: its control waits for the answer, then says it is saved. The settings
+  // are sent one after the other: a choice clicked while the duration is sent waits for it.
+  _setSettings(settings) {
+    const [key] = Object.keys(settings);
     this._settingsError = null;
     this._settingsSaved = false;
-    this._settingsBusy = true;
-    this._settingsPending = settings;
+    this._settingsBusy = { ...this._settingsBusy, [key]: ((this._settingsBusy || {})[key] || 0) + 1 };
+    this._settingsPending = { ...this._settingsPending, ...settings };
     this._update();
+    this._settingsSent = (this._settingsSent || Promise.resolve()).then(() => this._sendSettings(settings, key));
+    return this._settingsSent;
+  }
+
+  async _sendSettings(settings, key) {
     try {
       await dataSource(this._hass).setSettings(settings);
       this._settingsSaved = true;
@@ -6055,10 +6073,10 @@ class ChauffageSettingsDialog extends HTMLElement {
       this._savedTimer = setTimeout(() => { this._settingsSaved = false; this._update(); }, 3000);
     } catch (err) {
       this._settingsError = this._t('error', { message: err.message || err.code || err });
-      this._settingsErrorAt = 'override_duration' in settings ? 'duration' : 'end';
-      this._settingsPending = null;
+      this._settingsErrorAt = key === 'override_duration' ? 'duration' : 'end';
+      if (this._settingsPending) delete this._settingsPending[key];
     }
-    this._settingsBusy = false;
+    this._settingsBusy = { ...this._settingsBusy, [key]: this._settingsBusy[key] - 1 };
     this._update();
   }
 }

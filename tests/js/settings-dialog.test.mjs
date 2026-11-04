@@ -147,6 +147,22 @@ describe('the settings dialog', () => {
       assert.equal(text($(el, '.override-settings .duration-row .saved')), 'Enregistré ✓');
     });
 
+    test('a duration typed, then a choice clicked: the click leaves the field, and both are saved', async () => {
+      const hass = withSettings({});
+      const el = settings(hass);
+      const radio = choices(el)[2];
+      // The browser: the press on the choice leaves the field (sent), then the click lands on the choice
+      leave(durationInput(el), '1 h 30');
+      radio.click();
+      await tick(10);
+      assert.deepEqual(hass.events.filter((e) => e.type === 'chauffage/settings/set'), [
+        { type: 'chauffage/settings/set', override_duration: 90 },
+        { type: 'chauffage/settings/set', manual_override_end: 'next_slot' },
+      ]);
+      assert.ok(choices(el)[2].checked);
+      assert.equal(durationInput(el).value, '1 h 30');
+    });
+
     test('its small arrows stop at 15 minutes and at 24 hours', async () => {
       for (const [minutes, dir] of [[15, -1], [1440, 1]]) {
         const hass = withSettings({ override_duration: minutes });
