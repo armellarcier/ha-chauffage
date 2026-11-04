@@ -157,7 +157,7 @@ def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[da
                 continue
             hours, minutes = (int(x) for x in start.split(":"))
             # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
-            when = (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes, fold=0)
+            when = _first_instant_at((midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes, fold=0))
             if _utc(when) <= _utc(now):
                 # Now is in the second pass of the hour repeated when summer time ends: the slot
                 # starts in that second pass too (its time of day is after now's)
@@ -230,6 +230,19 @@ class Plan:
             if _utc(when) >= _utc(not_before):
                 return when
         return None
+
+
+def _first_instant_at(when: datetime) -> datetime:
+    """The first instant the local clock shows `when` or later. `when` itself, unless it falls in
+    the hour skipped when summer time starts: then the first minute after the jump, when slot_at
+    gives that slot (2:30 → 3:00 summer time, not 3:30)."""
+    wall = when.replace(tzinfo=None)
+    if _utc(when).astimezone(when.tzinfo).replace(tzinfo=None) == wall:
+        return when
+    instant = _utc(when.replace(fold=1))  # before the jump, the clock shows an earlier time
+    while instant.astimezone(when.tzinfo).replace(tzinfo=None) < wall:
+        instant += timedelta(minutes=1)
+    return instant.astimezone(when.tzinfo)
 
 
 def _utc(when: datetime) -> datetime:

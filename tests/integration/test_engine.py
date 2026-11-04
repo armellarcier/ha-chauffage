@@ -51,6 +51,18 @@ def test_the_slot_running_at_a_given_time():
     assert engine.slot_at(WEEKDAY, "23:59") == ("eco", False)
 
 
+def test_a_slot_in_the_hour_skipped_by_summer_time_starts_when_the_clocks_go_forward():
+    """Regression: Sunday 28 March 2027, 2:00 → 3:00. A 2:30 slot doesn't exist that day: the
+    engine applies it at 3:00 summer time (slot_at), so it starts then, not at 3:30."""
+    week = [[["00:00", "eco"], ["02:30", "comfort"], ["12:00", "eco"]]] * 7
+    now = datetime(2027, 3, 28, 1, 40, tzinfo=PARIS)
+    assert engine.current_and_next(week, now) == ("eco", "comfort", datetime(2027, 3, 28, 3, 0, tzinfo=PARIS))
+    assert engine.current_and_next(week, now)[2].utcoffset() == timedelta(hours=2)
+    # The next day, the 2:30 slot exists again
+    after = datetime(2027, 3, 28, 13, 0, tzinfo=PARIS)
+    assert engine.current_and_next(week, after)[2] == datetime(2027, 3, 29, 2, 30, tzinfo=PARIS)
+
+
 def test_current_and_next_slot_even_on_another_day():
     assert engine.current_and_next(WEEK, at("10:00")) == ("eco", "comfort", at("17:30"))
     # Friday 23:00 → Saturday 08:00

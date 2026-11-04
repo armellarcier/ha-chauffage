@@ -189,6 +189,26 @@ async def test_a_change_on_sunday_evening_ends_at_monday_s_first_slot(bench: Ben
     assert bench.overrides() == {}
 
 
+SPRING_FORWARD = (datetime(2027, 3, 28) - datetime(2026, 10, 12)).days  # Sunday, 2:00 → 3:00
+
+
+async def test_a_slot_in_the_hour_skipped_by_summer_time_ends_the_change_when_the_clocks_go_forward(bench: Bench):
+    """Regression: Sunday 28 March 2027, 2:00 → 3:00. Raised at 1:40, comfort at 2:30, a time
+    that doesn't exist that day: the slot starts at 3:00 summer time, and ends the change then,
+    not at 3:30."""
+    schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("02:30", "comfort"), ("12:00", "eco"))}}
+    await start(bench, WITHIN | {"override_duration": 240}, schedules=schedules, hhmm="01:40", day=SPRING_FORWARD)
+    await bench.manual_setpoint("climate.salon", 22)
+
+    o = bench.overrides()["climate.salon"]
+    assert end_of(o) == datetime(2027, 3, 28, 3, 0, tzinfo=PARIS)
+    assert end_of(o).utcoffset() == timedelta(hours=2)
+    assert o["ends_at"] == "next_slot"
+    await bench.go_to("03:00", day=SPRING_FORWARD)
+    assert bench.overrides() == {}
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
 async def test_the_next_slot_keeps_its_time_when_summer_time_ends(bench: Bench):
     """Sunday 25 October 2026, 3:00 → 2:00. Raised at 1:30, comfort at 3:00 (winter time)."""
     schedules = {"climate.salon": {"normal": every_day(("00:00", "eco"), ("03:00", "comfort"), ("12:00", "eco"))}}
