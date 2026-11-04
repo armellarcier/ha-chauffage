@@ -38,6 +38,11 @@ describe('more-info block', () => {
     assert.match(text(el), /Suit le planning : Éco jusqu'à 06:30 \(lundi\), puis Confort/);
   });
 
+  test('a preset that changes next week, on the same day: its date, not the day name of today', () => {
+    const el = block(fakeHass({ planned: { 'climate.salon': planned('eco', 'comfort', '2026-10-19T06:30:00+02:00') } }), 'climate.salon');
+    assert.match(text(el), /Suit le planning : Éco jusqu'à 06:30 \(19 octobre\), puis Confort/);
+  });
+
   test('the same preset all week', () => {
     const el = block(fakeHass({ planned: { 'climate.salon': planned('eco', null, null) } }), 'climate.salon');
     assert.match(text(el), /Suit le planning : Éco toute la semaine/);
@@ -83,7 +88,17 @@ describe('more-info block', () => {
   test('an override kept a week, with no slot ahead, says so and counts in days', () => {
     const week = { ...override, start: '2026-10-12T10:00:00+02:00', end: '2026-10-19T10:00:00+02:00', ends_at: 'no_next_slot' };
     const el = block(fakeHass({ overrides: { 'climate.salon': week } }), 'climate.salon');
-    assert.match(text(el), /lundi, dans une semaine, aucun créneau prévu ⚙ · encore 7 j/);
+    assert.match(text(el), /19 octobre, dans une semaine, aucun créneau prévu ⚙ · encore 7 j/);
+  });
+
+  test('an end 7 days away or more says its date, not a day name that would read as today', () => {
+    const at = (end) => ({ ...override, start: '2026-10-12T10:00:00+02:00', end, ends_at: 'no_next_slot' });
+    const english = { language: 'en', time_format: '24', number_format: 'language', first_weekday: 'monday' };
+    const inAWeek = block(fakeHass({ locale: english, overrides: { 'climate.salon': at('2026-10-19T10:00:00+02:00') } }), 'climate.salon');
+    assert.match(text(inAWeek), /October 19, in a week, no slot ahead/);
+    cleanup();
+    const inSixDays = block(fakeHass({ overrides: { 'climate.salon': at('2026-10-18T10:00:00+02:00') } }), 'climate.salon');
+    assert.match(text(inSixDays), /dimanche, dans une semaine/);
   });
 
   test('a time left over a day counts whole days, then the hours left: 1 day 12 h is not 2 days', () => {
@@ -130,6 +145,11 @@ describe('more-info block', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-13T01:00:00+02:00' } },
       ...nextSlot('2026-10-13T06:30:00+02:00') }), 'climate.salon');
     assert.equal(el.shadowRoot.querySelector('[data-next-slot]').textContent, "Jusqu'à mardi 06:30 (prochain créneau)");
+  });
+
+  test('a next slot a week away names its date', () => {
+    const el = block(fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot('2026-10-19T06:30:00+02:00') }), 'climate.salon');
+    assert.equal(el.shadowRoot.querySelector('[data-next-slot]').textContent, "Jusqu'à 19 octobre 06:30 (prochain créneau)");
   });
 
   test('an override that already ends at the next slot has no button, whatever the way its end is written', () => {

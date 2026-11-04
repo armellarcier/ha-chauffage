@@ -616,6 +616,8 @@ function makeLocale(hass, configured) {
     days: long,
     daysShort: short,
     dayOrder: order,
+    // A date in the UI language, without its year: "19 octobre", "October 19"
+    date: (d) => new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'long' }).format(d),
     // Days of a row → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", "Mon–Sun" (one day: its name; the
     // whole week in the long style: "Every day")
     daysLabel: (days, style = 'short') => {
@@ -1616,6 +1618,15 @@ function thenText(src, climate, d, loc) {
   return preset ? loc.t('thenSchedule', { preset: presetOf(presetsOf(src, loc), preset, loc).name }) : '';
 }
 
+// The day of an instant to come, in a sentence: its day name ("monday") within the 6 days to come,
+// else its date ("19 octobre"). 7 days away, the day name would read as today.
+function dayText(at, loc) {
+  const now = new Date();
+  const days = Math.round((new Date(at.getFullYear(), at.getMonth(), at.getDate())
+    - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  return days >= 7 ? loc.date(at) : loc.days[(at.getDay() + 6) % 7].toLowerCase();
+}
+
 // The end of an override, in words, under its time field: "today, at the next slot · 45 min left
 // · then Eco". The reason of a change by hand (#83) is part of its end; for an admin it opens the
 // settings dialog on top of the view (openSettings), where the user chooses it.
@@ -1623,7 +1634,7 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const t = loc.t;
   const endsAt = parseDate(d.end);
   const now = new Date();
-  const day = endsAt.toDateString() === now.toDateString() ? t('today') : loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
+  const day = endsAt.toDateString() === now.toDateString() ? t('today') : dayText(endsAt, loc);
   const remaining = Math.max(0, Math.round((endsAt - now) / 60000));
   const reason = endReasonText(d, loc);
   const why = reason && isAdmin(hass)
@@ -1652,7 +1663,7 @@ function nextSlotButton(src, climate, d, loc, attrs) {
   const at = iso ? parseDate(iso) : null;
   if (!at || d.ends_at === 'next_slot' || Math.floor(at / 60000) === Math.floor(parseDate(d.end) / 60000)) return '';
   const time = loc.time(minutesOf(at));
-  const when = at.toDateString() === new Date().toDateString() ? time : `${loc.days[(at.getDay() + 6) % 7].toLowerCase()} ${time}`;
+  const when = at.toDateString() === new Date().toDateString() ? time : `${dayText(at, loc)} ${time}`;
   return `<button ${attrs} data-at="${esc(iso)}">${esc(loc.t('untilNextSlot', { time: when }))}</button>`;
 }
 
@@ -1666,7 +1677,7 @@ function planText(plan, presetName, loc) {
   if (!start) return loc.t('allWeek', { current });
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const day = start.toDateString() === tomorrow.toDateString() ? loc.t('tomorrow') : loc.days[(start.getDay() + 6) % 7].toLowerCase();
+  const day = start.toDateString() === tomorrow.toDateString() ? loc.t('tomorrow') : dayText(start, loc);
   const values = { current, time: loc.time(minutesOf(start)), next: presetName(plan.next_preset) };
   return start.toDateString() === new Date().toDateString() ? loc.t('untilThen', values) : loc.t('untilDayThen', { ...values, day });
 }
