@@ -9,7 +9,14 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.9.0-beta.1] - 2026-11-04
+
+The first beta of **the end of overrides** (#83): you choose how long a setpoint changed by hand
+lasts, in a new settings dialog.
+
 ### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
 
 No stored data is migrated. A setpoint changed by hand still lasts the override duration, 2 hours
 by default: the new settings below change nothing until you choose another end.
