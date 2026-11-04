@@ -9,6 +9,19 @@ const WEEK = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND];
 const WEEKS = { 'climate.salon': { Normal: WEEK }, 'climate.bureau': { Normal: WEEK } };
 const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
 const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
+// The next event of this type on the window, or a failure after `ms`: a slow machine waits longer
+const nextEvent = (type, ms = 3000) => new Promise((resolve, reject) => {
+  const done = (e) => {
+    clearTimeout(timer);
+    window.removeEventListener(type, done);
+    resolve(e);
+  };
+  const timer = setTimeout(() => {
+    window.removeEventListener(type, done);
+    reject(new Error(`no ${type} after ${ms} ms`));
+  }, ms);
+  window.addEventListener(type, done);
+});
 const $ = (root, selector) => root.shadowRoot.querySelector(selector);
 const $$ = (root, selector) => [...root.shadowRoot.querySelectorAll(selector)];
 
@@ -308,14 +321,30 @@ describe('the settings dialog', () => {
       el.hass = setup();
       el.showDialog({ history: true });
       const length = window.history.length;
+      const opened = nextEvent('location-changed');
       $(el, '[data-other-options]').click();
       assert.equal(isOpen(el), false);
-      await tick(80);
+      await opened;
       assert.equal(window.location.pathname, '/config/integrations/integration/chauffage');
       assert.equal(window.history.length, length, 'the dialog\'s entry was taken back, then the page pushed');
+      const back = nextEvent('popstate');
       window.history.back();
-      await tick(20);
+      await back;
       assert.equal(window.location.pathname, '/lovelace/0', 'Back returns to the view under the dialog');
+    });
+
+    test('a page not opened yet is not opened once the dialog has left the page', async () => {
+      window.history.replaceState(null, '', '/lovelace/0');
+      const el = document.createElement('chauffage-settings-dialog');
+      document.body.appendChild(el);
+      el.hass = setup();
+      el.showDialog({ history: true });
+      const back = nextEvent('popstate');
+      $(el, '[data-other-options]').click();
+      el.remove(); // the user went elsewhere before Home Assistant took back the dialog's entry
+      await back;
+      await tick(100);
+      assert.equal(window.location.pathname, '/lovelace/0');
     });
   });
 
@@ -444,8 +473,9 @@ describe('the settings dialog', () => {
         assert.equal(dialog.shadowRoot.querySelector('.frame').localName, 'dialog');
         assert.ok(window.history.state && window.history.state[DIALOG], 'its own history entry');
         assert.equal(window.location.pathname, '/lovelace/0');
+        const back = nextEvent('popstate');
         window.history.back();
-        await tick(20);
+        await back;
         assert.equal(isOpen(dialog), false);
         assert.equal(window.location.pathname, '/lovelace/0');
       });
@@ -453,9 +483,10 @@ describe('the settings dialog', () => {
       test('its ✕ closes it and takes back its history entry', async () => {
         const dialog = open();
         assert.ok(window.history.state && window.history.state[DIALOG]);
+        const back = nextEvent('popstate');
         $(dialog, '[data-close]').click();
         assert.equal(isOpen(dialog), false);
-        await tick(20);
+        await back;
         assert.ok(!(window.history.state && window.history.state[DIALOG]));
       });
 

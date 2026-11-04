@@ -1457,7 +1457,8 @@ function thermostatDevices(hass, src, climate) {
 
 // A link of the block opens a page: closes Home Assistant's more-info dialog first, then opens
 // the page. The dialog lives in the address (?more-info-entity-id=) and closes by going back in
-// the history: the page opens once that is done, else going back would undo it.
+// the history: the page opens once that is done, else going back would undo it. Returns a function
+// that cancels the page not opened yet.
 function leaveMoreInfo(el, open) {
   const ha = document.querySelector('home-assistant');
   const dialog = ha && ha.shadowRoot && ha.shadowRoot.querySelector('ha-more-info-dialog');
@@ -1465,13 +1466,41 @@ function leaveMoreInfo(el, open) {
   if (!inAddress()) {
     openMoreInfo(el, null);
     open();
-    return;
+    return () => {};
   }
   if (dialog && typeof dialog.closeDialog === 'function') dialog.closeDialog();
   else openMoreInfo(el, null);
+  // Home Assistant may leave the address without telling the window: the address is checked often
   const start = Date.now();
-  const wait = () => (!inAddress() || Date.now() - start > 1500 ? open() : setTimeout(wait, 30));
+  let timer;
+  const wait = () => {
+    timer = !inAddress() || Date.now() - start > 1500 ? open() : setTimeout(wait, 30);
+  };
   wait();
+  return () => clearTimeout(timer);
+}
+
+// Runs `then` once the history entry is taken back (`gone()` holds after a popstate), at the
+// latest after 1.5 s. Returns a function that cancels the wait.
+function afterHistoryBack(gone, then) {
+  if (gone()) {
+    then();
+    return () => {};
+  }
+  const stop = () => {
+    window.removeEventListener('popstate', check);
+    clearTimeout(timer);
+  };
+  const done = () => {
+    stop();
+    then();
+  };
+  const check = () => {
+    if (gone()) done();
+  };
+  window.addEventListener('popstate', check);
+  const timer = setTimeout(done, 1500);
+  return stop;
 }
 
 // view: 'settings' opens the entity's settings (its name, its icon), as Home Assistant's own pages do
@@ -5810,6 +5839,7 @@ class ChauffageSettingsDialog extends HTMLElement {
   // Home Assistant's dialog manager calls it; { history: true } when the dialog opens by itself
   showDialog(params = {}) {
     if (this._open) return;
+    this._cancelLeave(); // opened again before a page left for: that page stays closed
     this._open = true;
     this._ownHistory = !!(params && params.history);
     this._moreInfo = !!(params && params.moreInfo); // opened from the more-info block
@@ -5914,17 +5944,33 @@ class ChauffageSettingsDialog extends HTMLElement {
   // Leaving for a page: the dialog closes first, and the history entry it had is taken back (Home
   // Assistant goes back for it). The page opens once that is done, else going back would undo it.
   // The more-info dialog under it closes too (leaveMoreInfo). Back then returns to the view.
+  // Opened again or removed before then: the page is not opened (_cancelLeave).
   _leaveTo(path) {
+    this._cancelLeave();
     this.closeDialog();
-    const ours = () => {
+    const gone = () => {
       const state = window.history.state;
-      return !!state && (state.dialog === SETTINGS_DIALOG || !!state[SETTINGS_DIALOG]);
+      return !(state && (state.dialog === SETTINGS_DIALOG || state[SETTINGS_DIALOG]));
     };
-    const start = Date.now();
-    const wait = () => (!ours() || Date.now() - start > 1500
-      ? (this._moreInfo ? leaveMoreInfo(this, () => navigate(path)) : navigate(path))
-      : setTimeout(wait, 30));
-    wait();
+    let stopMoreInfo = null;
+    const stopBack = afterHistoryBack(gone, () => {
+      if (this._moreInfo) stopMoreInfo = leaveMoreInfo(this, () => navigate(path));
+      else navigate(path);
+    });
+    this._stopLeave = () => {
+      stopBack();
+      if (stopMoreInfo) stopMoreInfo();
+    };
+  }
+
+  // A page left for and not opened yet stays closed
+  _cancelLeave() {
+    if (this._stopLeave) this._stopLeave();
+    this._stopLeave = null;
+  }
+
+  disconnectedCallback() {
+    this._cancelLeave();
   }
 
   _update() {
