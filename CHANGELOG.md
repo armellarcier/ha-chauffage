@@ -15,19 +15,15 @@ No stored data is migrated.
 
 ### Fixed
 
-- **The Chauffage panel no longer shows a blank page after an update.** Home Assistant could
-  serve the page from its cache, with the former card, while the panel loaded the new one. The
-  panel now asks to reload the page, with a *Reload* button, as the cards do.
-- **One reload is enough to finish an update, in the companion app too.** The *Reload* button
-  now empties the browser's cache of Home Assistant's pages first. Before, the first reload could
-  get the former page again, and the companion app has no hard reload.
+- **The Chauffage panel asks you to reload the page after an update**, instead of showing a blank
+  page. Home Assistant could serve the former card from its cache next to the new panel.
+- **One click on *Reload* finishes an update, in the companion app too.** Before, the first reload
+  could show the former page again. The *Reload* button now empties Home Assistant's cache first.
 
 ### Upgrading
 
-Update from HACS, restart Home Assistant, then reload the browser page. If the panel is still
-blank in the companion app, reset the app's frontend cache once. On Android, the setting is in
-*Settings* › *Companion app* › *Troubleshooting* › *Reset frontend cache*. On iOS, it is in
-*Settings* › *Companion App* › *Debugging*. From 0.8.1 on, the *Reload* button does it for you.
+Update from HACS, restart Home Assistant, then reload the browser page. If the panel asks you to
+reload the page, click *Reload*.
 
 ## [0.8.0] - 2026-11-04
 
