@@ -5908,9 +5908,10 @@ class ChauffageSettingsDialog extends HTMLElement {
         window.addEventListener('keydown', this._onEscape, true);
       }
       frame.insertAdjacentHTML('beforeend', body);
-      // Closed by its own ✕, Escape or a tap outside: the newer dialog stays `open` until told
+      // Closed by its own ✕, Escape or a tap outside: the newer dialog stays `open` until told. A
+      // late `closed` of a former frame (closed, then opened again during its animation) is not ours
       frame.addEventListener('closed', (e) => {
-        if (e.target !== frame) return;
+        if (e.target !== frame || frame !== this._frame) return;
         this._closed();
         if (frame.open) frame.open = false;
       });

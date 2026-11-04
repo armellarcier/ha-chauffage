@@ -551,6 +551,24 @@ describe('the settings dialog', () => {
       assert.equal(closed.length, 2);
     });
 
+    test('closed then opened again during its animation: a late `closed` of the former dialog leaves the new one open', () => {
+      if (!customElements.get('ha-dialog')) customElements.define('ha-dialog', FakeHaDialog);
+      Object.defineProperty(FakeHaDialog.prototype, 'headerTitle', headerTitle);
+      const hass = setup();
+      const dialog = settings(hass);
+      const former = $(dialog, '.frame');
+      dialog.closeDialog();
+      dialog.showDialog({});
+      const closed = [];
+      dialog.addEventListener('dialog-closed', (e) => closed.push(e.detail));
+      former.dispatchEvent(new CustomEvent('closed', { bubbles: true, composed: true })); // its animation ends
+      assert.deepEqual(closed, []);
+      assert.ok(isOpen(dialog));
+      // The new dialog still follows the settings
+      hass.push({ ...integrationData({ weeks: WEEKS }), manual_override_end: 'next_slot' });
+      assert.ok($(dialog, '[data-override-end][value="next_slot"]').checked);
+    });
+
     test('the Material ha-dialog (Home Assistant 2025.1): a heading with the title and a ✕', () => {
       delete FakeHaDialog.prototype.headerTitle;
       const dialog = settings(setup());
