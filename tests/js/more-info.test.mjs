@@ -104,7 +104,7 @@ describe('more-info block', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), 'climate.salon');
     const link = el.shadowRoot.querySelector('.derogation [data-open-settings]');
     assert.equal(link.textContent, 'au prochain créneau ⚙');
-    assert.equal(link.getAttribute('title'), 'Choisir comment se termine un changement à la main');
+    assert.equal(link.getAttribute('title'), 'Choisir la durée des dérogations');
     cleanup();
     const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } });
     hass.user = { is_admin: false };

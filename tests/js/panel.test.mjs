@@ -296,10 +296,10 @@ describe('the Chauffage panel', () => {
       assert.match(text($(el, '.next-steps')),
         /Une consigne changée à la main dure 2 h\. Ensuite, le thermostat reprend son planning\./);
       hass.push({ ...data, manual_override_end: 'next_slot_within_duration', override_duration: 90 });
-      assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure jusqu'au prochain créneau, 1 h 30 au plus\. Ensuite/);
+      assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure 1 h 30, ou moins si un créneau commence avant\. Ensuite/);
       hass.push({ ...data, manual_override_end: 'next_slot' });
       assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure jusqu'au prochain créneau\. Ensuite/);
-      assert.equal(text($(el, '.next-steps .btn[data-open-settings]')), "Choisir la fin d'un changement à la main");
+      assert.equal(text($(el, '.next-steps .btn[data-open-settings]')), 'Choisir la durée des dérogations');
       $(el, '.next-steps [data-open-settings]').click();
       await tick();
       assert.deepEqual(manager.shown.map((d) => d.dialogTag), ['chauffage-settings-dialog']);
@@ -343,7 +343,7 @@ describe('the Chauffage panel', () => {
       const hass = setup();
       const manager = fakeDialogManager(hass);
       const el = panel(hass, '/thermostats');
-      assert.match(text($(el, '.notice.new-setting')), /Nouveau : choisissez combien de temps dure une consigne changée à la main\./);
+      assert.match(text($(el, '.notice.new-setting')), /Nouveau : choisissez combien de temps dure une dérogation\./);
       $(el, '.new-setting [data-open-settings]').click();
       await tick();
       assert.deepEqual(manager.shown.map((d) => d.dialogTag), ['chauffage-settings-dialog']);

@@ -33,7 +33,7 @@ describe('the settings dialog', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-14T10:00:00+02:00') })); // a Wednesday
   afterEach(() => { mock.timers.reset(); cleanup(); window.history.replaceState(null, '', '/'); });
 
-  describe('changes by hand (#83)', () => {
+  describe('overrides (#83)', () => {
     // The duration is a stepped field, the same as the end of an override
     const withSettings = (settings, more = {}) => {
       const data = { ...integrationData({ weeks: WEEKS, language: (more.locale || {}).language || 'fr' }), ...settings };
@@ -42,21 +42,26 @@ describe('the settings dialog', () => {
     const section = (el) => $(el, '.override-settings');
     const choices = (el) => $$(el, '.override-settings [data-override-end]');
     const label = (el, value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.choice-label'));
-    const example = (el, value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.example'));
     const change = (radio) => {
       radio.checked = true;
       radio.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
-    test('one name for the section and the setting: changes by hand; the intro names the override', () => {
+    test('short and plain, as Home Assistant\'s settings: a heading, one line, the duration, the choices, one note', () => {
       const el = settings(withSettings({}));
-      assert.equal(text($(el, '.override-settings h3')), 'Changements à la main');
-      assert.match(text(section(el)),
-        /Quand vous changez une consigne à la main, Chauffage la garde, puis le thermostat reprend son planning\. Choisissez quand\. Chauffage appelle ce changement temporaire une dérogation\./);
-      assert.equal(text($(el, '.override-settings .duration-row label')), "Durée d'un changement à la main");
-      assert.match(text(section(el)), /Une dérogation créée depuis la carte dure aussi ce temps\./);
-      assert.doesNotMatch(text(section(el)), /Dérogations|Fin d'un changement/);
-      assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), "Fin d'un changement à la main");
+      assert.equal(text($(el, '.override-settings h3')), 'Dérogations');
+      assert.equal(text($(el, '.override-settings .intro')),
+        'Une consigne changée à la main devient une dérogation. Choisissez combien de temps elle dure.');
+      assert.equal(text($(el, '.override-settings .duration-row label')), 'Durée');
+      assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), 'Fin des dérogations');
+      // Labels only: the explanations and the examples are in the README
+      assert.deepEqual($$(el, '.override-settings .choice').map((c) => text(c)),
+        ['Pendant 2 h (par défaut)', 'Pendant 2 h, ou moins si un créneau commence avant', "Jusqu'au prochain créneau"]);
+      assert.deepEqual($$(el, '.override-settings p').map((p) => text(p)), [
+        'Une consigne changée à la main devient une dérogation. Choisissez combien de temps elle dure.',
+        'Un créneau qui commence dans moins de 15 min ne compte pas.',
+      ]);
+      assert.doesNotMatch(text(section(el)), /Par exemple|Salon|carte/);
     });
 
     test('the choices carry the user\'s duration and mark the default; the current one is checked', () => {
@@ -64,43 +69,24 @@ describe('the settings dialog', () => {
       assert.deepEqual(choices(el).map((c) => c.value), ['duration', 'next_slot_within_duration', 'next_slot']);
       assert.deepEqual(choices(el).map((c) => c.checked), [true, false, false]);
       assert.equal(label(el, 'duration'), 'Pendant 2 h (par défaut)');
-      assert.equal(label(el, 'next_slot_within_duration'), "Jusqu'au prochain créneau, 2 h au plus");
+      assert.equal(label(el, 'next_slot_within_duration'), 'Pendant 2 h, ou moins si un créneau commence avant');
       assert.equal(label(el, 'next_slot'), "Jusqu'au prochain créneau");
-      const sentence = (value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.choice-text'));
-      assert.equal(sentence('next_slot_within_duration'), 'Plus tôt si un créneau commence avant.');
       cleanup();
       const short = settings(withSettings({ override_duration: 90 }));
       assert.equal(label(short, 'duration'), 'Pendant 1 h 30 (par défaut)');
+      assert.equal(label(short, 'next_slot_within_duration'), 'Pendant 1 h 30, ou moins si un créneau commence avant');
     });
 
     test('the duration comes first, above the choices that use it', () => {
       const el = settings(withSettings({}));
       const duration = $(el, '.override-settings input[data-override-duration]');
       assert.ok(duration.compareDocumentPosition(choices(el)[0]) & Node.DOCUMENT_POSITION_FOLLOWING);
-      assert.doesNotMatch(text(section(el)), /deux premiers choix/);
     });
 
-    test('gives the example of the living room and the office, computed with the user\'s duration', () => {
-      const el = settings(withSettings({}));
-      assert.match(text(section(el)),
-        /Par exemple, vous montez le salon à 21:30, son prochain créneau est à 22:30, et le bureau à 18:30, son prochain créneau est à 06:00\./);
-      assert.equal(example(el, 'duration'), "Salon jusqu'à 23:30 · bureau jusqu'à 20:30");
-      assert.equal(example(el, 'next_slot_within_duration'), "Salon jusqu'à 22:30 · bureau jusqu'à 20:30");
-      assert.equal(example(el, 'next_slot'), "Salon jusqu'à 22:30 · bureau jusqu'à demain 06:00");
-      cleanup();
-      const short = settings(withSettings({ override_duration: 45 }));
-      assert.equal(example(short, 'duration'), "Salon jusqu'à 22:15 · bureau jusqu'à 19:15");
-      assert.equal(example(short, 'next_slot_within_duration'), "Salon jusqu'à 22:15 · bureau jusqu'à 19:15");
-      cleanup();
-      const long = settings(withSettings({ override_duration: 1440 }));
-      assert.equal(example(long, 'duration'), "Salon jusqu'à demain 21:30 · bureau jusqu'à demain 18:30");
-    });
-
-    test('one note under the choices, always: the 15 minutes, and an end chosen on the card', () => {
+    test('one note under the choices, always: the 15 minutes', () => {
       for (const end of ['duration', 'next_slot_within_duration', 'next_slot']) {
         const el = settings(withSettings({ manual_override_end: end }));
-        assert.equal(text($(el, '.override-settings .slot-note')),
-          'Un créneau qui commence moins de 15 min après le changement ne compte pas. Une fin choisie sur la carte reste.', end);
+        assert.equal(text($(el, '.override-settings .slot-note')), 'Un créneau qui commence dans moins de 15 min ne compte pas.', end);
         cleanup();
       }
     });
@@ -131,7 +117,7 @@ describe('the settings dialog', () => {
       assert.ok(input.matches('.time-field input.time[type="text"][inputmode="numeric"]'));
       assert.equal(input.value, '1 h 30');
       assert.equal(input.id, 'override-duration');
-      assert.equal(text($(el, '.override-settings .duration-row label[for="override-duration"]')), "Durée d'un changement à la main");
+      assert.equal(text($(el, '.override-settings .duration-row label[for="override-duration"]')), 'Durée');
       const buttons = [...el.shadowRoot.querySelectorAll('.override-settings .duration-field .time-step')];
       assert.deepEqual(buttons.map((b) => b.getAttribute('aria-label')), ['15 min de plus', '15 min de moins']);
       assert.equal(durationInput(settings(withSettings({ override_duration: 120 }))).value, '2 h');
@@ -282,10 +268,14 @@ describe('the settings dialog', () => {
 
     test('speaks English', () => {
       const el = settings(withSettings({}, { locale: { language: 'en' } }));
-      assert.equal(text($(el, '.override-settings h3')), 'Changes by hand');
+      assert.equal(text($(el, '.override-settings h3')), 'Overrides');
+      assert.equal(text($(el, '.override-settings .intro')), 'A setpoint changed by hand becomes an override. Choose how long it lasts.');
+      assert.equal(text($(el, '.override-settings .duration-row label')), 'Duration');
       assert.equal(label(el, 'duration'), 'For 2 h (default)');
-      assert.equal(label(el, 'next_slot_within_duration'), 'Until the next slot, 2 h at most');
-      assert.equal(text($$(el, '.override-settings .example')[2]), 'Living room until 10:30 PM · office until tomorrow 6:00 AM');
+      assert.equal(label(el, 'next_slot_within_duration'), 'For 2 h, or less if a slot starts first');
+      assert.equal(label(el, 'next_slot'), 'Until the next slot');
+      assert.equal(text($(el, '.override-settings .slot-note')), "A slot that starts in less than 15 min doesn't count.");
+      assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), 'End of overrides');
     });
   });
 
@@ -296,16 +286,13 @@ describe('the settings dialog', () => {
   });
 
   describe('its foot: the other options of Chauffage', () => {
-    test('says what the other options hold, and links to the integration, for an admin', () => {
+    test('a link to the integration, alone, for an admin', () => {
       const foot = $(settings(setup()), '.foot');
-      assert.equal(text(foot.querySelector('[data-other-options]')), 'Autres options de Chauffage');
+      assert.equal(text(foot), 'Autres options de Chauffage');
       assert.equal(foot.querySelector('[data-other-options]').getAttribute('href'), '/config/integrations/integration/chauffage');
-      assert.equal(text(foot.querySelector('.note')),
-        'Utiliser ou non les préréglages des thermostats, afficher ou non Chauffage dans la barre latérale.');
       cleanup();
       const en = $(settings(setup({ locale: { language: 'en' } })), '.foot');
-      assert.equal(text(en.querySelector('[data-other-options]')), 'Other Chauffage options');
-      assert.equal(text(en.querySelector('.note')), "Whether to use the thermostats' own presets, and whether to show Chauffage in the sidebar.");
+      assert.equal(text(en), 'Other Chauffage options');
     });
 
     test('is not there for a user who is not an admin', () => {
@@ -365,7 +352,7 @@ describe('the settings dialog', () => {
       assert.deepEqual(manager.shown.map((d) => d.dialogTag), [DIALOG]);
       const dialog = manager.dialog(DIALOG);
       assert.ok(isOpen(dialog));
-      assert.equal(text($(dialog, '.override-settings h3')), 'Changements à la main');
+      assert.equal(text($(dialog, '.override-settings h3')), 'Dérogations');
       assert.equal(window.location.href, before, 'no page opened: the address is the same');
       assert.ok(block.isConnected);
       manager.back(); // the browser's Back

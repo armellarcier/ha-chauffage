@@ -64,7 +64,7 @@ future contributor might question.
   the living room raised at 21:30, during a comfort slot that ends at 22:30, heats until 23:30.
   A classic thermostat keeps a change until the next scheduled change, but that rule fails in
   another case: the office turned up at 18:30, whose next slot is at 6:00, heats all night. No
-  rule suits every home, so the setting *End of a change by hand* has three choices: the
+  rule suits every home, so the setting *End of overrides* has three choices: the
   override duration (`duration`), the next slot within the duration
   (`next_slot_within_duration`), and the next slot however far (`next_slot`). The setting only
   sets the end of a change detected on the thermostat. An end chosen on the card, in the panel or
@@ -127,9 +127,8 @@ future contributor might question.
     2 h" without reading the stored data.
 - **The settings of overrides live in the options, the panel and two entities** (#83). Users
   did not find the override duration, three clicks away from the card in the integration's
-  options. The settings dialog shows both settings, each choice with one sentence and the
-  example of the living room and the office computed with the user's own duration. The *Chauffage*
-  device gets two configuration entities, the select *End of a change by hand* and the number
+  options. The settings dialog shows both settings, with the user's own duration in the labels.
+  The *Chauffage* device gets two configuration entities, the select *End of overrides* and the number
   *Override duration*, so a dashboard or an automation can change them, for example *Until the
   next slot* during the holidays. The options stay the only state: the entities and the panel
   read and write them (see "Entities"), so the options flow, the panel and the entities always
@@ -849,7 +848,7 @@ older one, the older one says so.
   "A setpoint you change by hand lasts 2 hours. Then the thermostat goes back to its schedule."
   Overrides surprise users: the knob is turned, and two hours later the thermostat goes back to
   its schedule. A button opens the settings dialog.
-- **A settings dialog, not a tab**, holds the *Changes by hand* section (#83). A first version
+- **A settings dialog, not a tab**, holds the *Overrides* section (#83). A first version
   had a fourth tab, *Settings*. The tab was too heavy for two settings, and a fourth tab was cut
   off on a 360 px phone. The UX reviews of #83 asked for a direct path from the surprise, a
   layout read by touch at 360 px, labels that carry the duration, and little density, not for a
@@ -881,21 +880,24 @@ older one, the older one says so.
     settings dialog has no buttons at its foot, and Material would show an empty band there.
   - **A press or Escape in the dialog does not close the card's popover under it.**
   - **Its foot links to the other options**, for an administrator: *Other Chauffage options*,
-    with a line that names them. Home Assistant offers no address that opens an options flow,
+    a link alone. Home Assistant offers no address that opens an options flow,
     from 2025.1 to today, so the link opens the integration's page, where *Configure* opens them.
     The link leaves the view: the dialog closes first, its history entry is taken back, then the
     page opens. Back then returns to the view under the dialog.
   - **`/chauffage/settings` still works**: it opens the *Thermostats* tab and the dialog on top.
-  - **One name**: the section and the setting are "changes by hand". A first version titled the
-    section *Overrides* and the setting *End of a change by hand*, two names for one thing.
+  - **One name: overrides.** The section is *Overrides*, the setting *End of overrides*, as the
+    card and the logbook say "override". One line under the heading says that a setpoint changed
+    by hand becomes an override.
+  - **The dialog keeps only labels, and the README explains.** The dialog reads like Home
+    Assistant's own settings: a heading, one line, the fields and their short labels. A sentence
+    and an example under each choice made the dialog heavy, and users found it hard to read. The
+    README's table explains the three ends, with the example of the living room and the office.
   - **The duration first, then the choices that use it**, in the dialog, the options flow and the
-    README. Each choice carries the user's duration, "For 2 h (default)", "Until the next slot, 2 h
-    at most", so the labels explain themselves. The entity's states and the options flow keep
-    static labels with "the override duration", as they cannot follow a value.
-  - **Radio buttons, each a whole row to tap**, with one sentence and the example of the living
-    room and the office. The example's slot times are in one sentence above the choices, not in a
-    grey box. One note under the choices, always shown, says that a slot less than 15 minutes
-    away does not count and that an end chosen on the card stays.
+    README. Each choice carries the user's duration, "For 2 h (default)", "For 2 h, or less if a
+    slot starts first". The entity's states and the options flow keep static labels with "the
+    override duration", as they cannot follow a value.
+  - **Radio buttons, each a whole row to tap**, with a label only. One note under the choices,
+    always shown, says that a slot that starts in less than 15 minutes doesn't count.
   - **The duration is a stepped field, the same code as the end of an override** ("until 01:30
     ▲▼"): a text in hours and minutes, "2 h 45", with two small arrows that move it by 15 minutes,
     from 15 minutes to 24 hours. One implementation serves both fields: the markup, the arrows,

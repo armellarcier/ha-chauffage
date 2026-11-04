@@ -16,9 +16,9 @@ by default: the new settings below change nothing until you choose another end.
 
 ### Added
 
-- **Choose how a setpoint changed by hand ends** (#83). The new setting *End of a change by hand*
-  has three choices. *For the override duration* is the default and keeps today's behavior.
-  *Until the next slot, at most the override duration* ends the change at the next slot if that
+- **Choose how long an override lasts** (#83). The new setting *End of overrides* has three
+  choices. *For the override duration* is the default and keeps today's behavior. *For the
+  override duration, or less if a slot starts first* ends the change at the next slot if that
   slot comes first. *Until the next slot* keeps the change until the next slot, however far, as
   on a classic thermostat. Say you raise the living room at 21:30, and eco starts at 22:30: with
   a next-slot choice, the living room goes back to eco at 22:30, not at 23:30. A slot that starts
@@ -27,15 +27,15 @@ by default: the new settings below change nothing until you choose another end.
 - **A settings dialog** (#83). The dialog opens on top of the page you are on, without leaving
   it: from the reason of an override's end, from the ⚙ of the Chauffage panel, and from the
   panel's notices. Close it, or press your browser's Back, and you are back where you were, with
-  the more-info dialog or the card's popover still open. Its *Changes by hand* section shows the
-  override duration and the three ends, each with an example computed with your own duration.
+  the more-info dialog or the card's popover still open. Its *Overrides* section shows the
+  *Duration* and the three ends.
   You type the duration in hours and minutes, as a time, for example `2:45`, or move it by 15
   minutes with its small arrows. *Other Chauffage options*, at its foot, opens the integration's
   page, where *Configure* holds the other options. Existing users see a one-time notice about the
   new setting on the *Thermostats* tab.
 - **The override duration is any whole number of minutes**, from 15 minutes to 24 hours, in the
   panel, the options and the number entity. For example, 50 minutes.
-- **Two entities on the *Chauffage* device** (#83): the select *End of a change by hand*
+- **Two entities on the *Chauffage* device** (#83): the select *End of overrides*
   (`select.chauffage_manual_override_end`) and the number *Override duration*
   (`number.chauffage_override_duration`). An automation can change the settings with them. The
   panel, the options and the entities always agree.

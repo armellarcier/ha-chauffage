@@ -76,7 +76,7 @@ await setOverride(lp, 'climate.salon', null);
 // A change by hand ends at the next slot, at most after the override duration: the setting is
 // restored at the end (a run that fails half-way leaves it, the log says which it was)
 const setting = before.manual_override_end || 'duration';
-console.log(`End of a change by hand before the demo: ${setting}`);
+console.log(`End of overrides before the demo: ${setting}`);
 await callWS(lp, { type: 'chauffage/settings/set', manual_override_end: 'next_slot_within_duration' });
 // The browser follows the development HA's time zone, so the card and the integration agree
 const timezoneId = await lp.evaluate(() => document.querySelector('home-assistant').hass.config.time_zone);

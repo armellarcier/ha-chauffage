@@ -1,5 +1,5 @@
-"""The settings of overrides as entities, on the Chauffage device (#83): a select *End of a change
-by hand* and a number *Override duration*. They read and write the integration's options, so
+"""The settings of overrides as entities, on the Chauffage device (#83): a select *End of
+overrides* and a number *Override duration*. They read and write the integration's options, so
 the options flow, the panel and the entities always agree."""
 
 import pytest
@@ -39,7 +39,7 @@ async def test_the_settings_are_configuration_entities_of_the_chauffage_device(b
         entry = registry.async_get(entity_id)
         assert entry.entity_category is EntityCategory.CONFIG
         assert dr.async_get(bench.hass).async_get(entry.device_id).name == "Chauffage"
-    assert bench.hass.states.get(SELECT).name == "Chauffage End of a change by hand"
+    assert bench.hass.states.get(SELECT).name == "Chauffage End of overrides"
     assert bench.hass.states.get(NUMBER).name == "Chauffage Override duration"
 
 

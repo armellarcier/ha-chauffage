@@ -133,8 +133,7 @@ Le panneau a trois onglets :
   températures, et ce que fait chacun sur chaque thermostat (voir [Préréglages](#préréglages)).
 
 **Réglages.** Le bouton ⚙, en haut à droite du panneau, ouvre les réglages : combien de temps
-dure une consigne changée à la main, et comment elle se termine (voir
-[Dérogations](#dérogations)). Les réglages s'ouvrent dans une fenêtre, par-dessus la page où vous
+dure une dérogation (voir [Dérogations](#dérogations)). Les réglages s'ouvrent dans une fenêtre, par-dessus la page où vous
 êtes. Fermez la fenêtre, ou faites Retour dans votre navigateur, et vous retrouvez cette page.
 En bas de la fenêtre, *Autres options de Chauffage* ouvre la page de l'intégration dans Home
 Assistant : son bouton *Configurer* donne les autres [options](#options).
@@ -401,16 +400,16 @@ fin : *aujourd'hui, 2 h après le changement* ou *aujourd'hui, au prochain crén
 administrateur touche ces mots pour ouvrir les réglages, par-dessus la carte ou la fenêtre de
 détail du thermostat.
 
-### Choisir comment se termine un changement à la main
+### Choisir combien de temps dure une dérogation
 
 Ouvrez les réglages : touchez la raison de la fin d'une dérogation, ou le bouton ⚙ du panneau
-Chauffage. Choisissez l'une des trois fins d'un changement à la main. Prenons un salon en confort
-jusqu'à 22 h 30, et un bureau dont le prochain créneau est à 6 h :
+Chauffage. Sous *Dérogations*, réglez la *Durée*, puis choisissez l'une des trois fins. Prenons un
+salon en confort jusqu'à 22 h 30, et un bureau dont le prochain créneau est à 6 h :
 
-| Fin d'un changement à la main | Votre changement dure… | Salon monté à 21 h 30 | Bureau monté à 18 h 30 |
+| Fin des dérogations | Votre changement dure… | Salon monté à 21 h 30 | Bureau monté à 18 h 30 |
 |---|---|---|---|
 | **Pendant la durée des dérogations** (par défaut) | la durée des dérogations, 2 heures par défaut | jusqu'à 23 h 30 | jusqu'à 20 h 30 |
-| **Jusqu'au prochain créneau, au plus la durée des dérogations** | jusqu'au prochain créneau, ou la durée des dérogations si le créneau est plus loin | jusqu'à 22 h 30 | jusqu'à 20 h 30 |
+| **Pendant la durée, ou moins si un créneau commence avant** | la durée des dérogations, ou jusqu'au prochain créneau s'il commence avant | jusqu'à 22 h 30 | jusqu'à 20 h 30 |
 | **Jusqu'au prochain créneau** | jusqu'au prochain créneau, aussi loin soit-il, comme sur un thermostat classique | jusqu'à 22 h 30 | jusqu'à 6 h |
 
 Le prochain créneau est le premier créneau qui change la consigne du thermostat. Un créneau qui
@@ -529,7 +528,7 @@ identifiant, `sensor.<thermostat>_planning` en français. Chauffage active ce ca
 |---|---|
 | **Planning actif** (sélecteur, `select.chauffage_schedule`) | Le planning actif. Choisissez une autre option pour activer un autre planning. Attributs : `schedule_id`, et `rules_choice` (le planning que donnent les règles d'activation, vide sans règles). |
 | **Planning &lt;nom&gt;** (un interrupteur par planning, `switch.chauffage_schedule_<id>`) | Allumé pour le planning actif. Allumez un interrupteur pour activer son planning. Vous ne pouvez pas éteindre le planning actif : allumez-en un autre. La carte affiche l'icône de l'interrupteur sur l'onglet du planning. Pour changer l'icône, ouvrez le menu ⋮ du planning, puis *Changer l'icône…*. |
-| **Fin d'un changement à la main** (sélecteur, `select.chauffage_manual_override_end`) | Comment se termine une consigne changée à la main : `duration`, `next_slot_within_duration` ou `next_slot` (voir [Dérogations](#choisir-comment-se-termine-un-changement-à-la-main)). Choisissez une autre option pour changer le réglage. |
+| **Fin des dérogations** (sélecteur, `select.chauffage_manual_override_end`) | Combien de temps dure une dérogation : `duration`, `next_slot_within_duration` ou `next_slot` (voir [Choisir combien de temps dure une dérogation](#choisir-combien-de-temps-dure-une-dérogation)). Choisissez une autre option pour changer le réglage. |
 | **Durée des dérogations** (nombre, `number.chauffage_override_duration`) | La durée des dérogations, en minutes, de 15 minutes à 24 heures. Par exemple, 120 vaut 2 heures. Réglez une autre valeur pour changer le réglage. |
 
 ### Assistants vocaux
@@ -602,10 +601,10 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
 - **Durée des dérogations.** Combien de temps dure une consigne changée à la main, 2 heures par
   défaut. Une nouvelle dérogation créée depuis la carte dure aussi ce temps. Avec *Jusqu'au
   prochain créneau*, un changement à la main ne s'en sert pas.
-- **Fin d'un changement à la main.** *Pendant la durée des dérogations* par défaut. Vous pouvez
-  aussi choisir *Jusqu'au prochain créneau, au plus la durée des dérogations*, ou *Jusqu'au
-  prochain créneau* (voir
-  [Choisir comment se termine un changement à la main](#choisir-comment-se-termine-un-changement-à-la-main)).
+- **Fin des dérogations.** *Pendant la durée des dérogations* par défaut. Vous pouvez aussi
+  choisir *Pendant la durée, ou moins si un créneau commence avant*, ou *Jusqu'au prochain
+  créneau* (voir
+  [Choisir combien de temps dure une dérogation](#choisir-combien-de-temps-dure-une-dérogation)).
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Si vous la désactivez,
   Chauffage pilote tous les thermostats en température, et vous réglez toutes les températures
   dans la carte.
@@ -678,8 +677,7 @@ planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat 
 vanne injoignable ne bloque pas les autres thermostats.
 
 **Les changements manuels.** Une consigne changée à la main, ou un préréglage choisi par un
-utilisateur, devient une dérogation, jusqu'à la fin que donne le réglage *Fin d'un changement à
-la main*. Revenir à ce que demande le créneau arrête la dérogation.
+utilisateur, devient une dérogation, jusqu'à la fin que donne le réglage *Fin des dérogations*. Revenir à ce que demande le créneau arrête la dérogation.
 Chauffage ignore ses propres changements, grâce à leur contexte, et ceux des automatisations.
 Chauffage ignore aussi une commande qu'une vanne à pile applique en retard : il garde en mémoire
 pendant un jour les commandes pas encore appliquées.

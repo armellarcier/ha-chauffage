@@ -127,8 +127,8 @@ The panel has three tabs:
 - **Presets.** The table of the presets: their names, colors and temperatures, and what each one
   does on each thermostat (see [Presets](#presets)).
 
-**Settings.** The ⚙ at the top right of the panel opens the settings: how long a setpoint
-changed by hand lasts, and how it ends (see [Overrides](#overrides)). The settings open in a
+**Settings.** The ⚙ at the top right of the panel opens the settings: how long an override
+lasts (see [Overrides](#overrides)). The settings open in a
 dialog, on top of the page you are on. Close the dialog, or press your browser's Back, to
 return to that page. At the foot of the dialog, *Other Chauffage options* opens the
 integration's page in Home Assistant, where *Configure* holds the other [options](#options).
@@ -377,16 +377,16 @@ The card says why the override ends then, next to its end: *today, 2 h after the
 *today, at the next slot*. An administrator taps these words to open the settings, on top of
 the card or of the more-info dialog.
 
-### Choose how a change by hand ends
+### Choose how long an override lasts
 
-Open the settings: tap the reason of an override's end, or the ⚙ of the Chauffage panel. Choose
-one of three ends for a change by hand. Take a living room with a comfort slot until 22:30, and an
-office whose next slot is at 6:00:
+Open the settings: tap the reason of an override's end, or the ⚙ of the Chauffage panel. Under
+*Overrides*, set the *Duration*, then choose one of three ends. Take a living room with a comfort
+slot until 22:30, and an office whose next slot is at 6:00:
 
-| End of a change by hand | Your change lasts… | Living room raised at 21:30 | Office raised at 18:30 |
+| End of overrides | Your change lasts… | Living room raised at 21:30 | Office raised at 18:30 |
 |---|---|---|---|
 | **For the override duration** (default) | the override duration, 2 hours by default | until 23:30 | until 20:30 |
-| **Until the next slot, at most the override duration** | until the next slot, or the override duration if the next slot is further | until 22:30 | until 20:30 |
+| **For the override duration, or less if a slot starts first** | the override duration, or until the next slot if the next slot starts sooner | until 22:30 | until 20:30 |
 | **Until the next slot** | until the next slot, however far, as on a classic thermostat | until 22:30 | until 6:00 |
 
 The next slot is the first slot that changes the thermostat's setpoint. A slot that starts less
@@ -497,7 +497,7 @@ On an installation from before 0.6, the planned preset sensor keeps its former i
 |---|---|
 | **Active schedule** (select, `select.chauffage_schedule`) | The active schedule. Choose another option to activate another schedule. Attributes: `schedule_id`, and `rules_choice` (the schedule the activation rules give, empty without rules). |
 | **&lt;Schedule&gt; schedule** (a switch for each schedule, `switch.chauffage_schedule_<id>`) | On for the active schedule. Turn on a switch to activate its schedule. You cannot turn off the active schedule: turn on another one. The card shows the switch's icon on the schedule's tab. To change the icon, open the schedule's ⋮ menu, then *Change the icon…*. |
-| **End of a change by hand** (select, `select.chauffage_manual_override_end`) | How a setpoint changed by hand ends: `duration`, `next_slot_within_duration` or `next_slot` (see [Overrides](#choose-how-a-change-by-hand-ends)). Choose another option to change the setting. |
+| **End of overrides** (select, `select.chauffage_manual_override_end`) | How long an override lasts: `duration`, `next_slot_within_duration` or `next_slot` (see [Choose how long an override lasts](#choose-how-long-an-override-lasts)). Choose another option to change the setting. |
 | **Override duration** (number, `number.chauffage_override_duration`) | The override duration, in minutes, from 15 minutes to 24 hours. For example, 120 is 2 hours. Set another value to change the setting. |
 
 ### Voice assistants
@@ -567,9 +567,9 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **Override duration.** How long a setpoint changed by hand lasts, 2 hours by default. A new
   override started from the card lasts this long too. With *Until the next slot*, a change by
   hand doesn't use it.
-- **End of a change by hand.** *For the override duration* by default. You can also choose
-  *Until the next slot, at most the override duration*, or *Until the next slot* (see
-  [Choose how a change by hand ends](#choose-how-a-change-by-hand-ends)).
+- **End of overrides.** *For the override duration* by default. You can also choose *For the
+  override duration, or less if a slot starts first*, or *Until the next slot* (see
+  [Choose how long an override lasts](#choose-how-long-an-override-lasts)).
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
   every thermostat with temperatures, and you set all of them in the card.
 - **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
@@ -639,7 +639,7 @@ or is unavailable. A Versatile Thermostat that is off still gets its slots. An u
 does not stop the other thermostats.
 
 **Manual changes.** A setpoint changed by hand, or a preset that a user chooses, becomes an
-override, until the end that the setting *End of a change by hand* gives. Going back to what
+override, until the end that the setting *End of overrides* gives. Going back to what
 the slot asks for ends the override. Chauffage ignores its own changes, thanks to their context,
 and the changes made by automations. Chauffage also ignores a command that a battery valve
 applies late: Chauffage remembers the commands not yet applied for a day.

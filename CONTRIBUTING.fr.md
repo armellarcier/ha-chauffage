@@ -214,8 +214,8 @@ La démo se déroule à l'heure réelle du HA de développement, dans son fuseau
 L'intégration calcule la fin d'un changement à la main avec sa propre horloge : le navigateur ne
 peut donc pas simuler l'heure.
 
-Avant de commencer, le scénario règle *Fin d'un changement à la main* sur *Jusqu'au prochain
-créneau, au plus la durée des dérogations*, et remet le réglage à la fin. Enregistrez la démo
+Avant de commencer, le scénario règle *Fin des dérogations* sur *Pendant la durée, ou moins si
+un créneau commence avant*, et remet le réglage à la fin. Enregistrez la démo
 entre 21 h et 22 h, à l'heure du HA de développement. Un changement à la main se termine alors
 au prochain créneau, à 22 h 30, et la carte affiche « aujourd'hui, au prochain créneau ». À
 une autre heure, le changement à la main se termine au bout de 2 heures.
@@ -249,7 +249,7 @@ l'ordre :
 6. l'*Historique* du salon, et une journée en grand.
 
 À la fin, le scénario remet tout en état : il supprime la dérogation et le nouveau planning,
-réactive *Normal*, remet *Fin d'un changement à la main* comme avant, et n'enregistre pas les
+réactive *Normal*, remet *Fin des dérogations* comme avant, et n'enregistre pas les
 modifications des semaines. Si un enregistrement s'arrête en route, son journal donne le
 réglage à remettre.
 
