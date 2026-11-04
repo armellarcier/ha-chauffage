@@ -481,6 +481,20 @@ dashboards, automations, scripts and by voice without the card
   first reload gets the former page from the cache again. The companion app has no hard reload,
   and its *Reset frontend cache* setting is hard to find. Emptying every cache of the page costs
   one download of Home Assistant's files, once.
+- **The card subscribes again itself after a reconnection** (0.8.2). The companion app keeps its
+  page open while Home Assistant restarts. The page reconnects as soon as Home Assistant answers,
+  often before Chauffage is set up. Home Assistant's websocket library then replays the
+  subscription once, gets `not_loaded` or `unknown_command`, and never tries again: the card
+  stays on its former data, or on "…". So the card subscribes with `resubscribe: false`, and
+  subscribes again on the connection's `ready` event.
+- **A subscription that fails is tried again, less and less often** (0.8.2): after 5 s, then
+  twice as long each time, up to a minute, while a card or the panel is on the page. A
+  subscription that brings no data within 10 s is made again too, because the integration always
+  sends its data at once.
+- **The panel shows the same notice as the cards** (0.8.2): "…", the integration not set up,
+  Home Assistant to restart, or the page to reload. One function, `sourceNotice`, chooses the
+  notice for the schedule card, the thermostat card and the panel. The panel keeps its tabs and
+  its menu button above the notice.
 - **The history of the measured temperature is read from HA's recorder**, not stored by the
   integration: nothing to keep or migrate, and it works for any thermostat with a
   `current_temperature`. Hence the last 7 days (within the recorder's default 10-day retention),

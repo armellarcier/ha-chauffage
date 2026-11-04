@@ -307,7 +307,11 @@ async def test_the_logbook_names_the_panel_when_a_change_comes_from_it(bench: Be
     await start(bench, "10:00")
     bench.hass.config.language = "fr"
     sources = []
-    bench.hass.bus.async_listen("chauffage_schedule_activated", lambda event: sources.append(event.data["source"]))
+
+    @callback  # in the order fired (a plain function runs as a job, in any order)
+    def listen(event: Event) -> None:
+        sources.append(event.data["source"])
+    bench.hass.bus.async_listen("chauffage_schedule_activated", listen)
     client = await ws_client(bench.hass)
     await client.send_json_auto_id({"type": "chauffage/schedule/activate", "schedule": "away", "source": "panel"})
     assert (await client.receive_json())["success"]
