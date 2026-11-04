@@ -507,6 +507,19 @@ describe('the settings dialog', () => {
       }
     });
 
+    // Its "saved" mark is taken away 3 s later: a dialog gone by then subscribed again with its
+    // former Home Assistant, whose data then reached the panels of the page
+    test('a dialog no longer on the page leaves the subscription alone', () => {
+      const former = setup();
+      const el = settings(former);
+      el.remove();
+      const subscriptions = former.subscriptions.length;
+      setup({ data: null }); // the page now has another connection
+      el.hass = former;
+      el._update();
+      assert.equal(former.subscriptions.length, subscriptions);
+    });
+
     describe("without Home Assistant's dialog manager", () => {
       const open = () => {
         window.history.replaceState(null, '', '/lovelace/0');

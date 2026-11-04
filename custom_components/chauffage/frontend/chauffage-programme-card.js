@@ -6071,10 +6071,12 @@ class ChauffageSettingsDialog extends HTMLElement {
 
   disconnectedCallback() {
     this._cancelLeave();
+    clearTimeout(this._savedTimer);
   }
 
+  // Not once off the page: its former Home Assistant would subscribe again (dataSource)
   _update() {
-    if (!this._open || !this._hass) return;
+    if (!this._open || !this._hass || !this.isConnected) return;
     const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
     if (settings) this._fillSettings(settings, dataSource(this._hass));
   }
