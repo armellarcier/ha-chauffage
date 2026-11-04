@@ -11,6 +11,9 @@
 const VERSION = '0.8.2';
 
 const DAY_MIN = 1440;
+// The duration of a change by hand, in minutes: the range of the integration; its arrows move it by
+// 15 minutes, a step that is not a rule
+const OVERRIDE_DURATION_MIN = 15, OVERRIDE_DURATION_MAX = 1440, OVERRIDE_DURATION_STEP = 15;
 
 // ---------- i18n ----------
 // UI texts in English and French. The language follows the user's Home Assistant language
@@ -46,11 +49,22 @@ const I18N = {
     until: 'until',
     earlier: '{duration} earlier',
     later: '{duration} later',
+    longer: '{duration} more',
+    shorter: '{duration} less',
     today: 'today',
     tomorrow: 'tomorrow',
     remaining: '{duration} left',
-    duration: '{h}h {mm}',
+    duration: '{h} h {mm}',
+    durationDays: '{d} d',
+    durationDaysHours: '{d} d {h} h',
+    hours: '{h} h',
+    endsNextSlot: 'at the next slot',
+    endsAfter: '{duration} after the change',
+    endsNoNextSlot: 'in a week, no slot ahead',
     thenSchedule: 'then {preset} (schedule)',
+    endsChoose: 'Choose how long overrides last',
+    untilNextSlot: 'Until {time} (next slot)',
+    newSettingNotice: 'New: choose how long an override lasts.',
     newOverride: 'New override…',
     resume: 'Resume the schedule',
     paused: 'Paused',
@@ -89,6 +103,21 @@ const I18N = {
     nextTitle: 'Next steps',
     nextWeeks: 'Open a thermostat to set its weeks and its presets.',
     nextCard: 'Add the card to a dashboard: Add card → Heating schedules.',
+    nextOverride: 'A setpoint you change by hand lasts {duration}, or less if a slot starts first. Then the thermostat goes back to its schedule.',
+    nextOverrideDuration: 'A setpoint you change by hand lasts {duration}. Then the thermostat goes back to its schedule.',
+    nextOverrideNextSlot: 'A setpoint you change by hand lasts until the next slot. Then the thermostat goes back to its schedule.',
+    pageSettings: 'Settings',
+    settingsTitle: 'Chauffage settings',
+    otherOptions: 'Other Chauffage options',
+    overridesTitle: 'Overrides',
+    overrideEndTitle: 'End of overrides',
+    overrideEndIntro: 'A setpoint changed by hand becomes an override. Choose how long it lasts.',
+    overrideEndDuration: 'For {duration} (default)',
+    overrideEndWithin: 'For {duration}, or less if a slot starts first',
+    overrideEndNextSlot: 'Until the next slot',
+    overrideNextSlotMeans: "A slot that starts in less than 15 min doesn't count.",
+    overrideDurationTitle: 'Duration',
+    overrideDurationInvalid: 'Choose a duration from {min} to {max}, in hours and minutes: 2:45.',
     nextClose: 'Close',
     noThermostatYet: 'No thermostat is scheduled yet.',
     scheduleThermostats: 'Schedule thermostats',
@@ -268,11 +297,22 @@ const I18N = {
     until: 'jusqu\'à',
     earlier: '{duration} plus tôt',
     later: '{duration} plus tard',
+    longer: '{duration} de plus',
+    shorter: '{duration} de moins',
     today: 'aujourd\'hui',
     tomorrow: 'demain',
     remaining: 'encore {duration}',
     duration: '{h} h {mm}',
+    durationDays: '{d} j',
+    durationDaysHours: '{d} j {h} h',
+    hours: '{h} h',
+    endsNextSlot: 'au prochain créneau',
+    endsAfter: '{duration} après le changement',
+    endsNoNextSlot: 'dans une semaine, aucun créneau prévu',
     thenSchedule: 'puis {preset} (planning)',
+    endsChoose: 'Choisir la durée des dérogations',
+    untilNextSlot: "Jusqu'à {time} (prochain créneau)",
+    newSettingNotice: 'Nouveau : choisissez combien de temps dure une dérogation.',
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
     paused: 'En pause',
@@ -311,6 +351,21 @@ const I18N = {
     nextTitle: 'Et maintenant',
     nextWeeks: 'Ouvrez un thermostat pour régler ses semaines et ses préréglages.',
     nextCard: 'Ajoutez la carte à un tableau de bord : Ajouter une carte → Plannings de chauffe.',
+    nextOverride: 'Une consigne changée à la main dure {duration}, ou moins si un créneau commence avant. Ensuite, le thermostat reprend son planning.',
+    nextOverrideDuration: 'Une consigne changée à la main dure {duration}. Ensuite, le thermostat reprend son planning.',
+    nextOverrideNextSlot: "Une consigne changée à la main dure jusqu'au prochain créneau. Ensuite, le thermostat reprend son planning.",
+    pageSettings: 'Réglages',
+    settingsTitle: 'Réglages de Chauffage',
+    otherOptions: 'Autres options de Chauffage',
+    overridesTitle: 'Dérogations',
+    overrideEndTitle: 'Fin des dérogations',
+    overrideEndIntro: 'Une consigne changée à la main devient une dérogation. Choisissez combien de temps elle dure.',
+    overrideEndDuration: 'Pendant {duration} (par défaut)',
+    overrideEndWithin: 'Pendant {duration}, ou moins si un créneau commence avant',
+    overrideEndNextSlot: "Jusqu'au prochain créneau",
+    overrideNextSlotMeans: 'Un créneau qui commence dans moins de 15 min ne compte pas.',
+    overrideDurationTitle: 'Durée',
+    overrideDurationInvalid: 'Choisissez une durée de {min} à {max}, en heures et minutes : 2:45.',
     nextClose: 'Fermer',
     noThermostatYet: "Aucun thermostat n'est encore programmé.",
     scheduleThermostats: 'Programmer des thermostats',
@@ -561,6 +616,8 @@ function makeLocale(hass, configured) {
     days: long,
     daysShort: short,
     dayOrder: order,
+    // A date in the UI language, without its year: "19 octobre", "October 19"
+    date: (d) => new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'long' }).format(d),
     // Days of a row → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", "Mon–Sun" (one day: its name; the
     // whole week in the long style: "Every day")
     daysLabel: (days, style = 'short') => {
@@ -725,34 +782,87 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
 
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 
-// ---------- time fields ----------
-// A time field in the format of the user's profile (#63): a browser shows <input type="time"> in
-// the format of its own language. A text field instead, read by parseTime() when it is left or on
-// Enter: "1225" gives 12:25. Its small arrows, like those of <input type="time">, and the arrow
-// keys on its minutes, move the time by `step` minutes; the arrow keys on its hours by an hour, on
-// AM / PM by 12 hours.
+// ---------- stepped fields: a time, a duration ----------
+// One field for a value in minutes, typed or moved by small arrows (#63, #83). A text field, read
+// when it is left or on Enter. Its small arrows, like those of <input type="time">, and the arrow
+// keys move the value by the field's step. A kind (STEPPED_KINDS) says how to show, read and move
+// its value:
+// - a time, in the format of the user's profile: a browser shows <input type="time"> in the format
+//   of its own language. "1225" gives 12:25. The arrow keys on its hours move it by an hour, on
+//   AM / PM by 12 hours;
+// - a duration, from `min` to `max`, moved by `step` by its arrows: "2 h 45", read as a time is:
+//   "245", "2:45", "2h45" and "2 h 45" give 2 h 45.
 
-function timeField(attr, minutes, loc, step) {
+const STEPPED_KINDS = {
+  time: {
+    format: (m, loc) => loc.time(m),
+    read: (el, loc) => typedTime(el, loc),
+    // A time moved past midnight goes round the clock
+    fit: (m) => ((m % DAY_MIN) + DAY_MIN) % DAY_MIN,
+    valid: () => true,
+    // As wide as the longest time of the profile's format ("10:45 PM", "10:45 p. m.")
+    widest: (loc) => loc.time(22 * 60 + 45),
+    titles: (step, loc) => [loc.t('later', { duration: durationText(step, loc) }), loc.t('earlier', { duration: durationText(step, loc) })],
+    arrowKey: arrowInTime,
+  },
+  duration: {
+    format: (m, loc) => roundDurationText(m, loc),
+    read: (el) => typedDuration(el.value),
+    fit: (m, el) => Math.min(Number(el.dataset.max), Math.max(Number(el.dataset.min), m)),
+    // Any whole number of minutes in the range: the step is the arrows' only
+    valid: (m, el) => m >= Number(el.dataset.min) && m <= Number(el.dataset.max),
+    widest: (loc) => roundDurationText(23 * 60 + 45, loc),
+    titles: (step, loc) => [loc.t('longer', { duration: durationText(step, loc) }), loc.t('shorter', { duration: durationText(step, loc) })],
+    arrowKey: null, // the field's step, wherever the caret is
+  },
+};
+const kindOf = (el) => STEPPED_KINDS[el.dataset.kind] || STEPPED_KINDS.time;
+
+// A stepped field of a `kind`, on `minutes`. `attr`: the attributes that say what it is for.
+function steppedField(kind, attr, minutes, loc, step, disabled = false) {
+  const off = disabled ? ' disabled' : '';
+  const k = STEPPED_KINDS[kind];
   // Out of the Tab order: the arrow keys do the same from the field
-  const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}">${icon}</button>`;
-  // As wide as the longest time of the profile's format ("10:45 PM", "10:45 p. m."), counting a
-  // character of Chinese or Japanese as two
-  const width = [...loc.time(22 * 60 + 45)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
+  const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}"${off}>${icon}</button>`;
+  // Counting a character of Chinese or Japanese as two
+  const width = [...k.widest(loc)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
+  const [up, down] = k.titles(step, loc);
   // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
   return `<span class="time-field"><input type="text" class="time" style="width:calc(${width}ch + 2px)" inputmode="numeric"
-    autocomplete="off" ${attr} data-step="${step}" data-minutes="${minutes}" value="${esc(loc.time(minutes))}"><span
-    class="time-spin">${button(1, ICON_UP, loc.t('later', { duration: durationText(step, loc) }))}${button(-1, ICON_DOWN, loc.t('earlier', { duration: durationText(step, loc) }))}</span></span>`;
+    autocomplete="off" ${attr} data-kind="${kind}" data-step="${step}" data-minutes="${minutes}"${off} value="${esc(k.format(minutes, loc))}"><span
+    class="time-spin">${button(1, ICON_UP, up)}${button(-1, ICON_DOWN, down)}</span></span>`;
+}
+
+function timeField(attr, minutes, loc, step) {
+  return steppedField('time', attr, minutes, loc, step);
+}
+
+// A duration field, from `min` to `max` minutes by `step`: the duration of a change by hand, in
+// the settings dialog
+function durationField(attr, minutes, loc, { step, min, max, disabled = false }) {
+  return steppedField('duration', `${attr} data-min="${min}" data-max="${max}"`, minutes, loc, step, disabled);
+}
+
+// A duration typed by hand, read as a time is (parseTime), as hours and minutes: "4" is 4 h 00,
+// "0040" 40 min, "245" and "2:45" 2 h 45, up to "24" (24 h), with no AM / PM. A duration under an
+// hour reads as the field shows it too: "45 min". Null if it is not a duration.
+function typedDuration(text) {
+  const shown = /^\s*(\d{1,2})\s*min\s*$/i.exec(text);
+  if (shown) return Number(shown[1]);
+  const t = parseTime(text, [], { hours: 24, ampm: false });
+  return t && t.h * 60 + t.m;
 }
 
 // A time typed by hand, read the way people write it: "1225", "12:25", "12.25", "12h25", "7" (7:00),
 // "730" (7:30), with or without AM / PM, before or after: "7p", "7:30 pm", or the words of the
 // user's language (`periods`, from Intl). Returns { h, m, pm }, pm being null when neither AM nor PM
-// is typed; null if it is not a time.
-function parseTime(text, periods = []) {
+// is typed; null if it is not a time. `hours`: the most hours without AM / PM; `ampm`: false for a
+// duration, which has none.
+function parseTime(text, periods = [], { hours = 23, ampm = true } = {}) {
   const compact = (s) => String(s).toLowerCase().replace(/[\s.]/g, '');
   let rest = compact(text);
   let pm = null;
-  const words = [...periods.map((w, i) => [compact(w), i === 1]), ['am', false], ['pm', true], ['a', false], ['p', true]]
+  const words = (ampm ? [...periods.map((w, i) => [compact(w), i === 1]), ['am', false], ['pm', true], ['a', false], ['p', true]] : [])
     .filter(([w]) => w)
     .sort((a, b) => b[0].length - a[0].length);
   for (const [w, isPm] of words) {
@@ -766,7 +876,7 @@ function parseTime(text, periods = []) {
   if (!r) return null;
   const h = Number(r[1]);
   const m = r[2] ? Number(r[2]) : 0;
-  if (m > 59 || h > (pm === null ? 23 : 12) || (pm !== null && h < 1)) return null;
+  if (m > 59 || h > (pm === null ? hours : 12) || (pm !== null && h < 1)) return null;
   return { h, m, pm };
 }
 
@@ -784,46 +894,60 @@ function typedTime(el, loc) {
 // (11:47 + 15 min: + 13 min, to 12:00)
 const moveBy = (m, delta, grid = 1) => (delta > 0 ? Math.floor(m / grid) : Math.ceil(m / grid)) * grid + delta - m;
 
-// The time of a field moved by its arrows: `move(minutes, step)` gives how far. The field keeps
-// how far its arrows moved it (`moved`, in minutes), for the end of an override. False if the
-// field holds no time.
-function moveFieldTime(el, loc, move) {
-  const m = typedTime(el, loc);
+// The value of a stepped field moved by its arrows: `move(minutes, step)` gives how far. The field
+// keeps how far its arrows moved it (`moved`, in minutes), for the end of an override. False if
+// the field holds no value.
+function moveField(el, loc, move) {
+  const k = kindOf(el);
+  const m = k.read(el, loc);
   if (m === null) return false;
-  const by = move(m, Number(el.dataset.step));
-  el.dataset.moved = Number(el.dataset.moved || 0) + by;
-  el.value = loc.time((((m + by) % DAY_MIN) + DAY_MIN) % DAY_MIN);
+  const to = k.fit(m + move(m, Number(el.dataset.step)), el);
+  el.dataset.moved = Number(el.dataset.moved || 0) + to - m;
+  el.value = k.format(to, loc);
   return true;
 }
 
 // ↑ / ↓ in a time field: on the hours, an hour; on the minutes, the field's step; elsewhere on a
 // 12 h clock (AM / PM), 12 hours. The hours and minutes are the first two groups of digits, as the
 // separator depends on the language ("08:30", "08.30", "08 h 30").
-function arrowInTimeField(e, loc) {
-  const el = e.target;
-  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+function arrowInTime(el, dir, loc) {
   const pos = el.selectionStart || 0;
   const [hours, minutes] = [...el.value.matchAll(/\d+/g)].map((r) => [r.index, r.index + r[0].length]);
   const on = (part) => part && pos >= part[0] && pos <= part[1];
-  const dir = e.key === 'ArrowUp' ? 1 : -1;
-  const move = (m, step) => {
+  return (m, step) => {
     if (on(hours)) return 60 * dir;
     if (loc.hour12 && !on(minutes)) return 12 * 60 * dir;
     return moveBy(m, step * dir, step);
   };
-  if (!moveFieldTime(el, loc, move)) return;
-  e.preventDefault();
-  el.setSelectionRange(pos, pos);
 }
 
-// A time field left (or Enter, or its small arrows): `apply(minutes)` once per new time, and the
-// time shown again in the profile's format. Then the redraws held back while it was typed in are
-// done, and a time that is not one is shown again as it was.
-function timeFieldDone(host, el, apply) {
-  const minutes = typedTime(el, host._loc);
-  if (minutes === null) host._redrawLater = true;
+// ↑ / ↓ in a stepped field: by the kind's own rule, else by the field's step
+function arrowInField(e, loc) {
+  const el = e.target;
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  const dir = e.key === 'ArrowUp' ? 1 : -1;
+  const k = kindOf(el);
+  const pos = el.selectionStart || 0;
+  const move = k.arrowKey ? k.arrowKey(el, dir, loc) : (m, step) => moveBy(m, step * dir, step);
+  if (!moveField(el, loc, move)) return;
+  e.preventDefault();
+  if (k.arrowKey) el.setSelectionRange(pos, pos);
+}
+
+// A stepped field left (or Enter, or its small arrows): `apply(minutes)` once per new value, and
+// the value shown again in its format. Then the redraws held back while it was typed in are done.
+// A value that is not one is shown again as it was; with `refuse`, a value the kind does not
+// accept (a duration out of range) too, and `refuse()` says why.
+function timeFieldDone(host, el, apply, refuse = null) {
+  const k = kindOf(el);
+  const minutes = k.read(el, host._loc);
+  if (refuse && (minutes === null || !k.valid(minutes, el))) {
+    el.value = k.format(Number(el.dataset.minutes), host._loc);
+    delete el.dataset.moved;
+    refuse();
+  } else if (minutes === null) host._redrawLater = true;
   else {
-    el.value = host._loc.time(minutes);
+    el.value = k.format(minutes, host._loc);
     if (minutes !== Number(el.dataset.minutes) || Number(el.dataset.moved)) {
       el.dataset.minutes = minutes; // applied once
       apply(minutes);
@@ -882,7 +1006,7 @@ function listenTimeFields(host, done) {
   root.addEventListener('keydown', (e) => {
     if (!isTime(e.target)) return;
     if (e.key === 'Enter') e.target.blur(); // applied on leaving the field
-    else arrowInTimeField(e, host._loc);
+    else arrowInField(e, host._loc);
   });
   // The small arrows: the field keeps the focus (a redraw would take the button away before its click)
   root.addEventListener('mousedown', (e) => { if (e.target.closest('.time-step')) e.preventDefault(); });
@@ -891,7 +1015,7 @@ function listenTimeFields(host, done) {
     if (!button) return;
     const el = button.closest('.time-field').querySelector('input.time');
     const dir = Number(button.dataset.timeStep);
-    if (!moveFieldTime(el, host._loc, (m, step) => moveBy(m, step * dir, step))) return;
+    if (!moveField(el, host._loc, (m, step) => moveBy(m, step * dir, step))) return;
     if (root.activeElement === el) el.blur(); // applied by its focusout
     else done(el);
   });
@@ -925,6 +1049,22 @@ function durationText(min, locale = DEFAULT_LOCALE) {
   return min >= 60
     ? locale.t('duration', { h: Math.floor(min / 60), mm: String(min % 60).padStart(2, '0') })
     : `${min} min`;
+}
+
+// A duration in a sentence: "2 h" for whole hours, else as durationText ("1 h 30", "45 min")
+function roundDurationText(min, locale = DEFAULT_LOCALE) {
+  return min >= 60 && min % 60 === 0 ? locale.t('hours', { h: min / 60 }) : durationText(min, locale);
+}
+
+// Why an override from a change by hand ends then (#83): "at the next slot", "2 h after the change",
+// or "no slot ahead" (kept a week until the next slot). '' for an end chosen on the card, the panel
+// or by the service
+function endReasonText(d, loc) {
+  if (d.ends_at === 'next_slot') return loc.t('endsNextSlot');
+  if (d.ends_at === 'no_next_slot') return loc.t('endsNoNextSlot');
+  if (d.ends_at !== 'duration') return '';
+  const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
+  return loc.t('endsAfter', { duration: roundDurationText(minutes, loc) });
 }
 
 // ---------- data sources ----------
@@ -1310,6 +1450,11 @@ function makeDataSource(hass, available) {
     // `source`: 'panel' from the panel, told in the logbook; none from a card (older integrations)
     setOverride: (climate, override, source) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override, ...(source ? { source } : {}) }),
     overrideDuration: () => (d && d.override_duration) || 120, // minutes, an option of the integration
+    // How a change by hand ends (#83): 'duration' (the default), 'next_slot_within_duration' or
+    // 'next_slot'
+    manualOverrideEnd: () => (d && d.manual_override_end) || 'duration',
+    // The settings of overrides, in the integration's options: { manual_override_end?, override_duration? }
+    setSettings: (settings) => hass.callWS({ type: 'chauffage/settings/set', ...settings }),
     activateSchedule: (id, source) => hass.callWS({ type: 'chauffage/schedule/activate', schedule: id, ...(source ? { source } : {}) }),
     // Create, rename, move, delete schedules: [{ id, name? } | { name, copy_of? }]
     setSchedules: (list, revision) => hass.callWS({ type: 'chauffage/schedules/set', schedules: list, ...(revision != null ? { revision } : {}) }),
@@ -1410,7 +1555,8 @@ function thermostatDevices(hass, src, climate) {
 
 // A link of the block opens a page: closes Home Assistant's more-info dialog first, then opens
 // the page. The dialog lives in the address (?more-info-entity-id=) and closes by going back in
-// the history: the page opens once that is done, else going back would undo it.
+// the history: the page opens once that is done, else going back would undo it. Returns a function
+// that cancels the page not opened yet.
 function leaveMoreInfo(el, open) {
   const ha = document.querySelector('home-assistant');
   const dialog = ha && ha.shadowRoot && ha.shadowRoot.querySelector('ha-more-info-dialog');
@@ -1418,13 +1564,41 @@ function leaveMoreInfo(el, open) {
   if (!inAddress()) {
     openMoreInfo(el, null);
     open();
-    return;
+    return () => {};
   }
   if (dialog && typeof dialog.closeDialog === 'function') dialog.closeDialog();
   else openMoreInfo(el, null);
+  // Home Assistant may leave the address without telling the window: the address is checked often
   const start = Date.now();
-  const wait = () => (!inAddress() || Date.now() - start > 1500 ? open() : setTimeout(wait, 30));
+  let timer;
+  const wait = () => {
+    timer = !inAddress() || Date.now() - start > 1500 ? open() : setTimeout(wait, 30);
+  };
   wait();
+  return () => clearTimeout(timer);
+}
+
+// Runs `then` once the history entry is taken back (`gone()` holds after a popstate), at the
+// latest after 1.5 s. Returns a function that cancels the wait.
+function afterHistoryBack(gone, then) {
+  if (gone()) {
+    then();
+    return () => {};
+  }
+  const stop = () => {
+    window.removeEventListener('popstate', check);
+    clearTimeout(timer);
+  };
+  const done = () => {
+    stop();
+    then();
+  };
+  const check = () => {
+    if (gone()) done();
+  };
+  window.addEventListener('popstate', check);
+  const timer = setTimeout(done, 1500);
+  return stop;
 }
 
 // view: 'settings' opens the entity's settings (its name, its icon), as Home Assistant's own pages do
@@ -1540,6 +1714,55 @@ function thenText(src, climate, d, loc) {
   return preset ? loc.t('thenSchedule', { preset: presetOf(presetsOf(src, loc), preset, loc).name }) : '';
 }
 
+// The day of an instant to come, in a sentence: its day name ("monday") within the 6 days to come,
+// else its date ("19 octobre"). 7 days away, the day name would read as today.
+function dayText(at, loc) {
+  const now = new Date();
+  const days = Math.round((new Date(at.getFullYear(), at.getMonth(), at.getDate())
+    - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  return days >= 7 ? loc.date(at) : loc.days[(at.getDay() + 6) % 7].toLowerCase();
+}
+
+// The end of an override, in words, under its time field: "today, at the next slot · 45 min left
+// · then Eco". The reason of a change by hand (#83) is part of its end; for an admin it opens the
+// settings dialog on top of the view (openSettings), where the user chooses it.
+function overrideEndHtml(src, climate, d, loc, hass) {
+  const t = loc.t;
+  const endsAt = parseDate(d.end);
+  const now = new Date();
+  const day = endsAt.toDateString() === now.toDateString() ? t('today') : dayText(endsAt, loc);
+  const remaining = Math.max(0, Math.round((endsAt - now) / 60000));
+  const reason = endReasonText(d, loc);
+  const why = reason && isAdmin(hass)
+    ? `<span class="mi-link" role="link" tabindex="0" data-open-settings title="${esc(t('endsChoose'))}">${esc(reason)} <span aria-hidden="true">⚙</span></span>`
+    : esc(reason);
+  const then = thenText(src, climate, d, loc);
+  return `${esc(day)}${reason ? `, ${why}` : ''} · ${esc(t('remaining', { duration: remainingText(remaining, loc) }))}${then ? ` · ${esc(then)}` : ''}`;
+}
+
+// A time left: "1 h 30", "45 min"; past a day, the whole days then the whole hours left ("1 d 11 h",
+// "7 d"), for a change kept a week (#83). Never rounded up: 1 d 12 h is not 2 d.
+function remainingText(min, loc) {
+  if (min < DAY_MIN) return durationText(min, loc);
+  const d = Math.floor(min / DAY_MIN);
+  const h = Math.floor((min % DAY_MIN) / 60);
+  return h ? loc.t('durationDaysHours', { d, h }) : loc.t('durationDays', { d });
+}
+
+// The button that sets an override's end to the next slot (#83): "Until 17:30 (next slot)", with the
+// day when it is not today. The integration computes the next slot, in Home Assistant's time zone,
+// as for a change by hand made now; the button keeps the instant (data-at) and sends exactly it.
+// None without a next slot (or from an older integration), or when the override already ends then
+// (compared to the minute: the integration writes its end in its own offset)
+function nextSlotButton(src, climate, d, loc, attrs) {
+  const iso = (src.planned(climate) || {}).next_slot_end;
+  const at = iso ? parseDate(iso) : null;
+  if (!at || d.ends_at === 'next_slot' || Math.floor(at / 60000) === Math.floor(parseDate(d.end) / 60000)) return '';
+  const time = loc.time(minutesOf(at));
+  const when = at.toDateString() === new Date().toDateString() ? time : `${dayText(at, loc)} ${time}`;
+  return `<button ${attrs} data-at="${esc(iso)}">${esc(loc.t('untilNextSlot', { time: when }))}</button>`;
+}
+
 // What the schedule does now, until when, and what comes next: "Eco until 17:30, then Comfort"
 // (`plan` computed by the integration, like the schedule sensor: the next different preset, maybe
 // on another day); '' without one
@@ -1550,7 +1773,7 @@ function planText(plan, presetName, loc) {
   if (!start) return loc.t('allWeek', { current });
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const day = start.toDateString() === tomorrow.toDateString() ? loc.t('tomorrow') : loc.days[(start.getDay() + 6) % 7].toLowerCase();
+  const day = start.toDateString() === tomorrow.toDateString() ? loc.t('tomorrow') : dayText(start, loc);
   const values = { current, time: loc.time(minutesOf(start)), next: presetName(plan.next_preset) };
   return start.toDateString() === new Date().toDateString() ? loc.t('untilThen', values) : loc.t('untilDayThen', { ...values, day });
 }
@@ -1909,13 +2132,15 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._render();
     };
     // A press outside the card closes its menus; not the ⋮ of the panel's page, which opens and
-    // closes the menu of a schedule's page itself
+    // closes the menu of a schedule's page itself. The settings dialog opens on top of a popover:
+    // a press or Escape in the dialog leaves the popover open under it
     this._onDocDown = (e) => {
       const path = e.composedPath();
+      if (fromSettings(e)) return;
       if (!path.includes(this) && !path.some((n) => n.matches && n.matches('[data-page-menu]'))) closePopups();
     };
     this._onKey = (e) => {
-      if (e.key === 'Escape') closePopups();
+      if (e.key === 'Escape' && !fromSettings(e)) closePopups();
     };
     document.addEventListener('pointerdown', this._onDocDown, true);
     document.addEventListener('keydown', this._onKey);
@@ -2139,7 +2364,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!d) return;
     const min = new Date(Date.now() + this._config.step * 60000);
     const f = endsAt < min ? min : endsAt;
-    this._sendOverride(climate, { ...d, end: f.toISOString() });
+    const { ends_at: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
+    this._sendOverride(climate, { ...chosen, end: f.toISOString() });
   }
 
   // A drag abandoned (a scroll, #67): its slots go back to where they were, nothing to save
@@ -2630,22 +2856,18 @@ class ChauffageProgrammeCard extends HTMLElement {
       <div class="ed-head">${value.temperature}</div>`;
     if (!d) return `<div class="editor override-ed">${head}${offNote}${values}</div>`;
     const endsAt = parseDate(d.end);
-    const today = new Date();
-    const dayLabel = endsAt.toDateString() === today.toDateString() ? t('today')
-      : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
-    const remaining = Math.max(0, Math.round((endsAt - today) / 60000));
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
-    const then = thenText(this._source(), climate, d, this._loc);
     return `<div class="editor override-ed">
       ${head}
       ${offNote}
       <div class="ed-head">
         <label>${esc(t('until'))} ${timeField(`data-override-end="${esc(climate)}" data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, this._config.step)}</label>
-        <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
+        <span class="muted">${overrideEndHtml(this._source(), climate, d, this._loc, this._hass)}</span>
       </div>
       ${values}
       <div class="ed-actions start">
         ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
+        ${nextSlotButton(this._source(), climate, d, this._loc, 'class="btn" data-act="override-next-slot"')}
       </div>
       <div class="ed-actions">
         <button class="btn danger" data-act="override-del">${esc(t('resume'))}</button>
@@ -3170,6 +3392,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (this._menu && !e.target.closest('.menu, [data-act="menu"]')) {
         this._menu = null;
         this._render();
+        return;
+      }
+      // The settings, on top of the card: its popover stays open under them
+      if (e.target.closest('[data-open-settings]')) {
+        openSettings(this, this._hass);
         return;
       }
       // Link to an entity's more-info dialog (thermostat, schedule's switch, select…)
@@ -3714,7 +3941,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         <button class="btn primary" data-act="thermostat-add">${esc(t('scheduleThermostat'))}</button></div></div>` : '';
     // The integration's page (admins): its options, its logs and its diagnostics
     const integration = editable
-      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="/config/integrations/integration/chauffage">${esc(t('integrationPage'))}</span>` : '';
+      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${INTEGRATION_PAGE}">${esc(t('integrationPage'))}</span>` : '';
     return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div><div class="th-list">${rows}</div>${add}
       ${integration ? `<div class="th-foot">${integration}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
   }
@@ -4207,6 +4434,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
       if (act === 'override-del') return this._sendOverride(c, null);
       if (act === 'override-add') return this._setOverrideEnd(c, endMovedBy(d.end, Number(ds.min)));
+      // The instant on the button: the one its label shows
+      if (act === 'override-next-slot') return this._sendOverride(c, { ...d, end: ds.at, ends_at: 'next_slot' });
     }
     if (act === 'cell' || act.startsWith('cell-')) return this._cellAction(act, ds);
     if (act.startsWith('rule-') || act.startsWith('rules-')) return this._rulesAction(act, ds);
@@ -4282,6 +4511,10 @@ const BADGE_STYLE = `
   .badge.on { background:rgba(67,160,71,.18); color:var(--success-color, #43a047); }
   .badge.paused { background:var(--warning-color, #ffa600); color:#000; font-weight:500; }
 `;
+
+// The box of a field typed in: a time field, a number (the more-info block, the settings dialog)
+const FIELD_BOX = 'font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);'
+  + ' background:var(--card-background-color); color:var(--primary-text-color);';
 
 // A time field and its small arrows (the card's popovers, the more-info block). Each arrow takes
 // a finger a few pixels beyond its edge, away from the other arrow.
@@ -4782,7 +5015,8 @@ class ChauffageMoreInfo extends HTMLElement {
     const d = this._currentOverride();
     if (!d) return;
     const min = new Date(Date.now() + MORE_INFO_CFG.step * 60000);
-    this._send({ ...d, end: (endsAt < min ? min : endsAt).toISOString() });
+    const { ends_at: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
+    this._send({ ...chosen, end: (endsAt < min ? min : endsAt).toISOString() });
   }
 
   // The active schedule's name, opening its page in the panel for an admin, and the thermostat's
@@ -4839,23 +5073,20 @@ class ChauffageMoreInfo extends HTMLElement {
       this._creating = false;
       const value = overrideValueHtml(d, dataSource(this._hass), this._entity, attrs, this._loc);
       const endsAt = parseDate(d.end);
-      const remaining = Math.max(0, Math.round((endsAt - new Date()) / 60000));
       const lastPiece = pieces.find((p) => p.isLast);
-      const dayLabel = endsAt.toDateString() === new Date().toDateString()
-        ? t('today') : this._loc.days[(endsAt.getDay() + 6) % 7].toLowerCase();
       const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
-      const then = thenText(dataSource(this._hass), this._entity, d, this._loc);
       status = `<div class="status derogation">
         <div class="line">
           <span class="override-value">⏱ ${esc(overrideLabel(d, this._loc, presetsOf(dataSource(this._hass), this._loc)))}</span>
           <label>${esc(t('until'))} ${timeField(`data-end data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, MORE_INFO_CFG.step)}</label>
-          <span class="muted">${esc(dayLabel)} · ${esc(t('remaining', { duration: durationText(remaining, this._loc) }))}${then ? ` · ${esc(then)}` : ''}</span>
+          <span class="muted">${overrideEndHtml(dataSource(this._hass), this._entity, d, this._loc, this._hass)}</span>
         </div>
         ${offNoteHtml(this._hass, this._entity, this._loc)}
         ${value.presets}
         <div class="line">${value.temperature}</div>
         <div class="btns">
           ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
+          ${nextSlotButton(dataSource(this._hass), this._entity, d, this._loc, 'data-next-slot')}
           <button class="danger" data-del>${esc(t('resume'))}</button>
         </div>
       </div>`;
@@ -4936,6 +5167,11 @@ class ChauffageMoreInfo extends HTMLElement {
       openMoreInfo(this, link.dataset.moreInfo);
       return;
     }
+    // The settings, on top of the more-info dialog, which stays open under them
+    if (e.target.closest('[data-open-settings]')) {
+      openSettings(this, this._hass);
+      return;
+    }
     const to = e.target.closest('[data-navigate]');
     if (to) {
       // In the more-info dialog: closed first, the page under it otherwise
@@ -4959,6 +5195,8 @@ class ChauffageMoreInfo extends HTMLElement {
     }
     if (!d) return;
     if (b.hasAttribute('data-del')) return this._send(null);
+    // The instant on the button: the one its label shows
+    if (b.hasAttribute('data-next-slot')) return this._send({ ...d, end: b.dataset.at, ends_at: 'next_slot' });
     this._setEnd(endMovedBy(d.end, Number(b.dataset.min)));
   }
 
@@ -5053,8 +5291,7 @@ const MORE_INFO_STYLE = `
     background:var(--primary-text-color); color:var(--card-background-color); }
   .override-handle:hover .tip, .override-handle.drag .tip { display:block; }
   .line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
-  input.time, input[type=number] { font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);
-    background:var(--card-background-color); color:var(--primary-text-color); }
+  input.time, input[type=number] { ${FIELD_BOX} }
   input[type=number] { width:5em; }
   ${TIME_FIELD_STYLE}
   .presets { display:flex; flex-wrap:wrap; gap:6px; }
@@ -5564,6 +5801,388 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
 }
 
 // =====================================================================
+//  The settings dialog (#83): Chauffage's settings, on top of the view the user is on. The reason
+//  of an override's end opens it (the card's popover, the more-info dialog, the thermostat card),
+//  as do the panel's ⚙, its notice and its next steps. Closing it, or the browser's Back, returns
+//  to that view as it was: nothing navigates. One section per subject, *Changes by hand* first.
+// =====================================================================
+const SETTINGS_DIALOG = 'chauffage-settings-dialog';
+// The integration's page in Home Assistant: its *Configure* opens the options flow
+const INTEGRATION_PAGE = '/config/integrations/integration/chauffage';
+// The notice of the setting *End of a change by hand* for existing users (#83): 'seen' once closed,
+// once the settings were opened, or for a new user, who gets the next steps (this browser)
+const LS_NEW_SETTING = 'chauffage-panel:override-settings';
+const seenNewSetting = () => { try { localStorage.setItem(LS_NEW_SETTING, 'seen'); } catch (e) { /* ignore */ } };
+
+// Opens the settings dialog on top of the current view. In Home Assistant, its dialog manager
+// (`show-dialog`) puts the dialog on top of the dialogs already open, the more-info dialog for
+// example, and gives it a history entry: Back closes it, and only it. Without Home Assistant's
+// frontend, the dialog opens by itself and takes its own history entry.
+function openSettings(from, hass) {
+  seenNewSetting();
+  // From the more-info block: leaving for a page closes the more-info dialog too
+  const moreInfo = from.localName === 'chauffage-moreinfo';
+  if (document.querySelector('home-assistant')) {
+    from.dispatchEvent(new CustomEvent('show-dialog', {
+      bubbles: true,
+      composed: true,
+      detail: { dialogTag: SETTINGS_DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { moreInfo } },
+    }));
+    return;
+  }
+  const dialog = document.querySelector(SETTINGS_DIALOG) || document.body.appendChild(document.createElement(SETTINGS_DIALOG));
+  dialog.hass = hass;
+  dialog.showDialog({ history: true, moreInfo });
+}
+
+// An event from inside the settings dialog: not a press outside a popover, nor its Escape
+const fromSettings = (e) => e.composedPath().some((n) => n.localName === SETTINGS_DIALOG);
+
+const SETTINGS_CSS = `
+  :host { color:var(--primary-text-color); }
+  /* The browser's dialog, when Home Assistant's is not there: as Home Assistant draws its own */
+  dialog.frame { box-sizing:border-box; width:min(560px, calc(100vw - 32px)); max-height:calc(100vh - 64px);
+    padding:0; border:0; border-radius:var(--ha-dialog-border-radius, 24px); overflow:auto;
+    background:var(--ha-dialog-surface-background, var(--card-background-color, #fff)); color:var(--primary-text-color);
+    box-shadow:var(--dialog-box-shadow, 0 8px 32px rgba(0,0,0,.3)); font-family:var(--ha-font-family-body, inherit); }
+  dialog.frame::backdrop { background:var(--mdc-dialog-scrim-color, rgba(0,0,0,.32)); }
+  /* A phone: the whole screen, as Home Assistant's dialogs */
+  @media (max-width:450px) { dialog.frame { width:100vw; max-width:100vw; height:100%; max-height:100%; border-radius:0; } }
+  .head { display:flex; align-items:center; gap:8px; padding:12px 8px 4px 24px; }
+  dialog .head { position:sticky; top:0; z-index:1; background:inherit; }
+  .head .title { flex:1; margin:0; font-size:22px; font-weight:400; line-height:1.3; }
+  .close { flex:none; display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px;
+    border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; }
+  .close svg { width:24px; height:24px; fill:currentColor; }
+  .close:hover { background:var(--secondary-background-color); }
+  dialog .body { padding:0 24px 24px; }
+  /* Big targets for a finger, nothing wider than a phone */
+  .override-settings h3 { margin:12px 0 4px; font-size:16px; font-weight:500; }
+  .override-settings p { margin:4px 0 8px; line-height:1.5; }
+  .override-settings .note { font-size:13px; color:var(--secondary-text-color); }
+  .override-settings .saved { color:var(--success-color, #43a047); font-size:14px; }
+  .duration-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:8px 0 4px; }
+  .duration-row label { font-weight:500; }
+  .error { padding:6px 0; color:var(--error-color, #db4437); }
+  /* The other options: a link a finger can reach, under a divider */
+  .foot { margin-top:16px; padding-top:8px; border-top:1px solid var(--divider-color); }
+  .foot a { display:inline-flex; align-items:center; min-height:44px; color:var(--primary-color); font-weight:500; text-decoration:none; }
+  .foot a:hover { text-decoration:underline; }
+  .choices { display:flex; flex-direction:column; gap:8px; margin:8px 0; }
+  .choice { display:flex; align-items:center; gap:12px; padding:10px 12px; min-height:44px; box-sizing:border-box;
+    border:1px solid var(--ha-card-border-color, var(--divider-color)); border-radius:var(--ha-card-border-radius, 12px);
+    cursor:pointer; }
+  /* The choice made: a 2 px border, as Home Assistant's own boxes to choose from */
+  .choice:has(input:checked) { border-color:var(--primary-color); box-shadow:inset 0 0 0 1px var(--primary-color); }
+  .choice input { flex:0 0 auto; width:20px; height:20px; margin:0; accent-color:var(--primary-color); }
+  .choice-label { min-width:0; }
+  /* The duration: a stepped field, the same as the end of an override */
+  .duration-field { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
+  input.time { ${FIELD_BOX} }
+  ${TIME_FIELD_STYLE}
+`;
+
+class ChauffageSettingsDialog extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    linksByKeyboard(this.shadowRoot);
+    this._open = false;
+    // The duration of a change by hand: a stepped field, as the cards' time fields
+    listenTimeFields(this, (el) => this._durationDone(el));
+    // The settings: sent at once, as Home Assistant's own settings
+    this.shadowRoot.addEventListener('change', (e) => {
+      if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
+    });
+    // Its ✕, and a tap outside the browser's dialog (on its backdrop: the dialog element itself)
+    this.shadowRoot.addEventListener('click', (e) => {
+      const other = e.target.closest('[data-other-options]');
+      if (other) {
+        e.preventDefault();
+        this._leaveTo(other.getAttribute('href'));
+        return;
+      }
+      if (e.target.closest('[data-close]') || (e.target === this._frame && e.target.localName === 'dialog')) this.closeDialog();
+    });
+    // Its own history entry (without Home Assistant's dialog manager): Back closes it
+    this._onPop = () => {
+      this._popped = true;
+      this.closeDialog();
+    };
+    // Escape, in Material's ha-dialog (Home Assistant 2025.1): this dialog only (_build)
+    this._onEscape = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      this.closeDialog();
+    };
+  }
+
+  // Given by Home Assistant's dialog manager, and kept up to date
+  set hass(hass) {
+    this._hass = hass;
+    if (this._open) this._update();
+  }
+
+  get hass() {
+    return this._hass;
+  }
+
+  get _loc() {
+    return makeLocale(this._hass);
+  }
+
+  get _t() {
+    return makeLocale(this._hass).t;
+  }
+
+  // Home Assistant's dialog manager calls it; { history: true } when the dialog opens by itself
+  showDialog(params = {}) {
+    if (this._open) return;
+    this._cancelLeave(); // opened again before a page left for: that page stays closed
+    this._open = true;
+    this._ownHistory = !!(params && params.history);
+    this._moreInfo = !!(params && params.moreInfo); // opened from the more-info block
+    this._popped = false;
+    seenNewSetting();
+    this._unlisten = INTEGRATION.listen(() => this._update());
+    this._build();
+    this._update();
+    if (this._ownHistory) {
+      window.history.pushState({ [SETTINGS_DIALOG]: true }, '');
+      window.addEventListener('popstate', this._onPop);
+    }
+  }
+
+  // Home Assistant's dialog manager calls it on Back; the ✕, Escape and a tap outside too
+  closeDialog() {
+    const frame = this._frame;
+    if (frame && frame.localName === 'ha-dialog') frame.open = false; // hidden, then `closed`
+    else if (frame && typeof frame.close === 'function') frame.close();
+    else if (frame) frame.removeAttribute('open');
+    this._closed();
+    return true;
+  }
+
+  // Closed, once: Home Assistant is told (dialog-closed), and takes back its history entry. The
+  // dialog's own entry is taken back here, unless Back closed it.
+  _closed() {
+    if (!this._open) return;
+    this._open = false;
+    window.removeEventListener('keydown', this._onEscape, true);
+    if (this._unlisten) this._unlisten();
+    this._unlisten = null;
+    if (this._ownHistory) {
+      window.removeEventListener('popstate', this._onPop);
+      if (!this._popped && window.history.state && window.history.state[SETTINGS_DIALOG]) window.history.back();
+    }
+    this.dispatchEvent(new CustomEvent('dialog-closed', { bubbles: true, composed: true, detail: { dialog: SETTINGS_DIALOG } }));
+  }
+
+  // Home Assistant's own dialog when the page has it, else the browser's. Home Assistant's dialog
+  // changed: Material's until 2025 (a `heading`, our ✕), then Web Awesome's (a `headerTitle`, its
+  // own ✕). Both are `open`, and say `closed` once hidden.
+  _build() {
+    const t = this._t;
+    const title = t('settingsTitle');
+    const close = `<button class="close" data-close title="${esc(t('close'))}" aria-label="${esc(t('close'))}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI.close}"></path></svg></button>`;
+    // The duration's field stays across updates: only the parts under it are filled again
+    const body = `<div class="body"><section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
+        <p class="intro">${esc(t('overrideEndIntro'))}</p>
+        <div class="duration-row"><div class="duration-field"></div><span data-fill="settings-saved"></span></div>
+        <div data-fill="settings"></div></section>${this._footHtml()}</div>`;
+    this.shadowRoot.innerHTML = `<style>${SETTINGS_CSS}</style>`;
+    const HaDialog = customElements.get('ha-dialog');
+    let frame;
+    if (HaDialog) {
+      frame = document.createElement('ha-dialog');
+      if ('headerTitle' in HaDialog.prototype) {
+        frame.headerTitle = title;
+      } else {
+        frame.heading = title; // Material's dialog shows its heading slot only with a heading
+        frame.hideActions = true; // no buttons at its foot: no empty band there
+        frame.insertAdjacentHTML('beforeend', `<div slot="heading" class="head"><h2 class="title">${esc(title)}</h2>${close}</div>`);
+        // Every Material dialog open closes on an Escape pressed anywhere: the more-info dialog
+        // under this one too. Escape is caught first, and closes this dialog only
+        window.addEventListener('keydown', this._onEscape, true);
+      }
+      frame.insertAdjacentHTML('beforeend', body);
+      // Closed by its own ✕, Escape or a tap outside: the newer dialog stays `open` until told. A
+      // late `closed` of a former frame (closed, then opened again during its animation) is not ours
+      frame.addEventListener('closed', (e) => {
+        if (e.target !== frame || frame !== this._frame) return;
+        this._closed();
+        if (frame.open) frame.open = false;
+      });
+    } else {
+      frame = document.createElement('dialog');
+      frame.setAttribute('aria-labelledby', 'settings-title');
+      frame.innerHTML = `<div class="head"><h2 class="title" id="settings-title">${esc(title)}</h2>${close}</div>${body}`;
+      // Escape: closed as by its ✕
+      frame.addEventListener('cancel', (e) => {
+        e.preventDefault();
+        this.closeDialog();
+      });
+      frame.addEventListener('close', () => this._closed());
+    }
+    frame.classList.add('frame');
+    this.shadowRoot.appendChild(frame);
+    this._frame = frame;
+    if (HaDialog) frame.open = true;
+    else if (typeof frame.showModal === 'function') frame.showModal();
+    else frame.setAttribute('open', '');
+  }
+
+  // The foot: the other options of the integration (the options flow), on its page in Home
+  // Assistant, where *Configure* opens them. Admins only, as that page.
+  _footHtml() {
+    if (!isAdmin(this._hass)) return '';
+    const t = this._t;
+    return `<div class="foot"><a href="${INTEGRATION_PAGE}" data-other-options>${esc(t('otherOptions'))}</a></div>`;
+  }
+
+  // Leaving for a page: the dialog closes first, and the history entry it had is taken back (Home
+  // Assistant goes back for it). The page opens once that is done, else going back would undo it.
+  // The more-info dialog under it closes too (leaveMoreInfo). Back then returns to the view.
+  // Opened again or removed before then: the page is not opened (_cancelLeave).
+  _leaveTo(path) {
+    this._cancelLeave();
+    this.closeDialog();
+    const gone = () => {
+      const state = window.history.state;
+      return !(state && (state.dialog === SETTINGS_DIALOG || state[SETTINGS_DIALOG]));
+    };
+    let stopMoreInfo = null;
+    const stopBack = afterHistoryBack(gone, () => {
+      if (this._moreInfo) stopMoreInfo = leaveMoreInfo(this, () => navigate(path));
+      else navigate(path);
+    });
+    this._stopLeave = () => {
+      stopBack();
+      if (stopMoreInfo) stopMoreInfo();
+    };
+  }
+
+  // A page left for and not opened yet stays closed
+  _cancelLeave() {
+    if (this._stopLeave) this._stopLeave();
+    this._stopLeave = null;
+  }
+
+  disconnectedCallback() {
+    this._cancelLeave();
+    clearTimeout(this._savedTimer);
+  }
+
+  // Not once off the page: its former Home Assistant would subscribe again (dataSource)
+  _update() {
+    if (!this._open || !this._hass || !this.isConnected) return;
+    const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
+    if (settings) this._fillSettings(settings, dataSource(this._hass));
+  }
+
+  // A field typed in is drawn again once left (timeFieldDone)
+  _render() {
+    this._update();
+  }
+
+  // The section *Overrides* (#83). The duration first, then the three ends of an override, each
+  // labelled with the user's own duration. Labels only: the README explains them (decisions.md)
+  _fillSettings(settings, src) {
+    const loc = this._loc;
+    const t = loc.t;
+    // A setting just sent shows at once, until the integration gives it back
+    const pending = this._settingsPending || {};
+    if (Object.entries(pending).every(([key, value]) => (key === 'override_duration' ? src.overrideDuration() : src.manualOverrideEnd()) === value)) {
+      this._settingsPending = null;
+    }
+    const minutes = (this._settingsPending && pending.override_duration) || src.overrideDuration();
+    const duration = roundDurationText(minutes, loc);
+    const current = (this._settingsPending && pending.manual_override_end) || src.manualOverrideEnd();
+    // A control waits for the answer to its own setting only
+    const busy = this._settingsBusy || {};
+    const field = this.shadowRoot.querySelector('.override-settings .duration-field');
+    if (field) this._fillDuration(field, minutes, !src.editable || !!busy.override_duration, loc);
+    const saved = this.shadowRoot.querySelector('[data-fill="settings-saved"]');
+    if (saved) {
+      setHtml(saved, this._settingsError && this._settingsErrorAt === 'duration'
+        ? `<span class="error" role="alert">${esc(this._settingsError)}</span>`
+        : this._settingsSaved ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
+    }
+    // The choices are drawn once, then updated in place: a click on a choice lands, even when the
+    // press on it has just left the duration field and sent the duration
+    const choices = [
+      ['duration', 'overrideEndDuration'],
+      ['next_slot_within_duration', 'overrideEndWithin'],
+      ['next_slot', 'overrideEndNextSlot'],
+    ];
+    setHtml(settings, `<div class="choices" role="radiogroup" aria-label="${esc(t('overrideEndTitle'))}">${choices.map(([value]) => `<label class="choice">
+        <input type="radio" name="override-end" value="${value}" data-override-end>
+        <span class="choice-label"></span>
+      </label>`).join('')}</div>
+        <p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>
+        <div data-fill="settings-end-error"></div>`);
+    choices.forEach(([value, label], i) => {
+      const choice = settings.querySelectorAll('.choice')[i];
+      const input = choice.querySelector('input');
+      input.checked = value === current;
+      input.disabled = !src.editable || !!busy.manual_override_end;
+      choice.querySelector('.choice-label').textContent = t(label, { duration });
+    });
+    setHtml(settings.querySelector('[data-fill="settings-end-error"]'), this._settingsError && this._settingsErrorAt !== 'duration'
+      ? `<div class="error">${esc(this._settingsError)}</div>` : '');
+  }
+
+  // The duration of a change by hand: a stepped field, the same as the end of an override, in hours
+  // and minutes ("2 h 45"), from 15 minutes to 24 hours, moved by 15 minutes by its arrows. Sent once
+  // left, on Enter, or at once by its small arrows; a duration out of range is refused here.
+  _fillDuration(field, minutes, disabled, loc) {
+    setHtml(field, `<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
+      ${durationField('id="override-duration" data-override-duration', minutes, loc,
+        { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`);
+  }
+
+  // The duration field left, on Enter or moved by its arrows
+  _durationDone(el) {
+    timeFieldDone(this, el, (minutes) => this._setSettings({ override_duration: minutes }), () => {
+      const loc = this._loc;
+      this._settingsError = loc.t('overrideDurationInvalid', { min: roundDurationText(OVERRIDE_DURATION_MIN, loc), max: roundDurationText(OVERRIDE_DURATION_MAX, loc) });
+      this._settingsErrorAt = 'duration';
+      this._settingsSaved = false;
+      this._update();
+    });
+  }
+
+  // A setting sent at once: its control waits for the answer, then says it is saved. The settings
+  // are sent one after the other: a choice clicked while the duration is sent waits for it.
+  _setSettings(settings) {
+    const [key] = Object.keys(settings);
+    this._settingsError = null;
+    this._settingsSaved = false;
+    this._settingsBusy = { ...this._settingsBusy, [key]: ((this._settingsBusy || {})[key] || 0) + 1 };
+    this._settingsPending = { ...this._settingsPending, ...settings };
+    this._update();
+    this._settingsSent = (this._settingsSent || Promise.resolve()).then(() => this._sendSettings(settings, key));
+    return this._settingsSent;
+  }
+
+  async _sendSettings(settings, key) {
+    try {
+      await dataSource(this._hass).setSettings(settings);
+      this._settingsSaved = true;
+      clearTimeout(this._savedTimer);
+      this._savedTimer = setTimeout(() => { this._settingsSaved = false; this._update(); }, 3000);
+    } catch (err) {
+      this._settingsError = this._t('error', { message: err.message || err.code || err });
+      this._settingsErrorAt = key === 'override_duration' ? 'duration' : 'end';
+      if (this._settingsPending) delete this._settingsPending[key];
+    }
+    this._settingsBusy = { ...this._settingsBusy, [key]: this._settingsBusy[key] - 1 };
+    this._update();
+  }
+}
+
+// =====================================================================
 //  The Chauffage panel (frontend.py): where an admin configures Chauffage. Lists, then sheets,
 //  as Home Assistant's settings:
 //  - a list has the panel's tabs: the schedules (and the activation rules), the thermostats,
@@ -5572,6 +6191,7 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
 //    /chauffage/schedules/<id>          every thermostat's week in this schedule
 //    /chauffage/thermostats/<climate>   this thermostat's week in every schedule, its presets
 //  A thermostat is named by its climate entity id, the key of a scheduled thermostat.
+//  The settings are a dialog, not a page: the ⚙ of the lists' toolbar opens it on top.
 //  Dashboards keep the cards, for everyday use.
 // =====================================================================
 // Thermostats first: everything starts from a scheduled thermostat, and a new user starts there
@@ -5580,11 +6200,14 @@ const PANEL_TABS = [['thermostats', 'viewThermostats'], ['schedules', 'pageSched
 // 'closed' once the user closed them (this browser)
 const LS_NEXT_STEPS = 'chauffage-panel:next-steps';
 
-// What a panel address shows: { list } or { sheet, id, list }, else { redirect }
+// What a panel address shows: { list } or { sheet, id, list }, else { redirect } (and { settings }
+// to open the settings dialog on top)
 function panelRoute(path, src, hass) {
   const [page = '', id = null] = (path || '').split('/').filter(Boolean).map(decodeURIComponent);
   // The address of a thermostat before the pages (/chauffage/<climate>)
   if (page.includes('.')) return { redirect: `thermostats/${page}` };
+  // The former Settings tab (#83): its links still open the settings, on top of the first tab
+  if (page === 'settings') return { redirect: PANEL_TABS[0][0], settings: true };
   if (page === 'thermostats' && id) {
     const to = renamedTo(hass, src, id);
     return to ? { redirect: `thermostats/${to}` } : { sheet: 'thermostat', id, list: 'thermostats' };
@@ -5621,12 +6244,10 @@ class ChauffagePanel extends HTMLElement {
     this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
     this.shadowRoot.addEventListener('change', (e) => {
       const box = e.target.closest('[data-pick]');
-      if (box) {
-        if (box.checked) this._picked.add(box.dataset.pick);
-        else this._picked.delete(box.dataset.pick);
-        this._update();
-        return;
-      }
+      if (!box) return;
+      if (box.checked) this._picked.add(box.dataset.pick);
+      else this._picked.delete(box.dataset.pick);
+      this._update();
     });
     // Closing or reloading the browser's page with weeks not saved yet: the browser asks
     this._onUnload = (e) => {
@@ -5714,6 +6335,13 @@ class ChauffagePanel extends HTMLElement {
     if (route.redirect) {
       window.history.replaceState(null, '', `/chauffage/${route.redirect}`);
       window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
+      // The settings open once for this address, after the redirect: their history entry comes
+      // after it. Home Assistant gives the new route a moment later.
+      // Not under a notice: without the integration's data, the dialog would show the defaults
+      if (route.settings && this._settingsFor !== this._route && isAdmin(hass) && !notice) {
+        this._settingsFor = this._route;
+        openSettings(this, hass);
+      }
       return;
     }
     // The page is built again when what it is made of changes; its live parts are filled each time
@@ -5778,7 +6406,12 @@ class ChauffagePanel extends HTMLElement {
     } else {
       const tabs = PANEL_TABS.map(([page, label]) =>
         `<a href="/chauffage/${page}" class="tab${page === route.list ? ' on' : ''}" data-navigate="/chauffage/${page}">${esc(t(label))}</a>`).join('');
-      head = `<div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div></div>
+      // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (admins).
+      // Not under a notice, like the sheet's ⋮
+      const cog = isAdmin(this._hass) && !notice
+        ? `<button class="page-more" data-open-settings title="${esc(t('settingsTitle'))}" aria-label="${esc(t('settingsTitle'))}"><ha-icon icon="mdi:cog"></ha-icon></button>`
+        : '';
+      head = `<div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div>${cog}</div>
         <nav class="tabs">${tabs}</nav>`;
     }
     this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>${head}<div class="content"></div>`;
@@ -5861,10 +6494,19 @@ class ChauffagePanel extends HTMLElement {
     const next = this.shadowRoot.querySelector('[data-fill="next"]');
     if (next) {
       let shown = false;
-      try { shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending'; } catch (e) { /* ignore */ }
+      let notice = false;
+      try {
+        shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending';
+        notice = localStorage.getItem(LS_NEW_SETTING) !== 'seen';
+      } catch (e) { /* ignore */ }
       setHtml(next, shown ? `<div class="box next-steps">
           <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
-          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li></ul></div>` : '');
+          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li><li>${esc(this._nextOverrideText(src))}
+            <div><button class="btn" data-open-settings>${esc(t('endsChoose'))}</button></div></li></ul></div>`
+        // An existing user never sees the next steps: the new setting is told once (#83)
+        : notice ? `<div class="notice new-setting"><span>${esc(t('newSettingNotice'))}
+            <a href="${panelPath('settings')}" data-open-settings>${esc(t('pageSettings'))}</a></span>
+            <button class="btn" data-close-new-setting>${esc(t('nextClose'))}</button></div>` : '');
     }
     // A week's heading: its schedule (a link to its sheet), and its ⋮ menu to copy it to another
     // schedule, as the card's menus
@@ -5992,6 +6634,14 @@ class ChauffagePanel extends HTMLElement {
       ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
   }
 
+  // How long a setpoint changed by hand lasts, as the settings of overrides say (#83)
+  _nextOverrideText(src) {
+    const loc = makeLocale(this._hass);
+    const duration = roundDurationText(src.overrideDuration(), loc);
+    const key = { duration: 'nextOverrideDuration', next_slot: 'nextOverrideNextSlot' }[src.manualOverrideEnd()] || 'nextOverride';
+    return loc.t(key, { duration });
+  }
+
   // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
   // every climate of Home Assistant to tick (none at first: Chauffage controls it at once)
   _welcomeHtml(src) {
@@ -6044,7 +6694,7 @@ class ChauffagePanel extends HTMLElement {
       this._update();
       return;
     }
-    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next]');
+    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next], [data-close-new-setting], [data-open-settings]');
     if (!el || !this.shadowRoot.contains(el)) return;
     e.preventDefault();
     const ds = el.dataset;
@@ -6102,6 +6752,11 @@ class ChauffagePanel extends HTMLElement {
         if (from && to) to._receiveWeek(route.id, from._week(route.id), from._scheduleName(from._schedule));
         return this._update();
       }
+      // The settings, on top of the panel: the notice of the new setting is then told
+      if ('openSettings' in ds) {
+        openSettings(this, this._hass);
+        return this._update();
+      }
       if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
       if (ds.navigate) return navigate(ds.navigate);
       if (ds.device) return openDevice(ds.device);
@@ -6127,6 +6782,10 @@ class ChauffagePanel extends HTMLElement {
         for (const card of Object.values(this._weekCards)) card._setWeekView(this._groupDays, this._historyOn);
         return this._update();
       }
+      if ('closeNewSetting' in ds) {
+        seenNewSetting();
+        return this._update();
+      }
       if ('closeNext' in ds) {
         try { localStorage.setItem(LS_NEXT_STEPS, 'closed'); } catch (err) { /* ignore */ }
         return this._update();
@@ -6137,6 +6796,7 @@ class ChauffagePanel extends HTMLElement {
         const climates = [...this._picked].sort();
         if (!climates.length) return undefined;
         try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
+        seenNewSetting(); // the next steps say it
         await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])), null,
           Object.fromEntries(climates.map((c) => [c, null])));
         this._picked.clear();
@@ -6217,6 +6877,9 @@ const PANEL_CSS = `
   .next-head { display:flex; align-items:center; gap:8px; }
   .next-head h2 { flex:1; margin:8px 0; }
   .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
+  .notice.new-setting { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
+  .notice.new-setting > span { flex:1 1 200px; }
+  .next-steps li > div { margin:4px 0 8px; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
@@ -6298,6 +6961,7 @@ function defineElements() {
   if (!customElements.get('chauffage-thermostat-card')) customElements.define('chauffage-thermostat-card', ChauffageThermostatCard);
   if (!customElements.get('chauffage-thermostat-card-editor')) customElements.define('chauffage-thermostat-card-editor', ChauffageThermostatCardEditor);
   if (!customElements.get('chauffage-panel')) customElements.define('chauffage-panel', ChauffagePanel);
+  if (!customElements.get(SETTINGS_DIALOG)) customElements.define(SETTINGS_DIALOG, ChauffageSettingsDialog);
 }
 defineElements();
 // The integration's module is loaded in parallel with HA's frontend, which replaces

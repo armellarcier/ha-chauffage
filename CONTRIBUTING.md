@@ -197,22 +197,44 @@ DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh      # Playwright + ffmp
 The demo needs the sample data, the *Pièces* view and the simulated week of a new development
 HA, with the French names *Normal*, *Vacances* and *Absent*.
 
-The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs). The browser clock is set to
-a Tuesday morning, with a demo override. The scenario then shows, in order:
+### The time of the demo
+
+The demo runs at the real time of the development HA, in its time zone. The integration
+computes the end of a change by hand from its own clock, so the browser can't fake the time.
+
+The scenario sets *End of overrides* to *For the override duration, or less if a slot starts
+first* before it starts, and sets it back at the end. Record the demo between 21:00 and 22:00,
+the development HA's time. A change by hand then ends at the next slot, at 22:30, and the card
+says "today, at the next slot". At another hour, the change by hand ends after 2 hours.
+
+To record at another hour, give the second development HA a time zone where it is between 21:00
+and 22:00, before you start it. For example, at 01:00 in Paris, it is 21:00 in `Etc/GMT+3`:
+
+```bash
+sed -i 's|Europe/Paris|Etc/GMT+3|' /tmp/ha-fresh/configuration.yaml
+```
+
+`scripts/demo.sh` warns you when the development HA is not between 21:00 and 22:00.
+
+### The scenario
+
+The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs). It shows, in order:
 
 1. a *Télétravail* schedule created as a copy of *Normal*, its days shown one by one, and its
    Tuesday edited;
 2. the Chauffage panel, opened from the card's top right, and its *Presets* tab: a preset's
    popover, then a thermostat's cell;
 3. *Vacances* activated;
-4. a thermostat's more-info dialog, then *Edit its week*, which opens its page in the panel;
+4. a thermostat's more-info dialog. The living room's setpoint is raised by one degree with the
+   dialog's +. The setpoint becomes an override, and the dialog says until when and why: "today,
+   at the next slot". Then *Edit its week* opens the thermostat's page in the panel;
 5. the thermostat cards of the *Pièces* view, with 30 more minutes for the living room's
    override;
-6. the living room's *History*, and one day shown larger. For this step, the scenario goes back
-   to the real time, because the history is real.
+6. the living room's *History*, and one day shown larger.
 
 At the end, the scenario restores everything: it removes the override and the new schedule,
-activates *Normal* again, and does not save the edits of the weeks.
+activates *Normal* again, sets *End of overrides* back, and does not save the edits of
+the weeks. If a run stops half-way, its log gives the setting to set back.
 
 ## Trying a version on a real Home Assistant
 

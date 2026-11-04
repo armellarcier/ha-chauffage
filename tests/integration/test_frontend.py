@@ -69,6 +69,22 @@ async def test_the_sidebar_follows_the_option_without_a_restart(bench: Bench):
         assert sidebar_entry(bench) == expected
 
 
+async def test_a_change_of_another_setting_leaves_the_panel_as_it_is(bench: Bench):
+    """Regression: every change from the settings dialog removed the panel and registered it
+    again. The panel is registered again only when the sidebar option changes."""
+    await setup_with_the_panel(bench)
+    with patch("custom_components.chauffage.frontend.async_register_built_in_panel") as register:
+        bench.entry.runtime_data.set_override_settings("next_slot", 60)
+        await bench.hass.async_block_till_done()
+        assert register.call_count == 0
+        options = bench.hass.config_entries.options
+        flow = await options.async_init(bench.entry.entry_id)
+        await options.async_configure(flow["flow_id"], {"override_duration": 60, "use_presets": True,
+                                                        "show_in_sidebar": False})
+        await bench.hass.async_block_till_done()
+        assert register.call_count == 1
+
+
 async def test_the_panel_leaves_the_sidebar_when_the_integration_is_disabled_or_deleted(bench: Bench):
     """A panel left behind would open on an empty page. The panel comes back with the integration."""
     await setup_with_the_panel(bench)

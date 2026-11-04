@@ -94,6 +94,8 @@ async def test_a_thermostat_added_to_the_schedules_is_watched_without_configurat
 # ----- during an override -----
 
 async def test_a_slot_change_does_not_overwrite_an_override(bench: Bench):
+    """An override ends at its end, not at a slot change (by default, a change by hand ends 2
+    hours later, whatever the slots)."""
     await start(bench)
     await bench.go_to("17:00")
     await bench.manual_setpoint("climate.salon", 21.5)  # override until 19:00
@@ -109,7 +111,8 @@ async def test_a_forced_realignment_spares_overridden_thermostats(bench: Bench):
     assert bench.applied() == {"climate.bureau": "eco"}
 
 
-async def test_a_new_manual_change_restarts_the_2_hours(bench: Bench):
+async def test_a_new_change_by_hand_far_from_the_next_slot_restarts_the_duration(bench: Bench):
+    """Changed at 10:00 then at 10:30, comfort at 17:30: 2 hours from the second change."""
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21)
     await bench.advance(30)

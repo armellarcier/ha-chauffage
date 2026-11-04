@@ -1,6 +1,6 @@
 // The Chauffage panel (#57): where an admin configures Chauffage, lists then sheets, one address
 // per page (docs/decisions.md, "Chauffage panel and devices"). Dashboard cards link to it.
-import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { ChauffagePanel, leaveMoreInfo, ICONS, serializeDay, MORE_INFO_CFG, reloadPage, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -285,6 +285,27 @@ describe('the Chauffage panel', () => {
       assert.equal($(panel(setup(), '/thermostats'), '.next-steps'), null, 'a user who did not start here sees none');
     });
 
+    test('the next steps say how long a setpoint changed by hand lasts, with a button that opens the settings', async () => {
+      const hass = fresh();
+      const manager = fakeDialogManager(hass);
+      const el = panel(hass, '/thermostats');
+      pick(el, 'climate.salon');
+      $(el, '[data-start]').click();
+      const data = integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } });
+      hass.push(data);
+      assert.match(text($(el, '.next-steps')),
+        /Une consigne changée à la main dure 2 h\. Ensuite, le thermostat reprend son planning\./);
+      hass.push({ ...data, manual_override_end: 'next_slot_within_duration', override_duration: 90 });
+      assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure 1 h 30, ou moins si un créneau commence avant\. Ensuite/);
+      hass.push({ ...data, manual_override_end: 'next_slot' });
+      assert.match(text($(el, '.next-steps')), /Une consigne changée à la main dure jusqu'au prochain créneau\. Ensuite/);
+      assert.equal(text($(el, '.next-steps .btn[data-open-settings]')), 'Choisir la durée des dérogations');
+      $(el, '.next-steps [data-open-settings]').click();
+      await tick();
+      assert.deepEqual(manager.shown.map((d) => d.dialogTag), ['chauffage-settings-dialog']);
+      assert.equal(window.location.pathname, '/chauffage/thermostats');
+    });
+
     test('the next steps stay closed once closed, on this browser', () => {
       const hass = fresh();
       const el = panel(hass, '/thermostats');
@@ -314,6 +335,50 @@ describe('the Chauffage panel', () => {
       const el = panel(fresh({ locale: { language: 'en' } }), '/thermostats');
       assert.equal(text($(el, '.welcome h2')), 'Welcome to Chauffage');
       assert.equal(text($(el, '[data-start]')), 'Schedule');
+    });
+  });
+
+  describe('telling existing users about the new setting (#83)', () => {
+    test('the Thermostats tab says once: new, choose how long a setpoint changed by hand lasts; its link opens the settings', async () => {
+      const hass = setup();
+      const manager = fakeDialogManager(hass);
+      const el = panel(hass, '/thermostats');
+      assert.match(text($(el, '.notice.new-setting')), /Nouveau : choisissez combien de temps dure une dérogation\./);
+      $(el, '.new-setting [data-open-settings]').click();
+      await tick();
+      assert.deepEqual(manager.shown.map((d) => d.dialogTag), ['chauffage-settings-dialog']);
+      assert.equal(window.location.pathname, '/chauffage/thermostats');
+      assert.equal($(el, '.new-setting'), null, 'gone once the settings are open');
+    });
+
+    test('closed, it stays closed on this browser', () => {
+      const el = panel(setup(), '/thermostats');
+      $(el, '.new-setting [data-close-new-setting]').click();
+      assert.equal($(el, '.new-setting'), null);
+      el.remove(); // the panel opened again, in the same browser
+      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
+    });
+
+    test('once the settings are open, from anywhere, the notice is gone', async () => {
+      const hass = setup();
+      fakeDialogManager(hass);
+      const el = panel(hass, '/schedules');
+      el.shadowRoot.querySelector('[data-open-settings]').click();
+      await tick();
+      el.remove(); // the panel opened again, in the same browser
+      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
+    });
+
+    test('a new user gets the next steps instead', () => {
+      const hass = setup({ weeks: {} });
+      const el = panel(hass, '/thermostats');
+      const box = $(el, '.welcome input[data-pick="climate.salon"]');
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      $(el, '[data-start]').click();
+      hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } }));
+      assert.ok($(el, '.next-steps'));
+      assert.equal($(el, '.new-setting'), null);
     });
   });
 

@@ -51,6 +51,18 @@ def test_the_slot_running_at_a_given_time():
     assert engine.slot_at(WEEKDAY, "23:59") == ("eco", False)
 
 
+def test_a_slot_in_the_hour_skipped_by_summer_time_starts_when_the_clocks_go_forward():
+    """Regression: Sunday 28 March 2027, 2:00 → 3:00. A 2:30 slot doesn't exist that day: the
+    engine applies it at 3:00 summer time (slot_at), so it starts then, not at 3:30."""
+    week = [[["00:00", "eco"], ["02:30", "comfort"], ["12:00", "eco"]]] * 7
+    now = datetime(2027, 3, 28, 1, 40, tzinfo=PARIS)
+    assert engine.current_and_next(week, now) == ("eco", "comfort", datetime(2027, 3, 28, 3, 0, tzinfo=PARIS))
+    assert engine.current_and_next(week, now)[2].utcoffset() == timedelta(hours=2)
+    # The next day, the 2:30 slot exists again
+    after = datetime(2027, 3, 28, 13, 0, tzinfo=PARIS)
+    assert engine.current_and_next(week, after)[2] == datetime(2027, 3, 29, 2, 30, tzinfo=PARIS)
+
+
 def test_current_and_next_slot_even_on_another_day():
     assert engine.current_and_next(WEEK, at("10:00")) == ("eco", "comfort", at("17:30"))
     # Friday 23:00 → Saturday 08:00
@@ -143,6 +155,36 @@ def test_no_override_when_nothing_relevant_changed_or_the_thermostat_is_off():
     assert engine.manual_change(heat("eco", 17, state="unavailable"), heat("none", 21), by_user=True) is None
 
 
+# ----- the end of a change by hand -----
+
+def next_change(entity_id="climate.salon", weeks=WEEKS, now=None, until=None):
+    now = now or at("18:00")
+    plan = engine.Plan(weeks, "normal", PRESETS, {}, {})
+    return plan.next_change(entity_id, now, heat(), not_before=now, until=until or now + timedelta(days=2))
+
+
+def test_the_next_slot_that_changes_the_target():
+    assert next_change() == at("22:30")
+
+
+def test_no_next_slot_without_a_week():
+    assert next_change("climate.cuisine") is None
+
+
+def test_no_next_slot_before_the_limit():
+    assert next_change(until=at("22:30")) is None
+
+
+def test_no_next_slot_in_a_week_on_a_single_preset():
+    weeks = {"climate.salon": {"normal": [[["00:00", "eco"]]] * 7}}
+    assert next_change(weeks=weeks, until=at("18:00", day=10)) is None
+
+
+def test_a_slot_of_an_unknown_preset_changes_nothing():
+    weeks = {"climate.salon": {"normal": [[["00:00", "eco"], ["19:00", "gone"], ["20:00", "comfort"]]] * 7}}
+    assert next_change(weeks=weeks) == at("20:00")
+
+
 # ----- data rules -----
 
 def test_days_are_normalized_like_in_the_card():
@@ -174,6 +216,13 @@ def test_overrides_are_validated():
     assert o["value"] == 21.5
     with pytest.raises(model.InvalidData):
         model.normalize_override({"kind": "temp", "value": 21, "start": "a", "end": "b"})
+
+
+def test_an_override_keeps_why_it_ends_if_the_reason_is_known():
+    base = {"kind": "temperature", "value": 21, "start": "a", "end": "b"}
+    assert model.normalize_override({**base, "ends_at": "next_slot"})["ends_at"] == "next_slot"
+    assert model.normalize_override({**base, "ends_at": "no_next_slot"})["ends_at"] == "no_next_slot"
+    assert "ends_at" not in model.normalize_override({**base, "ends_at": "whenever"})
 
 
 # ----- presets → climate presets or temperatures -----

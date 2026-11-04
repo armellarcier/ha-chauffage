@@ -175,6 +175,76 @@ async def test_the_logbook_tells_an_override_with_where_it_came_from_and_why_it_
         == "override ended (expired)"
 
 
+async def test_the_logbook_says_why_a_change_by_hand_ends_then(bench: Bench):
+    """The reason of the end, from the setting End of a change by hand (#83)."""
+    await start(bench, "10:00")
+    bench.hass.states.async_set("climate.salon", "heat", {"friendly_name": "Salon"})
+    change = {"entity_id": "climate.salon", "kind": "temperature", "value": 22, "preset": None,
+              "start": "2026-10-12T10:00:00+02:00", "end": "2026-10-12T12:00:00+02:00", "source": "thermostat"}
+    assert described(bench, "chauffage_override_started", **change, ends_at="duration")["message"] \
+        == "override started: 22 °C until Monday 12:00 (changed by hand, for 2 h)"
+    assert described(bench, "chauffage_override_started", **change, ends_at="next_slot")["message"] \
+        == "override started: 22 °C until Monday 12:00 (changed by hand, until the next slot)"
+    assert described(bench, "chauffage_override_started", **change, ends_at="no_next_slot")["message"] \
+        == "override started: 22 °C until Monday 12:00 (changed by hand, no slot ahead)"
+    ended = {"entity_id": "climate.salon", "reason": "expired", "start": "2026-10-12T10:00:00+02:00",
+             "end": "2026-10-12T11:30:00+02:00"}
+    assert described(bench, "chauffage_override_ended", **ended, ends_at="duration")["message"] \
+        == "override ended after 1 h 30"
+    assert described(bench, "chauffage_override_ended", **ended, ends_at="next_slot")["message"] \
+        == "override ended at the next slot"
+    assert described(bench, "chauffage_override_ended", **ended, ends_at="no_next_slot")["message"] \
+        == "override ended after a week, no slot ahead"
+    # Removed before its end: the reason of the removal, not of the end
+    assert described(bench, "chauffage_override_ended", **ended | {"reason": "card"}, ends_at="next_slot")["message"] \
+        == "override ended (from the card)"
+
+
+async def test_the_logbook_says_why_a_change_by_hand_ends_then_in_french(bench: Bench):
+    bench.hass.config.language = "fr"
+    await start(bench, "10:00")
+    change = {"entity_id": "climate.salon", "kind": "temperature", "value": 22, "preset": None,
+              "start": "2026-10-12T10:00:00+02:00", "end": "2026-10-13T22:30:00+02:00", "source": "thermostat"}
+    assert described(bench, "chauffage_override_started", **change, ends_at="next_slot")["message"] \
+        == "dérogation : 22 °C jusqu'à mardi 22:30 (changée à la main, jusqu'au prochain créneau)"
+    assert described(bench, "chauffage_override_started", **change | {"end": "2026-10-12T12:00:00+02:00"},
+                     ends_at="duration")["message"] \
+        == "dérogation : 22 °C jusqu'à lundi 12:00 (changée à la main, pendant 2 h)"
+    ended = {"entity_id": "climate.salon", "reason": "expired", "start": "2026-10-12T10:00:00+02:00",
+             "end": "2026-10-12T12:00:00+02:00"}
+    assert described(bench, "chauffage_override_ended", **ended, ends_at="duration")["message"] \
+        == "dérogation terminée au bout de 2 h"
+    assert described(bench, "chauffage_override_ended", **ended, ends_at="next_slot")["message"] \
+        == "dérogation terminée au prochain créneau"
+    assert described(bench, "chauffage_override_ended", **ended, ends_at="no_next_slot")["message"] \
+        == "dérogation terminée au bout d'une semaine, aucun créneau prévu"
+    assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="expired")["message"] \
+        == "dérogation terminée (expirée)"
+
+
+async def test_the_events_of_a_change_by_hand_carry_why_it_ends(bench: Bench):
+    await start(bench, "10:00")
+    events = []
+    for event_type in ("chauffage_override_started", "chauffage_override_ended"):
+        bench.hass.bus.async_listen(event_type, lambda event: events.append(dict(event.data)))
+    await bench.manual_setpoint("climate.salon", 21.5)
+    await bench.go_to("12:00")
+    await bench.hass.async_block_till_done()
+    started, ended = events
+    assert (started["ends_at"], started["start"], started["end"]) == (
+        "duration", "2026-10-12T10:00:00+02:00", "2026-10-12T12:00:00+02:00")
+    assert (ended["reason"], ended["ends_at"], ended["start"], ended["end"]) == (
+        "expired", "duration", "2026-10-12T10:00:00+02:00", "2026-10-12T12:00:00+02:00")
+
+
+async def test_the_events_of_an_override_from_the_card_say_no_reason(bench: Bench):
+    await start(bench, "10:00")
+    events = []
+    bench.hass.bus.async_listen("chauffage_override_started", lambda event: events.append(dict(event.data)))
+    await service(bench, "set_override", entity_id="climate.salon", temperature=22)
+    assert "ends_at" not in events[0]
+
+
 async def test_the_logbook_tells_a_schedule_activated_in_the_select_s_logbook(bench: Bench):
     """Next to the select's change ("Schedule → Away"), what activated it."""
     await start(bench)

@@ -22,15 +22,20 @@
         "description": "Réglages par défaut. Les préréglages et ce qu'ils signifient pour chaque thermostat se règlent dans le panneau Chauffage (onglet Préréglages).",
         "data": {
           "override_duration": "Durée des dérogations",
+          "manual_override_end": "Fin des dérogations",
           "use_presets": "Utiliser les préréglages des thermostats",
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale"
         },
         "data_description": {
-          "override_duration": "Combien de temps dure une dérogation, par exemple après un changement manuel, avant que le thermostat revienne à son planning.",
+          "override_duration": "Combien de temps dure une dérogation, au plus. Une consigne changée à la main devient une dérogation.",
+          "manual_override_end": "Quand s'arrête une dérogation. Un créneau qui commence dans moins de 15 min ne compte pas.",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
           "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
         }
       }
+    },
+    "error": {
+      "invalid_override_duration": "Choisissez un nombre entier de minutes."
     }
   },
   "entity": {
@@ -41,7 +46,18 @@
           "schedule_id": { "name": "Identifiant du planning" },
           "rules_choice": { "name": "Planning selon les règles" }
         }
+      },
+      "manual_override_end": {
+        "name": "Fin des dérogations",
+        "state": {
+          "duration": "Pendant la durée des dérogations",
+          "next_slot_within_duration": "Pendant la durée, ou moins si un créneau commence avant",
+          "next_slot": "Jusqu'au prochain créneau"
+        }
       }
+    },
+    "number": {
+      "override_duration": { "name": "Durée des dérogations" }
     },
     "switch": {
       "control": { "name": "Pilotage" },
@@ -93,6 +109,13 @@
     }
   },
   "selector": {
+    "manual_override_end": {
+      "options": {
+        "duration": "Pendant la durée des dérogations",
+        "next_slot_within_duration": "Pendant la durée, ou moins si un créneau commence avant",
+        "next_slot": "Jusqu'au prochain créneau"
+      }
+    },
     "preset": {
       "options": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" }
     }
@@ -142,6 +165,7 @@
     "paused": { "message": "{entity_id} est en pause : cliquez d'abord sur Piloter." },
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
     "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." },
-    "active_schedule_off": { "message": "{schedule} est le planning actif : allumez un autre planning pour en changer." }
+    "active_schedule_off": { "message": "{schedule} est le planning actif : allumez un autre planning pour en changer." },
+    "invalid_override_duration": { "message": "{value} minutes n'est pas une durée de dérogation valable. Choisissez un nombre entier de minutes." }
   }
 }

@@ -6,6 +6,23 @@ TITLE = "Chauffage"
 # Options (options flow)
 CONF_OVERRIDE_DURATION = "override_duration"
 DEFAULT_OVERRIDE_DURATION = 120  # minutes
+# When a change by hand ends (#83): after the override duration, at the next slot that changes the
+# thermostat's target but at the latest after the duration, or at the next slot however far
+CONF_MANUAL_OVERRIDE_END = "manual_override_end"
+DURATION, NEXT_SLOT_WITHIN_DURATION, NEXT_SLOT = "duration", "next_slot_within_duration", "next_slot"
+MANUAL_OVERRIDE_ENDS = (DURATION, NEXT_SLOT_WITHIN_DURATION, NEXT_SLOT)
+DEFAULT_MANUAL_OVERRIDE_END = DURATION
+# Why an override from a change by hand ends then, stored with it: DURATION, NEXT_SLOT, or no slot
+# changes the target for a week (with NEXT_SLOT)
+NO_NEXT_SLOT = "no_next_slot"
+# A slot starting sooner after a change by hand does not end it: the change would last minutes
+MIN_MANUAL_OVERRIDE = 15  # minutes
+# With NEXT_SLOT and no slot changing the target, a change by hand ends after this time: every
+# override keeps an end (docs/decisions.md)
+MAX_MANUAL_OVERRIDE = 7 * 24 * 60  # minutes
+# The override duration, as the options flow and the number entity accept it: any whole number of
+# minutes in the range. The arrows of the panel move it by 15 minutes, a step that is not a rule.
+OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_STEP = 15, 1440, 1  # minutes
 CONF_USE_PRESETS = "use_presets"  # a preset uses the thermostat's climate preset with the same name
 DEFAULT_USE_PRESETS = True
 CONF_SHOW_IN_SIDEBAR = "show_in_sidebar"  # the Chauffage panel's entry in the sidebar

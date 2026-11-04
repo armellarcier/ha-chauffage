@@ -23,6 +23,8 @@ chauffage/rules/preview      {rules}: tries rules being typed, as the integratio
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled
                              thermostat. Any user who may control the thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
+chauffage/settings/set       {manual_override_end?, override_duration?}: the settings of overrides,
+                             in the integration's options (as the options flow and the entities)
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -49,7 +51,7 @@ from .runtime import DATA, ENTITIES, ChauffageRuntime, StaleRevision, Thermostat
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
                     ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat,
-                    ws_set_rules, ws_preview_rules, ws_history):
+                    ws_set_rules, ws_preview_rules, ws_history, ws_set_settings):
         websocket_api.async_register_command(hass, command)
 
 
@@ -315,3 +317,19 @@ async def ws_history(hass: HomeAssistant, connection: websocket_api.ActiveConnec
         connection.send_error(msg["id"], "invalid_format", "Invalid start_time or end_time")
         return
     connection.send_result(msg["id"], await runtime.history.read(msg["entity_ids"], start, end))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/settings/set",
+    vol.Optional("manual_override_end"): str,
+    vol.Optional("override_duration"): int,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_settings(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """The settings of overrides, from the panel: the integration's options, as the options flow
+    and the configuration entities change them."""
+    async def set_settings(runtime: ChauffageRuntime) -> None:
+        runtime.set_override_settings(msg.get("manual_override_end"), msg.get("override_duration"))
+
+    await _run(hass, connection, msg, set_settings)

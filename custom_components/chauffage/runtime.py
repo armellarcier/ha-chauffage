@@ -40,15 +40,26 @@ from homeassistant.util import dt as dt_util
 from . import engine, model, repairs
 from .history import TemperatureHistory
 from .const import (
+    CONF_MANUAL_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
     CONTROL_KEY,
+    DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
     DOMAIN,
+    DURATION,
     EVENT_OVERRIDE_ENDED,
     EVENT_OVERRIDE_STARTED,
     EVENT_SCHEDULE_ACTIVATED,
+    MANUAL_OVERRIDE_ENDS,
+    MAX_MANUAL_OVERRIDE,
+    MIN_MANUAL_OVERRIDE,
+    NEXT_SLOT,
+    NO_NEXT_SLOT,
+    OVERRIDE_DURATION_MAX,
+    OVERRIDE_DURATION_MIN,
+    OVERRIDE_DURATION_STEP,
     OVERRIDE_END_KEY,
     OVERRIDE_KEY,
     PLANNED_PRESET_KEY,
@@ -115,6 +126,18 @@ def _describe(command: engine.Target | dict[str, Any]) -> str:
     if isinstance(command, engine.Target):
         return f"{command.kind} {command.value}"
     return f"{command['kind']} {command['value']}"
+
+
+def _end_data(override: dict[str, Any]) -> dict[str, Any]:
+    """An override's start and end in local time, and why it ends then if known (a change by
+    hand, #83), for the events and the logbook."""
+    out = {}
+    for key in ("start", "end"):
+        if when := engine.parse_datetime(override.get(key)):
+            out[key] = dt_util.as_local(when).isoformat()
+    if override.get("ends_at"):
+        out["ends_at"] = override["ends_at"]
+    return out
 
 
 def _time(iso: str) -> str:
@@ -224,6 +247,42 @@ class ChauffageRuntime:
     @property
     def override_duration(self) -> int:
         return int(self.entry.options.get(CONF_OVERRIDE_DURATION, DEFAULT_OVERRIDE_DURATION))
+
+    @property
+    def manual_override_end(self) -> str:
+        """The setting *End of a change by hand*, for every thermostat: DURATION (the default),
+        NEXT_SLOT_WITHIN_DURATION or NEXT_SLOT (an unknown value: the default)."""
+        end = self.entry.options.get(CONF_MANUAL_OVERRIDE_END)
+        return end if end in MANUAL_OVERRIDE_ENDS else DEFAULT_MANUAL_OVERRIDE_END
+
+    def manual_override_end_of(self, entity_id: str) -> str:
+        """How a change by hand ends on this thermostat. The same setting for every thermostat
+        today: a setting per thermostat would be read here (#83)."""
+        return self.manual_override_end
+
+    @callback
+    def set_override_settings(self, manual_override_end: str | None = None,
+                              override_duration: int | None = None) -> None:
+        """Changes the settings of overrides in the integration's options, as the options flow
+        does: from the configuration entities and the panel. InvalidData for an unknown end or
+        a duration out of range or not in whole minutes."""
+        options: dict[str, Any] = {}
+        if manual_override_end is not None:
+            if manual_override_end not in MANUAL_OVERRIDE_ENDS:
+                raise model.InvalidData(f"unknown end of a change by hand: {manual_override_end}")
+            options[CONF_MANUAL_OVERRIDE_END] = manual_override_end
+        if override_duration is not None:
+            if (not OVERRIDE_DURATION_MIN <= override_duration <= OVERRIDE_DURATION_MAX
+                    or override_duration % OVERRIDE_DURATION_STEP):
+                raise model.InvalidData(f"override duration out of range or not in whole minutes: {override_duration}")
+            options[CONF_OVERRIDE_DURATION] = int(override_duration)
+        if options:
+            self.hass.config_entries.async_update_entry(self.entry, options={**self.entry.options, **options})
+
+    @callback
+    def options_changed(self) -> None:
+        """The options changed: the entities and the cards show them again."""
+        self._notify(DATA)
 
     @property
     def retrying(self) -> set[str]:
@@ -351,6 +410,7 @@ class ChauffageRuntime:
             "use_presets": self.use_presets,
             "revision": self.data["revision"],
             "override_duration": self.override_duration,
+            "manual_override_end": self.manual_override_end,
             "rules": self.data["rules"],
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,
@@ -407,12 +467,16 @@ class ChauffageRuntime:
         return engine.current_and_next(week, now or dt_util.now())
 
     def planned_presets(self) -> dict[str, dict[str, Any]]:
-        """What each scheduled thermostat follows now, and the next different preset."""
+        """What each scheduled thermostat follows now, the next different preset, and the next
+        slot a change made now would end at (the card's button *Until the next slot*, #83):
+        computed here, in Home Assistant's time zone, not in the browser's."""
         out = {}
         for entity_id in self.scheduled:
             current, next_preset, next_start = self.planned(entity_id)
+            slot = self.next_slot_end(entity_id, self.current(self.hass.states.get(entity_id)))
             out[entity_id] = {"preset": current, "next_preset": next_preset,
-                              "next_start": next_start.isoformat() if next_start else None}
+                              "next_start": next_start.isoformat() if next_start else None,
+                              "next_slot_end": slot.isoformat() if slot else None}
         return out
 
     # ----- writing -----
@@ -764,6 +828,17 @@ class ChauffageRuntime:
             override["value"] = engine.fit_temperature(override["value"], current)
         target = engine.Target(override["kind"], override["value"])
         before = self.data["overrides"].get(entity_id)
+        # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
+        # Compared as instants: the card sends the same end in UTC. A new start makes a new
+        # override: a duration counted from the former start would be wrong.
+        same_end = before is not None and all(
+            engine.parse_datetime(before.get(key)) == engine.parse_datetime(override.get(key)) for key in ("start", "end"))
+        if override.get("ends_at") == NEXT_SLOT and self.is_next_slot(entity_id, override["end"], current):
+            pass  # "Until the next slot" on the card: checked here, not taken on trust
+        elif same_end and "ends_at" in before:
+            override["ends_at"] = before["ends_at"]
+        else:
+            override.pop("ends_at", None)
         new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
         if (new_value or resend) and not left_alone and self.needs(entity_id, target, current):
@@ -771,6 +846,19 @@ class ChauffageRuntime:
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
         self._changed()
+
+    def next_slot_end(self, entity_id: str, current: engine.Thermostat | None) -> datetime | None:
+        """The start of the next slot that changes the thermostat's target, as for a change by
+        hand made now: at least MIN_MANUAL_OVERRIDE minutes away, within a week. None without one."""
+        now = dt_util.now()
+        not_before = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
+        until = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MAX_MANUAL_OVERRIDE))
+        return self.plan().next_change(entity_id, now, current, not_before=not_before, until=until)
+
+    def is_next_slot(self, entity_id: str, end: str, current: engine.Thermostat | None) -> bool:
+        """Whether `end` is the next slot a change made now would end at (next_slot_end)."""
+        slot = self.next_slot_end(entity_id, current)
+        return slot is not None and slot == engine.parse_datetime(end)
 
     @callback
     def record_override(self, entity_id: str, override: dict[str, Any], context: Context | None = None) -> None:
@@ -797,8 +885,8 @@ class ChauffageRuntime:
         info = self.override_info(entity_id)
         if before is None or any(before.get(key) != override.get(key) for key in ("kind", "value", "preset")):
             _LOGGER.info("%s: override started by %s: %s until %s", entity_id, source, _describe(override), info["end"])
-            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source},
-                                     context=context)
+            self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source,
+                                                              **_end_data(override)}, context=context)
         elif before.get("end") != override.get("end"):
             _LOGGER.info("%s: override until %s, set by %s", entity_id, info["end"], source)
 
@@ -809,13 +897,37 @@ class ChauffageRuntime:
         if override is None:
             return False
         _LOGGER.info("%s: override ended (%s): %s", entity_id, reason, _describe(override))
-        self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason}, context=context)
+        self.hass.bus.async_fire(EVENT_OVERRIDE_ENDED, {"entity_id": entity_id, "reason": reason, **_end_data(override)},
+                                 context=context)
         return True
 
     def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
         start = dt_util.now().replace(microsecond=0)
-        end = end or start + timedelta(minutes=minutes or self.override_duration)
+        # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
+        end = end or dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=minutes or self.override_duration))
         return {"kind": kind, "value": value, "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
+
+    def manual_override(self, entity_id: str, kind: str, value: Any, current: engine.Thermostat | None) -> dict[str, Any]:
+        """The override of a change by hand (#83), by the setting *End of a change by hand*:
+        after the override duration (DURATION), at the next slot that changes the thermostat's
+        target in the active schedule but at the latest after the duration
+        (NEXT_SLOT_WITHIN_DURATION), or at that slot however far (NEXT_SLOT: a week later
+        without one). A slot starting less than MIN_MANUAL_OVERRIDE minutes after the change
+        does not count. Computed once, now: a schedule activated or a setting changed later does
+        not move the end."""
+        setting = self.manual_override_end_of(entity_id)
+        unbounded = setting == NEXT_SLOT
+        override = self.new_override(kind, value, MAX_MANUAL_OVERRIDE if unbounded else None)
+        if setting == DURATION:
+            return override | {"ends_at": DURATION}
+        # In the local time zone (not a fixed offset): the slots follow its DST changes
+        start, end = (dt_util.as_local(engine.parse_datetime(override[key])) for key in ("start", "end"))
+        # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
+        not_before = dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
+        slot = self.plan().next_change(entity_id, start, current, not_before=not_before, until=end)
+        if slot is not None:
+            return override | {"end": slot.isoformat(), "ends_at": NEXT_SLOT}
+        return override | {"ends_at": NO_NEXT_SLOT if unbounded else DURATION}
 
     def preset_override(self, entity_id: str, preset_id: str, minutes: int | None = None,
                         end: datetime | None = None) -> dict[str, Any] | None:
@@ -1034,4 +1146,4 @@ class ChauffageRuntime:
                 resume = self.set_override(new.entity_id, None, source="thermostat", context=context)
                 self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
-        self.record_override(new.entity_id, self.new_override(*change), context)
+        self.record_override(new.entity_id, self.manual_override(new.entity_id, *change, after), context)

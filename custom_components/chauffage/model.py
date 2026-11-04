@@ -21,9 +21,15 @@ Vocabulary: docs/glossary.md.
                      Assistant, for the cards whose configuration still holds the former id
     overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
                                           "preset": "comfort" (optional), "start": ISO datetime,
-                                          "end": ISO datetime}}: kind and value are what the
-                     thermostat is set to; "preset", the Chauffage preset picked (card, service),
-                     which they mean on this thermostat (none for a change by hand)
+                                          "end": ISO datetime,
+                                          "ends_at": "duration" | "next_slot" |
+                                                     "no_next_slot" (optional)}}: kind
+                     and value are what the thermostat is set to; "preset", the Chauffage preset
+                     picked (card, service), which they mean on this thermostat (none for a change
+                     by hand); "ends_at", why a change by hand ends then: after the override
+                     duration, at the next slot, or a week later as no slot changes its target
+                     (none once its end is chosen on the card, nor before #83: an optional key,
+                     no migration)
     pending:         {climate entity id: [{"kind": "temperature" | "preset", "value": 20.0 | "comfort",
                                            "sent": ISO datetime}, …]}: commands sent that the
                      thermostat does not show yet, oldest first (a battery valve applies them
@@ -45,7 +51,9 @@ import re
 import unicodedata
 from typing import Any
 
-from .const import DEFAULT_PRESET_COLOR, DEFAULT_PRESET_TEMPERATURE, DEFAULT_PRESETS, PRESET_NAMES
+from .const import DEFAULT_PRESET_COLOR, DEFAULT_PRESET_TEMPERATURE, DEFAULT_PRESETS, DURATION, NEXT_SLOT, NO_NEXT_SLOT, PRESET_NAMES
+
+OVERRIDE_ENDS = (DURATION, NEXT_SLOT, NO_NEXT_SLOT)  # why a change by hand ends then
 
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 DEFAULT_DAY = [["00:00", "eco"]]
@@ -315,4 +323,6 @@ def normalize_override(override: Any) -> dict[str, Any]:
     preset = override.get("preset")
     if isinstance(preset, str) and preset:
         out["preset"] = preset
+    if override.get("ends_at") in OVERRIDE_ENDS:
+        out["ends_at"] = override["ends_at"]
     return out

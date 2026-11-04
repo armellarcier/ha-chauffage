@@ -8,8 +8,9 @@ See tests/integration/test_engine.py.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
@@ -145,21 +146,31 @@ def slot_at(day: list[list[str]], hhmm: str) -> tuple[str | None, bool]:
     return preset, starts_now
 
 
-def current_and_next(week: list[list[list[str]]], now: datetime) -> tuple[str | None, str | None, datetime | None]:
-    """Preset planned now, then the next different one and when it starts (within 7 days)."""
+def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[datetime, str]]:
+    """(start, preset) of the slots starting after now, for 7 days, in order. Every start is
+    an instant after now."""
     hhmm = now.strftime("%H:%M")
-    current, _ = slot_at(week[now.weekday()], hhmm)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     for offset in range(8):
-        day = (now.weekday() + offset) % 7
-        for start, preset in week[day]:
+        for start, preset in week[(now.weekday() + offset) % 7]:
             if offset == 0 and start <= hhmm:
                 continue
-            if preset != current:
-                hours, minutes = (int(x) for x in start.split(":"))
-                # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
-                when = (midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes)
-                return current, preset, when
+            hours, minutes = (int(x) for x in start.split(":"))
+            # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
+            when = _first_instant_at((midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes, fold=0))
+            if _utc(when) <= _utc(now):
+                # Now is in the second pass of the hour repeated when summer time ends: the slot
+                # starts in that second pass too (its time of day is after now's)
+                when = when.replace(fold=1)
+            yield when, preset
+
+
+def current_and_next(week: list[list[list[str]]], now: datetime) -> tuple[str | None, str | None, datetime | None]:
+    """Preset planned now, then the next different one and when it starts (within 7 days)."""
+    current, _ = slot_at(week[now.weekday()], now.strftime("%H:%M"))
+    for when, preset in slots_after(week, now):
+        if preset != current:
+            return current, preset, when
     return current, None, None
 
 
@@ -184,15 +195,59 @@ class Plan:
     overrides: dict[str, Any]
     use_presets: bool = True
 
-    def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
+    def week(self, entity_id: str) -> list[list[list[str]]] | None:
+        """The thermostat's week in the active schedule (None: none, or not 7 days)."""
         week = self.weeks.get(entity_id, {}).get(self.schedule)
-        if not week or len(week) != 7:
+        return week if week and len(week) == 7 else None
+
+    def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
+        week = self.week(entity_id)
+        if week is None:
             return None, False
         return slot_at(week[now.weekday()], now.strftime("%H:%M"))
 
     def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
         preset, _ = self.preset_at(entity_id, now)
         return resolve(preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets)
+
+    def next_change(self, entity_id: str, now: datetime, thermostat: Thermostat | None, *,
+                    not_before: datetime, until: datetime) -> datetime | None:
+        """Start of the next slot that changes the thermostat's target, from `not_before` and
+        before `until` (None: no such slot). A slot giving the same target as the slot before it
+        changes nothing on the thermostat, so it does not count."""
+        week = self.week(entity_id)
+        if week is None:
+            return None
+        previous = self.expected(entity_id, now, thermostat)
+        mapping = self.mappings.get(entity_id)
+        for when, preset in slots_after(week, now):
+            if _utc(when) >= _utc(until):
+                return None
+            target = resolve(preset, self.presets, mapping, thermostat, self.use_presets)
+            if target is None or target == previous:
+                continue
+            previous = target
+            if _utc(when) >= _utc(not_before):
+                return when
+        return None
+
+
+def _first_instant_at(when: datetime) -> datetime:
+    """The first instant the local clock shows `when` or later. `when` itself, unless it falls in
+    the hour skipped when summer time starts: then the first minute after the jump, when slot_at
+    gives that slot (2:30 → 3:00 summer time, not 3:30)."""
+    wall = when.replace(tzinfo=None)
+    if _utc(when).astimezone(when.tzinfo).replace(tzinfo=None) == wall:
+        return when
+    instant = _utc(when.replace(fold=1))  # before the jump, the clock shows an earlier time
+    while instant.astimezone(when.tzinfo).replace(tzinfo=None) < wall:
+        instant += timedelta(minutes=1)
+    return instant.astimezone(when.tzinfo)
+
+
+def _utc(when: datetime) -> datetime:
+    """Datetimes sharing a time zone compare by wall-clock time: compare instants instead."""
+    return when.astimezone(timezone.utc)
 
 
 def targets(

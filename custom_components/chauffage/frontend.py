@@ -9,6 +9,7 @@ The card lives in `frontend/` (the package release, until v0.2.0, copies it next
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from homeassistant.components.frontend import (
@@ -51,7 +52,7 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     on every version, and its addresses still work."""
     if "frontend" not in hass.config.components:
         return
-    in_sidebar = entry.options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR)
+    in_sidebar = _in_sidebar(entry)
     async_remove_panel(hass, DOMAIN, warn_if_unknown=False)  # registered again when the option changes
     async_register_built_in_panel(
         hass,
@@ -63,6 +64,25 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
                                   "embed_iframe": False, "trust_external": False}},
         require_admin=True,
     )
+
+
+def _in_sidebar(entry: ConfigEntry) -> bool:
+    return entry.options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR)
+
+
+def sidebar_listener(entry: ConfigEntry) -> Callable[[HomeAssistant, ConfigEntry], Awaitable[None]]:
+    """The update listener of the sidebar option. Every setting saved updates the entry: the panel
+    is registered again only when the sidebar option changed since it was last registered."""
+    shown = _in_sidebar(entry)
+
+    async def listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        nonlocal shown
+        if _in_sidebar(entry) == shown:
+            return
+        shown = _in_sidebar(entry)
+        await async_register_panel(hass, entry)
+
+    return listener
 
 
 def async_remove_chauffage_panel(hass: HomeAssistant) -> None:

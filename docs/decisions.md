@@ -57,7 +57,82 @@ future contributor might question.
   already has that value: the thermostat coming back to it by itself does not end an override
   held past the next slots. A slot change never ends an override, even to a slot with the
   override's value: an override set for a day during the first comfort slot must still hold
-  when the next eco slot starts.
+  when the next eco slot starts. **Amended by #83**: the end of a change by hand is computed
+  from the next slot when the override starts (see below). Once computed, the end is an end like
+  any other, and a slot change still never ends an override.
+- **The user chooses how a change by hand ends** (#83). A fixed duration fails in a common case:
+  the living room raised at 21:30, during a comfort slot that ends at 22:30, heats until 23:30.
+  A classic thermostat keeps a change until the next scheduled change, but that rule fails in
+  another case: the office turned up at 18:30, whose next slot is at 6:00, heats all night. No
+  rule suits every home, so the setting *End of overrides* has three choices: the
+  override duration (`duration`), the next slot within the duration
+  (`next_slot_within_duration`), and the next slot however far (`next_slot`). The setting only
+  sets the end of a change detected on the thermostat. An end chosen on the card, in the panel or
+  given to `chauffage.set_override` is the user's choice, so it stays: an override set until
+  tomorrow 18:00 must hold through the night's slots.
+  - **The default is the override duration**, the behavior before #83. Existing users see no
+    change after the upgrade, and a user who wants the next slot chooses it. The value names
+    say what the end is, so a fourth choice can come without renaming the others.
+  - **A slot starting less than 15 minutes after the change does not count**, with both
+    next-slot choices. Raised at 17:50, with comfort at 18:00, the override would last 10
+    minutes: the user would see their change undone at once. The next slot that changes the
+    target counts instead. 15 minutes is the step of the duration's arrows: a shorter minimum
+    would undo a change made a few minutes before a slot, a longer one would skip short slots.
+  - **A slot giving the same target as the slot before it does not count.** Such a slot changes
+    nothing on the thermostat, so it is not a "scheduled change". The target is compared on
+    this thermostat: two presets at the same temperature give the same target. The same preset
+    on both sides of midnight is one slot.
+  - **Without a next slot, *Until the next slot* keeps the change a week.** A week on a single
+    preset has no slot that changes the target. The change should then last until the user ends
+    it, or until the thermostat goes back to its slot. An override without an end would touch
+    every reader of the override: the stored data, the scheduler that ends overrides, the
+    card's timeline and time field, the *Override end* sensor, the events, the logbook and the
+    services. A week is long enough to mean "until you end it" in a home, and every reader keeps
+    working. The override says why it ends then: `no_next_slot`, shown as "no slot ahead".
+  - **The end is computed once, when the override starts, from the active schedule.** A schedule
+    activated later, or the setting changed later, does not move the end. Recomputing it would
+    make the end of an override jump without anyone touching the thermostat, and the stored end
+    would no longer be the truth. A new change by hand computes a new end.
+  - **One setting for every thermostat, read through one function that takes the thermostat**
+    (`manual_override_end_of`). Some users will want a setting per room, for example 30 minutes
+    for the bathroom. A setting per thermostat can then come without changing the rule. Not
+    before a request: a choice per thermostat is one more thing to understand.
+  - **The override says why it ends then**, in an optional `ends_at` key: `duration`,
+    `next_slot` or `no_next_slot`. The key is optional, so the stored format needs no migration:
+    an override stored before #83 simply shows no reason. An end changed on the card drops the
+    key, because the end is then the user's choice. A new value keeps it, with the same end.
+  - **The reason is part of the end, in words**: "today, at the next slot", "today, 2 h after the
+    change", "in a week, no slot ahead". A first version listed "today · after 2 h · 2 h 00 left":
+    three fragments, and the duration twice. "then Eco (schedule)" keeps one form, with or
+    without a reason. A time left over a day counts in days, "7 d left". The same line serves
+    the card's popover, the more-info dialog and the thermostat card. For an administrator, a ⚙
+    after the reason shows on a phone that the words open the settings.
+  - **The reason leads to the setting.** Existing users never see the panel's next steps, and
+    the surprise happens on the override. So for an administrator the reason is a link that opens
+    the settings dialog. A user who is not an administrator cannot change the settings, so the
+    reason stays plain text. Existing users also get a one-time notice on the *Thermostats* tab.
+  - **"Until the next slot", for one override.** A user who wants one change to last the
+    afternoon should not have to change the setting for every thermostat. The button shows the
+    time, "Until 17:30 (next slot)", so that it is not mistaken for the setting, and so that the
+    user sees it may shorten the override. It is hidden when the override already ends then,
+    compared to the minute. The integration computes the next slot, in Home Assistant's time
+    zone, and publishes it for each thermostat with the planned preset. The card shows that
+    instant and sends exactly it, with `ends_at: next_slot`. A first version computed the next
+    slot in the browser, so a phone in another time zone sent a wrong instant. The integration
+    keeps the reason only if the end really is the next slot: the reason is never taken on trust
+    from the card.
+  - **The logbook and the events say why.** The started line ends with "(changed by hand, until
+    the next slot)", and an expired change by hand ends with "override ended at the next slot"
+    rather than "(expired)". The events carry `start` and `ends_at`, so the logbook can say "after
+    2 h" without reading the stored data.
+- **The settings of overrides live in the options, the panel and two entities** (#83). Users
+  did not find the override duration, three clicks away from the card in the integration's
+  options. The settings dialog shows both settings, with the user's own duration in the labels.
+  The *Chauffage* device gets two configuration entities, the select *End of overrides* and the number
+  *Override duration*, so a dashboard or an automation can change them, for example *Until the
+  next slot* during the holidays. The options stay the only state: the entities and the panel
+  read and write them (see "Entities"), so the options flow, the panel and the entities always
+  agree. A change of the options notifies the entities and the cards.
 - **Holding the slot's preset past the next slots is done from the card**, not by hand: the
   override popover (opened on an override, or from today's row menu, "Temporary setpoint…"),
   and the block in the thermostat's more-info dialog, create an override or change its value (a
@@ -285,6 +360,21 @@ dashboards, automations, scripts and by voice without the card
   schedule, the weeks, the overrides, the paused thermostats); entities show it and change it
   through the same methods as the card (`activate_schedule`, `set_paused`…). The select and the
   schedule switches cannot disagree.
+- **The settings of overrides are configuration entities** (#83): the select *End of a change
+  by hand* and the number *Override duration*, on the *Chauffage* device. They read and write
+  the integration's options, the only state of a setting, as the schedule switches read and
+  write the active schedule. Configuration entities, because they are settings, not everyday
+  actions. Fixed entity ids, `select.chauffage_manual_override_end` and
+  `number.chauffage_override_duration`, whatever the language. The number takes any whole
+  number of minutes, from 15 minutes to 24 hours, as the options flow.
+- **One rule for the override duration, on every path**: any whole number of minutes, from 15
+  minutes to 24 hours. The 15 minutes are only the step of the panel's arrows, not a rule: 50
+  minutes or 2 h 40 are durations too. The number entity and the options flow have a step of 1.
+  Home Assistant checks their minimum and maximum. Chauffage checks the whole minutes itself:
+  the options flow shows a form error, and the number entity raises a `ServiceValidationError`
+  with a translated message, not "Unknown error". `chauffage/settings/set` answers
+  `invalid_format`. A first version required a multiple of 15 minutes, so a number entity set to
+  50 gave "Unknown error".
 - **Home Assistant's own building blocks**: an entity's name and icon are customized in Home
   Assistant (entity registry), not stored by ha-chauffage. The card reads the icon chosen for a
   schedule's switch (`hass.entities`) and shows it on the schedule's tab; no icon by default (the
@@ -768,6 +858,74 @@ older one, the older one says so.
   The next steps stay until the user closes them; this browser remembers it.
 - **Before the first thermostat, the *Schedules* and *Presets* tabs say so**, with a link to
   the *Thermostats* tab. Their content stays: a user may create schedules first.
+- **The next steps say what a change by hand does** (#83), with the current setting, for example
+  "A setpoint you change by hand lasts 2 hours. Then the thermostat goes back to its schedule."
+  Overrides surprise users: the knob is turned, and two hours later the thermostat goes back to
+  its schedule. A button opens the settings dialog.
+- **A settings dialog, not a tab**, holds the *Overrides* section (#83). A first version
+  had a fourth tab, *Settings*. The tab was too heavy for two settings, and a fourth tab was cut
+  off on a 360 px phone. The UX reviews of #83 asked for a direct path from the surprise, a
+  layout read by touch at 360 px, labels that carry the duration, and little density, not for a
+  tab. Above all, the link from the reason of an override's end left the view: it closed the
+  more-info dialog, then opened the panel, and the card's popover was lost. The browser's Back
+  then returned to the dashboard without them.
+  - **The dialog opens on top of the view, without navigating**: from the reason of an
+    override's end (the card's popover, the more-info dialog, the thermostat card), from the ⚙ of
+    the panel's toolbar, from the one-time notice and from the next steps. Closing it, or Back,
+    returns to the view as it was, the popover or the more-info dialog still open.
+  - **Home Assistant's dialog manager opens it**: the card fires `show-dialog` with
+    `dialogTag: chauffage-settings-dialog`. The manager puts the dialog on top of the dialogs
+    already open, gives it `hass`, and gives it a history entry, so Back closes the top dialog
+    only. The dialog follows the manager's contract, from 2025.1 to today: `showDialog()`,
+    `closeDialog()`, and `dialog-closed` once closed. Over the more-info dialog, the manager
+    replaces the more-info's history entry instead of adding one. Back then closes the settings
+    and keeps the more-info open, without `?more-info-entity-id=` in the address.
+  - **Home Assistant's `ha-dialog` draws it when the page has it**, else the browser's
+    `<dialog>`, with `showModal()` and Home Assistant's colors. `ha-dialog` changed in 2025:
+    Material's dialog takes a `heading` and our ✕, Web Awesome's takes a `headerTitle` and has
+    its own ✕. Both are `open` and say `closed`. Without Home Assistant's frontend (no
+    `<home-assistant>`), the dialog opens by itself and takes its own history entry.
+  - **In Material's `ha-dialog` (Home Assistant 2025.1), Escape closes the settings dialog
+    only.** Every Material dialog open listens to Escape on the whole document, so one Escape
+    closed the settings dialog and the more-info dialog under it. While the settings dialog is
+    open in Material's dialog, it catches Escape on the window first, stops it, and closes
+    itself. Web Awesome's dialog is a browser `<dialog>`: Escape only reaches the dialog on top,
+    so the settings dialog leaves Escape to it. Material's dialog also gets `hideActions`: the
+    settings dialog has no buttons at its foot, and Material would show an empty band there.
+  - **A press or Escape in the dialog does not close the card's popover under it.**
+  - **Its foot links to the other options**, for an administrator: *Other Chauffage options*,
+    a link alone. Home Assistant offers no address that opens an options flow,
+    from 2025.1 to today, so the link opens the integration's page, where *Configure* opens them.
+    The link leaves the view: the dialog closes first, its history entry is taken back, then the
+    page opens. Back then returns to the view under the dialog.
+  - **`/chauffage/settings` still works**: it opens the *Thermostats* tab and the dialog on top.
+  - **One name: overrides.** The section is *Overrides*, the setting *End of overrides*, as the
+    card and the logbook say "override". One line under the heading says that a setpoint changed
+    by hand becomes an override.
+  - **The dialog keeps only labels, and the README explains.** The dialog reads like Home
+    Assistant's own settings: a heading, one line, the fields and their short labels. A sentence
+    and an example under each choice made the dialog heavy, and users found it hard to read. The
+    README's table explains the three ends, with the example of the living room and the office.
+  - **The duration first, then the choices that use it**, in the dialog, the options flow and the
+    README. Each choice carries the user's duration, "For 2 h (default)", "For 2 h, or less if a
+    slot starts first". The entity's states and the options flow keep static labels with "the
+    override duration", as they cannot follow a value.
+  - **Radio buttons, each a whole row to tap**, with a label only. One note under the choices,
+    always shown, says that a slot that starts in less than 15 minutes doesn't count.
+  - **The duration is a stepped field, the same code as the end of an override** ("until 01:30
+    ▲▼"): a text in hours and minutes, "2 h 45", with two small arrows that move it by 15 minutes,
+    from 15 minutes to 24 hours. One implementation serves both fields: the markup, the arrows,
+    the arrow keys, the reading of a typed value on leaving or on Enter, and the style. A kind of
+    field says how to show, read and move its value. A duration is typed as a time is, with the
+    same parsing: "4" is 4 h, "0040" 40 minutes, "245", "2:45" and "2h45" are 2 h 45. "165" is no
+    time, so no duration either. From 2 h 40, the arrows go to 2 h 45 or 2 h 30, as those of a
+    time field. A value out of range, or not a duration, is refused next to the field, and the
+    field shows the duration kept. A first version used a list of 15, 30, 45 minutes and whole
+    hours, then Home Assistant's dropdown: neither could give 2 h 45.
+  - **A change is sent at once**, as in Home Assistant's settings. The controls wait for the
+    answer, then say "Saved".
+  - **The dialog says nothing of the entities, nor that no thermostat is scheduled yet.** The
+    README documents the entities, and the settings work without a thermostat.
 
 ### The more-info block
 

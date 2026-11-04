@@ -30,6 +30,14 @@ TEXTS = {
             "card": "from the card", "panel": "from the panel", "service": "by a service",
             "paused": "thermostat paused", "forgotten": "thermostat forgotten",
         },
+        # Why a change by hand ends then (#83): when it starts, and when it expires
+        "started_why": "override started: {value} until {end} ({source}, {why})",
+        "ends": {"duration": "for {duration}", "next_slot": "until the next slot", "no_next_slot": "no slot ahead"},
+        "ended_at": {
+            "duration": "override ended after {duration}", "next_slot": "override ended at the next slot",
+            "no_next_slot": "override ended after a week, no slot ahead",
+        },
+        "hours": "{h} h", "hours_minutes": "{h} h {mm}", "minutes": "{m} min",
     },
     "fr": {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
@@ -46,6 +54,13 @@ TEXTS = {
             "card": "depuis la carte", "panel": "depuis le panneau", "service": "par un service",
             "paused": "thermostat en pause", "forgotten": "thermostat oublié",
         },
+        "started_why": "dérogation : {value} jusqu'à {end} ({source}, {why})",
+        "ends": {"duration": "pendant {duration}", "next_slot": "jusqu'au prochain créneau", "no_next_slot": "aucun créneau prévu"},
+        "ended_at": {
+            "duration": "dérogation terminée au bout de {duration}", "next_slot": "dérogation terminée au prochain créneau",
+            "no_next_slot": "dérogation terminée au bout d'une semaine, aucun créneau prévu",
+        },
+        "hours": "{h} h", "hours_minutes": "{h} h {mm}", "minutes": "{m} min",
     },
 }
 
@@ -82,19 +97,37 @@ def async_describe_events(
         local = dt_util.as_local(end)
         return f"{texts()['days'][local.weekday()]} {local.strftime('%H:%M')}"
 
+    def duration(data: dict[str, Any]) -> str:
+        """How long the override lasts: "2 h", "1 h 30", "45 min"."""
+        start, end = (engine.parse_datetime(data.get(key)) for key in ("start", "end"))
+        minutes = round((end - start).total_seconds() / 60) if start and end else 0
+        t = texts()
+        if minutes < 60:
+            return t["minutes"].format(m=minutes)
+        if minutes % 60 == 0:
+            return t["hours"].format(h=minutes // 60)
+        return t["hours_minutes"].format(h=minutes // 60, mm=f"{minutes % 60:02d}")
+
     @callback
     def started(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
         end = engine.parse_datetime(data.get("end"))
-        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"],
-                "message": t["started"].format(value=value(data), end=until(end),
-                                               source=t["sources"].get(data.get("source"), data.get("source")))}
+        source = t["sources"].get(data.get("source"), data.get("source"))
+        # A change by hand says why it ends then (#83)
+        why = t["ends"].get(data.get("ends_at"))
+        message = (t["started_why"].format(value=value(data), end=until(end), source=source,
+                                           why=why.format(duration=duration(data)))
+                   if why else t["started"].format(value=value(data), end=until(end), source=source))
+        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
 
     @callback
     def ended(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
-        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"],
-                "message": t["ended"].format(reason=t["reasons"].get(data.get("reason"), data.get("reason")))}
+        # Expired: when it was meant to end, for a change by hand (#83)
+        at = t["ended_at"].get(data.get("ends_at")) if data.get("reason") == "expired" else None
+        message = (at.format(duration=duration(data)) if at
+                   else t["ended"].format(reason=t["reasons"].get(data.get("reason"), data.get("reason"))))
+        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
 
     @callback
     def activated(event: Event) -> dict[str, Any]:

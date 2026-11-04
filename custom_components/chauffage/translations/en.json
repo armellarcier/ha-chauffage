@@ -22,15 +22,20 @@
         "description": "Default settings. Presets and what they mean for each thermostat are set in the Chauffage panel (Presets tab).",
         "data": {
           "override_duration": "Override duration",
+          "manual_override_end": "End of overrides",
           "use_presets": "Use the thermostats' presets",
           "show_in_sidebar": "Show Chauffage in the sidebar"
         },
         "data_description": {
-          "override_duration": "How long an override lasts, for example after a manual change, before the thermostat goes back to its schedule.",
+          "override_duration": "How long an override lasts, at most. A setpoint changed by hand becomes an override.",
+          "manual_override_end": "When an override ends. A slot that starts in less than 15 min doesn't count.",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }
       }
+    },
+    "error": {
+      "invalid_override_duration": "Choose a whole number of minutes."
     }
   },
   "entity": {
@@ -41,7 +46,18 @@
           "schedule_id": { "name": "Schedule id" },
           "rules_choice": { "name": "Schedule from the rules" }
         }
+      },
+      "manual_override_end": {
+        "name": "End of overrides",
+        "state": {
+          "duration": "For the override duration",
+          "next_slot_within_duration": "For the override duration, or less if a slot starts first",
+          "next_slot": "Until the next slot"
+        }
       }
+    },
+    "number": {
+      "override_duration": { "name": "Override duration" }
     },
     "switch": {
       "control": { "name": "Control" },
@@ -93,6 +109,13 @@
     }
   },
   "selector": {
+    "manual_override_end": {
+      "options": {
+        "duration": "For the override duration",
+        "next_slot_within_duration": "For the override duration, or less if a slot starts first",
+        "next_slot": "Until the next slot"
+      }
+    },
     "preset": {
       "options": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" }
     }
@@ -142,6 +165,7 @@
     "paused": { "message": "{entity_id} is paused: click Resume control first." },
     "thermostat_failed": { "message": "{entity_id} did not accept the change." },
     "unknown_schedule": { "message": "There is no schedule with the id {schedule}." },
-    "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." }
+    "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." },
+    "invalid_override_duration": { "message": "{value} minutes is not a valid override duration. Choose a whole number of minutes." }
   }
 }

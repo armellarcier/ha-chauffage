@@ -21,7 +21,7 @@ from .const import DEFAULT_SCHEDULES, DOMAIN, PLANNED_PRESET_KEY, SCHEDULE_ENTIT
 from .runtime import ChauffageRuntime
 from .store import ChauffageStore
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type ChauffageConfigEntry = ConfigEntry[ChauffageRuntime]
@@ -64,7 +64,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     await runtime.async_start()
     websocket.async_attach_subscribers(hass, runtime)  # cards open during a reload
     await frontend.async_register_panel(hass, entry)
-    entry.async_on_unload(entry.add_update_listener(frontend.async_register_panel))  # the sidebar option
+    entry.async_on_unload(entry.add_update_listener(frontend.sidebar_listener(entry)))
+    entry.async_on_unload(entry.add_update_listener(_options_changed))
 
     schedule_entity = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_schedule")
     importer.async_update_package_issue(hass, schedule_entity)
@@ -110,3 +111,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) -
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Deleting the integration deletes its data."""
     await ChauffageStore(hass).async_remove()
+
+
+async def _options_changed(hass: HomeAssistant, entry: ChauffageConfigEntry) -> None:
+    """The options changed (options flow, configuration entities, panel): the entities and the
+    cards show them again."""
+    entry.runtime_data.options_changed()

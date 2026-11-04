@@ -48,6 +48,8 @@ async def test_a_manual_change_turned_into_an_override_is_told(bench: Bench, eve
     assert events["chauffage_override_started"] == [{
         "entity_id": "climate.salon", "kind": "temperature", "value": 21.5, "preset": None,
         "end": "2026-10-12T12:00:00+02:00", "source": "thermostat",
+        # When it started, and why it ends then (#83)
+        "start": "2026-10-12T10:00:00+02:00", "ends_at": "duration",
     }]
 
 
@@ -82,9 +84,8 @@ async def test_an_override_ending_says_why(bench: Bench, events):
     await bench.set_override("climate.salon", bench.runtime.new_override("temperature", 22))
     await bench.runtime.forget("climate.salon")
     await bench.hass.async_block_till_done()
-    assert events["chauffage_override_ended"] == [
-        {"entity_id": "climate.salon", "reason": reason}
-        for reason in ("expired", "service", "card", "paused", "forgotten")
+    assert [(e["entity_id"], e["reason"]) for e in events["chauffage_override_ended"]] == [
+        ("climate.salon", reason) for reason in ("expired", "service", "card", "paused", "forgotten")
     ]
 
 
@@ -93,7 +94,8 @@ async def test_an_override_ended_by_going_back_to_the_schedule_on_the_thermostat
     await bench.manual_setpoint("climate.salon", 21.5)
     bench.thermostat("climate.salon", "eco", context=CTX_USER)  # back to the slot's preset
     await bench.hass.async_block_till_done()
-    assert events["chauffage_override_ended"] == [{"entity_id": "climate.salon", "reason": "thermostat"}]
+    (ended,) = events["chauffage_override_ended"]
+    assert (ended["entity_id"], ended["reason"]) == ("climate.salon", "thermostat")
 
 
 # ----- schedules -----

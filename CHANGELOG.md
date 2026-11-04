@@ -9,6 +9,54 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+No stored data is migrated. A setpoint changed by hand still lasts the override duration, 2 hours
+by default: the new settings below change nothing until you choose another end.
+
+### Added
+
+- **Choose how long an override lasts** (#83). The new setting *End of overrides* has three
+  choices. *For the override duration* is the default and keeps today's behavior. *For the
+  override duration, or less if a slot starts first* ends the change at the next slot if that
+  slot comes first. *Until the next slot* keeps the change until the next slot, however far, as
+  on a classic thermostat. Say you raise the living room at 21:30, and eco starts at 22:30: with
+  a next-slot choice, the living room goes back to eco at 22:30, not at 23:30. A slot that starts
+  less than 15 minutes after your change does not count. An end that you choose on the card, or
+  that an automation gives to `chauffage.set_override`, stays as it is.
+- **A settings dialog** (#83). The dialog opens on top of the page you are on, without leaving
+  it: from the reason of an override's end, from the ⚙ of the Chauffage panel, and from the
+  panel's notices. Close it, or press your browser's Back, and you are back where you were, with
+  the more-info dialog or the card's popover still open. Its *Overrides* section shows the
+  *Duration* and the three ends.
+  You type the duration in hours and minutes, as a time, for example `2:45`, or move it by 15
+  minutes with its small arrows. *Other Chauffage options*, at its foot, opens the integration's
+  page, where *Configure* holds the other options. Existing users see a one-time notice about the
+  new setting on the *Thermostats* tab.
+- **The override duration is any whole number of minutes**, from 15 minutes to 24 hours, in the
+  panel, the options and the number entity. For example, 50 minutes.
+- **Two entities on the *Chauffage* device** (#83): the select *End of overrides*
+  (`select.chauffage_manual_override_end`) and the number *Override duration*
+  (`number.chauffage_override_duration`). An automation can change the settings with them. The
+  panel, the options and the entities always agree.
+- **The override block says why the override ends then** (#83), for example "today, at the next
+  slot" or "today, 2 h after the change". An administrator taps these words to open the settings
+  dialog. You find the block in the thermostat's more-info dialog, on the thermostat
+  card, and in the card's override popover.
+- **Until the next slot, for one override** (#83). A button under the override, for example
+  "Until 17:30 (next slot)", sets its end to the next slot, whatever the setting.
+- **The logbook and the events say why a change by hand ends** (#83). The logbook says "until
+  the next slot" when the override starts, and "override ended at the next slot" or "override
+  ended after 2 h" when it expires. The override events carry `start` and `ends_at`.
+- **The panel's next steps say what a change by hand does** (#83), with a button that opens
+  the settings dialog.
+
+### Fixed
+
+- **An override started in the hour repeated when summer time ends lasts its full duration.**
+  Before, an override started at 2:10 winter time with a 30-minute duration ended at 2:40 summer
+  time, an hour before it started. Chauffage then ended it at once and undid your change.
+
 ## [0.8.2] - 2026-11-04
 
 No stored data is migrated.
