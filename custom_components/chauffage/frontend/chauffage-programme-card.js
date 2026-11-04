@@ -54,7 +54,7 @@ const I18N = {
     today: 'today',
     tomorrow: 'tomorrow',
     remaining: '{duration} left',
-    duration: '{h}h {mm}',
+    duration: '{h} h {mm}',
     durationDays: '{d} d',
     durationDaysHours: '{d} d {h} h',
     hours: '{h} h',

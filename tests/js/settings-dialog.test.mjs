@@ -306,6 +306,16 @@ describe('the settings dialog', () => {
       assert.equal(text($(el, '.override-settings .slot-note')), "A slot that starts in less than 15 min doesn't count.");
       assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), 'End of overrides');
     });
+
+    test('writes a duration the same way everywhere, in English as in French: "1 h 30", "2 h"', () => {
+      const en = settings(withSettings({ override_duration: 90 }, { locale: { language: 'en' } }));
+      assert.equal(label(en, 'duration'), 'For 1 h 30 (default)');
+      assert.equal($(en, '.override-settings input[data-override-duration]').value, '1 h 30');
+      cleanup();
+      const fr = settings(withSettings({ override_duration: 90 }));
+      assert.equal(label(fr, 'duration'), 'Pendant 1 h 30 (par défaut)');
+      assert.equal($(fr, '.override-settings input[data-override-duration]').value, '1 h 30');
+    });
   });
 
   test('its title names Chauffage; it says the same in English', () => {
