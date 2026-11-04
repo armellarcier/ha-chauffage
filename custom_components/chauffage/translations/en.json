@@ -28,7 +28,7 @@
         },
         "data_description": {
           "override_duration": "How long a setpoint changed by hand lasts, at most, before the thermostat goes back to its schedule. Not used with Until the next slot. A new override created on the card lasts this long too.",
-          "manual_override_end": "When a setpoint changed by hand ends. The next slot is the first one that changes the thermostat's setpoint, at least 15 minutes after the change. A change by hand is made on the thermostat or in Home Assistant. An end you choose on the card stays as you chose it. You can also change this setting in the Chauffage panel (Settings tab).",
+          "manual_override_end": "When a setpoint changed by hand ends. The next slot is the first one that changes the thermostat's setpoint, at least 15 minutes after the change. A change by hand is made on the thermostat or in Home Assistant. An end you choose on the card stays as you chose it. You can also change this setting in the Chauffage panel, with its ⚙ button.",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
         }

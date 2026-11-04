@@ -102,16 +102,14 @@ describe('more-info block', () => {
 
   test('for an admin, the reason of the end opens the settings of changes by hand, with a cog; plain text for others', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), 'climate.salon');
-    const link = el.shadowRoot.querySelector('.derogation [data-navigate="/chauffage/settings"]');
+    const link = el.shadowRoot.querySelector('.derogation [data-open-settings]');
     assert.equal(link.textContent, 'au prochain créneau ⚙');
     assert.equal(link.getAttribute('title'), 'Choisir comment se termine un changement à la main');
-    link.click();
-    assert.equal(window.location.pathname, '/chauffage/settings');
     cleanup();
     const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } });
     hass.user = { is_admin: false };
     const plain = block(hass, 'climate.salon');
-    assert.equal(plain.shadowRoot.querySelector('.derogation [data-navigate]'), null);
+    assert.equal(plain.shadowRoot.querySelector('.derogation [data-open-settings]'), null);
     assert.match(text(plain), /aujourd'hui, au prochain créneau · encore/);
   });
 
@@ -176,7 +174,7 @@ describe('more-info block', () => {
     card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click();
     const editor = card.shadowRoot.querySelector('.override-ed');
     assert.match(editor.textContent.replace(/\s+/g, ' '), /aujourd'hui, 2 h après le changement ⚙ · encore 1 h 30/);
-    assert.ok(editor.querySelector('[data-navigate="/chauffage/settings"]'));
+    assert.ok(editor.querySelector('[data-open-settings]'));
     const button = editor.querySelector('[data-act="override-next-slot"]');
     assert.equal(button.textContent, "Jusqu'à 17:30 (prochain créneau)");
     button.click();

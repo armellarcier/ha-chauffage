@@ -158,7 +158,54 @@ export function pressKey(field, key) {
   field.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 }
 
+/**
+ * Home Assistant's dialog manager, as its frontend has it (make-dialog-manager.ts): the
+ * `<home-assistant>` element takes `show-dialog`, creates the dialog once, gives it hass, puts it
+ * on top and calls its showDialog(). Each dialog opened gets a history entry: `back()` is the
+ * browser's Back, which closes the dialog on top with its closeDialog().
+ * `shown` records the events; `dialog(tag)` is the dialog element; `open` the dialogs open.
+ */
+export function fakeDialogManager(hass) {
+  const ha = document.createElement('home-assistant');
+  ha.attachShadow({ mode: 'open' });
+  document.body.appendChild(ha);
+  const loaded = {};
+  const manager = {
+    shown: [],
+    open: [],
+    root: ha.shadowRoot,
+    dialog: (tag) => loaded[tag],
+    back: () => {
+      const tag = manager.open.pop();
+      if (tag) loaded[tag].closeDialog();
+    },
+  };
+  // The cards and the panel are not inside <home-assistant> here: the event reaches the window
+  const listener = async (e) => {
+    const { dialogTag, dialogImport, dialogParams } = e.detail;
+    manager.shown.push(e.detail);
+    if (!loaded[dialogTag]) {
+      await dialogImport();
+      const el = document.createElement(dialogTag);
+      el.addEventListener('dialog-closed', (ev) => {
+        manager.open = manager.open.filter((t) => t !== ev.detail.dialog);
+      });
+      loaded[dialogTag] = el;
+    }
+    manager.open.push(dialogTag);
+    const el = loaded[dialogTag];
+    el.hass = hass;
+    ha.shadowRoot.appendChild(el);
+    el.showDialog(dialogParams);
+  };
+  window.addEventListener('show-dialog', listener);
+  (window.__dialogManagers = window.__dialogManagers || []).push(listener);
+  return manager;
+}
+
 export function cleanup() {
+  for (const listener of window.__dialogManagers || []) window.removeEventListener('show-dialog', listener);
+  window.__dialogManagers = [];
   document.body.innerHTML = '';
   try { localStorage.clear(); } catch (e) { /* ignore */ }
 }
