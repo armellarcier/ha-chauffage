@@ -57,6 +57,35 @@ describe('the subscription to the integration', () => {
     assert.equal(active(card), 'holiday');
   });
 
+  // The library numbers the messages from 1 again on the new socket: the former subscription's
+  // id may now be another subscription's, for example the states of Home Assistant's frontend
+  test('after a reconnection, the former subscription is not unsubscribed: the server dropped it', async () => {
+    const hass = fakeHass({ data: null });
+    const conn = connection(hass, () => integrationData());
+    createCard(hass);
+    await flush();
+    conn.reconnect();
+    await flush();
+    assert.equal(conn.subscriptions.length, 2);
+    assert.equal(conn.subscriptions[0].closed, false);
+  });
+
+  test('a card shown again after the retries were stopped subscribes again', async () => {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    const hass = fakeHass({ data: null });
+    let answer = { code: 'unknown_command' };
+    const conn = connection(hass, () => answer);
+    conn.subscribeMessage = ((subscribe) => (cb, msg, options) => (answer && answer.code === 'unknown_command'
+      ? (conn.subscriptions.push({ cb, options }), Promise.reject(answer)) : subscribe(cb, msg, options)))(conn.subscribeMessage);
+    createCard(hass);
+    await flush();
+    cleanup(); // every card leaves the page: no more tries
+    answer = integrationData({ schedule: 'Absent' });
+    const card = createCard(hass);
+    await flush();
+    assert.equal(active(card), 'away');
+  });
+
   test('after a restart, the card waits for Chauffage to be set up, then gets its data', async () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const hass = fakeHass({ data: null });

@@ -1163,6 +1163,9 @@ const INTEGRATION = {
     this.watched = connection;
     connection.addEventListener('ready', () => {
       if (this.connection !== connection) return;
+      // The server dropped the former subscription with the former socket. Its id now belongs to
+      // another message of the new socket: unsubscribing it would close someone else's.
+      this.subscribed = null;
       this.retryIn = SUBSCRIBE_RETRY_MS;
       this.subscribe(connection);
     });
@@ -1174,9 +1177,11 @@ const INTEGRATION = {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
-      if (!this.listeners.size) {
+      if (!this.listeners.size && this.timer) {
+        // No more tries: the next card subscribes again
         clearTimeout(this.timer);
         this.timer = null;
+        this.connection = null;
       }
     };
   },
