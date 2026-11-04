@@ -43,10 +43,9 @@ describe('the settings dialog', () => {
     const choices = (el) => $$(el, '.override-settings [data-override-end]');
     const label = (el, value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.choice-label'));
     const example = (el, value) => text(choices(el).find((c) => c.value === value).closest('label').querySelector('.example'));
-    const change = (input, value) => {
-      if (input.type === 'radio') input.checked = true;
-      else input.value = value;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
+    const change = (radio) => {
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
     test('one name for the section and the setting: changes by hand; the intro names the override', () => {

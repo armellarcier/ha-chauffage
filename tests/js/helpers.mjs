@@ -173,7 +173,6 @@ export function fakeDialogManager(hass) {
   const manager = {
     shown: [],
     open: [],
-    root: ha.shadowRoot,
     dialog: (tag) => loaded[tag],
     back: () => {
       const tag = manager.open.pop();

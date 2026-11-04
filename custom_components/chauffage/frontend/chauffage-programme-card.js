@@ -837,16 +837,17 @@ const STEPPED_KINDS = {
 const kindOf = (el) => STEPPED_KINDS[el.dataset.kind] || STEPPED_KINDS.time;
 
 // A stepped field of a `kind`, on `minutes`. `attr`: the attributes that say what it is for.
-function steppedField(kind, attr, minutes, loc, step, more = '') {
+function steppedField(kind, attr, minutes, loc, step, disabled = false) {
+  const off = disabled ? ' disabled' : '';
   const k = STEPPED_KINDS[kind];
   // Out of the Tab order: the arrow keys do the same from the field
-  const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}"${more.includes('disabled') ? ' disabled' : ''}>${icon}</button>`;
+  const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}"${off}>${icon}</button>`;
   // Counting a character of Chinese or Japanese as two
   const width = [...k.widest(loc)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
   const [up, down] = k.titles(step, loc);
   // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
   return `<span class="time-field"><input type="text" class="time" style="width:calc(${width}ch + 2px)" inputmode="numeric"
-    autocomplete="off" ${attr} data-kind="${kind}" data-step="${step}" data-minutes="${minutes}"${more} value="${esc(k.format(minutes, loc))}"><span
+    autocomplete="off" ${attr} data-kind="${kind}" data-step="${step}" data-minutes="${minutes}"${off} value="${esc(k.format(minutes, loc))}"><span
     class="time-spin">${button(1, ICON_UP, up)}${button(-1, ICON_DOWN, down)}</span></span>`;
 }
 
@@ -854,9 +855,10 @@ function timeField(attr, minutes, loc, step) {
   return steppedField('time', attr, minutes, loc, step);
 }
 
-// A duration field, from `min` to `max` minutes by `step` (the panel's duration of a change by hand)
+// A duration field, from `min` to `max` minutes by `step`: the duration of a change by hand, in
+// the settings dialog
 function durationField(attr, minutes, loc, { step, min, max, disabled = false }) {
-  return steppedField('duration', attr, minutes, loc, step, ` data-min="${min}" data-max="${max}"${disabled ? ' disabled' : ''}`);
+  return steppedField('duration', `${attr} data-min="${min}" data-max="${max}"`, minutes, loc, step, disabled);
 }
 
 // A duration typed by hand, read as a time is (parseTime), as hours and minutes: "4" is 4 h 00,
@@ -953,7 +955,7 @@ function arrowInField(e, loc) {
 // A stepped field left (or Enter, or its small arrows): `apply(minutes)` once per new value, and
 // the value shown again in its format. Then the redraws held back while it was typed in are done.
 // A value that is not one is shown again as it was; with `refuse`, a value the kind does not
-// accept (a duration off the steps) too, and `refuse()` says why.
+// accept (a duration out of range) too, and `refuse()` says why.
 function timeFieldDone(host, el, apply, refuse = null) {
   const k = kindOf(el);
   const minutes = k.read(el, host._loc);
@@ -3817,7 +3819,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         <button class="btn primary" data-act="thermostat-add">${esc(t('scheduleThermostat'))}</button></div></div>` : '';
     // The integration's page (admins): its options, its logs and its diagnostics
     const integration = editable
-      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="/config/integrations/integration/chauffage">${esc(t('integrationPage'))}</span>` : '';
+      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${INTEGRATION_PAGE}">${esc(t('integrationPage'))}</span>` : '';
     return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div><div class="th-list">${rows}</div>${add}
       ${integration ? `<div class="th-foot">${integration}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
   }
@@ -4388,7 +4390,7 @@ const BADGE_STYLE = `
   .badge.paused { background:var(--warning-color, #ffa600); color:#000; font-weight:500; }
 `;
 
-// The box of a field typed in: a time field, a number (the more-info block, the panel)
+// The box of a field typed in: a time field, a number (the more-info block, the settings dialog)
 const FIELD_BOX = 'font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);'
   + ' background:var(--card-background-color); color:var(--primary-text-color);';
 
@@ -5950,7 +5952,7 @@ class ChauffageSettingsDialog extends HTMLElement {
   // by hand, each labelled with the user's own duration, with a sentence and the example of the
   // living room and the office
   _fillSettings(settings, src) {
-    const loc = makeLocale(this._hass);
+    const loc = this._loc;
     const t = loc.t;
     // A setting just sent shows at once, until the integration gives it back
     const pending = this._settingsPending || {};
@@ -6167,10 +6169,6 @@ class ChauffagePanel extends HTMLElement {
     window.removeEventListener('beforeunload', this._onUnload);
   }
 
-  get _loc() {
-    return makeLocale(this._hass);
-  }
-
   get _t() {
     return makeLocale(this._hass).t;
   }
@@ -6262,10 +6260,6 @@ class ChauffagePanel extends HTMLElement {
         <nav class="tabs">${tabs}</nav>`;
     }
     this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>${head}<div class="content"></div>`;
-    // On a phone the tabs scroll sideways: the current one is in view
-    const nav = this.shadowRoot.querySelector('.tabs');
-    const on = nav && nav.querySelector('.tab.on');
-    if (on && on.offsetLeft + on.offsetWidth > nav.clientWidth) nav.scrollLeft = on.offsetLeft + on.offsetWidth - nav.clientWidth;
     this._cards = [];
     if (!src.ready) return;
     const content = this.shadowRoot.querySelector('.content');
@@ -6721,7 +6715,6 @@ const PANEL_CSS = `
   .next-head { display:flex; align-items:center; gap:8px; }
   .next-head h2 { flex:1; margin:8px 0; }
   .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
-  .next-steps [role="link"] { cursor:pointer; color:var(--primary-color); text-decoration:underline; }
   .notice.new-setting { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   .notice.new-setting > span { flex:1 1 200px; }
   .next-steps li > div { margin:4px 0 8px; }
