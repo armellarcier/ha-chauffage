@@ -9,6 +9,46 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-04
+
+**The Chauffage panel and a device per scheduled thermostat** (#57). This release gathers
+0.8.0-alpha.1 to 0.8.0-beta.3, below, with three changes since 0.8.0-beta.3 for thermostats that
+are turned off or unavailable. No stored data is migrated. Home Assistant 2025.1 or later.
+
+### Highlights
+
+- **The Chauffage panel**, in the sidebar, for administrators. The panel holds the thermostats,
+  the schedules and their activation rules, and the presets. Each thermostat and each schedule
+  has a page of its own.
+- **A device per scheduled thermostat.** The device holds the thermostat's Chauffage entities.
+  Its *Visit* button opens the thermostat's page in the panel.
+- **The schedule card keeps only the weeks.** The *Presets*, *Rules* and *Thermostats* views
+  moved to the panel.
+- **Every user who may control a thermostat can change its override and pause it**, not only
+  administrators.
+- **A Versatile Thermostat that is turned off keeps getting its slots**, so it starts again on
+  the right preset (#74).
+
+### Upgrading
+
+Update from HACS, restart Home Assistant, then reload the browser page. You can upgrade from 0.7
+or from any 0.8 pre-release directly.
+
+- **Your schedules, weeks, presets, overrides and rules stay as they are.** The stored data of
+  0.7 needs no migration. From 0.6, Chauffage migrates the stored data at start, as 0.7 does.
+- **Chauffage creates the new devices at start**, and moves its entities to them. The entities
+  keep their ids, so your dashboards and automations that use them keep working.
+- **An automation that targets the thermostat's device no longer finds Chauffage's entities.**
+  Target the scheduled thermostat's device, or the entities, instead.
+- **Some entities get a new name.** An entity moves to the scheduled thermostat's device and
+  takes its name: for example *Vanne salon Override* becomes *Salon Override*. Rename the entity
+  in Home Assistant if you prefer its former name.
+- **An automation that tests `source == "card"` no longer sees the changes made in the panel.**
+  The `source` of `chauffage_override_started` and `chauffage_schedule_activated`, and the
+  `reason` of `chauffage_override_ended`, are `panel` for them.
+- **The card's views moved to the Chauffage panel.** Open *Chauffage* in the sidebar to set the
+  presets, the rules and the thermostats.
+
 ### Changed
 
 - **A Versatile Thermostat that is turned off gets its slots and its override, whatever turned it
