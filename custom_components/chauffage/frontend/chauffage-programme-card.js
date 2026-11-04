@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.8.1';
+const VERSION = '0.8.2';
 
 const DAY_MIN = 1440;
 
@@ -1080,6 +1080,11 @@ const filterActive = (raw) => {
   return out;
 };
 
+// The subscription tried again: first after 5 s, then twice as long each time, up to a minute
+const SUBSCRIBE_RETRY_MS = 5000;
+const SUBSCRIBE_RETRY_MAX_MS = 60000;
+const SUBSCRIBE_NO_DATA_MS = 10000;
+
 // One subscription per page, shared by every card and more-info block
 const INTEGRATION = {
   data: null,
@@ -1089,30 +1094,96 @@ const INTEGRATION = {
   seq: 0,
   listeners: new Set(),
   connection: null,
+  hass: null, // the latest, for the panels of a "not_loaded"
+  attempt: 0, // the subscription of the moment: the answers of a former one are ignored
+  subscribed: null, // its unsubscribe function, once Home Assistant has answered
+  retryIn: SUBSCRIBE_RETRY_MS,
+  timer: null,
   connect(hass) {
+    this.hass = hass;
     // Set up again (its panel is back): subscribed again, with no page reload
     if (this.missing && hass.panels && hass.panels.chauffage && hass.panels !== this.missingPanels) this.connection = null;
     if (!hass.connection || this.connection === hass.connection) return;
-    this.connection = hass.connection;
-    hass.connection.subscribeMessage((data) => {
+    this.subscribe(hass.connection);
+  },
+  subscribe(connection) {
+    this.connection = connection;
+    this.watchReconnections(connection);
+    clearTimeout(this.timer);
+    this.timer = null;
+    if (this.subscribed) this.subscribed.then((unsubscribe) => unsubscribe && unsubscribe()).catch(() => {});
+    const attempt = ++this.attempt;
+    let received = false;
+    // Not replayed by Home Assistant's library after a reconnection: it tries once, often before
+    // Chauffage is set up, and never again. The card subscribes again itself (watchReconnections).
+    const subscribed = connection.subscribeMessage((data) => {
+      if (attempt !== this.attempt) return;
+      received = true;
+      clearTimeout(this.timer);
+      this.timer = null;
+      this.retryIn = SUBSCRIBE_RETRY_MS;
       this.missing = false;
       this.data = data;
       this.seq += 1;
-      for (const listener of [...this.listeners]) listener();
-    }, { type: 'chauffage/subscribe' }).catch((e) => {
-      if (e && e.code === 'not_loaded') {
+      this.notify();
+    }, { type: 'chauffage/subscribe' }, { resubscribe: false });
+    this.subscribed = subscribed.catch(() => null);
+    subscribed.then(() => {
+      // The integration sends its data at once: a subscription that brings nothing is made again
+      if (attempt === this.attempt && !received) this.retry(SUBSCRIBE_NO_DATA_MS);
+    }, (e) => {
+      if (attempt !== this.attempt) return;
+      const code = e && e.code;
+      if (code === 'not_loaded') {
         this.missing = true;
-        this.missingPanels = hass.panels; // the panels then: a new set holding Chauffage's means it is back
-        for (const listener of [...this.listeners]) listener();
+        this.missingPanels = this.hass && this.hass.panels; // a new set holding Chauffage's panel means it is back
+        this.notify();
+      }
+      // Not set up yet (Home Assistant is starting), or deleted: tried again, less and less often
+      if (code === 'not_loaded' || code === 'unknown_command') {
+        this.retry(this.retryIn);
+        this.retryIn = Math.min(this.retryIn * 2, SUBSCRIBE_RETRY_MAX_MS);
         return;
       }
       console.error('ha-chauffage: cannot subscribe to the integration', e);
       this.connection = null;
     });
   },
+  // Subscribes again later, while a card, a block or the panel is on the page
+  retry(ms) {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      if (this.listeners.size && this.connection) this.subscribe(this.connection);
+    }, ms);
+  },
+  // Home Assistant restarted, or the page woke up: the connection is ready again
+  watchReconnections(connection) {
+    if (this.watched === connection || !connection.addEventListener) return;
+    this.watched = connection;
+    connection.addEventListener('ready', () => {
+      if (this.connection !== connection) return;
+      // The server dropped the former subscription with the former socket. Its id now belongs to
+      // another message of the new socket: unsubscribing it would close someone else's.
+      this.subscribed = null;
+      this.retryIn = SUBSCRIBE_RETRY_MS;
+      this.subscribe(connection);
+    });
+  },
+  notify() {
+    for (const listener of [...this.listeners]) listener();
+  },
   listen(listener) {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+      if (!this.listeners.size && this.timer) {
+        // No more tries: the next card subscribes again
+        clearTimeout(this.timer);
+        this.timer = null;
+        this.connection = null;
+      }
+    };
   },
 };
 
@@ -1131,6 +1202,31 @@ async function reloadPage(win = window) {
     if (win.caches) await Promise.all((await win.caches.keys()).map((key) => win.caches.delete(key)));
   } catch (e) { /* reloaded all the same */ }
   win.location.reload();
+}
+
+// What a card or the panel shows instead of its content while the integration's data can't be
+// used: a text, with a Reload button when reloading the page finishes an update, or "…" while
+// the data is on its way. null once the data is ready.
+const NOTICE_RELOAD = { text: 'reloadNeeded', reload: true };
+function sourceNotice(src) {
+  if (src.stale) return NOTICE_RELOAD;
+  if (!src.available) return { text: 'integrationMissing' };
+  if (src.outdated) return { text: 'restartNeeded' };
+  if (!src.ready) return { loading: true };
+  return null;
+}
+
+// The notice's HTML. Its Reload button carries data-act="reload-page": bind it with bindReload.
+function noticeHtml(notice, t) {
+  if (notice.loading) return '<div class="loading">…</div>';
+  const button = notice.reload
+    ? `<div><button class="btn primary" data-act="reload-page">${esc(t('reloadPage'))}</button></div>` : '';
+  return `<div class="missing" role="status">${esc(t(notice.text))}${button}</div>`;
+}
+
+function bindReload(root, onClick) {
+  const button = root.querySelector('[data-act="reload-page"]');
+  if (button) button.addEventListener('click', onClick);
 }
 
 // The same hass and data give the same source: a render asks for it once per bar or chip
@@ -2699,15 +2795,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
     const fill = (html, cls) => fillCard(this.shadowRoot, STYLE, html, `${cls || ''}${this._config.flat ? ' flat' : ''}`);
-    if (this._source().stale) {
-      fill(`<div class="missing">${esc(tr('reloadNeeded'))}
-        <div><button class="btn primary" data-act="reload-page">${esc(tr('reloadPage'))}</button></div></div>`);
-      this.shadowRoot.querySelector('[data-act="reload-page"]').addEventListener('click', () => this._reloadPage());
-      return;
-    }
-    if (!this._source().available || this._source().outdated) {
-      const text = this._source().outdated ? tr('restartNeeded') : tr('integrationMissing');
-      fill(`<div class="missing" role="status">${esc(text)}</div>`);
+    const notice = sourceNotice(this._source());
+    if (notice) {
+      fill(noticeHtml(notice, tr));
+      bindReload(this.shadowRoot, () => this._reloadPage());
       return;
     }
     if (this._view === 'presets' && this._source().ready) {
@@ -2726,10 +2817,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (this._view === 'rules' && this._source().ready) {
       const msg = this._msg || (this._rulesDraft ? tr('unsaved') : '');
       fill(`${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div>`);
-      return;
-    }
-    if (!this._source().ready) {
-      fill('<div class="loading">…</div>');
       return;
     }
     if (!this._thermostats.length) {
@@ -5079,9 +5166,10 @@ class ChauffageThermostatCard extends HTMLElement {
     const entity = this._config.entity;
     const src = dataSource(hass);
     const card = (body) => fillCard(this.shadowRoot, THERMOSTAT_CARD_STYLE, body);
-    if (src.stale || !src.available || src.outdated) {
-      const message = src.stale ? 'reloadNeeded' : src.outdated ? 'restartNeeded' : 'integrationMissing';
-      card(`<div class="msg">${esc(t(message))}</div>`);
+    // Without the data yet, the thermostat card already shows the thermostat: no "…"
+    const notice = sourceNotice(src);
+    if (notice && !notice.loading) {
+      card(`<div class="msg">${esc(t(notice.text))}</div>`);
       return;
     }
     const st = hass.states[entity];
@@ -5607,23 +5695,6 @@ class ChauffagePanel extends HTMLElement {
     return makeLocale(this._hass).t;
   }
 
-  _showReload() {
-    if (this._key !== 'reload') {
-      this._key = 'reload';
-      this._cards = [];
-      const t = this._t;
-      const title = (this._panel && this._panel.title) || 'Chauffage';
-      this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>
-        <div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div></div>
-        <div class="content"><div class="missing">${esc(t('reloadNeeded'))}
-          <div><button class="btn primary" data-act="reload-page">${esc(t('reloadPage'))}</button></div></div></div>`;
-      this.shadowRoot.querySelector('[data-act="reload-page"]').addEventListener('click', () => this._reloadPage());
-    }
-    const menu = this.shadowRoot.querySelector('ha-menu-button');
-    menu.hass = this._hass;
-    menu.narrow = this._narrow;
-  }
-
   _reloadPage() {
     reloadPage();
   }
@@ -5634,14 +5705,11 @@ class ChauffagePanel extends HTMLElement {
     // no longer on the page (left, or an answer arriving late) draws nothing.
     if (!hass || !this._route || !this.isConnected) return;
     const src = dataSource(hass);
-    // An update not finished in this page: the panel is older than the integration, or the page
-    // loaded a former card first. Its cards would not work: the panel asks to reload the page.
-    // A second copy of the same version works: compared by version, not by class.
+    // Under its tabs, the panel shows what the cards show while the data can't be used. Also when
+    // the page loaded a former card first: the panel's cards would not work, so the panel asks to
+    // reload the page. A second copy of the same version works: compared by version, not by class.
     const card = customElements.get('chauffage-programme-card');
-    if (src.stale || (card && card.version !== VERSION)) {
-      this._showReload();
-      return;
-    }
+    const notice = card && card.version !== VERSION ? NOTICE_RELOAD : sourceNotice(src);
     const route = panelRoute(this._route && this._route.path, src, hass);
     if (route.redirect) {
       window.history.replaceState(null, '', `/chauffage/${route.redirect}`);
@@ -5650,18 +5718,19 @@ class ChauffagePanel extends HTMLElement {
     }
     // The page is built again when what it is made of changes; its live parts are filled each time
     // Not while weeks are not saved: rebuilding would drop them (built again once saved or discarded)
-    const key = JSON.stringify([route, src.ready, src.schedules(), Object.keys(src.weeks()).sort()]);
+    const key = JSON.stringify([route, notice, src.schedules(), Object.keys(src.weeks()).sort()]);
     if (key !== this._key && !this._dirtyWeeks().length) {
       this._key = key;
-      this._build(route, src);
+      this._build(route, src, notice);
     }
-    this._fill(route, src);
-    if (route.sheet === 'thermostat') this._scrollToWeek();
     const menu = this.shadowRoot.querySelector('ha-menu-button');
     if (menu) {
       menu.hass = hass;
       menu.narrow = this._narrow;
     }
+    if (this._notice) return;
+    this._fill(route, src);
+    if (route.sheet === 'thermostat') this._scrollToWeek();
     for (const card of this._cards) card.hass = hass;
   }
 
@@ -5694,7 +5763,7 @@ class ChauffagePanel extends HTMLElement {
     return scheduled.length ? scheduled : Object.keys(this._hass.states).filter((e) => e.startsWith('climate.'));
   }
 
-  _build(route, src) {
+  _build(route, src, notice) {
     const t = this._t;
     const title = (this._panel && this._panel.title) || 'Chauffage';
     let head;
@@ -5703,7 +5772,7 @@ class ChauffagePanel extends HTMLElement {
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button>
           <nav class="title crumbs"><a href="/chauffage/${route.list}" data-navigate="/chauffage/${route.list}">${esc(t(list[1]))}</a>
             <span class="sep">›</span><span data-fill="crumb"></span></nav>
-          ${src.editable ? `<button class="page-more" data-page-menu title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>` : ''}
+          ${src.editable && !notice ? `<button class="page-more" data-page-menu title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>` : ''}
           <div data-fill="page-menu"></div>
         </div>`;
     } else {
@@ -5714,8 +5783,13 @@ class ChauffagePanel extends HTMLElement {
     }
     this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>${head}<div class="content"></div>`;
     this._cards = [];
-    if (!src.ready) return;
     const content = this.shadowRoot.querySelector('.content');
+    this._notice = notice;
+    if (notice) {
+      content.innerHTML = noticeHtml(notice, t);
+      bindReload(content, () => this._reloadPage());
+      return;
+    }
     const html = (s) => content.insertAdjacentHTML('beforeend', s);
     this._weekCards = {}; // a thermostat's sheet: its card of each schedule
     const scheduled = Object.keys(src.weeks()).length;
@@ -6106,7 +6180,7 @@ const PANEL_CSS = `
     text-decoration:none; font-size:14px; border-bottom:2px solid transparent; white-space:nowrap; }
   .tab.on { opacity:1; border-bottom-color:currentColor; font-weight:500; }
   .content { max-width:1100px; margin:0 auto; padding:8px 8px 24px; }
-  .missing { color:var(--secondary-text-color); padding:16px; }
+  .missing, .content > .loading { color:var(--secondary-text-color); padding:16px; }
   .missing .btn { margin-top:12px; }
   h2 { margin:20px 8px 8px; font-size:16px; font-weight:500; }
   h3 { margin:16px 8px 6px; font-size:14px; font-weight:500; color:var(--secondary-text-color); }

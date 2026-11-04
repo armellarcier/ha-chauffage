@@ -193,6 +193,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Scripts read the schedules (`chauffage.get_schedules`) and the week of thermostats in a schedule (`chauffage.get_week`, as `schedule.get_schedule`); unknown thermostat or schedule refused | `I/test_api.py::a_script_reads_*`, `::reading_the_week_of_an_unknown_*` |
 | History of the measured and target temperatures for the card: only these two, the state at the start first, gaps while unavailable, what was read kept in memory, any user, no recorder | `I/test_history.py` ×3 |
 | A card's subscription goes on after the integration is reloaded (options changed, a thermostat renamed): the data sent again at once, then every change | `I/test_api.py::a_subscription_goes_on_after_the_integration_is_reloaded` |
+| Home Assistant restarted while the page stays open (the companion app): the card subscribes again, waits for Chauffage to be set up, then gets its data; a subscription that brings no data is made again; no new try once the cards have left the page | `C/subscription.test.mjs` |
+| The panel shows what the cards show instead of an empty page under its tabs: "…" while the data comes, the integration not set up, Home Assistant to restart | `C/panel.test.mjs` (the Chauffage panel after an update) |
 | Websocket API for the card: subscribe, save the weeks with a revision, overrides, schedules, presets, mappings, pause, forget; admins only for writes, but overrides and pause for anyone who may control the thermostat; errors | `I/test_api.py`, `I/test_options.py`, `I/test_schedule_list.py`, `I/test_edge_cases.py` |
 
 ## Chauffage panel and devices (#57)

@@ -9,6 +9,23 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-04
+
+No stored data is migrated.
+
+### Fixed
+
+- **The cards and the panel get their data again after Home Assistant restarts**, even when the
+  page stays open, as in the companion app. Before, a card could stay on its former data, or on
+  "…", until you reloaded the page.
+- **The Chauffage panel no longer shows an empty page under its tabs.** The panel now says what
+  the cards say: "…" while the data comes, or that Home Assistant must be restarted to finish an
+  update.
+
+### Upgrading
+
+Update from HACS, restart Home Assistant, then reload the browser page.
+
 ## [0.8.1] - 2026-11-04
 
 No stored data is migrated.
