@@ -1,7 +1,7 @@
 // The Chauffage panel (#57): where an admin configures Chauffage, lists then sheets, one address
 // per page (docs/decisions.md, "Chauffage panel and devices"). Dashboard cards link to it.
 import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { ChauffagePanel, leaveMoreInfo, ICONS, serializeDay, MORE_INFO_CFG } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { ChauffagePanel, leaveMoreInfo, ICONS, serializeDay, MORE_INFO_CFG, reloadPage, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -884,5 +884,60 @@ describe('the more-info block and the panel', () => {
     assert.deepEqual(opened, [], 'not before the dialog has left the address');
     await tick(80);
     assert.deepEqual(opened, ['/lovelace/0']);
+  });
+});
+
+// HACS updates the integration and Home Assistant restarts: the page keeps running the former
+// panel, or loads the former card first (tests/js/mixed-versions.test.mjs)
+describe('the Chauffage panel after an update', () => {
+  afterEach(cleanup);
+
+  test('the panel asks to reload the page when the integration is newer', () => {
+    const data = { ...integrationData({ weeks: WEEKS }), version: '99.0.0' };
+    const el = panel(setup({ data }), '/thermostats');
+    assert.match(text($(el, '.missing')), /rechargez la page/);
+    assert.equal(cards(el).length, 0);
+    assert.ok($(el, 'ha-menu-button'), 'the sidebar stays reachable on a phone');
+  });
+
+  test('a second copy of the same version of the card does not stop the panel', () => {
+    const get = customElements.get.bind(customElements);
+    class SameVersionCopy extends HTMLElement { static get version() { return VERSION; } }
+    mock.method(customElements, 'get', (tag) => (tag === 'chauffage-programme-card' ? SameVersionCopy : get(tag)));
+    const el = panel(setup(), '/thermostats');
+    mock.restoreAll();
+    assert.equal($(el, '.missing'), null);
+  });
+
+  test('the panel\'s button reloads the page', () => {
+    const data = { ...integrationData({ weeks: WEEKS }), version: '99.0.0' };
+    const el = panel(setup({ data }), '/thermostats');
+    const reload = mock.method(el, '_reloadPage', () => {});
+    $(el, '[data-act="reload-page"]').click();
+    assert.equal(reload.mock.callCount(), 1);
+  });
+
+  // Home Assistant's service worker serves the page from its cache, then updates it: without
+  // emptying its caches, the first reload gets the former page again (the companion app has no
+  // hard reload)
+  test('reloading the page empties the service worker\'s caches first', async () => {
+    const deleted = [];
+    let reloaded = false;
+    const win = {
+      caches: { keys: async () => ['file-cache', 'workbox-runtime'], delete: async (key) => { deleted.push(key); return true; } },
+      location: { reload: () => { reloaded = deleted.length === 2; } },
+    };
+    await reloadPage(win);
+    assert.deepEqual(deleted, ['file-cache', 'workbox-runtime']);
+    assert.ok(reloaded, 'reloaded after the caches are empty');
+  });
+
+  test('the page is reloaded even without caches to empty', async () => {
+    let reloaded = false;
+    await reloadPage({ location: { reload: () => { reloaded = true; } } });
+    assert.ok(reloaded);
+    reloaded = false;
+    await reloadPage({ caches: { keys: async () => { throw new Error('denied'); } }, location: { reload: () => { reloaded = true; } } });
+    assert.ok(reloaded);
   });
 });

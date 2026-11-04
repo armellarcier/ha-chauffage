@@ -57,6 +57,22 @@ by default: the new settings below change nothing until you choose another end.
   Before, an override started at 2:10 winter time with a 30-minute duration ended at 2:40 summer
   time, an hour before it started. Chauffage then ended it at once and undid your change.
 
+## [0.8.1] - 2026-11-04
+
+No stored data is migrated.
+
+### Fixed
+
+- **The Chauffage panel asks you to reload the page after an update**, instead of showing a blank
+  page. Home Assistant could serve the former card from its cache next to the new panel.
+- **One click on *Reload* finishes an update, in the companion app too.** Before, the first reload
+  could show the former page again. The *Reload* button now empties Home Assistant's cache first.
+
+### Upgrading
+
+Update from HACS, restart Home Assistant, then reload the browser page. If the panel asks you to
+reload the page, click *Reload*.
+
 ## [0.8.0] - 2026-11-04
 
 **The Chauffage panel and a device per scheduled thermostat** (#57). This release gathers

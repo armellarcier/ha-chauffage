@@ -472,6 +472,16 @@ dashboards, automations, scripts and by voice without the card
 - **The card's type stays `custom:chauffage-programme-card`**: dashboards refer to it.
 - **The card is newer than the integration right after an update** (HACS replaces the files,
   HA is not restarted yet): it asks for a restart instead of breaking.
+- **The panel asks to reload the page when the page runs a former card** (0.8.1). Home
+  Assistant's service worker serves a page from its cache, then updates the cache in the
+  background. So the first page loaded after an update can load the former card, while the panel,
+  declared by the integration, loads the new module. The new module keeps the former card's
+  elements, defined first, and the new panel can't use them. The panel compares the card's
+  `version` with its own, not the classes: a second copy of the same version works.
+- **The *Reload* button empties the service worker's caches first** (0.8.1). Without it, the
+  first reload gets the former page from the cache again. The companion app has no hard reload,
+  and its *Reset frontend cache* setting is hard to find. Emptying every cache of the page costs
+  one download of Home Assistant's files, once.
 - **The history of the measured temperature is read from HA's recorder**, not stored by the
   integration: nothing to keep or migrate, and it works for any thermostat with a
   `current_temperature`. Hence the last 7 days (within the recorder's default 10-day retention),

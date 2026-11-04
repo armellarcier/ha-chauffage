@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.8.0';
+const VERSION = '0.8.1';
 
 const DAY_MIN = 1440;
 // The duration of a change by hand, in minutes: the range of the integration; its arrows move it by
@@ -1281,6 +1281,16 @@ function renamedTo(hass, src, entity) {
   return to && !(hass && hass.states[entity]) ? to : null;
 }
 
+// Reloads the page to finish an update. Home Assistant's service worker serves the page from its
+// cache, then updates it: its caches are emptied first, or the first reload gets the former page
+// again (the companion app has no hard reload).
+async function reloadPage(win = window) {
+  try {
+    if (win.caches) await Promise.all((await win.caches.keys()).map((key) => win.caches.delete(key)));
+  } catch (e) { /* reloaded all the same */ }
+  win.location.reload();
+}
+
 // The same hass and data give the same source: a render asks for it once per bar or chip
 let lastSource = { hass: null, data: null, src: null };
 
@@ -1746,6 +1756,11 @@ const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'week_only'
 const TOUCH_SLOP = 8;
 
 class ChauffageProgrammeCard extends HTMLElement {
+  // Tells the panel which version of the card the page defined first (cards before 0.8.1: none)
+  static get version() {
+    return VERSION;
+  }
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -2043,7 +2058,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _reloadPage() {
-    window.location.reload();
+    reloadPage();
   }
 
   // Presets as shown (columns, legend, slot popover): from the coldest to the warmest default
@@ -6173,12 +6188,41 @@ class ChauffagePanel extends HTMLElement {
     return makeLocale(this._hass).t;
   }
 
+  _showReload() {
+    if (this._key !== 'reload') {
+      this._key = 'reload';
+      this._cards = [];
+      const t = this._t;
+      const title = (this._panel && this._panel.title) || 'Chauffage';
+      this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>
+        <div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div></div>
+        <div class="content"><div class="missing">${esc(t('reloadNeeded'))}
+          <div><button class="btn primary" data-act="reload-page">${esc(t('reloadPage'))}</button></div></div></div>`;
+      this.shadowRoot.querySelector('[data-act="reload-page"]').addEventListener('click', () => this._reloadPage());
+    }
+    const menu = this.shadowRoot.querySelector('ha-menu-button');
+    menu.hass = this._hass;
+    menu.narrow = this._narrow;
+  }
+
+  _reloadPage() {
+    reloadPage();
+  }
+
   _update() {
     const hass = this._hass;
     // Home Assistant sets the route after hass: no redirect before the address is known. A panel
     // no longer on the page (left, or an answer arriving late) draws nothing.
     if (!hass || !this._route || !this.isConnected) return;
     const src = dataSource(hass);
+    // An update not finished in this page: the panel is older than the integration, or the page
+    // loaded a former card first. Its cards would not work: the panel asks to reload the page.
+    // A second copy of the same version works: compared by version, not by class.
+    const card = customElements.get('chauffage-programme-card');
+    if (src.stale || (card && card.version !== VERSION)) {
+      this._showReload();
+      return;
+    }
     const route = panelRoute(this._route && this._route.path, src, hass);
     if (route.redirect) {
       window.history.replaceState(null, '', `/chauffage/${route.redirect}`);
@@ -6680,6 +6724,8 @@ const PANEL_CSS = `
     text-decoration:none; font-size:14px; border-bottom:2px solid transparent; white-space:nowrap; }
   .tab.on { opacity:1; border-bottom-color:currentColor; font-weight:500; }
   .content { max-width:1100px; margin:0 auto; padding:8px 8px 24px; }
+  .missing { color:var(--secondary-text-color); padding:16px; }
+  .missing .btn { margin-top:12px; }
   h2 { margin:20px 8px 8px; font-size:16px; font-weight:500; }
   h3 { margin:16px 8px 6px; font-size:14px; font-weight:500; color:var(--secondary-text-color); }
   /* The week a link led to ("Edit its week"): under the toolbar once scrolled to */
@@ -6911,5 +6957,5 @@ export {
   VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay, parseTime,
   overridePieces, overrideLabel, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
-  ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS,
+  ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS, reloadPage,
 };
