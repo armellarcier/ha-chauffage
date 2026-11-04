@@ -862,6 +862,13 @@ older one, the older one says so.
     Material's dialog takes a `heading` and our ✕, Web Awesome's takes a `headerTitle` and has
     its own ✕. Both are `open` and say `closed`. Without Home Assistant's frontend (no
     `<home-assistant>`), the dialog opens by itself and takes its own history entry.
+  - **In Material's `ha-dialog` (Home Assistant 2025.1), Escape closes the settings dialog
+    only.** Every Material dialog open listens to Escape on the whole document, so one Escape
+    closed the settings dialog and the more-info dialog under it. While the settings dialog is
+    open in Material's dialog, it catches Escape on the window first, stops it, and closes
+    itself. Web Awesome's dialog is a browser `<dialog>`: Escape only reaches the dialog on top,
+    so the settings dialog leaves Escape to it. Material's dialog also gets `hideActions`: the
+    settings dialog has no buttons at its foot, and Material would show an empty band there.
   - **A press or Escape in the dialog does not close the card's popover under it.**
   - **Its foot links to the other options**, for an administrator: *Other Chauffage options*,
     with a line that names them. Home Assistant offers no address that opens an options flow,

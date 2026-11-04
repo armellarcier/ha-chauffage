@@ -5788,6 +5788,12 @@ class ChauffageSettingsDialog extends HTMLElement {
       this._popped = true;
       this.closeDialog();
     };
+    // Escape, in Material's ha-dialog (Home Assistant 2025.1): this dialog only (_build)
+    this._onEscape = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      this.closeDialog();
+    };
   }
 
   // Given by Home Assistant's dialog manager, and kept up to date
@@ -5840,6 +5846,7 @@ class ChauffageSettingsDialog extends HTMLElement {
   _closed() {
     if (!this._open) return;
     this._open = false;
+    window.removeEventListener('keydown', this._onEscape, true);
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
     if (this._ownHistory) {
@@ -5871,7 +5878,11 @@ class ChauffageSettingsDialog extends HTMLElement {
         frame.headerTitle = title;
       } else {
         frame.heading = title; // Material's dialog shows its heading slot only with a heading
+        frame.hideActions = true; // no buttons at its foot: no empty band there
         frame.insertAdjacentHTML('beforeend', `<div slot="heading" class="head"><h2 class="title">${esc(title)}</h2>${close}</div>`);
+        // Every Material dialog open closes on an Escape pressed anywhere: the more-info dialog
+        // under this one too. Escape is caught first, and closes this dialog only
+        window.addEventListener('keydown', this._onEscape, true);
       }
       frame.insertAdjacentHTML('beforeend', body);
       // Closed by its own ✕, Escape or a tap outside: the newer dialog stays `open` until told

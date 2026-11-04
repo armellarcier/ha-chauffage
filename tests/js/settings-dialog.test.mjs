@@ -490,12 +490,20 @@ describe('the settings dialog', () => {
 
   describe("in Home Assistant's own dialog (ha-dialog), when Home Assistant has it", () => {
     // Home Assistant's dialog: `open`, reflected; `closed` once hidden. 2025.1 has Material's
-    // (a `heading`), the later versions Web Awesome's (a `headerTitle`, its own ✕)
+    // (a `heading`), the later versions Web Awesome's (a `headerTitle`, its own ✕). Material's, once
+    // open, listens to Escape on the whole document (mwc-dialog-base): every Material dialog open
+    // closes on Escape, the more-info dialog under ours too
     class FakeHaDialog extends HTMLElement {
       get open() { return this.hasAttribute('open'); }
       set open(value) {
         const was = this.open;
         this.toggleAttribute('open', !!value);
+        if (!('headerTitle' in FakeHaDialog.prototype)) {
+          if (value && !was) {
+            this._onDocKey = (e) => { if (e.key === 'Escape') this.open = false; };
+            document.addEventListener('keydown', this._onDocKey);
+          } else if (was && !value) document.removeEventListener('keydown', this._onDocKey);
+        }
         if (was && !value) this.dispatchEvent(new CustomEvent('closed', { bubbles: true, composed: true }));
       }
     }
@@ -532,9 +540,45 @@ describe('the settings dialog', () => {
       const frame = $(dialog, '.frame');
       assert.equal(frame.localName, 'ha-dialog');
       assert.ok(frame.heading);
+      assert.equal(frame.hideActions, true, 'no empty band of actions at its foot');
       assert.equal(text(frame.querySelector('[slot="heading"] .title')), 'Réglages de Chauffage');
       frame.querySelector('[slot="heading"] [data-close]').click();
       assert.equal(isOpen(dialog), false);
+    });
+
+    test('the Material ha-dialog (Home Assistant 2025.1): Escape closes the settings dialog only, not the more-info dialog nor the popover under it', async () => {
+      delete FakeHaDialog.prototype.headerTitle;
+      const OVERRIDE = { kind: 'temperature', value: 21.5, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
+      const hass = setup({ overrides: { 'climate.salon': OVERRIDE } });
+      const manager = fakeDialogManager(hass);
+      // The more-info dialog, a Material dialog open under ours
+      const moreInfo = document.body.appendChild(document.createElement('ha-dialog'));
+      moreInfo.open = true;
+      const card = createCard(hass, { show: ['climate.salon'] });
+      card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click();
+      card.shadowRoot.querySelector('.override-ed [data-open-settings]').click();
+      await tick();
+      const dialog = manager.dialog('chauffage-settings-dialog');
+      assert.ok(isOpen(dialog));
+      const closed = [];
+      dialog.addEventListener('dialog-closed', (e) => closed.push(e.detail));
+      // Escape, the focus on the page
+      document.body.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+      assert.equal(isOpen(dialog), false);
+      assert.deepEqual(closed, [{ dialog: 'chauffage-settings-dialog' }]);
+      assert.ok(moreInfo.open, 'the more-info dialog stays open');
+      assert.ok(card.shadowRoot.querySelector('.override-ed'), 'the popover stays open');
+      // Escape, the focus in the dialog opened again
+      card.shadowRoot.querySelector('.override-ed [data-open-settings]').click();
+      await tick();
+      assert.ok(isOpen(dialog));
+      $(dialog, '[data-override-end]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+      assert.equal(isOpen(dialog), false);
+      assert.ok(moreInfo.open, 'the more-info dialog stays open');
+      assert.ok(card.shadowRoot.querySelector('.override-ed'), 'the popover stays open');
+      // Closed, the settings dialog leaves Escape to the dialogs under it
+      document.body.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+      assert.equal(moreInfo.open, false);
     });
   });
 });
