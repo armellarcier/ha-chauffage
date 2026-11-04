@@ -119,7 +119,7 @@ barre latérale* (voir [Options](#options)).
 
 ### Les pages du panneau
 
-Le panneau a quatre onglets :
+Le panneau a trois onglets :
 
 - **Thermostats.** Tous les thermostats programmés, et les cartes qui les affichent. Le menu ⋮
   d'un thermostat le met en pause ou l'oublie. Vous pouvez aussi en programmer un autre. Avant
@@ -131,8 +131,13 @@ Le panneau a quatre onglets :
   [règles d'activation](#règles-dactivation) se trouvent sous la liste.
 - **Préréglages.** Le tableau des préréglages : leurs noms, leurs couleurs et leurs
   températures, et ce que fait chacun sur chaque thermostat (voir [Préréglages](#préréglages)).
-- **Réglages.** Combien de temps dure une consigne changée à la main, et comment elle se termine
-  (voir [Dérogations](#dérogations)).
+
+**Réglages.** Le bouton ⚙, en haut à droite du panneau, ouvre les réglages : combien de temps
+dure une consigne changée à la main, et comment elle se termine (voir [Dérogations](#dérogations)).
+Les réglages s'ouvrent dans une fenêtre, par-dessus la page où vous êtes. Fermez la fenêtre, ou
+faites Retour dans votre navigateur, et vous retrouvez cette page. En bas de la fenêtre, *Autres
+options de Chauffage* ouvre la page de l'intégration dans Home Assistant : son bouton *Configurer*
+donne les autres [options](#options).
 
 Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, par exemple
 « Thermostats › Salon », ramène à sa liste.
@@ -393,11 +398,13 @@ Chauffage n'a gardé votre changement qu'un temps. Chauffage appelle ce changeme
 quel que soit le planning. Un changement à la main se fait sur le thermostat, avec sa molette,
 ou dans Home Assistant. La carte dit pourquoi la dérogation s'arrête à ce moment, à côté de sa
 fin : *aujourd'hui, 2 h après le changement* ou *aujourd'hui, au prochain créneau*. Un
-administrateur touche ces mots pour ouvrir l'onglet *Réglages*.
+administrateur touche ces mots pour ouvrir les réglages, par-dessus la carte ou la fenêtre de
+détail du thermostat.
 
 ### Choisir comment se termine un changement à la main
 
-Ouvrez le panneau Chauffage, puis l'onglet *Réglages*. Choisissez l'une des trois fins d'un
+Ouvrez les réglages : touchez la raison de la fin d'une dérogation, ou le bouton ⚙ du panneau
+Chauffage. Choisissez l'une des trois fins d'un
 changement à la main. Prenons un salon en confort jusqu'à 22 h 30, et un bureau dont le
 prochain créneau est à 6 h :
 
@@ -601,8 +608,9 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
   prochain créneau* (voir
   [Choisir comment se termine un changement à la main](#choisir-comment-se-termine-un-changement-à-la-main)).
 
-Vous pouvez aussi changer ces deux réglages dans l'onglet *Réglages* du panneau, ou avec leurs
-entités.
+Vous pouvez aussi changer ces deux réglages dans la fenêtre des réglages, avec le bouton ⚙ du
+panneau, ou avec leurs entités. En bas de la fenêtre des réglages, *Autres options de Chauffage*
+mène à ces options.
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Si vous la désactivez,
   Chauffage pilote tous les thermostats en température, et vous réglez toutes les températures
   dans la carte.

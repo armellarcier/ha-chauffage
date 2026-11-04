@@ -116,7 +116,7 @@ To take *Chauffage* out of the sidebar, turn off the option *Show Chauffage in t
 
 ### The panel's pages
 
-The panel has four tabs:
+The panel has three tabs:
 
 - **Thermostats.** Every scheduled thermostat, and the cards that show it. A thermostat's ⋮ menu
   pauses it or forgets it. You can also schedule another one. Before your first thermostat, this tab
@@ -126,8 +126,12 @@ The panel has four tabs:
   schedule or a copy of another one. The [activation rules](#activation-rules) are below the list.
 - **Presets.** The table of the presets: their names, colors and temperatures, and what each one
   does on each thermostat (see [Presets](#presets)).
-- **Settings.** How long a setpoint changed by hand lasts, and how it ends (see
-  [Overrides](#overrides)).
+
+**Settings.** The ⚙ at the top right of the panel opens the settings: how long a setpoint
+changed by hand lasts, and how it ends (see [Overrides](#overrides)). The settings open in a
+dialog, on top of the page you are on. Close the dialog, or press your browser's Back, to
+return to that page. At the foot of the dialog, *Other Chauffage options* opens the
+integration's page in Home Assistant, where *Configure* holds the other [options](#options).
 
 A schedule or a thermostat opens on a page of its own. The title of the page, for example
 "Thermostats › Living room", leads back to its list.
@@ -370,11 +374,13 @@ kept your change for a while only. Chauffage calls this temporary change an *ove
 **How long a change by hand lasts.** By default, your change lasts 2 hours, whatever the
 schedule. A change by hand is a change on the thermostat, with its knob, or in Home Assistant.
 The card says why the override ends then, next to its end: *today, 2 h after the change* or
-*today, at the next slot*. An administrator taps these words to open the *Settings* tab.
+*today, at the next slot*. An administrator taps these words to open the settings, on top of
+the card or of the more-info dialog.
 
 ### Choose how a change by hand ends
 
-Open the Chauffage panel, then the *Settings* tab. Choose one of three ends for a change by hand.
+Open the settings: tap the reason of an override's end, or the ⚙ of the Chauffage panel.
+Choose one of three ends for a change by hand.
 Take a living room with a comfort slot until 22:30, and an office whose next slot is at 6:00:
 
 | End of a change by hand | Your change lasts… | Living room raised at 21:30 | Office raised at 18:30 |
@@ -564,7 +570,9 @@ To change the options, go to Settings → Devices & services → Chauffage → *
   *Until the next slot, at most the override duration*, or *Until the next slot* (see
   [Choose how a change by hand ends](#choose-how-a-change-by-hand-ends)).
 
-You can also change these two settings in the panel's *Settings* tab, or with their entities.
+You can also change these two settings in the settings dialog, from the ⚙ of the panel, or with
+their entities. At the foot of the settings dialog, *Other Chauffage options* leads to these
+options.
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
   every thermostat with temperatures, and you set all of them in the card.
 - **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no

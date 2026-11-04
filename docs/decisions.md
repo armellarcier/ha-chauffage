@@ -108,9 +108,9 @@ future contributor might question.
     the card's popover, the more-info dialog and the thermostat card. For an administrator, a ⚙
     after the reason shows on a phone that the words open the settings.
   - **The reason leads to the setting.** Existing users never see the panel's next steps, and
-    the surprise happens on the override. So for an administrator the reason is a link to the
-    *Settings* tab. A user who is not an administrator cannot open the panel, so the reason stays
-    plain text. Existing users also get a one-time notice on the *Thermostats* tab.
+    the surprise happens on the override. So for an administrator the reason is a link that opens
+    the settings dialog. A user who is not an administrator cannot change the settings, so the
+    reason stays plain text. Existing users also get a one-time notice on the *Thermostats* tab.
   - **"Until the next slot", for one override.** A user who wants one change to last the
     afternoon should not have to change the setting for every thermostat. The button shows the
     time, "Until 17:30 (next slot)", so that it is not mistaken for the setting, and so that the
@@ -127,7 +127,7 @@ future contributor might question.
     2 h" without reading the stored data.
 - **The settings of overrides live in the options, the panel and two entities** (#83). Users
   did not find the override duration, three clicks away from the card in the integration's
-  options. The panel's *Settings* tab shows both settings, each choice with one sentence and the
+  options. The settings dialog shows both settings, each choice with one sentence and the
   example of the living room and the office computed with the user's own duration. The *Chauffage*
   device gets two configuration entities, the select *End of a change by hand* and the number
   *Override duration*, so a dashboard or an automation can change them, for example *Until the
@@ -838,13 +838,41 @@ older one, the older one says so.
 - **The next steps say what a change by hand does** (#83), with the current setting, for example
   "A setpoint you change by hand lasts 2 hours. Then the thermostat goes back to its schedule."
   Overrides surprise users: the knob is turned, and two hours later the thermostat goes back to
-  its schedule. A button leads to the *Settings* tab.
-- **A *Settings* tab, last**, holds the *Changes by hand* section (#83). The *Presets* tab was the
-  other candidate, but the overrides are not presets, and a tab of its own can later hold the
-  other options. On a 360 px phone the four tabs fit, with tighter padding.
+  its schedule. A button opens the settings dialog.
+- **A settings dialog, not a tab**, holds the *Changes by hand* section (#83). A first version
+  had a fourth tab, *Settings*. The tab was too heavy for two settings, and a fourth tab was cut
+  off on a 360 px phone. The UX reviews of #83 asked for a direct path from the surprise, a
+  layout read by touch at 360 px, labels that carry the duration, and little density, not for a
+  tab. Above all, the link from the reason of an override's end left the view: it closed the
+  more-info dialog, then opened the panel, and the card's popover was lost. The browser's Back
+  then returned to the dashboard without them.
+  - **The dialog opens on top of the view, without navigating**: from the reason of an
+    override's end (the card's popover, the more-info dialog, the thermostat card), from the ⚙ of
+    the panel's toolbar, from the one-time notice and from the next steps. Closing it, or Back,
+    returns to the view as it was, the popover or the more-info dialog still open.
+  - **Home Assistant's dialog manager opens it**: the card fires `show-dialog` with
+    `dialogTag: chauffage-settings-dialog`. The manager puts the dialog on top of the dialogs
+    already open, gives it `hass`, and gives it a history entry, so Back closes the top dialog
+    only. The dialog follows the manager's contract, from 2025.1 to today: `showDialog()`,
+    `closeDialog()`, and `dialog-closed` once closed. Over the more-info dialog, the manager
+    replaces the more-info's history entry instead of adding one. Back then closes the settings
+    and keeps the more-info open, without `?more-info-entity-id=` in the address.
+  - **Home Assistant's `ha-dialog` draws it when the page has it**, else the browser's
+    `<dialog>`, with `showModal()` and Home Assistant's colors. `ha-dialog` changed in 2025:
+    Material's dialog takes a `heading` and our ✕, Web Awesome's takes a `headerTitle` and has
+    its own ✕. Both are `open` and say `closed`. Without Home Assistant's frontend (no
+    `<home-assistant>`), the dialog opens by itself and takes its own history entry.
+  - **A press or Escape in the dialog does not close the card's popover under it.**
+  - **Its foot links to the other options**, for an administrator: *Other Chauffage options*,
+    with a line that names them. Home Assistant offers no address that opens an options flow,
+    from 2025.1 to today, so the link opens the integration's page, where *Configure* opens them.
+    The link leaves the view: the dialog closes first, its history entry is taken back, then the
+    page opens. Back then returns to the view under the dialog.
+  - **`/chauffage/settings` still works**: it opens the *Thermostats* tab and the dialog on top.
+  - **The panel's tabs get back their normal padding**: three tabs fit on a 360 px phone.
   - **One name**: the section and the setting are "changes by hand". A first version titled the
     section *Overrides* and the setting *End of a change by hand*, two names for one thing.
-  - **The duration first, then the choices that use it**, in the panel, the options flow and the
+  - **The duration first, then the choices that use it**, in the dialog, the options flow and the
     README. Each choice carries the user's
     duration, "For 2 h (default)", "Until the next slot, 2 h at most", so the labels explain
     themselves. The entity's states and the options flow keep static labels with "the override
@@ -865,7 +893,7 @@ older one, the older one says so.
     then Home Assistant's dropdown: neither could give 2 h 45.
   - **A change is sent at once**, as in Home Assistant's settings. The controls wait for the
     answer, then say "Saved". The note on the entities lives in the README only.
-  - The *Settings* tab shows no "no thermostat yet" notice: its settings do not need one.
+  - The settings dialog shows no "no thermostat yet" notice: its settings do not need one.
 
 ### The more-info block
 
