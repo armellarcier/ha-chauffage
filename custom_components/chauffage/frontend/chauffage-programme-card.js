@@ -6335,7 +6335,8 @@ class ChauffagePanel extends HTMLElement {
       window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
       // The settings open once for this address, after the redirect: their history entry comes
       // after it. Home Assistant gives the new route a moment later.
-      if (route.settings && this._settingsFor !== this._route && isAdmin(hass)) {
+      // Not under a notice: without the integration's data, the dialog would show the defaults
+      if (route.settings && this._settingsFor !== this._route && isAdmin(hass) && !notice) {
         this._settingsFor = this._route;
         openSettings(this, hass);
       }
@@ -6403,8 +6404,9 @@ class ChauffagePanel extends HTMLElement {
     } else {
       const tabs = PANEL_TABS.map(([page, label]) =>
         `<a href="/chauffage/${page}" class="tab${page === route.list ? ' on' : ''}" data-navigate="/chauffage/${page}">${esc(t(label))}</a>`).join('');
-      // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (admins)
-      const cog = isAdmin(this._hass)
+      // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (admins).
+      // Not under a notice, like the sheet's ⋮
+      const cog = isAdmin(this._hass) && !notice
         ? `<button class="page-more" data-open-settings title="${esc(t('settingsTitle'))}" aria-label="${esc(t('settingsTitle'))}"><ha-icon icon="mdi:cog"></ha-icon></button>`
         : '';
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div>${cog}</div>

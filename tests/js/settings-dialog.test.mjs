@@ -486,6 +486,27 @@ describe('the settings dialog', () => {
       assert.ok(isOpen(manager.dialog(DIALOG)));
     });
 
+    // Without the integration's data, the dialog would show the default settings, not the user's
+    test('while the panel shows a notice, there is no ⚙ and /chauffage/settings opens no dialog', async () => {
+      const notices = {
+        'reload the page': { data: { ...integrationData({ weeks: WEEKS }), version: '99.0.0' } },
+        '…': { data: null },
+      };
+      for (const [notice, more] of Object.entries(notices)) {
+        const hass = setup(more);
+        const manager = fakeDialogManager(hass);
+        assert.equal($(panel(hass, '/schedules'), '[data-open-settings]'), null, notice);
+        cleanup();
+        const redirected = setup(more);
+        const redirectedManager = fakeDialogManager(redirected);
+        panel(redirected, '/settings');
+        await tick();
+        assert.deepEqual(redirectedManager.shown, [], notice);
+        assert.deepEqual(manager.shown, [], notice);
+        cleanup();
+      }
+    });
+
     describe("without Home Assistant's dialog manager", () => {
       const open = () => {
         window.history.replaceState(null, '', '/lovelace/0');
