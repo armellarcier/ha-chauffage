@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -108,6 +109,7 @@ def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat |
         engine.temperature_value(attributes.get("max_temp")),
         engine.temperature_value(attributes.get("target_temp_step")),
         vtherm,
+        engine.ready(attributes, vtherm),
     )
 
 
@@ -1106,9 +1108,11 @@ class ChauffageRuntime:
         before, after = self.current(old), self.current(new)
         applied = self._applied(new.entity_id, before, after)
         if engine.ignored(before) and not engine.ignored(after):
-            # Turned back on, or back online: the thermostat may have missed slot changes, and
-            # never got the override set while it was away
-            catch_up = self._realign(new.entity_id, f"back from {old.state}")
+            # Turned back on, back online, or ready after a restart: the thermostat may have
+            # missed slot changes, and never got the override set while it was away
+            back = engine.ignored(dataclasses.replace(before, ready=True))
+            why = f"back from {old.state}" if back else "thermostat ready"
+            catch_up = self._realign(new.entity_id, why)
             self.entry.async_create_task(self.hass, catch_up, "chauffage catch up")
             return
         context = new.context

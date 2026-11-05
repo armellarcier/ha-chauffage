@@ -166,6 +166,32 @@ future contributor might question.
   Chauffage now leaves the decision to VTherm, as for its safety mode. Checked on VTherm 10.5: a
   VTherm turned off by hand stays off when it gets a preset or a setpoint. Older versions are
   not checked; they are rare, and the risk is accepted.
+- **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
+  thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
+  `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its
+  presets once Home Assistant has started, at the same moment Chauffage realigns the
+  thermostats. Without presets, Chauffage would send the VTherm the preset's temperature instead
+  of the preset, and the VTherm would keep that temperature until its next slot. A thermostat
+  that shows no setpoint (`temperature`, `target_temp_low`, `target_temp_high`) and no preset
+  has no known state, whatever its kind: Chauffage could not compare it with its slot anyway.
+  Once it shows one, the back-online path sets it to its slot or its override.
+  - **A VTherm whose `is_ready` is false is not ready either.** VTherm 9 and later publish
+    `is_ready`, for example false while an underlying is unavailable. An absent `is_ready` blocks
+    nothing: if VTherm moves or renames the attribute, Chauffage still controls it.
+  - **Other ideas, rejected.** Reading the VTherm version to require `is_ready` from 9 on would
+    stop every VTherm if the attribute moved. Realigning when the presets change would undo a
+    change by hand written with them. Sending the preset anyway and letting the thermostat
+    refuse it means a refusal and a warning at each restart, and a refusal at each slot for a
+    VTherm without presets. Fixed delays are guesses. Realigning at start only what changed
+    during the downtime is a design change, not a fix: it needs stored data, and leaves a change
+    made by hand while Home Assistant was down.
+  - **Accepted risk.** A VTherm may write a state with its restored setpoint but not yet its
+    presets, for example when an underlying changes during the startup. If Chauffage's command
+    lands after the presets are built, the VTherm keeps the temperature until its next slot. It
+    takes two coincidences. A thermostat that shows no setpoint for a moment while someone
+    changes it by hand is set back to its slot, as one back from unavailable is. So is a change
+    by hand made on a VTherm while its `is_ready` is false, for example while an underlying is
+    lost: it is not an override.
 - **VTherm is recognized by its integration, not by its attributes**: the platform of its entity
   in the entity registry is `versatile_thermostat`, in the integration and in the card
   (`hass.entities`). The attributes VTherm publishes have changed between versions, and another
