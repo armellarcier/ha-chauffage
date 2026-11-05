@@ -212,6 +212,25 @@ future contributor might question.
   at once and done again (the valve, the card), a false one heats a room at the wrong
   temperature for hours without anyone knowing why. A change made in Home Assistant by a user
   is always an override. After a day a command is not waited for anymore.
+- **A VTherm is read as it was asked, not as it changed itself** (#92). VTherm 10.5 publishes
+  two states: `current_state`, what it does now, and `requested_state`, what it was asked for.
+  An open window with the *Frost protection* action sets the frost setpoint and keeps the
+  preset. On a temperature slot, Chauffage took the frost setpoint for a change on the device:
+  an override at 7 °C while the window was open. If the slot changed meanwhile, the old slot's
+  setpoint became a 2-hour override once the window closed.
+  - **What Chauffage reads.** For a VTherm with `requested_state`, Chauffage reads the preset
+    from `requested_state`. On the manual preset (`none`), it also reads the setpoint from
+    `requested_state`. On another preset, `requested_state` keeps the last manual setpoint, not
+    the preset's: Chauffage reads the setpoint VTherm shows. Without `requested_state`, for
+    example an older VTherm, Chauffage reads the attributes as before.
+  - **Why not the window.** Reading `is_window_detected` or the window action would tie
+    Chauffage to one VTherm feature. `requested_state` also covers the other changes VTherm
+    makes by itself: the central mode, the power shedding, the presence and the motion.
+  - **Checked on VTherm 10.5** in a development HA, with a window sensor: the *Frost protection*
+    action on a preset slot and on a temperature slot, and the *Turn off* action on both. The
+    *Turn off* action made no override, before or after the fix: VTherm turns off and keeps its
+    setpoint and preset. Older versions of VTherm and the other changes VTherm makes by itself
+    are not checked.
 - **No special case for Versatile Thermostat's safety mode**: VTherm keeps the requested preset
   and returns to it by itself, so the usual rules are right (v0.2.0-beta.3 removed a special
   case that overwrote a user's choice).
