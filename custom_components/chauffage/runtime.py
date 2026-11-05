@@ -1109,8 +1109,7 @@ class ChauffageRuntime:
         if engine.ignored(before) and not engine.ignored(after):
             # Turned back on, back online, or a VTherm that has finished starting: the thermostat
             # may have missed slot changes, and never got the override set while it was away
-            starting = not before.ready and old.state not in ("unavailable", "unknown")
-            why = "Versatile Thermostat ready" if starting else f"back from {old.state}"
+            why = "Versatile Thermostat ready" if not before.ready else f"back from {old.state}"
             catch_up = self._realign(new.entity_id, why)
             self.entry.async_create_task(self.hass, catch_up, "chauffage catch up")
             return

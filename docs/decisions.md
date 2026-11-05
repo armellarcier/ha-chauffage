@@ -173,10 +173,13 @@ future contributor might question.
   VTherm publishes `is_ready`. The attribute becomes true once the VTherm's startup is done and
   all its underlyings are initialized, then stays true. Chauffage reads this attribute rather
   than VTherm's Python API, so that Chauffage depends on no VTherm code. A VTherm without
-  `is_ready` (before version 9) is ready once it shows a preset other than `none`. A VTherm whose
-  underlying never initializes never gets a command: VTherm does not regulate in that state
-  either. Other thermostats are not checked: a thermostat without presets, such as a generic
-  thermostat, never gets any.
+  `is_ready` (before version 9) is taken as ready, and may still get a temperature at a restart.
+  Its presets can't tell instead: a VTherm 8 without presets configured shows only `none`
+  forever, and would never get a command. VTherm before version 9 was about 3 % of VTherm
+  installations in November 2026 (Home Assistant analytics), so the risk is accepted. A VTherm
+  whose underlying never initializes never gets a command: VTherm does not regulate in that
+  state either. Other thermostats are not checked: a thermostat without presets, such as a
+  generic thermostat, never gets any.
 - **VTherm is recognized by its integration, not by its attributes**: the platform of its entity
   in the entity registry is `versatile_thermostat`, in the integration and in the card
   (`hass.entities`). The attributes VTherm publishes have changed between versions, and another

@@ -15,7 +15,8 @@ Each entry says whether the release **migrates stored data** and what to do when
   planned on *Comfort* could get 20 °C with the preset `none` instead of the preset `comfort`.
   The VTherm then kept that temperature until its next slot. VTherm builds its presets once Home
   Assistant has started, at the same moment Chauffage sets the thermostats to their slots.
-  Chauffage now waits until the VTherm is ready, then sets it to its slot.
+  Chauffage now waits until the VTherm is ready, then sets it to its slot. This needs VTherm 9
+  or later.
 
 ## [0.9.0-beta.1] - 2026-11-04
 

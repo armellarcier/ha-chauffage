@@ -96,14 +96,21 @@ async def test_a_vtherm_that_is_not_ready_at_start_gets_its_slot_once_ready(benc
     assert bench.overrides() == {}
 
 
-async def test_a_vtherm_without_presets_at_start_gets_its_slot_once_it_shows_them(bench: Bench):
-    """A VTherm before version 9 has no is_ready: it is ready once it shows its presets."""
-    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "min_temp": 5, "max_temp": 30})
-    assert bench.applied() == {}
-    bench.thermostat("climate.salon", "comfort", context=Context())
-    await bench.hass.async_block_till_done()
+async def test_a_vtherm_before_version_9_gets_its_slot_at_start(bench: Bench):
+    """A VTherm before version 9 has no is_ready: it gets its slot at once, as before #93, even
+    without presets."""
+    await restart_while_vtherm_starts(
+        bench, {"temperature": 20.0, "min_temp": 5, "max_temp": 30, "preset_mode": "none", "preset_modes": ["none"]})
     assert bench.applied() == {"climate.salon": "eco"}
-    assert bench.overrides() == {}
+
+
+async def test_an_override_on_a_vtherm_still_starting_is_sent_once_it_is_ready(bench: Bench):
+    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "is_ready": False})
+    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "eco", is_ready=True, context=Context())
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "comfort"}
 
 
 async def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):

@@ -100,15 +100,15 @@ def test_off_unavailable_and_unknown_thermostats_are_ignored():
     assert targets(at("10:00"), {}, force=True) == []  # entity missing
 
 
-def test_a_vtherm_is_ready_once_it_says_so_or_once_it_shows_its_presets():
+def test_a_vtherm_is_ready_once_it_says_so():
     """VTherm builds its presets once Home Assistant has started, and publishes is_ready since
-    its version 9 (#93). Before, a VTherm without presets is still starting."""
+    its version 9 (#93). A VTherm before version 9 says nothing: it is taken as ready, even
+    without presets."""
     assert engine.vtherm_ready({"is_ready": True, "preset_modes": ["none", "eco"]})
     assert not engine.vtherm_ready({"is_ready": False, "preset_modes": ["none", "eco"]})
-    assert engine.vtherm_ready({"is_ready": True})  # a VTherm without presets
     assert engine.vtherm_ready({"preset_modes": ["none", "eco"]})  # VTherm before 9
-    assert not engine.vtherm_ready({"preset_modes": ["none"]})
-    assert not engine.vtherm_ready({})
+    assert engine.vtherm_ready({"preset_modes": ["none"]})  # VTherm before 9, without presets
+    assert engine.vtherm_ready({})  # unavailable: no attributes
 
 
 def test_a_vtherm_that_is_not_ready_is_ignored():

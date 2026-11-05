@@ -129,6 +129,19 @@ async def test_a_vtherm_set_to_its_slot_once_ready_is_logged(bench: Bench, log):
     assert sent(log()) == ["Versatile Thermostat ready, eco of schedule normal"]
 
 
+async def test_a_vtherm_unknown_while_starting_is_logged_as_ready(bench: Bench, log):
+    """At a restart, a VTherm still starting may show the state unknown."""
+    bench.needs("vtherm")
+    bench.versatile_thermostat("climate.salon")
+    await start(bench)
+    bench.hass.states.async_set("climate.salon", "unknown", {"is_ready": False})
+    await bench.hass.async_block_till_done()
+    log()
+    bench.thermostat("climate.salon", "comfort", is_ready=True, context=Context())
+    await bench.hass.async_block_till_done()
+    assert sent(log()) == ["Versatile Thermostat ready, eco of schedule normal"]
+
+
 async def test_a_vtherm_back_online_is_logged_as_back_online(bench: Bench, log):
     """An unavailable VTherm publishes no attribute, so no is_ready either."""
     bench.needs("vtherm")

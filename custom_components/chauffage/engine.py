@@ -38,11 +38,9 @@ class Thermostat:
 def vtherm_ready(attributes: Mapping[str, Any]) -> bool:
     """Whether a VTherm has finished starting. VTherm builds its presets once Home Assistant has
     started: a command sent before would be a temperature instead of its preset (#93). Since its
-    version 9, VTherm says so (is_ready); before, it is ready once it shows a preset."""
-    if "is_ready" in attributes:
-        return attributes["is_ready"] is True
-    presets = (preset_value(p) for p in attributes.get("preset_modes") or ())
-    return any(not is_manual_preset(p) for p in presets)
+    version 9, VTherm says so (is_ready). A VTherm before version 9 says nothing: it is taken as
+    ready."""
+    return bool(attributes.get("is_ready", True))
 
 
 def ignored(thermostat: Thermostat) -> bool:
