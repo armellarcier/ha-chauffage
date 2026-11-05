@@ -68,24 +68,70 @@ async def start_vtherm(bench: Bench, hhmm: str) -> None:
     await start(bench, hhmm)
 
 
-async def restart_while_vtherm_starts(bench: Bench, starting: dict) -> None:
-    """Home Assistant restarts at 10:00 (eco). VTherm builds its presets once Home Assistant has
-    started, as Chauffage realigns the thermostats: climate.salon is still `starting` (#93)."""
-    await start_vtherm(bench, "10:00")
+# The first state Versatile Thermostat 10.5 writes at a restart, as recorded in a development HA:
+# off, no setpoint, no preset (VTherm builds its presets once Home Assistant has started), no
+# is_ready. VTherm 8.6.2 starts the same way.
+VTHERM_STARTING = ("off", {"current_temperature": None, "temperature": None, "friendly_name": "Salon"})
+
+
+async def restart(bench: Bench, state: str, attributes: dict) -> None:
+    """Home Assistant restarts at 10:00 (eco). Chauffage realigns the thermostats once Home
+    Assistant has started; climate.salon then shows `state` and `attributes` (#93)."""
+    if bench.kind == "vtherm":
+        bench.versatile_thermostat("climate.salon")
+    await start(bench, "10:00")
     bench.hass.set_state(CoreState.starting)
     bench.hass.states.async_remove("climate.salon")  # a restart: no state yet
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     bench.runtime.pause = 0
-    bench.hass.states.async_set("climate.salon", "heat", starting)
+    bench.hass.states.async_set("climate.salon", state, attributes)
     bench.hass.set_state(CoreState.running)
     bench.hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     await bench.hass.async_block_till_done()
 
 
-async def test_a_vtherm_that_is_not_ready_at_start_gets_its_slot_once_ready(bench: Bench):
-    """A VTherm says when it is ready (is_ready, VTherm 9 and later). Before, it gets nothing:
-    it would take a fixed temperature instead of its preset."""
-    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "is_ready": False})
+async def test_a_thermostat_without_setpoint_or_preset_at_start_gets_its_slot_once_it_shows_one(bench: Bench):
+    """A thermostat that shows neither a setpoint nor a preset has not restored its state yet: a
+    command sent then could be a temperature instead of its preset."""
+    await restart(bench, "heat", {"friendly_name": "Salon"})
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "comfort", context=Context())
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "eco"}
+    assert bench.overrides() == {}
+
+
+async def test_a_vtherm_restarting_gets_its_preset_not_a_temperature(bench: Bench):
+    """The real startup of VTherm: its first state gets nothing, then it shows its presets and
+    gets its preset. Before #93, it got 17 °C and kept it until its next slot."""
+    bench.needs("vtherm")
+    await restart(bench, *VTHERM_STARTING)
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "comfort", is_ready=True, context=Context())
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "eco"}
+    assert bench.temperature_calls == []
+    assert bench.overrides() == {}
+
+
+async def test_a_vtherm_before_version_9_gets_its_slot_once_it_shows_a_setpoint(bench: Bench):
+    """VTherm 8 publishes no is_ready. A VTherm without presets configured shows only `none`:
+    it gets the preset's temperature once it shows its setpoint."""
+    bench.needs("vtherm")
+    await restart(bench, *VTHERM_STARTING)
+    assert bench.applied() == {}
+    bench.hass.states.async_set("climate.salon", "heat", {"temperature": 20.0, "preset_mode": "none",
+                                                          "preset_modes": ["none"]}, context=Context())
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "eco"}
+    assert bench.temperature_calls == [("climate.salon", 17.0)]
+
+
+async def test_a_vtherm_that_says_it_is_not_ready_gets_its_slot_once_ready(bench: Bench):
+    """VTherm 9 and later say when they are not ready (is_ready), for example while an underlying
+    is unavailable."""
+    bench.needs("vtherm")
+    await restart(bench, "heat", {"temperature": 20.0, "is_ready": False})
     assert bench.applied() == {}
     bench.thermostat("climate.salon", "comfort", is_ready=False, context=Context())  # presets built
     await bench.hass.async_block_till_done()
@@ -96,31 +142,23 @@ async def test_a_vtherm_that_is_not_ready_at_start_gets_its_slot_once_ready(benc
     assert bench.overrides() == {}
 
 
-async def test_a_vtherm_before_version_9_gets_its_slot_at_start(bench: Bench):
-    """A VTherm before version 9 has no is_ready: it gets its slot at once, as before #93, even
-    without presets."""
-    await restart_while_vtherm_starts(
-        bench, {"temperature": 20.0, "min_temp": 5, "max_temp": 30, "preset_mode": "none", "preset_modes": ["none"]})
-    assert bench.applied() == {"climate.salon": "eco"}
-
-
-async def test_an_override_on_a_vtherm_still_starting_is_sent_once_it_is_ready(bench: Bench):
-    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "is_ready": False})
+async def test_an_override_on_a_thermostat_still_starting_is_sent_once_it_is_ready(bench: Bench):
+    await restart(bench, "heat", {"friendly_name": "Salon"})
     await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
     assert bench.applied() == {}
-    bench.thermostat("climate.salon", "eco", is_ready=True, context=Context())
+    bench.thermostat("climate.salon", "eco", context=Context())
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
-async def test_a_vtherm_still_starting_gets_the_slot_that_started_meanwhile_once_ready(bench: Bench):
+async def test_a_thermostat_still_starting_gets_the_slot_that_started_meanwhile_once_ready(bench: Bench):
     """Its override expired and a new slot started while it was starting: it gets the new slot."""
-    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "is_ready": False})
+    await restart(bench, "heat", {"friendly_name": "Salon"})
     await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
     await bench.go_to("17:30")  # override expired, comfort slot
     assert bench.applied() == {}
     assert bench.overrides() == {}
-    bench.thermostat("climate.salon", "eco", is_ready=True, context=Context())
+    bench.thermostat("climate.salon", "eco", context=Context())
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "comfort"}
 

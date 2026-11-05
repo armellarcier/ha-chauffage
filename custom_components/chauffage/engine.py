@@ -32,19 +32,25 @@ class Thermostat:
     max_temp: float | None = None
     step: float | None = None
     vtherm: bool = False  # Versatile Thermostat
-    ready: bool = True  # a VTherm that has finished starting (see vtherm_ready)
+    ready: bool = True  # it shows a known state (see ready)
 
 
-def vtherm_ready(attributes: Mapping[str, Any]) -> bool:
-    """Whether a VTherm has finished starting. VTherm builds its presets once Home Assistant has
-    started: a command sent before would be a temperature instead of its preset (#93). Since its
-    version 9, VTherm says so (is_ready). A VTherm before version 9 says nothing: it is taken as
-    ready."""
-    return bool(attributes.get("is_ready", True))
+SETPOINTS = ("temperature", "target_temp_low", "target_temp_high")
+
+
+def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
+    """Whether a thermostat shows a known state: a setpoint or a preset. At a restart, a
+    thermostat may write a first state before it has restored its own: Versatile Thermostat
+    writes `off` without setpoint or preset, and builds its presets once Home Assistant has
+    started. A command sent then would be a temperature instead of its preset (#93). VTherm 9
+    and later also say when they are not ready (is_ready)."""
+    if vtherm and attributes.get("is_ready") is False:
+        return False
+    return any(attributes.get(key) is not None for key in (*SETPOINTS, "preset_mode"))
 
 
 def ignored(thermostat: Thermostat) -> bool:
-    """A thermostat left alone: turned off, unavailable or unknown, or a VTherm still starting.
+    """A thermostat left alone: turned off, unavailable or unknown, or not ready yet.
     Not a VTherm turned off: it keeps the preset asked while off, stays off, and starts again on
     it, for example after its auto start/stop (#74). Others may turn heating back on when they
     get a setpoint (Tado)."""
