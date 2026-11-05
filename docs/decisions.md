@@ -166,6 +166,17 @@ future contributor might question.
   Chauffage now leaves the decision to VTherm, as for its safety mode. Checked on VTherm 10.5: a
   VTherm turned off by hand stays off when it gets a preset or a setpoint. Older versions are
   not checked; they are rare, and the risk is accepted.
+- **A VTherm still starting is left alone, like an unavailable thermostat** (#93). VTherm builds
+  its presets once Home Assistant has started, at the same moment Chauffage realigns the
+  thermostats. Without presets, Chauffage would send the VTherm the preset's temperature instead
+  of the preset, and the VTherm would keep that temperature until its next slot. Since version 9,
+  VTherm publishes `is_ready`. The attribute becomes true once the VTherm's startup is done and
+  all its underlyings are initialized, then stays true. Chauffage reads this attribute rather
+  than VTherm's Python API, so that Chauffage depends on no VTherm code. A VTherm without
+  `is_ready` (before version 9) is ready once it shows a preset other than `none`. A VTherm whose
+  underlying never initializes never gets a command: VTherm does not regulate in that state
+  either. Other thermostats are not checked: a thermostat without presets, such as a generic
+  thermostat, never gets any.
 - **VTherm is recognized by its integration, not by its attributes**: the platform of its entity
   in the entity registry is `versatile_thermostat`, in the integration and in the card
   (`hass.entities`). The attributes VTherm publishes have changed between versions, and another

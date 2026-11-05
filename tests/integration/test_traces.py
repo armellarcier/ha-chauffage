@@ -117,6 +117,31 @@ async def test_going_back_to_the_slot_on_the_thermostat_is_logged(bench: Bench, 
     assert ended == "climate.salon: override ended (thermostat): temperature 21.5"
 
 
+async def test_a_vtherm_set_to_its_slot_once_ready_is_logged(bench: Bench, log):
+    bench.needs("vtherm")
+    bench.versatile_thermostat("climate.salon")
+    await start(bench)
+    bench.thermostat("climate.salon", "comfort", is_ready=False)
+    await bench.hass.async_block_till_done()
+    log()
+    bench.thermostat("climate.salon", "comfort", is_ready=True, context=Context())
+    await bench.hass.async_block_till_done()
+    assert sent(log()) == ["Versatile Thermostat ready, eco of schedule normal"]
+
+
+async def test_a_vtherm_back_online_is_logged_as_back_online(bench: Bench, log):
+    """An unavailable VTherm publishes no attribute, so no is_ready either."""
+    bench.needs("vtherm")
+    bench.versatile_thermostat("climate.salon")
+    await start(bench)
+    bench.hass.states.async_set("climate.salon", "unavailable", {})
+    await bench.hass.async_block_till_done()
+    log()
+    bench.thermostat("climate.salon", "comfort", is_ready=True)
+    await bench.hass.async_block_till_done()
+    assert sent(log()) == ["back from unavailable, eco of schedule normal"]
+
+
 async def test_a_thermostat_back_online_and_a_retry_are_logged(bench: Bench, log):
     await start(bench)
     bench.thermostat("climate.salon", "eco", state="unavailable")

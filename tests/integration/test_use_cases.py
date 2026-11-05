@@ -7,7 +7,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from homeassistant.core import Context
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import Context, CoreState
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
@@ -65,6 +66,44 @@ async def start_vtherm(bench: Bench, hhmm: str) -> None:
     bench.needs("vtherm")
     bench.versatile_thermostat("climate.salon")
     await start(bench, hhmm)
+
+
+async def restart_while_vtherm_starts(bench: Bench, starting: dict) -> None:
+    """Home Assistant restarts at 10:00 (eco). VTherm builds its presets once Home Assistant has
+    started, as Chauffage realigns the thermostats: climate.salon is still `starting` (#93)."""
+    await start_vtherm(bench, "10:00")
+    bench.hass.set_state(CoreState.starting)
+    bench.hass.states.async_remove("climate.salon")  # a restart: no state yet
+    assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
+    bench.runtime.pause = 0
+    bench.hass.states.async_set("climate.salon", "heat", starting)
+    bench.hass.set_state(CoreState.running)
+    bench.hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await bench.hass.async_block_till_done()
+
+
+async def test_a_vtherm_that_is_not_ready_at_start_gets_its_slot_once_ready(bench: Bench):
+    """A VTherm says when it is ready (is_ready, VTherm 9 and later). Before, it gets nothing:
+    it would take a fixed temperature instead of its preset."""
+    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "is_ready": False})
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "comfort", is_ready=False, context=Context())  # presets built
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "comfort", is_ready=True, context=Context())
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "eco"}
+    assert bench.overrides() == {}
+
+
+async def test_a_vtherm_without_presets_at_start_gets_its_slot_once_it_shows_them(bench: Bench):
+    """A VTherm before version 9 has no is_ready: it is ready once it shows its presets."""
+    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "min_temp": 5, "max_temp": 30})
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "comfort", context=Context())
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "eco"}
+    assert bench.overrides() == {}
 
 
 async def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):

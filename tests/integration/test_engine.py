@@ -100,6 +100,23 @@ def test_off_unavailable_and_unknown_thermostats_are_ignored():
     assert targets(at("10:00"), {}, force=True) == []  # entity missing
 
 
+def test_a_vtherm_is_ready_once_it_says_so_or_once_it_shows_its_presets():
+    """VTherm builds its presets once Home Assistant has started, and publishes is_ready since
+    its version 9 (#93). Before, a VTherm without presets is still starting."""
+    assert engine.vtherm_ready({"is_ready": True, "preset_modes": ["none", "eco"]})
+    assert not engine.vtherm_ready({"is_ready": False, "preset_modes": ["none", "eco"]})
+    assert engine.vtherm_ready({"is_ready": True})  # a VTherm without presets
+    assert engine.vtherm_ready({"preset_modes": ["none", "eco"]})  # VTherm before 9
+    assert not engine.vtherm_ready({"preset_modes": ["none"]})
+    assert not engine.vtherm_ready({})
+
+
+def test_a_vtherm_that_is_not_ready_is_ignored():
+    starting = Thermostat("heat", "none", 20.0, (), 5.0, 30.0, 0.5, vtherm=True, ready=False)
+    assert engine.ignored(starting)
+    assert targets(at("10:00"), {"climate.bureau": starting}, force=True) == []
+
+
 def test_a_vtherm_turned_off_still_gets_its_slots():
     """VTherm keeps the preset asked while it is off, whatever turned it off, and starts again
     on it (#74). Another thermostat turned off is left alone."""

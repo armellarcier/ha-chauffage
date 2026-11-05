@@ -8,7 +8,7 @@ See tests/integration/test_engine.py.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -32,12 +32,26 @@ class Thermostat:
     max_temp: float | None = None
     step: float | None = None
     vtherm: bool = False  # Versatile Thermostat
+    ready: bool = True  # a VTherm that has finished starting (see vtherm_ready)
+
+
+def vtherm_ready(attributes: Mapping[str, Any]) -> bool:
+    """Whether a VTherm has finished starting. VTherm builds its presets once Home Assistant has
+    started: a command sent before would be a temperature instead of its preset (#93). Since its
+    version 9, VTherm says so (is_ready); before, it is ready once it shows a preset."""
+    if "is_ready" in attributes:
+        return attributes["is_ready"] is True
+    presets = (preset_value(p) for p in attributes.get("preset_modes") or ())
+    return any(not is_manual_preset(p) for p in presets)
 
 
 def ignored(thermostat: Thermostat) -> bool:
-    """A thermostat left alone: turned off, unavailable or unknown. Not a VTherm turned off: it
-    keeps the preset asked while off, stays off, and starts again on it, for example after its
-    auto start/stop (#74). Others may turn heating back on when they get a setpoint (Tado)."""
+    """A thermostat left alone: turned off, unavailable or unknown, or a VTherm still starting.
+    Not a VTherm turned off: it keeps the preset asked while off, stays off, and starts again on
+    it, for example after its auto start/stop (#74). Others may turn heating back on when they
+    get a setpoint (Tado)."""
+    if not thermostat.ready:
+        return True
     if thermostat.state == "off" and thermostat.vtherm:
         return False
     return thermostat.state in IGNORED_STATES
