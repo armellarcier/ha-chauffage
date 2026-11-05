@@ -113,6 +113,27 @@ async def test_an_override_on_a_vtherm_still_starting_is_sent_once_it_is_ready(b
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
+async def test_a_vtherm_still_starting_gets_the_slot_that_started_meanwhile_once_ready(bench: Bench):
+    """Its override expired and a new slot started while it was starting: it gets the new slot."""
+    await restart_while_vtherm_starts(bench, {"temperature": 20.0, "is_ready": False})
+    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    await bench.go_to("17:30")  # override expired, comfort slot
+    assert bench.applied() == {}
+    assert bench.overrides() == {}
+    bench.thermostat("climate.salon", "eco", is_ready=True, context=Context())
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_a_vtherm_no_longer_ready_is_not_an_override(bench: Bench):
+    """Whatever a VTherm shows while it is not ready, it is not a change by hand."""
+    await start_vtherm(bench, "10:00")
+    bench.thermostat("climate.salon", "none", 22.0, is_ready=False, context=Context(user_id="someone"))
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+    assert bench.applied() == {}
+
+
 async def test_a_vtherm_stopped_by_auto_start_stop_still_gets_its_slots(bench: Bench):
     """VTherm's auto start/stop turns it off when the room needs no heating for a while. VTherm
     keeps the preset asked and starts again when that preset needs heating: it must get the
