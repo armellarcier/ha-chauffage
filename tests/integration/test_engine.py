@@ -88,6 +88,30 @@ def test_off_unavailable_and_unknown_thermostats_are_ignored():
     assert targets(at("10:00"), {}, force=True) == []  # entity missing
 
 
+def test_a_thermostat_is_ready_once_it_shows_a_setpoint_or_a_preset():
+    """At a restart, a thermostat may write a first state before it has restored its own: VTherm
+    writes `off` without setpoint or preset (#93)."""
+    assert not engine.ready({})
+    assert not engine.ready({"temperature": None, "current_temperature": None})
+    assert engine.ready({"temperature": 20.0})
+    assert engine.ready({"preset_mode": "eco"})
+    assert engine.ready({"target_temp_low": 18.0, "target_temp_high": 24.0})  # heat_cool
+
+
+def test_a_vtherm_is_not_ready_while_it_says_so():
+    """VTherm 9 and later publish is_ready; VTherm 8 publishes nothing."""
+    assert not engine.ready({"temperature": 20.0, "is_ready": False}, vtherm=True)
+    assert engine.ready({"temperature": 20.0, "is_ready": True}, vtherm=True)
+    assert engine.ready({"temperature": 20.0}, vtherm=True)  # VTherm 8
+    assert engine.ready({"temperature": 20.0, "is_ready": False})  # not a VTherm's attribute
+
+
+def test_a_thermostat_that_is_not_ready_is_ignored():
+    starting = Thermostat("heat", None, None, (), 5.0, 30.0, 0.5, ready=False)
+    assert engine.ignored(starting)
+    assert targets(at("10:00"), {"climate.bureau": starting}, force=True) == []
+
+
 def test_a_vtherm_turned_off_still_gets_its_slots():
     """VTherm keeps the preset asked while it is off, whatever turned it off, and starts again
     on it (#74). Another thermostat turned off is left alone."""
