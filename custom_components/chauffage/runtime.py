@@ -100,10 +100,11 @@ def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat |
         return None
     attributes = state.attributes
     presets = attributes.get("preset_modes") or ()
+    preset, temperature = engine.asked(attributes, vtherm)
     return engine.Thermostat(
         state.state,
-        engine.preset_value(attributes.get("preset_mode")),
-        engine.temperature_value(attributes.get("temperature")),
+        preset,
+        temperature,
         tuple(p for p in (engine.preset_value(p) for p in presets) if p),
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),

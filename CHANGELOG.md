@@ -9,6 +9,14 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **An open window on a Versatile Thermostat no longer makes an override** (#92). With the
+  *Frost protection* window action, VTherm sets its frost setpoint while the window is open. On
+  a temperature slot, Chauffage took this setpoint for a change by hand. If the slot changed
+  while the window was open, the thermostat then kept the old slot's setpoint for 2 hours once
+  the window closed. Chauffage now reads what VTherm was asked for, not what it does by itself.
+
 ## [0.9.0-beta.2] - 2026-11-05
 
 The second beta of **the end of overrides** (#83), with the fix of 0.8.3.
