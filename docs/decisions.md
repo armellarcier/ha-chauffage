@@ -189,7 +189,9 @@ future contributor might question.
     presets, for example when an underlying changes during the startup. If Chauffage's command
     lands after the presets are built, the VTherm keeps the temperature until its next slot. It
     takes two coincidences. A thermostat that shows no setpoint for a moment while someone
-    changes it by hand is set back to its slot, as one back from unavailable is.
+    changes it by hand is set back to its slot, as one back from unavailable is. So is a change
+    by hand made on a VTherm while its `is_ready` is false, for example while an underlying is
+    lost: it is not an override.
 - **VTherm is recognized by its integration, not by its attributes**: the platform of its entity
   in the entity registry is `versatile_thermostat`, in the integration and in the card
   (`hass.entities`). The attributes VTherm publishes have changed between versions, and another

@@ -151,6 +151,19 @@ async def test_an_override_on_a_thermostat_still_starting_is_sent_once_it_is_rea
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
+async def test_an_override_set_before_a_restart_is_sent_again_once_the_vtherm_is_ready(bench: Bench):
+    await start_vtherm(bench, "10:00")
+    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    bench.applied()
+    bench.hass.states.async_set("climate.salon", *VTHERM_STARTING)  # restarting: off, no setpoint
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {}
+    bench.thermostat("climate.salon", "eco", is_ready=True, context=Context())  # restored eco
+    await bench.hass.async_block_till_done()
+    assert bench.applied() == {"climate.salon": "comfort"}
+    assert "climate.salon" in bench.overrides()
+
+
 async def test_a_thermostat_still_starting_gets_the_slot_that_started_meanwhile_once_ready(bench: Bench):
     """Its override expired and a new slot started while it was starting: it gets the new slot."""
     await restart(bench, "heat", {"friendly_name": "Salon"})
