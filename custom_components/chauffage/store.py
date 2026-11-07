@@ -3,6 +3,10 @@
 A format change bumps STORAGE_VERSION and adds MIGRATIONS[n] (version n → n + 1), tested with
 a fixture of the old format in tests/fixtures/ (see CONTRIBUTING.md, "Data versions and
 migrations"). Migrations receive the data and Home Assistant's language (for names they create).
+
+A change that only adds data bumps STORAGE_MINOR_VERSION instead, with MINOR_MIGRATIONS[m]
+(m → m + 1, idempotent): a version without it still reads the file, with the same major version,
+and keeps what it does not know. So it can be installed back without restoring a backup.
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ from . import model
 from .const import DOMAIN
 
 STORAGE_VERSION = 6
-STORAGE_MINOR_VERSION = 1
+STORAGE_MINOR_VERSION = 2
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
 Migration = Callable[[dict[str, Any], str], dict[str, Any]]
@@ -75,6 +79,16 @@ def _v5_to_v6(data: dict[str, Any], language: str) -> dict[str, Any]:
 MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6}
 
 
+def _v6_1_to_v6_2(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """Schedule layers: none yet. Layers left by an earlier install are kept."""
+    schedules = [{**schedule, "layers": schedule.get("layers", [])} for schedule in data["schedules"]]
+    thermostats = {entity_id: {**t, "layer_weeks": t.get("layer_weeks", {})} for entity_id, t in data["thermostats"].items()}
+    return {**data, "schedules": schedules, "thermostats": thermostats}
+
+
+MINOR_MIGRATIONS: dict[int, Migration] = {1: _v6_1_to_v6_2}
+
+
 class ChauffageStore(Store[dict[str, Any]]):
     def __init__(self, hass: HomeAssistant) -> None:
         super().__init__(hass, STORAGE_VERSION, DOMAIN, minor_version=STORAGE_MINOR_VERSION)
@@ -82,14 +96,22 @@ class ChauffageStore(Store[dict[str, Any]]):
     async def _async_migrate_func(
         self, old_major_version: int, old_minor_version: int, old_data: dict[str, Any]
     ) -> dict[str, Any]:
-        return migrate(old_data, old_major_version, language=self.hass.config.language or "en")
+        return migrate(old_data, old_major_version, minor_version=old_minor_version,
+                       language=self.hass.config.language or "en")
 
 
 def migrate(data: dict[str, Any], version: int, target: int = STORAGE_VERSION,
-            migrations: dict[int, Migration] | None = None, language: str = "en") -> dict[str, Any]:
+            migrations: dict[int, Migration] | None = None, language: str = "en",
+            minor_version: int = 1) -> dict[str, Any]:
+    """`version`.`minor_version` to the current version (or to the major version `target`). A
+    major migration gives the first minor version of the next major version."""
     migrations = MIGRATIONS if migrations is None else migrations
     for v in range(version, target):
         if v not in migrations:
             raise ValueError(f"No migration from storage version {v}")
         data = migrations[v](data, language)
+        minor_version = 1
+    if target == STORAGE_VERSION:
+        for m in range(minor_version, STORAGE_MINOR_VERSION):
+            data = MINOR_MIGRATIONS[m](data, language)
     return data
