@@ -10,6 +10,17 @@ heater (input_boolean) and temperature sensor:
         unique_id: sim_climate_amis
         heater: input_boolean.radiateur_amis
         sensor: sensor.temperature_amis
+
+With `cooler`, the climate is a reversible air conditioner (#61, #91): it heats, cools (the
+cooler, another input_boolean, read by dev/sim_rooms) or runs its fan only, and it lists fan and
+swing modes like a real one:
+
+      - platform: sim_climate
+        name: Atelier
+        unique_id: sim_climate_atelier
+        heater: input_boolean.radiateur_atelier
+        cooler: input_boolean.clim_atelier
+        sensor: sensor.temperature_atelier
 """
 
 from __future__ import annotations
@@ -33,11 +44,17 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 PRESETS = {"eco": 17.0, "comfort": 20.0, "away": 15.0, "boost": 22.0}
 HYSTERESIS = 0.3
+# What a reversible air conditioner lists (the values of issue #61)
+AC_HVAC_MODES = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.FAN_ONLY]
+AC_FAN_MODES = ["auto", "1", "2", "3", "4", "5"]
+AC_SWING_MODES = ["auto", "1_up", "2", "3", "4", "5_down", "swing"]
+AC_SWING_HORIZONTAL_MODES = ["auto", "1_left", "2", "3", "4", "5_right", "split", "swing"]
 
 PLATFORM_SCHEMA = CLIMATE_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_NAME): cv.string,
     vol.Optional(CONF_UNIQUE_ID): cv.string,
     vol.Required("heater"): cv.entity_id,
+    vol.Optional("cooler"): cv.entity_id,
     vol.Required("sensor"): cv.entity_id,
 })
 
@@ -63,16 +80,32 @@ class SimClimate(ClimateEntity, RestoreEntity):
         self._attr_name = config[CONF_NAME]
         self._attr_unique_id = config.get(CONF_UNIQUE_ID)
         self._heater = config["heater"]
+        self._cooler = config.get("cooler")
         self._sensor = config["sensor"]
         self._attr_hvac_mode = HVACMode.HEAT
         self._attr_preset_mode = "eco"
         self._attr_target_temperature = PRESETS["eco"]
+        if self._cooler:  # a reversible air conditioner
+            self._attr_hvac_modes = AC_HVAC_MODES
+            self._attr_fan_modes = AC_FAN_MODES
+            self._attr_swing_modes = AC_SWING_MODES
+            self._attr_swing_horizontal_modes = AC_SWING_HORIZONTAL_MODES
+            self._attr_fan_mode = "auto"
+            self._attr_swing_mode = "auto"
+            self._attr_swing_horizontal_mode = "auto"
+            self._attr_supported_features |= (
+                ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.SWING_MODE
+                | ClimateEntityFeature.SWING_HORIZONTAL_MODE
+            )
 
     async def async_added_to_hass(self) -> None:
         if (last := await self.async_get_last_state()) is not None:
             self._attr_hvac_mode = HVACMode(last.state) if last.state in self._attr_hvac_modes else HVACMode.HEAT
             self._attr_preset_mode = last.attributes.get("preset_mode")
             self._attr_target_temperature = last.attributes.get(ATTR_TEMPERATURE, self._attr_target_temperature)
+            if self._cooler:
+                for key in ("fan_mode", "swing_mode", "swing_horizontal_mode"):
+                    setattr(self, f"_attr_{key}", last.attributes.get(key, getattr(self, f"_attr_{key}")))
         self.async_on_remove(async_track_state_change_event(self.hass, [self._sensor], self._sensor_changed))
         self._read_sensor()
 
@@ -90,16 +123,26 @@ class SimClimate(ClimateEntity, RestoreEntity):
             self._attr_current_temperature = None
 
     async def _control(self) -> None:
-        """Simple thermostat: heater on below the setpoint, off above it."""
+        """Simple thermostat: heater on below the setpoint, off above it. A reversible air
+        conditioner in cool does the opposite with its cooler, and runs neither in fan only."""
         current, target = self._attr_current_temperature, self._attr_target_temperature
         if current is None or target is None:
             return
-        on = self._attr_hvac_mode == HVACMode.HEAT and current < target - HYSTERESIS
-        off = self._attr_hvac_mode == HVACMode.OFF or current > target + HYSTERESIS
+        mode = self._attr_hvac_mode
+        on = mode == HVACMode.HEAT and current < target - HYSTERESIS
+        off = mode != HVACMode.HEAT or current > target + HYSTERESIS
         if on or off:
-            await self.hass.services.async_call(
-                "homeassistant", "turn_on" if on else "turn_off", {"entity_id": self._heater}, context=self._context
-            )
+            await self._switch(self._heater, on)
+        if self._cooler:
+            cool = mode == HVACMode.COOL and current > target + HYSTERESIS
+            stop = mode != HVACMode.COOL or current < target - HYSTERESIS
+            if cool or stop:
+                await self._switch(self._cooler, cool)
+
+    async def _switch(self, entity_id: str, on: bool) -> None:
+        await self.hass.services.async_call(
+            "homeassistant", "turn_on" if on else "turn_off", {"entity_id": entity_id}, context=self._context
+        )
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         self._attr_preset_mode = preset_mode
@@ -117,4 +160,16 @@ class SimClimate(ClimateEntity, RestoreEntity):
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         self._attr_hvac_mode = hvac_mode
         await self._control()
+        self.async_write_ha_state()
+
+    async def async_set_fan_mode(self, fan_mode: str) -> None:
+        self._attr_fan_mode = fan_mode
+        self.async_write_ha_state()
+
+    async def async_set_swing_mode(self, swing_mode: str) -> None:
+        self._attr_swing_mode = swing_mode
+        self.async_write_ha_state()
+
+    async def async_set_swing_horizontal_mode(self, swing_horizontal_mode: str) -> None:
+        self._attr_swing_horizontal_mode = swing_horizontal_mode
         self.async_write_ha_state()

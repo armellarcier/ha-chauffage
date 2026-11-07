@@ -39,6 +39,7 @@ GAIN_LAG = 0.1  # hours: a door opened or people coming in change the air gradua
 @dataclass(frozen=True)
 class Room:
     power: float  # °C per hour the radiator brings to the air at full output
+    cool: float = 0.0  # °C per hour the air conditioner takes from the air when it cools (#91)
     exchange: float = 0.4  # per hour, air ↔ walls
     inertia: float = 0.35  # how much the walls follow the air (ratio of the air's mass to theirs)
     leak: float = 0.03  # per hour, air → outdoor (draughts)
@@ -68,6 +69,7 @@ ROOMS = {
     "cuisine": Room(power=3.8, leak=0.045, cooking=True, seed=4),
     "amis": Room(power=3.3, loss=0.02, seed=5),  # north facing, seldom used
     "veranda": Room(power=4.0, leak=0.05, loss=0.03, sun=1.5, seed=6),  # glass: sunny, leaky
+    "atelier": Room(power=3.2, cool=2.4, leak=0.04, sun=0.9, seed=7),  # a reversible air conditioner
 }
 
 
@@ -125,12 +127,14 @@ def gains(room: Room, t: datetime, sunshine: float, day: Day) -> float:
 
 
 def step(room: Room, state: State, heater_on: bool, t: datetime, hours: float,
-         mildness: float, sunshine: float, day: Day) -> State:
-    """The room's state after `hours` (a minute or less)."""
+         mildness: float, sunshine: float, day: Day, cooler_on: bool = False) -> State:
+    """The room's state after `hours` (a minute or less). `cooler_on`: the room's air
+    conditioner cools (the "radiator" then takes heat from the air)."""
     air, walls, radiator, felt, gain = state
     ext = outdoor(t, mildness)
     flow = room.exchange * (air - walls)
-    radiator += ((room.power if heater_on else 0.0) - radiator) / RADIATOR_LAG * hours
+    output = room.power if heater_on else -room.cool if cooler_on else 0.0
+    radiator += (output - radiator) / RADIATOR_LAG * hours
     gain += (gains(room, t, sunshine, day) - gain) / GAIN_LAG * hours
     air += (radiator + gain - flow - room.leak * (air - ext)) * hours
     walls += (room.inertia * flow - room.loss * (walls - ext)) * hours

@@ -60,8 +60,10 @@ class Simulation:
                 self.states[name] = State.at(value)
             heater = self.hass.states.get(f"input_boolean.radiateur_{name}")
             on = heater is not None and heater.state == "on"
+            cooler = self.hass.states.get(f"input_boolean.clim_{name}")  # a reversible AC's cooler
+            cooling = cooler is not None and cooler.state == "on"
             self.states[name] = step(room, self.states[name], on, now, TICK.total_seconds() / 3600,
-                                     mildness, sunshine, day_of(room, now.date()))
+                                     mildness, sunshine, day_of(room, now.date()), cooler_on=cooling)
             # The slider holds what the sensor measures (with its delay); the sensor rounds it
             self.written[name] = round(self.states[name].sensor, 2)
             await self._set(f"input_number.temperature_{name}", self.written[name])

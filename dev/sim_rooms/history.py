@@ -37,6 +37,7 @@ TPI_OUTDOOR = 0.03  # per °C between the setpoint and the outdoor temperature
 THERMOSTATS = {
     "climate.salon": "salon", "climate.bureau": "bureau", "climate.chambre": "chambre",
     "climate.cuisine": "cuisine", "climate.chambre_d_amis": "amis", "climate.veranda": "veranda",
+    "climate.atelier": "atelier",
 }
 # Someone turns the living room up by hand one evening (3 days ago, 19:00 → 21:00)
 MANUAL = {"entity_id": "climate.salon", "days_ago": 3, "start": 19 * 60, "end": 21 * 60, "temperature": 22.0}

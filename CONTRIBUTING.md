@@ -24,7 +24,7 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 ```
 
 Open <http://localhost:8124/chauffage-dev> and log in with **`dev` / `dev`**. The *Chauffage*
-dashboard, in the sidebar, shows the card with six thermostats.
+dashboard, in the sidebar, shows the card with seven thermostats.
 
 ### What the development HA holds
 
@@ -35,7 +35,7 @@ schedules.
 The repository is **mounted live**. Your changes to `custom_components/chauffage/` reach the
 development HA without a copy.
 
-`dev/hass/packages/simulation.yaml` creates six simulated rooms. Each room has a heater
+`dev/hass/packages/simulation.yaml` creates seven simulated rooms. Each room has a heater
 (`input_boolean.radiateur_*`) and a temperature sensor (`sensor.temperature_*`). The sensor
 reports the temperature every minute, to 0.1 °C, like a real sensor. The rooms cover **every
 kind of thermostat**:
@@ -46,6 +46,7 @@ kind of thermostat**:
 | cuisine | Home Assistant's **`generic_thermostat`**, without presets, declared in YAML. |
 | chambre d'amis | **Standard presets** (`eco`, `comfort`, `away`, `boost`, no `frost`), from the dev-only platform [`dev/sim_climate/`](dev/sim_climate/climate.py). A manual setpoint clears the preset. |
 | véranda | **Versatile Thermostat**, "over a climate", with **auto start/stop**. The climate under it, `climate.clim_veranda`, comes from `dev/sim_climate/` and is not scheduled. |
+| atelier | A **reversible air conditioner** from `dev/sim_climate/`: standard presets, `heat`, `cool` and `fan_only`, with `fan_modes`, `swing_modes` and `swing_horizontal_modes` (the values of #61). In `cool`, `input_boolean.clim_atelier` cools the room. |
 
 Two Versatile Thermostats also watch a **window**, an `input_boolean` you turn on to open it:
 

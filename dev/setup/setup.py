@@ -277,8 +277,9 @@ async def thermostats(api: Api) -> None:
 
 # ----- dashboard and sample schedules -----
 
-# Thermostats of the other kinds (simulation.yaml): no presets, standard presets
-OTHER_THERMOSTATS = {"climate.cuisine": "Cuisine", "climate.chambre_d_amis": "Chambre d'amis"}
+# Thermostats of the other kinds (simulation.yaml): no presets, standard presets, a reversible
+# air conditioner (standard presets, heat / cool / fan only, fan and swing modes, #91)
+OTHER_THERMOSTATS = {"climate.cuisine": "Cuisine", "climate.chambre_d_amis": "Chambre d'amis", "climate.atelier": "Atelier"}
 
 CARD = {
     "type": "custom:chauffage-programme-card",
@@ -306,6 +307,7 @@ SAMPLE_WEEKS = {
     "climate.cuisine": [day("00:00 eco", "07:00 comfort", "09:00 eco", "18:30 comfort", "21:00 eco")] * 7,
     "climate.chambre_d_amis": [day("00:00 frost")] * 5 + [day("00:00 eco", "08:00 comfort", "22:00 eco")] * 2,
     "climate.veranda": [day("00:00 frost", "10:00 comfort", "19:00 frost")] * 7,
+    "climate.atelier": [day("00:00 eco", "09:00 comfort", "18:00 eco")] * 5 + [day("00:00 eco")] * 2,
 }
 
 
