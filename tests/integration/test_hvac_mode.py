@@ -72,6 +72,20 @@ async def test_a_thermostat_turned_off_by_a_script_comes_back_on_at_the_next_slo
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
+async def test_a_thermostat_turned_off_by_a_script_stays_off_through_midnight(bench: Bench):
+    """The first slot of a day repeats the last one of the day before (eco, eco): it changes
+    nothing, so it does not turn the thermostat back on (#77)."""
+    await start(bench, "23:00")  # eco until 06:30
+    bench.thermostat("climate.salon", "eco", state="off", context=CTX_AUTOMATION)
+    await bench.hass.async_block_till_done()
+    await bench.advance(60)  # 00:00: the day's first slot starts, eco again
+    assert bench.powered() == {}
+    await bench.advance(60)
+    assert bench.powered() == {}
+    await bench.go_to("06:30", day=1)
+    assert bench.powered() == {"climate.salon": "heat"}
+
+
 async def test_a_thermostat_turned_off_is_turned_on_when_the_weeks_are_saved(bench: Bench):
     """Upgrading: a thermostat turned off by hand in the past comes back on (CHANGELOG)."""
     await bench.go_to("10:00")

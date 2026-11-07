@@ -384,8 +384,9 @@ def targets(
     - force: realign every thermostat (schedule activated, weeks saved, HA started);
     - otherwise only thermostats whose slot changed since the previous check (`since`; a slot
       starting during a missed minute, or in the hour skipped by the change to summer time, is
-      applied late rather than never), whose slot starts now, whose override just ended or was
-      removed (resumed), or that must be realigned (`include`: back online, failed command);
+      applied late rather than never; without `since`, whose slot starts now), whose override
+      just ended or was removed (resumed), or that must be realigned (`include`: back online,
+      failed command);
     - thermostats with an active override, unavailable or already as expected are left alone.
       Not one that still has another command to apply (`pending`, the last command sent to each
       thermostat that it does not show yet): it would apply that one later. A thermostat turned
@@ -400,7 +401,9 @@ def targets(
         thermostat = thermostats.get(entity_id)
         if slot is None or thermostat is None:
             continue
-        changed = starts_now or (since is not None and plan.slot_at(entity_id, since)[0] != slot)
+        # A slot that repeats the one before it (a day's first slot, eco after eco) changes
+        # nothing: a thermostat turned off by a script at bedtime stays off (#77)
+        changed = plan.slot_at(entity_id, since)[0] != slot if since is not None else starts_now
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
         target = plan.target_of(entity_id, slot, thermostat)

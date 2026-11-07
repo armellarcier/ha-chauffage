@@ -180,7 +180,11 @@ future contributor might question.
     changed by hand: an `off` override, which ends like any override, and then the thermostat
     comes back on, on its slot. Turning it on by hand during an off slot is an override too. A
     change by an automation or a script is not an override, as for a setpoint: a thermostat
-    turned off by an "all off" script stays off until the next slot (#77). Turned back on by
+    turned off by an "all off" script stays off until the next slot that changes something
+    (#77). A day's first slot repeats the last slot of the day before in most weeks (eco at
+    22:30, eco at 00:00): it changes nothing, so the tick does not apply it, and the thermostat
+    stays off until the morning. Before #91, every slot start was applied, which sent nothing to
+    a thermostat already on its preset; now it would turn one off back on. Turned back on by
     hand, a thermostat ends its off override at once and gets its slot: what it restarted on is
     not a choice of the user. A preset picked while the thermostat is off keeps it off: the
     override says off, and the preset it restarts on.
