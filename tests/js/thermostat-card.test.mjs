@@ -143,7 +143,7 @@ describe('the thermostat card', () => {
     block(card).querySelector('.foot [data-pause]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: true });
     hass.push({ ...integrationData({ weeks: WEEKS, planned: PLANNED, paused: ['climate.salon'] }) });
-    assert.match(text(block(card)), /En pause : Chauffage ne le pilote pas/);
+    assert.match(text(block(card)), /Pilotage suspendu. Chauffage n'y touche plus/);
     assert.equal(block(card).querySelector('[data-pause]'), null);
     block(card).querySelector('.foot [data-resume]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });

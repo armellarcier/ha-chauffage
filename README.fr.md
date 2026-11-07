@@ -100,7 +100,7 @@ name: Salon  # facultatif
 
 La carte montre la température mesurée et ce que fait le thermostat, par exemple
 « Normal · Éco jusqu'à 17:30, puis Confort », ainsi que les créneaux du jour. Depuis la carte,
-vous pouvez créer une dérogation et mettre le thermostat en pause. La carte ouvre aussi le
+vous pouvez créer une dérogation et suspendre le pilotage du thermostat. La carte ouvre aussi le
 thermostat et son planning. Les administrateurs ouvrent la page du thermostat dans le panneau
 Chauffage.
 
@@ -122,7 +122,7 @@ barre latérale* (voir [Options](#options)).
 Le panneau a trois onglets :
 
 - **Thermostats.** Tous les thermostats programmés, et les cartes qui les affichent. Le menu ⋮
-  d'un thermostat le met en pause ou l'oublie. Vous pouvez aussi en programmer un autre. Avant
+  d'un thermostat suspend son pilotage ou l'oublie. Vous pouvez aussi en programmer un autre. Avant
   votre premier thermostat, cet onglet vous accueille : cochez les thermostats que Chauffage
   pilote, puis *Programmer*.
 - **Plannings.** La liste des plannings, avec le planning actif signalé. La ligne d'un planning
@@ -532,20 +532,20 @@ affichent. Pour oublier un thermostat, ouvrez son menu ⋮, dans la liste ou à 
 sa page, puis *Oublier…*. Si vous supprimez l'entité d'un thermostat de Home Assistant,
 Paramètres → Réparations propose d'oublier le thermostat.
 
-### Mettre un thermostat en pause
+### Suspendre le pilotage d'un thermostat
 
-Pour mettre un thermostat en pause, cliquez sur *Mettre en pause* sous la fenêtre de détail du
-thermostat ou dans le panneau Chauffage. Vous pouvez aussi éteindre l'interrupteur **Pilotage** du
-thermostat.
+Pour suspendre le pilotage d'un thermostat, cliquez sur *Suspendre le pilotage* sous la fenêtre
+de détail du thermostat ou dans le panneau Chauffage. Vous pouvez aussi éteindre l'interrupteur
+**Pilotage** du thermostat.
 
 Chauffage garde les semaines du thermostat, mais ne lui envoie plus de commandes et ne crée plus
-de dérogations. La pause est pratique pour une pièce que vous gérez à la main quelques jours, ou
-à la fin de la saison de chauffe.
+de dérogations. Suspendre le pilotage est pratique pour une pièce que vous gérez à la main
+quelques jours, ou pour un radiateur que vous laissez éteint toute la belle saison.
 
-Pour rendre le thermostat à Chauffage, cliquez sur *Piloter* aux mêmes endroits, ou rallumez
-l'interrupteur **Pilotage**.
+Pour rendre le thermostat à Chauffage, cliquez sur *Reprendre le pilotage* aux mêmes endroits,
+ou rallumez l'interrupteur **Pilotage**.
 
-Tout utilisateur qui peut piloter le thermostat peut le mettre en pause et le rendre, pas seulement
+Tout utilisateur qui peut piloter le thermostat peut suspendre son pilotage et le rendre, pas seulement
 les administrateurs.
 
 ## Entités
@@ -565,7 +565,7 @@ ouvre la page du thermostat dans le panneau Chauffage.
 
 | Entité | Ce qu'elle indique |
 |---|---|
-| **Pilotage** (interrupteur) | Éteint quand le thermostat est **en pause**. |
+| **Pilotage** (interrupteur) | Éteint quand le pilotage du thermostat est **suspendu**. |
 | **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `hvac_mode` (`off`, un mode fixé par le créneau, ou vide : allumé), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat). |
 | **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs : `target` (ce que le thermostat reçoit, par exemple `{"temperature": 21.5}` ou `{"preset_mode": "boost"}`), `preset` (le préréglage Chauffage demandé, s'il y en a un), `end`, et `kind` et `value` comme avant 0.10. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours, sous forme d'horodatage, pour une tuile de tableau de bord. |

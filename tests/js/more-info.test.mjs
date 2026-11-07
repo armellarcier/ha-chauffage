@@ -337,7 +337,7 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
   test('holds Edit its week and Pause only: the device\'s page lists the thermostat\'s entities', () => {
     const el = block(fakeHass(), 'climate.salon');
     assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent),
-      ['Modifier sa semaine', 'Mettre en pause']);
+      ['Modifier sa semaine', 'Suspendre le pilotage']);
     assert.equal(foot(el).querySelector('[data-more-info], [data-device]'), null);
   });
 
@@ -364,6 +364,6 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
     const hass = fakeHass();
     hass.user = { is_admin: false };
     const el = block(hass, 'climate.salon');
-    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent), ['Mettre en pause']);
+    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent), ['Suspendre le pilotage']);
   });
 });

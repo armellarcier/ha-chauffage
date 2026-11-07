@@ -497,12 +497,12 @@ forget the thermostat.
 
 ### Pause a thermostat
 
-To pause a thermostat, click *Pause* under the thermostat's more-info dialog or in the
+To pause a thermostat, click *Pause control* under the thermostat's more-info dialog or in the
 Chauffage panel. You can also turn off the thermostat's **Control** switch.
 
 Chauffage keeps the thermostat's weeks, but stops sending it commands and stops making
-overrides. Pausing is handy for a room you run by hand for a few days, or at the end of the
-heating season.
+overrides. Pausing is handy for a room you run by hand for a few days, or for a heater you leave
+off all summer.
 
 To give the thermostat back to Chauffage, click *Resume control* in the same places, or turn the
 **Control** switch back on.

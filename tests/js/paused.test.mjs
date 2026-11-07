@@ -24,7 +24,7 @@ describe('a paused thermostat in the card', () => {
     const card = createCard(pausedSalon());
     const chip = q(card, '.chip[data-climate="climate.salon"]');
     assert.ok(chip.classList.contains('paused'));
-    assert.match(chip.querySelector('.live').textContent, /En pause/);
+    assert.match(chip.querySelector('.live').textContent, /Pilotage suspendu/);
     assert.doesNotMatch(q(card, '.chip[data-climate="climate.bureau"] .live').textContent, /pause/);
   });
 
@@ -90,7 +90,7 @@ describe('a paused thermostat in the card', () => {
 
   test('in English', () => {
     const card = createCard(pausedSalon({ locale: { language: 'en' } }));
-    assert.match(q(card, '.chip[data-climate="climate.salon"] .live').textContent, /Paused/);
+    assert.match(q(card, '.chip[data-climate="climate.salon"] .live').textContent, /Control paused/);
     assert.match(text(q(card, '.paused-note')), /Salon is paused: Chauffage does not control it\. Resume/);
   });
 });
@@ -110,12 +110,12 @@ describe('the more-info block of a paused thermostat', () => {
   test('says it is paused, offers to resume it, and no temporary setpoint', () => {
     const hass = pausedSalon();
     const el = block(hass, 'climate.salon');
-    assert.match(text(el.shadowRoot), /En pause : Chauffage ne le pilote pas\./);
+    assert.match(text(el.shadowRoot), /Pilotage suspendu\. Chauffage n'y touche plus\./);
     assert.equal(el.shadowRoot.querySelector('[data-new-override]'), null);
     // At the foot, in place of "Pause" (#39)
     assert.equal(el.shadowRoot.querySelector('[data-pause]'), null);
     assert.equal(el.shadowRoot.querySelector('.status [data-resume]'), null);
-    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Piloter'); // the name of the Control switch, not a second "Resume"
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Reprendre le pilotage');
     el.shadowRoot.querySelector('[data-resume]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
   });
@@ -123,7 +123,7 @@ describe('the more-info block of a paused thermostat', () => {
   test('an active thermostat is paused from the foot of the block', () => {
     const hass = pausedSalon();
     const el = block(hass, 'climate.bureau');
-    assert.equal(text(el.shadowRoot.querySelector('.foot [data-pause]')), 'Mettre en pause');
+    assert.equal(text(el.shadowRoot.querySelector('.foot [data-pause]')), 'Suspendre le pilotage');
     el.shadowRoot.querySelector('[data-pause]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
     hass.user = { is_admin: false };

@@ -479,13 +479,13 @@ describe('the Chauffage panel', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       await tick();
       assert.deepEqual($(el, '.tile .tile-card').config, { type: 'tile', entity: 'climate.salon', state_content: ['current_temperature', 'hvac_action'] });
-      assert.equal(text($(el, '.control')), 'Mettre en pause'); // a badge only for the exception, Paused
+      assert.equal(text($(el, '.control')), 'Suspendre le pilotage'); // a badge only for the exception, Paused
       assert.match(text($(el, '.about')), /Appareils : Vanne salon \(TRV\), Salon \(Thermostat programmé\)/);
     });
 
     test('a paused thermostat: Resume, a Paused badge that stands out, said once and not under each week', () => {
       const el = panel(setup({ paused: ['climate.salon'] }), '/thermostats/climate.salon');
-      assert.equal(text($(el, '.control')), 'Piloter En pause');
+      assert.equal(text($(el, '.control')), 'Reprendre le pilotage Pilotage suspendu');
       assert.ok($(el, '.control .badge.paused'));
       for (const card of weeks(el)) assert.equal($(card, '.paused-note'), null);
     });

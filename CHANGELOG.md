@@ -70,6 +70,9 @@ alone, pause it (its *Control* switch).
 
 ### Changed
 
+- **"Pause" is now "Pause control"**, and "Resume control" stays. What you pause is Chauffage's
+  control of the thermostat, not the heating: a paused thermostat keeps doing what you set by
+  hand. In French, *Suspendre le pilotage* and *Reprendre le pilotage*.
 - **A preset's value on a thermostat, an override and a command are partial states** (#91), as a
   scene holds them: `{"preset_mode": "comfort"}`, `{"temperature": 19}`, or both. The websocket
   API and the card use this format. The card still works as before.
