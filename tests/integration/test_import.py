@@ -59,8 +59,8 @@ async def test_weeks_overrides_and_active_schedule_are_imported(bench: Bench):
     bench.entry = bench.hass.config_entries.async_entries("chauffage")[0]
     data = bench.runtime.data
 
-    assert data["schedules"] == [{"id": "normal", "name": "Normal"}, {"id": "absent", "name": "Absent"},
-                             {"id": "vacances", "name": "Vacances"}]
+    assert data["schedules"] == [{"id": "normal", "name": "Normal", "layers": []}, {"id": "absent", "name": "Absent", "layers": []},
+                             {"id": "vacances", "name": "Vacances", "layers": []}]
     assert data["active_schedule"] == "absent"
     salon = bench.runtime.weeks["climate.salon"]
     assert set(salon) == {"normal", "absent", "vacances"}

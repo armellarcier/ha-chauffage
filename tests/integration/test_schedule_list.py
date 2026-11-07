@@ -60,7 +60,7 @@ async def test_an_existing_installation_keeps_its_schedules(bench: Bench):
 async def test_duplicating_a_schedule_copies_every_thermostat_s_week(bench: Bench):
     await start(bench)
     result = await bench.set_schedules(kept("normal", "away", "holiday") + [{"name": "Remote work", "copy_of": "normal"}])
-    assert result[-1] == {"id": "remote_work", "name": "Remote work"}
+    assert result[-1] == {"id": "remote_work", "name": "Remote work", "layers": []}
     assert weeks_of(bench, "remote_work") == weeks_of(bench, "normal")
     assert bench.hass.states.get(bench.schedule_entity).attributes["options"][-1] == "Remote work"
 
@@ -198,8 +198,8 @@ async def test_the_card_manages_schedules_with_the_revision_it_edited(bench: Ben
                                     "schedules": kept("normal", "away", "holiday") + [{"name": "Guests", "copy_of": "away"}]})
     reply = await client.receive_json()
     assert reply["success"]
-    assert reply["result"] == {"schedules": [{"id": "normal", "name": "Normal"}, {"id": "away", "name": "Away"},
-                                         {"id": "holiday", "name": "Holiday"}, {"id": "guests", "name": "Guests"}],
+    assert reply["result"] == {"schedules": [{"id": "normal", "name": "Normal", "layers": []}, {"id": "away", "name": "Away", "layers": []},
+                                         {"id": "holiday", "name": "Holiday", "layers": []}, {"id": "guests", "name": "Guests", "layers": []}],
                                "revision": 2}
 
 

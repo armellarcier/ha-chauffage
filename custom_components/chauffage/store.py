@@ -60,11 +60,15 @@ def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
     temperatures = data.pop("preset_temperatures", {})
     schedule_ids = [schedule["id"] for schedule in data["schedules"]]
     preset_ids = [preset["id"] for preset in data["presets"]]
+    # The v5 shape of a thermostat, written out: a migration must not follow later changes of model.py
     data["thermostats"] = {
-        entity_id: model.new_thermostat(
-            model.complete_weeks(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else None,
-            mappings.get(entity_id), temperatures.get(entity_id),
-        )
+        entity_id: {
+            "paused": False,
+            "weeks": model.complete_weeks(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else {},
+            "mapping": mappings.get(entity_id) or {},
+            "preset_temperatures": temperatures.get(entity_id) or {},
+            "revision": 0,
+        }
         for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]
     }
     data["renamed"] = {}
