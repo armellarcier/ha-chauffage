@@ -16,7 +16,7 @@ from homeassistant.helpers.storage import Store
 from . import model
 from .const import DOMAIN
 
-STORAGE_VERSION = 6
+STORAGE_VERSION = 7
 STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
@@ -72,7 +72,32 @@ def _v5_to_v6(data: dict[str, Any], language: str) -> dict[str, Any]:
     return {**data, "pending": {}}
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6}
+def _target(command: dict[str, Any]) -> dict[str, Any]:
+    """A command's target from its kind and value (the format before #91)."""
+    return {"preset_mode": command["value"]} if command["kind"] == "preset" else {"temperature": command["value"]}
+
+
+def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """A slot sets more than a preset (#91): what a preset means for a thermostat, an override
+    and a command not applied yet are partial states of the thermostat, as a scene holds them.
+    The values do not change."""
+    def without(command: dict[str, Any]) -> dict[str, Any]:
+        return {key: value for key, value in command.items() if key not in ("kind", "value")}
+
+    return {
+        **data,
+        "thermostats": {
+            entity_id: {**t, "mapping": {preset_id: {"preset_mode": v["preset"]} if "preset" in v else v
+                                         for preset_id, v in t["mapping"].items()}}
+            for entity_id, t in data["thermostats"].items()
+        },
+        "overrides": {entity_id: {"target": _target(o), **without(o)} for entity_id, o in data["overrides"].items()},
+        "pending": {entity_id: [{"target": _target(c), **without(c)} for c in commands]
+                    for entity_id, commands in data["pending"].items()},
+    }
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6, 6: _v6_to_v7}
 
 
 class ChauffageStore(Store[dict[str, Any]]):

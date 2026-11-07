@@ -113,7 +113,7 @@ async def test_a_preset_picked_on_the_thermostat_ends_at_the_next_slot(bench: Be
     bench.thermostat("climate.salon", "boost", context=CTX_USER)
     await bench.hass.async_block_till_done()
     o = bench.overrides()["climate.salon"]
-    assert (o["kind"], o["value"]) == ("preset", "boost")
+    assert o["target"] == {"preset_mode": "boost"}
     assert end_of(o) == at("20:00")
 
 
@@ -357,7 +357,7 @@ async def test_a_setting_changed_during_the_override_does_not_move_its_end(bench
 
 async def test_an_override_set_from_the_card_keeps_its_end(bench: Bench):
     await start(bench, NEXT_SLOT, hhmm="21:30")
-    override = bench.runtime.new_override("temperature", 22, minutes=24 * 60)
+    override = bench.runtime.new_override({"temperature": 22}, minutes=24 * 60)
     await bench.set_override("climate.salon", override)
     o = bench.overrides()["climate.salon"]
     assert end_of(o) == at("21:30", day=1)
@@ -391,7 +391,7 @@ async def test_a_value_changed_from_the_card_keeps_why_the_override_ends(bench: 
     await start(bench, WITHIN, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
-    await bench.set_override("climate.salon", {**o, "value": 23})
+    await bench.set_override("climate.salon", {**o, "target": {"temperature": 23}})
     assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
 
 
@@ -508,7 +508,7 @@ async def test_an_end_set_to_the_next_slot_on_the_card_says_next_slot(bench: Ben
 
 async def test_a_new_override_from_the_card_until_the_next_slot_says_next_slot(bench: Bench):
     await start(bench, hhmm="21:30")
-    override = bench.runtime.new_override("temperature", 22, end=at("22:30"))
+    override = bench.runtime.new_override({"temperature": 22}, end=at("22:30"))
     await bench.set_override("climate.salon", override | {"ends_at": "next_slot"})
     assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
 

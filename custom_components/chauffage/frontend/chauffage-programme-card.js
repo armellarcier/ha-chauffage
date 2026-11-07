@@ -770,14 +770,20 @@ function overridePieces(d) {
 
 const DEFAULT_LOCALE = makeLocale(null, 'en');
 
+// A target is a partial state of the thermostat, as a scene holds it (#91): { preset_mode } or
+// { temperature }, as the integration stores what a preset means on a thermostat and what an
+// override sets. Its kind, "preset" or "temperature", and its value.
+const targetKind = (target) => (target && 'temperature' in target ? 'temperature' : 'preset');
+const targetValue = (target) => (target ? target[targetKind(target) === 'temperature' ? 'temperature' : 'preset_mode'] : undefined);
+
 // The override's value: the preset picked (`d.preset`, among `presets`), else its temperature or
 // the thermostat's own preset
 function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   if (!d) return '';
   const picked = d.preset && presets.find((p) => p.id === d.preset);
   if (picked) return picked.name;
-  if (d.kind === 'temperature') return `${locale.number(d.value)} ${locale.unit}`;
-  return locale.preset(d.value);
+  if (targetKind(d.target) === 'temperature') return `${locale.number(d.target.temperature)} ${locale.unit}`;
+  return locale.preset(targetValue(d.target));
 }
 
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
@@ -1070,7 +1076,7 @@ function endReasonText(d, loc) {
 // ---------- data sources ----------
 // The card reads and writes through the Chauffage integration's websocket API. The source gives
 // the data in the format the card works with: schedules by id, "HH:MM preset" slots,
-// overrides as { kind: temperature|preset, value, start, end }.
+// overrides as { target: { preset_mode } | { temperature }, start, end }.
 
 // ---------- history of the measured temperature ----------
 const HISTORY_DAYS = 7;
@@ -1698,11 +1704,12 @@ function overrideValueHtml(d, src, climate, attrs, loc) {
   const targets = src.targets(climate);
   const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
   const presets = sortedPresets(src, loc).filter((l) => targets[l.id]).map((l) => {
-    const [[kind, value]] = Object.entries(targets[l.id]);
-    const on = !!d && (picked ? picked === l.id : d.kind === 'preset' && kind === 'preset' && d.value === value);
+    const target = targets[l.id];
+    const on = !!d && (picked ? picked === l.id
+      : targetKind(d.target) === 'preset' && targetKind(target) === 'preset' && targetValue(d.target) === targetValue(target));
     return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`;
   }).join('');
-  const value = d && d.kind === 'temperature' ? d.value : attrs.temperature;
+  const value = d && targetKind(d.target) === 'temperature' ? d.target.temperature : attrs.temperature;
   const temperature = `<label>${esc(loc.t('presetTemperature'))} <input type="number" data-override-temperature
     step="${attrs.target_temp_step || 0.5}" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 30}" value="${value ?? ''}"> ${esc(loc.unit)}</label>`;
   return { presets: `<div class="presets">${presets}</div>`, temperature };
@@ -1815,9 +1822,9 @@ function restoreTyped(root, selector, value) {
 }
 
 // A new override from now, for the override duration (an option of the integration)
-function newOverride(src, kind, value) {
+function newOverride(src, target) {
   const start = new Date();
-  return { kind, value, start: start.toISOString(), end: new Date(start.getTime() + src.overrideDuration() * 60000).toISOString() };
+  return { target, start: start.toISOString(), end: new Date(start.getTime() + src.overrideDuration() * 60000).toISOString() };
 }
 
 // The saved week of a thermostat in the active schedule, as parsed days (null without one)
@@ -1840,16 +1847,15 @@ function presetAt(week, date) {
 function overrideWithPreset(d, src, climate, preset) {
   const target = src.targets(climate)[preset];
   if (!target) return null;
-  const [[kind, value]] = Object.entries(target);
-  return { ...(d || newOverride(src, kind, value)), kind, value, preset };
+  return { ...(d || newOverride(src, target)), target, preset };
 }
 
 // The override `d` set to a temperature (no longer a preset), until the same end; a new override
 // without `d`
 function overrideWithTemperature(d, src, value) {
-  if (!d) return newOverride(src, 'temperature', value);
+  if (!d) return newOverride(src, { temperature: value });
   const { preset, ...rest } = d;
-  return { ...rest, kind: 'temperature', value };
+  return { ...rest, target: { temperature: value } };
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
@@ -2426,7 +2432,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Override to a preset: the temperature field shows the thermostat's setpoint (not while typed in)
     const input = root.querySelector('.override-ed input[data-override-temperature]');
     const sel = this._overrideSel && this._overrides()[this._overrideSel.climate];
-    if (input && sel && sel.kind !== 'temperature' && root.activeElement !== input) {
+    if (input && sel && targetKind(sel.target) !== 'temperature' && root.activeElement !== input) {
       const st = this._hass.states[this._overrideSel.climate];
       const temperature = st && st.attributes.temperature;
       input.value = temperature ?? '';
@@ -3090,7 +3096,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .map((l) => {
         const target = this._targetOf(focus, l);
         const t = multi || !st ? null : this._presetTemperature(focus, target);
-        const hint = !multi && 'preset' in target ? ` ${tr('presetHint')}` : '';
+        const hint = !multi && 'preset_mode' in target ? ` ${tr('presetHint')}` : '';
         return `<span><i style="background:${l.color}"></i>${esc(l.name)}${t != null ? ` ${this._loc.number(t)}°` : esc(hint)}</span>`;
       })
       .join('') + this._settingsLinkHtml();
@@ -3720,7 +3726,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   // a manual setpoint with
   _presetTemperature(climate, target) {
     if ('temperature' in target) return target.temperature;
-    const temperature = this._source().presetTemperature(climate, target.preset);
+    const temperature = this._source().presetTemperature(climate, target.preset_mode);
     return typeof temperature === 'number' ? temperature : null;
   }
 
@@ -3732,7 +3738,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (known) return known;
     const st = this._hass.states[climate];
     const own = (st && st.attributes.preset_modes) || []; // the thermostat's own presets
-    if (src.usePresets() && own.includes(preset.id)) return { preset: preset.id };
+    if (src.usePresets() && own.includes(preset.id)) return { preset_mode: preset.id };
     return { temperature: preset.temperature ?? 19 };
   }
 
@@ -4025,8 +4031,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       const temp = this._presetTemperature(entity, target);
       let how;
       let cls;
-      if ('preset' in target) {
-        how = t('cellOwnPreset', { preset: this._loc.preset(target.preset) });
+      if ('preset_mode' in target) {
+        how = t('cellOwnPreset', { preset: this._loc.preset(target.preset_mode) });
         cls = 'preset';
         if (l.id in explicit) how += ` · ${t('cellSetHere')}`;
       } else if (l.id in explicit) {
@@ -4099,7 +4105,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       // the "use the thermostats' presets" option and the presets the thermostat has); otherwise
       // the preset's default temperature, a choice of its own
       const autoPreset = src.usePresets() && own.includes(preset.id);
-      const choice = !explicit ? (autoPreset ? 'preset' : 'auto') : 'preset' in explicit ? 'preset' : 'temperature';
+      const choice = !explicit ? (autoPreset ? 'preset' : 'auto') : 'preset_mode' in explicit ? 'preset' : 'temperature';
       const current = this._targetOf(sel.climate, preset);
       const temp = explicit && 'temperature' in explicit ? explicit.temperature : this._presetTemperature(sel.climate, current) ?? preset.temperature ?? 19;
       // One line per choice: its radio, its label, its field (the field of a choice not picked is
@@ -4107,7 +4113,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const choiceRow = (value, label, field = '') => `<label class="pv-choice">
           <input type="radio" name="cell-kind" value="${value}" ${choice === value ? 'checked' : ''}>
           <span>${esc(label)}</span><span class="pv-field">${field}</span></label>`;
-      const picked = explicit && 'preset' in explicit ? explicit.preset : autoPreset ? '' : preset.id;
+      const picked = explicit && 'preset_mode' in explicit ? explicit.preset_mode : autoPreset ? '' : preset.id;
       const option = (value, label) => `<option value="${esc(value)}" ${picked === value ? 'selected' : ''}>${esc(label)}</option>`;
       const options = (autoPreset ? option('', t('presetAutoShort', { value: this._loc.preset(preset.id) })) : '')
         + own.map((p) => option(p, this._loc.preset(p))).join('');
@@ -4189,7 +4195,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const kind = (root.querySelector('input[name="cell-kind"]:checked') || {}).value || 'auto';
         const picked = value('[data-cell-preset]');
         if (kind === 'auto' || (kind === 'preset' && !picked)) delete mapping[sel.preset];
-        else if (kind === 'preset') mapping[sel.preset] = { preset: picked };
+        else if (kind === 'preset') mapping[sel.preset] = { preset_mode: picked };
         else mapping[sel.preset] = { temperature: Number(input.value) };
         await src.setMapping(sel.climate, mapping);
       } else if (sel.kind === 'new') {
@@ -5452,8 +5458,8 @@ class ChauffageThermostatCard extends HTMLElement {
     const paused = src.paused(this._config.entity);
     const d = !paused && filterActive(src.overrides())[this._config.entity];
     // An override at a temperature (not a preset) is that temperature: said once, not "17,5 °C · 17,5°"
-    if (d && d.kind === 'temperature' && !presets.some((p) => p.id === d.preset)) {
-      return `<span class="tc-state override">⏱ ${esc(`${loc.number(d.value)}°`)}</span>`;
+    if (d && targetKind(d.target) === 'temperature' && !presets.some((p) => p.id === d.preset)) {
+      return `<span class="tc-state override">⏱ ${esc(`${loc.number(d.target.temperature)}°`)}</span>`;
     }
     if (d) return `<span class="tc-state override">⏱ ${text(overrideLabel(d, loc, presets))}</span>`;
     const plan = paused ? null : src.planned(this._config.entity);

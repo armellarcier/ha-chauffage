@@ -1,8 +1,9 @@
 """Scheduling logic, without Home Assistant (unit-tested directly).
 
 The active schedule's weeks give a preset per slot; each preset becomes, for a given thermostat,
-one of its climate presets or a target temperature (a mapping set by hand, otherwise the default
-from its capabilities). Vocabulary: docs/glossary.md.
+a target: a partial state of the thermostat, as a scene holds it (#91), with one of its climate
+presets or a target temperature (a mapping set by hand, otherwise the default from its
+capabilities). Vocabulary: docs/glossary.md.
 See tests/integration/test_engine.py.
 """
 
@@ -61,15 +62,10 @@ def ignored(thermostat: Thermostat) -> bool:
     return thermostat.state in IGNORED_STATES
 
 
-@dataclass(frozen=True)
-class Target:
-    """What a thermostat should be set to: a preset, or a target temperature."""
-
-    kind: str  # "preset" | "temperature"
-    value: Any
-
-    def as_dict(self) -> dict[str, Any]:
-        return {self.kind: self.value}
+# What a thermostat should be set to: a partial state of the climate entity, as a scene holds it.
+# Its keys are the climate attributes: "preset_mode" (one of its climate presets) or "temperature"
+# (a target temperature).
+Target = dict[str, Any]
 
 
 def preset_value(raw: Any) -> str | None:
@@ -117,8 +113,8 @@ def default_target(preset: dict[str, Any], thermostat: Thermostat | None, use_pr
     """The thermostat's climate preset named like the preset if it has one (and climate presets
     are used), else the preset's temperature."""
     if use_presets and thermostat and preset["id"] in thermostat.presets:
-        return Target("preset", preset["id"])
-    return Target("temperature", fit_temperature(preset["temperature"], thermostat))
+        return {"preset_mode": preset["id"]}
+    return {"temperature": fit_temperature(preset["temperature"], thermostat)}
 
 
 def resolve(
@@ -133,11 +129,9 @@ def resolve(
     if preset is None:
         return None
     explicit = (mapping or {}).get(preset_id)
-    if explicit and "preset" in explicit:
-        return Target("preset", explicit["preset"])
-    if explicit and "temperature" in explicit:
-        return Target("temperature", fit_temperature(explicit["temperature"], thermostat))
-    return default_target(preset, thermostat, use_presets)
+    if not explicit:
+        return default_target(preset, thermostat, use_presets)
+    return fit(explicit, thermostat)
 
 
 def same_temperature(a: float | None, b: float | None, thermostat: Thermostat | None = None) -> bool:
@@ -147,10 +141,20 @@ def same_temperature(a: float | None, b: float | None, thermostat: Thermostat | 
     return abs(a - b) < step / 2
 
 
+def fit(target: Target, thermostat: Thermostat | None) -> Target:
+    """The target with its temperature fitted to the thermostat (limits, step)."""
+    if "temperature" not in target:
+        return dict(target)
+    return {**target, "temperature": fit_temperature(target["temperature"], thermostat)}
+
+
 def satisfied(target: Target, thermostat: Thermostat) -> bool:
-    if target.kind == "preset":
-        return thermostat.preset == target.value
-    return same_temperature(thermostat.temperature, target.value, thermostat)
+    """The thermostat shows every part of the target."""
+    if "preset_mode" in target and thermostat.preset != target["preset_mode"]:
+        return False
+    if "temperature" in target and not same_temperature(thermostat.temperature, target["temperature"], thermostat):
+        return False
+    return True
 
 
 # ----- slots -----
@@ -337,7 +341,7 @@ def expired_commands(sent: list[Any], now: datetime) -> int:
 
 # ----- manual changes -----
 
-RESUME = ("resume", None)  # back to what the schedule expects
+RESUME = "resume"  # back to what the schedule expects
 
 
 def preset_temperature(attributes: dict[str, Any], preset: str, learned: dict[str, Any]) -> float | None:
@@ -356,17 +360,24 @@ def back_to(expected: Target, thermostat: Thermostat, preset_temperature: float 
     if satisfied(expected, thermostat):
         return True
     return (
-        expected.kind == "preset" and is_manual_preset(thermostat.preset)
+        "preset_mode" in expected and is_manual_preset(thermostat.preset)
         and same_temperature(thermostat.temperature, preset_temperature, thermostat)
     )
+
+
+def same_target(a: Target, b: Target, thermostat: Thermostat | None = None) -> bool:
+    """Two targets that set the thermostat alike (temperatures compared on its step)."""
+    if set(a) != set(b):
+        return False
+    return all(same_temperature(a[key], b[key], thermostat) if key == "temperature" else a[key] == b[key] for key in a)
 
 
 def manual_change(
     before: Thermostat, after: Thermostat, *, by_user: bool, expected: Target | None = None,
     preset_temperature: float | None = None, override: Target | None = None,
-) -> tuple[str, Any] | None:
+) -> Target | str | None:
     """What a change that is neither the integration's nor an automation's (the caller excludes
-    those) means: an override as (kind, value), RESUME, or None. docs/decisions.md, "Scheduling".
+    those) means: the target of an override, RESUME, or None. docs/decisions.md, "Scheduling".
 
     Two gestures count: a preset picked by a user (not one the thermostat sets by itself, such
     as VTherm's safety mode), and a setpoint changed by a user or on the device (the thermostat
@@ -388,9 +399,6 @@ def manual_change(
     if not picked and not (setpoint and after.temperature is not None):
         return None
     if expected is not None and back_to(expected, after, preset_temperature):
-        held = override is not None and override.kind == expected.kind and (
-            override.value == expected.value
-            or (expected.kind == "temperature" and same_temperature(override.value, expected.value, after))
-        )
+        held = override is not None and same_target(override, expected, after)
         return None if held else RESUME
-    return ("preset", after.preset) if picked else ("temperature", after.temperature)
+    return {"preset_mode": after.preset} if picked else {"temperature": after.temperature}

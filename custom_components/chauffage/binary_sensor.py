@@ -1,5 +1,5 @@
 """Per-thermostat binary sensor, *Override*: on while the thermostat has an override; its
-attributes say what (kind, value, the preset it was set to) and until when. Unavailable while
+attributes say what (its target, the preset it was set to) and until when. Unavailable while
 the thermostat is paused. Created and removed with the scheduled thermostats."""
 
 from __future__ import annotations

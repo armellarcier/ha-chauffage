@@ -104,18 +104,18 @@ describe('the thermostat card', () => {
     block(card).querySelector('.presets [data-preset="comfort"]').click();
     const sent = lastCall(hass);
     assert.equal(sent.type, 'chauffage/override/set');
-    assert.deepEqual(sent.override, { kind: 'temperature', value: 20, preset: 'comfort', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+    assert.deepEqual(sent.override, { target: { temperature: 20 }, preset: 'comfort', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
   });
 
   test('a temporary setpoint shows in its state, with its end and the way back to the schedule', () => {
-    const override = { kind: 'temperature', value: 21, preset: 'boost', start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+    const override = { target: { temperature: 21 }, preset: 'boost', start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
     const card = cardFor(setup({ overrides: { 'climate.salon': override } }));
     assert.match(text($(card, '.tc-state')), /⏱ Boost/);
     assert.match(text(block(card)), /Reprendre le planning/);
   });
 
   test('the end of a temporary setpoint being typed keeps its field while the thermostat reports', () => {
-    const override = { kind: 'temperature', value: 21, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+    const override = { target: { temperature: 21 }, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
     const hass = setup({ overrides: { 'climate.salon': override } });
     const card = cardFor(hass);
     const field = block(card).querySelector('input.time[data-end]');
@@ -131,7 +131,7 @@ describe('the thermostat card', () => {
   });
 
   test('a temporary setpoint at a temperature shows it once, not "17,5 °C · 17,5°"', () => {
-    const override = { kind: 'temperature', value: 17.5, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+    const override = { target: { temperature: 17.5 }, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
     const hass = setup({ overrides: { 'climate.salon': override } });
     hass.states['climate.salon'].attributes.temperature = 17.5;
     assert.equal(text($(cardFor(hass), '.tc-state')), '⏱ 17,5°');

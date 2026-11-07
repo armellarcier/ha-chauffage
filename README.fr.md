@@ -514,7 +514,7 @@ ouvre la page du thermostat dans le panneau Chauffage.
 |---|---|
 | **Pilotage** (interrupteur) | Éteint quand le thermostat est **en pause**. |
 | **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat). |
-| **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs : `kind` (`temperature` ou `preset`), `value` (une température, ou le préréglage propre au thermostat), `preset` (le préréglage Chauffage demandé, s'il y en a un), `end`. |
+| **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs : `target` (ce que le thermostat reçoit, par exemple `{"temperature": 21.5}` ou `{"preset_mode": "boost"}`), `preset` (le préréglage Chauffage demandé, s'il y en a un), `end`, et `kind` et `value` comme avant 0.10. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours, sous forme d'horodatage, pour une tuile de tableau de bord. |
 
 Les capteurs sont indisponibles pendant la pause du thermostat.
@@ -572,7 +572,7 @@ Chauffage émet des événements que vos automatisations peuvent utiliser, avec 
 
 | Événement | Données |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. `ends_at` dit pourquoi la dérogation s'arrête à ce moment, quand Chauffage le sait : `duration`, `next_slot` ou `no_next_slot` pour un changement à la main, et `next_slot` pour une fin mise au prochain créneau sur la carte. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
+| `chauffage_override_started` | `entity_id`, `target` (par exemple `{"temperature": 21.5}`), `preset`, `start`, `end`, `kind` et `value` (comme avant 0.10), et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. `ends_at` dit pourquoi la dérogation s'arrête à ce moment, quand Chauffage le sait : `duration`, `next_slot` ou `no_next_slot` pour un changement à la main, et `next_slot` pour une fin mise au prochain créneau sur la carte. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
 | `chauffage_override_ended` | `entity_id`, `start`, `end`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `panel`, `service`, `paused` ou `forgotten`. `ends_at` comme ci-dessus, quand Chauffage le sait. |
 | `chauffage_schedule_activated` | `schedule` (l'identifiant stable), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur *Planning actif*), et `source` : `card`, `panel`, `entity` (le sélecteur ou un interrupteur de planning), `service` ou `rules`. |
 

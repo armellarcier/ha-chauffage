@@ -127,7 +127,7 @@ async def test_the_card_sets_what_a_preset_means_for_a_thermostat(bench: Bench, 
     await bench.hass.async_block_till_done()
     assert bench.temperature_calls[-1] == ("climate.salon", 16.5)
     await client.send_json_auto_id({"type": "chauffage/mapping/set", "entity_id": "climate.salon",
-                                    "mapping": {"eco": {"preset": "unknown_climate_preset_is_fine"}, "sleep": {"temperature": 1}}})
+                                    "mapping": {"eco": {"preset_mode": "unknown_climate_preset_is_fine"}, "sleep": {"temperature": 1}}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
 

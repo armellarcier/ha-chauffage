@@ -200,7 +200,7 @@ describe('overrides with the integration', () => {
 
   const withOverride = () => ({
     ...INTEGRATION_DATA(),
-    overrides: { 'climate.salon': { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' } },
+    overrides: { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' } },
   });
 
   test('the override is shown and can be extended (English keys sent)', () => {
@@ -212,7 +212,7 @@ describe('overrides with the integration', () => {
     assert.equal(msg.type, 'chauffage/override/set');
     assert.equal(msg.entity_id, 'climate.salon');
     assert.deepEqual({ ...msg.override, end: new Date(msg.override.end).toISOString() }, {
-      kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T10:00:00.000Z',
+      target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T10:00:00.000Z',
     });
   });
 
@@ -245,7 +245,7 @@ describe('presets from the integration', () => {
       { id: 'eco', name: 'Éco', color: '#43a047', temperature: 17 },
       { id: 'nuit', name: 'Nuit', color: '#3f51b5', temperature: 18 },
     ],
-    targets: { 'climate.salon': { comfort: { temperature: 20.5 }, eco: { preset: 'eco' }, nuit: { temperature: 18 } } },
+    targets: { 'climate.salon': { comfort: { temperature: 20.5 }, eco: { preset_mode: 'eco' }, nuit: { temperature: 18 } } },
   });
 
   test('the legend shows the presets and what they mean for the thermostat', () => {
@@ -284,7 +284,7 @@ describe('the "Presets" view', () => {
       { id: 'frost', name: 'Hors-gel', color: '#29b6f6', temperature: 7 },
     ],
     mappings: { 'climate.salon': { frost: { temperature: 8 } } },
-    targets: { 'climate.salon': { comfort: { preset: 'comfort' }, eco: { preset: 'eco' }, frost: { temperature: 8 } } },
+    targets: { 'climate.salon': { comfort: { preset_mode: 'comfort' }, eco: { preset_mode: 'eco' }, frost: { temperature: 8 } } },
     preset_temperatures: { 'climate.salon': { comfort: 20.5 } },
     use_presets: true,
   });
@@ -363,7 +363,7 @@ describe('the "Presets" view', () => {
 
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'comfort'; // pinned, unlike automatic
     await card._action('cell-apply', {});
-    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, comfort: { preset: 'comfort' } });
+    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, comfort: { preset_mode: 'comfort' } });
   });
 
   test('each choice of a thermostat cell holds its own field; using the field picks the choice', () => {
@@ -406,7 +406,7 @@ describe('the "Presets" view', () => {
     card.shadowRoot.querySelector('input[name="cell-kind"][value="preset"]').checked = true;
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'away';
     await card._action('cell-apply', {});
-    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset: 'away' } });
+    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset_mode: 'away' } });
 
     click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
     card.shadowRoot.querySelector('[data-cell-preset]').value = ''; // automatic

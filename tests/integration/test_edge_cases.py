@@ -179,7 +179,7 @@ async def test_the_api_without_the_integration(bench: Bench, ws_client, command)
 
 
 @pytest.mark.parametrize("command", [
-    {"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {"kind": "warm"}},
+    {"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {"target": {"warm": 1}}},
     {"type": "chauffage/schedule/activate", "schedule": "unknown"},
     {"type": "chauffage/presets/set", "presets": [{"name": ""}]},
 ])
@@ -226,8 +226,10 @@ async def test_unreadable_package_parts_are_skipped(bench: Bench):
     (lambda v: model.normalize_weeks(v, {"normal"}), ["not a dict"]),
     (lambda v: model.normalize_weeks(v, {"normal"}), {"climate.salon": "not a dict"}),
     (model.normalize_override, "not a dict"),
-    (model.normalize_override, {"kind": "temperature", "value": "warm", "start": "a", "end": "b"}),
-    (model.normalize_override, {"kind": "preset", "value": "boost", "start": 1, "end": None}),
+    (model.normalize_override, {"target": {"temperature": "warm"}, "start": "a", "end": "b"}),
+    (model.normalize_override, {"target": {}, "start": "a", "end": "b"}),
+    (model.normalize_override, {"target": {"preset_mode": "eco", "fan": "high"}, "start": "a", "end": "b"}),
+    (model.normalize_override, {"target": {"preset_mode": "boost"}, "start": 1, "end": None}),
 ])
 def test_invalid_data_is_refused(function, value):
     with pytest.raises(model.InvalidData):

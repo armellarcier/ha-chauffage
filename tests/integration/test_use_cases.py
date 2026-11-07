@@ -144,7 +144,7 @@ async def test_a_vtherm_that_says_it_is_not_ready_gets_its_slot_once_ready(bench
 
 async def test_an_override_on_a_thermostat_still_starting_is_sent_once_it_is_ready(bench: Bench):
     await restart(bench, "heat", {"friendly_name": "Salon"})
-    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
     assert bench.applied() == {}
     bench.thermostat("climate.salon", "eco", context=Context())
     await bench.hass.async_block_till_done()
@@ -153,7 +153,7 @@ async def test_an_override_on_a_thermostat_still_starting_is_sent_once_it_is_rea
 
 async def test_an_override_set_before_a_restart_is_sent_again_once_the_vtherm_is_ready(bench: Bench):
     await start_vtherm(bench, "10:00")
-    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
     bench.applied()
     bench.hass.states.async_set("climate.salon", *VTHERM_STARTING)  # restarting: off, no setpoint
     await bench.hass.async_block_till_done()
@@ -167,7 +167,7 @@ async def test_an_override_set_before_a_restart_is_sent_again_once_the_vtherm_is
 async def test_a_thermostat_still_starting_gets_the_slot_that_started_meanwhile_once_ready(bench: Bench):
     """Its override expired and a new slot started while it was starting: it gets the new slot."""
     await restart(bench, "heat", {"friendly_name": "Salon"})
-    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
     await bench.go_to("17:30")  # override expired, comfort slot
     assert bench.applied() == {}
     assert bench.overrides() == {}
@@ -213,7 +213,7 @@ async def test_a_preset_picked_on_a_vtherm_stopped_by_auto_start_stop_is_an_over
     bench.thermostat("climate.salon", "comfort", state="off", context=Context(user_id="someone"), **AUTO_STOPPED)
     await bench.hass.async_block_till_done()
     override = bench.overrides()["climate.salon"]
-    assert (override["kind"], override["value"]) == ("preset", "comfort")
+    assert override["target"] == {"preset_mode": "comfort"}
 
 
 async def test_a_vtherm_turned_off_by_hand_still_gets_its_slots(bench: Bench):
@@ -241,7 +241,7 @@ async def test_an_override_on_a_turned_off_vtherm_is_sent_at_once(bench: Bench):
     await start_vtherm(bench, "10:00")
     bench.thermostat("climate.salon", "eco", state="off", **TURNED_OFF)
     await bench.hass.async_block_till_done()
-    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
@@ -250,7 +250,7 @@ async def test_an_override_on_a_turned_off_thermostat_waits_until_it_is_turned_b
     await start(bench, "10:00")
     bench.thermostat("climate.salon", "eco", state="off")
     await bench.hass.async_block_till_done()
-    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
     assert bench.applied() == {}
     bench.thermostat("climate.salon", "eco", context=Context(user_id="someone"))  # turned back on
     await bench.hass.async_block_till_done()
@@ -262,7 +262,7 @@ async def test_an_override_on_an_unavailable_thermostat_is_sent_when_it_is_back_
     await start(bench, "10:00")
     bench.thermostat("climate.salon", "eco", state="unavailable")
     await bench.hass.async_block_till_done()
-    await bench.set_override("climate.salon", bench.runtime.new_override("preset", "comfort", minutes=60))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
     assert bench.applied() == {}
     bench.thermostat("climate.salon", "eco")  # back online
     await bench.hass.async_block_till_done()
@@ -286,7 +286,7 @@ async def test_a_thermostat_coming_back_keeps_its_override(bench: Bench):
     bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 22)
     await bench.hass.async_block_till_done()
     assert bench.applied() == {}
-    assert bench.overrides()["climate.salon"]["value"] == 22
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 22}
 
 
 # ----- failed commands -----
@@ -330,7 +330,7 @@ def test_spring_forward_a_slot_in_the_skipped_hour_is_applied_at_3_00():
     after = (before.astimezone(ZoneInfo("UTC")) + timedelta(minutes=1)).astimezone(paris)  # 03:00 local
     assert after.strftime("%H:%M") == "03:00"
     targets = engine.targets(plan, after, {"climate.salon": thermostat}, since=before)
-    assert targets == [("climate.salon", engine.Target("preset", "comfort"))]
+    assert targets == [("climate.salon", {"preset_mode": "comfort"})]
 
 
 # ----- week and DST boundaries -----
@@ -363,7 +363,7 @@ async def test_overrides_survive_a_restart(bench: Bench):
     await bench.manual_setpoint("climate.salon", 21)
     await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
-    assert bench.overrides()["climate.salon"]["value"] == 21
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 21}
 
 
 async def test_an_override_that_ended_while_home_assistant_was_stopped(bench: Bench, hass_storage):
@@ -385,6 +385,6 @@ async def test_a_change_on_the_thermostat_itself_is_an_override(bench: Bench):
     await start(bench)
     bench.thermostat("climate.salon", "none" if bench.kind == "vtherm" else "eco", 22, context=Context())
     await bench.hass.async_block_till_done()
-    assert bench.overrides()["climate.salon"]["value"] == 22
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 22}
 
 

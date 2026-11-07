@@ -9,6 +9,22 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+**This release migrates the stored data** (version 7): what a preset means on a thermostat, the
+overrides and the commands not applied yet are stored as partial states of the thermostat, as a
+scene holds them. Nothing changes for the thermostats.
+
+The events `chauffage_override_started`, the *Override* binary sensor and the *Override end*
+sensor gain a `target` attribute, for example `{"temperature": 21.5}` or
+`{"preset_mode": "boost"}`. They keep `kind` and `value`, so your automations keep working.
+
+### Changed
+
+- **A preset's value on a thermostat, an override and a command are partial states** (#91), as a
+  scene holds them: `{"preset_mode": "comfort"}`, `{"temperature": 19}`, or both. The websocket
+  API and the card use this format. The card still works as before.
+
 ## [0.9.0-beta.2] - 2026-11-05
 
 The second beta of **the end of overrides** (#83), with the fix of 0.8.3.

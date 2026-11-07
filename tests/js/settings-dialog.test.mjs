@@ -376,7 +376,7 @@ describe('the settings dialog', () => {
 
   describe('opened on top of the view, without leaving it', () => {
     // A change by hand that ends at the next slot: its end gives the reason, a link for an admin
-    const OVERRIDE = { kind: 'temperature', value: 21.5, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
+    const OVERRIDE = { target: { temperature: 21.5 }, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
     const withOverride = (more = {}) => setup({ overrides: { 'climate.salon': OVERRIDE }, ...more });
     const moreInfo = (hass) => {
       const el = document.createElement('chauffage-moreinfo');
@@ -643,7 +643,7 @@ describe('the settings dialog', () => {
 
     test('the Material ha-dialog (Home Assistant 2025.1): Escape closes the settings dialog only, not the more-info dialog nor the popover under it', async () => {
       delete FakeHaDialog.prototype.headerTitle;
-      const OVERRIDE = { kind: 'temperature', value: 21.5, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
+      const OVERRIDE = { target: { temperature: 21.5 }, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
       const hass = setup({ overrides: { 'climate.salon': OVERRIDE } });
       const manager = fakeDialogManager(hass);
       // The more-info dialog, a Material dialog open under ours

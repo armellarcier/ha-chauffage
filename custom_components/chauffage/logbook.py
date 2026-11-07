@@ -81,14 +81,20 @@ def async_describe_events(
         return state.name if state else default
 
     def value(data: dict[str, Any]) -> str:
+        """The override's value: the Chauffage preset's name, else what its target holds. An
+        event recorded before #91 holds a kind and a value instead of a target."""
         preset = (runtime().presets_by_id if runtime() else {}).get(data.get("preset"))
         if preset:
             return preset["name"]
-        if data.get("kind") == "temperature":
+        target = data.get("target")
+        if not isinstance(target, dict):
+            key = "temperature" if data.get("kind") == "temperature" else "preset_mode"
+            target = {key: data.get("value")}
+        if "temperature" in target:
             # 21 °C, not 21.0 °C; 21,5 °C in French
-            number = f"{round(float(data.get('value')), 1):g}".replace(".", texts()["decimal"])
+            number = f"{round(float(target['temperature']), 1):g}".replace(".", texts()["decimal"])
             return f"{number} {hass.config.units.temperature_unit}"
-        return str(data.get("value"))
+        return str(target.get("preset_mode"))
 
     def until(end: Any) -> str:
         """The end's day and time: the same line whatever the day it is read."""

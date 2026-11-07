@@ -11,26 +11,27 @@ Vocabulary: docs/glossary.md.
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
                              [start "HH:MM", preset id] slots, the first one at "00:00"
-        mapping:             {preset id: {"preset": "comfort"} | {"temperature": 20.5}}, what a
-                             preset means for this thermostat, only what was set by hand: the
-                             rest is engine.default_target
+        mapping:             {preset id: target}, what a preset means for this thermostat, only
+                             what was set by hand: the rest is engine.default_target. A target is
+                             a partial state of the thermostat, as a scene holds it (#91):
+                             {"preset_mode": "comfort"}, {"temperature": 20.5}, or both
         preset_temperatures: {climate preset: temperature} last seen on the thermostat
         revision:            increases on every change of its weeks: a card saves against it, so
                              that two cards cannot overwrite each other's changes
     renamed:         {former climate entity id: current one}: a thermostat renamed in Home
                      Assistant, for the cards whose configuration still holds the former id
-    overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
+    overrides:       {climate entity id: {"target": {"temperature": 21.5} | {"preset_mode": "boost"},
                                           "preset": "comfort" (optional), "start": ISO datetime,
                                           "end": ISO datetime,
                                           "ends_at": "duration" | "next_slot" |
-                                                     "no_next_slot" (optional)}}: kind
-                     and value are what the thermostat is set to; "preset", the Chauffage preset
-                     picked (card, service), which they mean on this thermostat (none for a change
+                                                     "no_next_slot" (optional)}}: the target
+                     is what the thermostat is set to; "preset", the Chauffage preset picked
+                     (card, service), which the target means on this thermostat (none for a change
                      by hand); "ends_at", why a change by hand ends then: after the override
                      duration, at the next slot, or a week later as no slot changes its target
                      (none once its end is chosen on the card, nor before #83: an optional key,
                      no migration)
-    pending:         {climate entity id: [{"kind": "temperature" | "preset", "value": 20.0 | "comfort",
+    pending:         {climate entity id: [{"target": {"temperature": 20.0} | {"preset_mode": "comfort"},
                                            "sent": ISO datetime}, …]}: commands sent that the
                      thermostat does not show yet, oldest first (a battery valve applies them
                      late); dropped once shown, or after a day
@@ -232,23 +233,47 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
     return {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
 
 
+# The climate attributes a target may set, and how their values are read
+TARGET_KEYS = {"preset_mode": str, "temperature": float}
+
+
+def normalize_target(target: Any) -> dict[str, Any]:
+    """A validated target: a partial state of the thermostat with at least one known attribute
+    (TARGET_KEYS). No rule between the attributes: the thermostat decides what to do with a
+    preset and a temperature together (docs/decisions.md, "Presets")."""
+    if not isinstance(target, dict):
+        raise InvalidData("a target must be a dictionary")
+    unknown = set(target) - set(TARGET_KEYS)
+    if unknown:
+        raise InvalidData(f"unknown attributes in a target: {sorted(unknown)}")
+    out: dict[str, Any] = {}
+    for key, read in TARGET_KEYS.items():
+        if key not in target:
+            continue
+        try:
+            value = read(target[key])
+        except (TypeError, ValueError) as err:
+            raise InvalidData(f"invalid {key}") from err
+        if read is str and not value:
+            raise InvalidData(f"invalid {key}")
+        out[key] = value
+    if not out:
+        raise InvalidData("a target needs a climate preset or a temperature")
+    return out
+
+
 def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
-    """{preset id: {"preset": climate preset} | {"temperature": …}} set by hand for one thermostat."""
+    """{preset id: target} set by hand for one thermostat."""
     if not isinstance(mapping, dict):
         raise InvalidData("a mapping must be a dictionary")
     out: dict[str, dict[str, Any]] = {}
     for preset_id, target in mapping.items():
         if preset_id not in preset_ids:
             raise InvalidData(f"unknown preset: {preset_id}")
-        if isinstance(target, dict) and isinstance(target.get("preset"), str) and target["preset"]:
-            out[preset_id] = {"preset": target["preset"]}
-        elif isinstance(target, dict) and "temperature" in target:
-            try:
-                out[preset_id] = {"temperature": float(target["temperature"])}
-            except (TypeError, ValueError) as err:
-                raise InvalidData("invalid temperature") from err
-        else:
-            raise InvalidData(f"{preset_id}: a climate preset or a temperature is needed")
+        try:
+            out[preset_id] = normalize_target(target)
+        except InvalidData as err:
+            raise InvalidData(f"{preset_id}: {err}") from err
     return out
 
 
@@ -308,18 +333,11 @@ def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | N
 def normalize_override(override: Any) -> dict[str, Any]:
     if not isinstance(override, dict):
         raise InvalidData("an override must be a dictionary")
-    kind = override.get("kind")
-    if kind not in ("temperature", "preset"):
-        raise InvalidData("kind must be temperature or preset")
-    value = override.get("value")
-    try:
-        value = float(value) if kind == "temperature" else str(value)
-    except (TypeError, ValueError) as err:
-        raise InvalidData("invalid override value") from err
+    target = normalize_target(override.get("target"))
     start, end = override.get("start"), override.get("end")
     if not isinstance(start, str) or not isinstance(end, str):
         raise InvalidData("start and end must be ISO datetimes")
-    out = {"kind": kind, "value": value, "start": start, "end": end}
+    out = {"target": target, "start": start, "end": end}
     preset = override.get("preset")
     if isinstance(preset, str) and preset:
         out["preset"] = preset

@@ -124,10 +124,19 @@ def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tu
 
 
 def _describe(command: engine.Target | dict[str, Any]) -> str:
-    """A command or an override, for the log: "preset eco", "temperature 21.5"."""
-    if isinstance(command, engine.Target):
-        return f"{command.kind} {command.value}"
-    return f"{command['kind']} {command['value']}"
+    """A target, or an override or a command holding one, for the log: "preset_mode eco",
+    "temperature 21.5"."""
+    target = command["target"] if "target" in command else command
+    return ", ".join(f"{key} {value}" for key, value in target.items())
+
+
+def _kind_and_value(target: engine.Target | None) -> dict[str, Any]:
+    """An override's kind and value as the events and the sensors told them before #91, from its
+    target: existing automations keep reading them."""
+    if not target:
+        return {"kind": None, "value": None}
+    key = next(iter(target))
+    return {"kind": "preset" if key == "preset_mode" else key, "value": target[key]}
 
 
 def _end_data(override: dict[str, Any]) -> dict[str, Any]:
@@ -383,14 +392,14 @@ class ChauffageRuntime:
         for preset_id in presets:
             target = engine.resolve(preset_id, presets, mapping, current, self.use_presets)
             if target:
-                out[preset_id] = target.as_dict()
+                out[preset_id] = target
         return out
 
     def preset_temperatures_of(self, entity_id: str) -> dict[str, float]:
         """{preset id: temperature} on a thermostat: its own for a temperature, the one its own
         preset gives (published, else learned) for a climate preset; unknown ones left out."""
         own = self.temperatures_of(self.hass.states.get(entity_id))
-        temperatures = {p: t.get("temperature", own.get(t.get("preset"))) for p, t in self.targets_of(entity_id).items()}
+        temperatures = {p: t.get("temperature", own.get(t.get("preset_mode"))) for p, t in self.targets_of(entity_id).items()}
         return {p: t for p, t in temperatures.items() if t is not None}
 
     def snapshot(self) -> dict[str, Any]:
@@ -826,9 +835,7 @@ class ChauffageRuntime:
             return
         override = model.normalize_override(override)
         current = self.current(self.hass.states.get(entity_id))
-        if override["kind"] == "temperature" and current is not None:
-            override["value"] = engine.fit_temperature(override["value"], current)
-        target = engine.Target(override["kind"], override["value"])
+        target = override["target"] = engine.fit(override["target"], current)
         before = self.data["overrides"].get(entity_id)
         # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
         # Compared as instants: the card sends the same end in UTC. A new start makes a new
@@ -841,7 +848,7 @@ class ChauffageRuntime:
             override["ends_at"] = before["ends_at"]
         else:
             override.pop("ends_at", None)
-        new_value = before is None or (before["kind"], before["value"]) != (target.kind, target.value)
+        new_value = before is None or before["target"] != target
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
         if (new_value or resend) and not left_alone and self.needs(entity_id, target, current):
             if not await self.send(entity_id, target, f"override set by {source}"):
@@ -870,13 +877,13 @@ class ChauffageRuntime:
         self._changed()
 
     def override_info(self, entity_id: str) -> dict[str, Any]:
-        """A thermostat's override as automations see it (sensor, event): kind, value, the preset
-        it was set to, its end in local time (None without override)."""
+        """A thermostat's override as automations see it (sensor, event): its target, the preset
+        it was set to, its end in local time (None without override). Also its kind and value, as
+        before #91: "preset" and the climate preset, or "temperature" and the temperature."""
         override = self.data["overrides"].get(entity_id) or {}
         end = engine.parse_datetime(override.get("end"))
-        return {key: override.get(key) for key in ("kind", "value", "preset")} | {
-            "end": dt_util.as_local(end).isoformat() if end else None,
-        }
+        return {"target": override.get("target"), "preset": override.get("preset"), **_kind_and_value(override.get("target")),
+                "end": dt_util.as_local(end).isoformat() if end else None}
 
     @callback
     def _keep_override(self, entity_id: str, override: dict[str, Any], source: str,
@@ -885,7 +892,7 @@ class ChauffageRuntime:
         before = self.data["overrides"].get(entity_id)
         self.data["overrides"][entity_id] = override
         info = self.override_info(entity_id)
-        if before is None or any(before.get(key) != override.get(key) for key in ("kind", "value", "preset")):
+        if before is None or any(before.get(key) != override.get(key) for key in ("target", "preset")):
             _LOGGER.info("%s: override started by %s: %s until %s", entity_id, source, _describe(override), info["end"])
             self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source,
                                                               **_end_data(override)}, context=context)
@@ -903,13 +910,13 @@ class ChauffageRuntime:
                                  context=context)
         return True
 
-    def new_override(self, kind: str, value: Any, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
+    def new_override(self, target: engine.Target, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
         start = dt_util.now().replace(microsecond=0)
         # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
         end = end or dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=minutes or self.override_duration))
-        return {"kind": kind, "value": value, "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
+        return {"target": dict(target), "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
 
-    def manual_override(self, entity_id: str, kind: str, value: Any, current: engine.Thermostat | None) -> dict[str, Any]:
+    def manual_override(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None) -> dict[str, Any]:
         """The override of a change by hand (#83), by the setting *End of a change by hand*:
         after the override duration (DURATION), at the next slot that changes the thermostat's
         target in the active schedule but at the latest after the duration
@@ -919,7 +926,7 @@ class ChauffageRuntime:
         not move the end."""
         setting = self.manual_override_end_of(entity_id)
         unbounded = setting == NEXT_SLOT
-        override = self.new_override(kind, value, MAX_MANUAL_OVERRIDE if unbounded else None)
+        override = self.new_override(target, MAX_MANUAL_OVERRIDE if unbounded else None)
         if setting == DURATION:
             return override | {"ends_at": DURATION}
         # In the local time zone (not a fixed offset): the slots follow its DST changes
@@ -938,8 +945,7 @@ class ChauffageRuntime:
         target = self.targets_of(entity_id).get(preset_id)
         if target is None:
             return None
-        ((kind, value),) = target.items()
-        return self.new_override(kind, value, minutes, end) | {"preset": preset_id}
+        return self.new_override(target, minutes, end) | {"preset": preset_id}
 
     async def call_climate(self, service: str, entity_id: str, data: dict[str, Any]) -> bool:
         """Calls a climate service with the integration's own context; False if it failed."""
@@ -963,17 +969,21 @@ class ChauffageRuntime:
         commands = self.data["pending"].setdefault(entity_id, [])
         waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)
         _LOGGER.info("%s: %s sent (%s)%s", entity_id, _describe(target), why, waiting)
-        if commands and (commands[-1]["kind"], commands[-1]["value"]) == (target.kind, target.value):
+        if commands and commands[-1]["target"] == target:
             commands.pop()  # sent again: waited for from now
-        commands.append({"kind": target.kind, "value": target.value, "sent": dt_util.now().isoformat()})
+        commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
         self._save()
-        if target.kind == "preset":
-            return await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target.value})
-        return await self.call_climate("set_temperature", entity_id, {"temperature": target.value})
+        # In the order a scene applies them: the temperature, then the preset
+        done = True
+        if "temperature" in target:
+            done = await self.call_climate("set_temperature", entity_id, {"temperature": target["temperature"]})
+        if "preset_mode" in target:
+            done = await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target["preset_mode"]}) and done
+        return done
 
     def pending(self, entity_id: str) -> list[engine.Target]:
         """The commands sent to a thermostat that it does not show yet, oldest first."""
-        return [engine.Target(c["kind"], c["value"]) for c in self.data["pending"].get(entity_id, [])]
+        return [c["target"] for c in self.data["pending"].get(entity_id, [])]
 
     def needs(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None) -> bool:
         """A target to send: the thermostat does not show it, or would apply another command later."""
@@ -1013,7 +1023,7 @@ class ChauffageRuntime:
         if override is None:
             await self.apply(include={entity_id}, reason=reason)
             return
-        target = engine.Target(override["kind"], override["value"])
+        target = override["target"]
         async with self._lock:
             current = self.current(self.hass.states.get(entity_id))
             if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current):
@@ -1131,13 +1141,13 @@ class ChauffageRuntime:
                          new.entity_id, _time(applied["sent"]), _describe(applied), then)
             return
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
-        preset_temperature = self.preset_temperature(new, expected.value) \
-            if expected is not None and expected.kind == "preset" else None
+        preset_temperature = self.preset_temperature(new, expected["preset_mode"]) \
+            if expected is not None and "preset_mode" in expected else None
         current = self.data["overrides"].get(new.entity_id)
         change = engine.manual_change(
             before, after, by_user=context.user_id is not None, expected=expected,
             preset_temperature=preset_temperature,
-            override=engine.Target(current["kind"], current["value"]) if current else None,
+            override=current["target"] if current else None,
         )
         if change is None:
             return
@@ -1150,4 +1160,4 @@ class ChauffageRuntime:
                 resume = self.set_override(new.entity_id, None, source="thermostat", context=context)
                 self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
-        self.record_override(new.entity_id, self.manual_override(new.entity_id, *change, after), context)
+        self.record_override(new.entity_id, self.manual_override(new.entity_id, change, after), context)

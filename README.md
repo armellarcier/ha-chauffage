@@ -483,7 +483,7 @@ thermostat's page in the Chauffage panel.
 |---|---|
 | **Control** (switch) | Off while the thermostat is **paused**. |
 | **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat). |
-| **Override** (binary sensor) | On while the thermostat has an override. Attributes: `kind` (`temperature` or `preset`), `value` (a temperature, or the thermostat's own preset), `preset` (the Chauffage preset asked for, if any), `end`. |
+| **Override** (binary sensor) | On while the thermostat has an override. Attributes: `target` (what the thermostat is set to, for example `{"temperature": 21.5}` or `{"preset_mode": "boost"}`), `preset` (the Chauffage preset asked for, if any), `end`, and `kind` and `value` as before 0.10. |
 | **Override end** (sensor, disabled by default) | The end of the current override as a timestamp, for a dashboard tile. |
 
 The sensors are unavailable while the thermostat is paused.
@@ -539,7 +539,7 @@ Chauffage fires events that your automations can use, with the *Event* trigger:
 
 | Event | Data |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. `ends_at` says why the override ends then, when Chauffage knows it: `duration`, `next_slot` or `no_next_slot` for a change by hand, and `next_slot` for an end set to the next slot on the card. Fired for a new override or a new value, not when only the end changes. |
+| `chauffage_override_started` | `entity_id`, `target` (for example `{"temperature": 21.5}`), `preset`, `start`, `end`, `kind` and `value` (as before 0.10), and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. `ends_at` says why the override ends then, when Chauffage knows it: `duration`, `next_slot` or `no_next_slot` for a change by hand, and `next_slot` for an end set to the next slot on the card. Fired for a new override or a new value, not when only the end changes. |
 | `chauffage_override_ended` | `entity_id`, `start`, `end`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. `ends_at` as above, when Chauffage knows it. |
 | `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `panel`, `entity` (the select or a schedule switch), `service` or `rules`. |
 

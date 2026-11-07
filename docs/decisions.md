@@ -223,6 +223,15 @@ future contributor might question.
   (and the option allows it), otherwise the preset's temperature, fitted to the thermostat's
   limits and step. It can be set by hand per thermostat. Versatile Thermostat becomes one case
   among others.
+- **What a preset means on a thermostat is a partial state, as a scene holds it** (#91, stored
+  data version 7). A target is a dictionary of climate attributes: `{"preset_mode": "comfort"}`,
+  `{"temperature": 19}`, or both. Overrides and the commands not applied yet hold a target too.
+  Before, a target was a kind and a value, "preset" or "temperature": a slot could not set
+  anything else. With a partial state, the HVAC mode, the fan and the vanes are more keys, read
+  and applied the same way. A target holding a preset and a temperature is sent as a scene
+  sends it, and the thermostat decides what to do with both: Chauffage holds no rule between
+  the attributes of a device. The events and the sensors keep `kind` and `value` next to the
+  target, read from its first attribute, so existing automations keep working.
 - **No *Off* preset** (yet): thermostats turned off, by hand or for the summer, are left alone.
 - **A preset used in the weeks cannot simply be removed**: another one takes its place.
 - **Temperatures of the thermostats' own presets** are learned while each preset is active (no

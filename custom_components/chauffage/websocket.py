@@ -5,7 +5,7 @@ chauffage/subscribe          everything the card needs, then again after every c
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
-chauffage/override/set       {entity_id, override | null, source?}: change (value, end) or remove an override;
+chauffage/override/set       {entity_id, override | null, source?}: change (target, end) or remove an override;
                              a new value is sent to the thermostat. Any user who may control the
                              thermostat, not only an admin
 chauffage/schedule/activate  {schedule, source?}: activate a schedule (same as the select entity)
@@ -14,7 +14,7 @@ chauffage/schedules/set      {schedules, revision}: the ordered list of schedule
 chauffage/presets/set        {presets, replacements}: the presets (a removed preset used in the
                              weeks is replaced by the preset given in replacements)
 chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one thermostat
-                             ({preset id: {"preset": climate preset} | {"temperature": …}}; {} = defaults)
+                             ({preset id: {"preset_mode": climate preset} | {"temperature": …} | both}; {} = defaults)
 chauffage/rules/set          {rules, default_schedule}: the activation rules ([{"template", "schedule"}],
                              the first that applies wins; schedule null: the template gives it) and
                              the schedule when none applies (or null)

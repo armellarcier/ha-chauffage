@@ -139,7 +139,7 @@ async def test_no_override_can_be_set_on_a_paused_thermostat(bench: Bench):
     await start(bench)
     await pause(bench, "climate.salon")
     with pytest.raises(model.InvalidData):
-        await bench.set_override("climate.salon", bench.runtime.new_override("temperature", 22))
+        await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
     with pytest.raises(ServiceValidationError) as err:
         await bench.hass.services.async_call(
             "chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22}, blocking=True

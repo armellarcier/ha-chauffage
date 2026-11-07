@@ -201,21 +201,32 @@ def described(bench: Bench, event_type: str, **data) -> dict:
 async def test_the_logbook_tells_an_override_with_where_it_came_from_and_why_it_ended(bench: Bench):
     await start(bench, "10:00")
     bench.hass.states.async_set("climate.salon", "heat", {"friendly_name": "Salon"})
-    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="preset",
-                     value="boost", preset="boost", end="2026-10-12T12:00:00+02:00", source="service") == {
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", target={"preset_mode": "boost"},
+                     preset="boost", end="2026-10-12T12:00:00+02:00", source="service") == {
         "name": "Salon", "message": "override started: Boost until Monday 12:00 (by a service)", "entity_id": "climate.salon"}
-    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
-                     value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="thermostat")["message"] \
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", target={"temperature": 21.5},
+                     preset=None, end="2026-10-12T12:00:00+02:00", source="thermostat")["message"] \
         == "override started: 21.5 °C until Monday 12:00 (changed by hand)"
     assert described(bench, "chauffage_override_ended", entity_id="climate.salon", reason="expired")["message"] \
         == "override ended (expired)"
+
+
+async def test_the_logbook_still_describes_an_override_recorded_before_0_10(bench: Bench):
+    """Before #91, the events carried kind and value; the logbook reads the recorded ones."""
+    await start(bench, "10:00")
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature", value=21.5,
+                     preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
+        == "override started: 21.5 °C until Monday 12:00 (from the card)"
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="preset", value="away",
+                     preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
+        == "override started: away until Monday 12:00 (from the card)"
 
 
 async def test_the_logbook_says_why_a_change_by_hand_ends_then(bench: Bench):
     """The reason of the end, from the setting End of a change by hand (#83)."""
     await start(bench, "10:00")
     bench.hass.states.async_set("climate.salon", "heat", {"friendly_name": "Salon"})
-    change = {"entity_id": "climate.salon", "kind": "temperature", "value": 22, "preset": None,
+    change = {"entity_id": "climate.salon", "target": {"temperature": 22}, "preset": None,
               "start": "2026-10-12T10:00:00+02:00", "end": "2026-10-12T12:00:00+02:00", "source": "thermostat"}
     assert described(bench, "chauffage_override_started", **change, ends_at="duration")["message"] \
         == "override started: 22 °C until Monday 12:00 (changed by hand, for 2 h)"
@@ -239,7 +250,7 @@ async def test_the_logbook_says_why_a_change_by_hand_ends_then(bench: Bench):
 async def test_the_logbook_says_why_a_change_by_hand_ends_then_in_french(bench: Bench):
     bench.hass.config.language = "fr"
     await start(bench, "10:00")
-    change = {"entity_id": "climate.salon", "kind": "temperature", "value": 22, "preset": None,
+    change = {"entity_id": "climate.salon", "target": {"temperature": 22}, "preset": None,
               "start": "2026-10-12T10:00:00+02:00", "end": "2026-10-13T22:30:00+02:00", "source": "thermostat"}
     assert described(bench, "chauffage_override_started", **change, ends_at="next_slot")["message"] \
         == "dérogation : 22 °C jusqu'à mardi 22:30 (changée à la main, jusqu'au prochain créneau)"
@@ -326,15 +337,15 @@ async def test_the_logbook_speaks_the_language_of_home_assistant(bench: Bench):
         == "dérogation terminée (depuis la carte)"
     # Numbers as the language writes them, and the day of the end: the same line read on any day
     await bench.go_to("10:00")
-    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
-                     value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", target={"temperature": 21.5},
+                     preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
         == "dérogation : 21,5 °C jusqu'à lundi 12:00 (depuis la carte)"
-    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
-                     value=21.0, preset=None, end="2026-10-13T06:00:00+02:00", source="card")["message"] \
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", target={"temperature": 21.0},
+                     preset=None, end="2026-10-13T06:00:00+02:00", source="card")["message"] \
         == "dérogation : 21 °C jusqu'à mardi 06:00 (depuis la carte)"
     await bench.go_to("10:00", day=1)  # read the next day
-    assert described(bench, "chauffage_override_started", entity_id="climate.salon", kind="temperature",
-                     value=21.5, preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
+    assert described(bench, "chauffage_override_started", entity_id="climate.salon", target={"temperature": 21.5},
+                     preset=None, end="2026-10-12T12:00:00+02:00", source="card")["message"] \
         == "dérogation : 21,5 °C jusqu'à lundi 12:00 (depuis la carte)"
 
 
@@ -382,7 +393,7 @@ async def test_the_diagnostics_hold_the_stored_data_and_the_thermostats_now(benc
     await start(bench, "10:00")
     await bench.manual_setpoint("climate.salon", 21.5)
     found = await diagnostics.async_get_config_entry_diagnostics(bench.hass, bench.entry)
-    assert found["data"]["overrides"]["climate.salon"]["value"] == 21.5
+    assert found["data"]["overrides"]["climate.salon"]["target"] == {"temperature": 21.5}
     assert "climate.salon" in found["data"]["thermostats"]
     assert found["states"]["climate.salon"]["attributes"]["temperature"] == 21.5
     assert found["retry"] == []
