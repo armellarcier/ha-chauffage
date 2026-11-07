@@ -291,7 +291,8 @@
         },
         "mapping": {},
         "preset_temperatures": {},
-        "revision": 0
+        "revision": 0,
+        "hvac_mode": null
       }
     }
   },

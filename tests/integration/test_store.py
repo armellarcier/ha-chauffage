@@ -95,3 +95,4 @@ def test_version_7_holds_targets_as_partial_states():
         "target": {"temperature": 21.5}, "start": "2026-10-12T09:30:00+02:00", "end": "2026-10-12T11:30:00+02:00"}
     assert v7["pending"]["climate.salon"] == [{"target": {"preset_mode": "comfort"}, "sent": "2026-10-12T06:30:00+02:00"}]
     assert v7["thermostats"]["climate.salon"]["weeks"] == salon["weeks"]
+    assert v7["thermostats"]["climate.salon"]["hvac_mode"] is None  # the last HVAC mode it was on in: unknown yet

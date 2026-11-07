@@ -56,13 +56,14 @@ def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
     temperatures = data.pop("preset_temperatures", {})
     schedule_ids = [schedule["id"] for schedule in data["schedules"]]
     preset_ids = [preset["id"] for preset in data["presets"]]
-    data["thermostats"] = {
-        entity_id: model.new_thermostat(
+    data["thermostats"] = {}
+    for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]:
+        thermostat = model.new_thermostat(
             model.complete_weeks(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else None,
             mappings.get(entity_id), temperatures.get(entity_id),
         )
-        for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]
-    }
+        thermostat.pop("hvac_mode")  # added in version 7
+        data["thermostats"][entity_id] = thermostat
     data["renamed"] = {}
     return data
 
@@ -80,7 +81,7 @@ def _target(command: dict[str, Any]) -> dict[str, Any]:
 def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
     """A slot sets more than a preset (#91): what a preset means for a thermostat, an override
     and a command not applied yet are partial states of the thermostat, as a scene holds them.
-    The values do not change."""
+    The values do not change. The HVAC mode a thermostat was last on in is not known yet."""
     def without(command: dict[str, Any]) -> dict[str, Any]:
         return {key: value for key, value in command.items() if key not in ("kind", "value")}
 
@@ -88,7 +89,7 @@ def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
         **data,
         "thermostats": {
             entity_id: {**t, "mapping": {preset_id: {"preset_mode": v["preset"]} if "preset" in v else v
-                                         for preset_id, v in t["mapping"].items()}}
+                                         for preset_id, v in t["mapping"].items()}, "hvac_mode": None}
             for entity_id, t in data["thermostats"].items()
         },
         "overrides": {entity_id: {"target": _target(o), **without(o)} for entity_id, o in data["overrides"].items()},

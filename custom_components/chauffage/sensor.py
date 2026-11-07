@@ -47,17 +47,19 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         current, _, _ = self.runtime.planned(self.climate)
-        return current if current in self.options else None
+        return current.preset if current and current.preset in self.options else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        current, next_preset, next_start = self.runtime.planned(self.climate)
+        planned = self.runtime.planned_info(self.climate)
         return {
-            "preset_name": self._name(current),
-            "target": self.runtime.targets_of(self.climate).get(current) if current else None,
-            "next_preset": next_preset,
-            "next_preset_name": self._name(next_preset),
-            "next_start": next_start.isoformat() if next_start else None,
+            "preset_name": self._name(planned["preset"]),
+            "hvac_mode": planned["hvac_mode"],  # off, or the HVAC mode the slot sets; None: on (#91)
+            "target": planned["target"],
+            "next_preset": planned["next_preset"],
+            "next_preset_name": self._name(planned["next_preset"]),
+            "next_hvac_mode": planned["next_hvac_mode"],
+            "next_start": planned["next_start"],
             "temperatures": self.runtime.preset_temperatures_of(self.climate),
         }
 

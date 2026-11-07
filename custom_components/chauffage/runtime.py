@@ -35,6 +35,7 @@ from homeassistant.helpers.event import (
     async_track_time_change,
 )
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.state import async_reproduce_state
 from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
@@ -94,23 +95,34 @@ class ThermostatPaused(model.InvalidData):
 VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
 
 
-def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat | None:
-    """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current)."""
+def thermostat(state: State | None, vtherm: bool = False, last_hvac_mode: str | None = None) -> engine.Thermostat | None:
+    """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current); `last_hvac_mode`:
+    the HVAC mode it was last on in (stored). A VTherm is read as it was asked (requested_state,
+    #92): off by its window or its auto start/stop, it is still "on" for Chauffage. A VTherm
+    without requested_state (before VTherm 10.5) that is off is read as on too: it keeps the
+    preset asked while off and starts again on it (#74), so Chauffage neither turns it on nor
+    takes it for turned off by hand, as before #91."""
     if state is None:
         return None
     attributes = state.attributes
     presets = attributes.get("preset_modes") or ()
-    return engine.Thermostat(
-        state.state,
-        engine.preset_value(attributes.get("preset_mode")),
-        engine.temperature_value(attributes.get("temperature")),
+    hvac_mode, preset, temperature = engine.asked(attributes, vtherm)
+    current = engine.Thermostat(
+        hvac_mode or state.state,
+        preset,
+        temperature,
         tuple(p for p in (engine.preset_value(p) for p in presets) if p),
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),
         engine.temperature_value(attributes.get("target_temp_step")),
         vtherm,
         engine.ready(attributes, vtherm),
+        tuple(m for m in (engine.preset_value(m) for m in attributes.get("hvac_modes") or ()) if m),
+        last_hvac_mode,
     )
+    if vtherm and hvac_mode is None and state.state == engine.OFF:
+        current = dataclasses.replace(current, state=engine.on_mode(current) or "heat")
+    return current
 
 
 def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
@@ -132,11 +144,16 @@ def _describe(command: engine.Target | dict[str, Any]) -> str:
 
 def _kind_and_value(target: engine.Target | None) -> dict[str, Any]:
     """An override's kind and value as the events and the sensors told them before #91, from its
-    target: existing automations keep reading them."""
+    target: existing automations keep reading them. "preset" or "temperature" as before; an
+    override that only sets the HVAC mode says "hvac_mode"."""
     if not target:
         return {"kind": None, "value": None}
-    key = next(iter(target))
+    key = next(key for key in ("preset_mode", "temperature", "hvac_mode") if key in target)
     return {"kind": "preset" if key == "preset_mode" else key, "value": target[key]}
+
+
+def _off_cause(state: State | None) -> str | None:
+    return engine.off_cause(state.attributes) if state is not None and state.state == engine.OFF else None
 
 
 def _end_data(override: dict[str, Any]) -> dict[str, Any]:
@@ -352,7 +369,8 @@ class ChauffageRuntime:
         """What the scheduler needs to know about a thermostat. A Versatile Thermostat is
         recognized by its integration, not by its attributes: VTherm moved some of them (#74)."""
         entry = er.async_get(self.hass).async_get(state.entity_id) if state is not None else None
-        return thermostat(state, entry is not None and entry.platform == VTHERM)
+        last = self.thermostats.get(state.entity_id, {}).get("hvac_mode") if state is not None else None
+        return thermostat(state, entry is not None and entry.platform == VTHERM, last)
 
     def preset_temperature(self, state: State, preset: str) -> float | None:
         """Temperature a thermostat's own preset gives (published, else learned): the one the
@@ -384,7 +402,8 @@ class ChauffageRuntime:
         return bool(self.entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
-        """What each preset means for a thermostat (mapping set by hand, else the default)."""
+        """What each preset means for a thermostat (mapping set by hand, else the default), its
+        HVAC mode included when the preset or the mapping sets one."""
         presets = self.presets_by_id
         mapping = self.thermostats.get(entity_id, {}).get("mapping") or None
         current = self.current(self.hass.states.get(entity_id))
@@ -408,7 +427,9 @@ class ChauffageRuntime:
             "schedules": self.data["schedules"],
             "active_schedule": self.data["active_schedule"],
             "presets": self.data["presets"],
-            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"]} for e, t in self.scheduled.items()},
+            # off_cause: why a VTherm turned itself off ("window", "auto_start_stop"), None otherwise
+            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "off_cause": self.off_cause(e)}
+                            for e, t in self.scheduled.items()},
             "mappings": self.mappings,
             "targets": {e: self.targets_of(e) for e in self.scheduled},
             "weeks": self.weeks,
@@ -470,25 +491,43 @@ class ChauffageRuntime:
             ids.update(entities.values())
         return ids
 
-    def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
-        """(preset now, next preset, its start) for a thermostat in the active schedule."""
+    def off_cause(self, entity_id: str) -> str | None:
+        """Why a thermostat turned itself off, when it says it (a VTherm's window or auto
+        start/stop): for the card, which then does not read VTherm's attributes."""
+        state = self.hass.states.get(entity_id)
+        return engine.off_cause(state.attributes) if state is not None and state.state == engine.OFF else None
+
+    def planned(self, entity_id: str, now: datetime | None = None) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
+        """(slot now, next different slot, its start) for a thermostat in the active schedule."""
         week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
         if not week:
             return None, None, None
         return engine.current_and_next(week, now or dt_util.now())
 
-    def planned_presets(self) -> dict[str, dict[str, Any]]:
-        """What each scheduled thermostat follows now, the next different preset, and the next
+    def planned_info(self, entity_id: str) -> dict[str, Any]:
+        """What a scheduled thermostat follows now (its preset, its HVAC mode when a layer sets
+        one, its target on this thermostat), the next different slot and its start, and the next
         slot a change made now would end at (the card's button *Until the next slot*, #83):
         computed here, in Home Assistant's time zone, not in the browser's."""
-        out = {}
-        for entity_id in self.scheduled:
-            current, next_preset, next_start = self.planned(entity_id)
-            slot = self.next_slot_end(entity_id, self.current(self.hass.states.get(entity_id)))
-            out[entity_id] = {"preset": current, "next_preset": next_preset,
-                              "next_start": next_start.isoformat() if next_start else None,
-                              "next_slot_end": slot.isoformat() if slot else None}
-        return out
+        current, following, next_start = self.planned(entity_id)
+        thermostat = self.current(self.hass.states.get(entity_id))
+        plan = self.plan()
+        target = plan.target_of(entity_id, current, thermostat)
+        next_target = plan.target_of(entity_id, following, thermostat)
+        slot = self.next_slot_end(entity_id, thermostat)
+        return {
+            "preset": current.preset if current else None,
+            "hvac_mode": target.get("hvac_mode") if target else None,
+            "target": target,
+            "next_preset": following.preset if following else None,
+            "next_hvac_mode": next_target.get("hvac_mode") if next_target else None,
+            "next_start": next_start.isoformat() if next_start else None,
+            "next_slot_end": slot.isoformat() if slot else None,
+        }
+
+    def planned_presets(self) -> dict[str, dict[str, Any]]:
+        """planned_info of every scheduled thermostat."""
+        return {entity_id: self.planned_info(entity_id) for entity_id in self.scheduled}
 
     # ----- writing -----
 
@@ -658,7 +697,7 @@ class ChauffageRuntime:
             for by_schedule in affected.values():
                 for schedule_id, week in by_schedule.items():
                     by_schedule[schedule_id] = model.normalize_week(
-                        [[[start, replacements.get(preset, preset)] for start, preset in day] for day in week]
+                        [[[slot[0], replacements.get(slot[1], slot[1]), *slot[2:]] for slot in day] for day in week]
                     )
             self._weeks_changed(affected)
             self.data["revision"] += 1
@@ -851,7 +890,7 @@ class ChauffageRuntime:
         new_value = before is None or before["target"] != target
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
         if (new_value or resend) and not left_alone and self.needs(entity_id, target, current):
-            if not await self.send(entity_id, target, f"override set by {source}"):
+            if not await self.send(entity_id, engine.complete(target, current), f"override set by {source}"):
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
         self._changed()
@@ -938,48 +977,48 @@ class ChauffageRuntime:
             return override | {"end": slot.isoformat(), "ends_at": NEXT_SLOT}
         return override | {"ends_at": NO_NEXT_SLOT if unbounded else DURATION}
 
-    def preset_override(self, entity_id: str, preset_id: str, minutes: int | None = None,
-                        end: datetime | None = None) -> dict[str, Any] | None:
-        """A new override to a Chauffage preset: what it means on this thermostat, and which
-        preset it is (None: not one of the Chauffage presets)."""
-        target = self.targets_of(entity_id).get(preset_id)
-        if target is None:
-            return None
-        return self.new_override(target, minutes, end) | {"preset": preset_id}
-
-    async def call_climate(self, service: str, entity_id: str, data: dict[str, Any]) -> bool:
-        """Calls a climate service with the integration's own context; False if it failed."""
+    async def reproduce(self, entity_id: str, hvac_mode: str | None, attributes: dict[str, Any]) -> bool:
+        """Sets a thermostat to an HVAC mode (None: keeps its own) and attributes, as a scene
+        does (Home Assistant's reproduce_state: the HVAC mode, the setpoint, then the preset, the
+        swing and the fan), with the integration's own context; False if a call failed."""
         context = Context()
         self._own_contexts.append(context.id)
+        # Not in HVAC_MODES, so reproduce_state sends no HVAC mode: the thermostat keeps its own
+        state = State(entity_id, hvac_mode or "", attributes)
         try:
-            await self.hass.services.async_call(
-                "climate", service, {"entity_id": entity_id, **data}, blocking=True, context=context
-            )
+            await async_reproduce_state(self.hass, [state], context=context)
         except Exception as err:  # noqa: BLE001 — one unreachable valve must not stop the others
-            _LOGGER.warning("%s: climate.%s failed: %s", entity_id, service, err)
+            _LOGGER.warning("%s: %s failed: %s", entity_id, _describe({**attributes, **({"hvac_mode": hvac_mode} if hvac_mode else {})}), err)
             return False
         return True
 
     # ----- commands applied late (docs/decisions.md, "Commands applied late") -----
 
     async def send(self, entity_id: str, target: engine.Target, why: str) -> bool:
-        """Sets a thermostat to a target, logged with `why`; False if the call failed. The
-        command is pending until the thermostat takes it: a battery valve may apply it hours
-        later, even after a failed call (the Zigbee message waits for it)."""
+        """Sets a thermostat to a target, as a scene does (#91): Home Assistant's reproduce_state
+        sends the HVAC mode, the setpoint, then the preset, with only the attributes the
+        thermostat does not show (a VTherm: as it was asked). Logged with `why`; False if a call
+        failed. The command is pending until the thermostat takes it: a battery valve may apply
+        it hours later, even after a failed call (the Zigbee message waits for it)."""
         commands = self.data["pending"].setdefault(entity_id, [])
         waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)
         _LOGGER.info("%s: %s sent (%s)%s", entity_id, _describe(target), why, waiting)
+        # Not what the thermostat already shows, unless it may still apply an older command:
+        # then everything, or what it shows now could be undone later
+        current = None if commands else self.current(self.hass.states.get(entity_id))
         if commands and commands[-1]["target"] == target:
             commands.pop()  # sent again: waited for from now
         commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
         self._save()
-        # In the order a scene applies them: the temperature, then the preset
-        done = True
-        if "temperature" in target:
-            done = await self.call_climate("set_temperature", entity_id, {"temperature": target["temperature"]})
-        if "preset_mode" in target:
-            done = await self.call_climate("set_preset_mode", entity_id, {"preset_mode": target["preset_mode"]}) and done
-        return done
+        hvac_mode = target.get("hvac_mode")
+        if current is not None and hvac_mode == current.state:
+            hvac_mode = None
+        shown = dataclasses.replace(current, state=hvac_mode or current.state) if current else None
+        attributes = {key: value for key, value in target.items()
+                      if key != "hvac_mode" and (shown is None or not engine.satisfied({key: value}, shown))}
+        if hvac_mode is None and not attributes:
+            return True
+        return await self.reproduce(entity_id, hvac_mode, attributes)
 
     def pending(self, entity_id: str) -> list[engine.Target]:
         """The commands sent to a thermostat that it does not show yet, oldest first."""
@@ -990,7 +1029,7 @@ class ChauffageRuntime:
         if current is None or not engine.satisfied(target, current):
             return True
         commands = self.pending(entity_id)
-        return bool(commands) and commands[-1] != target
+        return bool(commands) and commands[-1] != engine.complete(target, current)
 
     @callback
     def _applied(self, entity_id: str, before: engine.Thermostat | None,
@@ -1027,7 +1066,7 @@ class ChauffageRuntime:
         async with self._lock:
             current = self.current(self.hass.states.get(entity_id))
             if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current):
-                await self.send(entity_id, target, f"{reason}, back to the override")
+                await self.send(entity_id, engine.complete(target, current), f"{reason}, back to the override")
 
     # ----- scheduling -----
 
@@ -1058,8 +1097,8 @@ class ChauffageRuntime:
                 why = ("retry after a failed command" if entity_id in retry
                        else "override ended (expired)" if entity_id in (ended or ())
                        else reason or "new slot")
-                preset, _ = self.plan().preset_at(entity_id, now)
-                done = await self.send(entity_id, target, f"{why}, {preset} of schedule {self.data['active_schedule']}")
+                slot, _ = self.plan().slot_at(entity_id, now)
+                done = await self.send(entity_id, target, f"{why}, {slot.preset} of schedule {self.data['active_schedule']}")
                 # Not delivered (unreachable valve…): sent again at the next minutes
                 if done:
                     self._retry.discard(entity_id)
@@ -1094,23 +1133,29 @@ class ChauffageRuntime:
 
     @callback
     def _learn(self, state: State | None) -> bool:
-        """While a thermostat is on a preset, its setpoint is that preset's temperature."""
+        """While a thermostat is on a preset, its setpoint is that preset's temperature. While
+        it is on, its HVAC mode is the one to turn it on in later (#91)."""
         current = self.current(state)
-        if current is None or engine.ignored(current) or current.temperature is None:
+        if current is None or engine.ignored(current) or state.entity_id not in self.thermostats:
             return False
-        if engine.is_manual_preset(current.preset) or state.entity_id not in self.thermostats:
-            return False
-        known = self.thermostats[state.entity_id]["preset_temperatures"]
-        if known.get(current.preset) == current.temperature:
-            return False
-        known[current.preset] = current.temperature
-        self._changed()
-        return True
+        data = self.thermostats[state.entity_id]
+        learned = False
+        if current.state != engine.OFF and state.state != engine.OFF and data["hvac_mode"] != current.state:
+            data["hvac_mode"] = current.state
+            learned = True
+        if (current.temperature is not None and not engine.is_manual_preset(current.preset)
+                and data["preset_temperatures"].get(current.preset) != current.temperature):
+            data["preset_temperatures"][current.preset] = current.temperature
+            learned = True
+        if learned:
+            self._changed()
+        return learned
 
     @callback
     def _state_changed(self, event: Event[EventStateChangedData]) -> None:
         old, new = event.data["old_state"], event.data["new_state"]
-        if not self._learn(new) and self.temperatures_of(old) != self.temperatures_of(new):
+        if not self._learn(new) and (self.temperatures_of(old) != self.temperatures_of(new)
+                                     or _off_cause(old) != _off_cause(new)):
             self._notify()  # published by the thermostat: the card shows them
         # Paused thermostats are followed for their preset temperatures only
         if old is None or new is None or self.is_paused(new.entity_id):
@@ -1158,6 +1203,8 @@ class ChauffageRuntime:
         if change == engine.RESUME:
             if new.entity_id in self.data["overrides"]:
                 resume = self.set_override(new.entity_id, None, source="thermostat", context=context)
-                self.entry.async_create_task(self.hass, resume, "chauffage resume")
+            else:  # turned back on without an override: it may have missed slots while off
+                resume = self.apply(include={new.entity_id}, reason=f"back from {old.state}")
+            self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
         self.record_override(new.entity_id, self.manual_override(new.entity_id, change, after), context)

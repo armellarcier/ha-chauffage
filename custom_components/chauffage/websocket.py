@@ -1,8 +1,14 @@
 """Websocket API used by the card (vocabulary: docs/glossary.md).
 
 chauffage/subscribe          everything the card needs, then again after every change, when a
-                             planned preset changes, and after the integration is reloaded
-chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
+                             planned slot changes, and after the integration is reloaded. A week's
+                             slot is [start, preset] or [start, preset, settings] (#91:
+                             {"hvac_mode": "off"}); `planned` gives each thermostat's preset,
+                             hvac_mode (off, a mode, or null: on), target, next_preset,
+                             next_hvac_mode, next_start and next_slot_end; `thermostats` says
+                             why a VTherm turned itself off (off_cause: window, auto_start_stop)
+chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent (slots with
+                             optional settings, see above), against
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set       {entity_id, override | null, source?}: change (target, end) or remove an override;
@@ -14,7 +20,8 @@ chauffage/schedules/set      {schedules, revision}: the ordered list of schedule
 chauffage/presets/set        {presets, replacements}: the presets (a removed preset used in the
                              weeks is replaced by the preset given in replacements)
 chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one thermostat
-                             ({preset id: {"preset_mode": climate preset} | {"temperature": …} | both}; {} = defaults)
+                             ({preset id: {"preset_mode": climate preset} | {"temperature": …} | both,
+                             with an optional "hvac_mode"}; {} = defaults)
 chauffage/rules/set          {rules, default_schedule}: the activation rules ([{"template", "schedule"}],
                              the first that applies wins; schedule null: the template gives it) and
                              the schedule when none applies (or null)

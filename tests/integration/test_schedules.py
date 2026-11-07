@@ -87,17 +87,19 @@ async def test_a_schedule_the_card_sent_no_week_in_is_eco_all_week(bench: Bench)
     await start(bench, "10:00")
     bench.applied()
     await bench.activate_schedule("Holiday")  # no holiday week sent for the office
-    assert bench.runtime.planned("climate.bureau")[0] == "eco"
+    assert bench.runtime.planned("climate.bureau")[0].preset == "eco"
     assert bench.applied()["climate.salon"] == "frost"
 
 
-async def test_a_thermostat_turned_off_is_ignored(bench: Bench):
+async def test_a_thermostat_turned_off_is_turned_on(bench: Bench):
+    """The schedule decides whether a thermostat is off (#91): on its slot, it is on."""
     await bench.go_to("10:00")
     bench.thermostat("climate.salon", "eco")
     bench.thermostat("climate.bureau", "eco", state="off")
     await bench.setup()
     await bench.save_weeks(SCHEDULES)
-    assert bench.applied() == {}
+    assert bench.applied() == {"climate.bureau": "comfort"}
+    assert bench.powered() == {"climate.bureau": "heat"}
 
 
 async def test_an_unreachable_thermostat_does_not_block_the_others(bench: Bench):

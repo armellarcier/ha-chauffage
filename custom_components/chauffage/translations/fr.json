@@ -67,7 +67,7 @@
       "override": {
         "name": "Dérogation",
         "state_attributes": {
-          "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
+          "target": { "name": "Cible" }, "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" }, "end": { "name": "Fin" }
         }
       }
     },
@@ -78,7 +78,9 @@
         "state_attributes": {
           "preset_name": { "name": "Nom du préréglage" },
           "target": { "name": "Consigne" },
+          "hvac_mode": { "name": "Fonctionnement" },
           "next_preset": { "name": "Préréglage suivant" },
+          "next_hvac_mode": { "name": "Fonctionnement suivant" },
           "next_preset_name": { "name": "Nom du préréglage suivant" },
           "next_start": { "name": "Début du créneau suivant" },
           "temperatures": { "name": "Températures des préréglages" }
@@ -86,7 +88,7 @@
       },
       "override_end": {
         "name": "Fin de dérogation",
-        "state_attributes": { "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
+        "state_attributes": { "target": { "name": "Cible" }, "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
       }
     }
   },
@@ -118,16 +120,20 @@
     },
     "preset": {
       "options": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" }
+    },
+    "hvac_mode": {
+      "options": { "off": "Arrêt", "heat": "Chauffage", "cool": "Climatisation", "heat_cool": "Chauffage/Climatisation", "auto": "Auto", "dry": "Déshumidification", "fan_only": "Ventilation" }
     }
   },
   "services": {
     "set_override": {
       "name": "Créer une dérogation",
-      "description": "Règle la température ou le préréglage d'un thermostat programmé pour un temps donné, puis il reprend son planning.",
+      "description": "Règle la température ou le préréglage d'un thermostat programmé, l'éteint ou l'allume, pour un temps donné, puis il reprend son planning.",
       "fields": {
         "entity_id": { "name": "Thermostat", "description": "Un thermostat programmé par Chauffage." },
         "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un préréglage)." },
         "preset": { "name": "Préréglage", "description": "Un préréglage de Chauffage, réglé sur ce qu'il signifie pour ce thermostat (ou un préréglage du thermostat lui-même) ; ou indiquer une température." },
+        "hvac_mode": { "name": "Fonctionnement", "description": "Arrêt pour éteindre le thermostat, ou un mode pour l'allumer. Sans lui, le thermostat est allumé." },
         "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },
         "end": { "name": "Fin", "description": "Quand la dérogation se termine (au lieu d'une durée)." }
       }

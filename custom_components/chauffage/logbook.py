@@ -38,6 +38,11 @@ TEXTS = {
             "no_next_slot": "override ended after a week, no slot ahead",
         },
         "hours": "{h} h", "hours_minutes": "{h} h {mm}", "minutes": "{m} min",
+        # The HVAC mode an override sets (#91), as Home Assistant names them
+        "hvac_modes": {
+            "off": "off", "heat": "heat", "cool": "cool", "heat_cool": "heat/cool", "auto": "auto", "dry": "dry",
+            "fan_only": "fan only",
+        },
     },
     "fr": {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
@@ -61,6 +66,10 @@ TEXTS = {
             "no_next_slot": "dérogation terminée au bout d'une semaine, aucun créneau prévu",
         },
         "hours": "{h} h", "hours_minutes": "{h} h {mm}", "minutes": "{m} min",
+        "hvac_modes": {
+            "off": "arrêt", "heat": "chauffage", "cool": "climatisation", "heat_cool": "chauffage/climatisation",
+            "auto": "auto", "dry": "déshumidification", "fan_only": "ventilation",
+        },
     },
 }
 
@@ -81,20 +90,26 @@ def async_describe_events(
         return state.name if state else default
 
     def value(data: dict[str, Any]) -> str:
-        """The override's value: the Chauffage preset's name, else what its target holds. An
-        event recorded before #91 holds a kind and a value instead of a target."""
+        """The override's value: its HVAC mode if it sets one, then the Chauffage preset's name,
+        else what its target holds. An event recorded before #91 holds a kind and a value
+        instead of a target."""
         preset = (runtime().presets_by_id if runtime() else {}).get(data.get("preset"))
-        if preset:
-            return preset["name"]
         target = data.get("target")
         if not isinstance(target, dict):
             key = "temperature" if data.get("kind") == "temperature" else "preset_mode"
             target = {key: data.get("value")}
-        if "temperature" in target:
+        parts = []
+        if "hvac_mode" in target:  # off, or the HVAC mode the thermostat was turned on in (#91)
+            parts.append(texts()["hvac_modes"].get(target["hvac_mode"], str(target["hvac_mode"])))
+        if preset:
+            parts.append(preset["name"])
+        elif "temperature" in target:
             # 21 °C, not 21.0 °C; 21,5 °C in French
             number = f"{round(float(target['temperature']), 1):g}".replace(".", texts()["decimal"])
-            return f"{number} {hass.config.units.temperature_unit}"
-        return str(target.get("preset_mode"))
+            parts.append(f"{number} {hass.config.units.temperature_unit}")
+        elif "preset_mode" in target:
+            parts.append(str(target["preset_mode"]))
+        return ", ".join(parts)
 
     def until(end: Any) -> str:
         """The end's day and time: the same line whatever the day it is read."""

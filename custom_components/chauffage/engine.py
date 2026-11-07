@@ -13,17 +13,19 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, NamedTuple
 
 from .const import MANUAL_PRESETS
 
-IGNORED_STATES = frozenset({"off", "unavailable", "unknown"})
+IGNORED_STATES = frozenset({"unavailable", "unknown"})
 DEFAULT_STEP = 0.5
+OFF = "off"
 
 
 @dataclass(frozen=True)
 class Thermostat:
-    """What the scheduler needs to know about a climate entity."""
+    """What the scheduler needs to know about a climate entity. `state` is its HVAC mode as
+    asked: for a Versatile Thermostat that turned itself off, the one it was asked (#91)."""
 
     state: str
     preset: str | None
@@ -34,9 +36,43 @@ class Thermostat:
     step: float | None = None
     vtherm: bool = False  # Versatile Thermostat
     ready: bool = True  # it shows a known state (see ready)
+    hvac_modes: tuple[str, ...] = field(default=())
+    last_hvac_mode: str | None = None  # the HVAC mode it was last on in (learned, stored)
 
 
 SETPOINTS = ("temperature", "target_temp_low", "target_temp_high")
+
+
+def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | None, str | None, float | None]:
+    """The HVAC mode, the preset and the setpoint a thermostat was asked for. Versatile
+    Thermostat may change them by itself: it turns off for an open window or its auto start/stop,
+    and sets the frost setpoint for a window (#92). VTherm keeps what it was asked for in
+    requested_state. Its target_temperature is the last manual setpoint, so it counts only on
+    the manual preset. The HVAC mode is None without requested_state: the state says it."""
+    preset = preset_value(attributes.get("preset_mode"))
+    temperature = temperature_value(attributes.get("temperature"))
+    requested = attributes.get("requested_state") if vtherm else None
+    hvac_mode = None
+    if isinstance(requested, Mapping) and requested.get("preset") is not None:
+        preset = preset_value(requested["preset"])
+        if is_manual_preset(preset):
+            temperature = temperature_value(requested.get("target_temperature"))
+    if isinstance(requested, Mapping) and requested.get("hvac_mode") is not None:
+        hvac_mode = preset_value(requested["hvac_mode"])
+    return hvac_mode, preset, temperature
+
+
+# Why a Versatile Thermostat turned itself off, as it says it (hvac_off_reason, moved into
+# specific_states in VTherm 10.5): for the card, which then does not read VTherm's attributes
+OFF_CAUSES = {"window_detection": "window", "auto_start_stop": "auto_start_stop"}
+
+
+def off_cause(attributes: Mapping[str, Any]) -> str | None:
+    """"window" or "auto_start_stop" when the thermostat says it turned itself off for that,
+    None otherwise (turned off by hand, or on)."""
+    specific = attributes.get("specific_states")
+    reason = specific.get("hvac_off_reason") if isinstance(specific, Mapping) else attributes.get("hvac_off_reason")
+    return OFF_CAUSES.get(preset_value(reason))
 
 
 def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
@@ -51,21 +87,48 @@ def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
 
 
 def ignored(thermostat: Thermostat) -> bool:
-    """A thermostat left alone: turned off, unavailable or unknown, or not ready yet.
-    Not a VTherm turned off: it keeps the preset asked while off, stays off, and starts again on
-    it, for example after its auto start/stop (#74). Others may turn heating back on when they
-    get a setpoint (Tado)."""
-    if not thermostat.ready:
-        return True
-    if thermostat.state == "off" and thermostat.vtherm:
-        return False
-    return thermostat.state in IGNORED_STATES
+    """A thermostat left alone: unavailable or unknown, or not ready yet. Not one turned off:
+    the schedule decides whether a thermostat is off (#91)."""
+    return not thermostat.ready or thermostat.state in IGNORED_STATES
 
 
 # What a thermostat should be set to: a partial state of the climate entity, as a scene holds it.
-# Its keys are the climate attributes: "preset_mode" (one of its climate presets) or "temperature"
-# (a target temperature).
+# Its keys are the climate attributes: "preset_mode" (one of its climate presets), "temperature"
+# (a target temperature), "hvac_mode". Without "hvac_mode", the thermostat is on, in the HVAC
+# mode it has, or the one `on_mode` gives if it is off (docs/decisions.md, "Scheduling").
 Target = dict[str, Any]
+SETPOINT_KEYS = ("preset_mode", "temperature")
+
+
+def on_mode(thermostat: Thermostat) -> str | None:
+    """The HVAC mode to turn a thermostat on in: heat if it has it, else the one it was last on
+    in, else its first HVAC mode but off. None when it lists no HVAC mode."""
+    modes = [mode for mode in thermostat.hvac_modes if mode != OFF]
+    if "heat" in modes:
+        return "heat"
+    if thermostat.last_hvac_mode in modes:
+        return thermostat.last_hvac_mode
+    return modes[0] if modes else None
+
+
+def complete(target: Target, thermostat: Thermostat) -> Target:
+    """The target to send: with the HVAC mode to turn the thermostat on in when it is off and
+    the target says none. A thermostat that is on keeps its HVAC mode: never a cooling air
+    conditioner switched to heat."""
+    if "hvac_mode" in target or thermostat.state != OFF:
+        return target
+    mode = on_mode(thermostat)
+    return {**target, "hvac_mode": mode} if mode else target
+
+
+def merge(base: Target, layer: Target | None) -> Target:
+    """`layer` on top of `base`: a setpoint (a preset or a temperature) in the layer replaces
+    the base's setpoint, the other attributes add up."""
+    if not layer:
+        return dict(base)
+    if any(key in layer for key in SETPOINT_KEYS):
+        base = {key: value for key, value in base.items() if key not in SETPOINT_KEYS}
+    return {**base, **layer}
 
 
 def preset_value(raw: Any) -> str | None:
@@ -123,15 +186,19 @@ def resolve(
     mapping: dict[str, Any] | None,
     thermostat: Thermostat | None,
     use_presets: bool = True,
+    settings: dict[str, Any] | None = None,
 ) -> Target | None:
-    """Target of a preset for one thermostat: its mapping set by hand, else the default."""
+    """Target of a preset for one thermostat, in three layers, the last one winning: the
+    preset's defaults (its climate preset or its temperature, its HVAC mode if it has one), then
+    the preset's value on this thermostat (the mapping set by hand), then the slot's settings."""
     preset = presets.get(preset_id) if preset_id else None
     if preset is None:
         return None
-    explicit = (mapping or {}).get(preset_id)
-    if not explicit:
-        return default_target(preset, thermostat, use_presets)
-    return fit(explicit, thermostat)
+    target = default_target(preset, thermostat, use_presets)
+    if preset.get("hvac_mode"):
+        target["hvac_mode"] = preset["hvac_mode"]
+    target = merge(target, (mapping or {}).get(preset_id))
+    return fit(merge(target, settings), thermostat)
 
 
 def same_temperature(a: float | None, b: float | None, thermostat: Thermostat | None = None) -> bool:
@@ -148,8 +215,17 @@ def fit(target: Target, thermostat: Thermostat | None) -> Target:
     return {**target, "temperature": fit_temperature(target["temperature"], thermostat)}
 
 
+def hvac_satisfied(target: Target, thermostat: Thermostat) -> bool:
+    """The thermostat is in the target's HVAC mode, or on when the target gives none."""
+    if "hvac_mode" in target:
+        return thermostat.state == target["hvac_mode"]
+    return thermostat.state != OFF
+
+
 def satisfied(target: Target, thermostat: Thermostat) -> bool:
     """The thermostat shows every part of the target."""
+    if not hvac_satisfied(target, thermostat):
+        return False
     if "preset_mode" in target and thermostat.preset != target["preset_mode"]:
         return False
     if "temperature" in target and not same_temperature(thermostat.temperature, target["temperature"], thermostat):
@@ -159,22 +235,35 @@ def satisfied(target: Target, thermostat: Thermostat) -> bool:
 
 # ----- slots -----
 
-def slot_at(day: list[list[str]], hhmm: str) -> tuple[str | None, bool]:
-    """Preset of the slot running at HH:MM, and whether that slot starts exactly then."""
-    preset, starts_now = None, False
-    for start, slot_preset in day:
-        if start <= hhmm:
-            preset, starts_now = slot_preset, start == hhmm
-    return preset, starts_now
+class Slot(NamedTuple):
+    """What a slot asks for: a preset, and optional settings, for example {"hvac_mode": "off"}
+    (#91). Stored as [start, preset] or [start, preset, settings]."""
+
+    preset: str
+    settings: dict[str, Any]
 
 
-def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[datetime, str]]:
-    """(start, preset) of the slots starting after now, for 7 days, in order. Every start is
-    an instant after now."""
+def slot_of(raw: list[Any]) -> Slot:
+    return Slot(raw[1], raw[2] if len(raw) > 2 else {})
+
+
+def slot_at(day: list[list[Any]], hhmm: str) -> tuple[Slot | None, bool]:
+    """The slot running at HH:MM, and whether it starts exactly then."""
+    slot, starts_now = None, False
+    for raw in day:
+        if raw[0] <= hhmm:
+            slot, starts_now = slot_of(raw), raw[0] == hhmm
+    return slot, starts_now
+
+
+def slots_after(week: list[list[list[Any]]], now: datetime) -> Iterator[tuple[datetime, Slot]]:
+    """(start, slot) of the slots starting after now, for 7 days, in order. Every start is an
+    instant after now."""
     hhmm = now.strftime("%H:%M")
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     for offset in range(8):
-        for start, preset in week[(now.weekday() + offset) % 7]:
+        for raw in week[(now.weekday() + offset) % 7]:
+            start = raw[0]
             if offset == 0 and start <= hhmm:
                 continue
             hours, minutes = (int(x) for x in start.split(":"))
@@ -184,15 +273,15 @@ def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[da
                 # Now is in the second pass of the hour repeated when summer time ends: the slot
                 # starts in that second pass too (its time of day is after now's)
                 when = when.replace(fold=1)
-            yield when, preset
+            yield when, slot_of(raw)
 
 
-def current_and_next(week: list[list[list[str]]], now: datetime) -> tuple[str | None, str | None, datetime | None]:
-    """Preset planned now, then the next different one and when it starts (within 7 days)."""
+def current_and_next(week: list[list[list[Any]]], now: datetime) -> tuple[Slot | None, Slot | None, datetime | None]:
+    """The slot planned now, then the next different one and when it starts (within 7 days)."""
     current, _ = slot_at(week[now.weekday()], now.strftime("%H:%M"))
-    for when, preset in slots_after(week, now):
-        if preset != current:
-            return current, preset, when
+    for when, slot in slots_after(week, now):
+        if slot != current:
+            return current, slot, when
     return current, None, None
 
 
@@ -222,15 +311,22 @@ class Plan:
         week = self.weeks.get(entity_id, {}).get(self.schedule)
         return week if week and len(week) == 7 else None
 
-    def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
+    def slot_at(self, entity_id: str, now: datetime) -> tuple[Slot | None, bool]:
         week = self.week(entity_id)
         if week is None:
             return None, False
         return slot_at(week[now.weekday()], now.strftime("%H:%M"))
 
+    def target_of(self, entity_id: str, slot: Slot | None, thermostat: Thermostat | None) -> Target | None:
+        """What a slot means on a thermostat."""
+        if slot is None:
+            return None
+        return resolve(slot.preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets,
+                       slot.settings)
+
     def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
-        preset, _ = self.preset_at(entity_id, now)
-        return resolve(preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets)
+        slot, _ = self.slot_at(entity_id, now)
+        return self.target_of(entity_id, slot, thermostat)
 
     def next_change(self, entity_id: str, now: datetime, thermostat: Thermostat | None, *,
                     not_before: datetime, until: datetime) -> datetime | None:
@@ -241,11 +337,10 @@ class Plan:
         if week is None:
             return None
         previous = self.expected(entity_id, now, thermostat)
-        mapping = self.mappings.get(entity_id)
-        for when, preset in slots_after(week, now):
+        for when, slot in slots_after(week, now):
             if _utc(when) >= _utc(until):
                 return None
-            target = resolve(preset, self.presets, mapping, thermostat, self.use_presets)
+            target = self.target_of(entity_id, slot, thermostat)
             if target is None or target == previous:
                 continue
             previous = target
@@ -287,29 +382,31 @@ def targets(
     """(thermostat, target) pairs to apply now, in schedule order.
 
     - force: realign every thermostat (schedule activated, weeks saved, HA started);
-    - otherwise only thermostats whose preset changed since the previous check (`since`; a slot
+    - otherwise only thermostats whose slot changed since the previous check (`since`; a slot
       starting during a missed minute, or in the hour skipped by the change to summer time, is
       applied late rather than never), whose slot starts now, whose override just ended or was
       removed (resumed), or that must be realigned (`include`: back online, failed command);
-    - thermostats with an active override, turned off, unavailable or already as expected are
-      left alone. Not one that still has another command to apply (`pending`, the last command
-      sent to each thermostat that it does not show yet): it would apply that one later.
+    - thermostats with an active override, unavailable or already as expected are left alone.
+      Not one that still has another command to apply (`pending`, the last command sent to each
+      thermostat that it does not show yet): it would apply that one later. A thermostat turned
+      off gets its slot, which turns it on unless the slot says off (`complete`).
     """
     pending = pending or {}
     out = []
     for entity_id in plan.weeks:
         if entity_id in plan.overrides and entity_id not in ended and entity_id != resumed:
             continue
-        preset, starts_now = plan.preset_at(entity_id, now)
+        slot, starts_now = plan.slot_at(entity_id, now)
         thermostat = thermostats.get(entity_id)
-        if preset is None or thermostat is None:
+        if slot is None or thermostat is None:
             continue
-        changed = starts_now or (since is not None and plan.preset_at(entity_id, since)[0] != preset)
+        changed = starts_now or (since is not None and plan.slot_at(entity_id, since)[0] != slot)
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
-        target = resolve(preset, plan.presets, plan.mappings.get(entity_id), thermostat, plan.use_presets)
+        target = plan.target_of(entity_id, slot, thermostat)
         if target is None or ignored(thermostat):
             continue
+        target = complete(target, thermostat)
         if satisfied(target, thermostat) and pending.get(entity_id, target) == target:
             continue
         out.append((entity_id, target))
@@ -360,7 +457,7 @@ def back_to(expected: Target, thermostat: Thermostat, preset_temperature: float 
     if satisfied(expected, thermostat):
         return True
     return (
-        "preset_mode" in expected and is_manual_preset(thermostat.preset)
+        hvac_satisfied(expected, thermostat) and "preset_mode" in expected and is_manual_preset(thermostat.preset)
         and same_temperature(thermostat.temperature, preset_temperature, thermostat)
     )
 
@@ -387,10 +484,21 @@ def manual_change(
       gives on this thermostat): RESUME, the override, if any, ends. Not when the override
       (`override`) already has that value: the thermostat comes back to it (an override holding
       the slot's value past the next slots).
-    - Otherwise: an override to that preset, or to that setpoint.
+    - Otherwise: an override to that preset, or to that setpoint. Off while the thermostat is
+      off: the override says off, and the preset it restarts on.
+
+    A third gesture: the HVAC mode changed, by a user or on the device (#91). Turned off during
+    an "on" slot, or on during an off slot, or switched to another HVAC mode than the slot's: an
+    override to that HVAC mode alone. Back to an HVAC mode the slot accepts: RESUME, whatever
+    the thermostat restarted on (the slot is applied). Heat to cool when the slot gives no HVAC
+    mode is not a change: both are "on".
     """
-    if ignored(after) or before.state in ("unavailable", "unknown"):
+    if ignored(after) or before.state in IGNORED_STATES:
         return None
+    if after.state != before.state:
+        if expected is not None and hvac_satisfied(expected, after):
+            return None if hvac_satisfied(expected, before) else RESUME
+        return {"hvac_mode": after.state}
     manual = is_manual_preset(after.preset)
     picked = after.preset != before.preset and not manual and by_user
     setpoint = manual and (
@@ -401,4 +509,5 @@ def manual_change(
     if expected is not None and back_to(expected, after, preset_temperature):
         held = override is not None and same_target(override, expected, after)
         return None if held else RESUME
-    return {"preset_mode": after.preset} if picked else {"temperature": after.temperature}
+    change = {"preset_mode": after.preset} if picked else {"temperature": after.temperature}
+    return {"hvac_mode": OFF, **change} if after.state == OFF else change

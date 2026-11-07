@@ -419,15 +419,25 @@ slot)*: it may also shorten the override.
 A change made by an automation does not start an override. A command that a battery valve
 applies late does not start one either.
 
-**A thermostat that is turned off.** Chauffage sends nothing to a thermostat that is turned off,
-not even an override. Some thermostats, such as Tado, would turn heating back on when they get a
-setpoint. An override that you set meanwhile waits. Chauffage applies the override when you turn
-the thermostat back on, if the override still runs. The card and the more-info dialog warn you.
+**A thermostat that you turn off.** Turning a thermostat off, with its button or in Home
+Assistant, is a change like any other: Chauffage makes it an override. The thermostat stays off
+until the override ends. Then Chauffage turns it back on, on its slot. Turn the thermostat back
+on yourself, and the override ends at once. A thermostat that an automation or a script turns off
+is not an override: it stays off until its next slot.
 
-**A Versatile Thermostat that is turned off.** A Versatile Thermostat is the exception. Chauffage
-keeps sending it its slots and its override, whether it was turned off by hand, by a window or by
-its auto start/stop. Versatile Thermostat stays off and keeps them, so that it starts again on the
-right preset. The card shows no warning.
+**A slot that turns a thermostat off.** A slot can say *off* besides its preset. The thermostat
+turns off at the slot's start and keeps the preset: it restarts on it at the next slot that
+turns it on. A slot without *off* turns the thermostat on, in heat when the thermostat has it. A
+thermostat that is already on keeps its HVAC mode: Chauffage never switches a cooling air
+conditioner to heat. An override that you set on a thermostat that is off turns it on.
+
+**A Versatile Thermostat that turns itself off.** A Versatile Thermostat turns itself off for an
+open window, or with its auto start/stop. Chauffage reads what the thermostat was asked
+(`requested_state`), so this is not an override, and Chauffage does not turn it back on:
+Versatile Thermostat does, when the window closes. A Versatile Thermostat that you turn off by
+hand is an override, as any thermostat. A Versatile Thermostat older than 10.5, without
+`requested_state`, keeps the former behavior: Chauffage sends it its slots and its override
+while it is off, and it stays off.
 
 ### End an override
 
@@ -482,7 +492,7 @@ thermostat's page in the Chauffage panel.
 | Entity | What it says |
 |---|---|
 | **Control** (switch) | Off while the thermostat is **paused**. |
-| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat). |
+| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `hvac_mode` (`off`, a mode the slot sets, or empty: on), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat). |
 | **Override** (binary sensor) | On while the thermostat has an override. Attributes: `target` (what the thermostat is set to, for example `{"temperature": 21.5}` or `{"preset_mode": "boost"}`), `preset` (the Chauffage preset asked for, if any), `end`, and `kind` and `value` as before 0.10. |
 | **Override end** (sensor, disabled by default) | The end of the current override as a timestamp, for a dashboard tile. |
 
@@ -510,7 +520,7 @@ not exposed. To expose an entity or not, go to Settings → Voice assistants →
 
 | Action | What it does |
 |---|---|
-| `chauffage.set_override` | Sets an override on a thermostat: a temperature or a preset, for a duration or until a time. A preset means the same as in the card. |
+| `chauffage.set_override` | Sets an override on a thermostat: a temperature or a preset, for a duration or until a time. A preset means the same as in the card. `hvac_mode`: `off` to turn the thermostat off, or a mode to turn it on in. |
 | `chauffage.clear_override` | Ends the override: the thermostat goes back to its schedule now. |
 | `chauffage.activate_schedule` | Activates a schedule, by its stable id. |
 | `chauffage.get_schedules` | Returns the schedules (`id`, `name`, and `entity_id` of their switch), `active_schedule`, `rules_choice` and `default_schedule`. |
@@ -634,9 +644,9 @@ Chauffage migrates it automatically.
 **The scheduler.** Every minute, the scheduler applies the preset of the slots that start now.
 The scheduler also sends back to their schedule the thermostats whose override ends. The
 scheduler sets every thermostat to its schedule again at startup, when a schedule is activated,
-and when weeks are saved. The scheduler leaves alone a thermostat that has an override, is off
-or is unavailable. A Versatile Thermostat that is off still gets its slots. An unreachable valve
-does not stop the other thermostats.
+and when weeks are saved. The scheduler leaves alone a thermostat that has an override or is
+unavailable. A thermostat that is off gets its slot, which turns it on, unless the slot says
+*off*. An unreachable valve does not stop the other thermostats.
 
 **Manual changes.** A setpoint changed by hand, or a preset that a user chooses, becomes an
 override, until the end that the setting *End of overrides* gives. Going back to what

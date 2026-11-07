@@ -35,7 +35,8 @@ async def start(bench: Bench, hhmm: str = "10:00", day: int = 0) -> None:
 # ----- thermostats coming back -----
 
 async def test_a_thermostat_turned_back_on_is_set_to_its_schedule(bench: Bench):
-    """Summer over: the thermostat is turned back on; it gets its preset right away."""
+    """Turned off by its button (an off override since #91), then back on: it gets its preset
+    right away, and the override ends."""
     await start(bench)
     bench.thermostat("climate.salon", "comfort", state="off")
     await bench.hass.async_block_till_done()
@@ -227,14 +228,17 @@ async def test_a_vtherm_turned_off_by_hand_still_gets_its_slots(bench: Bench):
 
 async def test_a_vtherm_is_recognized_by_its_integration_not_by_its_attributes(bench: Bench):
     """VTherm moved hvac_off_reason once, and publishes none right after being turned off. A
-    thermostat of another integration with the same attributes is left alone."""
+    thermostat of another integration with the same attributes is turned on (#91); the VTherm
+    without requested_state stays off and gets its slots."""
     await start_vtherm(bench, "17:00")
     bench.thermostat("climate.salon", "eco", state="off")  # no attribute of VTherm's
     bench.thermostat("climate.bureau", "eco", state="off", hvac_off_reason="hvac_off_manual", **TURNED_OFF)
     await bench.save_weeks({**SCHEDULES, "climate.bureau": SCHEDULES["climate.salon"]})
+    assert bench.powered() == {"climate.bureau": "heat"}
     bench.applied()
     await bench.go_to("17:30")
-    assert bench.applied() == {"climate.salon": "comfort"}
+    assert bench.applied() == {"climate.salon": "comfort", "climate.bureau": "comfort"}
+    assert bench.powered() == {}
 
 
 async def test_an_override_on_a_turned_off_vtherm_is_sent_at_once(bench: Bench):
@@ -242,18 +246,6 @@ async def test_an_override_on_a_turned_off_vtherm_is_sent_at_once(bench: Bench):
     bench.thermostat("climate.salon", "eco", state="off", **TURNED_OFF)
     await bench.hass.async_block_till_done()
     await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
-    assert bench.applied() == {"climate.salon": "comfort"}
-
-
-async def test_an_override_on_a_turned_off_thermostat_waits_until_it_is_turned_back_on(bench: Bench):
-    """A thermostat that is not a VTherm could turn heating back on when it gets the override."""
-    await start(bench, "10:00")
-    bench.thermostat("climate.salon", "eco", state="off")
-    await bench.hass.async_block_till_done()
-    await bench.set_override("climate.salon", bench.runtime.new_override({"preset_mode": "comfort"}, minutes=60))
-    assert bench.applied() == {}
-    bench.thermostat("climate.salon", "eco", context=Context(user_id="someone"))  # turned back on
-    await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
@@ -267,14 +259,6 @@ async def test_an_override_on_an_unavailable_thermostat_is_sent_when_it_is_back_
     bench.thermostat("climate.salon", "eco")  # back online
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "comfort"}
-
-
-async def test_a_thermostat_turned_off_that_is_not_a_vtherm_is_left_alone(bench: Bench):
-    """Tado, evohome or Netatmo turn heating back on when they get a setpoint."""
-    await start(bench, "17:00")
-    bench.thermostat("climate.salon", "eco", state="off")
-    await bench.go_to("17:30")
-    assert bench.applied() == {}
 
 
 async def test_a_thermostat_coming_back_keeps_its_override(bench: Bench):
@@ -315,7 +299,7 @@ async def test_a_slot_starting_during_a_missed_minute_is_applied(bench: Bench):
     target = dt_util.as_utc(datetime(2026, 10, 12, 17, 31, tzinfo=ZoneInfo("Europe/Paris")))
     bench.freezer.move_to(target)
     async_fire_time_changed(bench.hass, target)  # 17:29 and 17:30 never ticked
-    await bench.hass.async_block_till_done()
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
@@ -352,7 +336,7 @@ def test_fall_back_the_repeated_hour_changes_nothing():
     week = [[["00:00", "eco"], ["06:30", "comfort"]]] * 7
     first = datetime(2026, 10, 25, 2, 30, tzinfo=paris, fold=0)
     second = datetime(2026, 10, 25, 2, 30, tzinfo=paris, fold=1)
-    assert engine.current_and_next(week, first)[:2] == ("eco", "comfort")
+    assert [slot.preset for slot in engine.current_and_next(week, first)[:2]] == ["eco", "comfort"]
     assert engine.current_and_next(week, second)[2] == datetime(2026, 10, 25, 6, 30, tzinfo=paris)
 
 

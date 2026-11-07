@@ -102,6 +102,7 @@ class Bench:
         self.freezer = freezer
         self.calls: list[tuple[str, str]] = []
         self.temperature_calls: list[tuple[str, float]] = []
+        self.hvac_calls: list[tuple[str, str]] = []  # climate.set_hvac_mode calls (#91)
         self.unreachable: set[str] = set()
         self.slow: set[str] = set()  # accept a command, apply it later (battery valves)
         self.entry: MockConfigEntry | None = None
@@ -132,13 +133,15 @@ class Bench:
         target = dt_util.as_utc(MONDAY + timedelta(days=day, hours=h, minutes=m))
         self.freezer.move_to(target)
         async_fire_time_changed(self.hass, target)
-        await self.hass.async_block_till_done()
+        # The minute runs in the background: reproduce_state (#91) suspends inside it
+        await self.hass.async_block_till_done(wait_background_tasks=True)
 
     async def advance(self, minutes: int) -> None:
         target = dt_util.utcnow() + timedelta(minutes=minutes)
         self.freezer.move_to(target)
         async_fire_time_changed(self.hass, target)
-        await self.hass.async_block_till_done()
+        # The minute runs in the background: reproduce_state (#91) suspends inside it
+        await self.hass.async_block_till_done(wait_background_tasks=True)
 
     # ----- simulated thermostats -----
 
@@ -178,7 +181,8 @@ class Bench:
             temperature = PRESET_TEMPERATURES[preset] if temperature is None else temperature
         else:
             climate_preset, temperature = preset, 17.0 if temperature is None else temperature
-        values = {"temperature": temperature, "min_temp": 5, "max_temp": 30, "target_temp_step": 0.5}
+        values = {"temperature": temperature, "min_temp": 5, "max_temp": 30, "target_temp_step": 0.5,
+                  "hvac_modes": ["off", "heat"]}
         if presets:
             values |= {"preset_mode": climate_preset, "preset_modes": presets}
         self.hass.states.async_set(entity_id, state, values | attributes, context=context)
@@ -241,6 +245,12 @@ class Bench:
     def overrides(self) -> dict:
         return self.runtime.data["overrides"]
 
+    def powered(self) -> dict[str, str]:
+        """Last HVAC mode requested per thermostat, then reset the call log."""
+        result = {entity_id: mode for entity_id, mode in self.hvac_calls}
+        self.hvac_calls.clear()
+        return result
+
     def applied(self) -> dict[str, str]:
         """Last preset requested per thermostat (its climate preset, or the preset's default
         temperature), then reset the call log."""
@@ -273,8 +283,21 @@ async def bench(hass: HomeAssistant, freezer, thermostat_kind, hass_storage) -> 
         if entity_id in b.unreachable:
             raise HomeAssistantError("Failed to send request: NWK_NO_ROUTE (simulated)")
         if entity_id not in b.slow:
-            b.thermostat(entity_id, MANUAL_PRESET[b.kind], temperature, context=call.context)
+            current = hass.states.get(entity_id)
+            b.thermostat(entity_id, MANUAL_PRESET[b.kind], temperature, state=current.state if current else "heat",
+                         context=call.context)
 
+    async def set_hvac_mode(call: ServiceCall) -> None:
+        """The thermostat takes the HVAC mode and keeps its other attributes."""
+        entity_id, mode = call.data["entity_id"], call.data["hvac_mode"]
+        b.hvac_calls.append((entity_id, mode))
+        if entity_id in b.unreachable:
+            raise HomeAssistantError("Failed to send request: NWK_NO_ROUTE (simulated)")
+        if entity_id not in b.slow:
+            current = hass.states.get(entity_id)
+            hass.states.async_set(entity_id, mode, dict(current.attributes) if current else {}, context=call.context)
+
+    hass.services.async_register("climate", "set_hvac_mode", set_hvac_mode)
     hass.services.async_register("climate", "set_preset_mode", set_preset_mode)
     hass.services.async_register("climate", "set_temperature", set_temperature)
     return b

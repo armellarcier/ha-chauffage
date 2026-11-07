@@ -1,7 +1,8 @@
 """Services for automations.
 
-chauffage.set_override       sets a thermostat's temperature or preset for a while (the schedule
-                             resumes at the end), like a manual change
+chauffage.set_override       sets a thermostat's temperature or preset, and its HVAC mode (off, or
+                             one to turn it on in), for a while (the schedule resumes at the end),
+                             like a manual change
 chauffage.clear_override     ends it now: the thermostat resumes its schedule
 chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
 chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
@@ -34,10 +35,11 @@ SET_OVERRIDE_SCHEMA = vol.All(
         vol.Required(ATTR_ENTITY_ID): cv.entity_id,
         vol.Exclusive("temperature", "value"): vol.Coerce(float),
         vol.Exclusive("preset", "value"): cv.string,
+        vol.Optional("hvac_mode"): cv.string,
         vol.Exclusive("duration", "end"): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Exclusive("end", "end"): cv.datetime,
     }),
-    cv.has_at_least_one_key("temperature", "preset"),
+    cv.has_at_least_one_key("temperature", "preset", "hvac_mode"),
 )
 CLEAR_OVERRIDE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
 ACTIVATE_SCHEDULE_SCHEMA = vol.Schema({vol.Required("schedule"): cv.string})
@@ -79,12 +81,19 @@ def async_register(hass: HomeAssistant) -> None:
         if end is not None:
             end = dt_util.as_local(end if end.tzinfo else end.replace(tzinfo=dt_util.get_default_time_zone()))
         minutes = call.data.get("duration")
+        target: dict = {}
+        preset_id = None
         if "temperature" in call.data:
-            override = runtime.new_override({"temperature": call.data["temperature"]}, minutes, end)
-        else:  # a Chauffage preset (what it means on this thermostat), else a climate preset of its own
+            target["temperature"] = call.data["temperature"]
+        elif "preset" in call.data:  # a Chauffage preset (what it means on this thermostat), else a climate preset of its own
             preset = call.data["preset"]
-            override = (runtime.preset_override(entity_id, preset, minutes, end)
-                        or runtime.new_override({"preset_mode": preset}, minutes, end))
+            meaning = runtime.targets_of(entity_id).get(preset)
+            target, preset_id = (dict(meaning), preset) if meaning else ({"preset_mode": preset}, None)
+        if "hvac_mode" in call.data:  # off, or a mode to turn the thermostat on in (#91)
+            target["hvac_mode"] = call.data["hvac_mode"]
+        override = runtime.new_override(target, minutes, end)
+        if preset_id:
+            override["preset"] = preset_id
         try:
             await runtime.set_override(entity_id, override, source="service", resend=True, context=call.context)
         except ThermostatPaused as err:
@@ -121,8 +130,8 @@ def async_register(hass: HomeAssistant) -> None:
         for entity_id in call.data[ATTR_ENTITY_ID]:
             week = runtime_for(hass, entity_id).weeks[entity_id][schedule]
             response[entity_id] = {"schedule": schedule} | {
-                name: [{"start": start, "end": next_start, "preset": preset}
-                       for (start, preset), next_start in zip(day, [s for s, _ in day[1:]] + ["24:00"])]
+                name: [{"start": slot[0], "end": next_start, "preset": slot[1], **(slot[2] if len(slot) > 2 else {})}
+                       for slot, next_start in zip(day, [s[0] for s in day[1:]] + ["24:00"])]
                 for name, day in zip(DAYS, week)
             }
         return response

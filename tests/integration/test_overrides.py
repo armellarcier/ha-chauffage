@@ -366,7 +366,7 @@ async def test_an_enum_preset_does_not_break_detection(bench: Bench):
 async def test_a_change_made_by_the_integration_itself_is_not_an_override(bench: Bench):
     """The thermostat writes its new state with the context of the integration's call."""
     await start(bench)
-    await bench.runtime.call_climate("set_temperature", "climate.salon", {"temperature": 23})
+    await bench.runtime.reproduce("climate.salon", None, {"temperature": 23})
     await bench.hass.async_block_till_done()
     assert bench.hass.states.get("climate.salon").attributes["temperature"] == 23
     assert bench.overrides() == {}

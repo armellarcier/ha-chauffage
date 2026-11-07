@@ -149,23 +149,70 @@ future contributor might question.
   service, the value every time (an automation setting it again puts a thermostat that lost it
   back); a change by hand, nothing (the thermostat set it itself: sending it back could undo a
   second change made meanwhile).
-- **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
-  realigned at once. A command that was not delivered is sent again every minute. Commands are
-  spaced out (Zigbee networks).
-  A thermostat turned off gets nothing, not even an override, because some integrations turn
-  heating back on when they get a setpoint: Tado, evohome and Netatmo do. Turned off is also the
-  only way to say "no heating", as there is no *Off* preset. Generic thermostat, Nest and ecobee
-  stay off, and Zigbee valves depend on their firmware. The override set while the thermostat was
-  off is sent when it is turned back on.
-- **A VTherm turned off still gets its slots and its override, whatever turned it off** (#74).
-  VTherm keeps the preset asked while it is off, publishes it, stays off, and starts again on it.
-  Left alone, a VTherm turned off by its auto start/stop would never see the next comfort slot,
-  so it would never start again. A first fix (0.7.1) only counted the reason
-  `hvac_off_auto_start_stop`. That reason moved once, from a top-level attribute to
-  `specific_states` (VTherm 10.5), and VTherm publishes no reason right after being turned off.
-  Chauffage now leaves the decision to VTherm, as for its safety mode. Checked on VTherm 10.5: a
-  VTherm turned off by hand stays off when it gets a preset or a setpoint. Older versions are
-  not checked; they are rare, and the risk is accepted.
+- **Thermostats unavailable or overridden are left alone**; one coming back is realigned at
+  once. A command that was not delivered is sent again every minute. Commands are spaced out
+  (Zigbee networks).
+- **The schedule decides whether a thermostat is off** (#91, #96, #77). Before, a thermostat
+  turned off was left alone: some integrations turn heating back on when they get a setpoint
+  (Tado, evohome, Netatmo), and turned off was the only way to say "no heating". So a thermostat
+  turned off at bedtime by a script never came back on in the morning (#77), and a schedule could
+  not stop a thermostat (#96). Now a slot can say `off`, in its settings (the optional third
+  element of a slot, `["22:00", "eco", {"hvac_mode": "off"}]`), and a slot without an HVAC mode
+  means on.
+  - **Three layers, the last one wins.** The preset gives the defaults: its climate preset or
+    its temperature, and an HVAC mode if it has one (an "Away" preset that turns everything off).
+    The preset's value on the thermostat (the mapping) comes next: a setpoint there replaces the
+    default setpoint, an HVAC mode adds to it. The slot's settings have the last word. Presets
+    stay few and global: what a thermostat does with a preset lives on the thermostat and on the
+    slot, not in more presets.
+  - **An "on" target keeps the thermostat's HVAC mode.** A thermostat that is on in `cool` is
+    cooling for a reason: Chauffage never switches it to heat. A thermostat that is off is turned
+    on in `heat` when it has it, else in the HVAC mode it was last on in (learned and stored, as
+    the temperatures of its own presets are), else in its first HVAC mode but off. A thermostat
+    that lists no HVAC mode gets its setpoint only.
+  - **An off slot keeps its preset: "Eco + off" means off, and restart on Eco.** Tested in a
+    development HA: a scene of an off thermostat stores its setpoint and preset, and applying it
+    sends off, then the setpoint, then the preset. The thermostats stay off and restart on that
+    preset. Chauffage does the same, so a thermostat that turns back on when it receives a
+    setpoint (Tado) reacts to Chauffage as it already reacts to a scene. This replaces the older
+    rule that an off state sends only the HVAC mode.
+  - **Turning a thermostat off by hand during an "on" slot is a manual change**, like a setpoint
+    changed by hand: an `off` override, which ends like any override, and then the thermostat
+    comes back on, on its slot. Turning it on by hand during an off slot is an override too. A
+    change by an automation or a script is not an override, as for a setpoint: a thermostat
+    turned off by an "all off" script stays off until the next slot (#77). Turned back on by
+    hand, a thermostat ends its off override at once and gets its slot: what it restarted on is
+    not a choice of the user. A preset picked while the thermostat is off keeps it off: the
+    override says off, and the preset it restarts on.
+  - **Chauffage applies a target like a scene**, with Home Assistant's `async_reproduce_state`:
+    the HVAC mode, then the setpoint, then the preset, the swing and the fan, in Home
+    Assistant's order. Chauffage sends only the attributes the thermostat does not show, and the
+    HVAC mode only when it must change. `send()` stays the single path of every command, with
+    its reason logged. A thermostat that may still apply an older command (pending) gets the
+    whole target.
+  - **The device validates the state, not Chauffage.** Chauffage keeps no rule such as "a preset
+    and a temperature are exclusive" or "this thermostat has no cool": the card offers only the
+    values the thermostat lists, and the thermostat decides.
+  - **This is a behavior change for upgrading users**: a thermostat turned off by hand in the
+    past comes back on at the next slot, and at the restart that follows the upgrade. The
+    changelog says so under "Upgrading". A thermostat to leave alone is paused.
+- **A Versatile Thermostat is read as it was asked, not as it protects itself** (#91, #92).
+  VTherm turns itself off for an open window or with its auto start/stop, and refuses heat
+  until the cause ends. VTherm 10.5 keeps what it was asked for in `requested_state`
+  (`hvac_mode`, `preset`, `target_temperature`): Chauffage reads the HVAC mode there, so a VTherm
+  off by its window is "on" for Chauffage. It never gets an off override, Chauffage never sends
+  it heat while the window is open, and it gets its slots meanwhile, so it restarts on the right
+  preset. A VTherm asked to be off (turned off by hand) is an off override, as any thermostat.
+  Why not the window: reading `is_window_detected` or the window action would tie Chauffage to
+  one VTherm feature. For the card, Chauffage says why a VTherm is off (`off_cause`: `window` or
+  `auto_start_stop`, from `hvac_off_reason`), so the card does not read VTherm's attributes.
+  - **A VTherm without `requested_state` keeps the behavior before #91** (#74): off, it is read
+    as on. It gets its slots and its override while off, stays off, and starts again on them.
+    Chauffage neither turns it on nor takes it for turned off by hand. Before #91, a first fix
+    (0.7.1) only counted the reason `hvac_off_auto_start_stop`; that reason moved once, from a
+    top-level attribute to `specific_states` (VTherm 10.5), and VTherm publishes no reason right
+    after being turned off, so Chauffage leaves the decision to VTherm. Older versions are not
+    checked; they are rare, and the risk is accepted.
 - **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
   thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
   `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its
@@ -232,7 +279,9 @@ future contributor might question.
   sends it, and the thermostat decides what to do with both: Chauffage holds no rule between
   the attributes of a device. The events and the sensors keep `kind` and `value` next to the
   target, read from its first attribute, so existing automations keep working.
-- **No *Off* preset** (yet): thermostats turned off, by hand or for the summer, are left alone.
+- **No built-in *Off* preset.** A slot turns a thermostat off with its settings, and a preset
+  may set an HVAC mode by default (#91, "Scheduling"). A user who wants an *Off* preset creates
+  one with `hvac_mode: off`.
 - **A preset used in the weeks cannot simply be removed**: another one takes its place.
 - **Temperatures of the thermostats' own presets** are learned while each preset is active (no
   standard attribute gives them); Versatile Thermostat's are read from its attributes, a

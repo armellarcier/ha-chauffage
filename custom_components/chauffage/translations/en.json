@@ -67,7 +67,7 @@
       "override": {
         "name": "Override",
         "state_attributes": {
-          "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
+          "target": { "name": "Target" }, "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" }, "end": { "name": "End" }
         }
       }
     },
@@ -78,7 +78,9 @@
         "state_attributes": {
           "preset_name": { "name": "Preset name" },
           "target": { "name": "Target" },
+          "hvac_mode": { "name": "HVAC mode" },
           "next_preset": { "name": "Next preset" },
+          "next_hvac_mode": { "name": "Next HVAC mode" },
           "next_preset_name": { "name": "Next preset name" },
           "next_start": { "name": "Next slot start" },
           "temperatures": { "name": "Preset temperatures" }
@@ -86,7 +88,7 @@
       },
       "override_end": {
         "name": "Override end",
-        "state_attributes": { "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
+        "state_attributes": { "target": { "name": "Target" }, "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
       }
     }
   },
@@ -118,16 +120,20 @@
     },
     "preset": {
       "options": { "comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection" }
+    },
+    "hvac_mode": {
+      "options": { "off": "Off", "heat": "Heat", "cool": "Cool", "heat_cool": "Heat/Cool", "auto": "Auto", "dry": "Dry", "fan_only": "Fan only" }
     }
   },
   "services": {
     "set_override": {
       "name": "Set an override",
-      "description": "Sets a scheduled thermostat's temperature or preset for a while, then it resumes its schedule.",
+      "description": "Sets a scheduled thermostat's temperature or preset, and turns it off or on, for a while, then it resumes its schedule.",
       "fields": {
         "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." },
         "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
         "preset": { "name": "Preset", "description": "A Chauffage preset, set to what it means on this thermostat (or one of the thermostat's own presets); or give a temperature." },
+        "hvac_mode": { "name": "HVAC mode", "description": "Off to turn the thermostat off, or a mode to turn it on in. Without it, the thermostat is on." },
         "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
         "end": { "name": "End", "description": "When the override ends (instead of a duration)." }
       }

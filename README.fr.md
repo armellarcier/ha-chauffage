@@ -446,15 +446,26 @@ par exemple *Jusqu'à 17:30 (prochain créneau)* : il peut aussi raccourcir la d
 Un changement fait par une automatisation ne crée pas de dérogation. Une commande qu'une vanne à
 pile applique en retard n'en crée pas non plus.
 
-**Un thermostat éteint.** Chauffage n'envoie rien à un thermostat éteint, pas même une
-dérogation. Certains thermostats, comme Tado, rallumeraient le chauffage en recevant une
-consigne. Une dérogation posée entre-temps attend. Chauffage l'applique quand vous rallumez le
-thermostat, si la dérogation court encore. La carte et la fenêtre de détail vous préviennent.
+**Un thermostat que vous éteignez.** Éteindre un thermostat, avec son bouton ou dans Home
+Assistant, est un changement comme un autre : Chauffage en fait une dérogation. Le thermostat
+reste éteint jusqu'à la fin de la dérogation. Chauffage le rallume alors, sur son créneau. Si
+vous rallumez le thermostat vous-même, la dérogation s'arrête aussitôt. Un thermostat qu'une
+automatisation ou un script éteint n'est pas une dérogation : il reste éteint jusqu'à son
+prochain créneau.
 
-**Un Versatile Thermostat éteint.** Le Versatile Thermostat fait exception. Chauffage continue
-de lui envoyer ses créneaux et sa dérogation, qu'il ait été éteint à la main, par une fenêtre ou
-par son démarrage/arrêt automatique (*auto start/stop*). Versatile Thermostat reste éteint et
-les garde : il redémarre ainsi sur le bon préréglage. La carte n'affiche pas d'avertissement.
+**Un créneau qui éteint un thermostat.** Un créneau peut dire *arrêt* en plus de son préréglage.
+Le thermostat s'éteint au début du créneau et garde le préréglage : il redémarre dessus au
+prochain créneau qui le rallume. Un créneau sans *arrêt* allume le thermostat, en chauffage quand
+le thermostat le propose. Un thermostat déjà allumé garde son mode : Chauffage ne passe jamais une
+climatisation en chauffage. Une dérogation que vous posez sur un thermostat éteint le rallume.
+
+**Un Versatile Thermostat qui s'éteint lui-même.** Un Versatile Thermostat s'éteint de lui-même
+pour une fenêtre ouverte, ou avec son démarrage/arrêt automatique (*auto start/stop*). Chauffage
+lit ce que le thermostat a demandé (`requested_state`) : ce n'est pas une dérogation, et Chauffage
+ne le rallume pas. Versatile Thermostat le fait, quand la fenêtre se ferme. Un Versatile
+Thermostat que vous éteignez à la main est une dérogation, comme tout thermostat. Un Versatile
+Thermostat plus ancien que 10.5, sans `requested_state`, garde l'ancien comportement : Chauffage
+lui envoie ses créneaux et sa dérogation pendant qu'il est éteint, et il reste éteint.
 
 ### Arrêter une dérogation
 
@@ -513,7 +524,7 @@ ouvre la page du thermostat dans le panneau Chauffage.
 | Entité | Ce qu'elle indique |
 |---|---|
 | **Pilotage** (interrupteur) | Éteint quand le thermostat est **en pause**. |
-| **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat). |
+| **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `hvac_mode` (`off`, un mode fixé par le créneau, ou vide : allumé), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat). |
 | **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs : `target` (ce que le thermostat reçoit, par exemple `{"temperature": 21.5}` ou `{"preset_mode": "boost"}`), `preset` (le préréglage Chauffage demandé, s'il y en a un), `end`, et `kind` et `value` comme avant 0.10. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours, sous forme d'horodatage, pour une tuile de tableau de bord. |
 
@@ -542,7 +553,7 @@ Assistants vocaux → Exposer.
 
 | Action | Ce qu'elle fait |
 |---|---|
-| `chauffage.set_override` | Crée une dérogation sur un thermostat : une température ou un préréglage, pour une durée ou jusqu'à une heure. Un préréglage a le même sens que dans la carte. |
+| `chauffage.set_override` | Crée une dérogation sur un thermostat : une température ou un préréglage, pour une durée ou jusqu'à une heure. Un préréglage a le même sens que dans la carte. `hvac_mode` : `off` pour éteindre le thermostat, ou un mode pour l'allumer. |
 | `chauffage.clear_override` | Arrête la dérogation : le thermostat reprend son planning tout de suite. |
 | `chauffage.activate_schedule` | Active un planning, par son identifiant stable. |
 | `chauffage.get_schedules` | Renvoie les plannings (`id`, `name`, et `entity_id` de leur interrupteur), `active_schedule`, `rules_choice` et `default_schedule`. |
@@ -672,9 +683,9 @@ version, et Chauffage les migre automatiquement.
 **Le programmateur.** Chaque minute, le programmateur applique le préréglage des créneaux qui
 commencent. Il remet aussi sur leur planning les thermostats dont la dérogation se termine. Le
 programmateur remet chaque thermostat sur son planning au démarrage, à l'activation d'un
-planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat en dérogation,
-éteint ou indisponible. Un Versatile Thermostat éteint reçoit quand même ses créneaux. Une
-vanne injoignable ne bloque pas les autres thermostats.
+planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat en dérogation ou
+indisponible. Un thermostat éteint reçoit son créneau, qui le rallume, sauf si le créneau dit
+*arrêt*. Une vanne injoignable ne bloque pas les autres thermostats.
 
 **Les changements manuels.** Une consigne changée à la main, ou un préréglage choisi par un
 utilisateur, devient une dérogation, jusqu'à la fin que donne le réglage *Fin des dérogations*. Revenir à ce que demande le créneau arrête la dérogation.

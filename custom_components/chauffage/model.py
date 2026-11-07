@@ -3,24 +3,32 @@ Vocabulary: docs/glossary.md.
 
     schedules:       [{"id": "normal", "name": "Normal"}, …]   renaming a schedule keeps its id
     active_schedule: "normal"
-    presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
-                     "temperature" is the default for thermostats driven by temperatures
+    presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0,
+                       "hvac_mode": "off" (optional)}, …]
+                     "temperature" is the default for thermostats driven by temperatures;
+                     "hvac_mode", the HVAC mode the preset sets by default (#91)
     thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
                      (docs/decisions.md, "Scheduled thermostats"):
         paused:              True: kept, not controlled
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
-                             [start "HH:MM", preset id] slots, the first one at "00:00"
+                             [start "HH:MM", preset id] or [start, preset id, settings] slots,
+                             the first one at "00:00"; the settings, {"hvac_mode": "off"}, are
+                             what the slot sets besides its preset (#91)
         mapping:             {preset id: target}, what a preset means for this thermostat, only
                              what was set by hand: the rest is engine.default_target. A target is
                              a partial state of the thermostat, as a scene holds it (#91):
-                             {"preset_mode": "comfort"}, {"temperature": 20.5}, or both
+                             {"preset_mode": "comfort"}, {"temperature": 20.5}, or both, and
+                             an "hvac_mode"
         preset_temperatures: {climate preset: temperature} last seen on the thermostat
+        hvac_mode:           the HVAC mode the thermostat was last on in (None: not seen on yet):
+                             what an off thermostat without heat is turned on in
         revision:            increases on every change of its weeks: a card saves against it, so
                              that two cards cannot overwrite each other's changes
     renamed:         {former climate entity id: current one}: a thermostat renamed in Home
                      Assistant, for the cards whose configuration still holds the former id
-    overrides:       {climate entity id: {"target": {"temperature": 21.5} | {"preset_mode": "boost"},
+    overrides:       {climate entity id: {"target": {"temperature": 21.5} | {"preset_mode": "boost"}
+                                                    | {"hvac_mode": "off"} | …,
                                           "preset": "comfort" (optional), "start": ISO datetime,
                                           "end": ISO datetime,
                                           "ends_at": "duration" | "next_slot" |
@@ -147,9 +155,9 @@ def used_presets(weeks: dict[str, Any]) -> list[str]:
     for by_schedule in weeks.values():
         for week in by_schedule.values():
             for day in week:
-                for _, preset in day:
-                    if preset not in seen:
-                        seen.append(preset)
+                for slot in day:
+                    if slot[1] not in seen:
+                        seen.append(slot[1])
     return seen
 
 
@@ -157,7 +165,7 @@ def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] 
                    preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
     """A scheduled thermostat, active."""
     return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
-            "preset_temperatures": preset_temperatures or {}, "revision": 0}
+            "preset_temperatures": preset_temperatures or {}, "hvac_mode": None, "revision": 0}
 
 
 def empty_week(preset_ids: list[str]) -> list[list[list[str]]]:
@@ -230,36 +238,51 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
     except (TypeError, ValueError) as err:
         raise InvalidData("invalid temperature") from err
     preset_id = preset.get("id") or unique_id(name, taken_ids)
-    return {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
+    out = {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
+    if preset.get("hvac_mode") is not None:
+        out |= _normalize_attributes({"hvac_mode": preset["hvac_mode"]}, SETTING_KEYS, "a preset")
+    return out
 
 
 # The climate attributes a target may set, and how their values are read
-TARGET_KEYS = {"preset_mode": str, "temperature": float}
+TARGET_KEYS = {"preset_mode": str, "temperature": float, "hvac_mode": str}
+# The attributes a slot's settings may set: everything but the setpoint, which its preset gives
+SETTING_KEYS = {"hvac_mode": str}
+
+
+def _normalize_attributes(attributes: Any, keys: dict[str, type], what: str) -> dict[str, Any]:
+    if not isinstance(attributes, dict):
+        raise InvalidData(f"{what} must be a dictionary")
+    unknown = set(attributes) - set(keys)
+    if unknown:
+        raise InvalidData(f"unknown attributes in {what}: {sorted(unknown)}")
+    out: dict[str, Any] = {}
+    for key, read in keys.items():
+        if key not in attributes:
+            continue
+        try:
+            value = read(attributes[key])
+        except (TypeError, ValueError) as err:
+            raise InvalidData(f"invalid {key}") from err
+        if read is str and not value:
+            raise InvalidData(f"invalid {key}")
+        out[key] = value
+    return out
 
 
 def normalize_target(target: Any) -> dict[str, Any]:
     """A validated target: a partial state of the thermostat with at least one known attribute
     (TARGET_KEYS). No rule between the attributes: the thermostat decides what to do with a
     preset and a temperature together (docs/decisions.md, "Presets")."""
-    if not isinstance(target, dict):
-        raise InvalidData("a target must be a dictionary")
-    unknown = set(target) - set(TARGET_KEYS)
-    if unknown:
-        raise InvalidData(f"unknown attributes in a target: {sorted(unknown)}")
-    out: dict[str, Any] = {}
-    for key, read in TARGET_KEYS.items():
-        if key not in target:
-            continue
-        try:
-            value = read(target[key])
-        except (TypeError, ValueError) as err:
-            raise InvalidData(f"invalid {key}") from err
-        if read is str and not value:
-            raise InvalidData(f"invalid {key}")
-        out[key] = value
+    out = _normalize_attributes(target, TARGET_KEYS, "a target")
     if not out:
-        raise InvalidData("a target needs a climate preset or a temperature")
+        raise InvalidData("a target needs a climate preset, a temperature or an HVAC mode")
     return out
+
+
+def normalize_settings(settings: Any) -> dict[str, Any]:
+    """A slot's validated settings (SETTING_KEYS), possibly empty."""
+    return _normalize_attributes(settings, SETTING_KEYS, "the settings of a slot")
 
 
 def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
@@ -277,26 +300,32 @@ def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str,
     return out
 
 
-def normalize_day(slots: Any) -> list[list[str]]:
-    """Sorted slots, first one at 00:00, duplicates and consecutive identical presets merged
-    (same rules as the card). Invalid slots are dropped; an empty day is eco all day."""
+def normalize_day(slots: Any) -> list[list[Any]]:
+    """Sorted slots, first one at 00:00, duplicates and consecutive identical slots (same
+    preset, same settings) merged (same rules as the card). A slot is [start, preset] or
+    [start, preset, settings] (#91); empty settings are left out. Invalid slots are dropped,
+    invalid settings refused; an empty day is eco all day."""
     if not isinstance(slots, list):
         return [list(s) for s in DEFAULT_DAY]
-    by_start: dict[str, str] = {}
+    by_start: dict[str, tuple[str, dict[str, Any]]] = {}
     for slot in slots:
         if isinstance(slot, str):  # package format: "HH:MM preset"
             slot = slot.split()
-        if not isinstance(slot, (list, tuple)) or len(slot) != 2:
+        if not isinstance(slot, (list, tuple)) or len(slot) not in (2, 3):
             continue
         start, preset = str(slot[0]), str(slot[1]).strip()
+        settings = normalize_settings(slot[2]) if len(slot) == 3 else {}
         if len(start) == 4:  # "6:30"
             start = "0" + start
         if HHMM.match(start) and preset:
-            by_start[start] = preset  # the last one wins
-    day: list[list[str]] = []
+            by_start[start] = (preset, settings)  # the last one wins
+    day: list[list[Any]] = []
+    previous = None
     for start in sorted(by_start):
-        if not day or day[-1][1] != by_start[start]:
-            day.append([start, by_start[start]])
+        preset, settings = by_start[start]
+        if (preset, settings) != previous:
+            day.append([start, preset, settings] if settings else [start, preset])
+        previous = (preset, settings)
     if not day:
         return [list(s) for s in DEFAULT_DAY]
     day[0][0] = "00:00"

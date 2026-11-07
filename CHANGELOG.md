@@ -19,11 +19,44 @@ The events `chauffage_override_started`, the *Override* binary sensor and the *O
 sensor gain a `target` attribute, for example `{"temperature": 21.5}` or
 `{"preset_mode": "boost"}`. They keep `kind` and `value`, so your automations keep working.
 
+**The schedule now decides whether a thermostat is off.** Before, Chauffage left a thermostat
+that was turned off alone. Now a thermostat that is off comes back on at its next slot, and
+when Home Assistant restarts after the update. If you turned a thermostat off for the season, or
+if a script turns it off at night, read [the changes below](#added) first. To leave a thermostat
+alone, pause it (its *Control* switch).
+
+### Added
+
+- **A slot can turn a thermostat off** (#91, #96). A slot sets its preset, and may also set the
+  thermostat's HVAC mode, for example `off`. A thermostat that is off at an "off" slot keeps the
+  preset: it restarts on it at the next slot. A slot without an HVAC mode turns the thermostat on,
+  in heat when the thermostat has it. A thermostat that is already on keeps its HVAC mode:
+  Chauffage never switches a cooling air conditioner to heat. The card to set it comes in the
+  next beta.
+- **Turning a thermostat off by hand is an override** (#91). Turn a thermostat off with its
+  button or in Home Assistant, and Chauffage keeps it off for the override duration, then turns
+  it back on, on its slot. Turn it back on yourself, and the override ends at once. A thermostat
+  that an automation or a script turns off is not an override: it stays off until the next slot
+  (#77). The `chauffage.set_override` action gets an `hvac_mode` field: `off` to turn a
+  thermostat off until a time, or a mode to turn it on in.
+- **A preset's value on a thermostat, and a preset, may set the HVAC mode** (#91). For example,
+  *Comfort* in `cool` on an air conditioner, or an *Away* preset that turns the thermostats off.
+- **The planned preset sensor says the HVAC mode of the current and next slot**, in its
+  `hvac_mode` and `next_hvac_mode` attributes, and `chauffage.get_week` gives each slot's
+  settings.
+
 ### Changed
 
 - **A preset's value on a thermostat, an override and a command are partial states** (#91), as a
   scene holds them: `{"preset_mode": "comfort"}`, `{"temperature": 19}`, or both. The websocket
   API and the card use this format. The card still works as before.
+- **Chauffage applies a slot like a scene** (#91), with Home Assistant's own order: the HVAC
+  mode, then the setpoint, then the preset.
+- **A Versatile Thermostat is read as it was asked** (#91, #92). A Versatile Thermostat turned
+  off by its window or its auto start/stop is not an override, and Chauffage does not turn it
+  back on: Versatile Thermostat does, when the window closes. A Versatile Thermostat older than
+  10.5, without `requested_state`, keeps the former behavior: it gets its slots and its override
+  while off, and stays off.
 
 ## [0.9.0-beta.2] - 2026-11-05
 
