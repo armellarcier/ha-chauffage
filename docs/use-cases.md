@@ -177,6 +177,18 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | An ended override is no longer shown, even before the integration removes it | `C/card.test.mjs::an override that has ended *` |
 | On the days the clocks change, an override is drawn at its time of day (one ending in the hour played twice, from its start for its length) and its end, dragged or picked, is the time chosen: in the hour played twice, the one still to come; in the hour skipped, when the clocks went forward (#43) | `C/calculations.test.mjs::on the day the clocks *`, `::an override ending in the hour played twice *`, `C/interactions.test.mjs` (dragging the end, on the days the clocks change) |
 
+## A slot sets more than a preset, in the card (#91)
+
+| Use case | Test |
+|---|---|
+| A slot holds its settings (`{start, preset, settings}`), parsed from and sent to the integration as `[start, preset, settings]`; two slots merge only with the same settings; days group only when their slots match in full; inserting or splitting a slot keeps its settings on every piece; a day or a week copied to a thermostat that lacks a setting drops it, and the message says so | `C/hvac-mode.test.mjs` (a slot with settings) |
+| The week view: an off slot is grey, named Off, with a strip of the preset it restarts on, and the HVAC icon; a slot with an explicit mode, or whose preset's value sets one, shows the mode's icon; the legend adds Off when a shown week has an off slot | `C/hvac-mode.test.mjs` (the week view) |
+| The slot popover's power row: On \| Off on a heater, plus the select of the modes on an air conditioner ("Default", or "Default (Cool)" when the preset's value sets one); Off writes `hvac_mode: off`, On removes it; a preset tapped keeps the row's value; no row on a thermostat without `hvac_modes` unless the slot has a value, then marked not available; a value no longer listed stays, marked, and cannot be chosen again; a valve without off gets no Off button; on a preset that turns thermostats off, Off is chosen with nothing stored and On stores an explicit mode (the first one listed, or the select without Default) | `C/hvac-mode.test.mjs` (the slot popover: the power row) |
+| "Follows the schedule" and "then … (schedule)" say Off for an off slot; an override's label is Off, or the mode it turns the thermostat on in | `C/hvac-mode.test.mjs` (texts that name a slot) |
+| An off override shows as ⏱ Off in the week view and on the thermostat card; the override block gains the power row: Off keeps the preset, On (or a preset tapped) makes an "on" override with the slot's preset, a mode chosen on an air conditioner is kept when a preset is tapped; a new override from the card can be Off; the off note is gone | `C/hvac-mode.test.mjs` (overrides with an HVAC mode) |
+| The thermostat card's chip: Off, grey, without setpoint, for an off slot; a VTherm off by its window or its auto start/stop says why, with the preset it restarts on, in the card and in the row chip | `C/hvac-mode.test.mjs` (the thermostat card chip and the row chip) |
+| The presets tab: a preset that turns the thermostats off says Off in its header and its cells, its popover has On \| Off; a cell shows the HVAC icon of a value that sets one; the cell popover has one checkbox per attribute, the default line, OK stores the ticked attributes (nothing when equal to the default), the HVAC row offers non-off modes only on an air conditioner, Reset to default drops the stored value, OK is refused with nothing ticked | `C/hvac-mode.test.mjs` (the presets tab), `C/card-integration.test.mjs` (the "Presets" view) |
+
 ## Thermostat card
 
 | Use case | Test |

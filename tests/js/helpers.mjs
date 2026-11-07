@@ -20,7 +20,8 @@ export const PRESETS = (language = 'fr') => [
 
 const slug = (name) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-const PAIRS = (list) => list.map((s) => s.split(' '));
+// A slot as the integration sends it: [start, preset] or [start, preset, settings]
+const PAIRS = (list) => list.map((s) => (Array.isArray(s) ? s : s.split(' ')));
 const SALON = { 'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] } };
 
 /**

@@ -352,38 +352,38 @@ describe('the "Presets" view', () => {
 
   const presetOptions = (card) => [...card.shadowRoot.querySelectorAll('[data-cell-preset] option')]
     .map((o) => `${o.value}:${o.textContent}${o.selected ? ' ✓' : ''}`);
+  const ticked = (card) => [...card.shadowRoot.querySelectorAll('.cell-ed input[type=checkbox]')].filter((c) => c.checked).map((c) => c.dataset.cellUse);
 
-  test('automatic is the first choice of the thermostat\'s presets when it is one of them', async () => {
+  test('the default, in the new format: the thermostat\'s preset of the same name is ticked and selected (#91)', async () => {
     const hass = fakeIntegrationHass({ data: data() });
     const card = open(hass);
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
-    assert.equal(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]'), null, 'no separate "automatic"');
-    assert.ok(card.shadowRoot.querySelector('input[name="cell-kind"][value="preset"]').checked);
-    assert.deepEqual(presetOptions(card), [':Par défaut (Confort) ✓', 'comfort:Confort', 'eco:Éco', 'away:away', 'boost:Boost']);
-
-    card.shadowRoot.querySelector('[data-cell-preset]').value = 'comfort'; // pinned, unlike automatic
-    await card._action('cell-apply', {});
-    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, comfort: { preset_mode: 'comfort' } });
+    assert.match(card.shadowRoot.querySelector('.pv-defaultline').textContent, /Par défaut : son préréglage Confort/);
+    assert.deepEqual(ticked(card), ['preset_mode']);
+    assert.deepEqual(presetOptions(card), ['comfort:Confort ✓', 'eco:Éco', 'away:away', 'boost:Boost']); // its own, the same name first
+    await card._action('cell-apply', {}); // equal to the default: nothing stored
+    assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false);
   });
 
-  test('each choice of a thermostat cell holds its own field; using the field picks the choice', () => {
+  test('each attribute holds its own field; using the field ticks the attribute', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // set to 8°
-    const row = (value) => card.shadowRoot.querySelector(`input[name="cell-kind"][value="${value}"]`).closest('.pv-choice');
+    const row = (attr) => card.shadowRoot.querySelector(`.pv-row[data-attr="${attr}"]`);
     assert.ok(row('temperature').querySelector('[data-cell-temp]'), 'the temperature next to "Temperature"');
-    assert.ok(row('preset').querySelector('[data-cell-preset]'), 'the list next to "Thermostat preset"');
-    assert.ok(row('temperature').querySelector('input').checked);
+    assert.ok(row('preset_mode').querySelector('[data-cell-preset]'), 'the list next to "Thermostat preset"');
+    assert.deepEqual(ticked(card), ['temperature']);
     const select = card.shadowRoot.querySelector('[data-cell-preset]');
     select.value = 'eco';
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
-    assert.ok(row('preset').querySelector('input').checked);
+    assert.deepEqual(ticked(card), ['preset_mode', 'temperature']);
   });
 
-  test('automatic stays a choice of its own when it gives a temperature', () => {
+  test('a preset the thermostat has no own preset for: its default temperature in the default line', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
-    assert.match(card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').parentElement.textContent, /Par défaut \(7 °C\)/);
+    assert.match(card.shadowRoot.querySelector('.pv-defaultline').textContent, /Par défaut : 7 °C/);
     assert.deepEqual(presetOptions(card).map((o) => o.split(':')[0]), ['eco', 'comfort', 'away', 'boost']); // its own order
+    assert.ok(card.shadowRoot.querySelector('[data-act="cell-reset"]'), 'a stored value can go back to the default');
   });
 
   test('a thermostat set to a temperature for one preset', async () => {
@@ -391,7 +391,10 @@ describe('the "Presets" view', () => {
     const card = open(hass);
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.match(card.shadowRoot.querySelector('[data-panel="cell"]').textContent, /Confort · Salon/);
-    click(card, '[data-act="cell-step"][data-delta="0.5"]'); // 20.5 → 21, "Temperature" chosen
+    const box = card.shadowRoot.querySelector('input[data-cell-use="preset_mode"]');
+    box.checked = false;
+    box.dispatchEvent(new window.Event('change', { bubbles: true }));
+    click(card, '[data-act="cell-step"][data-delta="0.5"]'); // 20.5 → 21, "Temperature" ticked
     await card._action('cell-apply', {});
     assert.deepEqual(lastCall(hass), {
       type: 'chauffage/mapping/set', entity_id: 'climate.salon',
@@ -399,24 +402,19 @@ describe('the "Presets" view', () => {
     });
   });
 
-  test('a thermostat set to another of its presets, or back to automatic', async () => {
+  test('a thermostat set to another of its presets, or back to the default', async () => {
     const hass = fakeIntegrationHass({ data: data() });
     const card = open(hass);
     click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
-    card.shadowRoot.querySelector('input[name="cell-kind"][value="preset"]').checked = true;
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'away';
     await card._action('cell-apply', {});
     assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset_mode: 'away' } });
 
-    click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
-    card.shadowRoot.querySelector('[data-cell-preset]').value = ''; // automatic
-    await card._action('cell-apply', {});
-    assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 } });
-
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]');
-    card.shadowRoot.querySelector('input[name="cell-kind"][value="auto"]').checked = true;
-    await card._action('cell-apply', {});
+    click(card, '[data-act="cell-reset"]'); // back to the default: the stored value goes
+    await new Promise((resolve) => setTimeout(resolve, 0));
     assert.deepEqual(lastCall(hass).mapping, {});
+    assert.equal(card.shadowRoot.querySelector('.cell-ed'), null);
   });
 
   test('a preset\'s name, color and default temperature, in one popover (#39)', async () => {

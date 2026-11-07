@@ -206,6 +206,21 @@ Chaque planning a un **identifiant stable**, affiché dans *Renommer…*. L'iden
 change jamais, même si vous renommez le planning. Utilisez l'identifiant stable dans vos
 automatisations.
 
+### Éteindre un thermostat depuis un créneau
+
+Un créneau peut éteindre le thermostat, par exemple la nuit. Ouvrez le créneau, puis touchez
+**Arrêt** dans la ligne sous les préréglages. Le créneau devient gris, nommé *Arrêt*, avec une
+bande de la couleur de son préréglage : le thermostat garde ce préréglage pendant qu'il est
+éteint, et redémarre dessus au prochain créneau qui le rallume. Touchez **Marche** pour laisser
+le thermostat fonctionner. Un créneau sans *Arrêt* allume le thermostat, en chauffage quand le
+thermostat le propose. Un thermostat déjà allumé garde son mode : Chauffage ne passe jamais une
+climatisation en chauffage.
+
+Sur une climatisation, la même ligne propose les modes que le thermostat connaît, par exemple
+*Climatisation* pour un après-midi. *Par défaut* laisse Chauffage décider. La vue de la semaine
+montre l'icône du mode sur le créneau. Un préréglage peut aussi éteindre les thermostats de
+lui-même, voir [Préréglages](#préréglages).
+
 ### Changer de planning actif
 
 Un seul planning est actif à la fois. Le sélecteur **Planning actif**
@@ -336,7 +351,11 @@ Les créneaux demandent des préréglages. Chauffage est livré avec quatre pré
 
 Si le thermostat a son propre préréglage du même nom, Chauffage utilise ce préréglage. Sinon,
 Chauffage règle la température du préréglage. Vous pouvez changer ce choix pour chaque
-thermostat : prenez un des préréglages du thermostat, ou une température.
+thermostat : la valeur d'un préréglage sur un thermostat est un ensemble de réglages, comme une
+scène. Cochez les réglages que le préréglage fixe sur ce thermostat : un des préréglages du
+thermostat, une température, et sur une climatisation le mode. Chauffage n'impose aucune règle
+entre les réglages : le thermostat décide quoi faire d'un préréglage et d'une température
+ensemble.
 
 ### Régler les préréglages dans le panneau Chauffage
 
@@ -345,13 +364,17 @@ modifier les préréglages. Le tableau a une colonne par préréglage, du plus f
 et une ligne par thermostat. La page d'un thermostat, dans le panneau, montre ses préréglages côte à côte,
 sans le tableau.
 
-- **Un en-tête de colonne** ouvre le préréglage : son nom, sa couleur et sa température par
-  défaut. Vous pouvez aussi y supprimer le préréglage. Pour ajouter un préréglage, cliquez sur
-  *+ Ajouter un préréglage* sous le tableau.
+- **Un en-tête de colonne** ouvre le préréglage : son nom, sa couleur, sa température par
+  défaut, et s'il éteint les thermostats (*Marche | Arrêt*). Un préréglage *Absent* mis sur
+  *Arrêt* éteint tous les thermostats, et un créneau sur ce préréglage s'affiche comme un
+  créneau d'arrêt. Vous pouvez aussi y supprimer le préréglage. Pour ajouter un préréglage,
+  cliquez sur *+ Ajouter un préréglage* sous le tableau.
 - **Une case** ouvre ce que fait le préréglage sur ce thermostat. La case indique d'où vient sa
   température, par exemple « son préréglage *Confort* », « réglé ici » ou « par défaut ». La
-  fenêtre de la case donne un lien vers l'appareil du thermostat, où se règlent les préréglages
-  propres au thermostat.
+  fenêtre montre ce que donne le défaut, et une case à cocher par réglage. Utiliser un champ
+  coche son réglage. *Revenir au défaut* efface ce que vous avez réglé ici. La fenêtre donne
+  aussi un lien vers l'appareil du thermostat, où se règlent les préréglages propres au
+  thermostat.
 
 ### La température d'un préréglage propre au thermostat
 
@@ -441,17 +464,21 @@ par exemple *Jusqu'à 17:30 (prochain créneau)* : il peut aussi raccourcir la d
   administrateurs, comme avec la molette.
   Une nouvelle dérogation dure le temps réglé dans les options. Vous pouvez ensuite changer sa
   fin.
+  Le même bloc a une ligne *Marche | Arrêt* : touchez *Arrêt*, puis *Jusqu'à 07:00 (prochain
+  créneau)*, pour éteindre un thermostat jusqu'au matin. Sur une climatisation, la ligne propose
+  aussi ses modes.
 - **Depuis une automatisation**, avec l'action `chauffage.set_override`.
 
 Un changement fait par une automatisation ne crée pas de dérogation. Une commande qu'une vanne à
 pile applique en retard n'en crée pas non plus.
 
 **Un thermostat que vous éteignez.** Éteindre un thermostat, avec son bouton ou dans Home
-Assistant, est un changement comme un autre : Chauffage en fait une dérogation. Le thermostat
-reste éteint jusqu'à la fin de la dérogation. Chauffage le rallume alors, sur son créneau. Si
-vous rallumez le thermostat vous-même, la dérogation s'arrête aussitôt. Un thermostat qu'une
-automatisation ou un script éteint n'est pas une dérogation : il reste éteint jusqu'à son
-prochain créneau.
+Assistant, est un changement comme un autre : Chauffage en fait une dérogation, affichée
+*⏱ Arrêt*. Le thermostat reste éteint jusqu'à la fin de la dérogation. Chauffage le rallume
+alors, sur son créneau. Pour arrêter la dérogation plus tôt, rallumez le thermostat vous-même,
+touchez *Marche* ou un préréglage dans le bloc de la dérogation, ou *Reprendre le planning*. Un
+thermostat qu'une automatisation ou un script éteint n'est pas une dérogation : il reste éteint
+jusqu'à son prochain créneau.
 
 **Un créneau qui éteint un thermostat.** Un créneau peut dire *arrêt* en plus de son préréglage.
 Le thermostat s'éteint au début du créneau et garde le préréglage : il redémarre dessus au
@@ -462,7 +489,9 @@ climatisation en chauffage. Une dérogation que vous posez sur un thermostat ét
 **Un Versatile Thermostat qui s'éteint lui-même.** Un Versatile Thermostat s'éteint de lui-même
 pour une fenêtre ouverte, ou avec son démarrage/arrêt automatique (*auto start/stop*). Chauffage
 lit ce que le thermostat a demandé (`requested_state`) : ce n'est pas une dérogation, et Chauffage
-ne le rallume pas. Versatile Thermostat le fait, quand la fenêtre se ferme. Un Versatile
+ne le rallume pas. Versatile Thermostat le fait, quand la fenêtre se ferme. La carte du
+thermostat dit pourquoi il est éteint, « Fenêtre ouverte » ou « Arrêt auto », avec le préréglage
+sur lequel il redémarre. Un Versatile
 Thermostat que vous éteignez à la main est une dérogation, comme tout thermostat. Un Versatile
 Thermostat plus ancien que 10.5, sans `requested_state`, garde l'ancien comportement : Chauffage
 lui envoie ses créneaux et sa dérogation pendant qu'il est éteint, et il reste éteint.

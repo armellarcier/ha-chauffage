@@ -31,16 +31,26 @@ alone, pause it (its *Control* switch).
   thermostat's HVAC mode, for example `off`. A thermostat that is off at an "off" slot keeps the
   preset: it restarts on it at the next slot. A slot without an HVAC mode turns the thermostat on,
   in heat when the thermostat has it. A thermostat that is already on keeps its HVAC mode:
-  Chauffage never switches a cooling air conditioner to heat. The card to set it comes in the
-  next beta.
+  Chauffage never switches a cooling air conditioner to heat. In the card, open a slot and tap
+  *Off* in the new row under the presets: the slot turns grey, with a strip in its preset's
+  color. On an air conditioner, the row also offers its HVAC modes, and the week view shows the
+  mode's icon on the slot.
 - **Turning a thermostat off by hand is an override** (#91). Turn a thermostat off with its
   button or in Home Assistant, and Chauffage keeps it off for the override duration, then turns
-  it back on, on its slot. Turn it back on yourself, and the override ends at once. A thermostat
-  that an automation or a script turns off is not an override: it stays off until the next slot
-  (#77). The `chauffage.set_override` action gets an `hvac_mode` field: `off` to turn a
-  thermostat off until a time, or a mode to turn it on in.
-- **A preset's value on a thermostat, and a preset, may set the HVAC mode** (#91). For example,
-  *Comfort* in `cool` on an air conditioner, or an *Away* preset that turns the thermostats off.
+  it back on, on its slot. The card shows it as *⏱ Off*. Turn it back on yourself, tap *On* or a
+  preset in the override block, and the override ends at once. The override block of the card,
+  the thermostat card and the more-info dialog gets the same *On | Off* row: *Off*, then *Until
+  07:00 (next slot)*, turns a thermostat off until the morning. A thermostat that an automation
+  or a script turns off is not an override: it stays off until the next slot (#77). The
+  `chauffage.set_override` action gets an `hvac_mode` field: `off` to turn a thermostat off until
+  a time, or a mode to turn it on in.
+- **A preset's value on a thermostat is a set of settings, like a scene** (#91). In the *Presets*
+  tab, a cell's popover shows what the default gives and one checkbox per setting: the
+  thermostat's own preset, a temperature, and on an air conditioner its HVAC mode. *Reset to
+  default* drops what you set. A preset's popover gets *On | Off*: an *Away* preset set to *Off*
+  turns every thermostat off.
+- **The thermostat card says why a Versatile Thermostat turned itself off**: "Window open" or
+  "Auto stop", with the preset it restarts on.
 - **The planned preset sensor says the HVAC mode of the current and next slot**, in its
   `hvac_mode` and `next_hvac_mode` attributes, and `chauffage.get_week` gives each slot's
   settings.
