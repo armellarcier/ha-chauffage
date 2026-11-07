@@ -34,7 +34,8 @@ const I18N = {
     copyPaste: 'Copy / paste…',
     copyDay: 'Copy the day',
     editRow: 'Edit the layers',
-    doneEditing: 'Done',
+    openRow: 'Show the layers',
+    closeRow: 'Hide the layers',
     paste: 'Paste',
     copyToWeekdays: 'Copy to Mon–Fri',
     copyToWeekend: 'Copy to Sat–Sun',
@@ -284,7 +285,8 @@ const I18N = {
     copyPaste: 'Copier / coller…',
     copyDay: 'Copier la journée',
     editRow: 'Modifier les calques',
-    doneEditing: 'Terminé',
+    openRow: 'Afficher les calques',
+    closeRow: 'Masquer les calques',
     paste: 'Coller',
     copyToWeekdays: 'Copier vers Lun–Ven',
     copyToWeekend: 'Copier vers Sam–Dim',
@@ -2802,10 +2804,9 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // The rows of an open row's layers: one per layer of the schedule, top first, its blocks
-  // editable; then "Done"
+  // editable
   _layerRowsHtml(climate, d) {
     const src = this._source();
-    const multi = this._shown.length > 1;
     const active = this._schedule === this._activeSchedule();
     const applying = src.layersApplying();
     const rows = src.layers(this._schedule).map((layer) => {
@@ -2819,13 +2820,12 @@ class ChauffageProgrammeCard extends HTMLElement {
           + `<div class="lhandle" data-idx="${i}" data-edge="start" style="left:${pct(b.start)}%"><span class="tip">${this._loc.time(b.start)}</span></div>`
           + `<div class="lhandle" data-idx="${i}" data-edge="end" style="left:${pct(b.end)}%"><span class="tip">${this._loc.time(b.end)}</span></div>`;
       }).join('');
-      return `<div class="sub layer-sub">${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}
-        <div class="lwrap"><div class="lname ${state}">${esc(layer.name)}</div>
-          <div class="lbar" data-climate="${esc(climate)}" data-day="${d}" data-layer="${esc(layer.id)}">${blockHtml}</div></div>
+      return `<div class="sub layer-sub"><span class="tree"></span>
+        <div class="name lname ${state}" title="${esc(layer.name)}">${esc(layer.name)}${this._nameSizer()}</div>
+        <div class="lbar" data-climate="${esc(climate)}" data-day="${d}" data-layer="${esc(layer.id)}">${blockHtml}</div>
         <span></span></div>`;
     }).join('');
-    return `${rows}<div class="sub layer-sub">${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}
-      <div class="ldone"><button class="btn" data-act="close-row">${esc(this._loc.t('doneEditing'))}</button></div><span></span></div>`;
+    return rows;
   }
 
   // The layers that apply now drawn over a thermostat's day, set slightly below it (only in the active
@@ -2865,16 +2865,22 @@ class ChauffageProgrammeCard extends HTMLElement {
   _dayHtml(days, showNow) {
     const d = days[0];
     const multi = this._shown.length > 1;
+    // A schedule with layers: each thermostat's row opens (chevron, or a tap on it) on its layers
+    const layered = this._layered();
     const subs = this._shown
       .map((climate) => {
         const segs = this._week(climate)[d];
         const m = this._menu;
         const open = m && m.climate === climate && m.day === d;
-        return `<div class="sub">
-          ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
+        const opened = this._isOpen(climate, d);
+        const chevron = layered ? `<button class="chev${opened ? ' open' : ''}" data-act="toggle-row" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t(opened ? 'closeRow' : 'openRow'))}" aria-expanded="${opened}">${ICON_DOWN}</button>` : '';
+        const named = multi || layered;
+        const sub = `<div class="sub">
+          ${chevron}${named ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
           ${this._barHtml(climate, segs, days, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
-        </div>${this._isOpen(climate, d) ? this._layerRowsHtml(climate, d) : ''}`;
+        </div>`;
+        return opened ? `<div class="opened">${sub}${this._layerRowsHtml(climate, d)}</div>` : sub;
       })
       .join('');
     // Today stands out, except in a week of an inactive schedule stacked under the active one's
@@ -2882,7 +2888,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const today = days.includes(todayIdx()) && (!this._config.week_only || this._schedule === this._activeSchedule());
     return `<div class="dgroup${today ? ' today' : ''}">
       <div class="day" data-day="${d}">${esc(this._loc.daysLabel(days))}</div>
-      <div class="subs">${subs}</div>
+      <div class="subs${layered ? ' layered' : ''}">${subs}</div>
     </div>`;
   }
 
@@ -4495,7 +4501,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   // The names shown, invisible, in every cell of the names column: each row sizes the column on
   // the longest one, so that all rows (separate grids) have the same column
   _nameSizer() {
-    return `<span class="sizer" aria-hidden="true">${this._shown.map((c) => `<span>${esc(this._name(c))}</span>`).join('')}</span>`;
+    const layers = this._source().layers(this._schedule).map((l) => `<span class="lsize">${esc(l.name)}</span>`).join('');
+    return `<span class="sizer" aria-hidden="true">${this._shown.map((c) => `<span>${esc(this._name(c))}</span>`).join('')}${layers}</span>`;
   }
 
   // Plain click: shows only this thermostat. "Plusieurs" mode or Ctrl/Shift+click: adds / removes it.
@@ -4661,8 +4668,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._sel = null;
       return this._render();
     }
-    if (act === 'close-row') {
-      this._expanded = null;
+    if (act === 'toggle-row') {
+      this._expanded = this._isOpen(ds.climate, Number(ds.day)) ? null : { climate: ds.climate, day: Number(ds.day) };
+      this._sel = null;
       this._lsel = null;
       return this._render();
     }
@@ -4982,13 +4990,22 @@ const STYLE = `
   /* A row of a schedule with layers is only shown until opened */
   .bar.locked .seg { cursor:pointer; }
   .bar.locked .handle { display:none; }
-  /* An open row: one row per layer, its blocks edited, nothing drawn where it has none */
-  .lwrap { min-width:0; }
-  .lname { font-size:11px; color:var(--secondary-text-color); margin:0 0 2px 2px; overflow:hidden;
-    white-space:nowrap; text-overflow:ellipsis; }
+  /* A schedule with layers: a chevron opens a thermostat's row on its layers, one row each, its
+     blocks edited, nothing drawn where it has none; a line on the left holds them together */
+  .subs.layered .sub { grid-template-columns:18px fit-content(100px) 1fr 28px; }
+  .chev { all:unset; box-sizing:border-box; width:18px; height:22px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--secondary-text-color); border-radius:4px; transform:rotate(-90deg); transition:transform .15s; }
+  .chev svg { width:18px; height:18px; fill:currentColor; }
+  .chev.open { transform:none; color:var(--primary-color); }
+  .chev:focus-visible { outline:2px solid var(--primary-color); }
+  .opened { display:flex; flex-direction:column; gap:4px; }
+  .opened > .sub:first-child .name { font-weight:600; color:var(--primary-text-color); }
+  .layer-sub .tree { align-self:stretch; justify-self:center; width:2px; margin:-4px 0; background:var(--primary-color); opacity:.5; }
+  .lname { font-size:.72em; padding-left:6px; text-align:left; }
   .lname.idle { opacity:.55; }
   .lname.off { opacity:.45; text-decoration:line-through; }
-  .lbar { position:relative; height:22px; border-radius:4px; user-select:none; -webkit-user-select:none;
+  .sizer .lsize { font-size:.92em; padding-left:6px; }
+  .lbar { position:relative; height:20px; border-radius:4px; user-select:none; -webkit-user-select:none;
     background:repeating-linear-gradient(45deg, transparent 0 6px, var(--divider-color, rgba(0,0,0,.12)) 6px 7px),
       var(--secondary-background-color); }
   .lname.off + .lbar, .lname.idle + .lbar { opacity:.6; }
@@ -4999,7 +5016,6 @@ const STYLE = `
     background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.35); }
   .lhandle .tip { display:none; }
   .lhandle.drag .tip, .lhandle:hover .tip { display:block; }
-  .ldone { display:flex; justify-content:flex-end; }
   /* A label that does not fit is hidden (a time) or ends in "…" (a name), never cut into
      meaningless pieces such as "06:" */
   .seg { container-type:inline-size; }
@@ -5227,6 +5243,7 @@ const STYLE = `
     .multi .scale { grid-template-columns:fit-content(60px) 1fr 28px; }
     .dgroup { grid-template-columns:min(var(--day-w), 56px) 1fr; }
     .multi .sub { grid-template-columns:fit-content(60px) 1fr 28px; }
+    .subs.layered .sub { grid-template-columns:18px fit-content(60px) 1fr 28px; }
     .sub { grid-template-columns:1fr 28px; }
     .scale { grid-template-columns:min(var(--day-w), 56px) 1fr 28px; }
     .ticks .minor { display:none; }

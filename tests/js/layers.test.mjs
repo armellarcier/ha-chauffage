@@ -108,7 +108,7 @@ describe('a row of a schedule with layers is shown, and edited once tapped', () 
   test('tapping a row opens it: the schedule on its own row, then one row per layer', () => {
     const { card } = editing();
     assert.ok(!salonBar(card).classList.contains('locked'));
-    assert.deepEqual($$(card, '.layer-sub .lname').map((el) => el.textContent.trim()), ['Soleil', 'Salon occupé']);
+    assert.deepEqual($$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim()), ['Soleil', 'Salon occupé']);
     assert.ok(layerBar(card, 'occupied'));
     assert.equal(salonBar(card).querySelectorAll('.layer-block').length, 0); // the schedule's own row shows only the schedule
   });
@@ -122,14 +122,27 @@ describe('a row of a schedule with layers is shown, and edited once tapped', () 
     assert.ok(!names[1].classList.contains('off') && !names[1].classList.contains('idle'));
   });
 
-  test('the row menu opens the row too, and Done closes it', () => {
+  test('the chevron opens and closes the row, and so does the row menu', () => {
     const card = createCard(fakeHass({ data: withLayers() }), { show: ['climate.salon'] });
+    const chevron = () => $(card, '[data-act="toggle-row"][data-climate="climate.salon"][data-day="0"]');
+    assert.equal(chevron().getAttribute('aria-expanded'), 'false');
+    chevron().click();
+    assert.ok(layerBar(card, 'occupied'));
+    assert.equal(chevron().getAttribute('aria-expanded'), 'true');
+    chevron().click();
+    assert.equal(layerBar(card, 'occupied'), null);
+    assert.ok(salonBar(card).classList.contains('locked'));
     $(card, '[data-act="menu"][data-day="0"]').click();
     $(card, '[data-act="edit-row"]').click();
     assert.ok(layerBar(card, 'occupied'));
-    $(card, '[data-act="close-row"]').click();
-    assert.equal(layerBar(card, 'occupied'), null);
-    assert.ok(salonBar(card).classList.contains('locked'));
+  });
+
+  test('edits of an open row wait for Save, as every edit of the card', () => {
+    const { hass, card } = editing();
+    mouse(geometry(layerBar(card, 'occupied')), 'dblclick', 19 * 60);
+    $(card, '[data-act="toggle-row"][data-day="0"]').click();
+    assert.equal(saved(hass).length, 0);
+    assert.ok($(card, '.savebar'));
   });
 
   test('a schedule without layers is edited as before, without opening its rows', () => {
