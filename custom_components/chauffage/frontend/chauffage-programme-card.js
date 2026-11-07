@@ -2700,7 +2700,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${this._layersHtml(climate, d)}${history}${this._overrideHtml(climate, days)}${now}</div>`;
   }
 
-  // The layers that apply now drawn over a thermostat's day, raised (only in the active
+  // The layers that apply now drawn over a thermostat's day, set slightly below it (only in the active
   // schedule's tab: the layers of another schedule do not apply)
   _layersHtml(climate, day) {
     if (this._schedule !== this._activeSchedule()) return '';
@@ -2713,7 +2713,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return layerPieces(stack).map(({ start, end, preset, layer }) => {
       const p = this._preset(preset);
       const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
-      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" style="left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}">${this._segInner(start, end, preset)}</div>`;
+      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" style="left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"></div>`;
     }).join('');
   }
 
@@ -4747,15 +4747,10 @@ const STYLE = `
   .seg.last { border-radius:0 6px 6px 0; }
   .seg.first.last { border-radius:6px; }
   .seg .t { font-weight:600; }
-  /* A layer that applies now, raised over the schedule's day: only shown, edited elsewhere */
-  .layer-block { position:absolute; top:-4px; bottom:4px; z-index:1; box-sizing:border-box; overflow:hidden;
-    padding:2px 5px; border-radius:5px; color:#fff; font-size:11px; line-height:1.2; white-space:nowrap;
-    display:flex; flex-direction:column; justify-content:center; text-shadow:0 1px 1px rgba(0,0,0,.25);
-    box-shadow:0 2px 5px rgba(0,0,0,.45); outline:1px solid var(--card-background-color, #fff);
-    pointer-events:none; container-type:inline-size; }
-  .multi .layer-block { flex-direction:row; align-items:center; gap:5px; font-size:10.5px; }
-  .layer-block .t { font-weight:600; }
-  .layer-block .l { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  /* A layer that applies now, set slightly below the schedule's day: only shown, edited elsewhere;
+     the legend names its color */
+  .layer-block { position:absolute; top:4px; bottom:-4px; z-index:1; box-sizing:border-box;
+    box-shadow:0 1px 3px rgba(0,0,0,.3); pointer-events:none; }
   /* A label that does not fit is hidden (a time) or ends in "…" (a name), never cut into
      meaningless pieces such as "06:" */
   .seg { container-type:inline-size; }
