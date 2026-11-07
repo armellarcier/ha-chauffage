@@ -33,6 +33,8 @@ const I18N = {
     openThermostat: 'Open the thermostat',
     copyPaste: 'Copy / paste…',
     copyDay: 'Copy the day',
+    editRow: 'Edit the layers',
+    doneEditing: 'Done',
     paste: 'Paste',
     copyToWeekdays: 'Copy to Mon–Fri',
     copyToWeekend: 'Copy to Sat–Sun',
@@ -281,6 +283,8 @@ const I18N = {
     openThermostat: 'Ouvrir le thermostat',
     copyPaste: 'Copier / coller…',
     copyDay: 'Copier la journée',
+    editRow: 'Modifier les calques',
+    doneEditing: 'Terminé',
     paste: 'Coller',
     copyToWeekdays: 'Copier vers Lun–Ven',
     copyToWeekend: 'Copier vers Sam–Dim',
@@ -734,6 +738,29 @@ function parseLayerDay(list) {
     .map(([t, p]) => ({ start: toMin(t), preset: p || null }))
     .filter((s) => !isNaN(s.start))
     .sort((a, b) => a.start - b.start);
+}
+
+// A layer's day as blocks [{ start, end, preset }], from its slots (parseLayerDay)
+function layerBlocks(slots) {
+  return slots.map((s, i) => ({ start: s.start, end: i < slots.length - 1 ? slots[i + 1].start : DAY_MIN, preset: s.preset }))
+    .filter((b) => b.preset !== null && b.end > b.start);
+}
+
+// The slots the integration stores for a layer's blocks: [["HH:MM", preset | null], …], nothing
+// (null) where no block is drawn
+function layerSlots(blocks) {
+  const out = [];
+  let at = 0;
+  for (const b of blocks.slice().sort((x, y) => x.start - y.start)) {
+    if (b.start > at || !out.length) {
+      if (b.start > at) out.push([toHM(at), null]);
+    }
+    out.push([toHM(b.start), b.preset]);
+    at = b.end;
+  }
+  if (at < DAY_MIN) out.push([toHM(at), null]);
+  // Two slots in a row with the same preset are one
+  return out.filter((slot, i) => i === 0 || slot[1] !== out[i - 1][1]);
 }
 
 // The pieces of layers stacked top first ([{ layer, day }]) that have something: at each time,
@@ -1476,7 +1503,7 @@ function makeDataSource(hass, available) {
     // an older integration only has the global one
     perThermostat: !!(d && d.thermostats),
     revisionOf: (climate) => (d && d.thermostats && d.thermostats[climate] ? d.thermostats[climate].revision : null),
-    saveWeeks: (weeks, revision, revisions) => {
+    saveWeeks: (weeks, revision, revisions, layerWeeks) => {
       const out = {};
       for (const [climate, bySchedule] of Object.entries(weeks)) {
         out[climate] = {};
@@ -1485,7 +1512,8 @@ function makeDataSource(hass, available) {
         }
       }
       const against = revisions ? { revisions } : (revision != null ? { revision } : {});
-      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...against });
+      const layers = layerWeeks && Object.keys(layerWeeks).length ? { layer_weeks: layerWeeks } : {};
+      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...against, ...layers });
     },
     // `source`: 'panel' from the panel, told in the logbook; none from a card (older integrations)
     setOverride: (climate, override, source) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override, ...(source ? { source } : {}) }),
@@ -2260,6 +2288,68 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._revisions[climate] = src.revisionOf(climate);
     }
     this._loadedWeeks = this._serialized();
+    // The thermostats' days in every schedule's layers, as blocks
+    this._layerData = {};
+    for (const climate of Object.keys(this._data)) {
+      this._layerData[climate] = {};
+      for (const schedule of src.schedules()) {
+        for (const layer of src.layers(schedule)) {
+          this._layerData[climate][layer.id] = [0, 1, 2, 3, 4, 5, 6].map((d) => layerBlocks(src.layerDay(climate, layer.id, d)));
+        }
+      }
+    }
+    this._loadedLayers = this._serializedLayers();
+  }
+
+  // {climate: JSON of its layer weeks}, to send only the thermostats whose layers changed
+  _serializedLayers() {
+    const out = {};
+    for (const [climate, byLayer] of Object.entries(this._layerData || {})) {
+      out[climate] = JSON.stringify(Object.fromEntries(Object.keys(byLayer).sort()
+        .map((layer) => [layer, byLayer[layer].map(layerSlots)])));
+    }
+    return out;
+  }
+
+  // A thermostat's blocks in a layer on a day (edited in place)
+  _layerBlocks(climate, layer, day) {
+    if (!this._layerData[climate]) this._layerData[climate] = {};
+    if (!this._layerData[climate][layer]) this._layerData[climate][layer] = [0, 1, 2, 3, 4, 5, 6].map(() => []);
+    return this._layerData[climate][layer][day];
+  }
+
+  // The schedule shown has layers: its rows are shown, and edited once opened
+  _layered() {
+    return this._source().layers(this._schedule).length > 0;
+  }
+
+  // The row of a thermostat opened for editing (schedule with layers)
+  _isOpen(climate, day) {
+    const e = this._expanded;
+    return !!e && e.climate === climate && this._rowOf(e.day)[0] === day;
+  }
+
+  // An edit of a layer's day goes to every day of the row
+  _layerCommit(climate, layer, day) {
+    const week = this._layerData[climate][layer];
+    week[day].sort((a, b) => a.start - b.start);
+    for (const d of this._rowOf(day)) if (d !== day) week[d] = week[day].map((b) => ({ ...b }));
+    this._dirty = true;
+    this._msg = '';
+    this._render();
+  }
+
+  // A new block where the layer has nothing: an hour, up to the next block
+  _addLayerBlock(climate, layer, day, m) {
+    const blocks = this._layerBlocks(climate, layer, day);
+    const start = Math.max(0, Math.min(DAY_MIN - this._config.step, Math.floor(m / this._config.step) * this._config.step));
+    if (blocks.some((b) => b.start <= start && start < b.end)) return;
+    const next = blocks.filter((b) => b.start > start).reduce((min, b) => Math.min(min, b.start), DAY_MIN);
+    const end = Math.min(start + 60, next);
+    const ids = this._presets().map((x) => x.id);
+    blocks.push({ start, end, preset: ids.includes('comfort') ? 'comfort' : ids[0] });
+    this._lsel = null;
+    this._layerCommit(climate, layer, day);
   }
 
   // {climate: JSON of its weeks by schedule}, to send only the thermostats changed. A week the
@@ -2302,7 +2392,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   _layoutRows() {
     const order = this._loc.dayOrder;
     this._rows = this._grouped()
-      ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(this._week(c)[d]).join(',')).join('|'))
+      ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(this._week(c)[d]).join(',')
+        + this._source().layers(this._schedule).map((l) => JSON.stringify(this._layerBlocks(c, l.id, d))).join('')).join('|'))
       : order.map((d) => [d]);
     for (const ref of [this._sel, this._menu]) if (ref) ref.day = this._rowOf(ref.day)[0];
   }
@@ -2431,13 +2522,19 @@ class ChauffageProgrammeCard extends HTMLElement {
     const loaded = this._loadedWeeks || {};
     const changed = Object.keys(now).filter((c) => !src.perThermostat || now[c] !== loaded[c]);
     const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
-    const revisions = src.perThermostat ? Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null])) : null;
+    const layersNow = this._serializedLayers();
+    const layersLoaded = this._loadedLayers || {};
+    const layersChanged = Object.keys(layersNow).filter((c) => layersNow[c] !== layersLoaded[c]);
+    const layerWeeks = Object.fromEntries(layersChanged.map((c) => [c, JSON.parse(layersNow[c])]));
+    const sent = [...new Set([...changed, ...layersChanged])];
+    const revisions = src.perThermostat ? Object.fromEntries(sent.map((c) => [c, this._revisions[c] ?? null])) : null;
     try {
       // Edits undone: nothing to send (a save would realign every thermostat)
-      const result = changed.length ? await src.saveWeeks(out, this._revision, revisions) : null;
+      const result = sent.length ? await src.saveWeeks(out, this._revision, revisions, layerWeeks) : null;
       if (result && result.revision != null) this._revision = result.revision;
       if (result && result.revisions) Object.assign(this._revisions, result.revisions);
       this._loadedWeeks = now;
+      this._loadedLayers = layersNow;
       this._dirty = false;
       this._msg = this._loc.t('saved');
       this._render();
@@ -2697,7 +2794,38 @@ class ChauffageProgrammeCard extends HTMLElement {
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && days.includes(cs.day);
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${this._layersHtml(climate, d)}${history}${this._overrideHtml(climate, days)}${now}</div>`;
+    // A schedule with layers: a row is only shown (the layers that apply over it) until opened
+    const open = this._isOpen(climate, d);
+    const locked = this._layered() && !open ? ' locked' : '';
+    const layers = open ? '' : this._layersHtml(climate, d);
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}${locked}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${layers}${history}${this._overrideHtml(climate, days)}${now}</div>`;
+  }
+
+  // The rows of an open row's layers: one per layer of the schedule, top first, its blocks
+  // editable; then "Done"
+  _layerRowsHtml(climate, d) {
+    const src = this._source();
+    const multi = this._shown.length > 1;
+    const active = this._schedule === this._activeSchedule();
+    const applying = src.layersApplying();
+    const rows = src.layers(this._schedule).map((layer) => {
+      const state = !layer.enabled ? 'off' : active && applying.includes(layer.id) ? '' : 'idle';
+      const blocks = this._layerBlocks(climate, layer.id, d);
+      const sel = this._lsel;
+      const blockHtml = blocks.map((b, i) => {
+        const p = this._preset(b.preset);
+        const on = sel && sel.climate === climate && sel.layer === layer.id && sel.day === d && sel.idx === i;
+        return `<div class="lblock${on ? ' sel' : ''}" data-idx="${i}" style="left:${pct(b.start)}%;width:${pct(b.end - b.start)}%;background:${p.color}" title="${esc(`${this._loc.time(b.start)} → ${this._loc.time(b.end)} · ${p.name}`)}"></div>`
+          + `<div class="lhandle" data-idx="${i}" data-edge="start" style="left:${pct(b.start)}%"><span class="tip">${this._loc.time(b.start)}</span></div>`
+          + `<div class="lhandle" data-idx="${i}" data-edge="end" style="left:${pct(b.end)}%"><span class="tip">${this._loc.time(b.end)}</span></div>`;
+      }).join('');
+      return `<div class="sub layer-sub">${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}
+        <div class="lwrap"><div class="lname ${state}">${esc(layer.name)}</div>
+          <div class="lbar" data-climate="${esc(climate)}" data-day="${d}" data-layer="${esc(layer.id)}">${blockHtml}</div></div>
+        <span></span></div>`;
+    }).join('');
+    return `${rows}<div class="sub layer-sub">${multi ? `<div class="name">${this._nameSizer()}</div>` : ''}
+      <div class="ldone"><button class="btn" data-act="close-row">${esc(this._loc.t('doneEditing'))}</button></div><span></span></div>`;
   }
 
   // The layers that apply now drawn over a thermostat's day, set slightly below it (only in the active
@@ -2746,7 +2874,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
           ${this._barHtml(climate, segs, days, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
-        </div>`;
+        </div>${this._isOpen(climate, d) ? this._layerRowsHtml(climate, d) : ''}`;
       })
       .join('');
     // Today stands out, except in a week of an inactive schedule stacked under the active one's
@@ -2819,6 +2947,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const paused = this._source().paused(m.climate);
     return `<div class="menu" style="top:${m.top}px;right:${m.right}px">
       <div class="mh">${this._moreInfoLink(m.climate)} · ${esc(this._rowLabel(m.day, 'long'))}</div>
+      ${this._layered() && !this._isOpen(m.climate, m.day) ? `${item('edit-row', esc(t('editRow')))}<div class="sep"></div>` : ''}
       ${item('copy-day', esc(t('copyDay')), ICON_COPY)}
       ${item('paste-day', paste, ICON_PASTE, !this._clip)}
       <div class="sep"></div>
@@ -2864,6 +2993,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const hint = this._config.week_only ? ''
       : `<div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`;
     if (this._overrideSel) return hint + this._overrideEditorHtml();
+    if (this._lsel) return hint + this._layerEditorHtml();
     if (!this._sel || !this._shown.includes(this._sel.climate)) { this._sel = null; return hint; }
     const { climate, day, idx } = this._sel;
     const segs = this._week(climate)[day];
@@ -2895,6 +3025,27 @@ class ChauffageProgrammeCard extends HTMLElement {
         <button class="btn" data-act="insert" ${end - s.start < 3 * this._config.step ? 'disabled' : ''}>${esc(t('insertSlot'))}</button>
         <button class="btn" data-act="delete" ${segs.length === 1 ? 'disabled' : ''}>${esc(t('delete'))}</button>
       </div>
+    </div>`;
+  }
+
+  // Popover of a layer's block: its preset, or delete it (nothing is drawn there then)
+  _layerEditorHtml() {
+    const t = this._loc.t;
+    const { climate, layer, day, idx } = this._lsel;
+    const b = this._layerBlocks(climate, layer, day)[idx];
+    const named = this._source().layers(this._schedule).find((l) => l.id === layer);
+    if (!b || !named) { this._lsel = null; return ''; }
+    const presets = this._presets()
+      .map((l) => `<button data-act="layer-preset" data-preset="${esc(l.id)}" class="${b.preset === l.id ? 'on' : ''}" style="background:${l.color}">${esc(l.name)}</button>`)
+      .join('');
+    return `<div class="editor">
+      <div class="ed-head">
+        <strong>${esc(named.name)} · ${this._moreInfoLink(climate)} · ${esc(this._rowLabel(day, 'long'))}</strong>
+        <span>${this._loc.time(b.start)} → ${this._loc.time(b.end)}</span>
+        <button class="btn icon close" data-act="layer-close" title="${esc(t('close'))}">✕</button>
+      </div>
+      <div class="presets">${presets}</div>
+      <div class="ed-actions"><button class="btn" data-act="layer-delete">${esc(t('delete'))}</button></div>
     </div>`;
   }
 
@@ -2963,7 +3114,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
     const sel = this._overrideSel;
     const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${this._rowOf(todayIdx())[0]}"] .now`);
-    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on, .pv-add.on') || now;
+    const seg = root.querySelector('.override.sel, .seg.sel, .lblock.sel, .cell.on, .pv-add.on') || now;
     if (!ed || !seg) return true;
     const card = root.querySelector('ha-card').getBoundingClientRect();
     // A slot is clipped to its row (the popover goes under the row); a cell to the table, which
@@ -3296,6 +3447,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       // A whole slot (not the first nor the last of the day): by mouse any slot, by touch only
       // the selected one, so that a finger sliding over the week moves nothing
       const seg = e.target.closest('.bar > .seg');
+      if (seg && seg.parentElement.classList.contains('locked')) return;
       if (seg) {
         const bar = seg.parentElement;
         const climate = bar.dataset.climate;
@@ -3316,7 +3468,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         return;
       }
       const h = e.target.closest('.handle');
-      if (!h) return;
+      if (!h || h.parentElement.classList.contains('locked')) return;
       e.preventDefault();
       h.setPointerCapture(e.pointerId);
       h.classList.add('drag');
@@ -3418,6 +3570,44 @@ class ChauffageProgrammeCard extends HTMLElement {
     root.addEventListener('pointercancel', () => {
       if (this._drag) this._cancelDrag();
       else endDrag();
+    });
+
+    // A layer's block: its start or end dragged, never past the blocks around it
+    root.addEventListener('pointerdown', (e) => {
+      const h = e.target.closest('.lhandle');
+      if (!h) return;
+      e.preventDefault();
+      const lbar = h.parentElement;
+      const ref = { climate: lbar.dataset.climate, layer: lbar.dataset.layer, day: Number(lbar.dataset.day) };
+      if (h.setPointerCapture && e.pointerId != null) h.setPointerCapture(e.pointerId);
+      h.classList.add('drag');
+      this._ldrag = { ...ref, idx: Number(h.dataset.idx), edge: h.dataset.edge, bar: lbar, moved: false };
+    });
+    root.addEventListener('pointermove', (e) => {
+      const d = this._ldrag;
+      if (!d) return;
+      const step = this._config.step;
+      const blocks = this._layerBlocks(d.climate, d.layer, d.day);
+      const b = blocks[d.idx];
+      const prev = blocks.filter((x) => x !== b && x.end <= b.start).reduce((max, x) => Math.max(max, x.end), 0);
+      const next = blocks.filter((x) => x !== b && x.start >= b.end).reduce((min, x) => Math.min(min, x.start), DAY_MIN);
+      const m = this._snap(this._minuteAt(d.bar, e.clientX));
+      if (d.edge === 'start') b.start = Math.max(prev, Math.min(b.end - step, m));
+      else b.end = Math.min(next, Math.max(b.start + step, m));
+      d.moved = true;
+    });
+    root.addEventListener('pointerup', () => {
+      const d = this._ldrag;
+      if (!d) return;
+      this._ldrag = null;
+      this._layerMoved = Date.now();
+      if (d.moved) this._layerCommit(d.climate, d.layer, d.day);
+    });
+    // A double click (double tap) where a layer has nothing: a new block there
+    root.addEventListener('dblclick', (e) => {
+      const lbar = e.target.closest('.lbar');
+      if (!lbar || e.target.closest('.lblock, .lhandle')) return;
+      this._addLayerBlock(lbar.dataset.climate, lbar.dataset.layer, Number(lbar.dataset.day), this._minuteAt(lbar, e.clientX));
     });
 
     // Right click (or long press on Android) on a row: opens the menu at the pointer
@@ -3532,8 +3722,22 @@ class ChauffageProgrammeCard extends HTMLElement {
       const act = e.target.closest('[data-act]');
       if (act) { if (!act.disabled) this._action(act.dataset.act, act.dataset, act); return; }
 
+      const block = e.target.closest('.lblock');
+      if (block) {
+        if (Date.now() - (this._layerMoved || 0) < 300) return;
+        const lbar = block.parentElement;
+        this._sel = null;
+        this._lsel = { climate: lbar.dataset.climate, layer: lbar.dataset.layer, day: Number(lbar.dataset.day), idx: Number(block.dataset.idx) };
+        return this._render();
+      }
       const seg = e.target.closest('.seg');
       if (!seg || Date.now() - (this._slotMoved || 0) < 300) return;
+      if (seg.parentElement.classList.contains('locked')) {
+        this._expanded = { climate: seg.parentElement.dataset.climate, day: Number(seg.parentElement.dataset.day) };
+        this._sel = null;
+        this._lsel = null;
+        return this._render();
+      }
       const bar = seg.parentElement;
       const climate = bar.dataset.climate;
       const day = Number(bar.dataset.day);
@@ -4452,6 +4656,27 @@ class ChauffageProgrammeCard extends HTMLElement {
       return this._openMenu(ds.climate, Number(ds.day), b.bottom - card.top + 4, card.right - b.right, b.top - card.top - 4);
     }
     this._menu = null;
+    if (act === 'edit-row') {
+      this._expanded = { climate: ds.climate, day: Number(ds.day) };
+      this._sel = null;
+      return this._render();
+    }
+    if (act === 'close-row') {
+      this._expanded = null;
+      this._lsel = null;
+      return this._render();
+    }
+    if (act === 'layer-close') {
+      this._lsel = null;
+      return this._render();
+    }
+    if (act === 'layer-preset' || act === 'layer-delete') {
+      const { climate, layer, day, idx } = this._lsel;
+      const blocks = this._layerBlocks(climate, layer, day);
+      if (act === 'layer-preset') blocks[idx].preset = ds.preset;
+      else { blocks.splice(idx, 1); this._lsel = null; }
+      return this._layerCommit(climate, layer, day);
+    }
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
     if (act === 'pause' || act === 'resume') {
@@ -4754,6 +4979,27 @@ const STYLE = `
     color:#fff; font-size:10.5px; line-height:1; white-space:nowrap; text-overflow:ellipsis;
     display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); pointer-events:none; }
   .layer-block span { overflow:hidden; text-overflow:ellipsis; }
+  /* A row of a schedule with layers is only shown until opened */
+  .bar.locked .seg { cursor:pointer; }
+  .bar.locked .handle { display:none; }
+  /* An open row: one row per layer, its blocks edited, nothing drawn where it has none */
+  .lwrap { min-width:0; }
+  .lname { font-size:11px; color:var(--secondary-text-color); margin:0 0 2px 2px; overflow:hidden;
+    white-space:nowrap; text-overflow:ellipsis; }
+  .lname.idle { opacity:.55; }
+  .lname.off { opacity:.45; text-decoration:line-through; }
+  .lbar { position:relative; height:22px; border-radius:4px; user-select:none; -webkit-user-select:none;
+    background:repeating-linear-gradient(45deg, transparent 0 6px, var(--divider-color, rgba(0,0,0,.12)) 6px 7px),
+      var(--secondary-background-color); }
+  .lname.off + .lbar, .lname.idle + .lbar { opacity:.6; }
+  .lblock { position:absolute; top:0; bottom:0; box-sizing:border-box; border:1px solid rgba(255,255,255,.85); cursor:pointer; }
+  .lblock.sel { box-shadow:inset 0 0 0 3px var(--primary-text-color); }
+  .lhandle { position:absolute; top:-3px; bottom:-3px; width:14px; margin-left:-7px; z-index:2; cursor:ew-resize; touch-action:none; }
+  .lhandle::after { content:''; position:absolute; left:5px; top:4px; bottom:4px; width:4px; border-radius:2px;
+    background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.35); }
+  .lhandle .tip { display:none; }
+  .lhandle.drag .tip, .lhandle:hover .tip { display:block; }
+  .ldone { display:flex; justify-content:flex-end; }
   /* A label that does not fit is hidden (a time) or ends in "…" (a name), never cut into
      meaningless pieces such as "06:" */
   .seg { container-type:inline-size; }

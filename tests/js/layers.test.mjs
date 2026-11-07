@@ -74,3 +74,133 @@ describe('the layers that apply now, over the schedule', () => {
     assert.equal(blocks(card).length, 1);
   });
 });
+
+// ---------- editing a row of a schedule with layers ----------
+
+const $ = (card, selector) => card.shadowRoot.querySelector(selector);
+// One pixel per minute: clientX is a time of day in minutes
+const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
+const mouse = (el, type, clientX = 0) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
+const salonBar = (card) => $(card, '.bar[data-climate="climate.salon"][data-day="0"]');
+const layerBar = (card, layer) => $(card, `.lbar[data-climate="climate.salon"][data-day="0"][data-layer="${layer}"]`);
+const saved = (hass) => hass.events.filter((m) => m.type === 'chauffage/weeks/save');
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+function editing(data = withLayers()) {
+  const hass = fakeHass({ data });
+  const card = createCard(hass, { show: ['climate.salon'] });
+  salonBar(card).querySelector('.seg').click();
+  return { hass, card };
+}
+
+describe('a row of a schedule with layers is shown, and edited once tapped', () => {
+  test('a row is only shown: its slots cannot be dragged', () => {
+    const card = createCard(fakeHass({ data: withLayers() }), { show: ['climate.salon'] });
+    const bar = geometry(salonBar(card));
+    assert.ok(bar.classList.contains('locked'));
+    const handle = bar.querySelector('.handle');
+    mouse(handle, 'pointerdown', 6 * 60 + 30);
+    mouse(handle, 'pointermove', 7 * 60);
+    mouse(handle, 'pointerup', 7 * 60);
+    assert.equal(card._dirty, false);
+  });
+
+  test('tapping a row opens it: the schedule on its own row, then one row per layer', () => {
+    const { card } = editing();
+    assert.ok(!salonBar(card).classList.contains('locked'));
+    assert.deepEqual($$(card, '.layer-sub .lname').map((el) => el.textContent.trim()), ['Soleil', 'Salon occupé']);
+    assert.ok(layerBar(card, 'occupied'));
+    assert.equal(salonBar(card).querySelectorAll('.layer-block').length, 0); // the schedule's own row shows only the schedule
+  });
+
+  test('a layer that does not apply now is grey, a disabled one struck', () => {
+    const data = withLayers({ applying: ['occupied'] });
+    data.schedules[0].layers = [{ ...SUN, enabled: false }, OCCUPIED];
+    const { card } = editing(data);
+    const names = $$(card, '.layer-sub .lname');
+    assert.ok(names[0].classList.contains('off'));
+    assert.ok(!names[1].classList.contains('off') && !names[1].classList.contains('idle'));
+  });
+
+  test('the row menu opens the row too, and Done closes it', () => {
+    const card = createCard(fakeHass({ data: withLayers() }), { show: ['climate.salon'] });
+    $(card, '[data-act="menu"][data-day="0"]').click();
+    $(card, '[data-act="edit-row"]').click();
+    assert.ok(layerBar(card, 'occupied'));
+    $(card, '[data-act="close-row"]').click();
+    assert.equal(layerBar(card, 'occupied'), null);
+    assert.ok(salonBar(card).classList.contains('locked'));
+  });
+
+  test('a schedule without layers is edited as before, without opening its rows', () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    assert.ok(!salonBar(card).classList.contains('locked'));
+  });
+});
+
+describe('editing a layer: blocks, and nothing where none is drawn', () => {
+  test('a double click where the layer has nothing adds an hour of a block', async () => {
+    const { hass, card } = editing();
+    const bar = geometry(layerBar(card, 'occupied'));
+    mouse(bar, 'dblclick', 19 * 60);
+    assert.equal(card._dirty, true);
+    $(card, '[data-act="save"]').click();
+    await flush();
+    const [msg] = saved(hass);
+    assert.deepEqual(msg.layer_weeks['climate.salon'].occupied[0],
+      [['00:00', null], ['09:00', 'comfort'], ['17:00', null], ['19:00', 'comfort'], ['20:00', null]]);
+  });
+
+  test('a new block stops at the next block', () => {
+    const { card } = editing();
+    mouse(geometry(layerBar(card, 'occupied')), 'dblclick', 8 * 60 + 30);
+    assert.deepEqual(card._layerBlocks('climate.salon', 'occupied', 0).map((b) => [b.start, b.end]), [[510, 540], [540, 1020]]);
+  });
+
+  test('deleting a block leaves nothing there: the blocks around it do not grow', async () => {
+    const { hass, card } = editing();
+    mouse(geometry(layerBar(card, 'occupied')), 'dblclick', 19 * 60);
+    layerBar(card, 'occupied').querySelector('.lblock[data-idx="0"]').click();
+    $(card, '.editor [data-act="layer-delete"]').click();
+    assert.deepEqual(card._layerBlocks('climate.salon', 'occupied', 0).map((b) => [b.start, b.end]), [[1140, 1200]]);
+  });
+
+  test('a block\'s preset is chosen in its popover', () => {
+    const { card } = editing();
+    layerBar(card, 'occupied').querySelector('.lblock').click();
+    $(card, '.editor [data-act="layer-preset"][data-preset="boost"]').click();
+    assert.equal(card._layerBlocks('climate.salon', 'occupied', 0)[0].preset, 'boost');
+  });
+
+  test('dragging a block\'s end stops at the next block, it never pushes it', () => {
+    const { card } = editing();
+    mouse(geometry(layerBar(card, 'occupied')), 'dblclick', 19 * 60);
+    const bar = geometry(layerBar(card, 'occupied'));
+    const end = bar.querySelector('.lhandle[data-idx="0"][data-edge="end"]');
+    mouse(end, 'pointerdown', 17 * 60);
+    mouse(end, 'pointermove', 21 * 60);
+    mouse(end, 'pointerup', 21 * 60);
+    assert.deepEqual(card._layerBlocks('climate.salon', 'occupied', 0).map((b) => [b.start, b.end]), [[540, 1140], [1140, 1200]]);
+  });
+
+  test('a layer the thermostat has no week in starts empty, and its first block adds it', async () => {
+    const data = withLayers();
+    delete data.layer_weeks['climate.salon'].sun;
+    const { hass, card } = editing(data);
+    mouse(geometry(layerBar(card, 'sun')), 'dblclick', 0);
+    $(card, '[data-act="save"]').click();
+    await flush();
+    const week = saved(hass)[0].layer_weeks['climate.salon'].sun;
+    assert.deepEqual(week[0], [['00:00', 'comfort'], ['01:00', null]]);
+    assert.deepEqual(week[5], [['00:00', null]]);
+  });
+});
+
+describe('grouped days with layers', () => {
+  test('days whose layers differ are not on one row', () => {
+    const data = withLayers();
+    data.layer_weeks['climate.salon'].occupied[2] = [['00:00', null]];
+    const card = createCard(fakeHass({ data }), { show: ['climate.salon'] });
+    assert.ok($(card, '.bar[data-climate="climate.salon"][data-day="2"]'));
+  });
+});
