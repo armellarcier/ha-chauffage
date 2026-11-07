@@ -2713,7 +2713,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return layerPieces(stack).map(({ start, end, preset, layer }) => {
       const p = this._preset(preset);
       const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
-      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" style="left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"></div>`;
+      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" style="left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
     }).join('');
   }
 
@@ -4747,10 +4747,13 @@ const STYLE = `
   .seg.last { border-radius:0 6px 6px 0; }
   .seg.first.last { border-radius:6px; }
   .seg .t { font-weight:600; }
-  /* A layer that applies now, set slightly below the schedule's day: only shown, edited elsewhere;
-     the legend names its color */
-  .layer-block { position:absolute; top:4px; bottom:-4px; z-index:1; box-sizing:border-box;
-    box-shadow:0 1px 3px rgba(0,0,0,.3); pointer-events:none; }
+  /* A layer that applies now, set slightly below the schedule's day, named: only shown, edited
+     elsewhere */
+  .layer-block { position:absolute; top:4px; bottom:-4px; z-index:1; box-sizing:border-box; overflow:hidden;
+    padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 3px rgba(0,0,0,.3);
+    color:#fff; font-size:10.5px; line-height:1; white-space:nowrap; text-overflow:ellipsis;
+    display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); pointer-events:none; }
+  .layer-block span { overflow:hidden; text-overflow:ellipsis; }
   /* A label that does not fit is hidden (a time) or ends in "…" (a name), never cut into
      meaningless pieces such as "06:" */
   .seg { container-type:inline-size; }
