@@ -20,6 +20,16 @@ input_boolean:
   radiateur_amis:
     name: Radiateur chambre d'amis (simulé)
     icon: mdi:radiator
+  radiateur_veranda:
+    name: Radiateur véranda (simulé)
+    icon: mdi:radiator
+  # The windows of the Versatile Thermostats that watch one (dev/setup/setup.py)
+  fenetre_bureau:
+    name: Fenêtre bureau (simulée)
+    icon: mdi:window-open-variant
+  fenetre_chambre:
+    name: Fenêtre chambre (simulée)
+    icon: mdi:window-open-variant
 
 input_number:
   temperature_salon:
@@ -60,6 +70,14 @@ input_number:
     max: 30
     step: 0.01
     initial: 16
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_veranda:
+    name: Température véranda (simulée)
+    min: 5
+    max: 30
+    step: 0.01
+    initial: 18
     unit_of_measurement: "°C"
     mode: box
   temperature_exterieure:
@@ -119,6 +137,14 @@ template:
         state: "{{ states('input_number.temperature_amis') | float(0) | round(1) }}"
         attributes:
           measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
+      - name: Température véranda
+        unique_id: sim_temperature_veranda
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_veranda') | float(0) | round(1) }}"
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température extérieure
         unique_id: sim_temperature_exterieure
         device_class: temperature
@@ -149,3 +175,10 @@ climate:
     unique_id: sim_climate_amis
     heater: input_boolean.radiateur_amis
     sensor: sensor.temperature_amis
+  # The device under the veranda's Versatile Thermostat "over a climate" (dev/setup/setup.py),
+  # not scheduled itself
+  - platform: sim_climate
+    name: Clim véranda
+    unique_id: sim_climate_veranda
+    heater: input_boolean.radiateur_veranda
+    sensor: sensor.temperature_veranda

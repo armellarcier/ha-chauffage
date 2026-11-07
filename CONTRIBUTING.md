@@ -24,7 +24,7 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 ```
 
 Open <http://localhost:8124/chauffage-dev> and log in with **`dev` / `dev`**. The *Chauffage*
-dashboard, in the sidebar, shows the card with five thermostats.
+dashboard, in the sidebar, shows the card with six thermostats.
 
 ### What the development HA holds
 
@@ -35,7 +35,7 @@ schedules.
 The repository is **mounted live**. Your changes to `custom_components/chauffage/` reach the
 development HA without a copy.
 
-`dev/hass/packages/simulation.yaml` creates five simulated rooms. Each room has a heater
+`dev/hass/packages/simulation.yaml` creates six simulated rooms. Each room has a heater
 (`input_boolean.radiateur_*`) and a temperature sensor (`sensor.temperature_*`). The sensor
 reports the temperature every minute, to 0.1 °C, like a real sensor. The rooms cover **every
 kind of thermostat**:
@@ -45,6 +45,20 @@ kind of thermostat**:
 | salon, bureau, chambre | **Versatile Thermostat**, "over a switch", with presets at 7 / 17 / 20 / 22 °C. A manual setpoint sets the preset to `none`. |
 | cuisine | Home Assistant's **`generic_thermostat`**, without presets, declared in YAML. |
 | chambre d'amis | **Standard presets** (`eco`, `comfort`, `away`, `boost`, no `frost`), from the dev-only platform [`dev/sim_climate/`](dev/sim_climate/climate.py). A manual setpoint clears the preset. |
+| véranda | **Versatile Thermostat**, "over a climate", with **auto start/stop**. The climate under it, `climate.clim_veranda`, comes from `dev/sim_climate/` and is not scheduled. |
+
+Two Versatile Thermostats also watch a **window**, an `input_boolean` you turn on to open it:
+
+| Window | What the VTherm does while the window is open |
+|---|---|
+| `input_boolean.fenetre_bureau` | It keeps its preset and sets the frost setpoint. |
+| `input_boolean.fenetre_chambre` | It turns off. |
+
+To try auto start/stop, set `input_number.temperature_veranda` to 28 °C: the veranda turns off
+within a minute. Set the slider to 12 °C: the veranda turns back on after about 7 minutes.
+
+These VTherm features change the thermostat by themselves. They only exist on a new
+development HA: an existing one keeps its Versatile Thermostats as they are.
 
 The dev-only integration [`dev/sim_rooms/`](dev/sim_rooms/model.py) gives the rooms a realistic
 thermal model. The radiator, the air, the walls and the sensor each have their own inertia. A

@@ -25,7 +25,7 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 ```
 
 Ouvrez <http://localhost:8124/chauffage-dev> et connectez-vous avec **`dev` / `dev`**. Le tableau
-de bord *Chauffage*, dans la barre latérale, affiche la carte avec cinq thermostats.
+de bord *Chauffage*, dans la barre latérale, affiche la carte avec six thermostats.
 
 ### Ce que contient le HA de développement
 
@@ -36,7 +36,7 @@ des plannings d'exemple.
 Le dépôt est **monté en direct**. Vos modifications de `custom_components/chauffage/` arrivent
 dans le HA de développement sans copie.
 
-`dev/hass/packages/simulation.yaml` crée cinq pièces simulées. Chaque pièce a un radiateur
+`dev/hass/packages/simulation.yaml` crée six pièces simulées. Chaque pièce a un radiateur
 (`input_boolean.radiateur_*`) et un capteur de température (`sensor.temperature_*`). Le capteur
 envoie la température chaque minute, au dixième de degré, comme un vrai capteur. Les pièces
 couvrent **tous les types de thermostats** :
@@ -46,6 +46,22 @@ couvrent **tous les types de thermostats** :
 | salon, bureau, chambre | **Versatile Thermostat**, « sur un interrupteur », avec des préréglages à 7 / 17 / 20 / 22 °C. Une consigne manuelle met le preset à `none`. |
 | cuisine | Le **`generic_thermostat`** de Home Assistant, sans presets, déclaré en YAML. |
 | chambre d'amis | **Presets standard** (`eco`, `comfort`, `away`, `boost`, pas de `frost`), fournis par la plateforme de dev [`dev/sim_climate/`](dev/sim_climate/climate.py). Une consigne manuelle efface le preset. |
+| véranda | **Versatile Thermostat**, « sur un climate », avec l'**auto start/stop**. Le climate qu'il pilote, `climate.clim_veranda`, vient de `dev/sim_climate/` et n'est pas programmé. |
+
+Deux Versatile Thermostats surveillent aussi une **fenêtre** : un `input_boolean` que vous
+allumez pour l'ouvrir.
+
+| Fenêtre | Ce que fait le VTherm tant que la fenêtre est ouverte |
+|---|---|
+| `input_boolean.fenetre_bureau` | Il garde son preset et passe à la consigne hors-gel. |
+| `input_boolean.fenetre_chambre` | Il s'éteint. |
+
+Pour essayer l'auto start/stop, réglez `input_number.temperature_veranda` sur 28 °C : la véranda
+s'éteint en moins d'une minute. Remettez le curseur à 12 °C : la véranda se rallume au bout
+d'environ 7 minutes.
+
+Ces fonctions de VTherm changent le thermostat d'elles-mêmes. Elles n'existent que dans un HA de
+développement neuf : un HA existant garde ses Versatile Thermostats tels quels.
 
 L'intégration de dev [`dev/sim_rooms/`](dev/sim_rooms/model.py) donne aux pièces un modèle
 thermique réaliste. Le radiateur, l'air, les murs et le capteur ont chacun leur inertie. Une

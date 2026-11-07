@@ -67,6 +67,7 @@ ROOMS = {
     "chambre": Room(power=3.6, seed=3),
     "cuisine": Room(power=3.8, leak=0.045, cooking=True, seed=4),
     "amis": Room(power=3.3, loss=0.02, seed=5),  # north facing, seldom used
+    "veranda": Room(power=4.0, leak=0.05, loss=0.03, sun=1.5, seed=6),  # glass: sunny, leaky
 }
 
 

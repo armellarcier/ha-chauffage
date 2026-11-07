@@ -6,7 +6,8 @@ already done.
 
   1. onboarding: user dev / dev, location, analytics, integrations
   2. long-lived access token written to /config/.dev-token (read by scripts/_ha.sh)
-  3. three Versatile Thermostat "over a switch" thermostats on the simulated rooms
+  3. four Versatile Thermostats on the simulated rooms (VTHERMS): three "over a switch", two of
+     them with a window, and one "over a climate" with auto start/stop
   4. a dashboard with the card
   5. the Chauffage integration's config entry
   6. two more schedules (Vacances, Absent: Normal, Vacances, Absent in this order) and sample weeks for every kind of thermostat (VTherm; kitchen: generic_thermostat without
@@ -151,8 +152,19 @@ async def long_lived_token(ws: WS) -> str:
 
 # ----- Versatile Thermostat -----
 
-ROOMS = {"salon": "Salon", "bureau": "Bureau", "chambre": "Chambre"}
+# The Versatile Thermostats, by room. Each one covers a VTherm feature that changes the
+# thermostat by itself, so that Chauffage can be tried against it:
+#   window: the action when the room's window (input_boolean.fenetre_<room>) opens (#92);
+#   over:   the climate entity under a VTherm "over a climate", here with auto start/stop (#74).
+VTHERMS = {
+    "salon": {"name": "Salon"},
+    "bureau": {"name": "Bureau", "window": "window_frost_temp"},
+    "chambre": {"name": "Chambre", "window": "window_turn_off"},
+    "veranda": {"name": "Véranda", "over": "climate.clim_veranda"},
+}
+ROOMS = {room: vtherm["name"] for room, vtherm in VTHERMS.items()}
 PRESET_TEMPERATURES = {"frost": 7, "eco": 17, "comfort": 20, "boost": 22}
+WINDOW_DELAY = 5  # seconds: the window reacts at once in the dev HA
 
 
 class Api:
@@ -174,9 +186,10 @@ class Api:
             return body
 
 
-async def create_vtherm(api: Api, room: str, name: str) -> None:
-    """Walks through the Versatile Thermostat config flow for an "over a switch"
-    thermostat (same screens as the UI, menu-based)."""
+async def create_vtherm(api: Api, room: str, vtherm: dict) -> None:
+    """Walks through the Versatile Thermostat config flow (same screens as the UI, menu-based):
+    a thermostat "over a switch", or "over a climate" with `over`."""
+    name, over, window = vtherm["name"], vtherm.get("over"), vtherm.get("window")
     flow = await api.post("config/config_entries/flow", {"handler": "versatile_thermostat", "show_advanced_options": True})
     flow_id = flow["flow_id"]
 
@@ -186,25 +199,39 @@ async def create_vtherm(api: Api, room: str, name: str) -> None:
             raise RuntimeError(f"VTherm {name}: {result['errors']}")
         return result
 
-    await step({"thermostat_type": "thermostat_over_switch"})
-    for section, forms in (
+    await step({"thermostat_type": "thermostat_over_climate" if over else "thermostat_over_switch"})
+    features = {"use_window_feature": bool(window)}
+    if over:
+        features["use_auto_start_stop_feature"] = True
+    sections = [
         ("main", [
             {"name": name, "temperature_sensor_entity_id": f"sensor.temperature_{room}", "cycle_min": 5,
              "use_main_central_config": False, "use_central_mode": False, "used_by_controls_central_boiler": False},
             {"external_temperature_sensor_entity_id": "sensor.temperature_exterieure",
              "temp_min": 7, "temp_max": 30, "step_temperature": 0.5},
         ]),
-        ("type", [{"underlying_entity_ids": [f"input_boolean.radiateur_{room}"], "proportional_function": "tpi"}]),
+        ("features", [features]),
+        ("type", [{"underlying_entity_ids": [over]} if over else
+                  {"underlying_entity_ids": [f"input_boolean.radiateur_{room}"], "proportional_function": "tpi"}]),
         ("presets", [{"use_presets_central_config": False}]),
-        ("tpi", [
+    ]
+    if not over:
+        sections.append(("tpi", [
             {"use_tpi_central_config": False},
             {"tpi_coef_int": 0.6, "tpi_coef_ext": 0.01, "minimal_activation_delay": 10, "minimal_deactivation_delay": 0},
-        ]),
-        ("advanced", [
-            {"use_advanced_central_config": False},
-            {"safety_delay_min": 60, "safety_min_on_percent": 0.5, "safety_default_on_percent": 0.1},
-        ]),
-    ):
+        ]))
+    if window:
+        sections.append(("window", [
+            {"window_sensor_entity_id": f"input_boolean.fenetre_{room}", "use_window_central_config": False},
+            {"window_delay": WINDOW_DELAY, "window_off_delay": WINDOW_DELAY, "window_action": window},
+        ]))
+    if over:
+        sections.append(("auto_start_stop", [{"auto_start_stop_level": "auto_start_stop_fast"}]))
+    sections.append(("advanced", [
+        {"use_advanced_central_config": False},
+        {"safety_delay_min": 60, "safety_min_on_percent": 0.5, "safety_default_on_percent": 0.1},
+    ]))
+    for section, forms in sections:
         await step({"next_step_id": section})
         for form in forms:
             await step(form)
@@ -235,11 +262,12 @@ async def wait_until_running(api: Api) -> None:
 async def thermostats(api: Api) -> None:
     entries = await api.get("config/config_entries/entry?domain=versatile_thermostat") or []
     existing = {e["title"] for e in entries}
-    for room, name in ROOMS.items():
+    for room, vtherm in VTHERMS.items():
+        name = vtherm["name"]
         if name in existing:
             continue
         log(f"Versatile Thermostat: creating {name}")
-        await create_vtherm(api, room, name)
+        await create_vtherm(api, room, vtherm)
         await wait_for_entity(api, f"climate.{room}")
         for preset, temperature in PRESET_TEMPERATURES.items():
             await api.post("services/number/set_value",
@@ -277,6 +305,7 @@ SAMPLE_WEEKS = {
     "climate.chambre": [day("00:00 eco", "06:30 comfort", "07:30 eco", "21:00 comfort", "22:30 eco")] * 7,
     "climate.cuisine": [day("00:00 eco", "07:00 comfort", "09:00 eco", "18:30 comfort", "21:00 eco")] * 7,
     "climate.chambre_d_amis": [day("00:00 frost")] * 5 + [day("00:00 eco", "08:00 comfort", "22:00 eco")] * 2,
+    "climate.veranda": [day("00:00 frost", "10:00 comfort", "19:00 frost")] * 7,
 }
 
 
