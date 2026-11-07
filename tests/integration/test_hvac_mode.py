@@ -279,7 +279,7 @@ async def test_a_vtherm_stopped_by_its_auto_start_stop_is_read_the_same_way(benc
     assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["off_cause"] is None
     bench.thermostat("climate.salon", "eco", state="off", context=Context(),
                      requested_state={"hvac_mode": "heat", "target_temperature": 17.0, "preset": "eco"},
-                     specific_states={"hvac_off_reason": "auto_start_stop"})
+                     specific_states={"hvac_off_reason": "hvac_off_auto_start_stop"})
     await bench.hass.async_block_till_done()
     assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["off_cause"] == "auto_start_stop"
 

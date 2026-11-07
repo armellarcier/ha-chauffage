@@ -541,9 +541,10 @@ def test_a_vtherm_without_requested_state_is_read_as_it_shows():
 def test_why_a_vtherm_is_off():
     """For the card: VTherm says why it turned itself off, as hvac_off_reason (VTherm 10.5 moved
     it into specific_states)."""
-    assert engine.off_cause({"specific_states": {"hvac_off_reason": "window_detection"}}) == "window"
+    assert engine.off_cause({"specific_states": {"hvac_off_reason": "hvac_off_window"}}) == "window"  # VTherm 10.5
+    assert engine.off_cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}) == "auto_start_stop"
     assert engine.off_cause({"hvac_off_reason": "auto_start_stop"}) == "auto_start_stop"
-    assert engine.off_cause({"specific_states": {"hvac_off_reason": "manual"}}) is None
+    assert engine.off_cause({"specific_states": {"hvac_off_reason": "hvac_off_manual"}}) is None
     assert engine.off_cause({}) is None
 
 

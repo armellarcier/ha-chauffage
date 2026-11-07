@@ -63,8 +63,9 @@ def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | No
 
 
 # Why a Versatile Thermostat turned itself off, as it says it (hvac_off_reason, moved into
-# specific_states in VTherm 10.5): for the card, which then does not read VTherm's attributes
-OFF_CAUSES = {"window_detection": "window", "auto_start_stop": "auto_start_stop"}
+# specific_states in VTherm 10.5, with values such as "hvac_off_auto_start_stop" or
+# "hvac_off_window"): for the card, which then does not read VTherm's attributes
+OFF_CAUSES = {"window": "window", "window_detection": "window", "auto_start_stop": "auto_start_stop"}
 
 
 def off_cause(attributes: Mapping[str, Any]) -> str | None:
@@ -72,7 +73,7 @@ def off_cause(attributes: Mapping[str, Any]) -> str | None:
     None otherwise (turned off by hand, or on)."""
     specific = attributes.get("specific_states")
     reason = specific.get("hvac_off_reason") if isinstance(specific, Mapping) else attributes.get("hvac_off_reason")
-    return OFF_CAUSES.get(preset_value(reason))
+    return OFF_CAUSES.get(str(preset_value(reason) or "").removeprefix("hvac_off_"))
 
 
 def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
