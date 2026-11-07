@@ -209,6 +209,52 @@ def test_a_slot_of_an_unknown_preset_changes_nothing():
     assert next_change(weeks=weeks) == at("20:00")
 
 
+# ----- layers -----
+
+# A layer's day: None is a gap, where the layer below (or the schedule) shows through
+OFFICE_OCCUPIED = [[["00:00", None], ["07:00", "comfort"], ["22:00", None]]] * 7
+SUNNY = [[["00:00", None], ["12:00", "eco"], ["17:00", None]]] * 7
+LAYER_WEEKS = {"climate.salon": {"occupied": OFFICE_OCCUPIED, "sunny": SUNNY}}
+
+
+def layered(layers, layer_weeks=LAYER_WEEKS):
+    return engine.Plan(WEEKS, "normal", PRESETS, {}, {}, layer_weeks=layer_weeks, layers=tuple(layers))
+
+
+def test_a_layer_that_applies_replaces_the_slots_it_has_and_lets_its_gaps_through():
+    """Saturday: the schedule's comfort from 08:00 to 23:00, the layer's eco from 12:00 to 17:00.
+    At 17:00 the gap lets the schedule's slot through, although that slot started at 08:00."""
+    saturday = layered(["sunny"]).week("climate.salon")[5]
+    assert saturday == [["00:00", "eco"], ["08:00", "comfort"], ["12:00", "eco"], ["17:00", "comfort"], ["23:00", "eco"]]
+
+
+def test_the_merged_day_has_no_two_slots_in_a_row_with_the_same_preset():
+    """06:30–07:00 comfort from the schedule, 07:00–22:00 comfort from the layer: one slot."""
+    assert layered(["occupied"]).week("climate.salon")[0] == [["00:00", "eco"], ["06:30", "comfort"], ["22:30", "eco"]]
+    assert layered(["occupied"]).week("climate.salon")[5] == [["00:00", "eco"], ["07:00", "comfort"], ["23:00", "eco"]]
+
+
+def test_the_top_layer_wins_where_layers_overlap():
+    day = layered(["sunny", "occupied"]).week("climate.salon")[0]
+    assert day == [["00:00", "eco"], ["06:30", "comfort"], ["12:00", "eco"], ["17:00", "comfort"], ["22:30", "eco"]]
+    day = layered(["occupied", "sunny"]).week("climate.salon")[0]
+    assert day == [["00:00", "eco"], ["06:30", "comfort"], ["22:30", "eco"]]
+
+
+def test_a_layer_that_does_not_apply_changes_nothing():
+    assert layered([]).week("climate.salon") == WEEK
+
+
+def test_a_thermostat_without_a_week_in_a_layer_follows_its_schedule():
+    assert layered(["occupied"]).week("climate.bureau") == WEEKS["climate.bureau"]["normal"]
+
+
+def test_the_slots_and_the_next_change_follow_the_layers():
+    plan = layered(["occupied"])
+    assert plan.preset_at("climate.salon", at("12:00")) == ("comfort", False)
+    assert plan.next_change("climate.salon", at("12:00"), heat(), not_before=at("12:00"), until=at("12:00", day=2)) == at("22:30")
+
+
 # ----- data rules -----
 
 def test_days_are_normalized_like_in_the_card():

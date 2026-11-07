@@ -164,6 +164,18 @@ def slot_at(day: list[list[str]], hhmm: str) -> tuple[str | None, bool]:
     return preset, starts_now
 
 
+def merge_days(days: list[list[list[Any]]]) -> list[list[str]]:
+    """One day from days stacked top first: at each time, the preset of the top day that has
+    one there (a slot without a preset is a gap). The last day, the schedule's, has no gaps.
+    Two slots in a row with the same preset are one slot."""
+    merged: list[list[str]] = []
+    for start in sorted({start for day in days for start, _ in day}):
+        preset = next(p for p in (slot_at(day, start)[0] for day in days) if p is not None)
+        if not merged or merged[-1][1] != preset:
+            merged.append([start, preset])
+    return merged
+
+
 def slots_after(week: list[list[list[str]]], now: datetime) -> Iterator[tuple[datetime, str]]:
     """(start, preset) of the slots starting after now, for 7 days, in order. Every start is
     an instant after now."""
@@ -212,11 +224,20 @@ class Plan:
     mappings: dict[str, dict[str, Any]]
     overrides: dict[str, Any]
     use_presets: bool = True
+    layer_weeks: dict[str, dict[str, Any]] = field(default_factory=dict)  # {thermostat: {layer id: week}}
+    layers: tuple[str, ...] = ()  # the layers of the active schedule that apply now, top first
 
     def week(self, entity_id: str) -> list[list[list[str]]] | None:
-        """The thermostat's week in the active schedule (None: none, or not 7 days)."""
+        """The thermostat's week in the active schedule, with the layers that apply on top
+        (None: none, or not 7 days)."""
         week = self.weeks.get(entity_id, {}).get(self.schedule)
-        return week if week and len(week) == 7 else None
+        if not week or len(week) != 7:
+            return None
+        own = self.layer_weeks.get(entity_id, {})
+        layers = [own[layer] for layer in self.layers if layer in own and len(own[layer]) == 7]
+        if not layers:
+            return week
+        return [merge_days([layer[day] for layer in layers] + [week[day]]) for day in range(7)]
 
     def preset_at(self, entity_id: str, now: datetime) -> tuple[str | None, bool]:
         week = self.week(entity_id)
