@@ -153,8 +153,8 @@ def _kind_and_value(target: engine.Target | None) -> dict[str, Any]:
     return {"kind": "preset" if key == "preset_mode" else key, "value": target[key]}
 
 
-def _off_cause(state: State | None) -> str | None:
-    return engine.off_cause(state.attributes) if state is not None and state.state == engine.OFF else None
+def _cause(state: State | None) -> str | None:
+    return engine.cause(state.attributes, state.state) if state is not None else None
 
 
 def _end_data(override: dict[str, Any]) -> dict[str, Any]:
@@ -428,8 +428,8 @@ class ChauffageRuntime:
             "schedules": self.data["schedules"],
             "active_schedule": self.data["active_schedule"],
             "presets": self.data["presets"],
-            # off_cause: why a VTherm turned itself off ("window", "auto_start_stop"), None otherwise
-            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "off_cause": self.off_cause(e)}
+            # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
+            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e)}
                             for e, t in self.scheduled.items()},
             "mappings": self.mappings,
             "targets": {e: self.targets_of(e) for e in self.scheduled},
@@ -492,11 +492,11 @@ class ChauffageRuntime:
             ids.update(entities.values())
         return ids
 
-    def off_cause(self, entity_id: str) -> str | None:
-        """Why a thermostat turned itself off, when it says it (a VTherm's window or auto
-        start/stop): for the card, which then does not read VTherm's attributes."""
-        state = self.hass.states.get(entity_id)
-        return engine.off_cause(state.attributes) if state is not None and state.state == engine.OFF else None
+    def cause(self, entity_id: str) -> str | None:
+        """Why a thermostat protects itself, when it says it (a VTherm's window, open while it is
+        off or heats at the frost setpoint, or its auto start/stop): for the card, which then
+        does not read VTherm's attributes."""
+        return _cause(self.hass.states.get(entity_id))
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
         """(slot now, next different slot, its start) for a thermostat in the active schedule."""
@@ -524,7 +524,18 @@ class ChauffageRuntime:
             "next_hvac_mode": next_target.get("hvac_mode") if next_target else None,
             "next_start": next_start.isoformat() if next_start else None,
             "next_slot_end": slot.isoformat() if slot else None,
+            "next_day_slot_end": tomorrow.isoformat() if (tomorrow := self.next_day_slot_end(entity_id, thermostat)) else None,
         }
+
+    def next_day_slot_end(self, entity_id: str, current: engine.Thermostat | None) -> datetime | None:
+        """Tomorrow's first slot that changes the thermostat's state, for the end "until
+        tomorrow" of an off override (C4). A 00:00 slot that repeats the evening's does not
+        count. None without one."""
+        now = dt_util.now()
+        start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        start = dt_util.as_local(dt_util.as_utc(start))
+        return self.plan().next_change(entity_id, start - timedelta(minutes=1), current,
+                                       not_before=start, until=start + timedelta(days=1))
 
     def planned_presets(self) -> dict[str, dict[str, Any]]:
         """planned_info of every scheduled thermostat."""
@@ -1027,10 +1038,13 @@ class ChauffageRuntime:
 
     def needs(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None) -> bool:
         """A target to send: the thermostat does not show it, or would apply another command later."""
-        if current is None or not engine.satisfied(target, current):
+        if current is None:
+            return True
+        sent = engine.complete(target, current)
+        if not engine.satisfied(sent, current):
             return True
         commands = self.pending(entity_id)
-        return bool(commands) and commands[-1] != engine.complete(target, current)
+        return bool(commands) and commands[-1] != sent
 
     @callback
     def _applied(self, entity_id: str, before: engine.Thermostat | None,
@@ -1156,7 +1170,7 @@ class ChauffageRuntime:
     def _state_changed(self, event: Event[EventStateChangedData]) -> None:
         old, new = event.data["old_state"], event.data["new_state"]
         if not self._learn(new) and (self.temperatures_of(old) != self.temperatures_of(new)
-                                     or _off_cause(old) != _off_cause(new)):
+                                     or _cause(old) != _cause(new)):
             self._notify()  # published by the thermostat: the card shows them
         # Paused thermostats are followed for their preset temperatures only
         if old is None or new is None or self.is_paused(new.entity_id):
@@ -1187,6 +1201,8 @@ class ChauffageRuntime:
                          new.entity_id, _time(applied["sent"]), _describe(applied), then)
             return
         expected = self.plan().expected(new.entity_id, dt_util.now(), after)
+        if expected is not None:
+            expected = engine.complete(expected, after)  # what the slot sends this thermostat now
         preset_temperature = self.preset_temperature(new, expected["preset_mode"]) \
             if expected is not None and "preset_mode" in expected else None
         current = self.data["overrides"].get(new.entity_id)

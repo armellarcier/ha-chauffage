@@ -197,6 +197,19 @@ future contributor might question.
   - **The device validates the state, not Chauffage.** Chauffage keeps no rule such as "a preset
     and a temperature are exclusive" or "this thermostat has no cool": the card offers only the
     values the thermostat lists, and the thermostat decides.
+  - **A preset's value may hold a cooling setpoint**, `cool_temperature`, next to its heating
+    one. A reversible air conditioner wants Comfort at 20 °C in winter and at 25 °C in summer,
+    and the user panel refused a second *Comfort* preset for that. When the target is applied in
+    `cool`, the cooling setpoint replaces the preset and the temperature of the target; without
+    one, the setpoint is left alone on a thermostat that lists `heat` and `cool`, so a 17 °C
+    heating setpoint never reaches an air conditioner that cools. An air conditioner that only
+    cools gets the base setpoint, as before. In `heat`, the cooling setpoint is dropped. The
+    rule lives in `engine.complete()`, with the "on" rule, so overrides and slots follow it
+    alike.
+  - **"Until tomorrow" for an off override** is the first slot of tomorrow that changes the
+    thermostat's state, computed by the integration (`next_day_slot_end`), because the card
+    cannot tell a 00:00 slot that repeats the evening from one that changes something. The
+    integration gives `None` when tomorrow changes nothing.
   - **The fan and the vanes are more keys of the same partial state** (#61): `fan_mode`,
     `swing_mode` and `swing_horizontal_mode`, on a slot's settings and on a preset's value,
     compared and sent as they are. They show in the popovers only: the week view keeps the HVAC
@@ -217,8 +230,11 @@ future contributor might question.
   it heat while the window is open, and it gets its slots meanwhile, so it restarts on the right
   preset. A VTherm asked to be off (turned off by hand) is an off override, as any thermostat.
   Why not the window: reading `is_window_detected` or the window action would tie Chauffage to
-  one VTherm feature. For the card, Chauffage says why a VTherm is off (`off_cause`: `window` or
-  `auto_start_stop`, from `hvac_off_reason`), so the card does not read VTherm's attributes.
+  one VTherm feature. For the card, Chauffage says why a VTherm protects itself (`cause`: `window`
+  or `auto_start_stop`), so the card does not read VTherm's attributes. The window comes from
+  `window_manager.window_state`, because the window action *frost* keeps the VTherm on, at the
+  frost setpoint: the card must say "Window open" then too, and `hvac_off_reason` only exists
+  while the VTherm is off. The auto start/stop still comes from `hvac_off_reason`.
   - **A VTherm without `requested_state` keeps the behavior before #91** (#74): off, it is read
     as on. It gets its slots and its override while off, stays off, and starts again on them.
     Chauffage neither turns it on nor takes it for turned off by hand. Before #91, a first fix

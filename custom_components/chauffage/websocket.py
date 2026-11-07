@@ -6,7 +6,7 @@ chauffage/subscribe          everything the card needs, then again after every c
                              {"hvac_mode": "off"}); `planned` gives each thermostat's preset,
                              hvac_mode (off, a mode, or null: on), target, next_preset,
                              next_hvac_mode, next_start and next_slot_end; `thermostats` says
-                             why a VTherm turned itself off (off_cause: window, auto_start_stop)
+                             why a VTherm protects itself (cause: window, auto_start_stop)
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent (slots with
                              optional settings, see above), against
                              the revision of each ({climate: revision | null}), or the global one

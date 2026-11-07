@@ -538,14 +538,19 @@ def test_a_vtherm_without_requested_state_is_read_as_it_shows():
         == (None, "eco", 17.0)
 
 
-def test_why_a_vtherm_is_off():
-    """For the card: VTherm says why it turned itself off, as hvac_off_reason (VTherm 10.5 moved
-    it into specific_states)."""
-    assert engine.off_cause({"specific_states": {"hvac_off_reason": "hvac_off_window"}}) == "window"  # VTherm 10.5
-    assert engine.off_cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}) == "auto_start_stop"
-    assert engine.off_cause({"hvac_off_reason": "auto_start_stop"}) == "auto_start_stop"
-    assert engine.off_cause({"specific_states": {"hvac_off_reason": "hvac_off_manual"}}) is None
-    assert engine.off_cause({}) is None
+def test_why_a_vtherm_protects_itself():
+    """For the card: VTherm says why it turned itself off (hvac_off_reason, moved into
+    specific_states in VTherm 10.5), and whether its window is open while it keeps heating at
+    the frost setpoint (window_manager, C8)."""
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_window"}}, "off") == "window"  # VTherm 10.5
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}, "off") == "auto_start_stop"
+    assert engine.cause({"hvac_off_reason": "auto_start_stop"}, "off") == "auto_start_stop"
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_manual"}}, "off") is None
+    # The window action "frost": the VTherm stays on
+    assert engine.cause({"specific_states": {"window_manager": {"window_state": "on"}, "hvac_mode_reason": "hvac_off_window_detection"}}, "heat") == "window"
+    assert engine.cause({"specific_states": {"window_manager": {"window_state": "off"}, "hvac_mode_reason": "hvac_off_window_detection"}}, "heat") is None
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}, "heat") is None  # started again
+    assert engine.cause({}, "heat") is None
 
 
 def test_turning_a_thermostat_off_by_hand_during_an_on_slot_is_an_off_override():
@@ -630,3 +635,25 @@ def test_the_fan_and_the_vanes_are_satisfied_by_equal_values():
     assert not engine.satisfied({"fan_mode": "3"}, quiet)
     assert engine.satisfied({"preset_mode": "comfort", "swing_mode": "auto"}, quiet)
     assert not engine.satisfied({"swing_horizontal_mode": "split"}, quiet)  # not shown: not satisfied
+
+
+# ----- a cooling setpoint in a preset's value (corrections C1) -----
+
+def test_in_cool_the_cooling_setpoint_replaces_the_preset_and_its_temperature():
+    both = {"preset_mode": "comfort", "temperature": 20.0, "cool_temperature": 25.0}
+    assert engine.complete(both, ac("cool")) == {"temperature": 25.0}
+    assert engine.complete({"temperature": 20.0, "cool_temperature": 25.0, "hvac_mode": "cool"}, ac("heat")) == {"temperature": 25.0, "hvac_mode": "cool"}
+    # Not in cool: the cooling setpoint is not sent
+    assert engine.complete(both, ac("heat")) == {"preset_mode": "comfort", "temperature": 20.0}
+    assert engine.complete(both, ac("off")) == {"preset_mode": "comfort", "temperature": 20.0, "hvac_mode": "heat"}
+
+
+def test_in_cool_without_a_cooling_setpoint_the_setpoint_is_left_alone_unless_the_ac_only_cools():
+    assert engine.complete({"preset_mode": "comfort", "temperature": 20.0}, ac("cool")) == {"preset_mode": "comfort"}
+    cooler = ac("cool", modes=("off", "cool", "fan_only"))
+    assert engine.complete({"temperature": 20.0}, cooler) == {"temperature": 20.0}
+
+
+def test_the_cooling_setpoint_is_validated_and_fitted():
+    assert model.normalize_target({"cool_temperature": "25"}) == {"cool_temperature": 25.0}
+    assert engine.fit({"cool_temperature": 25.3}, plain(step=0.5)) == {"cool_temperature": 25.5}

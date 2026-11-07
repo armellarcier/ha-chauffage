@@ -49,8 +49,14 @@ alone, pause it (its *Control* switch).
   thermostat's own preset, a temperature, and on an air conditioner its HVAC mode. *Reset to
   default* drops what you set. A preset's popover gets *On | Off*: an *Away* preset set to *Off*
   turns every thermostat off.
-- **The thermostat card says why a Versatile Thermostat turned itself off**: "Window open" or
-  "Auto stop", with the preset it restarts on.
+- **A preset's value can hold a cooling setpoint** (#91). On a reversible air conditioner, the
+  cell popover of the *Presets* tab gets two temperature rows: heating and cooling. *Comfort* at
+  20 °C when heating and at 25 °C when cooling, with one preset. In cool, Chauffage sends the
+  cooling setpoint; without one, it leaves the setpoint alone, so a heating setpoint never
+  reaches an air conditioner that cools.
+- **The thermostat card says why a Versatile Thermostat protects itself**: "Window open" or
+  "Auto stop", with the preset it restarts on. "Window open" shows also when the window keeps
+  the thermostat heating at its frost setpoint.
 - **A slot or a preset's value can set the fan and the vanes of an air conditioner** (#61, #91).
   In the slot popover, *More settings* holds one list per setting the thermostat lists (fan
   speed, swing, horizontal swing), with *Default*. The cell popover of the *Presets* tab gets

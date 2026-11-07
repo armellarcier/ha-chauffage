@@ -190,14 +190,16 @@ async def test_a_slot_can_set_the_hvac_mode(bench: Bench):
     await start(bench, "13:00", day, hvac_modes=AC_MODES)
     await bench.go_to("14:00")
     assert bench.powered() == {"climate.salon": "cool"}
-    assert bench.applied() == {"climate.salon": "comfort"}
+    # In cool without a cooling setpoint, a thermostat that also heats keeps its own setpoint (C1)
+    assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "comfort"})
 
 
 async def test_a_preset_s_value_on_a_thermostat_can_set_the_hvac_mode(bench: Bench):
     await start(bench, "17:00", hvac_modes=AC_MODES)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 24, "hvac_mode": "cool"}})
+    await bench.runtime.set_mapping("climate.salon", {"comfort": {"cool_temperature": 24, "hvac_mode": "cool"}})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.targets_of("climate.salon")["comfort"] == {"temperature": 24.0, "hvac_mode": "cool"}
+    setpoint = {"preset_mode": "comfort"} if bench.kind != "plain" else {"temperature": 20.0}
+    assert bench.runtime.targets_of("climate.salon")["comfort"] == {**setpoint, "cool_temperature": 24.0, "hvac_mode": "cool"}
     await bench.go_to("17:30")
     assert bench.powered() == {"climate.salon": "cool"}
     assert bench.temperature_calls[-1] == ("climate.salon", 24.0)
@@ -222,7 +224,7 @@ async def test_a_cooling_air_conditioner_keeps_cooling(bench: Bench):
     await start(bench, "17:00", state="cool", hvac_modes=AC_MODES)
     await bench.go_to("17:30")
     assert bench.powered() == {}
-    assert bench.applied() == {"climate.salon": "comfort"}
+    assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "comfort"})  # its own setpoint in cool (C1)
     assert salon(bench) == "cool"
 
 
@@ -276,12 +278,12 @@ async def test_a_vtherm_stopped_by_its_auto_start_stop_is_read_the_same_way(benc
     vtherm(bench, "off", "heat")
     await bench.hass.async_block_till_done()
     assert bench.overrides() == {}
-    assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["off_cause"] is None
+    assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["cause"] is None
     bench.thermostat("climate.salon", "eco", state="off", context=Context(),
                      requested_state={"hvac_mode": "heat", "target_temperature": 17.0, "preset": "eco"},
                      specific_states={"hvac_off_reason": "hvac_off_auto_start_stop"})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["off_cause"] == "auto_start_stop"
+    assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["cause"] == "auto_start_stop"
 
 
 async def test_a_vtherm_turned_off_by_hand_is_an_off_override(bench: Bench):
@@ -375,3 +377,82 @@ async def test_a_script_reads_the_fan_of_the_slots(bench: Bench):
     week = await bench.hass.services.async_call(
         "chauffage", "get_week", {"entity_id": "climate.salon"}, blocking=True, return_response=True)
     assert week["climate.salon"]["monday"][0] == {"start": "00:00", "end": "24:00", "preset": "eco", "fan_mode": "1"}
+
+
+# ----- a cooling setpoint in a preset's value (corrections C1), and the end "until tomorrow" (C4) -----
+
+COOL_ATTRS = {"hvac_modes": AC_MODES}
+
+
+async def test_a_cooling_slot_uses_the_preset_s_cooling_setpoint(bench: Bench):
+    """Comfort on a reversible AC: 20 °C when heating, 25 °C when cooling. In cool, the cooling
+    setpoint replaces the preset and its temperature."""
+    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", {"hvac_mode": "cool"}]], **COOL_ATTRS)
+    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 20, "cool_temperature": 25}})
+    await bench.hass.async_block_till_done()
+    bench.temperature_calls.clear()
+    await bench.go_to("14:00")
+    assert bench.powered() == {"climate.salon": "cool"}
+    assert bench.temperature_calls == [("climate.salon", 25.0)]
+
+
+async def test_in_cool_without_a_cooling_setpoint_the_ac_keeps_its_own_setpoint(bench: Bench):
+    """A thermostat that lists heat and cool never gets 17 °C in cool."""
+    bench.needs("plain")
+    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", {"hvac_mode": "cool"}]], **COOL_ATTRS)
+    bench.temperature_calls.clear()
+    await bench.go_to("14:00")
+    assert bench.powered() == {"climate.salon": "cool"}
+    assert bench.temperature_calls == []
+
+
+async def test_a_cooling_only_ac_gets_the_base_setpoint(bench: Bench):
+    bench.needs("plain")
+    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort"]], state="cool", hvac_modes=["off", "cool", "fan_only"])
+    bench.temperature_calls.clear()
+    await bench.go_to("14:00")
+    assert bench.temperature_calls == [("climate.salon", 20.0)]
+
+
+async def test_a_heating_slot_ignores_the_cooling_setpoint(bench: Bench):
+    bench.needs("plain")
+    await start(bench, "17:00", **COOL_ATTRS)
+    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 20, "cool_temperature": 25}})
+    await bench.hass.async_block_till_done()
+    bench.temperature_calls.clear()
+    await bench.go_to("17:30")
+    assert bench.temperature_calls == [("climate.salon", 20.0)]
+    assert bench.runtime.targets_of("climate.salon")["comfort"] == {"temperature": 20.0, "cool_temperature": 25.0}
+
+
+async def test_an_override_to_a_preset_in_cool_uses_the_cooling_setpoint(bench: Bench):
+    await start(bench, "10:00", state="cool", **COOL_ATTRS)
+    await bench.runtime.set_mapping("climate.salon", {"boost": {"temperature": 21, "cool_temperature": 23}})
+    await bench.hass.async_block_till_done()
+    bench.temperature_calls.clear()
+    await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True)
+    assert bench.temperature_calls == [("climate.salon", 23.0)]
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 21.0, "cool_temperature": 23.0}
+
+
+async def test_the_card_sees_tomorrow_s_first_slot_that_changes_the_state(bench: Bench):
+    """The end "until tomorrow" of an off override (C4): the 00:00 slot that repeats the evening
+    does not count, across midnight and from Sunday to Monday."""
+    await start(bench, "23:00", NIGHT_OFF)
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-13T06:30:00+02:00"
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 5 + [[["00:00", "eco"], ["08:00", "comfort"], ["23:00", "eco"]]] * 2}})
+    await bench.go_to("23:30", day=6)  # Sunday: tomorrow is a weekday
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-19T06:30:00+02:00"
+    await bench.save_weeks({"climate.salon": {"normal": [[["00:00", "eco"]]] * 7}})
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] is None
+
+
+async def test_a_vtherm_heating_at_the_frost_setpoint_for_its_window_says_so(bench: Bench):
+    """The window action "frost" keeps the VTherm on: the card is told the window anyway (C8)."""
+    await start_vtherm(bench, "10:00")
+    bench.thermostat("climate.salon", "eco", 7.0, context=Context(),
+                     requested_state={"hvac_mode": "heat", "target_temperature": 17.0, "preset": "eco"},
+                     specific_states={"window_manager": {"window_state": "on"}, "hvac_mode_reason": "hvac_off_window_detection"})
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["cause"] == "window"
+    assert bench.overrides() == {}

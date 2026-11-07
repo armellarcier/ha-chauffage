@@ -20,7 +20,8 @@ Vocabulary: docs/glossary.md.
                              what was set by hand: the rest is engine.default_target. A target is
                              a partial state of the thermostat, as a scene holds it (#91):
                              {"preset_mode": "comfort"}, {"temperature": 20.5}, or both, and an
-                             "hvac_mode", a "fan_mode", a "swing_mode", a "swing_horizontal_mode"
+                             "hvac_mode", a "fan_mode", a "swing_mode", a "swing_horizontal_mode",
+                             a "cool_temperature" (the setpoint when the thermostat cools)
         preset_temperatures: {climate preset: temperature} last seen on the thermostat
         hvac_mode:           the HVAC mode the thermostat was last on in (None: not seen on yet):
                              what an off thermostat without heat is turned on in
@@ -248,8 +249,10 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
 # The attributes a slot's settings may set: everything but the setpoint, which its preset gives
 # (the HVAC mode, then the fan and the vanes of an air conditioner, #91)
 SETTING_KEYS = {"hvac_mode": str, "fan_mode": str, "swing_mode": str, "swing_horizontal_mode": str}
-# The climate attributes a target may set, and how their values are read
-TARGET_KEYS = {"preset_mode": str, "temperature": float, **SETTING_KEYS}
+# The climate attributes a target may set, and how their values are read. "cool_temperature" is
+# the setpoint when the thermostat cools (a preset's value on a reversible air conditioner): sent
+# as the temperature in cool, see engine.complete
+TARGET_KEYS = {"preset_mode": str, "temperature": float, "cool_temperature": float, **SETTING_KEYS}
 
 
 def _normalize_attributes(attributes: Any, keys: dict[str, type], what: str) -> dict[str, Any]:

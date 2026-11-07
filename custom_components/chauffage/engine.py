@@ -70,17 +70,23 @@ def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | No
     return hvac_mode, preset, temperature
 
 
-# Why a Versatile Thermostat turned itself off, as it says it (hvac_off_reason, moved into
+# Why a Versatile Thermostat protects itself, as it says it: hvac_off_reason (moved into
 # specific_states in VTherm 10.5, with values such as "hvac_off_auto_start_stop" or
-# "hvac_off_window"): for the card, which then does not read VTherm's attributes
+# "hvac_off_window") while it is off, and its window manager while it keeps heating at the frost
+# setpoint for an open window. For the card, which then does not read VTherm's attributes.
 OFF_CAUSES = {"window": "window", "window_detection": "window", "auto_start_stop": "auto_start_stop"}
 
 
-def off_cause(attributes: Mapping[str, Any]) -> str | None:
-    """"window" or "auto_start_stop" when the thermostat says it turned itself off for that,
-    None otherwise (turned off by hand, or on)."""
-    specific = attributes.get("specific_states")
-    reason = specific.get("hvac_off_reason") if isinstance(specific, Mapping) else attributes.get("hvac_off_reason")
+def cause(attributes: Mapping[str, Any], state: str) -> str | None:
+    """"window" or "auto_start_stop" when the thermostat says it turned itself off for that, or
+    "window" while it heats at the frost setpoint for its open window; None otherwise."""
+    specific = attributes.get("specific_states") if isinstance(attributes.get("specific_states"), Mapping) else {}
+    window = specific.get("window_manager") if isinstance(specific.get("window_manager"), Mapping) else attributes.get("window_manager")
+    if isinstance(window, Mapping) and str(window.get("window_state")) == "on":
+        return "window"
+    if state != OFF:
+        return None
+    reason = specific.get("hvac_off_reason", attributes.get("hvac_off_reason"))
     return OFF_CAUSES.get(str(preset_value(reason) or "").removeprefix("hvac_off_"))
 
 
@@ -123,11 +129,23 @@ def on_mode(thermostat: Thermostat) -> str | None:
 def complete(target: Target, thermostat: Thermostat) -> Target:
     """The target to send: with the HVAC mode to turn the thermostat on in when it is off and
     the target says none. A thermostat that is on keeps its HVAC mode: never a cooling air
-    conditioner switched to heat."""
-    if "hvac_mode" in target or thermostat.state != OFF:
-        return target
-    mode = on_mode(thermostat)
-    return {**target, "hvac_mode": mode} if mode else target
+    conditioner switched to heat. In cool, the setpoint is the preset's cooling setpoint
+    (`cool_temperature`, which replaces its preset and its temperature); without one, a
+    thermostat that also heats keeps its own setpoint (never 17 °C in cool), and a cooling-only
+    one gets the base setpoint (docs/decisions.md, "Presets")."""
+    out = {key: value for key, value in target.items() if key != "cool_temperature"}
+    if "hvac_mode" not in out and thermostat.state == OFF:
+        mode = on_mode(thermostat)
+        if mode:
+            out["hvac_mode"] = mode
+    mode = out.get("hvac_mode") or thermostat.state
+    if mode == "cool":
+        if "cool_temperature" in target:
+            out = {key: value for key, value in out.items() if key not in SETPOINT_KEYS}
+            out["temperature"] = target["cool_temperature"]
+        elif "heat" in thermostat.hvac_modes:
+            out.pop("temperature", None)
+    return out
 
 
 def merge(base: Target, layer: Target | None) -> Target:
@@ -218,10 +236,9 @@ def same_temperature(a: float | None, b: float | None, thermostat: Thermostat | 
 
 
 def fit(target: Target, thermostat: Thermostat | None) -> Target:
-    """The target with its temperature fitted to the thermostat (limits, step)."""
-    if "temperature" not in target:
-        return dict(target)
-    return {**target, "temperature": fit_temperature(target["temperature"], thermostat)}
+    """The target with its temperatures fitted to the thermostat (limits, step)."""
+    return {key: fit_temperature(value, thermostat) if key in ("temperature", "cool_temperature") else value
+            for key, value in target.items()}
 
 
 def hvac_satisfied(target: Target, thermostat: Thermostat) -> bool:
