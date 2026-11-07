@@ -612,3 +612,21 @@ def test_a_preset_may_set_a_default_hvac_mode():
 def test_a_target_may_set_the_hvac_mode_alone():
     assert model.normalize_target({"hvac_mode": "off"}) == OFF
     assert model.normalize_target({"hvac_mode": "cool", "temperature": "24"}) == {"hvac_mode": "cool", "temperature": 24.0}
+
+
+# ----- fan and vanes (lot 3 of #91) -----
+
+def test_a_target_may_set_the_fan_and_the_vanes():
+    assert model.normalize_target({"fan_mode": "3", "swing_mode": "swing", "swing_horizontal_mode": "split"}) == {
+        "fan_mode": "3", "swing_mode": "swing", "swing_horizontal_mode": "split"}
+    assert model.normalize_day([["00:00", "eco", {"fan_mode": "1"}]]) == [["00:00", "eco", {"fan_mode": "1"}]]
+    with pytest.raises(model.InvalidData):
+        model.normalize_target({"fan_mode": ""})
+
+
+def test_the_fan_and_the_vanes_are_satisfied_by_equal_values():
+    quiet = Thermostat("cool", "comfort", 20.0, VTHERM, fan_mode="1", swing_mode="auto")
+    assert engine.satisfied({"fan_mode": "1"}, quiet)
+    assert not engine.satisfied({"fan_mode": "3"}, quiet)
+    assert engine.satisfied({"preset_mode": "comfort", "swing_mode": "auto"}, quiet)
+    assert not engine.satisfied({"swing_horizontal_mode": "split"}, quiet)  # not shown: not satisfied

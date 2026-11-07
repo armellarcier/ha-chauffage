@@ -334,3 +334,44 @@ async def test_the_last_hvac_mode_a_thermostat_was_on_in_survives_a_restart(benc
     assert bench.runtime.thermostats["climate.salon"]["hvac_mode"] == "cool"
     await bench.advance(1)  # the delayed save
     assert bench.storage["chauffage"]["data"]["thermostats"]["climate.salon"]["hvac_mode"] == "cool"
+
+
+# ----- fan and vanes (lot 3 of #91) -----
+
+AC_ATTRS = {"hvac_modes": AC_MODES, "fan_modes": ["auto", "1", "2", "3"], "swing_modes": ["auto", "swing"],
+            "swing_horizontal_modes": ["auto", "split"], "fan_mode": "auto", "swing_mode": "auto", "swing_horizontal_mode": "auto"}
+
+
+async def test_a_slot_can_set_the_fan_and_the_vanes(bench: Bench):
+    day = [["00:00", "eco"], ["14:00", "comfort", {"fan_mode": "3", "swing_mode": "swing", "swing_horizontal_mode": "split"}]]
+    await start(bench, "13:00", day, **AC_ATTRS)
+    await bench.go_to("14:00")
+    assert bench.applied() == {"climate.salon": "comfort"}
+    assert bench.settings() == {("climate.salon", "fan_mode"): "3", ("climate.salon", "swing_mode"): "swing",
+                                ("climate.salon", "swing_horizontal_mode"): "split"}
+    assert bench.powered() == {}
+
+
+async def test_a_preset_s_value_on_a_thermostat_can_set_the_fan(bench: Bench):
+    await start(bench, "17:00", **AC_ATTRS)
+    await bench.runtime.set_mapping("climate.salon", {"comfort": {"preset_mode": "comfort", "fan_mode": "2"}})
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.targets_of("climate.salon")["comfort"] == {"preset_mode": "comfort", "fan_mode": "2"}
+    bench.settings()
+    await bench.go_to("17:30")
+    assert bench.settings() == {("climate.salon", "fan_mode"): "2"}
+
+
+async def test_a_fan_already_set_is_not_sent_again(bench: Bench):
+    day = [["00:00", "eco"], ["14:00", "comfort", {"fan_mode": "auto"}]]
+    await start(bench, "13:00", day, **AC_ATTRS)
+    await bench.go_to("14:00")
+    assert bench.settings() == {}
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_a_script_reads_the_fan_of_the_slots(bench: Bench):
+    await start(bench, "10:00", [["00:00", "eco", {"fan_mode": "1"}]], **AC_ATTRS)
+    week = await bench.hass.services.async_call(
+        "chauffage", "get_week", {"entity_id": "climate.salon"}, blocking=True, return_response=True)
+    assert week["climate.salon"]["monday"][0] == {"start": "00:00", "end": "24:00", "preset": "eco", "fan_mode": "1"}

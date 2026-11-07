@@ -51,6 +51,13 @@ alone, pause it (its *Control* switch).
   turns every thermostat off.
 - **The thermostat card says why a Versatile Thermostat turned itself off**: "Window open" or
   "Auto stop", with the preset it restarts on.
+- **A slot or a preset's value can set the fan and the vanes of an air conditioner** (#61, #91).
+  In the slot popover, *More settings* holds one list per setting the thermostat lists (fan
+  speed, swing, horizontal swing), with *Default*. The cell popover of the *Presets* tab gets
+  the same rows. Chauffage sends them with the slot, as a scene does.
+- **Copy current state** (#91). A button in the slot popover and in the cell popover fills the
+  fields from the thermostat as it is now: on or off, its HVAC mode, its fan and its vanes, and in
+  the cell popover its preset or its setpoint. Nothing is saved until *Save* or *OK*.
 - **The planned preset sensor says the HVAC mode of the current and next slot**, in its
   `hvac_mode` and `next_hvac_mode` attributes, and `chauffage.get_week` gives each slot's
   settings.

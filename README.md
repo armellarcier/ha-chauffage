@@ -207,6 +207,15 @@ On an air conditioner, the same row offers the HVAC modes the thermostat lists, 
 *Cool* for an afternoon. *Default* lets Chauffage decide. The week view shows the mode's icon
 on the slot. A preset can also turn the thermostats off by itself, see [Presets](#presets).
 
+**Fan and vanes.** On an air conditioner, *More settings* under the row holds the fan speed and
+the vanes, one list per setting the thermostat lists. *Default* leaves the setting to the
+preset's value, or to the thermostat. The folded line shows the values the slot sets.
+
+**Copy current state.** The button at the foot of the popover fills the slot from the
+thermostat as it is now: on or off, its HVAC mode, its fan and its vanes. Not its preset, nor its
+times. The slot waits for *Save*, like any edit. On a Versatile Thermostat turned off by its
+window, the copy gives *On*: what the thermostat was asked, not its protection.
+
 ### Change the active schedule
 
 One schedule is active at a time. The **Active schedule** select (`select.chauffage_schedule`)
@@ -349,9 +358,11 @@ thermostat. A thermostat's page in the panel shows its presets side by side, wit
   preset from there. To add a preset, click *+ Add a preset* under the table.
 - **A cell** opens what the preset does on this thermostat. The cell says where its temperature
   comes from, for example "its *Comfort* preset", "set here" or "default". The popover shows
-  what the default gives, and one checkbox per setting. Using a field ticks its setting. *Reset
-  to default* drops what you set here. The popover also links to the thermostat's device. You
-  set the thermostat's own presets there.
+  what the default gives, and one checkbox per setting: the thermostat's own preset, a
+  temperature, and on an air conditioner its HVAC mode, its fan and its vanes. Using a field
+  ticks its setting. *Copy current state* fills the fields from the thermostat as it is now, and
+  you tap *OK* to keep them. *Reset to default* drops what you set here. The popover also links
+  to the thermostat's device. You set the thermostat's own presets there.
 
 ### The temperature of a thermostat's own preset
 

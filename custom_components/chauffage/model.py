@@ -13,13 +13,14 @@ Vocabulary: docs/glossary.md.
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
                              [start "HH:MM", preset id] or [start, preset id, settings] slots,
-                             the first one at "00:00"; the settings, {"hvac_mode": "off"}, are
-                             what the slot sets besides its preset (#91)
+                             the first one at "00:00"; the settings, {"hvac_mode": "off"} or the
+                             fan and the vanes of an air conditioner, are what the slot sets
+                             besides its preset (#91)
         mapping:             {preset id: target}, what a preset means for this thermostat, only
                              what was set by hand: the rest is engine.default_target. A target is
                              a partial state of the thermostat, as a scene holds it (#91):
-                             {"preset_mode": "comfort"}, {"temperature": 20.5}, or both, and
-                             an "hvac_mode"
+                             {"preset_mode": "comfort"}, {"temperature": 20.5}, or both, and an
+                             "hvac_mode", a "fan_mode", a "swing_mode", a "swing_horizontal_mode"
         preset_temperatures: {climate preset: temperature} last seen on the thermostat
         hvac_mode:           the HVAC mode the thermostat was last on in (None: not seen on yet):
                              what an off thermostat without heat is turned on in
@@ -244,10 +245,11 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
     return out
 
 
-# The climate attributes a target may set, and how their values are read
-TARGET_KEYS = {"preset_mode": str, "temperature": float, "hvac_mode": str}
 # The attributes a slot's settings may set: everything but the setpoint, which its preset gives
-SETTING_KEYS = {"hvac_mode": str}
+# (the HVAC mode, then the fan and the vanes of an air conditioner, #91)
+SETTING_KEYS = {"hvac_mode": str, "fan_mode": str, "swing_mode": str, "swing_horizontal_mode": str}
+# The climate attributes a target may set, and how their values are read
+TARGET_KEYS = {"preset_mode": str, "temperature": float, **SETTING_KEYS}
 
 
 def _normalize_attributes(attributes: Any, keys: dict[str, type], what: str) -> dict[str, Any]:

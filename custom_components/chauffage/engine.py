@@ -38,6 +38,14 @@ class Thermostat:
     ready: bool = True  # it shows a known state (see ready)
     hvac_modes: tuple[str, ...] = field(default=())
     last_hvac_mode: str | None = None  # the HVAC mode it was last on in (learned, stored)
+    # The fan and the vanes of an air conditioner, as shown (#91)
+    fan_mode: str | None = None
+    swing_mode: str | None = None
+    swing_horizontal_mode: str | None = None
+
+
+# The attributes of a target compared as they are, with the thermostat's field of the same name
+EQUAL_KEYS = ("fan_mode", "swing_mode", "swing_horizontal_mode")
 
 
 SETPOINTS = ("temperature", "target_temp_low", "target_temp_high")
@@ -231,7 +239,7 @@ def satisfied(target: Target, thermostat: Thermostat) -> bool:
         return False
     if "temperature" in target and not same_temperature(thermostat.temperature, target["temperature"], thermostat):
         return False
-    return True
+    return all(getattr(thermostat, key) == target[key] for key in EQUAL_KEYS if key in target)
 
 
 # ----- slots -----

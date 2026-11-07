@@ -119,6 +119,7 @@ def thermostat(state: State | None, vtherm: bool = False, last_hvac_mode: str | 
         engine.ready(attributes, vtherm),
         tuple(m for m in (engine.preset_value(m) for m in attributes.get("hvac_modes") or ()) if m),
         last_hvac_mode,
+        *(engine.preset_value(attributes.get(key)) for key in engine.EQUAL_KEYS),
     )
     if vtherm and hvac_mode is None and state.state == engine.OFF:
         current = dataclasses.replace(current, state=engine.on_mode(current) or "heat")

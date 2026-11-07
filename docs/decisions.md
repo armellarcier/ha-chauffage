@@ -197,6 +197,15 @@ future contributor might question.
   - **The device validates the state, not Chauffage.** Chauffage keeps no rule such as "a preset
     and a temperature are exclusive" or "this thermostat has no cool": the card offers only the
     values the thermostat lists, and the thermostat decides.
+  - **The fan and the vanes are more keys of the same partial state** (#61): `fan_mode`,
+    `swing_mode` and `swing_horizontal_mode`, on a slot's settings and on a preset's value,
+    compared and sent as they are. They show in the popovers only: the week view keeps the HVAC
+    icon as its single marker, so a slot without extra settings looks as it did.
+  - **A capture button fills a popover from the thermostat's current state**, in the spirit of
+    Home Assistant's scene editor, and never saves by itself: a slot waits for *Save*, a preset's
+    value for *OK*. It reads the intent (a VTherm's `requested_state`), not the protection, so a
+    VTherm off by its window gives "on". A heater on `heat` gives "on" too, with nothing stored:
+    the card writes `heat` explicitly only when the preset turns the thermostat off.
   - **This is a behavior change for upgrading users**: a thermostat turned off by hand in the
     past comes back on at the next slot, and at the restart that follows the upgrade. The
     changelog says so under "Upgrading". A thermostat to leave alone is paused.

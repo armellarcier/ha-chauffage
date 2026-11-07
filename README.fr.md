@@ -221,6 +221,17 @@ Sur une climatisation, la même ligne propose les modes que le thermostat conna�
 montre l'icône du mode sur le créneau. Un préréglage peut aussi éteindre les thermostats de
 lui-même, voir [Préréglages](#préréglages).
 
+**Ventilation et volets.** Sur une climatisation, *Plus de réglages* sous la ligne contient la
+vitesse de ventilation et les volets, une liste par réglage que le thermostat connaît. *Par
+défaut* laisse le réglage à la valeur du préréglage, ou au thermostat. La ligne repliée montre
+les valeurs que le créneau fixe.
+
+**Copier l'état actuel.** Le bouton au pied de la fenêtre remplit le créneau avec l'état du
+thermostat en ce moment : marche ou arrêt, son mode, sa ventilation et ses volets. Pas son
+préréglage, ni ses horaires. Le créneau attend *Enregistrer*, comme toute modification. Sur un
+Versatile Thermostat éteint par sa fenêtre, la copie donne *Marche* : ce que le thermostat a
+demandé, pas sa protection.
+
 ### Changer de planning actif
 
 Un seul planning est actif à la fois. Le sélecteur **Planning actif**
@@ -371,10 +382,12 @@ sans le tableau.
   cliquez sur *+ Ajouter un préréglage* sous le tableau.
 - **Une case** ouvre ce que fait le préréglage sur ce thermostat. La case indique d'où vient sa
   température, par exemple « son préréglage *Confort* », « réglé ici » ou « par défaut ». La
-  fenêtre montre ce que donne le défaut, et une case à cocher par réglage. Utiliser un champ
-  coche son réglage. *Revenir au défaut* efface ce que vous avez réglé ici. La fenêtre donne
-  aussi un lien vers l'appareil du thermostat, où se règlent les préréglages propres au
-  thermostat.
+  fenêtre montre ce que donne le défaut, et une case à cocher par réglage : le préréglage du
+  thermostat, une température, et sur une climatisation son mode, sa ventilation et ses volets.
+  Utiliser un champ coche son réglage. *Copier l'état actuel* remplit les champs avec l'état du
+  thermostat en ce moment, et vous touchez *OK* pour les garder. *Revenir au défaut* efface ce
+  que vous avez réglé ici. La fenêtre donne aussi un lien vers l'appareil du thermostat, où se
+  règlent les préréglages propres au thermostat.
 
 ### La température d'un préréglage propre au thermostat
 
