@@ -725,6 +725,35 @@ function rowsOfDays(order, keyOf) {
   return [...rows.values()];
 }
 
+// ---------- schedule layers ----------
+
+// A layer's day from the integration ([["HH:MM", preset | null], …]): its slots, in minutes; a
+// slot without a preset is where the layer has nothing (the layers below show through)
+function parseLayerDay(list) {
+  return (Array.isArray(list) ? list : [])
+    .map(([t, p]) => ({ start: toMin(t), preset: p || null }))
+    .filter((s) => !isNaN(s.start))
+    .sort((a, b) => a.start - b.start);
+}
+
+// The pieces of layers stacked top first ([{ layer, day }]) that have something: at each time,
+// the top layer that has a preset there. [{ start, end, preset, layer }]
+function layerPieces(stack) {
+  const presetAt = (day, m) => day.reduce((p, s) => (s.start <= m ? s.preset : p), null);
+  const starts = [...new Set(stack.flatMap(({ day }) => day.map((s) => s.start)))].sort((a, b) => a - b);
+  const out = [];
+  starts.forEach((start, i) => {
+    const end = i < starts.length - 1 ? starts[i + 1] : DAY_MIN;
+    const top = stack.find(({ day }) => presetAt(day, start) !== null);
+    if (!top) return;
+    const piece = { start, end, preset: presetAt(top.day, start), layer: top.layer };
+    const last = out[out.length - 1];
+    if (last && last.end === start && last.preset === piece.preset && last.layer === piece.layer) last.end = end;
+    else out.push(piece);
+  });
+  return out;
+}
+
 // ---------- overrides (shared by the card and the more-info block) ----------
 
 // The piece of an override drawn on a row of days: today's, or the last one (where it ends, with
@@ -1409,6 +1438,7 @@ function makeDataSource(hass, available) {
     stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides),
       schedule: JSON.stringify([d.active_schedule, schedules.map((s) => scheduleIcon(s.id))]),
       rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]), thermostats: JSON.stringify(d.thermostats),
+      layers: JSON.stringify([schedules.map((s) => s.layers), d.layer_weeks, d.layers_applying]),
       // The ids of what the cards open (an entity renamed in HA)
       entities: JSON.stringify([d.thermostat_entities, d.schedule_entities, d.schedule_select, d.device_id]) } : {},
     schedules: () => schedules.map((s) => s.id),
@@ -1426,6 +1456,16 @@ function makeDataSource(hass, available) {
       return out;
     },
     overrides: () => ({ ...(d ? d.overrides : {}) }),
+    // A schedule's layers, top first: [{ id, name, enabled, condition }]; an integration without
+    // layers has none
+    layers: (id) => ((schedules.find((s) => s.id === id) || {}).layers) || [],
+    // A thermostat's day in a layer (parseLayerDay), [] when the layer leaves it alone
+    layerDay: (climate, layer, day) => {
+      const week = d && d.layer_weeks && d.layer_weeks[climate] && d.layer_weeks[climate][layer];
+      return week ? parseLayerDay(week[day]) : [];
+    },
+    // The active schedule's layers that apply now, top first
+    layersApplying: () => (d && d.layers_applying) || [],
     // A paused thermostat is kept but not driven (docs/decisions.md, "Scheduled thermostats")
     paused: (climate) => !!(d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].paused),
     setPaused: (climate, paused) => hass.callWS({ type: 'chauffage/thermostat/set', entity_id: climate, paused }),
@@ -2018,6 +2058,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     const scheduleStamp = src.stamps.schedule;
     if (scheduleStamp !== this._scheduleState && !this._drag && !this._overrideDrag) {
       this._scheduleState = scheduleStamp;
+      need = true;
+    }
+    // A schedule's layers, their weeks, or which apply now changed: redraw the rows
+    if (src.stamps.layers !== this._layersStamp && !this._drag && !this._overrideDrag) {
+      this._layersStamp = src.stamps.layers;
       need = true;
     }
     // A thermostat paused or resumed (switch, another card): redraw its notice and rows
@@ -2652,7 +2697,24 @@ class ChauffageProgrammeCard extends HTMLElement {
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && days.includes(cs.day);
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${this._layersHtml(climate, d)}${history}${this._overrideHtml(climate, days)}${now}</div>`;
+  }
+
+  // The layers that apply now drawn over a thermostat's day, raised (only in the active
+  // schedule's tab: the layers of another schedule do not apply)
+  _layersHtml(climate, day) {
+    if (this._schedule !== this._activeSchedule()) return '';
+    const src = this._source();
+    const layers = src.layers(this._schedule);
+    const stack = src.layersApplying()
+      .map((id) => layers.find((l) => l.id === id))
+      .filter(Boolean)
+      .map((layer) => ({ layer, day: src.layerDay(climate, layer.id, day) }));
+    return layerPieces(stack).map(({ start, end, preset, layer }) => {
+      const p = this._preset(preset);
+      const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
+      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" style="left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}">${this._segInner(start, end, preset)}</div>`;
+    }).join('');
   }
 
   // Override drawn over the schedule (only in the active schedule's tab), on a row of days
@@ -4685,6 +4747,15 @@ const STYLE = `
   .seg.last { border-radius:0 6px 6px 0; }
   .seg.first.last { border-radius:6px; }
   .seg .t { font-weight:600; }
+  /* A layer that applies now, raised over the schedule's day: only shown, edited elsewhere */
+  .layer-block { position:absolute; top:-4px; bottom:4px; z-index:1; box-sizing:border-box; overflow:hidden;
+    padding:2px 5px; border-radius:5px; color:#fff; font-size:11px; line-height:1.2; white-space:nowrap;
+    display:flex; flex-direction:column; justify-content:center; text-shadow:0 1px 1px rgba(0,0,0,.25);
+    box-shadow:0 2px 5px rgba(0,0,0,.45); outline:1px solid var(--card-background-color, #fff);
+    pointer-events:none; container-type:inline-size; }
+  .multi .layer-block { flex-direction:row; align-items:center; gap:5px; font-size:10.5px; }
+  .layer-block .t { font-weight:600; }
+  .layer-block .l { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   /* A label that does not fit is hidden (a time) or ends in "…" (a name), never cut into
      meaningless pieces such as "06:" */
   .seg { container-type:inline-size; }
