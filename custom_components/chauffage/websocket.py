@@ -51,7 +51,7 @@ from .runtime import DATA, ENTITIES, ChauffageRuntime, StaleRevision, Thermostat
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
                     ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat,
-                    ws_set_rules, ws_preview_rules, ws_history, ws_set_settings):
+                    ws_set_rules, ws_preview_rules, ws_history, ws_set_settings, ws_set_layers):
         websocket_api.async_register_command(hass, command)
 
 
@@ -168,14 +168,17 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     vol.Required("weeks"): dict,
     vol.Optional("revision"): int,
     vol.Optional("revisions"): {str: vol.Any(None, int)},
+    vol.Optional("layer_weeks"): dict,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     async def save(runtime: ChauffageRuntime) -> dict[str, Any]:
-        await runtime.save_weeks(msg["weeks"], msg.get("revision"), msg.get("revisions"))
+        layer_weeks = msg.get("layer_weeks", {})
+        await runtime.save_weeks(msg["weeks"], msg.get("revision"), msg.get("revisions"), layer_weeks)
+        sent = {*msg["weeks"], *layer_weeks}
         return {"revision": runtime.data["revision"],
-                "revisions": {e: t["revision"] for e, t in runtime.scheduled.items() if e in msg["weeks"]}}
+                "revisions": {e: t["revision"] for e, t in runtime.scheduled.items() if e in sent}}
 
     await _run(hass, connection, msg, save)
 
@@ -259,6 +262,21 @@ async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.Activ
 @websocket_api.async_response
 async def ws_forget_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.forget(msg["entity_id"]))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/layers/set",
+    vol.Required("schedule"): str,
+    vol.Required("layers"): list,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_set_layers(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    async def set_layers(runtime: ChauffageRuntime) -> dict[str, Any]:
+        layers = await runtime.set_layers(msg["schedule"], msg["layers"])
+        return {"layers": layers, "revision": runtime.data["revision"]}
+
+    await _run(hass, connection, msg, set_layers)
 
 
 @websocket_api.websocket_command({
