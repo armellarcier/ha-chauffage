@@ -5140,11 +5140,12 @@ const TIME_FIELD_STYLE = `
 `;
 
 const LAYER_BLOCK_STYLE = `
-  /* A layer that applies now, only shown, edited elsewhere. A fixed height, just over its name, in
-     a lane from the bottom of its day; a day whose blocks collide grows to hold its lanes, leaving
-     a strip of the schedule above */
-  .bar { min-height:calc(var(--count, 0) * 14px + 8px); }
-  .layer-block { position:absolute; bottom:calc(var(--lane) * 14px); height:14px;
+  /* A layer that applies now, only shown, edited elsewhere. Every block sits on the bottom edge of
+     its day. Where blocks collide, the one that wins is in front, and each one behind it is a
+     step taller, so that it peeks out above. A day grows a little to hold them, leaving a strip
+     of the schedule on top */
+  .bar { min-height:calc(var(--count, 0) * 5px + 17px); }
+  .layer-block { position:absolute; bottom:0; height:calc(14px + var(--lane) * 5px);
     box-sizing:border-box; overflow:hidden;
     padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
     color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;

@@ -60,11 +60,11 @@ describe('the layers that apply now, over the schedule', () => {
     assert.equal(depth(card), '1');
   });
 
-  test('a layer block has a fixed height, just over its name, and stays inside its day', () => {
+  test('every block sits on the bottom of its day, those that lose a collision taller behind the winner', () => {
     const card = createCard(fakeHass({ data: withLayers() }));
     const css = card.shadowRoot.querySelector('style').textContent;
-    assert.match(css, /\.bar \{ min-height:calc\(var\(--count, 0\) \* 14px/);
-    assert.match(css, /\.layer-block \{[^}]*bottom:calc\(var\(--lane\) \* 14px\);[^}]*height:14px/);
+    assert.match(css, /\.bar \{ min-height:calc\(var\(--count, 0\) \* 5px \+ 17px\)/);
+    assert.match(css, /\.layer-block \{[^}]*bottom:0;[^}]*height:calc\(14px \+ var\(--lane\) \* 5px\)/);
   });
 
   test('a layer that does not apply now is not drawn', () => {
