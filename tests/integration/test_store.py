@@ -105,3 +105,12 @@ def test_layers_kept_through_a_downgrade_are_kept_on_the_way_back():
 def test_a_newer_minor_version_is_read_by_a_version_without_its_migration():
     """What a version without layers does with a 6.2 file: same major version, so no error."""
     assert migrate(fixture("6.2")["data"], 6, minor_version=2) == fixture("6.2")["data"]
+
+
+def test_the_weeks_of_layers_lost_during_a_downgrade_do_not_come_back():
+    """A version without layers drops them when the schedules are edited, not their weeks: a new
+    layer with the same name must not get those weeks."""
+    data = fixture("6.2")["data"]
+    data["thermostats"]["climate.salon"]["layer_weeks"] = {"gone": [[["00:00", "boost"]]] * 7}
+    assert migrate(data, 6, minor_version=1)["thermostats"]["climate.salon"]["layer_weeks"] == {}
+

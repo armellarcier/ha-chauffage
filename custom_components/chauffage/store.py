@@ -84,9 +84,12 @@ MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4:
 
 
 def _v6_1_to_v6_2(data: dict[str, Any], language: str) -> dict[str, Any]:
-    """Schedule layers: none yet. Layers left by an earlier install are kept."""
+    """Schedule layers: none yet. Layers left by an earlier install are kept, and the weeks of
+    layers a version without them has dropped go."""
     schedules = [{**schedule, "layers": schedule.get("layers", [])} for schedule in data["schedules"]]
-    thermostats = {entity_id: {**t, "layer_weeks": t.get("layer_weeks", {})} for entity_id, t in data["thermostats"].items()}
+    layer_ids = {layer["id"] for schedule in schedules for layer in schedule["layers"]}
+    thermostats = {entity_id: {**t, "layer_weeks": {k: v for k, v in t.get("layer_weeks", {}).items() if k in layer_ids}}
+                   for entity_id, t in data["thermostats"].items()}
     return {**data, "schedules": schedules, "thermostats": thermostats}
 
 
