@@ -46,12 +46,12 @@ describe('fan and vanes on a slot', () => {
     assert.equal(text(more.querySelector('summary')), 'Plus de réglages');
     assert.equal(more.open, false);
     assert.deepEqual($$(card, '.editor details.more select').map((s) => s.dataset.slotSetting), ['fan_mode', 'swing_mode', 'swing_horizontal_mode']);
-    assert.deepEqual($$(card, '.editor [data-slot-setting="fan_mode"] option').map((o) => `${o.value}:${o.textContent}`), [':Par défaut', 'auto:auto', '1:1', '2:2', '3:3']);
+    assert.deepEqual($$(card, '.editor [data-slot-setting="fan_mode"] option').map((o) => `${o.value}:${o.textContent}`), [":Garder l'actuel", 'auto:Auto', '1:1', '2:2', '3:3']);
     select(card, 'climate.salon', 0, 1);
     assert.equal($(card, '.editor details.more'), null);
   });
 
-  test('a setting chosen is written on the slot; Par défaut removes it; the summary lists the values set, and opens by itself', () => {
+  test('a setting chosen is written on the slot; Keep current removes it; the summary lists the values set, and opens by itself', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 0);
     change($(card, '.editor [data-slot-setting="fan_mode"]'), '2');
@@ -61,14 +61,14 @@ describe('fan and vanes on a slot', () => {
     change($(card, '.editor [data-slot-setting="fan_mode"]'), '');
     assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco');
     select(card, 'climate.atelier', 0, 1); // 14:00: fan 1, swing
-    assert.equal(text($(card, '.editor details.more summary')), 'Ventilation 1 · Oscillation swing');
+    assert.equal(text($(card, '.editor details.more summary')), 'Ventilation 1 · Volets Swing');
   });
 
-  test('Par défaut names the value the preset\'s value sets; the week view shows no extra icon', () => {
+  test('The default option names the value the preset\'s value sets; the week view shows no extra icon', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 1); // comfort means fan 3 on this AC
-    assert.equal($(card, '.editor [data-slot-setting="fan_mode"] option').textContent, 'Par défaut (3)');
-    assert.equal($(card, '.bar[data-climate="climate.atelier"][data-day="0"] .seg[data-idx="1"] .m'), null);
+    assert.equal($(card, '.editor [data-slot-setting="fan_mode"] option').textContent, '3 (préréglage)');
+    assert.equal($(card, '.bar[data-climate="climate.atelier"][data-day="0"] .seg[data-idx="1"] ha-icon'), null);
   });
 
   test('the open state of "More settings" survives a redraw', () => {
@@ -100,7 +100,7 @@ describe('fan and vanes on a preset\'s value', () => {
     assert.equal(cell(card, 'eco', 'climate.atelier').querySelector('.pv-val ha-icon'), null);
     cell(card, 'comfort', 'climate.atelier').click();
     const rows = $$(card, '.cell-ed .pv-row').map((r) => `${r.dataset.attr}${r.querySelector('input').checked ? ' ✓' : ''}`);
-    assert.deepEqual(rows, ['preset_mode ✓', 'temperature', 'hvac_mode', 'fan_mode ✓', 'swing_mode', 'swing_horizontal_mode']);
+    assert.deepEqual(rows, ['preset_mode ✓', 'temperature', 'cool_temperature', 'hvac_mode', 'fan_mode ✓', 'swing_mode', 'swing_horizontal_mode']);
     assert.equal($(card, '.cell-ed [data-cell-setting="fan_mode"]').value, '3');
     change($(card, '.cell-ed [data-cell-setting="swing_mode"]'), '1_up'); // ticks it
     await card._action('cell-apply', {});
@@ -110,6 +110,7 @@ describe('fan and vanes on a preset\'s value', () => {
   test('a heater has no fan or swing rows', () => {
     const card = open(setup());
     cell(card, 'comfort', 'climate.salon').click();
+    click(card, '.cell-ed [data-act="cell-mode"][data-mode="custom"]');
     assert.deepEqual($$(card, '.cell-ed .pv-row').map((r) => r.dataset.attr), ['preset_mode', 'temperature']);
   });
 });
@@ -119,22 +120,21 @@ describe('the capture button', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 0);
     const button = $(card, '.editor [data-act="capture"]');
-    assert.equal(text(button), 'Copier l\'état actuel');
+    assert.equal(text(button), 'Copier depuis le thermostat');
     button.click();
     assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco {"hvac_mode":"cool","fan_mode":"2","swing_mode":"swing","swing_horizontal_mode":"auto"}'); // what the thermostat shows
     assert.ok(card._dirty);
     assert.equal(text($(card, '.editor [data-act="capture"]')), 'Copié ✓');
   });
 
-  test('a captured heat on a heater gives On (nothing stored); a VTherm off by its window gives On too (the intent)', () => {
+  test('a heater with one mode and no fan has nothing to copy: its slot popover has no capture button', () => {
     const hass = setup();
     hass.states['climate.salon'].state = 'off';
     hass.states['climate.salon'].attributes.requested_state = { hvac_mode: 'heat', preset: 'comfort', target_temperature: 20 };
     hass.entities['climate.salon'].platform = 'versatile_thermostat';
     const card = cardOf(hass, { show: ['climate.salon'] });
     select(card, 'climate.salon', 0, 1);
-    click(card, '.editor [data-act="capture"]');
-    assert.equal(day(card, 'climate.salon', 0)[1], '06:30 comfort');
+    assert.equal($(card, '.editor [data-act="capture"]'), null);
     assert.equal($(card, '.editor [data-act="hvac"][data-mode="on"]').getAttribute('aria-pressed'), 'true');
   });
 
@@ -157,29 +157,31 @@ describe('the capture button', () => {
     assert.match(text(button), /indisponible/);
   });
 
-  test('in the cell popover: fills the thermostat\'s preset, its mode, its fan and swings, ticks them, and saves nothing by itself', async () => {
+  test('in the cell popover: fills the setpoint of the mode the thermostat runs in, its mode, its fan and swings, never its preset, and saves nothing by itself', async () => {
     const hass = setup();
     const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' });
     $(card, '[data-act="cell"][data-kind="thermostat"][data-preset="eco"][data-climate="climate.atelier"]').click();
+    click(card, '.cell-ed [data-act="cell-mode"][data-mode="custom"]');
     click(card, '.cell-ed [data-act="capture"]');
     const ticked = $$(card, '.cell-ed input[type=checkbox]').filter((c) => c.checked).map((c) => c.dataset.cellUse);
-    assert.deepEqual(ticked, ['preset_mode', 'hvac_mode', 'fan_mode', 'swing_mode', 'swing_horizontal_mode']);
-    assert.equal($(card, '.cell-ed [data-cell-preset]').value, 'comfort');
+    assert.deepEqual(ticked, ['cool_temperature', 'hvac_mode', 'fan_mode', 'swing_mode', 'swing_horizontal_mode']);
+    assert.equal($(card, '.cell-ed [data-cell-cool]').value, '20'); // the AC cools: its setpoint is the cooling one
     assert.equal($(card, '.cell-ed [data-cell-hvac]').value, 'cool');
     assert.equal($(card, '.cell-ed [data-cell-setting="fan_mode"]').value, '2');
     assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false);
     await card._action('cell-apply', {});
-    assert.deepEqual(lastCall(hass).mapping, { eco: { preset_mode: 'comfort', hvac_mode: 'cool', fan_mode: '2', swing_mode: 'swing', swing_horizontal_mode: 'auto' } });
+    assert.deepEqual(lastCall(hass).mapping, { eco: { cool_temperature: 20, hvac_mode: 'cool', fan_mode: '2', swing_mode: 'swing', swing_horizontal_mode: 'auto' } });
   });
 
-  test('in the cell popover: a manual setpoint fills the temperature instead, and a thermostat off leaves the mode unticked', () => {
+  test('in the cell popover: a thermostat off fills the heating setpoint and leaves the mode unticked', () => {
     const hass = setup({ atelier: { preset_mode: 'none', temperature: 23.5 } });
     hass.states['climate.atelier'].state = 'off';
     const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' });
     $(card, '[data-act="cell"][data-kind="thermostat"][data-preset="eco"][data-climate="climate.atelier"]').click();
+    click(card, '.cell-ed [data-act="cell-mode"][data-mode="custom"]');
     click(card, '.cell-ed [data-act="capture"]');
     const ticked = $$(card, '.cell-ed input[type=checkbox]').filter((c) => c.checked).map((c) => c.dataset.cellUse);
     assert.deepEqual(ticked, ['temperature', 'fan_mode', 'swing_mode', 'swing_horizontal_mode']);
-    assert.equal($(card, '.cell-ed [data-cell-temp]').value, '23.5');
+    assert.equal($(card, '.cell-ed [data-cell-temp]').value, '23,5'); // the user's number format
   });
 });

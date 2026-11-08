@@ -218,7 +218,28 @@ future contributor might question.
     Home Assistant's scene editor, and never saves by itself: a slot waits for *Save*, a preset's
     value for *OK*. It reads the intent (a VTherm's `requested_state`), not the protection, so a
     VTherm off by its window gives "on". A heater on `heat` gives "on" too, with nothing stored:
-    the card writes `heat` explicitly only when the preset turns the thermostat off.
+    the card writes `heat` explicitly only when the preset turns the thermostat off. The button
+    says where it copies from (*Copy from the thermostat*). In a cell, it never copies the
+    thermostat's preset: the user panel saw it tick "Comfort" in the *Boost* cell. It copies the
+    setpoint instead, in the field of the mode the thermostat runs in. A slot popover shows no
+    button on a heater with one mode and no fan: there is nothing to copy.
+  - **What the schedule plans, chosen in an override block, resumes the schedule.** *On* on an
+    off override during an "on" slot made a sticky "Comfort" override that skipped the evening's
+    *Eco* slot. Now it ends the override, as setting a thermostat back to its planned setpoint
+    by hand does; so does *Off* on an "on" override during an off slot. A preset or a
+    temperature tapped still makes an override: the user chose a value.
+  - **"Until tomorrow" is one tap, the configured end stays the default** also for an off
+    override. A manual off for airing a room must not last the night by default, and the
+    configured end is predictable. The button sets the end to tomorrow's first slot that changes
+    the thermostat's state, computed by the integration.
+  - **The cell popover opens on *Default* or *Custom*.** A ticked "Temperature" with nothing
+    stored read as a value set, and unticking it disabled OK with no word. The segmented control
+    makes the two states visible: *Default* shows the default in one read-only line and OK
+    stores nothing; *Custom* shows the checkboxes, prefilled from the default. *Reset to default*
+    is gone: *Default* + OK replaces it.
+  - **The card names the fan and the vanes with short words of its own** (*Fan*, *Vanes*,
+    *Horizontal vanes*), not Home Assistant's attribute names, which are too long for a popover.
+    The values keep Home Assistant's names when it has them, else "1_up" reads "1 up".
   - **This is a behavior change for upgrading users**: a thermostat turned off by hand in the
     past comes back on at the next slot, and at the restart that follows the upgrade. The
     changelog says so under "Upgrading". A thermostat to leave alone is paused.

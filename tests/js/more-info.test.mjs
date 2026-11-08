@@ -265,7 +265,7 @@ describe('more-info block', () => {
     const hass = withTargets();
     const el = block(hass, 'climate.salon');
     const input = el.shadowRoot.querySelector('input[data-override-temperature]');
-    assert.equal(input.value, '21.5');
+    assert.equal(input.value, '21,5'); // the user's number format
     input.value = '22';
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.deepEqual(hass.events.at(-1).override, { ...override, target: { temperature: 22 } });

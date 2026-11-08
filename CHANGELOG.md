@@ -11,19 +11,24 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Upgrading
 
-**This release migrates the stored data** (version 7): what a preset means on a thermostat, the
-overrides and the commands not applied yet are stored as partial states of the thermostat, as a
-scene holds them. Nothing changes for the thermostats.
+**Do I need to do anything?** Only if you turn a thermostat off for long periods, for example
+for the summer.
 
-The events `chauffage_override_started`, the *Override* binary sensor and the *Override end*
-sensor gain a `target` attribute, for example `{"temperature": 21.5}` or
-`{"preset_mode": "boost"}`. They keep `kind` and `value`, so your automations keep working.
+**A thermostat turned off by hand now turns back on.** Before, Chauffage left a thermostat that
+was turned off alone. Now, turning a thermostat off by hand is an override: the thermostat turns
+back on at the end of its override, 2 hours by default, and at the restart that follows this
+update. To keep a thermostat off, pause its control (*Pause control*, under its more-info
+dialog or in the panel), or give it a schedule whose slots are *Off*. A thermostat that a script
+turns off stays off until its next slot, as before. The panel says this once, on its
+*Thermostats* page.
 
-**The schedule now decides whether a thermostat is off.** Before, Chauffage left a thermostat
-that was turned off alone. Now a thermostat that is off comes back on at its next slot, and
-when Home Assistant restarts after the update. If you turned a thermostat off for the season, or
-if a script turns it off at night, read [the changes below](#added) first. To leave a thermostat
-alone, pause it (its *Control* switch).
+**Your weeks and presets don't change.** The stored data is migrated by itself (version 7).
+
+**If you have automations.** The events `chauffage_override_started`, the *Override* binary
+sensor and the *Override end* sensor gain a `target` attribute, for example
+`{"temperature": 21.5}`, `{"preset_mode": "boost"}` or `{"hvac_mode": "off"}`. They keep `kind`
+and `value`, so your automations keep working. The `chauffage.set_override` action gets an
+`hvac_mode` field.
 
 ### Added
 
@@ -32,23 +37,25 @@ alone, pause it (its *Control* switch).
   preset: it restarts on it at the next slot. A slot without an HVAC mode turns the thermostat on,
   in heat when the thermostat has it. A thermostat that is already on keeps its HVAC mode:
   Chauffage never switches a cooling air conditioner to heat. In the card, open a slot and tap
-  *Off* in the new row under the presets: the slot turns grey, with a strip in its preset's
-  color. On an air conditioner, the row also offers its HVAC modes, and the week view shows the
-  mode's icon on the slot.
+  *Off* in the new *On | Off* row, above the presets: the slot turns grey, with a strip in its
+  preset's color, and the preset row says *When back on*. On an air conditioner, the *HVAC mode*
+  list offers its modes, *Keep current* first; the week view shows the mode's icon next to the
+  slot's time, and the legend names the icons. The popover says the setpoint the slot will
+  apply.
 - **Turning a thermostat off by hand is an override** (#91). Turn a thermostat off with its
   button or in Home Assistant, and Chauffage keeps it off for the override duration, then turns
-  it back on, on its slot. The card shows it as *⏱ Off*. Turn it back on yourself, tap *On* or a
-  preset in the override block, and the override ends at once. The override block of the card,
-  the thermostat card and the more-info dialog gets the same *On | Off* row: *Off*, then *Until
-  07:00 (next slot)*, turns a thermostat off until the morning. A thermostat that an automation
-  or a script turns off is not an override: it stays off until the next slot (#77). The
-  `chauffage.set_override` action gets an `hvac_mode` field: `off` to turn a thermostat off until
-  a time, or a mode to turn it on in.
+  it back on, on its slot. The card shows it as *⏱ Off*. Turn it back on yourself, or tap *On*
+  in the override block, and the override ends at once. The override block of the card, the
+  thermostat card and the more-info dialog gets the same *On | Off* row: *Off*, then *Until
+  tomorrow 06:30*, turns a thermostat off until tomorrow's first slot that changes its state. A
+  thermostat that an automation or a script turns off is not an override: it stays off until
+  the next slot (#77). The `chauffage.set_override` action gets an `hvac_mode` field: `off` to
+  turn a thermostat off until a time, or a mode to turn it on in.
 - **A preset's value on a thermostat is a set of settings, like a scene** (#91). In the *Presets*
-  tab, a cell's popover shows what the default gives and one checkbox per setting: the
-  thermostat's own preset, a temperature, and on an air conditioner its HVAC mode. *Reset to
-  default* drops what you set. A preset's popover gets *On | Off*: an *Away* preset set to *Off*
-  turns every thermostat off.
+  tab, a cell's popover opens on *Default* or *Custom*. *Default* shows what the default gives,
+  in one line. *Custom* shows one checkbox per setting: the device preset, a temperature, and on
+  an air conditioner its HVAC mode. A preset's popover gets *On | Off*: an *Away* preset set to
+  *Off* turns every thermostat off.
 - **A preset's value can hold a cooling setpoint** (#91). On a reversible air conditioner, the
   cell popover of the *Presets* tab gets two temperature rows: heating and cooling. *Comfort* at
   20 °C when heating and at 25 °C when cooling, with one preset. In cool, Chauffage sends the
@@ -58,12 +65,14 @@ alone, pause it (its *Control* switch).
   "Auto stop", with the preset it restarts on. "Window open" shows also when the window keeps
   the thermostat heating at its frost setpoint.
 - **A slot or a preset's value can set the fan and the vanes of an air conditioner** (#61, #91).
-  In the slot popover, *More settings* holds one list per setting the thermostat lists (fan
-  speed, swing, horizontal swing), with *Default*. The cell popover of the *Presets* tab gets
+  In the slot popover, *More settings* holds one list per setting the thermostat lists (*Fan*,
+  *Vanes*, *Horizontal vanes*), with *Keep current*. The cell popover of the *Presets* tab gets
   the same rows. Chauffage sends them with the slot, as a scene does.
-- **Copy current state** (#91). A button in the slot popover and in the cell popover fills the
-  fields from the thermostat as it is now: on or off, its HVAC mode, its fan and its vanes, and in
-  the cell popover its preset or its setpoint. Nothing is saved until *Save* or *OK*.
+- **Copy from the thermostat** (#91). A button in the slot popover and in the cell popover fills
+  the fields from the thermostat as it is now: on or off, its HVAC mode, its fan and its vanes,
+  and in the cell popover its setpoint, never its preset. Nothing is saved until *Save* or *OK*.
+- **Temperatures in your number format**: the temperature fields of the popovers show "20,5"
+  for a French user, and read both "20,5" and "20.5".
 - **The planned preset sensor says the HVAC mode of the current and next slot**, in its
   `hvac_mode` and `next_hvac_mode` attributes, and `chauffage.get_week` gives each slot's
   settings.

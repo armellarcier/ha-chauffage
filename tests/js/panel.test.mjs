@@ -338,35 +338,26 @@ describe('the Chauffage panel', () => {
     });
   });
 
-  describe('telling existing users about the new setting (#83)', () => {
-    test('the Thermostats tab says once: new, choose how long a setpoint changed by hand lasts; its link opens the settings', async () => {
-      const hass = setup();
-      const manager = fakeDialogManager(hass);
-      const el = panel(hass, '/thermostats');
-      assert.match(text($(el, '.notice.new-setting')), /Nouveau : choisissez combien de temps dure une dérogation\./);
-      $(el, '.new-setting [data-open-settings]').click();
-      await tick();
-      assert.deepEqual(manager.shown.map((d) => d.dialogTag), ['chauffage-settings-dialog']);
-      assert.equal(window.location.pathname, '/chauffage/thermostats');
-      assert.equal($(el, '.new-setting'), null, 'gone once the settings are open');
+  describe('telling existing users about the new off behavior (#91)', () => {
+    test('the Thermostats tab says once: a thermostat turned off by hand turns back on; its link opens the README, in the user\'s language', () => {
+      const el = panel(setup(), '/thermostats');
+      assert.match(text($(el, '.notice.new-off')), /Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation\. Pour le laisser éteint, suspendez son pilotage\./);
+      const link = $(el, '.new-off a');
+      assert.equal(text(link), 'En savoir plus');
+      assert.match(link.href, /README\.fr\.md#/);
+      assert.equal(link.target, '_blank');
+      el.remove();
+      const en = panel(setup({ locale: { language: 'en' } }), '/thermostats');
+      assert.match(text($(en, '.notice.new-off')), /^New: a thermostat turned off by hand turns back on/);
+      assert.match($(en, '.new-off a').href, /README\.md#turn-a-thermostat-off-by-hand/);
     });
 
     test('closed, it stays closed on this browser', () => {
       const el = panel(setup(), '/thermostats');
-      $(el, '.new-setting [data-close-new-setting]').click();
-      assert.equal($(el, '.new-setting'), null);
+      $(el, '.new-off [data-close-notice]').click();
+      assert.equal($(el, '.new-off'), null);
       el.remove(); // the panel opened again, in the same browser
-      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
-    });
-
-    test('once the settings are open, from anywhere, the notice is gone', async () => {
-      const hass = setup();
-      fakeDialogManager(hass);
-      const el = panel(hass, '/schedules');
-      el.shadowRoot.querySelector('[data-open-settings]').click();
-      await tick();
-      el.remove(); // the panel opened again, in the same browser
-      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
+      assert.equal($(panel(setup(), '/thermostats'), '.new-off'), null);
     });
 
     test('a new user gets the next steps instead', () => {
@@ -378,7 +369,7 @@ describe('the Chauffage panel', () => {
       $(el, '[data-start]').click();
       hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } }));
       assert.ok($(el, '.next-steps'));
-      assert.equal($(el, '.new-setting'), null);
+      assert.equal($(el, '.new-off'), null);
     });
   });
 

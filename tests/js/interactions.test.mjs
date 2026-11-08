@@ -699,7 +699,7 @@ describe('the override popover in the card', () => {
     const card = createCard(hass, { show: ['climate.salon'] });
     $(card, '.override[data-climate="climate.salon"]').click();
     const input = $(card, '.override-ed input[data-override-temperature]');
-    assert.equal(input.value, '21.5');
+    assert.equal(input.value, '21,5'); // the user's number format
     input.value = '22';
     input.dispatchEvent(new Event('change', { bubbles: true }));
     assert.deepEqual(hass.events.at(-1).override, { ...override, target: { temperature: 22 } });

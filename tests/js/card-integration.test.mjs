@@ -359,6 +359,7 @@ describe('the "Presets" view', () => {
     const card = open(hass);
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.match(card.shadowRoot.querySelector('.pv-defaultline').textContent, /Par défaut : son préréglage Confort/);
+    click(card, '[data-act="cell-mode"][data-mode="custom"]'); // the rows, prefilled from the default
     assert.deepEqual(ticked(card), ['preset_mode']);
     assert.deepEqual(presetOptions(card), ['comfort:Confort ✓', 'eco:Éco', 'away:away', 'boost:Boost']); // its own, the same name first
     await card._action('cell-apply', {}); // equal to the default: nothing stored
@@ -381,9 +382,9 @@ describe('the "Presets" view', () => {
   test('a preset the thermostat has no own preset for: its default temperature in the default line', () => {
     const card = open(fakeIntegrationHass({ data: data() }));
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
-    assert.match(card.shadowRoot.querySelector('.pv-defaultline').textContent, /Par défaut : 7 °C/);
     assert.deepEqual(presetOptions(card).map((o) => o.split(':')[0]), ['eco', 'comfort', 'away', 'boost']); // its own order
-    assert.ok(card.shadowRoot.querySelector('[data-act="cell-reset"]'), 'a stored value can go back to the default');
+    click(card, '[data-act="cell-mode"][data-mode="default"]'); // a stored value can go back to the default
+    assert.match(card.shadowRoot.querySelector('.pv-defaultline').textContent, /Par défaut : 7 °C/);
   });
 
   test('a thermostat set to a temperature for one preset', async () => {
@@ -391,6 +392,7 @@ describe('the "Presets" view', () => {
     const card = open(hass);
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.match(card.shadowRoot.querySelector('[data-panel="cell"]').textContent, /Confort · Salon/);
+    click(card, '[data-act="cell-mode"][data-mode="custom"]');
     const box = card.shadowRoot.querySelector('input[data-cell-use="preset_mode"]');
     box.checked = false;
     box.dispatchEvent(new window.Event('change', { bubbles: true }));
@@ -406,13 +408,14 @@ describe('the "Presets" view', () => {
     const hass = fakeIntegrationHass({ data: data() });
     const card = open(hass);
     click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
+    click(card, '[data-act="cell-mode"][data-mode="custom"]');
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'away';
     await card._action('cell-apply', {});
     assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset_mode: 'away' } });
 
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]');
-    click(card, '[data-act="cell-reset"]'); // back to the default: the stored value goes
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    click(card, '[data-act="cell-mode"][data-mode="default"]'); // back to the default: OK drops the stored value
+    await card._action('cell-apply', {});
     assert.deepEqual(lastCall(hass).mapping, {});
     assert.equal(card.shadowRoot.querySelector('.cell-ed'), null);
   });
