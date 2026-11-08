@@ -33,7 +33,7 @@ describe('a paused thermostat in the card', () => {
     const card = createCard(hass);
     const notes = [...card.shadowRoot.querySelectorAll('.paused-note')];
     assert.equal(notes.length, 1);
-    assert.match(text(notes[0]), /Salon est en pause : Chauffage ne le pilote pas\./);
+    assert.match(text(notes[0]), /Salon : pilotage suspendu\. Chauffage n'y touche plus\./);
     notes[0].querySelector('[data-act="resume"]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
   });
@@ -91,7 +91,7 @@ describe('a paused thermostat in the card', () => {
   test('in English', () => {
     const card = createCard(pausedSalon({ locale: { language: 'en' } }));
     assert.match(q(card, '.chip[data-climate="climate.salon"] .live').textContent, /Control paused/);
-    assert.match(text(q(card, '.paused-note')), /Salon is paused: Chauffage does not control it\. Resume/);
+    assert.match(text(q(card, '.paused-note')), /Salon: control paused\. Chauffage leaves it alone\. Resume/);
   });
 });
 

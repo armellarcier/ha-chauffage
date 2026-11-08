@@ -190,8 +190,8 @@ async def test_a_slot_can_set_the_hvac_mode(bench: Bench):
     await start(bench, "13:00", day, hvac_modes=AC_MODES)
     await bench.go_to("14:00")
     assert bench.powered() == {"climate.salon": "cool"}
-    # In cool without a cooling setpoint, a thermostat that also heats keeps its own setpoint (C1)
-    assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "comfort"})
+    # In cool without a cooling setpoint, the name-based default leaves the setpoint alone (C1, D1)
+    assert bench.applied() == {}
 
 
 async def test_a_preset_s_value_on_a_thermostat_can_set_the_hvac_mode(bench: Bench):
@@ -224,7 +224,7 @@ async def test_a_cooling_air_conditioner_keeps_cooling(bench: Bench):
     await start(bench, "17:00", state="cool", hvac_modes=AC_MODES)
     await bench.go_to("17:30")
     assert bench.powered() == {}
-    assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "comfort"})  # its own setpoint in cool (C1)
+    assert bench.applied() == {}  # its own setpoint in cool, and not the default device preset (C1, D1)
     assert salon(bench) == "cool"
 
 

@@ -126,13 +126,15 @@ def on_mode(thermostat: Thermostat) -> str | None:
     return modes[0] if modes else None
 
 
-def complete(target: Target, thermostat: Thermostat) -> Target:
+def complete(target: Target, thermostat: Thermostat, default_setpoint: bool = False) -> Target:
     """The target to send: with the HVAC mode to turn the thermostat on in when it is off and
     the target says none. A thermostat that is on keeps its HVAC mode: never a cooling air
     conditioner switched to heat. In cool, the setpoint is the preset's cooling setpoint
     (`cool_temperature`, which replaces its preset and its temperature); without one, a
-    thermostat that also heats keeps its own setpoint (never 17 °C in cool), and a cooling-only
-    one gets the base setpoint (docs/decisions.md, "Presets")."""
+    thermostat that also heats keeps its own setpoint (never 17 °C in cool): its temperature is
+    not sent, nor its device preset when it is the name-based default (`default_setpoint`:
+    nothing the user chose), and a cooling-only one gets the base setpoint (docs/decisions.md,
+    "Presets")."""
     out = {key: value for key, value in target.items() if key != "cool_temperature"}
     if "hvac_mode" not in out and thermostat.state == OFF:
         mode = on_mode(thermostat)
@@ -145,7 +147,15 @@ def complete(target: Target, thermostat: Thermostat) -> Target:
             out["temperature"] = target["cool_temperature"]
         elif "heat" in thermostat.hvac_modes:
             out.pop("temperature", None)
+            if default_setpoint:
+                out.pop("preset_mode", None)
     return out
+
+
+def default_setpoint(mapping: dict[str, Any] | None, settings: dict[str, Any] | None = None) -> bool:
+    """Whether a preset's setpoint on a thermostat is its name-based default: neither the
+    preset's value on the thermostat (`mapping`) nor the slot's `settings` sets one."""
+    return not any(key in (mapping or {}) or key in (settings or {}) for key in SETPOINT_KEYS)
 
 
 def merge(base: Target, layer: Target | None) -> Target:
@@ -350,6 +360,11 @@ class Plan:
         return resolve(slot.preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets,
                        slot.settings)
 
+    def default_setpoint(self, entity_id: str, slot: Slot | None) -> bool:
+        """Whether the slot's setpoint on the thermostat is the preset's name-based default."""
+        mapping = (self.mappings.get(entity_id) or {}).get(slot.preset) if slot else None
+        return default_setpoint(mapping, slot.settings if slot else None)
+
     def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
         slot, _ = self.slot_at(entity_id, now)
         return self.target_of(entity_id, slot, thermostat)
@@ -435,7 +450,7 @@ def targets(
         target = plan.target_of(entity_id, slot, thermostat)
         if target is None or ignored(thermostat):
             continue
-        target = complete(target, thermostat)
+        target = complete(target, thermostat, plan.default_setpoint(entity_id, slot))
         if satisfied(target, thermostat) and pending.get(entity_id, target) == target:
             continue
         out.append((entity_id, target))

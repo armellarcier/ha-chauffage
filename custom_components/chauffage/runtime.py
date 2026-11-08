@@ -528,14 +528,20 @@ class ChauffageRuntime:
         }
 
     def next_day_slot_end(self, entity_id: str, current: engine.Thermostat | None) -> datetime | None:
-        """Tomorrow's first slot that changes the thermostat's state, for the end "until
-        tomorrow" of an off override (C4). A 00:00 slot that repeats the evening's does not
-        count. None without one."""
+        """The next morning, for the end "until tomorrow" of an off override (C4, D2): the first
+        slot of today that changes the thermostat's state, if it is still to come, else the first
+        one of tomorrow, or of the next day that has one, within a week. A 00:00 slot that
+        repeats the evening's does not count. None without one."""
         now = dt_util.now()
-        start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        start = dt_util.as_local(dt_util.as_utc(start))
-        return self.plan().next_change(entity_id, start - timedelta(minutes=1), current,
-                                       not_before=start, until=start + timedelta(days=1))
+        plan = self.plan()
+        for days in range(7):
+            start = (now + timedelta(days=days)).replace(hour=0, minute=0, second=0, microsecond=0)
+            start = dt_util.as_local(dt_util.as_utc(start))
+            when = plan.next_change(entity_id, start - timedelta(minutes=1), current,
+                                    not_before=start, until=start + timedelta(days=1))
+            if when is not None and dt_util.as_utc(when) > dt_util.as_utc(now):
+                return when
+        return None
 
     def planned_presets(self) -> dict[str, dict[str, Any]]:
         """planned_info of every scheduled thermostat."""
@@ -901,8 +907,9 @@ class ChauffageRuntime:
             override.pop("ends_at", None)
         new_value = before is None or before["target"] != target
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
-        if (new_value or resend) and not left_alone and self.needs(entity_id, target, current):
-            if not await self.send(entity_id, engine.complete(target, current), f"override set by {source}"):
+        by_default = self.default_setpoint(entity_id, override.get("preset"))
+        if (new_value or resend) and not left_alone and self.needs(entity_id, target, current, by_default):
+            if not await self.send(entity_id, engine.complete(target, current, by_default), f"override set by {source}"):
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
         self._changed()
@@ -1036,11 +1043,20 @@ class ChauffageRuntime:
         """The commands sent to a thermostat that it does not show yet, oldest first."""
         return [c["target"] for c in self.data["pending"].get(entity_id, [])]
 
-    def needs(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None) -> bool:
+    def default_setpoint(self, entity_id: str, preset: str | None, settings: dict[str, Any] | None = None) -> bool:
+        """Whether a preset's setpoint on a thermostat is its name-based default (engine.default_setpoint):
+        a cooling air conditioner is then left alone when the preset has no cooling value."""
+        if not preset:
+            return False
+        mapping = (self.thermostats.get(entity_id, {}).get("mapping") or {}).get(preset)
+        return engine.default_setpoint(mapping, settings)
+
+    def needs(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None,
+              default_setpoint: bool = False) -> bool:
         """A target to send: the thermostat does not show it, or would apply another command later."""
         if current is None:
             return True
-        sent = engine.complete(target, current)
+        sent = engine.complete(target, current, default_setpoint)
         if not engine.satisfied(sent, current):
             return True
         commands = self.pending(entity_id)
@@ -1078,10 +1094,11 @@ class ChauffageRuntime:
             await self.apply(include={entity_id}, reason=reason)
             return
         target = override["target"]
+        by_default = self.default_setpoint(entity_id, override.get("preset"))
         async with self._lock:
             current = self.current(self.hass.states.get(entity_id))
-            if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current):
-                await self.send(entity_id, engine.complete(target, current), f"{reason}, back to the override")
+            if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current, by_default):
+                await self.send(entity_id, engine.complete(target, current, by_default), f"{reason}, back to the override")
 
     # ----- scheduling -----
 
@@ -1200,9 +1217,11 @@ class ChauffageRuntime:
             _LOGGER.info("%s: applied late a command sent at %s (%s): not an override, %s",
                          new.entity_id, _time(applied["sent"]), _describe(applied), then)
             return
-        expected = self.plan().expected(new.entity_id, dt_util.now(), after)
-        if expected is not None:
-            expected = engine.complete(expected, after)  # what the slot sends this thermostat now
+        plan = self.plan()
+        slot, _ = plan.slot_at(new.entity_id, dt_util.now())
+        expected = plan.target_of(new.entity_id, slot, after)
+        if expected is not None:  # what the slot sends this thermostat now
+            expected = engine.complete(expected, after, plan.default_setpoint(new.entity_id, slot))
         preset_temperature = self.preset_temperature(new, expected["preset_mode"]) \
             if expected is not None and "preset_mode" in expected else None
         current = self.data["overrides"].get(new.entity_id)

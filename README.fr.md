@@ -166,6 +166,9 @@ Lisez le [journal des modifications](CHANGELOG.md) (en anglais), puis mettez ha-
 depuis HACS. Chauffage migre vos données automatiquement. Le retour à une version antérieure
 n'est pas pris en charge.
 
+Depuis la version 0.10, un thermostat éteint à la main se rallume à la fin de sa dérogation :
+lisez [Éteindre un thermostat à la main](#éteindre-un-thermostat-à-la-main).
+
 ## Mise à jour depuis le package (v0.1)
 
 La version 0.1 d'ha-chauffage était un package YAML. L'intégration importe les données du
@@ -382,8 +385,13 @@ ensemble.
 **Une climatisation réversible** peut avoir, pour chaque préréglage, une température de
 chauffage et une température de climatisation : *Confort* à 20 °C quand elle chauffe, à 25 °C
 quand elle climatise. En climatisation, Chauffage envoie la température de climatisation. Sans
-température de climatisation, Chauffage laisse la consigne de la climatisation telle quelle
-pendant qu'elle climatise : une consigne de chauffage ne l'atteint jamais.
+température de climatisation, Chauffage laisse la consigne et le préréglage d'une
+climatisation qui climatise tels quels : une consigne de chauffage ne l'atteint jamais. Un
+préréglage de l'appareil que vous cochez vous-même est quand même envoyé : c'est votre choix. La
+fenêtre du créneau dit quel cas s'applique, dans sa ligne *Consigne*.
+
+Quand un préréglage de l'appareil et une température sont cochés tous les deux, l'appareil
+décide. La plupart des appareils gardent la température.
 
 **Astuce.** Pour une maison qui chauffe l'hiver et climatise l'été, créez un planning *Été* et
 un planning *Hiver*, avec les mêmes préréglages : les créneaux de l'été disent *Climatisation*,
@@ -518,7 +526,10 @@ jusqu'à la fin de la dérogation, 2 heures par défaut. Chauffage le rallume al
 créneau.
 
 Pour le laisser éteint jusqu'au matin, touchez *Jusqu'à demain 06:30* sous la dérogation : le
-bouton donne le premier créneau de demain qui change l'état du thermostat. Pour le laisser
+bouton donne le prochain matin, le premier créneau de la journée qui change l'état du
+thermostat. Quand ce matin n'est pas demain, le bouton nomme le jour, *Jusqu'à lundi 06:30*. La
+nuit, le matin est celui d'aujourd'hui : le bouton *Jusqu'à 08:00 (prochain créneau)* le donne
+déjà, et l'autre bouton n'apparaît pas. Pour le laisser
 éteint plus longtemps, suspendez son pilotage (*Suspendre le pilotage*), ou donnez-lui un
 planning dont les créneaux sont *Arrêt*.
 
@@ -715,9 +726,10 @@ l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée. Pour un cha
 la ligne dit aussi pourquoi la dérogation s'arrête à ce moment, par exemple « jusqu'au prochain
 créneau », puis « dérogation terminée au prochain créneau ».
 
-Si vous filtrez le journal de bord sur le thermostat, Home Assistant n'affiche pas ces lignes : il
-n'y montre que ce que note l'intégration du thermostat. Le capteur *Dérogation* du thermostat
-montre quand chaque dérogation a commencé et fini.
+Si vous filtrez le journal de bord sur le thermostat seul, Home Assistant n'affiche pas ces
+lignes : il ne cherche que les événements de l'intégration du thermostat. Pour les lire dans un
+journal filtré, filtrez sur le thermostat **et** son capteur *Dérogation*. Le capteur montre
+aussi quand chaque dérogation a commencé et fini.
 
 Une dérogation qui éteint le thermostat, ou qui le rallume, est notée comme les autres : « arrêt
 jusqu'à 06:30 », puis « dérogation terminée ». Un créneau qui éteint ou rallume le thermostat

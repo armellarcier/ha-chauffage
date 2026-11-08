@@ -30,6 +30,10 @@ sensor and the *Override end* sensor gain a `target` attribute, for example
 and `value`, so your automations keep working. The `chauffage.set_override` action gets an
 `hvac_mode` field.
 
+**Reading the logbook.** Filtered on a thermostat alone, Home Assistant's logbook does not show
+Chauffage's lines: filter on the thermostat and its *Override* sensor together, or read the
+logbook without a filter. See the README, *Troubleshooting*.
+
 ### Added
 
 - **A slot can turn a thermostat off** (#91, #96). A slot sets its preset, and may also set the
@@ -47,7 +51,8 @@ and `value`, so your automations keep working. The `chauffage.set_override` acti
   it back on, on its slot. The card shows it as *⏱ Off*. Turn it back on yourself, or tap *On*
   in the override block, and the override ends at once. The override block of the card, the
   thermostat card and the more-info dialog gets the same *On | Off* row: *Off*, then *Until
-  tomorrow 06:30*, turns a thermostat off until tomorrow's first slot that changes its state. A
+  tomorrow 06:30*, turns a thermostat off until the next morning, the first slot of the day
+  that changes its state (*Until Monday 06:30* when that morning is not tomorrow). A
   thermostat that an automation or a script turns off is not an override: it stays off until
   the next slot (#77). The `chauffage.set_override` action gets an `hvac_mode` field: `off` to
   turn a thermostat off until a time, or a mode to turn it on in.
@@ -71,6 +76,8 @@ and `value`, so your automations keep working. The `chauffage.set_override` acti
 - **Copy from the thermostat** (#91). A button in the slot popover and in the cell popover fills
   the fields from the thermostat as it is now: on or off, its HVAC mode, its fan and its vanes,
   and in the cell popover its setpoint, never its preset. Nothing is saved until *Save* or *OK*.
+- **The fan and vane values speak your language**: "1 haut", "Oscillation", after Home
+  Assistant's own names when it has them.
 - **Temperatures in your number format**: the temperature fields of the popovers show "20,5"
   for a French user, and read both "20,5" and "20.5".
 - **The planned preset sensor says the HVAC mode of the current and next slot**, in its

@@ -61,7 +61,7 @@ describe('fan and vanes on a slot', () => {
     change($(card, '.editor [data-slot-setting="fan_mode"]'), '');
     assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco');
     select(card, 'climate.atelier', 0, 1); // 14:00: fan 1, swing
-    assert.equal(text($(card, '.editor details.more summary')), 'Ventilation 1 · Volets Swing');
+    assert.equal(text($(card, '.editor details.more summary')), 'Ventilation 1 · Volets Oscillation');
   });
 
   test('The default option names the value the preset\'s value sets; the week view shows no extra icon', () => {

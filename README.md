@@ -359,8 +359,13 @@ with a preset and a temperature together.
 
 **A reversible air conditioner** can have, for each preset, a heating temperature and a cooling
 temperature: *Comfort* at 20 °C when it heats, at 25 °C when it cools. In cool, Chauffage sends
-the cooling temperature. Without one, Chauffage leaves the air conditioner's setpoint alone
-while it cools: a heating setpoint never reaches it.
+the cooling temperature. Without a cooling temperature, Chauffage leaves a cooling air
+conditioner's setpoint and preset alone: a heating setpoint never reaches it. A device preset
+that you tick yourself is still sent: it is your choice. The slot popover says which case
+applies, in its *Setpoint* line.
+
+When a device preset and a temperature are both ticked, the device decides. Most devices keep
+the temperature.
 
 **Tip.** For a home that heats in winter and cools in summer, create a *Summer* schedule and a
 *Winter* schedule, with the same presets: the summer slots say *Cool*, the winter slots leave
@@ -484,7 +489,10 @@ Chauffage makes it an override, shown as *⏱ Off*. The thermostat stays off unt
 ends, 2 hours by default. Then Chauffage turns it back on, on its slot.
 
 To keep it off until the morning, tap *Until tomorrow 06:30* under the override: the button
-gives tomorrow's first slot that changes the thermostat's state. To keep it off longer, pause
+gives the next morning, the first slot of the day that changes the thermostat's state. When
+that morning is not tomorrow, the button names the day, *Until Monday 06:30*. At night, the
+morning is today's, so the button *Until 08:00 (next slot)* already gives it, and the other
+button is not shown. To keep it off longer, pause
 its control (*Pause control*), or give it a schedule whose slots are *Off*.
 
 To end the override sooner, turn the thermostat back on yourself, or tap *On* in the override
@@ -670,9 +678,10 @@ or the `chauffage.set_override` action) and why it ended. For a change by hand, 
 says why the override ends then, for example "until the next slot", and "override ended at the
 next slot".
 
-If you filter the logbook on the thermostat, Home Assistant does not show these lines: it only
-shows there what the thermostat's own integration records. The thermostat's *Override* sensor
-shows when each override started and ended.
+If you filter the logbook on the thermostat alone, Home Assistant does not show these lines: it
+only looks for the events of the thermostat's own integration. To read them in a filtered
+logbook, filter on the thermostat **and** its *Override* sensor. The sensor also shows when each
+override started and ended.
 
 An override that turns the thermostat off, or back on, is recorded like any other: "off until
 06:30", then "override ended". A slot that turns the thermostat off or on is not an override, so

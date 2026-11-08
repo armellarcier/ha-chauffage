@@ -60,7 +60,7 @@ describe('C1: a cooling setpoint in a preset\'s value', () => {
     const hass = setup({ mappings: { 'climate.atelier': { comfort: { temperature: 20, cool_temperature: 25 } } } });
     const card = presetsView(hass);
     assert.equal(text(cell(card, 'comfort', 'climate.atelier').querySelector('.pv-val')), '20° · 25°');
-    assert.equal(cell(card, 'comfort', 'climate.atelier').querySelector('.pv-val ha-icon').getAttribute('icon'), 'mdi:snowflake');
+    assert.ok(cell(card, 'comfort', 'climate.atelier').querySelector('.pv-val ha-icon[icon="mdi:snowflake"]'));
     cell(card, 'comfort', 'climate.atelier').click();
     assert.equal($(card, '.cell-ed .pv-row[data-attr="temperature"] [data-cell-temp]').getAttribute('aria-label'), 'Température en chauffage');
     assert.equal($(card, '.cell-ed .pv-row[data-attr="cool_temperature"] [data-cell-cool]').getAttribute('aria-label'), 'Température en climatisation');
@@ -264,9 +264,9 @@ describe('C16, C17: words and numbers', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 0);
     assert.deepEqual($$(card, '.editor .more-row > span').map(text), ['Ventilation', 'Volets']);
-    assert.deepEqual($$(card, '.editor [data-slot-setting="swing_mode"] option').map((o) => o.textContent), ['Garder l\'actuel', 'Auto', '1 up', 'Swing']);
+    assert.deepEqual($$(card, '.editor [data-slot-setting="swing_mode"] option').map((o) => o.textContent), ['Garder l\'actuel', 'Auto', '1 haut', 'Oscillation']);
     change($(card, '.editor [data-slot-setting="swing_mode"]'), '1_up');
-    assert.equal(text($(card, '.editor details.more summary')), 'Volets 1 up');
+    assert.equal(text($(card, '.editor details.more summary')), 'Volets 1 haut');
     assert.ok($(card, '.editor details.more summary ha-icon[icon="mdi:chevron-down"]'));
   });
 

@@ -206,10 +206,35 @@ future contributor might question.
     cools gets the base setpoint, as before. In `heat`, the cooling setpoint is dropped. The
     rule lives in `engine.complete()`, with the "on" rule, so overrides and slots follow it
     alike.
-  - **"Until tomorrow" for an off override** is the first slot of tomorrow that changes the
-    thermostat's state, computed by the integration (`next_day_slot_end`), because the card
-    cannot tell a 00:00 slot that repeats the evening from one that changes something. The
-    integration gives `None` when tomorrow changes nothing.
+  - **In cool, the name-based default of a preset leaves the air conditioner alone.** The second
+    user panel saw *Eco* + "Keep current" on a cooling air conditioner send the device's own
+    `eco` preset, 17 °C, an icy cooling target. Now, while the slot runs in `cool` and the
+    preset's value has no `cool_temperature`, the name-based default (`{"preset_mode": "eco"}`
+    from the preset's name) sends neither a setpoint nor a device preset; a device preset the
+    user stored in the preset's value is still sent, because the user chose it; a stored base
+    temperature is not sent on a thermostat that also heats, as before. `engine.complete()`
+    takes `default_setpoint`, which `Plan.default_setpoint()` and the runtime compute from the
+    mapping and the slot's settings; an override set to a preset follows the same rule, through
+    the preset's mapping. The slot popover's *Setpoint* line uses the same rule, with the
+    mapping the card already has.
+  - **"Until tomorrow" for an off override is the next morning**: the first slot of today that
+    changes the thermostat's state when it is still to come, else the first one of tomorrow, or
+    of the next day that has one. Computed by the integration (`next_day_slot_end`), because the
+    card cannot tell a 00:00 slot that repeats the evening from one that changes something. At
+    01:30 the morning is today's, the same instant as the next slot: the card then hides the
+    button, so one button says it. Before, "tomorrow" at 01:30 on Sunday meant Monday, 29 h
+    away. The button names the day when the morning is not tomorrow (a flat Sunday).
+  - **Chauffage's logbook lines do not show for a thermostat filtered alone, and Chauffage
+    cannot change that.** Home Assistant's logbook only queries the custom events whose
+    describer domain is the config-entry domain of one of the filtered entities
+    (`async_determine_event_types`): for `climate.bureau`, Versatile Thermostat's events, never
+    `chauffage`'s, whatever `entity_id` the event carries. Filtered on the thermostat and its
+    *Override* sensor (a `chauffage` entity), both the gate and the `entity_id` matcher pass,
+    and the lines show. Registering the describers under another domain would not help: the
+    gate uses config-entry domains, not entity domains, and a YAML thermostat has none. Firing
+    `logbook_entry` events instead would show the lines on the thermostat alone, but duplicate
+    them in the unfiltered logbook next to the described events, which automations rely on. So
+    the README says to filter on the thermostat and its *Override* sensor.
   - **The fan and the vanes are more keys of the same partial state** (#61): `fan_mode`,
     `swing_mode` and `swing_horizontal_mode`, on a slot's settings and on a preset's value,
     compared and sent as they are. They show in the popovers only: the week view keeps the HVAC
@@ -239,7 +264,9 @@ future contributor might question.
     is gone: *Default* + OK replaces it.
   - **The card names the fan and the vanes with short words of its own** (*Fan*, *Vanes*,
     *Horizontal vanes*), not Home Assistant's attribute names, which are too long for a popover.
-    The values keep Home Assistant's names when it has them, else "1_up" reads "1 up".
+    The values keep Home Assistant's names when it has them, else "1_up" reads "1 up", and the
+    common words of a vane value are translated word by word ("1 haut", "Oscillation"); any
+    other word stays as it is.
   - **This is a behavior change for upgrading users**: a thermostat turned off by hand in the
     past comes back on at the next slot, and at the restart that follows the upgrade. The
     changelog says so under "Upgrading". A thermostat to leave alone is paused.

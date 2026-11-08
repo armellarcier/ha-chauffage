@@ -68,7 +68,7 @@ const I18N = {
     newOverride: 'New override…',
     resume: 'Resume the schedule',
     paused: 'Control paused',
-    pausedNote: '{name} is paused: Chauffage does not control it.',
+    pausedNote: '{name}: control paused. Chauffage leaves it alone.',
     // The HVAC mode a slot, a preset's value or an override sets (#91). Home Assistant's own
     // names come first (hass.formatEntityState); these are the fallback
     hvacOn: 'On',
@@ -81,20 +81,24 @@ const I18N = {
     slotSetpoint: 'Setpoint: {value}',
     slotSetpointKept: 'unchanged',
     untilTomorrow: 'Until tomorrow {time}',
+    untilDay: 'Until {day} {time}',
     unsupported: '{value} (not available)',
     unsupportedLeftOut: 'unsupported settings left out',
     moreSettings: 'More settings',
     fanMode: 'Fan',
     swingMode: 'Vanes',
     swingHorizontalMode: 'Horizontal vanes',
+    settingWords: { up: 'up', down: 'down', left: 'left', right: 'right', swing: 'Swing', auto: 'Auto', split: 'Split' },
     capture: 'Copy from the thermostat',
     captured: 'Copied ✓',
     defaultIs: 'Default: {value}',
     cellUseDefault: 'Default',
     cellUseCustom: 'Custom',
     cellNeedOne: 'Tick at least one setting.',
-    temperatureHeat: 'Heating temperature',
-    temperatureCool: 'Cooling temperature',
+    temperatureHeat: 'Heating',
+    temperatureHeatAria: 'Heating temperature',
+    temperatureCool: 'Cooling',
+    temperatureCoolAria: 'Cooling temperature',
     cellBoth: '{preset} + {temperature}',
     offWindow: 'Window open',
     offAutoStop: 'Auto stop',
@@ -158,7 +162,7 @@ const I18N = {
     notScheduled: 'Chauffage does not schedule this thermostat. An admin can schedule it in the Chauffage panel, on the Thermostats tab.',
     thermostatCardName: 'Scheduled thermostat',
     thermostatCardDescription: 'One thermostat scheduled by Chauffage: what it does now, why and until when, an override',
-    thermostatsHint: 'Chauffage controls the scheduled thermostats. A paused thermostat stays scheduled: it keeps its weeks, but Chauffage does not control it.',
+    thermostatsHint: 'Chauffage controls the scheduled thermostats. A thermostat whose control is paused stays scheduled: it keeps its weeks, but Chauffage leaves it alone.',
     pauseShort: 'Pause control',
     forget: 'Forget…',
     forgetText: '{name} will no longer be scheduled. Its weeks and settings will be deleted.',
@@ -287,7 +291,7 @@ const I18N = {
     cardDescription: 'Weekly heating schedules, several thermostats per day',
     // Visual editor of the card
     editorThermostats: 'Thermostats (required)',
-    editorRemovedScheduled: '{name} is still scheduled, so Chauffage keeps controlling it. To stop, pause or forget it in the Chauffage panel, on the Thermostats tab.',
+    editorRemovedScheduled: '{name} is still scheduled, so Chauffage keeps controlling it. To stop, pause its control or forget it in the Chauffage panel, on the Thermostats tab.',
     editorRenamed: 'Renamed {entity} in Home Assistant.',
     editorUseNewId: 'Use the new id',
     editorThermostat: 'Thermostat',
@@ -348,7 +352,7 @@ const I18N = {
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
     paused: 'Pilotage suspendu',
-    pausedNote: '{name} est en pause : Chauffage ne le pilote pas.',
+    pausedNote: '{name} : pilotage suspendu. Chauffage n\'y touche plus.',
     hvacOn: 'Marche',
     hvacOff: 'Arrêt',
     hvacGroup: 'Fonctionnement',
@@ -359,20 +363,24 @@ const I18N = {
     slotSetpoint: 'Consigne : {value}',
     slotSetpointKept: 'inchangée',
     untilTomorrow: 'Jusqu\'à demain {time}',
+    untilDay: 'Jusqu\'à {day} {time}',
     unsupported: '{value} (indisponible)',
     unsupportedLeftOut: 'réglages non pris en charge ignorés',
     moreSettings: 'Plus de réglages',
     fanMode: 'Ventilation',
     swingMode: 'Volets',
     swingHorizontalMode: 'Volets horizontaux',
+    settingWords: { up: 'haut', down: 'bas', left: 'gauche', right: 'droite', swing: 'Oscillation', auto: 'Auto', split: 'Écarté' },
     capture: 'Copier depuis le thermostat',
     captured: 'Copié ✓',
     defaultIs: 'Par défaut : {value}',
     cellUseDefault: 'Par défaut',
     cellUseCustom: 'Personnalisé',
     cellNeedOne: 'Cochez au moins un réglage.',
-    temperatureHeat: 'Température en chauffage',
-    temperatureCool: 'Température en climatisation',
+    temperatureHeat: 'Chauffage',
+    temperatureHeatAria: 'Température en chauffage',
+    temperatureCool: 'Climatisation',
+    temperatureCoolAria: 'Température en climatisation',
     cellBoth: '{preset} + {temperature}',
     offWindow: 'Fenêtre ouverte',
     offAutoStop: 'Arrêt auto',
@@ -436,7 +444,7 @@ const I18N = {
     notScheduled: "Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur l’onglet Thermostats.",
     thermostatCardName: 'Thermostat programmé',
     thermostatCardDescription: 'Un thermostat programmé par Chauffage : ce qu’il fait, pourquoi et jusqu’à quand, une dérogation',
-    thermostatsHint: "Chauffage pilote les thermostats programmés. Un thermostat en pause reste programmé : il garde ses semaines, mais Chauffage ne le pilote pas.",
+    thermostatsHint: 'Chauffage pilote les thermostats programmés. Un thermostat au pilotage suspendu reste programmé : il garde ses semaines, mais Chauffage n\'y touche plus.',
     pauseShort: 'Suspendre le pilotage',
     forget: 'Oublier…',
     forgetText: '{name} ne sera plus programmé. Ses semaines et ses réglages seront supprimés.',
@@ -565,7 +573,7 @@ const I18N = {
     cardDescription: 'Plannings de chauffe hebdomadaires, plusieurs thermostats par journée',
     // Visual editor of the card
     editorThermostats: 'Thermostats (obligatoire)',
-    editorRemovedScheduled: '{name} est toujours programmé, donc Chauffage continue de le piloter. Pour l’arrêter, mettez-le en pause ou oubliez-le dans le panneau Chauffage, sur l’onglet Thermostats.',
+    editorRemovedScheduled: '{name} est toujours programmé, donc Chauffage continue de le piloter. Pour l’arrêter, suspendez son pilotage ou oubliez-le dans le panneau Chauffage, sur l’onglet Thermostats.',
     editorRenamed: 'Renommé {entity} dans Home Assistant.',
     editorUseNewId: 'Utiliser le nouvel identifiant',
     editorThermostat: 'Thermostat',
@@ -699,6 +707,8 @@ function makeLocale(hass, configured) {
     preset: (key) => strings.presets[key] || key,
     // An HVAC mode, when Home Assistant does not name it (hvacName)
     hvacMode: (mode) => strings.hvacModes[mode] || String(mode),
+    // A word of a fan or vane value ("up", "swing") in the user's language, else as it is
+    settingWord: (word) => strings.settingWords[String(word).toLowerCase()] ?? word,
     destination: (key) => strings.destinations[key] || key,
     // Minutes since midnight → "06:30" / "6:30 AM"; 1440 (end of day) → "24:00" in 24 h clocks
     time: (minutes) => (minutes === DAY_MIN && !hour12 ? '24:00' : timeFormat.format(at(minutes))),
@@ -848,7 +858,8 @@ function attributeValue(hass, climate, attr, value, loc) {
       if (typeof name === 'string' && name && name !== String(value)) return name;
     } catch (e) { /* the raw value */ }
   }
-  const text = String(value).replace(/_/g, ' ');
+  // "1_up" reads "1 up", and the common words of a vane value in the user's language ("1 haut")
+  const text = String(value).replace(/_/g, ' ').split(' ').map((word) => loc.settingWord(word)).join(' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 // The thermostat's current state, to capture into a slot or a preset's value (#91, lot 3): the
@@ -1981,15 +1992,19 @@ function slotRunsIn(hass, climate, seg, target) {
   return 'heat';
 }
 
-// The setpoint a slot will apply, in words: its cooling setpoint in cool, "unchanged" in cool
-// without one on an air conditioner that also heats, else its temperature or its device preset
-function slotSetpointText(hass, climate, seg, target, loc) {
+// The setpoint a slot will apply, in words, with the integration's rule: its cooling setpoint
+// in cool; in cool without one on an air conditioner that also heats, "unchanged" unless the
+// user stored a device preset (`explicit`: the preset's value on this thermostat), which is
+// sent; else its temperature or its device preset
+function slotSetpointText(hass, climate, seg, target, loc, explicit = null) {
   const t = loc.t;
   const mode = slotRunsIn(hass, climate, seg, target);
   if (!mode) return '';
   if (mode === 'cool') {
     if ('cool_temperature' in target) return t('slotSetpoint', { value: `${loc.number(target.cool_temperature)} ${loc.unit}` });
-    if ((hvacModesOf(hass, climate).modes || []).includes('heat')) return t('slotSetpoint', { value: t('slotSetpointKept') });
+    const stored = explicit && ('preset_mode' in explicit || (seg.settings && 'preset_mode' in seg.settings));
+    if ((hvacModesOf(hass, climate).modes || []).includes('heat') && !stored) return t('slotSetpoint', { value: t('slotSetpointKept') });
+    if (stored) return t('slotSetpoint', { value: t('cellOwnPreset', { preset: loc.preset(target.preset_mode) }) });
   }
   if ('temperature' in target) return t('slotSetpoint', { value: `${loc.number(target.temperature)} ${loc.unit}` });
   if ('preset_mode' in target) return t('slotSetpoint', { value: t('cellOwnPreset', { preset: loc.preset(target.preset_mode) }) });
@@ -2059,10 +2074,19 @@ function nextSlotButton(src, climate, d, loc, attrs) {
 // already ends then
 function tomorrowButton(src, climate, d, loc, attrs) {
   if (!d.target || d.target.hvac_mode !== 'off') return '';
-  const iso = (src.planned(climate) || {}).next_day_slot_end;
+  const planned = src.planned(climate) || {};
+  const iso = planned.next_day_slot_end;
   const at = iso ? parseDate(iso) : null;
-  if (!at || Math.floor(at / 60000) === Math.floor(parseDate(d.end) / 60000)) return '';
-  return `<button ${attrs} data-at="${esc(iso)}">${esc(loc.t('untilTomorrow', { time: loc.time(minutesOf(at)) }))}</button>`;
+  const minute = (date) => Math.floor(date / 60000);
+  // The next morning: hidden when it is the next slot's instant (one button then), or when the
+  // override already ends then; named by its day when it is not tomorrow (a flat Sunday)
+  if (!at || minute(at) === minute(parseDate(d.end))) return '';
+  if (planned.next_slot_end && minute(at) === minute(parseDate(planned.next_slot_end))) return '';
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const time = loc.time(minutesOf(at));
+  const label = at.toDateString() === tomorrow.toDateString() ? loc.t('untilTomorrow', { time }) : loc.t('untilDay', { day: dayText(at, loc), time });
+  return `<button ${attrs} data-at="${esc(iso)}">${esc(label)}</button>`;
 }
 // The override `d` ended at the instant on the button, no longer "at the next slot"
 const endedAt = (d, at) => { const { ends_at: _, ...rest } = d; return { ...rest, end: at }; };
@@ -2990,11 +3014,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     const dur = end - start;
     const compact = this._shown.length > 1;
     const wide = this._loc.hour12 ? 25 : 0; // "6:30 AM" needs more room than "06:30"
-    const t = dur >= (compact ? 60 : 75) + wide ? this._loc.time(start) : '';
-    const l = dur >= (compact ? 180 : 150) + wide ? esc(this._slotLabel(climate, s)) : '';
+    const mode = this._slotHvac(climate, s);
+    const forTime = (compact ? 60 : 75) + wide;
+    const forLabel = (compact ? 180 : 150) + wide;
+    // On an off slot, "Off" wins over the time: a phone has no tooltip to say what grey means.
+    // Too narrow for the word, the icon alone, larger
+    const off = mode === 'off';
+    const t = dur >= (off ? forLabel : forTime) ? this._loc.time(start) : '';
+    const l = dur >= (off ? forTime : forLabel) ? esc(this._slotLabel(climate, s)) : '';
     // The HVAC mode's icon sits on the time's line ("00:00 ⏻"), and stays even in a narrow
     // segment: an off night stays readable; the name goes on the next line in a tall bar
-    return `<span class="t">${t}${hvacIcon(this._slotHvac(climate, s))}</span><span class="l">${l}</span>`;
+    return `<span class="t${off && !t && !l ? ' alone' : ''}">${t}${hvacIcon(mode)}</span><span class="l">${l}</span>`;
   }
 
   _barHtml(climate, segs, days, showNow) {
@@ -3206,7 +3236,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('')}`;
     // The setpoint the slot will apply, as the preset's value gives it: a link to the presets
     // page for an admin
-    const setpoint = slotSetpointText(this._hass, climate, s, target, this._loc);
+    const setpoint = slotSetpointText(this._hass, climate, s, target, this._loc, this._source().mapping(climate)[s.preset] || null);
     const setpointLine = !setpoint ? '' : isAdmin(this._hass)
       ? `<span class="slot-setpoint mi-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}">${esc(setpoint)}</span>`
       : `<span class="slot-setpoint muted">${esc(setpoint)}</span>`;
@@ -3530,7 +3560,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>
         ${this._menuHtml()}
         ${this._editorHtml()}
-        ${weekOnly ? '' : `<div class="foot">
+        ${weekOnly ? (this._legendHvacHtml() ? `<div class="foot"><div class="legend">${this._legendHvacHtml()}</div></div>` : '') : `<div class="foot">
           <div class="legend">${legend}</div>
           <div class="actions">
             <button class="btn copyweek${cw ? ' on' : ''}" data-act="copyweek-menu">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</button>
@@ -4526,8 +4556,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       const off = target.hvac_mode === 'off';
       const tuned = SETTING_ATTRS.some((attr) => attr in target) ? '<span class="m"><ha-icon icon="mdi:tune-variant"></ha-icon></span>' : '';
       const cool = 'cool_temperature' in target ? `${hvacIconHtml('cool')}${this._loc.number(target.cool_temperature)}°` : '';
-      // A heating setpoint known: "20°"; unknown: "?", unless the cooling one is the value
-      const heat = temp != null ? `${this._loc.number(temp)}°` : cool ? '' : '?';
+      // A heating setpoint known: "20°", with its icon next to a cooling one ("🔥 20° · ❄ 25°");
+      // unknown: "?", unless the cooling one is the value
+      const heat = temp != null ? `${cool ? hvacIconHtml('heat') : ''}${this._loc.number(temp)}°` : cool ? '' : '?';
       const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat;
       const value = off ? esc(t('hvacOff')) : `${setpoint}${hvacIconHtml(target.hvac_mode)}${tuned}`;
       return { value, how, cls };
@@ -4612,9 +4643,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
       // One row per attribute of the thermostat, as in Home Assistant's scene editor: a ticked
       // attribute is part of the preset's value here; using a field ticks it
-      const row = (attr, label, field) => `<label class="pv-row" data-attr="${attr}">
+      const row = (attr, label, field, icon = '') => `<label class="pv-row" data-attr="${attr}">
           <input type="checkbox" data-cell-use="${attr}"${attr in value && (attr !== 'hvac_mode' || value.hvac_mode !== 'off') ? ' checked' : ''}>
-          <span>${esc(label)}</span><span class="pv-field">${field}</span></label>`;
+          <span>${icon}${esc(label)}</span><span class="pv-field">${field}</span></label>`;
       const picked = own.includes(value.preset_mode) ? value.preset_mode : own[0];
       const options = own.map((p) => `<option value="${esc(p)}"${picked === p ? ' selected' : ''}>${esc(this._loc.preset(p))}</option>`).join('');
       // The HVAC mode: only the modes that turn the thermostat on (the schedule decides when it
@@ -4624,11 +4655,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       const hvacOptions = (stored && !on.includes(stored) ? [stored] : []).concat(on).map((m) => `<option value="${esc(m)}"${(stored || on[0]) === m ? ' selected' : ''}${!on.includes(m) ? ' class="unsupported"' : ''}>${
         esc(on.includes(m) ? hvacName(this._hass, sel.climate, m, this._loc) : t('unsupported', { value: hvacName(this._hass, sel.climate, m, this._loc) }))}</option>`).join('');
       const hvacRow = on.length >= 2 || (stored && !modes) ? row('hvac_mode', t('hvacGroup'), `<select data-cell-hvac${!modes ? ' disabled' : ''}>${hvacOptions}</select>`) : '';
-      // A reversible air conditioner gets two temperature rows: heating (🔥) and cooling (❄)
+      // A reversible air conditioner gets two temperature rows, "🔥 Heating" and "❄ Cooling",
+      // under the device preset's row: temperatures, from their °C field
       const reversible = (modes || []).includes('heat') && (modes || []).includes('cool');
       const temperatureRows = reversible
-        ? row('temperature', t('presetTemperature'), `${hvacIconHtml('heat')}${tempInput(temp, 'data-cell-temp', t('temperatureHeat'))}`)
-          + row('cool_temperature', t('presetTemperature'), `${hvacIconHtml('cool')}${tempInput(value.cool_temperature ?? temp, 'data-cell-cool', t('temperatureCool'))}`)
+        ? row('temperature', t('temperatureHeat'), tempInput(temp, 'data-cell-temp', t('temperatureHeatAria')), hvacIconHtml('heat'))
+          + row('cool_temperature', t('temperatureCool'), tempInput(value.cool_temperature ?? temp, 'data-cell-cool', t('temperatureCoolAria')), hvacIconHtml('cool'))
         : row('temperature', t('presetTemperature'), tempInput(temp));
       // The fan and the vanes (lot 3): a row per attribute the thermostat lists, or a stored value
       const settingOptions = settingOptionsOf(this._hass, sel.climate);
@@ -5367,6 +5399,7 @@ const STYLE = `
      restarts on, under 3 px of padding so that the strip never covers the text */
   .seg .t ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; visibility:visible; }
   .seg .t:not(:empty) ha-icon { margin-left:3px; }
+  .seg .t.alone ha-icon { --mdc-icon-size:14px; width:14px; height:14px; margin-left:0; }
   .seg.off { color:#fff; padding-bottom:5px; }
   .seg .strip { position:absolute; left:0; right:0; bottom:0; height:3px; }
   .seg.off.sel .strip { bottom:3px; left:3px; right:3px; }
