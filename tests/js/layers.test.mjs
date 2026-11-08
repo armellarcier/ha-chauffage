@@ -224,6 +224,99 @@ describe('editing a layer: blocks, and nothing where none is drawn', () => {
   });
 });
 
+describe('a layer\'s blocks behave as the slots of the schedule', () => {
+  const popover = (card) => $(card, '.editor');
+  const select = (card) => layerBar(card, 'occupied').querySelector('.lblock').click();
+
+  test('its handles follow the pointer while it is dragged', () => {
+    const { card } = editing();
+    const bar = geometry(layerBar(card, 'occupied'));
+    const end = bar.querySelector('.lhandle[data-idx="0"][data-edge="end"]');
+    mouse(end, 'pointerdown', 17 * 60);
+    mouse(end, 'pointermove', 18 * 60);
+    assert.equal(end.style.left, '75%');
+    assert.equal(end.querySelector('.tip').textContent, '18:00');
+    assert.equal(bar.querySelector('.lblock').style.width, '37.5%');
+    mouse(end, 'pointerup', 18 * 60);
+  });
+
+  test('new data while a handle is dragged leaves the handle and the edit alone', () => {
+    const data = withLayers();
+    const hass = fakeHass({ data });
+    const card = createCard(hass, { show: ['climate.salon'] });
+    salonBar(card).querySelector('.seg').click();
+    const end = geometry(layerBar(card, 'occupied')).querySelector('.lhandle[data-idx="0"][data-edge="end"]');
+    mouse(end, 'pointerdown', 17 * 60);
+    mouse(end, 'pointermove', 18 * 60);
+    hass.push({ ...withLayers(), revision: 9 });
+    assert.ok(end.isConnected);
+    mouse(end, 'pointerup', 18 * 60);
+    assert.equal(card._layerBlocks('climate.salon', 'occupied', 0)[0].end, 18 * 60);
+  });
+
+  test('a click elsewhere closes its popover', () => {
+    const { card } = editing();
+    select(card);
+    assert.ok(popover(card));
+    $(card, '.day').click();
+    assert.equal(popover(card), null);
+  });
+
+  test('Escape and a press outside the card close its popover', () => {
+    const { card } = editing();
+    select(card);
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal(popover(card), null);
+    select(card);
+    document.body.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+    assert.equal(popover(card), null);
+  });
+
+  test('a click on a slot of the schedule shows that slot instead, and the other way round', () => {
+    const { card } = editing();
+    select(card);
+    salonBar(card).querySelector('.seg[data-idx="1"]').click();
+    assert.ok(popover(card).querySelector('[data-act="insert"]'));
+    select(card);
+    assert.ok(popover(card).querySelector('[data-act="layer-delete"]'));
+  });
+
+  test('its tooltip names its layer, in an open row and over the day', () => {
+    const { card } = editing();
+    assert.match(layerBar(card, 'occupied').querySelector('.lblock').title, /Salon occupé/);
+    const css = card.shadowRoot.querySelector('style').textContent;
+    assert.doesNotMatch(css.match(/\.layer-block \{[^}]*\}/)[0], /pointer-events:none/);
+  });
+
+  test('a click on a layer block over the day opens the row', () => {
+    const card = createCard(fakeHass({ data: withLayers() }), { show: ['climate.salon'] });
+    salonBar(card).querySelector('.layer-block').click();
+    assert.ok(layerBar(card, 'occupied'));
+  });
+
+  test('edits not saved yet show once the row is closed', () => {
+    const { card } = editing();
+    mouse(geometry(layerBar(card, 'occupied')), 'dblclick', 19 * 60);
+    $(card, '[data-act="toggle-row"][data-day="0"]').click();
+    assert.deepEqual(blocks(card).at(-1), ['79.167%', '4.167%', 'comfort', 'occupied']);
+  });
+});
+
+describe('many layers stacked', () => {
+  const stacked = (n) => {
+    const data = withLayers();
+    const ids = Array.from({ length: n }, (_, i) => `l${i}`);
+    data.schedules[0].layers = ids.map((id) => ({ id, name: id, enabled: true, condition: null }));
+    data.layer_weeks['climate.salon'] = Object.fromEntries(ids.map((id) => [id, Array(7).fill(OCCUPIED_DAY)]));
+    data.layers_applying = ids;
+    return data;
+  };
+  const room = (n) => salonBar(createCard(fakeHass({ data: stacked(n) }), { show: ['climate.salon'] })).closest('.sub').style.paddingBottom;
+
+  test('up to three stay within their row', () => assert.equal(room(3), ''));
+  test('more push the next row down by as much as they stick out', () => assert.equal(room(6), '12px'));
+});
+
 describe('which layers an open row shows', () => {
   const allChip = (card) => $(card, '[data-act="layers-all"]');
   const names = (card) => $$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim());
@@ -440,8 +533,29 @@ describe('the layers of each schedule, on the Schedules page', () => {
     act(card, 'layerlist-edit', 'sun');
     act(card, 'layerlist-save');
     await flush();
-    assert.match($(card, '.msg').textContent, /invalid template/);
+    assert.match($(card, '.layer-form .rule-result.error').textContent, /invalid template/);
     assert.ok($(card, 'input[data-layer-name]'));
+  });
+
+  test('a name another layer of the schedule has is refused in the form, before saving', () => {
+    const { card } = page();
+    act(card, 'layerlist-add');
+    type(card, 'input[data-layer-name]', ' soleil ');
+    assert.ok($(card, '.layer-form .rule-result.error'));
+    assert.ok($(card, '[data-act="layerlist-save"]').disabled);
+    type(card, 'input[data-layer-name]', 'Soleil du soir');
+    assert.equal($(card, '.layer-form .rule-result.error'), null);
+    assert.ok(!$(card, '[data-act="layerlist-save"]').disabled);
+  });
+
+  test('a layer keeps its own name when edited, and another schedule may use the name', () => {
+    const { card } = page();
+    act(card, 'layerlist-edit', 'sun');
+    assert.equal($(card, '.layer-form .rule-result.error'), null);
+    act(card, 'layerlist-cancel');
+    $(card, '[data-act="layerlist-add"][data-schedule="away"]').click();
+    type(card, 'input[data-layer-name]', 'Soleil');
+    assert.equal($(card, '.layer-form .rule-result.error'), null);
   });
 
   test('users who are not admins only read the layers', () => {

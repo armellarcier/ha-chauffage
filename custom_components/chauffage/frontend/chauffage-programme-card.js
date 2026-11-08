@@ -40,6 +40,7 @@ const I18N = {
     layerApplies: 'applies now',
     layerNotNow: 'not now',
     layerEnabled: 'Enabled',
+    layerNameTaken: 'Another layer of this schedule has this name',
     layerEdit: 'Edit',
     layerMove: 'Drag to change the order (or the arrow keys): the top layer wins',
     allLayers: 'All layers',
@@ -302,6 +303,7 @@ const I18N = {
     layerApplies: 's’applique',
     layerNotNow: 'pas maintenant',
     layerEnabled: 'Activé',
+    layerNameTaken: 'Un autre calque de ce planning porte ce nom',
     layerEdit: 'Modifier',
     layerMove: 'Glisser pour changer l’ordre (ou les flèches) : le calque du haut l’emporte',
     allLayers: 'Tous les calques',
@@ -678,6 +680,7 @@ const LS_CLIP = 'chauffage-programme-card:clip';
 const LS_HISTORY = 'chauffage-programme-card:history';
 const LS_GROUP = 'chauffage-programme-card:group-days';
 const LS_LAYERS = 'chauffage-programme-card:all-layers';
+const LAYER_TIER_SHIFT = 4; // px, as in .layer-block
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
 const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
@@ -2079,7 +2082,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (this._setAside(src)) need = true;
     const stamp = src.stamps.weeks;
-    if ((stamp !== this._stamp || !this._data) && !this._dirty && !this._drag) {
+    if ((stamp !== this._stamp || !this._data) && !this._dirty && !this._drag && !this._ldrag) {
       this._load();
       this._stamp = stamp;
       need = true;
@@ -2203,7 +2206,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell && !this._thMore && !this._copyWeekMenu) return;
+      if (!this._menu && !this._sel && !this._lsel && !this._overrideSel && !this._schedEd && !this._cell && !this._thMore && !this._copyWeekMenu) return;
       this._menu = null;
       this._copyWeekMenu = null;
       this._thMore = null;
@@ -2211,6 +2214,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._cell = null;
       this._schedEd = null;
       this._sel = null;
+      this._lsel = null;
       this._overrideSel = null;
       this._render();
     };
@@ -2825,7 +2829,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const blockHtml = blocks.map((b, i) => {
         const p = this._preset(b.preset);
         const on = sel && sel.climate === climate && sel.layer === layer.id && sel.day === d && sel.idx === i;
-        return `<div class="lblock${on ? ' sel' : ''}" data-idx="${i}" style="left:${pct(b.start)}%;width:${pct(b.end - b.start)}%;background:${p.color}" title="${esc(`${this._loc.time(b.start)} → ${this._loc.time(b.end)} · ${p.name}`)}"></div>`
+        return `<div class="lblock${on ? ' sel' : ''}" data-idx="${i}" style="left:${pct(b.start)}%;width:${pct(b.end - b.start)}%;background:${p.color}" title="${esc(`${layer.name} · ${this._loc.time(b.start)} → ${this._loc.time(b.end)} · ${p.name}`)}"></div>`
           + `<div class="lhandle" data-idx="${i}" data-edge="start" style="left:${pct(b.start)}%"><span class="tip">${this._loc.time(b.start)}</span></div>`
           + `<div class="lhandle" data-idx="${i}" data-edge="end" style="left:${pct(b.end)}%"><span class="tip">${this._loc.time(b.end)}</span></div>`;
       }).join('');
@@ -2837,25 +2841,29 @@ class ChauffageProgrammeCard extends HTMLElement {
     return rows;
   }
 
-  // The layers that apply now drawn over a thermostat's day (only in the active schedule's tab:
-  // the layers of another schedule do not apply). One tier per layer drawn that day, from the
-  // lowest of the stack: the top layer is the last one, in front, and the slimmest (.layer-block)
-  _layersHtml(climate, day) {
-    if (this._schedule !== this._activeSchedule()) return '';
+  // The layers that apply now with something on a thermostat's day, from the lowest of the stack,
+  // with the edits not saved yet (only in the active schedule's tab: the layers of another
+  // schedule do not apply)
+  _layerStack(climate, day) {
+    if (this._schedule !== this._activeSchedule()) return [];
     const src = this._source();
     const layers = src.layers(this._schedule);
     return src.layersApplying()
       .map((id) => layers.find((l) => l.id === id))
       .filter(Boolean)
-      .map((layer) => ({ layer, blocks: layerBlocks(src.layerDay(climate, layer.id, day)) }))
+      .map((layer) => ({ layer, blocks: this._layerBlocks(climate, layer.id, day) }))
       .filter(({ blocks }) => blocks.length)
-      .reverse()
-      .map(({ layer, blocks }, tier) => blocks.map(({ start, end, preset }) => {
-        const p = this._preset(preset);
-        const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
-        return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
-      }).join(''))
-      .join('');
+      .reverse();
+  }
+
+  // Those layers drawn over the day. One tier each: the top layer is the last one, in front, and
+  // the slimmest (.layer-block)
+  _layersHtml(climate, day) {
+    return this._layerStack(climate, day).map(({ layer, blocks }, tier) => blocks.map(({ start, end, preset }) => {
+      const p = this._preset(preset);
+      const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
+      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
+    }).join('')).join('');
   }
 
   // Override drawn over the schedule (only in the active schedule's tab), on a row of days
@@ -2888,7 +2896,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         const opened = this._isOpen(climate, d);
         const chevron = layered ? `<button class="chev${opened ? ' open' : ''}" data-act="toggle-row" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t(opened ? 'closeRow' : 'openRow'))}" aria-expanded="${opened}">${ICON_DOWN}</button>` : '';
         const named = multi || layered;
-        const sub = `<div class="sub">
+        // From the fourth tier, each block moves down by LAYER_TIER_SHIFT: the next row makes room
+        const below = opened ? 0 : Math.max(0, this._layerStack(climate, d).length - 3) * LAYER_TIER_SHIFT;
+        const sub = `<div class="sub"${below ? ` style="padding-bottom:${below}px"` : ''}>
           ${chevron}${named ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
           ${this._barHtml(climate, segs, days, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
@@ -3165,8 +3175,9 @@ class ChauffageProgrammeCard extends HTMLElement {
   // template being typed (the card is redrawn every 30 s during an override, or when Home
   // Assistant sends new data)
   _render() {
-    // Not while a layer is dragged: the redraw would take its row away
-    if (this._layerDrag) { this._layerDrag.redraw = true; return; }
+    // Not while a layer or one of its blocks is dragged: the redraw would take its handle away
+    const dragged = this._layerDrag || this._ldrag;
+    if (dragged) { dragged.redraw = true; return; }
     // Not while a time is typed: the redraw would take its field away
     if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; }
     const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
@@ -3388,6 +3399,19 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._dirtyTold = this._dirty;
       this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
     }
+  }
+
+  // The same for a layer's row: its blocks, and the handles at their two ends
+  _layoutLayerBar(bar, blocks) {
+    bar.querySelectorAll('.lblock').forEach((el, i) => {
+      el.style.left = `${pct(blocks[i].start)}%`;
+      el.style.width = `${pct(blocks[i].end - blocks[i].start)}%`;
+    });
+    bar.querySelectorAll('.lhandle').forEach((el) => {
+      const m = blocks[Number(el.dataset.idx)][el.dataset.edge];
+      el.style.left = `${pct(m)}%`;
+      el.querySelector('.tip').textContent = this._loc.time(m);
+    });
   }
 
   // Visual update of a row while dragging (without recreating the captured handle)
@@ -3668,6 +3692,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (d.edge === 'start') b.start = Math.max(prev, Math.min(b.end - step, m));
       else b.end = Math.min(next, Math.max(b.start + step, m));
       d.moved = true;
+      this._layoutLayerBar(d.bar, blocks);
     });
     root.addEventListener('pointerup', () => {
       const d = this._ldrag;
@@ -3675,6 +3700,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._ldrag = null;
       this._layerMoved = Date.now();
       if (d.moved) this._layerCommit(d.climate, d.layer, d.day);
+      else if (d.redraw) this._render();
     });
     // A double click (double tap) where a layer has nothing: a new block there
     root.addEventListener('dblclick', (e) => {
@@ -3758,8 +3784,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         if (!e.target.closest('[data-act]')) { this._render(); return; }
       }
       // Popover open: a click outside the popover / slot closes it
-      if ((this._sel || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override')) {
+      if ((this._sel || this._lsel || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override, .lblock, .lhandle')) {
         this._sel = null;
+        this._lsel = null;
         this._overrideSel = null;
         if (!e.target.closest('[data-act], .tab, .chip')) { this._render(); return; }
       }
@@ -3795,6 +3822,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       const act = e.target.closest('[data-act]');
       if (act) { if (!act.disabled) this._action(act.dataset.act, act.dataset, act); return; }
 
+      const drawn = e.target.closest('.layer-block');
+      if (drawn) {
+        this._expanded = { climate: drawn.parentElement.dataset.climate, day: Number(drawn.parentElement.dataset.day) };
+        this._sel = null;
+        this._lsel = null;
+        return this._render();
+      }
       const block = e.target.closest('.lblock');
       if (block) {
         if (Date.now() - (this._layerMoved || 0) < 300) return;
@@ -3826,6 +3860,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const sel = this._sel;
       if (!sel || sel.climate !== climate || sel.day !== day || sel.idx !== idx) {
         this._overrideSel = null;
+        this._lsel = null;
         this._sel = { climate, day, idx };
         this._focus = climate;
         this._render();
@@ -3852,10 +3887,11 @@ class ChauffageProgrammeCard extends HTMLElement {
         return;
       }
       if (e.target.hasAttribute('data-layer-name') || e.target.hasAttribute('data-layer-condition')) {
-        const hadName = !!this._layerEd.name.trim();
+        const before = this._layerFormState();
         this._layerEd[e.target.hasAttribute('data-layer-name') ? 'name' : 'condition'] = e.target.value;
-        // Save is enabled once the layer has a name; the text and the caret are kept
-        if (hadName !== !!this._layerEd.name.trim()) this._render();
+        this._layerEd.error = null;
+        // Save enabled or not, why it is not; the text and the caret are kept
+        if (before !== this._layerFormState()) this._render();
         this._syncPreview();
         return;
       }
@@ -4369,6 +4405,18 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `${form}${rows}${add}`;
   }
 
+  // Another layer of the schedule has the name typed
+  _layerNameTaken() {
+    const { schedule, id, name } = this._layerEd;
+    const typed = name.trim().toLocaleLowerCase();
+    return this._source().layers(schedule).some((l) => l.id !== id && l.name.toLocaleLowerCase() === typed);
+  }
+
+  // What decides how the form looks, apart from the fields themselves
+  _layerFormState() {
+    return JSON.stringify([!!this._layerEd.name.trim(), this._layerNameTaken(), !!this._layerEd.error]);
+  }
+
   // The form of a layer being added or edited; its condition is tried while typed (_syncPreview)
   _layerFormHtml() {
     const t = this._loc.t;
@@ -4380,6 +4428,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       const [cls, label] = tried.results[0] == null ? ['error', t('ruleError')] : tried.results[0] ? ['true', t('ruleTrue')] : ['false', t('ruleFalse')];
       result = `<div class="rule-result"><span class="rule-state ${cls}">${esc(label)}</span>${tried.errors[0] ? ` ${esc(tried.errors[0])}` : ''}</div>`;
     }
+    const taken = this._layerNameTaken();
+    const problem = ed.error || (taken ? t('layerNameTaken') : '');
     const remove = !ed.id ? ''
       : ed.confirm ? `<button class="btn" data-act="layerlist-remove-confirm">${esc(t('layerRemoveConfirm'))}</button>`
         : `<button class="btn" data-act="layerlist-remove">${esc(t('delete'))}</button>`;
@@ -4388,9 +4438,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       <label>${esc(t('layerCondition'))}
         <textarea data-layer-condition rows="2" spellcheck="false" placeholder="{{ is_state('binary_sensor.office', 'on') }}">${esc(ed.condition)}</textarea></label>
       ${result}
+      ${problem ? `<div class="rule-result error">${esc(problem)}</div>` : ''}
       <div class="ed-actions start">${remove}
         <button class="btn" data-act="layerlist-cancel">${esc(t('cancel'))}</button>
-        <button class="btn primary" data-act="layerlist-save"${ed.name.trim() ? '' : ' disabled'}>${esc(t('save'))}</button></div>
+        <button class="btn primary" data-act="layerlist-save"${ed.name.trim() && !taken ? '' : ' disabled'}>${esc(t('save'))}</button></div>
     </div>`;
   }
 
@@ -4401,7 +4452,10 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._layerEd = null;
       this._msg = '';
     } catch (err) {
-      this._msg = this._loc.t('error', { message: err.message || err.code || err });
+      // In the form when one is open: the page's message may be below the end of the screen
+      const message = this._loc.t('error', { message: err.message || err.code || err });
+      if (this._layerEd) this._layerEd.error = message;
+      else this._msg = message;
     }
     return this._render();
   }
@@ -5206,10 +5260,10 @@ const STYLE = `
      tier slimmer than the one under it, so that all of them show; at the minimum height, from
      the fourth tier, each one moves down instead */
   .layer-block { position:absolute; bottom:calc(max(0, var(--tier) - 2) * -4px); height:max(8px, calc(70% - var(--tier) * 20%));
-    z-index:calc(1 + var(--tier)); box-sizing:border-box; overflow:hidden; container-type:size;
+    z-index:calc(1 + var(--tier)); box-sizing:border-box; overflow:hidden; container-type:size; cursor:pointer;
     padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
     color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
-    display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); pointer-events:none; }
+    display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); }
   /* Too slim for its name */
   @container (max-height:11px) { .layer-block span { display:none; } }
   .layer-block span { overflow:hidden; text-overflow:ellipsis; }
