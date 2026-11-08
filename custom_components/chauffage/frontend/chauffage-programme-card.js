@@ -34,6 +34,18 @@ const I18N = {
     copyPaste: 'Copy / paste…',
     copyDay: 'Copy the day',
     editRow: 'Edit the layers',
+    layerAdd: '+ Add a layer',
+    layerName: 'Name',
+    layerCondition: 'Applies while (template, empty: always)',
+    layerApplies: 'applies now',
+    layerNotNow: 'not now',
+    layerDisabled: 'disabled',
+    layerEnable: 'Enable',
+    layerDisable: 'Disable',
+    layerEdit: 'Edit',
+    layerUp: 'Move up',
+    layerDown: 'Move down',
+    layerRemoveConfirm: 'Delete it and its blocks',
     openRow: 'Show the layers',
     closeRow: 'Hide the layers',
     paste: 'Paste',
@@ -285,6 +297,18 @@ const I18N = {
     copyPaste: 'Copier / coller…',
     copyDay: 'Copier la journée',
     editRow: 'Modifier les calques',
+    layerAdd: '+ Ajouter un calque',
+    layerName: 'Nom',
+    layerCondition: 'S’applique tant que (template, vide : toujours)',
+    layerApplies: 's’applique',
+    layerNotNow: 'pas maintenant',
+    layerDisabled: 'désactivé',
+    layerEnable: 'Activer',
+    layerDisable: 'Désactiver',
+    layerEdit: 'Modifier',
+    layerUp: 'Monter',
+    layerDown: 'Descendre',
+    layerRemoveConfirm: 'Le supprimer avec ses blocs',
     openRow: 'Afficher les calques',
     closeRow: 'Masquer les calques',
     paste: 'Coller',
@@ -1488,6 +1512,7 @@ function makeDataSource(hass, available) {
     // A schedule's layers, top first: [{ id, name, enabled, condition }]; an integration without
     // layers has none
     layers: (id) => ((schedules.find((s) => s.id === id) || {}).layers) || [],
+    setLayers: (id, layers) => hass.callWS({ type: 'chauffage/layers/set', schedule: id, layers }),
     // A thermostat's day in a layer (parseLayerDay), [] when the layer leaves it alone
     layerDay: (climate, layer, day) => {
       const week = d && d.layer_weeks && d.layer_weeks[climate] && d.layer_weeks[climate][layer];
@@ -3156,8 +3181,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; }
     const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
     const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
-    const area = focusedField(this.shadowRoot, '[data-rule-template]');
-    const rule = area && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
+    const area = focusedField(this.shadowRoot, '[data-rule-template], [data-layer-condition], [data-layer-name]');
+    const caret = area && { selector: area.hasAttribute('data-rule-template')
+      ? `textarea[data-rule-template="${area.dataset.ruleTemplate}"]`
+      : area.hasAttribute('data-layer-name') ? 'input[data-layer-name]' : 'textarea[data-layer-condition]',
+    start: area.selectionStart, end: area.selectionEnd };
     const field = focusedField(this.shadowRoot, OVERRIDE_TEMPERATURE);
     const temperature = field ? field.value : null;
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
@@ -3166,7 +3194,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._tabsWait = false;
     this._placeTabs(tabsLeft);
     if (typing) this._restoreSchedName(typing.value, typing.focused);
-    if (rule) this._restoreRuleCaret(rule);
+    if (caret) this._restoreCaret(caret);
     if (temperature !== null) restoreTyped(this.shadowRoot, `.override-ed ${OVERRIDE_TEMPERATURE}`, temperature);
     this._syncPreview();
   }
@@ -3208,11 +3236,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     tabs.parentElement.classList.toggle('more-right', tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
   }
 
-  // Focus and caret of a rule's template, again once ha-card (a Lit component, rendered
+  // Focus and caret of a field being typed in, again once ha-card (a Lit component, rendered
   // asynchronously) shows its content, as for the schedule names below
-  _restoreRuleCaret({ idx, start, end }) {
+  _restoreCaret({ selector, start, end }) {
     const focus = () => {
-      const area = this.shadowRoot.querySelector(`textarea[data-rule-template="${idx}"]`);
+      const area = this.shadowRoot.querySelector(selector);
       if (!area) return;
       area.focus();
       area.setSelectionRange(start, end);
@@ -3784,6 +3812,14 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._syncPreview();
         return;
       }
+      if (e.target.hasAttribute('data-layer-name') || e.target.hasAttribute('data-layer-condition')) {
+        const hadName = !!this._layerEd.name.trim();
+        this._layerEd[e.target.hasAttribute('data-layer-name') ? 'name' : 'condition'] = e.target.value;
+        // Save is enabled once the layer has a name; the text and the caret are kept
+        if (hadName !== !!this._layerEd.name.trim()) this._render();
+        this._syncPreview();
+        return;
+      }
       if (!e.target.hasAttribute('data-cell-temp')) return;
       const radio = root.querySelector('input[name="cell-kind"][value="temperature"]');
       if (radio) radio.checked = true;
@@ -4114,8 +4150,12 @@ class ChauffageProgrammeCard extends HTMLElement {
   _syncPreview() {
     if (!this._hass) return;
     const src = this._source();
-    const rules = this._view === 'rules' && src.ready && src.editable && this._hass.connection
-      ? this._rulesShown().rules.map(plainRule) : [];
+    const usable = src.ready && src.editable && this._hass.connection;
+    const ed = this._view === 'schedules' && this._layerEd;
+    // A rule with a schedule is true or false: what a layer's condition is
+    const rules = !usable ? []
+      : this._view === 'rules' ? this._rulesShown().rules.map(plainRule)
+        : ed && ed.condition.trim() ? [{ template: ed.condition, schedule: ed.schedule }] : [];
     const key = JSON.stringify(rules);
     if (key === this._previewKey) return;
     this._previewKey = key;
@@ -4256,10 +4296,111 @@ class ChauffageProgrammeCard extends HTMLElement {
       return thRow(`class="th-row" data-schedule="${esc(id)}"`, `data-navigate="${panelPath(`schedules/${esc(id)}`)}"`,
         src.scheduleIcon(id) || 'mdi:calendar-clock',
         `${esc(this._scheduleName(id))}${id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}`,
-        '', more);
+        '', more) + this._layerListHtml(id);
     }).join('');
     const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
     return `<div class="thermostats-view schedules-view"><div class="th-list">${rows}</div>${add}</div>${this._schedMenuHtml()}`;
+  }
+
+  // A schedule's layers on the Schedules page, top first, then "+ Add a layer"
+  _layerListHtml(schedule) {
+    const t = this._loc.t;
+    const src = this._source();
+    const layers = src.layers(schedule);
+    const ed = this._layerEd;
+    const active = schedule === this._activeSchedule();
+    const applying = src.layersApplying();
+    const icon = (act, id, label, text, disabled) => `<button class="btn icon" data-act="${act}" data-schedule="${esc(schedule)}" data-layer="${esc(id)}" title="${esc(label)}" aria-label="${esc(label)}"${disabled ? ' disabled' : ''}>${text}</button>`;
+    const rows = layers.map((layer, i) => {
+      if (ed && ed.schedule === schedule && ed.id === layer.id) return this._layerFormHtml();
+      const state = !layer.enabled ? ['false', t('layerDisabled')]
+        : !active ? null : applying.includes(layer.id) ? ['true', t('layerApplies')] : ['false', t('layerNotNow')];
+      const tools = !src.editable ? '' : `<span class="rule-tools">
+        ${icon('layerlist-up', layer.id, t('layerUp'), '↑', i === 0)}
+        ${icon('layerlist-down', layer.id, t('layerDown'), '↓', i === layers.length - 1)}
+        <button class="btn" data-act="layerlist-toggle" data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}">${esc(t(layer.enabled ? 'layerDisable' : 'layerEnable'))}</button>
+        <button class="btn" data-act="layerlist-edit" data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}">${esc(t('layerEdit'))}</button></span>`;
+      return `<div class="layer-row${layer.enabled ? '' : ' off'}" data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}">
+        <div class="layer-text"><span class="layer-name">${esc(layer.name)}</span>${state ? ` <span class="rule-state ${state[0]}">${esc(state[1])}</span>` : ''}
+          ${layer.condition ? `<div class="layer-cond">${esc(layer.condition)}</div>` : ''}</div>${tools}</div>`;
+    }).join('');
+    const form = ed && ed.schedule === schedule && !ed.id ? this._layerFormHtml() : '';
+    const add = src.editable && !form ? `<div class="layer-add"><button class="btn" data-act="layerlist-add" data-schedule="${esc(schedule)}">${esc(t('layerAdd'))}</button></div>` : '';
+    return `${form}${rows}${add}`;
+  }
+
+  // The form of a layer being added or edited; its condition is tried while typed (_syncPreview)
+  _layerFormHtml() {
+    const t = this._loc.t;
+    const ed = this._layerEd;
+    const live = this._preview && this._preview.data && this._preview.rules[0];
+    const tried = live && live.template === ed.condition ? this._preview.data : null;
+    let result = '';
+    if (tried) {
+      const [cls, label] = tried.results[0] == null ? ['error', t('ruleError')] : tried.results[0] ? ['true', t('ruleTrue')] : ['false', t('ruleFalse')];
+      result = `<div class="rule-result"><span class="rule-state ${cls}">${esc(label)}</span>${tried.errors[0] ? ` ${esc(tried.errors[0])}` : ''}</div>`;
+    }
+    const remove = !ed.id ? ''
+      : ed.confirm ? `<button class="btn" data-act="layerlist-remove-confirm">${esc(t('layerRemoveConfirm'))}</button>`
+        : `<button class="btn" data-act="layerlist-remove">${esc(t('delete'))}</button>`;
+    return `<div class="layer-form">
+      <label>${esc(t('layerName'))} <input data-layer-name value="${esc(ed.name)}"></label>
+      <label>${esc(t('layerCondition'))}
+        <textarea data-layer-condition rows="2" spellcheck="false" placeholder="{{ is_state('binary_sensor.office', 'on') }}">${esc(ed.condition)}</textarea></label>
+      ${result}
+      <div class="ed-actions start">${remove}
+        <button class="btn" data-act="layerlist-cancel">${esc(t('cancel'))}</button>
+        <button class="btn primary" data-act="layerlist-save"${ed.name.trim() ? '' : ' disabled'}>${esc(t('save'))}</button></div>
+    </div>`;
+  }
+
+  // Sends a schedule's new layers; the form closes once they are accepted
+  async _setLayers(schedule, layers) {
+    try {
+      await this._source().setLayers(schedule, layers);
+      this._layerEd = null;
+      this._msg = '';
+    } catch (err) {
+      this._msg = this._loc.t('error', { message: err.message || err.code || err });
+    }
+    return this._render();
+  }
+
+  _layerListAction(act, ds) {
+    const src = this._source();
+    const ed = this._layerEd;
+    if (act === 'layerlist-add') {
+      this._layerEd = { schedule: ds.schedule, id: null, name: '', condition: '' };
+      return this._render();
+    }
+    if (act === 'layerlist-cancel') {
+      this._layerEd = null;
+      return this._render();
+    }
+    if (act === 'layerlist-remove') {
+      ed.confirm = true;
+      return this._render();
+    }
+    const schedule = ed ? ed.schedule : ds.schedule;
+    const layers = src.layers(schedule).map((l) => ({ ...l }));
+    if (act === 'layerlist-save') {
+      const fields = { name: ed.name.trim(), condition: ed.condition.trim() || null };
+      if (ed.id) Object.assign(layers.find((l) => l.id === ed.id), fields);
+      else layers.unshift({ ...fields, enabled: true });
+      return this._setLayers(schedule, layers.map(({ name, enabled, condition, id }) => ({ name, enabled, condition, ...(id ? { id } : {}) })));
+    }
+    if (act === 'layerlist-remove-confirm') return this._setLayers(schedule, layers.filter((l) => l.id !== ed.id));
+    const i = layers.findIndex((l) => l.id === ds.layer);
+    if (act === 'layerlist-edit') {
+      this._layerEd = { schedule, id: layers[i].id, name: layers[i].name, condition: layers[i].condition || '' };
+      return this._render();
+    }
+    if (act === 'layerlist-toggle') layers[i].enabled = !layers[i].enabled;
+    else {
+      const j = act === 'layerlist-up' ? i - 1 : i + 1;
+      [layers[i], layers[j]] = [layers[j], layers[i]];
+    }
+    return this._setLayers(schedule, layers);
   }
 
   _forget(climate) {
@@ -4734,6 +4875,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'cell' || act.startsWith('cell-')) return this._cellAction(act, ds);
     if (act.startsWith('rule-') || act.startsWith('rules-')) return this._rulesAction(act, ds);
+    if (act.startsWith('layerlist-')) return this._layerListAction(act, ds);
     if (act === 'save') return this._save();
     if (act === 'cancel') return this._discard();
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
@@ -4958,6 +5100,19 @@ const STYLE = `
   .chip-open svg { width:15px; height:15px; fill:currentColor; }
   .th-foot { margin:12px 8px 0; font-size:.9em; }
   .th-add { margin:16px 8px 0; }
+  /* A schedule's layers, under it, a line on the left holding them together */
+  .layer-row, .layer-form, .layer-add { margin-left:36px; padding:8px 10px 8px 14px; border-left:2px solid var(--primary-color); }
+  .layer-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+  .layer-text { flex:1 1 180px; min-width:0; }
+  .layer-row.off .layer-name { text-decoration:line-through; opacity:.55; }
+  .layer-cond { font-family:var(--code-font-family,monospace); font-size:.8em; color:var(--secondary-text-color);
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .layer-form { display:flex; flex-direction:column; gap:8px; }
+  .layer-form label { display:flex; flex-direction:column; gap:3px; font-size:.85em; color:var(--secondary-text-color); }
+  .layer-form input, .layer-form textarea { font:inherit; color:var(--primary-text-color); box-sizing:border-box; width:100%;
+    padding:6px 8px; border-radius:6px; border:1px solid var(--divider-color); background:var(--card-background-color); }
+  .layer-form textarea { font-family:var(--code-font-family,monospace); font-size:.9em; }
+  .layer-add { padding-top:4px; }
   .th-add-title { font-weight:500; margin-bottom:8px; }
   .th-add-row { display:flex; gap:8px; align-items:center; }
   .th-add select { flex:1; min-width:0; min-height:36px; }

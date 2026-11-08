@@ -217,3 +217,130 @@ describe('grouped days with layers', () => {
     assert.ok($(card, '.bar[data-climate="climate.salon"][data-day="2"]'));
   });
 });
+
+// ---------- managing the layers, under each schedule of the panel's Schedules page ----------
+
+describe('the layers of each schedule, on the Schedules page', () => {
+  const page = (data = withLayers()) => {
+    const hass = fakeHass({ data });
+    return { hass, card: createCard(hass, { view: 'schedules' }) };
+  };
+  const row = (card, layer) => $(card, `.layer-row[data-layer="${layer}"]`);
+  const act = (card, name, layer) => $(card, `[data-act="${name}"]${layer ? `[data-layer="${layer}"]` : ''}`).click();
+  const sent = (hass) => hass.events.filter((m) => m.type === 'chauffage/layers/set');
+  const type = (card, selector, value) => {
+    const field = $(card, selector);
+    field.value = value;
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  };
+  const SENT_SUN = { id: 'sun', name: 'Soleil', enabled: true, condition: null };
+  const SENT_OCCUPIED = { id: 'occupied', name: 'Salon occupé', enabled: true, condition: OCCUPIED.condition };
+
+  test('lists a schedule\'s layers under it, top first, and says which apply now', () => {
+    const { card } = page();
+    assert.deepEqual($$(card, '.layer-row[data-schedule="normal"] .layer-name').map((el) => el.textContent), ['Soleil', 'Salon occupé']);
+    assert.ok(row(card, 'occupied').querySelector('.rule-state.true'));
+    assert.ok(!row(card, 'sun').querySelector('.rule-state.true'));
+  });
+
+  test('a disabled layer is struck, and a layer of another schedule says nothing about now', () => {
+    const data = withLayers({ schedule: 'Absent' });
+    data.schedules[0].layers = [{ ...SUN, enabled: false }, OCCUPIED];
+    const { card } = page(data);
+    assert.ok(row(card, 'sun').classList.contains('off'));
+    assert.equal(row(card, 'occupied').querySelector('.rule-state'), null);
+  });
+
+  test('adds a layer to a schedule, on top, with a name and a condition', async () => {
+    const { hass, card } = page();
+    $(card, '[data-act="layerlist-add"][data-schedule="normal"]').click();
+    type(card, 'input[data-layer-name]', ' Invités ');
+    type(card, 'textarea[data-layer-condition]', "{{ is_state('input_boolean.guests', 'on') }}");
+    act(card, 'layerlist-save');
+    await flush();
+    assert.deepEqual(sent(hass), [{ type: 'chauffage/layers/set', schedule: 'normal', layers: [
+      { name: 'Invités', enabled: true, condition: "{{ is_state('input_boolean.guests', 'on') }}" }, SENT_SUN, SENT_OCCUPIED] }]);
+  });
+
+  test('a layer needs a name, and without a condition it applies while enabled', async () => {
+    const { hass, card } = page();
+    act(card, 'layerlist-add');
+    assert.ok($(card, '[data-act="layerlist-save"]').disabled);
+    type(card, 'input[data-layer-name]', 'Invités');
+    assert.ok(!$(card, '[data-act="layerlist-save"]').disabled);
+    act(card, 'layerlist-save');
+    await flush();
+    assert.equal(sent(hass)[0].layers[0].condition, null);
+  });
+
+  test('edits a layer\'s name and condition', async () => {
+    const { hass, card } = page();
+    act(card, 'layerlist-edit', 'sun');
+    assert.equal($(card, 'input[data-layer-name]').value, 'Soleil');
+    type(card, 'input[data-layer-name]', 'Plein soleil');
+    act(card, 'layerlist-save');
+    await flush();
+    assert.deepEqual(sent(hass)[0].layers, [{ ...SENT_SUN, name: 'Plein soleil' }, SENT_OCCUPIED]);
+    assert.equal($(card, 'input[data-layer-name]'), null);
+  });
+
+  test('enabling, disabling and moving a layer apply at once', async () => {
+    const { hass, card } = page();
+    act(card, 'layerlist-toggle', 'sun');
+    await flush();
+    assert.deepEqual(sent(hass)[0].layers, [{ ...SENT_SUN, enabled: false }, SENT_OCCUPIED]);
+    act(card, 'layerlist-down', 'sun');
+    await flush();
+    assert.deepEqual(sent(hass)[1].layers, [SENT_OCCUPIED, SENT_SUN]);
+  });
+
+  test('the top layer cannot move up, the bottom one cannot move down', () => {
+    const { card } = page();
+    assert.ok($(card, '[data-act="layerlist-up"][data-layer="sun"]').disabled);
+    assert.ok($(card, '[data-act="layerlist-down"][data-layer="occupied"]').disabled);
+  });
+
+  test('deleting a layer asks first, as its blocks go with it', async () => {
+    const { hass, card } = page();
+    act(card, 'layerlist-edit', 'sun');
+    act(card, 'layerlist-remove');
+    assert.equal(sent(hass).length, 0);
+    act(card, 'layerlist-remove-confirm');
+    await flush();
+    assert.deepEqual(sent(hass)[0].layers, [SENT_OCCUPIED]);
+  });
+
+  test('a condition is tried while it is typed', async () => {
+    const { hass, card } = page();
+    card._previewDelay = 0;
+    act(card, 'layerlist-edit', 'sun');
+    type(card, 'textarea[data-layer-condition]', '{{ true }}');
+    await flush();
+    const preview = hass.previews.at(-1);
+    assert.deepEqual(preview.msg.rules, [{ template: '{{ true }}', schedule: 'normal' }]);
+    preview.send({ results: [true], texts: ['True'], errors: [null] });
+    assert.ok($(card, '.layer-form .rule-state.true'));
+    assert.equal($(card, 'textarea[data-layer-condition]').value, '{{ true }}');
+  });
+
+  test('a refused layer says why, and stays open', async () => {
+    const hass = fakeHass({ data: withLayers(), reply: (msg) => {
+      if (msg.type === 'chauffage/layers/set') throw new Error('invalid template');
+      return null;
+    } });
+    const card = createCard(hass, { view: 'schedules' });
+    act(card, 'layerlist-edit', 'sun');
+    act(card, 'layerlist-save');
+    await flush();
+    assert.match($(card, '.msg').textContent, /invalid template/);
+    assert.ok($(card, 'input[data-layer-name]'));
+  });
+
+  test('users who are not admins only read the layers', () => {
+    const hass = fakeHass({ data: withLayers() });
+    hass.user = { is_admin: false };
+    const card = createCard(hass, { view: 'schedules' });
+    assert.ok(row(card, 'sun'));
+    assert.equal($(card, '[data-act^="layerlist-"]'), null);
+  });
+});
