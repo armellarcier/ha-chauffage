@@ -619,6 +619,7 @@ Chauffage émet des événements que vos automatisations peuvent utiliser, avec 
 | `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. `ends_at` dit pourquoi la dérogation s'arrête à ce moment, quand Chauffage le sait : `duration`, `next_slot` ou `no_next_slot` pour un changement à la main, et `next_slot` pour une fin mise au prochain créneau sur la carte. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
 | `chauffage_override_ended` | `entity_id`, `start`, `end`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `panel`, `service`, `paused` ou `forgotten`. `ends_at` comme ci-dessus, quand Chauffage le sait. |
 | `chauffage_schedule_activated` | `schedule` (l'identifiant stable), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur *Planning actif*), et `source` : `card`, `panel`, `entity` (le sélecteur ou un interrupteur de planning), `service` ou `rules`. |
+| `chauffage_layer_started`, `chauffage_layer_ended` | `layer` (l'identifiant stable), `layer_name`, `schedule` et `entity_id` (le sélecteur *Planning actif*). Un calque a commencé ou cessé de s'appliquer. |
 
 Chaque événement porte le contexte de ce qui l'a causé. Le journal de bord indique donc qui a
 changé le thermostat, utilisé la carte, appelé l'action ou choisi le planning.

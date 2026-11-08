@@ -11,7 +11,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
 from . import engine
-from .const import DOMAIN, EVENT_OVERRIDE_ENDED, EVENT_OVERRIDE_STARTED, EVENT_SCHEDULE_ACTIVATED
+from .const import DOMAIN, EVENT_LAYER_ENDED, EVENT_LAYER_STARTED, EVENT_OVERRIDE_ENDED, EVENT_OVERRIDE_STARTED, EVENT_SCHEDULE_ACTIVATED
 
 # Home Assistant does not translate logbook descriptions: in its language, English otherwise
 TEXTS = {
@@ -19,6 +19,8 @@ TEXTS = {
         "started": "override started: {value} until {end} ({source})",
         "ended": "override ended ({reason})",
         "activated": "schedule activated: {schedule} ({source})",
+        "layer_started": "layer started: {layer}",
+        "layer_ended": "layer ended: {layer}",
         "decimal": ".",
         "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         "sources": {
@@ -43,6 +45,8 @@ TEXTS = {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
         "ended": "dérogation terminée ({reason})",
         "activated": "planning activé : {schedule} ({source})",
+        "layer_started": "calque commencé : {layer}",
+        "layer_ended": "calque terminé : {layer}",
         "decimal": ",",
         "days": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
         "sources": {
@@ -141,6 +145,19 @@ def async_describe_events(
             out["entity_id"] = select
         return out
 
+    def layer(key: str) -> Callable[[Event], dict[str, Any]]:
+        @callback
+        def describe(event: Event) -> dict[str, Any]:
+            data = event.data
+            select = data.get("entity_id")
+            out = {"name": name(select, "Chauffage"), "message": texts()[key].format(layer=data.get("layer_name") or data.get("layer"))}
+            if select:
+                out["entity_id"] = select
+            return out
+        return describe
+
+    async_describe_event(DOMAIN, EVENT_LAYER_STARTED, layer("layer_started"))
+    async_describe_event(DOMAIN, EVENT_LAYER_ENDED, layer("layer_ended"))
     async_describe_event(DOMAIN, EVENT_OVERRIDE_STARTED, started)
     async_describe_event(DOMAIN, EVENT_OVERRIDE_ENDED, ended)
     async_describe_event(DOMAIN, EVENT_SCHEDULE_ACTIVATED, activated)

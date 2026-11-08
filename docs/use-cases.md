@@ -64,6 +64,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | The planned preset, the thermostat card and the more-info dialog follow the layers that apply | `I/test_layers.py::the_planned_preset_*`, `::the_card_is_told_*`, `C/more-info.test.mjs` (with layers) |
 | Removing a layer or deleting its schedule drops its weeks; invalid layers refused; admins only | `I/test_layers.py::removing_a_layer_*`, `::deleting_a_schedule_*`, `::invalid_layers_*`, `::only_admins_*` |
 | Upgrade: no layer, nothing changes (stored data 6.1 → 6.2); a version without layers still reads the file | `I/test_store.py::version_6_2_*`, `::a_newer_minor_version_*`, `::layers_kept_through_a_downgrade_*` |
+| A layer starting or stopping fires an event and is told in the logbook of the select, in every language | `I/test_traces.py::a_layer_starting_*`, `::a_layer_enabled_*`, `::the_logbook_tells_a_layer_*` |
 | A schedule without layers is edited as before | `C/layers.test.mjs` (a schedule without layers) |
 | With layers, a row is shown until opened (tap, chevron or menu); the schedule and each layer then have their own row | `C/layers.test.mjs` (a row of a schedule with layers) |
 | A layer's blocks: added by a double click, moved up to the blocks around them, deleted leaving nothing, edits wait for Save and show once the row is closed | `C/layers.test.mjs` (editing a layer, behave as the slots) |

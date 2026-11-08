@@ -50,6 +50,8 @@ from .const import (
     DEFAULT_USE_PRESETS,
     DOMAIN,
     DURATION,
+    EVENT_LAYER_ENDED,
+    EVENT_LAYER_STARTED,
     EVENT_OVERRIDE_ENDED,
     EVENT_OVERRIDE_STARTED,
     EVENT_SCHEDULE_ACTIVATED,
@@ -816,9 +818,15 @@ class ChauffageRuntime:
         applying = self._layers_that_apply()
         if applying == self.layers_applying and not force:
             return
-        self.layers_applying = applying
+        before, self.layers_applying = self.layers_applying, applying
         self._notify(DATA)
         names = {layer["id"]: layer["name"] for layer in self._schedule(self.data["active_schedule"])["layers"]}
+        schedule, select = self.data["active_schedule"], self.schedule_select()
+        for event, layer_ids in ((EVENT_LAYER_ENDED, set(before) - set(applying)), (EVENT_LAYER_STARTED, set(applying) - set(before))):
+            for layer_id in sorted(layer_ids):
+                _LOGGER.info("Layer %s %s", names.get(layer_id, layer_id), "started" if event == EVENT_LAYER_STARTED else "ended")
+                self.hass.bus.async_fire(event, {"layer": layer_id, "layer_name": names.get(layer_id, layer_id),
+                                                 "schedule": schedule, "entity_id": select})
         what = ", ".join(names[layer_id] for layer_id in applying) or "none"
         await self.apply(force=True, reason=f"layers applying: {what}")
 
