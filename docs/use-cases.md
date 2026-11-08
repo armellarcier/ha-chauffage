@@ -52,6 +52,25 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | The *Rules* view: the rules in order, whether each one is true now, what they give; add, move, remove, default schedule, save, cancel; Save only enabled while the rules differ from the saved ones (#16); a template being typed survives an update (text, focus and caret, also once HA's ha-card renders asynchronously); link to try a template | `C/rules.test.mjs`, `I/test_rules.py::the_card_gets_the_rules_*` |
 | Upgrade: no rules, the schedule stays chosen by hand (stored data v3 → v4) | `I/test_store.py::version_4_adds_activation_rules_*` |
 
+## Schedule layers — ×3
+
+| Use case | Test |
+|---|---|
+| A layer applies its slots while its condition is true, and lets the schedule through where it has none | `I/test_engine.py` (layers), `I/test_layers.py::a_layer_applies_*`, `::the_gaps_of_a_layer_*` |
+| The top layer wins where layers overlap | `I/test_engine.py::the_top_layer_wins_*` |
+| A layer without a condition applies while enabled; a disabled layer never applies | `I/test_layers.py::a_layer_without_a_condition_*`, `::a_disabled_layer_*` |
+| Only the layers of the active schedule apply; they apply again after a restart | `I/test_layers.py::only_the_layers_*`, `::the_layers_apply_again_*` |
+| An override stays when a layer starts applying, and is drawn above every layer | `I/test_layers.py::an_override_stays_*`, `C/layers.test.mjs` (an override stays above) |
+| The planned preset, the thermostat card and the more-info dialog follow the layers that apply | `I/test_layers.py::the_planned_preset_*`, `::the_card_is_told_*`, `C/more-info.test.mjs` (with layers) |
+| Removing a layer or deleting its schedule drops its weeks; invalid layers refused; admins only | `I/test_layers.py::removing_a_layer_*`, `::deleting_a_schedule_*`, `::invalid_layers_*`, `::only_admins_*` |
+| Upgrade: no layer, nothing changes (stored data 6.1 → 6.2); a version without layers still reads the file | `I/test_store.py::version_6_2_*`, `::a_newer_minor_version_*`, `::layers_kept_through_a_downgrade_*` |
+| A schedule without layers is edited as before | `C/layers.test.mjs` (a schedule without layers) |
+| With layers, a row is shown until opened (tap, chevron or menu); the schedule and each layer then have their own row | `C/layers.test.mjs` (a row of a schedule with layers) |
+| A layer's blocks: added by a double click, moved up to the blocks around them, deleted leaving nothing, edits wait for Save and show once the row is closed | `C/layers.test.mjs` (editing a layer, behave as the slots) |
+| The stacked rows show the layers that apply now, or all of them; many layers push the next row down | `C/layers.test.mjs` (showing the active layers, many layers stacked) |
+| The *Schedules* page lists a schedule's layers: add, edit, enable, reorder, delete; a condition tried while typed; a name already used refused in the form | `C/layers.test.mjs` (on the Schedules page) |
+| More-info dialog: today stacked with what applies, the week with each enabled layer on its own row | `C/more-info.test.mjs` (with layers) |
+
 ## Weeks applied (scheduler) — ×3
 
 | Use case | Test |

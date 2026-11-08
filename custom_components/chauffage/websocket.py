@@ -18,6 +18,7 @@ chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one
 chauffage/rules/set          {rules, default_schedule}: the activation rules ([{"template", "schedule"}],
                              the first that applies wins; schedule null: the template gives it) and
                              the schedule when none applies (or null)
+chauffage/layers/set         {schedule, layers}: a schedule's layers, top first
 chauffage/rules/preview      {rules}: tries rules being typed, as the integration would, then again
                              when their entities change: {results, texts, errors}, one per rule
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled

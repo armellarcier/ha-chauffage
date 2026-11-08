@@ -327,6 +327,50 @@ qu'un événement commence ou finit. Le blueprint voit un événement ajouté ou
 prochaine lecture du calendrier : toutes les cinq minutes par défaut. Pour un calendrier en
 ligne, choisissez quinze minutes : un calendrier en ligne ne se synchronise pas plus souvent.
 
+## Calques
+
+Un calque change un planning pour certaines pièces et certaines heures, tant qu'une condition est
+vraie. Utilisez un calque quand une pièce a besoin d'une exception et que le reste de la maison
+garde son planning. Par exemple, pour chauffer le bureau seulement quand vous y êtes.
+
+Si vous n'ajoutez aucun calque, rien ne change.
+
+### Ce que fait un calque
+
+Chaque planning a ses propres calques. Un calque a des blocs : un préréglage entre deux heures,
+pour un thermostat, certains jours. Là où un calque n'a pas de bloc, le calque du dessous
+s'applique, puis le planning.
+
+Un calque s'applique tant qu'il est activé et que sa condition est vraie. Un calque sans condition
+s'applique tant qu'il est activé : vous pouvez donc le commander à la main. Le calque du haut
+l'emporte quand des calques se chevauchent. Une dérogation reste au-dessus de tous les calques.
+
+### Ajouter un calque
+
+1. Dans le panneau Chauffage, ouvrez l'onglet *Plannings*.
+2. Sous un planning, cliquez sur *Ajouter un calque*. Donnez-lui un nom.
+3. Vous pouvez écrire une condition, un template. Le formulaire indique si elle est vraie maintenant.
+
+Par exemple, cette condition suit un capteur de présence :
+
+```yaml
+{{ is_state('binary_sensor.presence_bureau', 'on') }}
+```
+
+L'interrupteur d'un calque l'active ou le désactive. Faites glisser un calque par sa poignée pour
+changer son ordre.
+
+### Dessiner les blocs d'un calque
+
+1. Sur la carte des plannings, ouvrez une ligne en la touchant, ou avec son chevron. Le planning a
+   sa propre ligne, et chaque calque a la sienne.
+2. Double-cliquez là où un calque n'a rien pour ajouter un bloc. Faites glisser les extrémités d'un
+   bloc pour changer ses heures.
+3. Touchez un bloc pour choisir son préréglage ou le supprimer. Puis cliquez sur *Enregistrer*.
+
+Une ligne fermée montre les calques qui s'appliquent maintenant, sur le planning. Le bouton *Tous
+les calques* montre aussi ceux qui ne s'appliquent pas maintenant.
+
 ## Préréglages
 
 Les créneaux demandent des préréglages. Chauffage est livré avec quatre préréglages :

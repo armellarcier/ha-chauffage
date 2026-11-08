@@ -9,6 +9,15 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+Nothing changes until you add a layer. The stored data is migrated from 6.1 to 6.2, which only
+adds empty lists. A version without layers still reads the file.
+
+### Added
+
+- **Layers.** A layer changes a schedule for some rooms and some hours, while a condition is true.
+
 ## [0.9.0-beta.2] - 2026-11-05
 
 The second beta of **the end of overrides** (#83), with the fix of 0.8.3.
