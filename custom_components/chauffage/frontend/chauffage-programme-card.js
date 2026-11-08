@@ -2873,7 +2873,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('');
     const unscheduled = this._unscheduled(climate) ? ' unscheduled' : '';
     const paused = this._source().paused(climate);
-    const now = showNow && !paused ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
+    const now = this._nowHtml(climate, showNow);
     // The day copied last stands out, in whatever card it was copied (the copy is shared)
     const clip = this._clip;
     const cs = clip && clip.src;
@@ -2888,9 +2888,14 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}${locked}"${stackStyle(stack)} data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${layers}${history}${this._overrideHtml(climate, days)}${now}</div>`;
   }
 
+  // The line of the current time, on a row of today (not for a paused thermostat)
+  _nowHtml(climate, showNow) {
+    return showNow && !this._source().paused(climate) ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
+  }
+
   // The rows of an open row's layers: one per layer of the schedule, top first, its blocks
   // editable
-  _layerRowsHtml(climate, d) {
+  _layerRowsHtml(climate, d, showNow) {
     const src = this._source();
     const active = this._schedule === this._activeSchedule();
     const applying = src.layersApplying();
@@ -2908,7 +2913,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       }).join('');
       return `<div class="sub layer-sub"><span class="tree"></span>
         <div class="name lname ${state}" title="${esc(layerTitle(layer))}">${esc(layer.name)}${this._nameSizer()}</div>
-        <div class="lbar" data-climate="${esc(climate)}" data-day="${d}" data-layer="${esc(layer.id)}">${blockHtml}</div>
+        <div class="lbar" data-climate="${esc(climate)}" data-day="${d}" data-layer="${esc(layer.id)}">${blockHtml}${this._nowHtml(climate, showNow)}</div>
         <span></span></div>`;
     }).join('');
     return rows;
@@ -2963,7 +2968,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           ${this._barHtml(climate, segs, days, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
         </div>`;
-        return opened ? `<div class="opened">${sub}${this._layerRowsHtml(climate, d)}</div>` : sub;
+        return opened ? `<div class="opened">${sub}${this._layerRowsHtml(climate, d, showNow)}</div>` : sub;
       })
       .join('');
     // Today stands out, except in a week of an inactive schedule stacked under the active one's
@@ -5350,6 +5355,13 @@ const STYLE = `
   .chev.open { transform:none; color:var(--primary-color); }
   .chev:focus-visible { outline:2px solid var(--primary-color); }
   .opened { display:flex; flex-direction:column; gap:4px; }
+  /* The line of the current time goes through an open row; its ends stay at the ends of the day */
+  .opened > .sub .now { top:-10px; bottom:-10px; }
+  .subs > .opened > .sub .now::before, .subs > .opened > .sub .now::after { content:none; }
+  .subs > .opened:first-child > .sub:first-child .now { top:-3px; }
+  .subs > .opened:last-child > .sub:last-child .now { bottom:-3px; }
+  .subs > .opened:first-child > .sub:first-child .now::before { content:''; }
+  .subs > .opened:last-child > .sub:last-child .now::after { content:''; }
   .opened > .sub:first-child .name { font-weight:600; color:var(--primary-text-color); }
   .layer-sub .tree { align-self:stretch; justify-self:center; width:2px; margin:-4px 0; background:var(--primary-color); opacity:.5; }
   .lname { font-size:.72em; padding-left:6px; text-align:left; }

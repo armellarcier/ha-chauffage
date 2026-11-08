@@ -263,6 +263,38 @@ describe('a layer\'s blocks behave as the slots of the schedule', () => {
     assert.equal(card._layerBlocks('climate.salon', 'occupied', 0)[0].end, 18 * 60);
   });
 
+  describe('the line of the current time', () => {
+    // The row of today (the only one drawing the line), opened
+    const openToday = (hass) => {
+      const card = createCard(hass, { show: ['climate.salon'] });
+      const today = $(card, '.bar[data-climate="climate.salon"] .now').parentElement;
+      today.querySelector('.seg').click();
+      return card;
+    };
+
+    test('goes through the layers of an open row', () => {
+      const card = openToday(fakeHass({ data: withLayers() }));
+      assert.equal(card.shadowRoot.querySelectorAll('.lbar').length, 2);
+      assert.equal(card.shadowRoot.querySelectorAll('.lbar .now').length, 2);
+    });
+
+    test('is not drawn for a paused thermostat', () => {
+      const data = withLayers();
+      data.thermostats['climate.salon'].paused = true;
+      const card = createCard(fakeHass({ data }), { show: ['climate.salon'] });
+      card.shadowRoot.querySelector('.bar[data-climate="climate.salon"] .seg').click();
+      assert.equal(card.shadowRoot.querySelectorAll('.lbar .now').length, 0);
+    });
+
+    test('runs from the first row to the last, its ends only at the ends of the whole day', () => {
+      const css = openToday(fakeHass({ data: withLayers() })).shadowRoot.querySelector('style').textContent;
+      assert.match(css, /\.opened > \.sub \.now \{ top:-10px; bottom:-10px; \}/);
+      assert.match(css, /\.subs > \.opened > \.sub \.now::before, \.subs > \.opened > \.sub \.now::after \{ content:none; \}/);
+      assert.match(css, /\.subs > \.opened:first-child > \.sub:first-child \.now \{ top:-3px; \}/);
+      assert.match(css, /\.subs > \.opened:last-child > \.sub:last-child \.now \{ bottom:-3px; \}/);
+    });
+  });
+
   test('a click elsewhere closes its popover', () => {
     const { card } = editing();
     select(card);
