@@ -56,6 +56,9 @@ describe('the layers that apply now, over the schedule', () => {
     const card = createCard(fakeHass({ data: withLayers() }));
     const css = card.shadowRoot.querySelector('style').textContent;
     assert.match(css, /\.layer-block \{[^}]*bottom:0/);
+    // Each tier shows a strip tall enough for its name, the name at the top of the block
+    assert.match(css, /\.bar \{ min-height:calc\(var\(--count, 0\) \* 14px/);
+    assert.match(css, /\.layer-block \{[^}]*max\(14px,[^}]*align-items:flex-start/);
     assert.match(css, /\.layer-block \{[^}]*height:calc\(\(var\(--count\) - var\(--tier\)\) \* max\(\d+px,/);
   });
 

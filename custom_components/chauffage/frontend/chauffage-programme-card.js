@@ -5125,14 +5125,12 @@ const LAYER_BLOCK_STYLE = `
   /* A layer that applies now, only shown, edited elsewhere. On the bottom edge of its day, each
      tier a step slimmer than the one under it, so that all of them show; a day with many grows
      to hold them, leaving a strip of the schedule above */
-  .bar { min-height:calc(var(--count, 0) * 6px + 8px); }
-  .layer-block { position:absolute; bottom:0; height:calc((var(--count) - var(--tier)) * max(6px, 70% / var(--count)));
-    box-sizing:border-box; overflow:hidden; container-type:size;
-    padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
+  .bar { min-height:calc(var(--count, 0) * 14px + 8px); }
+  .layer-block { position:absolute; bottom:0; height:calc((var(--count) - var(--tier)) * max(14px, 70% / var(--count)));
+    box-sizing:border-box; overflow:hidden;
+    padding:1px 5px 0; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
     color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
-    display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); }
-  /* Too slim for its name */
-  @container (max-height:11px) { .layer-block span { display:none; } }
+    display:flex; align-items:flex-start; text-shadow:0 1px 1px rgba(0,0,0,.3); }
   .layer-block span { overflow:hidden; text-overflow:ellipsis; }
 `;
 
