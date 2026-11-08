@@ -330,41 +330,54 @@ describe('many layers stacked', () => {
   test('more push the next row down by as much as they stick out', () => assert.equal(room(6), '12px'));
 });
 
-describe('which layers an open row shows', () => {
+describe('showing the active layers or all of them, on the stacked rows', () => {
   const allChip = (card) => $(card, '[data-act="layers-all"]');
-  const names = (card) => $$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim());
+  const shown = (card) => $$(card, '.bar[data-climate="climate.salon"][data-day="0"] .layer-block')
+    .map((el) => [el.dataset.layer, el.className.replace('layer-block', '').trim()]);
+  const open = (data = withLayers()) => createCard(fakeHass({ data }), { show: ['climate.salon'] });
 
-  test('all of them at first, and only those that apply now once "All layers" is off', () => {
-    const { card } = editing();
-    assert.deepEqual(names(card), ['Soleil', 'Salon occupé']);
-    assert.ok(allChip(card).classList.contains('on'));
-    allChip(card).click();
-    assert.deepEqual(names(card), ['Salon occupé']);
-    allChip(card).click();
-    assert.deepEqual(names(card), ['Soleil', 'Salon occupé']);
+  test('only the layers that apply now, at first', () => {
+    const card = open();
+    assert.ok(!allChip(card).classList.contains('on'));
+    assert.deepEqual(shown(card), [['occupied', '']]);
   });
 
-  test('disabled layers are among all of them', () => {
+  test('all of them once asked, those that do not apply dimmed', () => {
+    const card = open();
+    allChip(card).click();
+    assert.ok(allChip(card).classList.contains('on'));
+    assert.deepEqual(shown(card), [['occupied', ''], ['sun', 'idle']]);
+  });
+
+  test('disabled layers are among all of them, marked', () => {
     const data = withLayers();
     data.schedules[0].layers = [{ ...SUN, enabled: false }, OCCUPIED];
-    const { card } = editing(data);
-    assert.deepEqual(names(card), ['Soleil', 'Salon occupé']);
+    const card = open(data);
     allChip(card).click();
-    assert.deepEqual(names(card), ['Salon occupé']);
+    assert.deepEqual(shown(card), [['occupied', ''], ['sun', 'off']]);
   });
 
-  test('the choice only shows while a row is open', () => {
-    const card = createCard(fakeHass({ data: withLayers() }), { show: ['climate.salon'] });
-    assert.equal(allChip(card), null);
-    salonBar(card).querySelector('.seg').click();
-    assert.ok(allChip(card));
+  test('in the tab of a schedule that is not active, all of them are dimmed', () => {
+    const card = open(withLayers({ schedule: 'Absent' }));
+    card.shadowRoot.querySelector('.tab[data-schedule="normal"]').click();
+    assert.deepEqual(shown(card), []);
+    allChip(card).click();
+    assert.deepEqual(shown(card), [['occupied', 'idle'], ['sun', 'idle']]);
   });
 
-  test('the choice is kept on this device', () => {
+  test('an open row lists every layer, whatever is chosen', () => {
     const { card } = editing();
+    const names = () => $$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim());
+    assert.deepEqual(names(), ['Soleil', 'Salon occupé']);
     allChip(card).click();
-    const { card: again } = editing();
-    assert.deepEqual(names(again), ['Salon occupé']);
+    assert.deepEqual(names(), ['Soleil', 'Salon occupé']);
+  });
+
+  test('the choice shows for a schedule with layers, and is kept on this device', () => {
+    assert.equal(allChip(createCard(fakeHass(), { show: ['climate.salon'] })), null);
+    const card = open();
+    allChip(card).click();
+    assert.ok(allChip(open()).classList.contains('on'));
   });
 });
 

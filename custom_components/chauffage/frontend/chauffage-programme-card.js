@@ -44,7 +44,7 @@ const I18N = {
     layerEdit: 'Edit',
     layerMove: 'Drag to change the order (or the arrow keys): the top layer wins',
     allLayers: 'All layers',
-    allLayersTitle: 'In an open row: every layer, or only those that apply now',
+    allLayersTitle: 'On the rows: only the layers that apply now, or all of them',
     layerRemoveConfirm: 'Delete it and its blocks',
     openRow: 'Show the layers',
     closeRow: 'Hide the layers',
@@ -307,7 +307,7 @@ const I18N = {
     layerEdit: 'Modifier',
     layerMove: 'Glisser pour changer l’ordre (ou les flèches) : le calque du haut l’emporte',
     allLayers: 'Tous les calques',
-    allLayersTitle: 'Dans une ligne ouverte : tous les calques, ou seulement ceux qui s’appliquent',
+    allLayersTitle: 'Sur les lignes : seulement les calques qui s’appliquent, ou tous',
     layerRemoveConfirm: 'Le supprimer avec ses blocs',
     openRow: 'Afficher les calques',
     closeRow: 'Masquer les calques',
@@ -795,10 +795,10 @@ const stackOverflow = (stack) => Math.max(0, stack.length - 3) * LAYER_TIER_SHIF
 // A stack drawn over a day. One tier per layer: the top one is the last, in front, and the
 // slimmest (.layer-block). `presetOf(id)`: { name, color }
 function stackHtml(stack, presetOf, loc) {
-  return stack.map(({ layer, blocks }, tier) => blocks.map(({ start, end, preset }) => {
+  return stack.map(({ layer, blocks, state }, tier) => blocks.map(({ start, end, preset }) => {
     const p = presetOf(preset);
     const title = `${layer.name} · ${loc.time(start)} → ${loc.time(end)} · ${p.name}`;
-    return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
+    return `<div class="layer-block${state ? ` ${state}` : ''}" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
   }).join('')).join('');
 }
 
@@ -2044,13 +2044,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._history = { shown: false, rows: null, until: 0, days: null, loadedAt: 0, day: null, loading: false };
     // Identical days shown on one row (the user's choice on this device, else the card's option)
     this._groupPref = null;
-    this._layersAll = true;
+    this._layersAll = false;
     this._rows = null; // rows of days drawn last, each edited as a whole
     try {
       this._history.shown = localStorage.getItem(LS_HISTORY) === '1';
       const g = localStorage.getItem(LS_GROUP);
       if (g === '1' || g === '0') this._groupPref = g === '1';
-      this._layersAll = localStorage.getItem(LS_LAYERS) !== '0';
+      this._layersAll = localStorage.getItem(LS_LAYERS) === '1';
     } catch (e) { /* ignore */ }
     this._bindEvents();
   }
@@ -2876,8 +2876,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     const active = this._schedule === this._activeSchedule();
     const applying = src.layersApplying();
-    const shown = src.layers(this._schedule).filter((l) => this._layersAll || (active && applying.includes(l.id)));
-    const rows = shown.map((layer) => {
+    const rows = src.layers(this._schedule).map((layer) => {
       const state = !layer.enabled ? 'off' : active && applying.includes(layer.id) ? '' : 'idle';
       const blocks = this._layerBlocks(climate, layer.id, d);
       const sel = this._lsel;
@@ -2899,8 +2898,15 @@ class ChauffageProgrammeCard extends HTMLElement {
   // The layers that apply now with something on a thermostat's day, with the edits not saved yet
   // (only in the active schedule's tab: the layers of another schedule do not apply)
   _layerStack(climate, day) {
-    if (this._schedule !== this._activeSchedule()) return [];
-    return applyingStack(this._source(), this._schedule, (layer) => this._layerBlocks(climate, layer.id, day));
+    const src = this._source();
+    const blocksOf = (layer) => this._layerBlocks(climate, layer.id, day);
+    const active = this._schedule === this._activeSchedule();
+    if (!this._layersAll) return active ? applyingStack(src, this._schedule, blocksOf) : [];
+    // All of them, from the lowest: those that do not apply now dimmed
+    const applying = active ? src.layersApplying() : [];
+    return [...src.layers(this._schedule)].reverse()
+      .map((layer) => ({ layer, blocks: blocksOf(layer), state: !layer.enabled ? 'off' : applying.includes(layer.id) ? '' : 'idle' }))
+      .filter(({ blocks }) => blocks.length);
   }
 
   _layersHtml(climate, day) {
@@ -3404,7 +3410,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
           <button class="chip tool${this._grouped() ? ' on' : ''}" data-act="group-days" title="${esc(tr('groupDaysTitle'))}">${esc(tr('groupDays'))}</button>
-          ${this._layered() && this._expanded ? `<button class="chip tool${this._layersAll ? ' on' : ''}" data-act="layers-all" title="${esc(tr('allLayersTitle'))}">${esc(tr('allLayers'))}</button>` : ''}
+          ${this._layered() ? `<button class="chip tool${this._layersAll ? ' on' : ''}" data-act="layers-all" title="${esc(tr('allLayersTitle'))}">${esc(tr('allLayers'))}</button>` : ''}
           <button class="chip tool${this._history.shown ? ' on' : ''}${this._history.loading ? ' loading' : ''}" data-act="history" title="${esc(tr('historyTitle'))}">${esc(tr('history'))}</button>
         </div>`}
         ${this._renamedNotesHtml()}
@@ -5313,6 +5319,9 @@ const STYLE = `
   .seg .t { font-weight:600; }
   ${LAYER_BLOCK_STYLE}
   .layer-block { cursor:pointer; }
+  .layer-block.idle { opacity:.55; }
+  .layer-block.off { opacity:.35; }
+  .layer-block.off span { text-decoration:line-through; }
   /* A row of a schedule with layers is only shown until opened */
   .bar.locked .seg { cursor:pointer; }
   .bar.locked .handle { display:none; }
