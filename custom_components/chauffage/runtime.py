@@ -368,14 +368,17 @@ class ChauffageRuntime:
 
     def plan(self) -> engine.Plan:
         """What the active thermostats follow: paused ones are left out."""
+        return self._plan_of(self.active)
+
+    def _plan_of(self, entity_ids: Any) -> engine.Plan:
         return engine.Plan(
-            {entity_id: self.thermostats[entity_id]["weeks"] for entity_id in self.active},
+            {entity_id: self.thermostats[entity_id]["weeks"] for entity_id in entity_ids},
             self.data["active_schedule"],
             self.presets_by_id,
             self.mappings,
             self.data["overrides"],
             self.use_presets,
-            layer_weeks={entity_id: self.thermostats[entity_id]["layer_weeks"] for entity_id in self.active},
+            layer_weeks={entity_id: self.thermostats[entity_id]["layer_weeks"] for entity_id in entity_ids},
             layers=self.layers_applying,
         )
 
@@ -473,8 +476,9 @@ class ChauffageRuntime:
         return ids
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
-        """(preset now, next preset, its start) for a thermostat in the active schedule."""
-        week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
+        """(preset now, next preset, its start) for a thermostat in the active schedule, with the
+        layers that apply."""
+        week = self._plan_of([entity_id]).week(entity_id) if entity_id in self.scheduled else None
         if not week:
             return None, None, None
         return engine.current_and_next(week, now or dt_util.now())

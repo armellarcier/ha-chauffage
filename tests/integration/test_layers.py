@@ -185,3 +185,36 @@ async def test_only_admins_set_the_layers(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/layers/set", "schedule": "normal", "layers": [OCCUPIED]})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
+
+
+async def test_the_planned_preset_follows_the_layers_that_apply(bench: Bench):
+    """10:00, the schedule's eco until 17:30. The layer gives comfort until 17:00, then its gap."""
+    await start(bench)
+    await occupied_layer(bench)
+    assert bench.runtime.planned("climate.salon")[:2] == ("eco", "comfort")
+    await presence(bench, "on")
+    current, next_preset, next_start = bench.runtime.planned("climate.salon")
+    assert (current, next_preset, next_start.strftime("%H:%M")) == ("comfort", "eco", "17:00")
+    await presence(bench, "off")
+    assert bench.runtime.planned("climate.salon")[2].strftime("%H:%M") == "17:30"
+
+
+async def test_the_planned_preset_sensor_changes_with_the_layers(bench: Bench):
+    await start(bench)
+    await occupied_layer(bench)
+    assert bench.hass.states.get("sensor.salon_planned_preset").state == "eco"
+    await presence(bench, "on")
+    assert bench.hass.states.get("sensor.salon_planned_preset").state == "comfort"
+
+
+async def test_the_card_is_told_what_is_planned_with_the_layers(bench: Bench):
+    await start(bench, "on")
+    await occupied_layer(bench)
+    assert bench.runtime.snapshot()["planned"]["climate.salon"]["preset"] == "comfort"
+
+
+async def test_a_paused_thermostat_still_says_what_is_planned_with_the_layers(bench: Bench):
+    await start(bench, "on")
+    await occupied_layer(bench)
+    await bench.runtime.set_paused("climate.salon", True)
+    assert bench.runtime.planned("climate.salon")[0] == "comfort"

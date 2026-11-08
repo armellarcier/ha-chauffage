@@ -416,3 +416,47 @@ describe('an override on a thermostat turned off', () => {
     assert.ok(note(el.shadowRoot));
   });
 });
+
+describe('more-info block of a thermostat with layers', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00') })); // Monday
+  afterEach(() => { mock.timers.reset(); cleanup(); });
+
+  const ECO_WEEK = { 'climate.salon': { Normal: Array(7).fill(['00:00 eco']) } };
+  const WHOLE_DAY = [['00:00', null], ['09:00', 'comfort'], ['17:00', null]];
+  const LAYER = { id: 'occupied', name: 'Salon occupé', enabled: true, condition: null };
+  function withLayer({ applying = ['occupied'], day = WHOLE_DAY, extra = {} } = {}) {
+    const data = integrationData({ weeks: ECO_WEEK, ...extra });
+    data.schedules = data.schedules.map((s) => ({ ...s, layers: s.id === 'normal' ? [LAYER] : [] }));
+    data.layer_weeks = { 'climate.salon': { occupied: Array(7).fill(day) } };
+    data.layers_applying = applying;
+    return data;
+  }
+  const todayBar = (el) => [...el.shadowRoot.querySelectorAll('.bar')][0];
+  const slots = (el) => [...todayBar(el).querySelectorAll('.seg')].map((seg) => [seg.style.left, seg.style.width]);
+
+  test('the day shows the layers that apply', () => {
+    const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
+    assert.deepEqual(slots(el), [['0%', '37.5%'], ['37.5%', '33.333%'], ['70.833%', '29.167%']]);
+  });
+
+  test('a layer that does not apply changes nothing', () => {
+    const el = block(fakeHass({ data: withLayer({ applying: [] }) }), 'climate.salon');
+    assert.deepEqual(slots(el), [['0%', '100%']]);
+  });
+
+  test('it says which layer gives the preset now', () => {
+    const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
+    assert.match(text(el), /Salon occupé/);
+  });
+
+  test('where the layer has nothing now, it does not name it', () => {
+    const el = block(fakeHass({ data: withLayer({ day: [['00:00', null], ['18:00', 'comfort'], ['19:00', null]] }) }), 'climate.salon');
+    assert.doesNotMatch(text(el), /Salon occupé/);
+  });
+
+  test('what follows an override takes the layers into account', () => {
+    const end = new Date('2026-10-12T11:00:00').toISOString();
+    const el = block(fakeHass({ data: withLayer({ extra: { overrides: { 'climate.salon': { kind: 'temperature', value: 21, start: end, end } } } }) }), 'climate.salon');
+    assert.match(text(el), /puis Confort/);
+  });
+});

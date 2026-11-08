@@ -1902,7 +1902,29 @@ function newOverride(src, kind, value) {
 // The saved week of a thermostat in the active schedule, as parsed days (null without one)
 function activeWeek(src, climate) {
   const week = (src.weeks()[climate] || {})[src.activeSchedule()];
-  return Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null;
+  if (!Array.isArray(week)) return null;
+  const applying = src.layersApplying();
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => mergedDay(parseDay(week[i]), applying.map((id) => src.layerDay(climate, id, i))));
+}
+
+// The preset of the slot at a minute of a day, nothing where a layer has no slot
+const slotPreset = (day, m) => day.reduce((preset, s) => (s.start <= m ? s.preset : preset), null);
+
+// A schedule's day with layers over it, top first (as engine.merge_days): at each time, the
+// preset of the top layer that has one
+function mergedDay(base, layers) {
+  const out = [];
+  for (const start of [...new Set([base, ...layers].flat().map((s) => s.start))].sort((a, b) => a - b)) {
+    const preset = [...layers, base].map((day) => slotPreset(day, start)).find((p) => p !== null);
+    if (!out.length || out[out.length - 1].preset !== preset) out.push({ start, preset });
+  }
+  return out;
+}
+
+// The layer that gives a thermostat its preset at `date`, if any
+function layerAt(src, climate, date) {
+  const id = src.layersApplying().find((l) => slotPreset(src.layerDay(climate, l, (date.getDay() + 6) % 7), date.getHours() * 60 + date.getMinutes()) !== null);
+  return id ? src.layers(src.activeSchedule()).find((l) => l.id === id) || null : null;
 }
 
 // The preset of the slot running at `date`, in a week of parsed days
@@ -5679,6 +5701,7 @@ class ChauffageMoreInfo extends HTMLElement {
 
     const segs = week[today];
     const followText = planText(dataSource(this._hass).planned(this._entity), (id) => this._preset(id).name, this._loc);
+    const layerNow = layerAt(dataSource(this._hass), this._entity, new Date());
 
     let status;
     let endDay = '';
@@ -5717,7 +5740,7 @@ class ChauffageMoreInfo extends HTMLElement {
       // "Temporary setpoint…" unfolds the same controls, to set one
       const value = this._creating ? overrideValueHtml(null, dataSource(this._hass), this._entity, attrs, this._loc) : null;
       status = `<div class="status${value ? ' derogation' : ''}">
-        <div class="line"><span><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}</span>
+        <div class="line"><span><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}${layerNow ? ` <span class="muted">· ${esc(layerNow.name)}</span>` : ''}</span>
           <button data-new-override>${esc(t('newOverride'))}</button></div>
         ${value ? `${offNoteHtml(this._hass, this._entity, this._loc)}${value.presets}<div class="line">${value.temperature}</div>` : ''}
       </div>`;
