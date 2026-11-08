@@ -774,6 +774,31 @@ function layerBlocks(slots) {
     .filter((b) => b.preset !== null && b.end > b.start);
 }
 
+// The layers of a schedule that apply now with something on a day, from the lowest of the stack:
+// [{ layer, blocks }]. `blocksOf(layer)`: its blocks that day
+function applyingStack(src, schedule, blocksOf) {
+  const layers = src.layers(schedule);
+  return src.layersApplying()
+    .map((id) => layers.find((l) => l.id === id))
+    .filter(Boolean)
+    .map((layer) => ({ layer, blocks: blocksOf(layer) }))
+    .filter(({ blocks }) => blocks.length)
+    .reverse();
+}
+
+// How far a stack sticks out under its day: from the fourth tier, each block moves down
+const stackOverflow = (stack) => Math.max(0, stack.length - 3) * LAYER_TIER_SHIFT;
+
+// A stack drawn over a day. One tier per layer: the top one is the last, in front, and the
+// slimmest (.layer-block). `presetOf(id)`: { name, color }
+function stackHtml(stack, presetOf, loc) {
+  return stack.map(({ layer, blocks }, tier) => blocks.map(({ start, end, preset }) => {
+    const p = presetOf(preset);
+    const title = `${layer.name} · ${loc.time(start)} → ${loc.time(end)} · ${p.name}`;
+    return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
+  }).join('')).join('');
+}
+
 // The slots the integration stores for a layer's blocks: [["HH:MM", preset | null], …], nothing
 // (null) where no block is drawn
 function layerSlots(blocks) {
@@ -1900,11 +1925,16 @@ function newOverride(src, kind, value) {
 }
 
 // The saved week of a thermostat in the active schedule, as parsed days (null without one)
-function activeWeek(src, climate) {
+function scheduleWeek(src, climate) {
   const week = (src.weeks()[climate] || {})[src.activeSchedule()];
-  if (!Array.isArray(week)) return null;
+  return Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null;
+}
+
+// That week with the layers that apply now over it: what the thermostat follows
+function activeWeek(src, climate) {
+  const week = scheduleWeek(src, climate);
   const applying = src.layersApplying();
-  return [0, 1, 2, 3, 4, 5, 6].map((i) => mergedDay(parseDay(week[i]), applying.map((id) => src.layerDay(climate, id, i))));
+  return week && week.map((day, i) => mergedDay(day, applying.map((id) => src.layerDay(climate, id, i))));
 }
 
 // The preset of the slot at a minute of a day, nothing where a layer has no slot
@@ -2863,29 +2893,15 @@ class ChauffageProgrammeCard extends HTMLElement {
     return rows;
   }
 
-  // The layers that apply now with something on a thermostat's day, from the lowest of the stack,
-  // with the edits not saved yet (only in the active schedule's tab: the layers of another
-  // schedule do not apply)
+  // The layers that apply now with something on a thermostat's day, with the edits not saved yet
+  // (only in the active schedule's tab: the layers of another schedule do not apply)
   _layerStack(climate, day) {
     if (this._schedule !== this._activeSchedule()) return [];
-    const src = this._source();
-    const layers = src.layers(this._schedule);
-    return src.layersApplying()
-      .map((id) => layers.find((l) => l.id === id))
-      .filter(Boolean)
-      .map((layer) => ({ layer, blocks: this._layerBlocks(climate, layer.id, day) }))
-      .filter(({ blocks }) => blocks.length)
-      .reverse();
+    return applyingStack(this._source(), this._schedule, (layer) => this._layerBlocks(climate, layer.id, day));
   }
 
-  // Those layers drawn over the day. One tier each: the top layer is the last one, in front, and
-  // the slimmest (.layer-block)
   _layersHtml(climate, day) {
-    return this._layerStack(climate, day).map(({ layer, blocks }, tier) => blocks.map(({ start, end, preset }) => {
-      const p = this._preset(preset);
-      const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
-      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
-    }).join('')).join('');
+    return stackHtml(this._layerStack(climate, day), (id) => this._preset(id), this._loc);
   }
 
   // Override drawn over the schedule (only in the active schedule's tab), on a row of days
@@ -2919,7 +2935,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const chevron = layered ? `<button class="chev${opened ? ' open' : ''}" data-act="toggle-row" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t(opened ? 'closeRow' : 'openRow'))}" aria-expanded="${opened}">${ICON_DOWN}</button>` : '';
         const named = multi || layered;
         // From the fourth tier, each block moves down by LAYER_TIER_SHIFT: the next row makes room
-        const below = opened ? 0 : Math.max(0, this._layerStack(climate, d).length - 3) * LAYER_TIER_SHIFT;
+        const below = opened ? 0 : stackOverflow(this._layerStack(climate, d));
         const sub = `<div class="sub"${below ? ` style="padding-bottom:${below}px"` : ''}>
           ${chevron}${named ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
           ${this._barHtml(climate, segs, days, showNow)}
@@ -5098,6 +5114,20 @@ const TIME_FIELD_STYLE = `
   .time-step svg { width:16px; height:16px; fill:currentColor; }
 `;
 
+const LAYER_BLOCK_STYLE = `
+  /* A layer that applies now, only shown, edited elsewhere. On the bottom edge of the day, each
+     tier slimmer than the one under it, so that all of them show; at the minimum height, from
+     the fourth tier, each one moves down instead */
+  .layer-block { position:absolute; bottom:calc(max(0, var(--tier) - 2) * -4px); height:max(8px, calc(70% - var(--tier) * 20%));
+    z-index:calc(1 + var(--tier)); box-sizing:border-box; overflow:hidden; container-type:size;
+    padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
+    color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
+    display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); }
+  /* Too slim for its name */
+  @container (max-height:11px) { .layer-block span { display:none; } }
+  .layer-block span { overflow:hidden; text-overflow:ellipsis; }
+`;
+
 const STYLE = `
   :host { display:block; }
   ha-card { display:block; position:relative; padding:16px; overflow:visible; }
@@ -5278,17 +5308,8 @@ const STYLE = `
   .seg.last { border-radius:0 6px 6px 0; }
   .seg.first.last { border-radius:6px; }
   .seg .t { font-weight:600; }
-  /* A layer that applies now, only shown, edited elsewhere. On the bottom edge of the day, each
-     tier slimmer than the one under it, so that all of them show; at the minimum height, from
-     the fourth tier, each one moves down instead */
-  .layer-block { position:absolute; bottom:calc(max(0, var(--tier) - 2) * -4px); height:max(8px, calc(70% - var(--tier) * 20%));
-    z-index:calc(1 + var(--tier)); box-sizing:border-box; overflow:hidden; container-type:size; cursor:pointer;
-    padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
-    color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
-    display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); }
-  /* Too slim for its name */
-  @container (max-height:11px) { .layer-block span { display:none; } }
-  .layer-block span { overflow:hidden; text-overflow:ellipsis; }
+  ${LAYER_BLOCK_STYLE}
+  .layer-block { cursor:pointer; }
   /* A row of a schedule with layers is only shown until opened */
   .bar.locked .seg { cursor:pointer; }
   .bar.locked .handle { display:none; }
@@ -5656,7 +5677,7 @@ class ChauffageMoreInfo extends HTMLElement {
   }
 
   // The active schedule's name, opening its page in the panel for an admin, and the thermostat's
-  // week in it
+  // week in it, without its layers
   _week() {
     const src = dataSource(this._hass);
     const schedule = src.activeSchedule();
@@ -5664,10 +5685,25 @@ class ChauffageMoreInfo extends HTMLElement {
     const admin = isAdmin(this._hass);
     const link = schedule && admin
       ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath(`schedules/${esc(schedule)}`)}">${esc(name)}</span>` : esc(name);
-    return { schedule: link, week: activeWeek(src, this._entity) };
+    return { schedule: link, week: scheduleWeek(src, this._entity) };
   }
 
-  _bar(segs, piece, showNow, big) {
+  // The layers that apply now over a day (today, or the day an override ends)
+  _stack(day) {
+    const src = dataSource(this._hass);
+    return applyingStack(src, src.activeSchedule(), (layer) => layerBlocks(src.layerDay(this._entity, layer.id, day)));
+  }
+
+  // A layer's own row of the week: its blocks, nothing elsewhere
+  _layerBar(layer, blocks) {
+    const segHtml = blocks.map(({ start, end, preset }) => {
+      const p = this._preset(preset);
+      return `<div class="seg" style="left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(`${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`)}"></div>`;
+    }).join('');
+    return `<div class="bar">${segHtml}</div>`;
+  }
+
+  _bar(segs, piece, showNow, big, stack = []) {
     const segHtml = segs.map((s, i) => {
       const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
       const p = this._preset(s.preset);
@@ -5683,7 +5719,9 @@ class ChauffageMoreInfo extends HTMLElement {
       override = `<div class="override" style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%">${handle}</div>`;
     }
     const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
-    return `<div class="bar${big ? ' big' : ''}">${segHtml}${override}${now}</div>`;
+    const below = stackOverflow(stack);
+    const layers = stackHtml(stack, (id) => this._preset(id), this._loc);
+    return `<div class="bar${big ? ' big' : ''}"${below ? ` style="margin-bottom:${below}px"` : ''}>${segHtml}${layers}${override}${now}</div>`;
   }
 
   _render() {
@@ -5730,7 +5768,7 @@ class ChauffageMoreInfo extends HTMLElement {
       // Ends on another day: also show that day's large bar (with the handle)
       if (lastPiece && lastPiece.day !== today) {
         endDay = `<div class="today-lbl">${this._loc.days[lastPiece.day]}</div>
-          ${this._bar(week[lastPiece.day], lastPiece, false, true)}`;
+          ${this._bar(week[lastPiece.day], lastPiece, false, true, this._stack(lastPiece.day))}`;
       }
     } else if (dataSource(this._hass).paused(this._entity)) {
       this._creating = false;
@@ -5748,9 +5786,17 @@ class ChauffageMoreInfo extends HTMLElement {
 
     // Identical days on one row (card option `group_days`), like the schedule card
     const order = this._loc.dayOrder;
-    const rows = (MORE_INFO_CFG.group_days === false ? order.map((d) => [d]) : rowsOfDays(order, (d) => serializeDay(week[d]).join(',')))
+    // The week is the plan: the schedule, then each enabled layer that has something that day,
+    // whatever applies now
+    const src = dataSource(this._hass);
+    const enabled = src.layers(src.activeSchedule()).filter((l) => l.enabled);
+    const blocksOf = (layer, d) => layerBlocks(src.layerDay(this._entity, layer.id, d));
+    const dayKey = (d) => `${serializeDay(week[d]).join(',')}${JSON.stringify(enabled.map((l) => blocksOf(l, d)))}`;
+    const rows = (MORE_INFO_CFG.group_days === false ? order.map((d) => [d]) : rowsOfDays(order, dayKey))
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
-        <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
+        <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>
+        ${enabled.filter((l) => blocksOf(l, days[0]).length).map((l) => `<div class="row layer">
+          <span title="${esc(l.name)}">${esc(l.name)}</span>${this._layerBar(l, blocksOf(l, days[0]))}</div>`).join('')}`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
     const admin = isAdmin(this._hass);
 
@@ -5760,7 +5806,7 @@ class ChauffageMoreInfo extends HTMLElement {
         ${status}
         ${this._error ? `<div class="msg">${esc(this._error)}</div>` : ''}
         <div class="today-lbl">${esc(t('todayTitle'))}</div>
-        ${this._bar(segs, rowPiece(pieces, [today]), true, true)}
+        ${this._bar(segs, rowPiece(pieces, [today]), true, true, this._stack(today))}
         ${endDay}
         <div class="ticks">${ticks}</div>
         <details><summary>${esc(t('week'))}</summary>${admin
@@ -5941,10 +5987,12 @@ const MORE_INFO_STYLE = `
   details { margin-top:10px; }
   summary { cursor:pointer; font-size:.88em; color:var(--secondary-text-color); }
   /* One grid for the rows: the column of the days is as wide as the longest name of a row */
-  .week { display:grid; grid-template-columns:fit-content(56px) 1fr; gap:4px 8px; align-items:center; margin-top:8px;
+  .week { display:grid; grid-template-columns:fit-content(84px) 1fr; gap:4px 8px; align-items:center; margin-top:8px;
     font-size:.8em; color:var(--secondary-text-color); }
   .row { display:contents; }
   .row span { line-height:1.2; }
+  .row.layer span { padding-left:8px; font-size:.92em; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  ${LAYER_BLOCK_STYLE}
   .row.today span { color:var(--primary-color); font-weight:700; }
 `;
 

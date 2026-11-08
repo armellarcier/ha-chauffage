@@ -432,26 +432,77 @@ describe('more-info block of a thermostat with layers', () => {
     return data;
   }
   const todayBar = (el) => [...el.shadowRoot.querySelectorAll('.bar')][0];
-  const slots = (el) => [...todayBar(el).querySelectorAll('.seg')].map((seg) => [seg.style.left, seg.style.width]);
+  const slots = (bar) => [...bar.querySelectorAll('.seg')].map((seg) => [seg.style.left, seg.style.width]);
+  const blocks = (el) => [...todayBar(el).querySelectorAll('.layer-block')].map((b) => [b.style.left, b.style.width, b.dataset.tier, b.textContent.trim()]);
+  const line = (el) => el.shadowRoot.querySelector('.status').textContent.replace(/\s+/g, ' ');
+  const weekRows = (el) => [...el.shadowRoot.querySelectorAll('.week .row')].map((r) => r.querySelector('span').textContent.trim());
+  const layerRow = (el) => el.shadowRoot.querySelector('.week .row.layer');
 
-  test('the day shows the layers that apply', () => {
+  test('today shows the schedule, with the layers that apply over it, as the schedule view', () => {
     const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
-    assert.deepEqual(slots(el), [['0%', '37.5%'], ['37.5%', '33.333%'], ['70.833%', '29.167%']]);
+    assert.deepEqual(slots(todayBar(el)), [['0%', '100%']]);
+    assert.deepEqual(blocks(el), [['37.5%', '33.333%', '0', 'Salon occupé']]);
   });
 
-  test('a layer that does not apply changes nothing', () => {
+  test('a layer that does not apply is not drawn over today', () => {
     const el = block(fakeHass({ data: withLayer({ applying: [] }) }), 'climate.salon');
-    assert.deepEqual(slots(el), [['0%', '100%']]);
+    assert.deepEqual(slots(todayBar(el)), [['0%', '100%']]);
+    assert.deepEqual(blocks(el), []);
   });
 
   test('it says which layer gives the preset now', () => {
     const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
-    assert.match(text(el), /Salon occupé/);
+    assert.match(line(el), /Salon occupé/);
   });
 
   test('where the layer has nothing now, it does not name it', () => {
     const el = block(fakeHass({ data: withLayer({ day: [['00:00', null], ['18:00', 'comfort'], ['19:00', null]] }) }), 'climate.salon');
-    assert.doesNotMatch(text(el), /Salon occupé/);
+    assert.doesNotMatch(line(el), /Salon occupé/);
+  });
+
+  test('many layers make room under today', () => {
+    const data = withLayer();
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    data.schedules[0].layers = ids.map((id) => ({ ...LAYER, id, name: id }));
+    data.layer_weeks['climate.salon'] = Object.fromEntries(ids.map((id) => [id, Array(7).fill(WHOLE_DAY)]));
+    data.layers_applying = ids;
+    assert.equal(todayBar(block(fakeHass({ data }), 'climate.salon')).style.marginBottom, '8px');
+  });
+
+  describe('the week', () => {
+    test('shows the plain schedule, each enabled layer on its own row, whatever applies now', () => {
+      const el = block(fakeHass({ data: withLayer({ applying: [] }) }), 'climate.salon');
+      assert.equal(weekRows(el).length, 2);
+      assert.equal(weekRows(el)[1], 'Salon occupé');
+      assert.deepEqual(slots(el.shadowRoot.querySelector('.week .row .bar')), [['0%', '100%']]);
+      assert.deepEqual(slots(layerRow(el).querySelector('.bar')), [['37.5%', '33.333%']]);
+    });
+
+    test('a layer row names its layer in its tooltip', () => {
+      const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
+      assert.match(layerRow(el).querySelector('.seg').title, /Salon occupé/);
+    });
+
+    test('a disabled layer has no row', () => {
+      const data = withLayer();
+      data.schedules[0].layers = [{ ...LAYER, enabled: false }];
+      assert.equal(layerRow(block(fakeHass({ data }), 'climate.salon')), null);
+    });
+
+    test('a day where a layer has nothing has no row for it', () => {
+      const data = withLayer();
+      data.layer_weeks['climate.salon'].occupied = [...Array(6).fill(WHOLE_DAY), [['00:00', null]]];
+      const el = block(fakeHass({ data }), 'climate.salon');
+      assert.equal(el.shadowRoot.querySelectorAll('.week .row.layer').length, 1);
+      assert.equal(weekRows(el).length, 3); // two groups of days, one layer row
+    });
+
+    test('days whose layers differ are not on one row', () => {
+      const data = withLayer();
+      data.layer_weeks['climate.salon'].occupied = [...Array(6).fill(WHOLE_DAY), [['00:00', 'eco']]];
+      const el = block(fakeHass({ data }), 'climate.salon');
+      assert.equal(el.shadowRoot.querySelectorAll('.week .row:not(.layer)').length, 2);
+    });
   });
 
   test('what follows an override takes the layers into account', () => {
