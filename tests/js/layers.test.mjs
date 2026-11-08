@@ -43,23 +43,28 @@ describe('the layers that apply now, over the schedule', () => {
     ]);
   });
 
-  test('each layer of a stack is one tier higher, counting only the layers drawn on that day', () => {
-    const tiers = (card) => $$(card, '.bar[data-climate="climate.salon"][data-day="0"] .layer-block').map((el) => el.dataset.tier);
-    const data = withLayers({ applying: ['sun', 'occupied'] });
-    assert.deepEqual(tiers(createCard(fakeHass({ data }))), ['0', '1']);
-    cleanup();
-    data.layer_weeks['climate.salon'].occupied = Array(7).fill([['00:00', null]]);
-    assert.deepEqual(tiers(createCard(fakeHass({ data }))), ['0']);
+  const lanes = (card) => $$(card, '.bar[data-climate="climate.salon"][data-day="0"] .layer-block').map((el) => [el.dataset.layer, el.dataset.lane]);
+  const depth = (card) => card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"]').style.getPropertyValue('--count');
+
+  test('blocks that collide take separate lanes, the one that wins at the bottom', () => {
+    const card = createCard(fakeHass({ data: withLayers({ applying: ['sun', 'occupied'] }) }));
+    assert.deepEqual(lanes(card), [['occupied', '1'], ['sun', '0']]);
+    assert.equal(depth(card), '2');
   });
 
-  test('a layer block is slimmer on each tier and stays inside its day', () => {
+  test('blocks that do not collide share a lane, so the day stays slim', () => {
+    const data = withLayers({ applying: ['sun', 'occupied'] });
+    data.layer_weeks['climate.salon'].occupied = Array(7).fill([['00:00', null], ['15:00', 'comfort'], ['17:00', null]]);
+    const card = createCard(fakeHass({ data }));
+    assert.deepEqual(lanes(card), [['occupied', '0'], ['sun', '0']]);
+    assert.equal(depth(card), '1');
+  });
+
+  test('a layer block has a fixed height, just over its name, and stays inside its day', () => {
     const card = createCard(fakeHass({ data: withLayers() }));
     const css = card.shadowRoot.querySelector('style').textContent;
-    assert.match(css, /\.layer-block \{[^}]*bottom:0/);
-    // Each tier shows a strip tall enough for its name, the name at the top of the block
     assert.match(css, /\.bar \{ min-height:calc\(var\(--count, 0\) \* 14px/);
-    assert.match(css, /\.layer-block \{[^}]*max\(14px,[^}]*align-items:flex-start/);
-    assert.match(css, /\.layer-block \{[^}]*height:calc\(\(var\(--count\) - var\(--tier\)\) \* max\(\d+px,/);
+    assert.match(css, /\.layer-block \{[^}]*bottom:calc\(var\(--lane\) \* 14px\);[^}]*height:14px/);
   });
 
   test('a layer that does not apply now is not drawn', () => {

@@ -788,16 +788,34 @@ function applyingStack(src, schedule, blocksOf) {
 // The tooltip of a layer's title: its name, and when it applies
 const layerTitle = (layer) => (layer.condition ? `${layer.name}\n${layer.condition}` : layer.name);
 
-// What a day needs to know to make room for a stack (.bar, .layer-block)
-const stackStyle = (stack) => (stack.length ? ` style="--count:${stack.length}"` : '');
+// The lane of each block of a stack: the one that wins at the bottom, and a new lane only where
+// blocks collide in time. { laneOf: Map(block -> lane), depth: how many lanes }
+function stackLanes(stack) {
+  const laneOf = new Map();
+  const lanes = [];
+  for (const { blocks } of [...stack].reverse()) {
+    for (const block of blocks) {
+      let lane = lanes.findIndex((taken) => !taken.some((b) => block.start < b.end && b.start < block.end));
+      if (lane < 0) lane = lanes.push([]) - 1;
+      lanes[lane].push(block);
+      laneOf.set(block, lane);
+    }
+  }
+  return { laneOf, depth: lanes.length };
+}
 
-// A stack drawn over a day. One tier per layer: the top one is the last, in front, and the
-// slimmest (.layer-block). `presetOf(id)`: { name, color }
+// What a day needs to know to make room for a stack (.bar)
+const stackStyle = (stack) => (stack.length ? ` style="--count:${stackLanes(stack).depth}"` : '');
+
+// A stack drawn over a day, each block in its lane (.layer-block). `presetOf(id)`: { name, color }
 function stackHtml(stack, presetOf, loc) {
-  return stack.map(({ layer, blocks, state }, tier) => blocks.map(({ start, end, preset }) => {
+  const { laneOf } = stackLanes(stack);
+  return stack.map(({ layer, blocks, state }) => blocks.map((block) => {
+    const { start, end, preset } = block;
+    const lane = laneOf.get(block);
     const p = presetOf(preset);
     const title = `${layer.name} · ${loc.time(start)} → ${loc.time(end)} · ${p.name}`;
-    return `<div class="layer-block${state ? ` ${state}` : ''}" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--count:${stack.length};--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
+    return `<div class="layer-block${state ? ` ${state}` : ''}" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-lane="${lane}" style="--lane:${lane};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
   }).join('')).join('');
 }
 
@@ -5122,15 +5140,15 @@ const TIME_FIELD_STYLE = `
 `;
 
 const LAYER_BLOCK_STYLE = `
-  /* A layer that applies now, only shown, edited elsewhere. On the bottom edge of its day, each
-     tier a step slimmer than the one under it, so that all of them show; a day with many grows
-     to hold them, leaving a strip of the schedule above */
+  /* A layer that applies now, only shown, edited elsewhere. A fixed height, just over its name, in
+     a lane from the bottom of its day; a day whose blocks collide grows to hold its lanes, leaving
+     a strip of the schedule above */
   .bar { min-height:calc(var(--count, 0) * 14px + 8px); }
-  .layer-block { position:absolute; bottom:0; height:calc((var(--count) - var(--tier)) * max(14px, 70% / var(--count)));
+  .layer-block { position:absolute; bottom:calc(var(--lane) * 14px); height:14px;
     box-sizing:border-box; overflow:hidden;
-    padding:1px 5px 0; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
+    padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
     color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
-    display:flex; align-items:flex-start; text-shadow:0 1px 1px rgba(0,0,0,.3); }
+    display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); }
   .layer-block span { overflow:hidden; text-overflow:ellipsis; }
 `;
 

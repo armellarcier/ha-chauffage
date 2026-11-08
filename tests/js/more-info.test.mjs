@@ -433,7 +433,7 @@ describe('more-info block of a thermostat with layers', () => {
   }
   const todayBar = (el) => [...el.shadowRoot.querySelectorAll('.bar')][0];
   const slots = (bar) => [...bar.querySelectorAll('.seg')].map((seg) => [seg.style.left, seg.style.width]);
-  const blocks = (el) => [...todayBar(el).querySelectorAll('.layer-block')].map((b) => [b.style.left, b.style.width, b.dataset.tier, b.textContent.trim()]);
+  const blocks = (el) => [...todayBar(el).querySelectorAll('.layer-block')].map((b) => [b.style.left, b.style.width, b.dataset.lane, b.textContent.trim()]);
   const line = (el) => el.shadowRoot.querySelector('.status').textContent.replace(/\s+/g, ' ');
   const weekRows = (el) => [...el.shadowRoot.querySelectorAll('.week .row')].map((r) => r.querySelector('span').textContent.trim());
   const layerRow = (el) => el.shadowRoot.querySelector('.week .row.layer');
