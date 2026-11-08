@@ -209,6 +209,44 @@ describe('editing a layer: blocks, and nothing where none is drawn', () => {
   });
 });
 
+describe('which layers an open row shows', () => {
+  const allChip = (card) => $(card, '[data-act="layers-all"]');
+  const names = (card) => $$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim());
+
+  test('all of them at first, and only those that apply now once "All layers" is off', () => {
+    const { card } = editing();
+    assert.deepEqual(names(card), ['Soleil', 'Salon occupé']);
+    assert.ok(allChip(card).classList.contains('on'));
+    allChip(card).click();
+    assert.deepEqual(names(card), ['Salon occupé']);
+    allChip(card).click();
+    assert.deepEqual(names(card), ['Soleil', 'Salon occupé']);
+  });
+
+  test('disabled layers are among all of them', () => {
+    const data = withLayers();
+    data.schedules[0].layers = [{ ...SUN, enabled: false }, OCCUPIED];
+    const { card } = editing(data);
+    assert.deepEqual(names(card), ['Soleil', 'Salon occupé']);
+    allChip(card).click();
+    assert.deepEqual(names(card), ['Salon occupé']);
+  });
+
+  test('the choice only shows while a row is open', () => {
+    const card = createCard(fakeHass({ data: withLayers() }), { show: ['climate.salon'] });
+    assert.equal(allChip(card), null);
+    salonBar(card).querySelector('.seg').click();
+    assert.ok(allChip(card));
+  });
+
+  test('the choice is kept on this device', () => {
+    const { card } = editing();
+    allChip(card).click();
+    const { card: again } = editing();
+    assert.deepEqual(names(again), ['Salon occupé']);
+  });
+});
+
 describe('grouped days with layers', () => {
   test('days whose layers differ are not on one row', () => {
     const data = withLayers();
@@ -284,20 +322,75 @@ describe('the layers of each schedule, on the Schedules page', () => {
     assert.equal($(card, 'input[data-layer-name]'), null);
   });
 
-  test('enabling, disabling and moving a layer apply at once', async () => {
+  test('a switch enables and disables a layer at once, and says which it is', async () => {
     const { hass, card } = page();
+    assert.equal($(card, '[data-act="layerlist-toggle"][data-layer="sun"]').getAttribute('aria-checked'), 'true');
     act(card, 'layerlist-toggle', 'sun');
     await flush();
     assert.deepEqual(sent(hass)[0].layers, [{ ...SENT_SUN, enabled: false }, SENT_OCCUPIED]);
-    act(card, 'layerlist-down', 'sun');
-    await flush();
-    assert.deepEqual(sent(hass)[1].layers, [SENT_OCCUPIED, SENT_SUN]);
   });
 
-  test('the top layer cannot move up, the bottom one cannot move down', () => {
+  test('a tap on a layer opens it', () => {
     const { card } = page();
-    assert.ok($(card, '[data-act="layerlist-up"][data-layer="sun"]').disabled);
-    assert.ok($(card, '[data-act="layerlist-down"][data-layer="occupied"]').disabled);
+    row(card, 'sun').querySelector('.layer-text').click();
+    assert.equal($(card, 'input[data-layer-name]').value, 'Soleil');
+  });
+
+  describe('its order', () => {
+    // Each row 40 px high, the first from y = 0
+    const place = (card) => $$(card, '.layer-row[data-schedule="normal"]').forEach((el, i) => {
+      el.getBoundingClientRect = () => ({ top: i * 40, bottom: (i + 1) * 40, height: 40, left: 0, right: 500, width: 500 });
+    });
+    const at = (el, type, clientY) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientY }));
+    const grip = (card, layer) => row(card, layer).querySelector('.layer-grip');
+
+    test('dragging a layer by its handle moves it, once dropped', async () => {
+      const { hass, card } = page();
+      place(card);
+      at(grip(card, 'sun'), 'pointerdown', 20);
+      at(grip(card, 'sun'), 'pointermove', 70);
+      assert.equal(sent(hass).length, 0);
+      at(grip(card, 'sun'), 'pointerup', 70);
+      await flush();
+      assert.deepEqual(sent(hass)[0].layers, [SENT_OCCUPIED, SENT_SUN]);
+    });
+
+    test('dropped where it was, nothing is sent', async () => {
+      const { hass, card } = page();
+      place(card);
+      at(grip(card, 'sun'), 'pointerdown', 20);
+      at(grip(card, 'sun'), 'pointermove', 25);
+      at(grip(card, 'sun'), 'pointerup', 25);
+      await flush();
+      assert.equal(sent(hass).length, 0);
+    });
+
+    test('new data while dragging does not take the row away', () => {
+      const data = withLayers();
+      const hass = fakeHass({ data });
+      const card = createCard(hass, { view: 'schedules' });
+      place(card);
+      const dragged = grip(card, 'sun');
+      at(dragged, 'pointerdown', 20);
+      hass.push({ ...withLayers({ applying: [] }), revision: 9 });
+      assert.ok(dragged.isConnected);
+      at(dragged, 'pointerup', 20);
+      assert.ok(!row(card, 'occupied').querySelector('.rule-state.true'));
+    });
+
+    test('the arrow keys move a layer too', async () => {
+      const { hass, card } = page();
+      grip(card, 'sun').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }));
+      await flush();
+      assert.deepEqual(sent(hass)[0].layers, [SENT_OCCUPIED, SENT_SUN]);
+    });
+
+    test('the top layer does not move further up', async () => {
+      const { hass, card } = page();
+      grip(card, 'sun').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, composed: true }));
+      await flush();
+      assert.equal(sent(hass).length, 0);
+    });
   });
 
   test('deleting a layer asks first, as its blocks go with it', async () => {

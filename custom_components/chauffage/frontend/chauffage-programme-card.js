@@ -39,12 +39,11 @@ const I18N = {
     layerCondition: 'Applies while (template, empty: always)',
     layerApplies: 'applies now',
     layerNotNow: 'not now',
-    layerDisabled: 'disabled',
-    layerEnable: 'Enable',
-    layerDisable: 'Disable',
+    layerEnabled: 'Enabled',
     layerEdit: 'Edit',
-    layerUp: 'Move up',
-    layerDown: 'Move down',
+    layerMove: 'Drag to change the order (or the arrow keys): the top layer wins',
+    allLayers: 'All layers',
+    allLayersTitle: 'In an open row: every layer, or only those that apply now',
     layerRemoveConfirm: 'Delete it and its blocks',
     openRow: 'Show the layers',
     closeRow: 'Hide the layers',
@@ -302,12 +301,11 @@ const I18N = {
     layerCondition: 'S’applique tant que (template, vide : toujours)',
     layerApplies: 's’applique',
     layerNotNow: 'pas maintenant',
-    layerDisabled: 'désactivé',
-    layerEnable: 'Activer',
-    layerDisable: 'Désactiver',
+    layerEnabled: 'Activé',
     layerEdit: 'Modifier',
-    layerUp: 'Monter',
-    layerDown: 'Descendre',
+    layerMove: 'Glisser pour changer l’ordre (ou les flèches) : le calque du haut l’emporte',
+    allLayers: 'Tous les calques',
+    allLayersTitle: 'Dans une ligne ouverte : tous les calques, ou seulement ceux qui s’appliquent',
     layerRemoveConfirm: 'Le supprimer avec ses blocs',
     openRow: 'Afficher les calques',
     closeRow: 'Masquer les calques',
@@ -679,6 +677,7 @@ const LS_KEY = 'chauffage-programme-card:shown';
 const LS_CLIP = 'chauffage-programme-card:clip';
 const LS_HISTORY = 'chauffage-programme-card:history';
 const LS_GROUP = 'chauffage-programme-card:group-days';
+const LS_LAYERS = 'chauffage-programme-card:all-layers';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
 const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
@@ -2005,11 +2004,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._history = { shown: false, rows: null, until: 0, days: null, loadedAt: 0, day: null, loading: false };
     // Identical days shown on one row (the user's choice on this device, else the card's option)
     this._groupPref = null;
+    this._layersAll = true;
     this._rows = null; // rows of days drawn last, each edited as a whole
     try {
       this._history.shown = localStorage.getItem(LS_HISTORY) === '1';
       const g = localStorage.getItem(LS_GROUP);
       if (g === '1' || g === '0') this._groupPref = g === '1';
+      this._layersAll = localStorage.getItem(LS_LAYERS) !== '0';
     } catch (e) { /* ignore */ }
     this._bindEvents();
   }
@@ -2834,7 +2835,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     const active = this._schedule === this._activeSchedule();
     const applying = src.layersApplying();
-    const rows = src.layers(this._schedule).map((layer) => {
+    const shown = src.layers(this._schedule).filter((l) => this._layersAll || (active && applying.includes(l.id)));
+    const rows = shown.map((layer) => {
       const state = !layer.enabled ? 'off' : active && applying.includes(layer.id) ? '' : 'idle';
       const blocks = this._layerBlocks(climate, layer.id, d);
       const sel = this._lsel;
@@ -3177,6 +3179,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   // template being typed (the card is redrawn every 30 s during an override, or when Home
   // Assistant sends new data)
   _render() {
+    // Not while a layer is dragged: the redraw would take its row away
+    if (this._layerDrag) { this._layerDrag.redraw = true; return; }
     // Not while a time is typed: the redraw would take its field away
     if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; }
     const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
@@ -3362,6 +3366,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           <button class="chip tool${this._multiSel ? ' on' : ''}" data-act="multi-sel" title="${esc(tr('multipleTitle'))}">${esc(tr('multiple'))}</button>
           <button class="chip tool${allShown ? ' on' : ''}" data-act="show-all" title="${esc(tr('allTitle'))}">${esc(tr('all'))}</button>
           <button class="chip tool${this._grouped() ? ' on' : ''}" data-act="group-days" title="${esc(tr('groupDaysTitle'))}">${esc(tr('groupDays'))}</button>
+          ${this._layered() && this._expanded ? `<button class="chip tool${this._layersAll ? ' on' : ''}" data-act="layers-all" title="${esc(tr('allLayersTitle'))}">${esc(tr('allLayers'))}</button>` : ''}
           <button class="chip tool${this._history.shown ? ' on' : ''}${this._history.loading ? ' loading' : ''}" data-act="history" title="${esc(tr('historyTitle'))}">${esc(tr('history'))}</button>
         </div>`}
         ${this._renamedNotesHtml()}
@@ -3604,6 +3609,54 @@ class ChauffageProgrammeCard extends HTMLElement {
     root.addEventListener('pointercancel', () => {
       if (this._drag) this._cancelDrag();
       else endDrag();
+    });
+
+    // A layer's order on the Schedules page: dragged by its handle, or the arrow keys
+    const clearDrop = () => root.querySelectorAll('.drop-before, .drop-after')
+      .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+    const endLayerDrag = (drop) => {
+      const d = this._layerDrag;
+      if (!d) return;
+      this._layerDrag = null;
+      clearDrop();
+      d.row.classList.remove('dragging');
+      if (drop && d.to !== d.from && this._moveLayer(d.schedule, d.layer, d.to)) return;
+      if (d.redraw) this._render();
+    };
+    root.addEventListener('pointerdown', (e) => {
+      const grip = e.target.closest('.layer-grip');
+      if (!grip) return;
+      e.preventDefault();
+      if (grip.setPointerCapture && e.pointerId != null) grip.setPointerCapture(e.pointerId);
+      const row = grip.closest('.layer-row');
+      const { schedule, layer } = row.dataset;
+      const rows = [...root.querySelectorAll('.layer-row')].filter((r) => r.dataset.schedule === schedule);
+      const from = rows.indexOf(row);
+      row.classList.add('dragging');
+      this._layerDrag = { schedule, layer, row, others: rows.filter((r) => r !== row), from, to: from };
+    });
+    root.addEventListener('pointermove', (e) => {
+      const d = this._layerDrag;
+      if (!d) return;
+      const below = d.others.findIndex((r) => {
+        const box = r.getBoundingClientRect();
+        return e.clientY < (box.top + box.bottom) / 2;
+      });
+      d.to = below < 0 ? d.others.length : below;
+      clearDrop();
+      if (d.to === d.from) return;
+      if (d.to < d.others.length) d.others[d.to].classList.add('drop-before');
+      else d.others[d.others.length - 1].classList.add('drop-after');
+    });
+    root.addEventListener('pointerup', () => endLayerDrag(true));
+    root.addEventListener('pointercancel', () => endLayerDrag(false));
+    root.addEventListener('keydown', (e) => {
+      const grip = e.target.closest && e.target.closest('.layer-grip');
+      if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      e.preventDefault();
+      const { schedule, layer } = grip.closest('.layer-row').dataset;
+      const from = this._source().layers(schedule).findIndex((l) => l.id === layer);
+      this._moveLayer(schedule, layer, from + (e.key === 'ArrowUp' ? -1 : 1));
     });
 
     // A layer's block: its start or end dragged, never past the blocks around it
@@ -4310,19 +4363,20 @@ class ChauffageProgrammeCard extends HTMLElement {
     const ed = this._layerEd;
     const active = schedule === this._activeSchedule();
     const applying = src.layersApplying();
-    const icon = (act, id, label, text, disabled) => `<button class="btn icon" data-act="${act}" data-schedule="${esc(schedule)}" data-layer="${esc(id)}" title="${esc(label)}" aria-label="${esc(label)}"${disabled ? ' disabled' : ''}>${text}</button>`;
-    const rows = layers.map((layer, i) => {
+    // No reordering while one of the schedule's layers is open: its form takes the place of its row
+    const movable = src.editable && !(ed && ed.schedule === schedule);
+    const rows = layers.map((layer) => {
       if (ed && ed.schedule === schedule && ed.id === layer.id) return this._layerFormHtml();
-      const state = !layer.enabled ? ['false', t('layerDisabled')]
-        : !active ? null : applying.includes(layer.id) ? ['true', t('layerApplies')] : ['false', t('layerNotNow')];
-      const tools = !src.editable ? '' : `<span class="rule-tools">
-        ${icon('layerlist-up', layer.id, t('layerUp'), '↑', i === 0)}
-        ${icon('layerlist-down', layer.id, t('layerDown'), '↓', i === layers.length - 1)}
-        <button class="btn" data-act="layerlist-toggle" data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}">${esc(t(layer.enabled ? 'layerDisable' : 'layerEnable'))}</button>
-        <button class="btn" data-act="layerlist-edit" data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}">${esc(t('layerEdit'))}</button></span>`;
-      return `<div class="layer-row${layer.enabled ? '' : ' off'}" data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}">
-        <div class="layer-text"><span class="layer-name">${esc(layer.name)}</span>${state ? ` <span class="rule-state ${state[0]}">${esc(state[1])}</span>` : ''}
-          ${layer.condition ? `<div class="layer-cond">${esc(layer.condition)}</div>` : ''}</div>${tools}</div>`;
+      const ref = `data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}"`;
+      // In a column of its own: the badges line up, whatever the length of the names
+      const state = !layer.enabled || !active ? null : applying.includes(layer.id) ? ['true', t('layerApplies')] : ['false', t('layerNotNow')];
+      const text = `<span class="layer-name">${esc(layer.name)}</span>${layer.condition ? `<span class="layer-cond">${esc(layer.condition)}</span>` : ''}`;
+      return `<div class="layer-row${layer.enabled ? '' : ' off'}" ${ref}>
+        ${movable ? `<button class="layer-grip" title="${esc(t('layerMove'))}" aria-label="${esc(t('layerMove'))}"><ha-icon icon="mdi:drag"></ha-icon></button>` : '<span></span>'}
+        ${src.editable ? `<button class="layer-text" data-act="layerlist-edit" ${ref} title="${esc(t('layerEdit'))}">${text}</button>` : `<div class="layer-text">${text}</div>`}
+        <span class="layer-state">${state ? `<span class="rule-state ${state[0]}">${esc(state[1])}</span>` : ''}</span>
+        ${src.editable ? `<button class="layer-switch" role="switch" aria-checked="${layer.enabled}" aria-label="${esc(t('layerEnabled'))}" title="${esc(t('layerEnabled'))}" data-act="layerlist-toggle" ${ref}></button>` : '<span></span>'}
+      </div>`;
     }).join('');
     const form = ed && ed.schedule === schedule && !ed.id ? this._layerFormHtml() : '';
     const add = src.editable && !form ? `<div class="layer-add"><button class="btn" data-act="layerlist-add" data-schedule="${esc(schedule)}">${esc(t('layerAdd'))}</button></div>` : '';
@@ -4395,11 +4449,16 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._layerEd = { schedule, id: layers[i].id, name: layers[i].name, condition: layers[i].condition || '' };
       return this._render();
     }
-    if (act === 'layerlist-toggle') layers[i].enabled = !layers[i].enabled;
-    else {
-      const j = act === 'layerlist-up' ? i - 1 : i + 1;
-      [layers[i], layers[j]] = [layers[j], layers[i]];
-    }
+    layers[i].enabled = !layers[i].enabled; // layerlist-toggle
+    return this._setLayers(schedule, layers);
+  }
+
+  // A layer moved to another place of its schedule's stack (0: the top)
+  _moveLayer(schedule, id, to) {
+    const layers = this._source().layers(schedule).map((l) => ({ ...l }));
+    const from = layers.findIndex((l) => l.id === id);
+    if (from === to || to < 0 || to >= layers.length) return null;
+    layers.splice(to, 0, layers.splice(from, 1)[0]);
     return this._setLayers(schedule, layers);
   }
 
@@ -4892,6 +4951,12 @@ class ChauffageProgrammeCard extends HTMLElement {
       return this._render();
     }
     if (act === 'history') return this._toggleHistory();
+    if (act === 'layers-all') {
+      this._layersAll = !this._layersAll;
+      try { localStorage.setItem(LS_LAYERS, this._layersAll ? '1' : '0'); } catch (e) { /* ignore */ }
+      this._lsel = null;
+      return this._render();
+    }
     if (act === 'group-days') {
       // The history shows each day: grouping the days hides it
       this._groupPref = !this._grouped();
@@ -5102,11 +5167,27 @@ const STYLE = `
   .th-add { margin:16px 8px 0; }
   /* A schedule's layers, under it, a line on the left holding them together */
   .layer-row, .layer-form, .layer-add { margin-left:36px; padding:8px 10px 8px 14px; border-left:2px solid var(--primary-color); }
-  .layer-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
-  .layer-text { flex:1 1 180px; min-width:0; }
+  .layer-row { display:grid; grid-template-columns:24px minmax(0, 1fr) 7em 36px; align-items:center; gap:8px; }
+  .layer-grip { all:unset; box-sizing:border-box; width:24px; height:32px; display:flex; align-items:center; justify-content:center;
+    cursor:grab; touch-action:none; color:var(--secondary-text-color); }
+  .layer-grip:focus-visible, .layer-text:focus-visible, .layer-switch:focus-visible { outline:2px solid var(--primary-color); outline-offset:2px; }
+  .layer-row.dragging { opacity:.5; }
+  .layer-row.drop-before { box-shadow:inset 0 2px 0 var(--primary-color); }
+  .layer-row.drop-after { box-shadow:inset 0 -2px 0 var(--primary-color); }
+  .layer-text { all:unset; box-sizing:border-box; display:block; min-width:0; cursor:pointer; }
+  div.layer-text { cursor:default; }
+  .layer-name, .layer-cond { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   .layer-row.off .layer-name { text-decoration:line-through; opacity:.55; }
-  .layer-cond { font-family:var(--code-font-family,monospace); font-size:.8em; color:var(--secondary-text-color);
-    overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .layer-row.off .layer-cond { opacity:.55; }
+  .layer-cond { font-family:var(--code-font-family,monospace); font-size:.8em; color:var(--secondary-text-color); }
+  .layer-state { justify-self:end; white-space:nowrap; }
+  /* As Home Assistant's switches */
+  .layer-switch { all:unset; box-sizing:border-box; position:relative; width:36px; height:20px; border-radius:10px; cursor:pointer;
+    background:var(--disabled-color, #9e9e9e); transition:background .15s; }
+  .layer-switch::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.4); transition:left .15s; }
+  .layer-switch[aria-checked="true"] { background:var(--primary-color); }
+  .layer-switch[aria-checked="true"]::after { left:18px; }
   .layer-form { display:flex; flex-direction:column; gap:8px; }
   .layer-form label { display:flex; flex-direction:column; gap:3px; font-size:.85em; color:var(--secondary-text-color); }
   .layer-form input, .layer-form textarea { font:inherit; color:var(--primary-text-color); box-sizing:border-box; width:100%;
@@ -5399,6 +5480,8 @@ const STYLE = `
     .dgroup { grid-template-columns:min(var(--day-w), 56px) 1fr; }
     .multi .sub { grid-template-columns:fit-content(60px) 1fr 28px; }
     .subs.layered .sub { grid-template-columns:18px fit-content(60px) 1fr 28px; }
+    .layer-row, .layer-form, .layer-add { margin-left:18px; padding-left:8px; }
+    .layer-row { gap:6px; }
     .sub { grid-template-columns:1fr 28px; }
     .scale { grid-template-columns:min(var(--day-w), 56px) 1fr 28px; }
     .ticks .minor { display:none; }
