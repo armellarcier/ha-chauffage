@@ -288,6 +288,19 @@ describe('a layer\'s blocks behave as the slots of the schedule', () => {
     assert.doesNotMatch(css.match(/\.layer-block \{[^}]*\}/)[0], /pointer-events:none/);
   });
 
+  test('the title of a layer in an open row shows its condition in its tooltip', () => {
+    const { card } = editing();
+    const names = $$(card, '.layer-sub .lname');
+    assert.match(names[1].title, /is_state/);
+    assert.equal(names[0].title, 'Soleil'); // no condition
+  });
+
+  test('an override stays above the layer blocks, however many are stacked', () => {
+    const card = createCard(fakeHass({ data: withLayers() }));
+    const css = card.shadowRoot.querySelector('style').textContent;
+    assert.doesNotMatch(css.match(/\.layer-block \{[^}]*\}/)[0], /z-index/);
+  });
+
   test('a click on a layer block over the day opens the row', () => {
     const card = createCard(fakeHass({ data: withLayers() }), { show: ['climate.salon'] });
     salonBar(card).querySelector('.layer-block').click();

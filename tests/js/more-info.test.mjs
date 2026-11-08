@@ -478,6 +478,14 @@ describe('more-info block of a thermostat with layers', () => {
       assert.deepEqual(slots(layerRow(el).querySelector('.bar')), [['37.5%', '33.333%']]);
     });
 
+    test('a layer\'s title shows its condition in its tooltip', () => {
+      const data = withLayer();
+      data.schedules[0].layers = [{ ...LAYER, condition: '{{ true }}' }];
+      const title = layerRow(block(fakeHass({ data }), 'climate.salon')).querySelector('span').title;
+      assert.match(title, /Salon occupé/);
+      assert.match(title, /\{\{ true \}\}/);
+    });
+
     test('a layer row names its layer in its tooltip', () => {
       const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
       assert.match(layerRow(el).querySelector('.seg').title, /Salon occupé/);

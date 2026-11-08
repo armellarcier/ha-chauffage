@@ -786,6 +786,9 @@ function applyingStack(src, schedule, blocksOf) {
     .reverse();
 }
 
+// The tooltip of a layer's title: its name, and when it applies
+const layerTitle = (layer) => (layer.condition ? `${layer.name}\n${layer.condition}` : layer.name);
+
 // How far a stack sticks out under its day: from the fourth tier, each block moves down
 const stackOverflow = (stack) => Math.max(0, stack.length - 3) * LAYER_TIER_SHIFT;
 
@@ -2886,7 +2889,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           + `<div class="lhandle" data-idx="${i}" data-edge="end" style="left:${pct(b.end)}%"><span class="tip">${this._loc.time(b.end)}</span></div>`;
       }).join('');
       return `<div class="sub layer-sub"><span class="tree"></span>
-        <div class="name lname ${state}" title="${esc(layer.name)}">${esc(layer.name)}${this._nameSizer()}</div>
+        <div class="name lname ${state}" title="${esc(layerTitle(layer))}">${esc(layer.name)}${this._nameSizer()}</div>
         <div class="lbar" data-climate="${esc(climate)}" data-day="${d}" data-layer="${esc(layer.id)}">${blockHtml}</div>
         <span></span></div>`;
     }).join('');
@@ -5119,7 +5122,7 @@ const LAYER_BLOCK_STYLE = `
      tier slimmer than the one under it, so that all of them show; at the minimum height, from
      the fourth tier, each one moves down instead */
   .layer-block { position:absolute; bottom:calc(max(0, var(--tier) - 2) * -4px); height:max(8px, calc(70% - var(--tier) * 20%));
-    z-index:calc(1 + var(--tier)); box-sizing:border-box; overflow:hidden; container-type:size;
+    box-sizing:border-box; overflow:hidden; container-type:size;
     padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
     color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
     display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); }
@@ -5796,7 +5799,7 @@ class ChauffageMoreInfo extends HTMLElement {
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
         <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>
         ${enabled.filter((l) => blocksOf(l, days[0]).length).map((l) => `<div class="row layer">
-          <span title="${esc(l.name)}">${esc(l.name)}</span>${this._layerBar(l, blocksOf(l, days[0]))}</div>`).join('')}`).join('');
+          <span title="${esc(layerTitle(l))}">${esc(l.name)}</span>${this._layerBar(l, blocksOf(l, days[0]))}</div>`).join('')}`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
     const admin = isAdmin(this._hass);
 
