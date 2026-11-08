@@ -324,7 +324,7 @@ A schedule holds its own layers. A layer has blocks: a preset between two times,
 on some days. Where a layer has no block, the layer below applies, and then the schedule.
 
 A layer applies while it is enabled and its condition is true. A layer without a condition applies
-while it is enabled, so you can switch it by hand. The top layer wins where layers overlap. An
+while it is enabled, so you can switch it by hand. Where layers overlap, the lowest one in the list wins: each layer overrides the layers above it. An
 override stays above every layer.
 
 ### Add a layer

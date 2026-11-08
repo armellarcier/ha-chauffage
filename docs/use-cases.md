@@ -57,7 +57,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | Use case | Test |
 |---|---|
 | A layer applies its slots while its condition is true, and lets the schedule through where it has none | `I/test_engine.py` (layers), `I/test_layers.py::a_layer_applies_*`, `::the_gaps_of_a_layer_*` |
-| The top layer wins where layers overlap | `I/test_engine.py::the_top_layer_wins_*` |
+| Where layers overlap, the lowest one in the list wins | `I/test_engine.py::the_top_layer_wins_*` |
 | A layer without a condition applies while enabled; a disabled layer never applies | `I/test_layers.py::a_layer_without_a_condition_*`, `::a_disabled_layer_*` |
 | Only the layers of the active schedule apply; they apply again after a restart | `I/test_layers.py::only_the_layers_*`, `::the_layers_apply_again_*` |
 | An override stays when a layer starts applying, and is drawn above every layer | `I/test_layers.py::an_override_stays_*`, `C/layers.test.mjs` (an override stays above) |

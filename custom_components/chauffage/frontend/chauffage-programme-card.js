@@ -42,7 +42,7 @@ const I18N = {
     layerEnabled: 'Enabled',
     layerNameTaken: 'Another layer of this schedule has this name',
     layerEdit: 'Edit',
-    layerMove: 'Drag to change the order (or the arrow keys): the top layer wins',
+    layerMove: 'Drag to change the order (or the arrow keys): each layer overrides the layers above it',
     allLayers: 'All layers',
     allLayersTitle: 'On the rows: only the layers that apply now, or all of them',
     layerRemoveConfirm: 'Delete it and its blocks',
@@ -305,7 +305,7 @@ const I18N = {
     layerEnabled: 'Activé',
     layerNameTaken: 'Un autre calque de ce planning porte ce nom',
     layerEdit: 'Modifier',
-    layerMove: 'Glisser pour changer l’ordre (ou les flèches) : le calque du haut l’emporte',
+    layerMove: 'Glisser pour changer l’ordre (ou les flèches) : chaque calque remplace ceux du dessus',
     allLayers: 'Tous les calques',
     allLayersTitle: 'Sur les lignes : seulement les calques qui s’appliquent, ou tous',
     layerRemoveConfirm: 'Le supprimer avec ses blocs',
@@ -680,7 +680,6 @@ const LS_CLIP = 'chauffage-programme-card:clip';
 const LS_HISTORY = 'chauffage-programme-card:history';
 const LS_GROUP = 'chauffage-programme-card:group-days';
 const LS_LAYERS = 'chauffage-programme-card:all-layers';
-const LAYER_TIER_SHIFT = 4; // px, as in .layer-block
 const ICON_COPY = '<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
 const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg>';
 const ICON_MORE = '<svg viewBox="0 0 24 24"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"/></svg>';
@@ -789,8 +788,8 @@ function applyingStack(src, schedule, blocksOf) {
 // The tooltip of a layer's title: its name, and when it applies
 const layerTitle = (layer) => (layer.condition ? `${layer.name}\n${layer.condition}` : layer.name);
 
-// How far a stack sticks out under its day: from the fourth tier, each block moves down
-const stackOverflow = (stack) => Math.max(0, stack.length - 3) * LAYER_TIER_SHIFT;
+// What a day needs to know to make room for a stack (.bar, .layer-block)
+const stackStyle = (stack) => (stack.length ? ` style="--count:${stack.length}"` : '');
 
 // A stack drawn over a day. One tier per layer: the top one is the last, in front, and the
 // slimmest (.layer-block). `presetOf(id)`: { name, color }
@@ -798,7 +797,7 @@ function stackHtml(stack, presetOf, loc) {
   return stack.map(({ layer, blocks, state }, tier) => blocks.map(({ start, end, preset }) => {
     const p = presetOf(preset);
     const title = `${layer.name} · ${loc.time(start)} → ${loc.time(end)} · ${p.name}`;
-    return `<div class="layer-block${state ? ` ${state}` : ''}" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
+    return `<div class="layer-block${state ? ` ${state}` : ''}" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--count:${stack.length};--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
   }).join('')).join('');
 }
 
@@ -2866,8 +2865,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     // A schedule with layers: a row is only shown (the layers that apply over it) until opened
     const open = this._isOpen(climate, d);
     const locked = this._layered() && !open ? ' locked' : '';
-    const layers = open ? '' : this._layersHtml(climate, d);
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}${locked}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${layers}${history}${this._overrideHtml(climate, days)}${now}</div>`;
+    const stack = open ? [] : this._layerStack(climate, d);
+    const layers = stackHtml(stack, (id) => this._preset(id), this._loc);
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}${locked}"${stackStyle(stack)} data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${layers}${history}${this._overrideHtml(climate, days)}${now}</div>`;
   }
 
   // The rows of an open row's layers: one per layer of the schedule, top first, its blocks
@@ -2876,7 +2876,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     const active = this._schedule === this._activeSchedule();
     const applying = src.layersApplying();
-    const rows = src.layers(this._schedule).map((layer) => {
+    // From the weakest to the one that wins: each row overrides the rows above it
+    const rows = [...src.layers(this._schedule)].reverse().map((layer) => {
       const state = !layer.enabled ? 'off' : active && applying.includes(layer.id) ? '' : 'idle';
       const blocks = this._layerBlocks(climate, layer.id, d);
       const sel = this._lsel;
@@ -2909,10 +2910,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       .filter(({ blocks }) => blocks.length);
   }
 
-  _layersHtml(climate, day) {
-    return stackHtml(this._layerStack(climate, day), (id) => this._preset(id), this._loc);
-  }
-
   // Override drawn over the schedule (only in the active schedule's tab), on a row of days
   _overrideHtml(climate, days) {
     if (this._schedule !== this._activeSchedule()) return '';
@@ -2943,9 +2940,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const opened = this._isOpen(climate, d);
         const chevron = layered ? `<button class="chev${opened ? ' open' : ''}" data-act="toggle-row" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t(opened ? 'closeRow' : 'openRow'))}" aria-expanded="${opened}">${ICON_DOWN}</button>` : '';
         const named = multi || layered;
-        // From the fourth tier, each block moves down by LAYER_TIER_SHIFT: the next row makes room
-        const below = opened ? 0 : stackOverflow(this._layerStack(climate, d));
-        const sub = `<div class="sub"${below ? ` style="padding-bottom:${below}px"` : ''}>
+        const sub = `<div class="sub">
           ${chevron}${named ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
           ${this._barHtml(climate, segs, days, showNow)}
           <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
@@ -3677,7 +3672,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._layerDrag = null;
       clearDrop();
       d.row.classList.remove('dragging');
-      if (drop && d.to !== d.from && this._moveLayer(d.schedule, d.layer, d.to)) return;
+      // The rows are drawn from the last layer to the first
+      if (drop && d.to !== d.from && this._moveLayer(d.schedule, d.layer, d.others.length - d.to)) return;
       if (d.redraw) this._render();
     };
     root.addEventListener('pointerdown', (e) => {
@@ -3713,7 +3709,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       e.preventDefault();
       const { schedule, layer } = grip.closest('.layer-row').dataset;
       const from = this._source().layers(schedule).findIndex((l) => l.id === layer);
-      this._moveLayer(schedule, layer, from + (e.key === 'ArrowUp' ? -1 : 1));
+      // A row higher up is a layer further down the stack
+      this._moveLayer(schedule, layer, from + (e.key === 'ArrowUp' ? 1 : -1));
     });
 
     // A layer's block: its start or end dragged, never past the blocks around it
@@ -4434,7 +4431,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const applying = src.layersApplying();
     // No reordering while one of the schedule's layers is open: its form takes the place of its row
     const movable = src.editable && !(ed && ed.schedule === schedule);
-    const rows = layers.map((layer) => {
+    // From the weakest to the one that wins: each row overrides the rows above it
+    const rows = [...layers].reverse().map((layer) => {
       if (ed && ed.schedule === schedule && ed.id === layer.id) return this._layerFormHtml();
       const ref = `data-schedule="${esc(schedule)}" data-layer="${esc(layer.id)}"`;
       // In a column of its own: the badges line up, whatever the length of the names
@@ -4449,7 +4447,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     }).join('');
     const form = ed && ed.schedule === schedule && !ed.id ? this._layerFormHtml() : '';
     const add = src.editable && !form ? `<div class="layer-add"><button class="btn" data-act="layerlist-add" data-schedule="${esc(schedule)}">${esc(t('layerAdd'))}</button></div>` : '';
-    return `${form}${rows}${add}`;
+    return `${rows}${form}${add}`;
   }
 
   // Another layer of the schedule has the name typed
@@ -5124,10 +5122,11 @@ const TIME_FIELD_STYLE = `
 `;
 
 const LAYER_BLOCK_STYLE = `
-  /* A layer that applies now, only shown, edited elsewhere. On the bottom edge of the day, each
-     tier slimmer than the one under it, so that all of them show; at the minimum height, from
-     the fourth tier, each one moves down instead */
-  .layer-block { position:absolute; bottom:calc(max(0, var(--tier) - 2) * -4px); height:max(8px, calc(70% - var(--tier) * 20%));
+  /* A layer that applies now, only shown, edited elsewhere. On the bottom edge of its day, each
+     tier a step slimmer than the one under it, so that all of them show; a day with many grows
+     to hold them, leaving a strip of the schedule above */
+  .bar { min-height:calc(var(--count, 0) * 6px + 8px); }
+  .layer-block { position:absolute; bottom:0; height:calc((var(--count) - var(--tier)) * max(6px, 70% / var(--count)));
     box-sizing:border-box; overflow:hidden; container-type:size;
     padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
     color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
@@ -5731,9 +5730,8 @@ class ChauffageMoreInfo extends HTMLElement {
       override = `<div class="override" style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%">${handle}</div>`;
     }
     const now = showNow ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
-    const below = stackOverflow(stack);
     const layers = stackHtml(stack, (id) => this._preset(id), this._loc);
-    return `<div class="bar${big ? ' big' : ''}"${below ? ` style="margin-bottom:${below}px"` : ''}>${segHtml}${layers}${override}${now}</div>`;
+    return `<div class="bar${big ? ' big' : ''}"${stackStyle(stack)}>${segHtml}${layers}${override}${now}</div>`;
   }
 
   _render() {
@@ -5807,7 +5805,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const rows = (MORE_INFO_CFG.group_days === false ? order.map((d) => [d]) : rowsOfDays(order, dayKey))
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
         <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>
-        ${enabled.filter((l) => blocksOf(l, days[0]).length).map((l) => `<div class="row layer">
+        ${[...enabled].reverse().filter((l) => blocksOf(l, days[0]).length).map((l) => `<div class="row layer">
           <span title="${esc(layerTitle(l))}">${esc(l.name)}</span>${this._layerBar(l, blocksOf(l, days[0]))}</div>`).join('')}`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
     const admin = isAdmin(this._hass);

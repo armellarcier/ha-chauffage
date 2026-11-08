@@ -52,11 +52,11 @@ describe('the layers that apply now, over the schedule', () => {
     assert.deepEqual(tiers(createCard(fakeHass({ data }))), ['0']);
   });
 
-  test('a layer block is slimmer on each tier, keeps a height, and moves down past the third', () => {
+  test('a layer block is slimmer on each tier and stays inside its day', () => {
     const card = createCard(fakeHass({ data: withLayers() }));
     const css = card.shadowRoot.querySelector('style').textContent;
-    assert.match(css, /\.layer-block \{[^}]*height:max\(\d+px, calc\(/);
-    assert.match(css, /\.layer-block \{[^}]*bottom:calc\(max\(0, var\(--tier\) - 2\)/);
+    assert.match(css, /\.layer-block \{[^}]*bottom:0/);
+    assert.match(css, /\.layer-block \{[^}]*height:calc\(\(var\(--count\) - var\(--tier\)\) \* max\(\d+px,/);
   });
 
   test('a layer that does not apply now is not drawn', () => {
@@ -123,7 +123,8 @@ describe('a row of a schedule with layers is shown, and edited once tapped', () 
   test('tapping a row opens it: the schedule on its own row, then one row per layer', () => {
     const { card } = editing();
     assert.ok(!salonBar(card).classList.contains('locked'));
-    assert.deepEqual($$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim()), ['Soleil', 'Salon occupé']);
+    // The lowest row wins: each row overrides the rows above it
+    assert.deepEqual($$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim()), ['Salon occupé', 'Soleil']);
     assert.ok(layerBar(card, 'occupied'));
     assert.equal(salonBar(card).querySelectorAll('.layer-block').length, 0); // the schedule's own row shows only the schedule
   });
@@ -133,8 +134,8 @@ describe('a row of a schedule with layers is shown, and edited once tapped', () 
     data.schedules[0].layers = [{ ...SUN, enabled: false }, OCCUPIED];
     const { card } = editing(data);
     const names = $$(card, '.layer-sub .lname');
-    assert.ok(names[0].classList.contains('off'));
-    assert.ok(!names[1].classList.contains('off') && !names[1].classList.contains('idle'));
+    assert.ok(names[1].classList.contains('off'));
+    assert.ok(!names[0].classList.contains('off') && !names[0].classList.contains('idle'));
   });
 
   test('the chevron opens and closes the row, and so does the row menu', () => {
@@ -291,8 +292,8 @@ describe('a layer\'s blocks behave as the slots of the schedule', () => {
   test('the title of a layer in an open row shows its condition in its tooltip', () => {
     const { card } = editing();
     const names = $$(card, '.layer-sub .lname');
-    assert.match(names[1].title, /is_state/);
-    assert.equal(names[0].title, 'Soleil'); // no condition
+    assert.match(names[0].title, /is_state/);
+    assert.equal(names[1].title, 'Soleil'); // no condition
   });
 
   test('an override stays above the layer blocks, however many are stacked', () => {
@@ -324,10 +325,11 @@ describe('many layers stacked', () => {
     data.layers_applying = ids;
     return data;
   };
-  const room = (n) => salonBar(createCard(fakeHass({ data: stacked(n) }), { show: ['climate.salon'] })).closest('.sub').style.paddingBottom;
+  const bar = (n) => salonBar(createCard(fakeHass({ data: stacked(n) }), { show: ['climate.salon'] }));
 
-  test('up to three stay within their row', () => assert.equal(room(3), ''));
-  test('more push the next row down by as much as they stick out', () => assert.equal(room(6), '12px'));
+  test('the day knows how many it holds, to make room for them', () => assert.equal(bar(6).style.getPropertyValue('--count'), '6'));
+  test('they do not move the next row by themselves', () => assert.equal(bar(6).closest('.sub').style.paddingBottom, ''));
+  test('a day with none is left as it is', () => assert.equal(bar(0).getAttribute('style'), null));
 });
 
 describe('showing the active layers or all of them, on the stacked rows', () => {
@@ -368,9 +370,9 @@ describe('showing the active layers or all of them, on the stacked rows', () => 
   test('an open row lists every layer, whatever is chosen', () => {
     const { card } = editing();
     const names = () => $$(card, '.layer-sub .lname').map((el) => el.firstChild.textContent.trim());
-    assert.deepEqual(names(), ['Soleil', 'Salon occupé']);
+    assert.deepEqual(names(), ['Salon occupé', 'Soleil']);
     allChip(card).click();
-    assert.deepEqual(names(), ['Soleil', 'Salon occupé']);
+    assert.deepEqual(names(), ['Salon occupé', 'Soleil']);
   });
 
   test('the choice shows for a schedule with layers, and is kept on this device', () => {
@@ -408,9 +410,9 @@ describe('the layers of each schedule, on the Schedules page', () => {
   const SENT_SUN = { id: 'sun', name: 'Soleil', enabled: true, condition: null };
   const SENT_OCCUPIED = { id: 'occupied', name: 'Salon occupé', enabled: true, condition: OCCUPIED.condition };
 
-  test('lists a schedule\'s layers under it, top first, and says which apply now', () => {
+  test('lists a schedule\'s layers under it, the one that wins last, and says which apply now', () => {
     const { card } = page();
-    assert.deepEqual($$(card, '.layer-row[data-schedule="normal"] .layer-name').map((el) => el.textContent), ['Soleil', 'Salon occupé']);
+    assert.deepEqual($$(card, '.layer-row[data-schedule="normal"] .layer-name').map((el) => el.textContent), ['Salon occupé', 'Soleil']);
     assert.ok(row(card, 'occupied').querySelector('.rule-state.true'));
     assert.ok(!row(card, 'sun').querySelector('.rule-state.true'));
   });
@@ -481,10 +483,10 @@ describe('the layers of each schedule, on the Schedules page', () => {
     test('dragging a layer by its handle moves it, once dropped', async () => {
       const { hass, card } = page();
       place(card);
-      at(grip(card, 'sun'), 'pointerdown', 20);
-      at(grip(card, 'sun'), 'pointermove', 70);
+      at(grip(card, 'sun'), 'pointerdown', 60);
+      at(grip(card, 'sun'), 'pointermove', 10);
       assert.equal(sent(hass).length, 0);
-      at(grip(card, 'sun'), 'pointerup', 70);
+      at(grip(card, 'sun'), 'pointerup', 10);
       await flush();
       assert.deepEqual(sent(hass)[0].layers, [SENT_OCCUPIED, SENT_SUN]);
     });
@@ -492,9 +494,9 @@ describe('the layers of each schedule, on the Schedules page', () => {
     test('dropped where it was, nothing is sent', async () => {
       const { hass, card } = page();
       place(card);
-      at(grip(card, 'sun'), 'pointerdown', 20);
-      at(grip(card, 'sun'), 'pointermove', 25);
-      at(grip(card, 'sun'), 'pointerup', 25);
+      at(grip(card, 'sun'), 'pointerdown', 60);
+      at(grip(card, 'sun'), 'pointermove', 65);
+      at(grip(card, 'sun'), 'pointerup', 65);
       await flush();
       assert.equal(sent(hass).length, 0);
     });
@@ -514,14 +516,14 @@ describe('the layers of each schedule, on the Schedules page', () => {
 
     test('the arrow keys move a layer too', async () => {
       const { hass, card } = page();
-      grip(card, 'sun').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }));
+      grip(card, 'sun').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, composed: true }));
       await flush();
       assert.deepEqual(sent(hass)[0].layers, [SENT_OCCUPIED, SENT_SUN]);
     });
 
-    test('the top layer does not move further up', async () => {
+    test('the last row does not move further down', async () => {
       const { hass, card } = page();
-      grip(card, 'sun').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, composed: true }));
+      grip(card, 'sun').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }));
       await flush();
       assert.equal(sent(hass).length, 0);
     });

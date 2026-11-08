@@ -342,8 +342,8 @@ pour un thermostat, certains jours. Là où un calque n'a pas de bloc, le calque
 s'applique, puis le planning.
 
 Un calque s'applique tant qu'il est activé et que sa condition est vraie. Un calque sans condition
-s'applique tant qu'il est activé : vous pouvez donc le commander à la main. Le calque du haut
-l'emporte quand des calques se chevauchent. Une dérogation reste au-dessus de tous les calques.
+s'applique tant qu'il est activé : vous pouvez donc le commander à la main. Quand des calques se chevauchent, le plus bas de la liste l'emporte : chaque calque remplace ceux du dessus.
+Une dérogation reste au-dessus de tous les calques.
 
 ### Ajouter un calque
 

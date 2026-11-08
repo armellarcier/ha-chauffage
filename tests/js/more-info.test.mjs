@@ -466,7 +466,7 @@ describe('more-info block of a thermostat with layers', () => {
     data.schedules[0].layers = ids.map((id) => ({ ...LAYER, id, name: id }));
     data.layer_weeks['climate.salon'] = Object.fromEntries(ids.map((id) => [id, Array(7).fill(WHOLE_DAY)]));
     data.layers_applying = ids;
-    assert.equal(todayBar(block(fakeHass({ data }), 'climate.salon')).style.marginBottom, '8px');
+    assert.equal(todayBar(block(fakeHass({ data }), 'climate.salon')).style.getPropertyValue('--count'), '5');
   });
 
   describe('the week', () => {
@@ -476,6 +476,13 @@ describe('more-info block of a thermostat with layers', () => {
       assert.equal(weekRows(el)[1], 'Salon occupé');
       assert.deepEqual(slots(el.shadowRoot.querySelector('.week .row .bar')), [['0%', '100%']]);
       assert.deepEqual(slots(layerRow(el).querySelector('.bar')), [['37.5%', '33.333%']]);
+    });
+
+    test('lists the layers with the one that wins last', () => {
+      const data = withLayer();
+      data.schedules[0].layers = [{ ...LAYER, id: 'top', name: 'Wins' }, { ...LAYER, id: 'low', name: 'Loses' }];
+      data.layer_weeks['climate.salon'] = { top: Array(7).fill(WHOLE_DAY), low: Array(7).fill(WHOLE_DAY) };
+      assert.deepEqual(weekRows(block(fakeHass({ data }), 'climate.salon')).slice(1), ['Loses', 'Wins']);
     });
 
     test('a layer\'s title shows its condition in its tooltip', () => {
