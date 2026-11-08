@@ -35,13 +35,28 @@ describe('the layers that apply now, over the schedule', () => {
     assert.deepEqual(blocks(card), [['37.5%', '33.333%', 'comfort', 'occupied']]);
   });
 
-  test('where layers overlap, the top one is drawn', () => {
+  test('each layer that applies draws its own blocks, the top one last, in front', () => {
     const card = createCard(fakeHass({ data: withLayers({ applying: ['sun', 'occupied'] }) }));
     assert.deepEqual(blocks(card), [
-      ['37.5%', '12.5%', 'comfort', 'occupied'],
+      ['37.5%', '33.333%', 'comfort', 'occupied'],
       ['50%', '8.333%', 'eco', 'sun'],
-      ['58.333%', '12.5%', 'comfort', 'occupied'],
     ]);
+  });
+
+  test('each layer of a stack is one tier higher, counting only the layers drawn on that day', () => {
+    const tiers = (card) => $$(card, '.bar[data-climate="climate.salon"][data-day="0"] .layer-block').map((el) => el.dataset.tier);
+    const data = withLayers({ applying: ['sun', 'occupied'] });
+    assert.deepEqual(tiers(createCard(fakeHass({ data }))), ['0', '1']);
+    cleanup();
+    data.layer_weeks['climate.salon'].occupied = Array(7).fill([['00:00', null]]);
+    assert.deepEqual(tiers(createCard(fakeHass({ data }))), ['0']);
+  });
+
+  test('a layer block is slimmer on each tier, keeps a height, and moves down past the third', () => {
+    const card = createCard(fakeHass({ data: withLayers() }));
+    const css = card.shadowRoot.querySelector('style').textContent;
+    assert.match(css, /\.layer-block \{[^}]*height:max\(\d+px, calc\(/);
+    assert.match(css, /\.layer-block \{[^}]*bottom:calc\(max\(0, var\(--tier\) - 2\)/);
   });
 
   test('a layer that does not apply now is not drawn', () => {

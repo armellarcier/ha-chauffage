@@ -788,24 +788,6 @@ function layerSlots(blocks) {
   return out.filter((slot, i) => i === 0 || slot[1] !== out[i - 1][1]);
 }
 
-// The pieces of layers stacked top first ([{ layer, day }]) that have something: at each time,
-// the top layer that has a preset there. [{ start, end, preset, layer }]
-function layerPieces(stack) {
-  const presetAt = (day, m) => day.reduce((p, s) => (s.start <= m ? s.preset : p), null);
-  const starts = [...new Set(stack.flatMap(({ day }) => day.map((s) => s.start)))].sort((a, b) => a - b);
-  const out = [];
-  starts.forEach((start, i) => {
-    const end = i < starts.length - 1 ? starts[i + 1] : DAY_MIN;
-    const top = stack.find(({ day }) => presetAt(day, start) !== null);
-    if (!top) return;
-    const piece = { start, end, preset: presetAt(top.day, start), layer: top.layer };
-    const last = out[out.length - 1];
-    if (last && last.end === start && last.preset === piece.preset && last.layer === piece.layer) last.end = end;
-    else out.push(piece);
-  });
-  return out;
-}
-
 // ---------- overrides (shared by the card and the more-info block) ----------
 
 // The piece of an override drawn on a row of days: today's, or the last one (where it ends, with
@@ -2855,21 +2837,25 @@ class ChauffageProgrammeCard extends HTMLElement {
     return rows;
   }
 
-  // The layers that apply now drawn over a thermostat's day, set slightly below it (only in the active
-  // schedule's tab: the layers of another schedule do not apply)
+  // The layers that apply now drawn over a thermostat's day (only in the active schedule's tab:
+  // the layers of another schedule do not apply). One tier per layer drawn that day, from the
+  // lowest of the stack: the top layer is the last one, in front, and the slimmest (.layer-block)
   _layersHtml(climate, day) {
     if (this._schedule !== this._activeSchedule()) return '';
     const src = this._source();
     const layers = src.layers(this._schedule);
-    const stack = src.layersApplying()
+    return src.layersApplying()
       .map((id) => layers.find((l) => l.id === id))
       .filter(Boolean)
-      .map((layer) => ({ layer, day: src.layerDay(climate, layer.id, day) }));
-    return layerPieces(stack).map(({ start, end, preset, layer }) => {
-      const p = this._preset(preset);
-      const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
-      return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" style="left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
-    }).join('');
+      .map((layer) => ({ layer, blocks: layerBlocks(src.layerDay(climate, layer.id, day)) }))
+      .filter(({ blocks }) => blocks.length)
+      .reverse()
+      .map(({ layer, blocks }, tier) => blocks.map(({ start, end, preset }) => {
+        const p = this._preset(preset);
+        const title = `${layer.name} · ${this._loc.time(start)} → ${this._loc.time(end)} · ${p.name}`;
+        return `<div class="layer-block" data-layer="${esc(layer.id)}" data-preset="${esc(preset)}" data-tier="${tier}" style="--tier:${tier};left:${pct(start)}%;width:${pct(end - start)}%;background:${p.color}" title="${esc(title)}"><span>${esc(layer.name)}</span></div>`;
+      }).join(''))
+      .join('');
   }
 
   // Override drawn over the schedule (only in the active schedule's tab), on a row of days
@@ -5216,12 +5202,16 @@ const STYLE = `
   .seg.last { border-radius:0 6px 6px 0; }
   .seg.first.last { border-radius:6px; }
   .seg .t { font-weight:600; }
-  /* A layer that applies now, set slightly below the schedule's day, named: only shown, edited
-     elsewhere */
-  .layer-block { position:absolute; top:4px; bottom:-4px; z-index:1; box-sizing:border-box; overflow:hidden;
-    padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 3px rgba(0,0,0,.3);
-    color:#fff; font-size:10.5px; line-height:1; white-space:nowrap; text-overflow:ellipsis;
+  /* A layer that applies now, only shown, edited elsewhere. On the bottom edge of the day, each
+     tier slimmer than the one under it, so that all of them show; at the minimum height, from
+     the fourth tier, each one moves down instead */
+  .layer-block { position:absolute; bottom:calc(max(0, var(--tier) - 2) * -4px); height:max(8px, calc(70% - var(--tier) * 20%));
+    z-index:calc(1 + var(--tier)); box-sizing:border-box; overflow:hidden; container-type:size;
+    padding:0 5px; border:1px solid rgba(255,255,255,.85); box-shadow:0 1px 2px rgba(0,0,0,.25);
+    color:#fff; font-size:10.5px; line-height:1; white-space:nowrap;
     display:flex; align-items:center; text-shadow:0 1px 1px rgba(0,0,0,.3); pointer-events:none; }
+  /* Too slim for its name */
+  @container (max-height:11px) { .layer-block span { display:none; } }
   .layer-block span { overflow:hidden; text-overflow:ellipsis; }
   /* A row of a schedule with layers is only shown until opened */
   .bar.locked .seg { cursor:pointer; }
