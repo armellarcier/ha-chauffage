@@ -310,6 +310,48 @@ event starts or ends. The blueprint sees a new or edited event the next time it 
 calendar: every five minutes by default. For an online calendar, choose fifteen minutes, because
 an online calendar only syncs at that pace.
 
+## Layers
+
+A layer changes a schedule for some rooms and some hours, while a condition is true. Use a layer
+when a room needs an exception and the rest of the home stays on its schedule. For example, heat
+the office only while you are in it.
+
+If you add no layer, nothing changes.
+
+### What a layer does
+
+A schedule holds its own layers. A layer has blocks: a preset between two times, for a thermostat
+on some days. Where a layer has no block, the layer below applies, and then the schedule.
+
+A layer applies while it is enabled and its condition is true. A layer without a condition applies
+while it is enabled, so you can switch it by hand. Where layers overlap, the lowest one in the list wins: each layer overrides the layers above it. An
+override stays above every layer.
+
+### Add a layer
+
+1. In the Chauffage panel, open the *Schedules* tab.
+2. Under a schedule, click *Add a layer*. Give the layer a name.
+3. Optionally write a condition, a template. The form shows whether the condition is true now.
+
+For example, this condition follows a presence sensor:
+
+```yaml
+{{ is_state('binary_sensor.office_presence', 'on') }}
+```
+
+The switch of a layer enables or disables it. Drag a layer by its handle to change its order.
+
+### Draw the blocks of a layer
+
+1. On the schedule card, open a row: tap the row, or its chevron. The schedule has its own row, and
+   each layer has one row.
+2. Double-click where a layer has nothing to add a block. Drag the ends of a block to change its
+   times.
+3. Tap a block to choose its preset or to delete it. Then click *Save*.
+
+A closed row shows the layers that apply now, over the schedule. The *All layers* chip also shows
+the layers that do not apply now.
+
 ## Presets
 
 Slots ask for presets. Chauffage comes with four presets: *Comfort* 20 °C, *Eco* 17 °C,
@@ -542,6 +584,7 @@ Chauffage fires events that your automations can use, with the *Event* trigger:
 | `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. `ends_at` says why the override ends then, when Chauffage knows it: `duration`, `next_slot` or `no_next_slot` for a change by hand, and `next_slot` for an end set to the next slot on the card. Fired for a new override or a new value, not when only the end changes. |
 | `chauffage_override_ended` | `entity_id`, `start`, `end`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. `ends_at` as above, when Chauffage knows it. |
 | `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `panel`, `entity` (the select or a schedule switch), `service` or `rules`. |
+| `chauffage_layer_started`, `chauffage_layer_ended` | `layer` (the stable id), `layer_name`, `schedule`, and `entity_id` (the *Active schedule* select). A layer started or stopped applying. |
 
 Each event carries the context of what caused it. So the logbook says who changed the
 thermostat, used the card, called the action or chose the schedule.

@@ -50,6 +50,8 @@ from .const import (
     DEFAULT_USE_PRESETS,
     DOMAIN,
     DURATION,
+    EVENT_LAYER_ENDED,
+    EVENT_LAYER_STARTED,
     EVENT_OVERRIDE_ENDED,
     EVENT_OVERRIDE_STARTED,
     EVENT_SCHEDULE_ACTIVATED,
@@ -177,6 +179,8 @@ class ChauffageRuntime:
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
         self._unsub_rules: Callable[[], None] | None = None
         self.rule_results: list[Any] = []  # each rule now (see render_rule)
+        self._unsub_layers: Callable[[], None] | None = None
+        self.layers_applying: tuple[str, ...] = ()  # the active schedule's layers that apply, top first
         # A thermostat renamed: the entry reloads to attach its entities to the new id, which
         # follow it meanwhile (their unique ids moved); nothing to add or remove until then
         self.reloading = False
@@ -208,6 +212,8 @@ class ChauffageRuntime:
                 repairs.raise_missing(self.hass, entity_id)
         self._track_rules()
         await self.follow_rules()
+        self._track_layers()
+        self.layers_applying = self._layers_that_apply()
         await self.apply(force=True, reason="Home Assistant started")
 
     @callback
@@ -221,6 +227,9 @@ class ChauffageRuntime:
         if self._unsub_rules:
             self._unsub_rules()
             self._unsub_rules = None
+        if self._unsub_layers:
+            self._unsub_layers()
+            self._unsub_layers = None
 
     # ----- listeners (entities, websocket) -----
 
@@ -361,13 +370,18 @@ class ChauffageRuntime:
 
     def plan(self) -> engine.Plan:
         """What the active thermostats follow: paused ones are left out."""
+        return self._plan_of(self.active)
+
+    def _plan_of(self, entity_ids: Any) -> engine.Plan:
         return engine.Plan(
-            {entity_id: self.thermostats[entity_id]["weeks"] for entity_id in self.active},
+            {entity_id: self.thermostats[entity_id]["weeks"] for entity_id in entity_ids},
             self.data["active_schedule"],
             self.presets_by_id,
             self.mappings,
             self.data["overrides"],
             self.use_presets,
+            layer_weeks={entity_id: self.thermostats[entity_id]["layer_weeks"] for entity_id in entity_ids},
+            layers=self.layers_applying,
         )
 
     @property
@@ -403,6 +417,8 @@ class ChauffageRuntime:
             "mappings": self.mappings,
             "targets": {e: self.targets_of(e) for e in self.scheduled},
             "weeks": self.weeks,
+            "layer_weeks": {e: t["layer_weeks"] for e, t in self.scheduled.items()},
+            "layers_applying": list(self.layers_applying),
             "overrides": self.data["overrides"],
             # Every thermostat, those the card shows before they are scheduled too
             "preset_temperatures": {
@@ -462,8 +478,9 @@ class ChauffageRuntime:
         return ids
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[str | None, str | None, datetime | None]:
-        """(preset now, next preset, its start) for a thermostat in the active schedule."""
-        week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
+        """(preset now, next preset, its start) for a thermostat in the active schedule, with the
+        layers that apply."""
+        week = self._plan_of([entity_id]).week(entity_id) if entity_id in self.scheduled else None
         if not week:
             return None, None, None
         return engine.current_and_next(week, now or dt_util.now())
@@ -494,16 +511,20 @@ class ChauffageRuntime:
         return self.thermostats.setdefault(entity_id, model.new_thermostat())
 
     async def save_weeks(self, weeks: Any, revision: int | None = None,
-                         revisions: dict[str, int | None] | None = None) -> None:
+                         revisions: dict[str, int | None] | None = None, layer_weeks: Any = None) -> None:
         """The weeks of the thermostats sent; the others keep theirs: a thermostat a card does
         not show stays scheduled (#27), only forget() drops it. A thermostat keeps its weeks in
         the schedules not sent, and gets the week of a new schedule in those it had none in: a
         scheduled thermostat has a week in every schedule. Saved against the revision of each
         thermostat sent (`revisions`; None: not scheduled when the copy was made), or the global
-        one (`revision`, older cards). StaleRevision if one of them changed."""
+        one (`revision`, older cards). StaleRevision if one of them changed. `layer_weeks`: the
+        thermostats' weeks in layers ({thermostat: {layer id: week}}), the others kept."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
+        in_layers = model.normalize_layer_weeks(layer_weeks or {}, self.layer_ids, self.preset_ids)
+        for entity_id in set(in_layers) - set(normalized) - set(self.scheduled):
+            raise model.InvalidData(f"not scheduled: {entity_id}")
         if any(self._renamed_to(entity_id) for entity_id in normalized):
             raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
         # A card may list a climate removed from Home Assistant: never schedule a ghost
@@ -514,7 +535,7 @@ class ChauffageRuntime:
                 raise model.InvalidData(f"{entity_id} does not exist")
         if revisions is not None:
             scheduled = self.scheduled
-            for entity_id in normalized:
+            for entity_id in {*normalized, *in_layers}:
                 current = scheduled.get(entity_id, {}).get("revision")
                 if revisions.get(entity_id) != current:
                     raise StaleRevision
@@ -523,7 +544,10 @@ class ChauffageRuntime:
         for entity_id, by_schedule in normalized.items():
             t = self._thermostat(entity_id)
             t["weeks"] = model.complete_weeks({**t["weeks"], **by_schedule}, schedule_ids, preset_ids)
-        self._weeks_changed(normalized)
+        for entity_id, by_layer in in_layers.items():
+            t = self._thermostat(entity_id)
+            t["layer_weeks"] = {**t["layer_weeks"], **by_layer}
+        self._weeks_changed({*normalized, *in_layers})
         self.data["revision"] += 1
         self._track_thermostats()
         for entity_id in self.active:
@@ -683,6 +707,7 @@ class ChauffageRuntime:
         if in_rules - kept:
             raise model.InvalidData(f"used by the activation rules: {sorted(in_rules - kept)}")
         preset_ids = list(self.presets_by_id)
+        self._drop_layer_weeks({layer["id"] for s in self.data["schedules"] if s["id"] not in kept for layer in s["layers"]})
         for weeks in self.weeks.values():
             for schedule_id in set(weeks) - kept:
                 del weeks[schedule_id]
@@ -705,6 +730,8 @@ class ChauffageRuntime:
         if schedule_id == self.data["active_schedule"]:
             return
         previous, self.data["active_schedule"] = self.data["active_schedule"], schedule_id
+        self._track_layers()
+        self.layers_applying = self._layers_that_apply()
         self._changed()
         self.hass.bus.async_fire(EVENT_SCHEDULE_ACTIVATED, {
             "schedule": schedule_id, "schedule_name": self.schedule_name(schedule_id),
@@ -712,6 +739,96 @@ class ChauffageRuntime:
         }, context=context)
         _LOGGER.info("Schedule %s activated (%s), was %s", schedule_id, source, previous)
         await self.apply(force=True, reason=f"schedule {schedule_id} activated ({source})")
+
+    # ----- layers -----
+
+    @property
+    def layer_ids(self) -> set[str]:
+        """The ids of every schedule's layers."""
+        return {layer["id"] for schedule in self.data["schedules"] for layer in schedule["layers"]}
+
+    def _schedule(self, schedule_id: str) -> dict[str, Any]:
+        schedule = next((s for s in self.data["schedules"] if s["id"] == schedule_id), None)
+        if schedule is None:
+            raise model.InvalidData(f"unknown schedule: {schedule_id}")
+        return schedule
+
+    async def set_layers(self, schedule_id: str, layers: Any) -> list[dict[str, Any]]:
+        """A schedule's layers, top first (see model.normalize_layers). A layer removed loses its
+        weeks. The thermostats follow the layers of the active schedule at once."""
+        schedule = self._schedule(schedule_id)
+        current = {layer["id"] for layer in schedule["layers"]}
+        normalized = model.normalize_layers(layers, current, self.layer_ids)
+        for layer in normalized:
+            if layer["condition"] is not None:
+                try:
+                    Template(layer["condition"], self.hass).ensure_valid()
+                except TemplateError as err:
+                    raise model.InvalidData(f"{layer['name']}: invalid template: {err}") from err
+        self._drop_layer_weeks(current - {layer["id"] for layer in normalized})
+        schedule["layers"] = normalized
+        self.data["revision"] += 1
+        self._changed()
+        if schedule_id == self.data["active_schedule"]:
+            self._track_layers()
+            await self.follow_layers(force=True)
+        return copy.deepcopy(normalized)
+
+    def _drop_layer_weeks(self, layer_ids: set[str]) -> None:
+        changed = [entity_id for entity_id, t in self.thermostats.items() if layer_ids & set(t["layer_weeks"])]
+        for entity_id in changed:
+            weeks = self.thermostats[entity_id]["layer_weeks"]
+            self.thermostats[entity_id]["layer_weeks"] = {k: v for k, v in weeks.items() if k not in layer_ids}
+        self._weeks_changed(changed)
+
+    def _layer_applies(self, layer: dict[str, Any]) -> bool:
+        """Enabled, and its condition true (no condition: always). A condition that fails does
+        not apply."""
+        if not layer["enabled"]:
+            return False
+        if layer["condition"] is None:
+            return True
+        try:
+            return result_as_boolean(Template(layer["condition"], self.hass).async_render(parse_result=False))
+        except TemplateError as err:
+            _LOGGER.warning("Layer %s: %s", layer["name"], err)
+            return False
+
+    def _layers_that_apply(self) -> tuple[str, ...]:
+        layers = self._schedule(self.data["active_schedule"])["layers"]
+        return tuple(layer["id"] for layer in layers if self._layer_applies(layer))
+
+    @callback
+    def _track_layers(self) -> None:
+        """Watches the entities (and the time) the conditions of the active schedule's layers
+        depend on."""
+        if self._unsub_layers:
+            self._unsub_layers()
+
+        @callback
+        def changed() -> None:
+            self.entry.async_create_task(self.hass, self.follow_layers(), "chauffage layers")
+
+        layers = self._schedule(self.data["active_schedule"])["layers"]
+        self._unsub_layers = self.track_templates(
+            [layer["condition"] for layer in layers if layer["enabled"] and layer["condition"]], changed)
+
+    async def follow_layers(self, force: bool = False) -> None:
+        """The thermostats follow the layers that apply now, when they changed (or `force`)."""
+        applying = self._layers_that_apply()
+        if applying == self.layers_applying and not force:
+            return
+        before, self.layers_applying = self.layers_applying, applying
+        self._notify(DATA)
+        names = {layer["id"]: layer["name"] for layer in self._schedule(self.data["active_schedule"])["layers"]}
+        schedule, select = self.data["active_schedule"], self.schedule_select()
+        for event, layer_ids in ((EVENT_LAYER_ENDED, set(before) - set(applying)), (EVENT_LAYER_STARTED, set(applying) - set(before))):
+            for layer_id in sorted(layer_ids):
+                _LOGGER.info("Layer %s %s", names.get(layer_id, layer_id), "started" if event == EVENT_LAYER_STARTED else "ended")
+                self.hass.bus.async_fire(event, {"layer": layer_id, "layer_name": names.get(layer_id, layer_id),
+                                                 "schedule": schedule, "entity_id": select})
+        what = ", ".join(names[layer_id] for layer_id in applying) or "none"
+        await self.apply(force=True, reason=f"layers applying: {what}")
 
     # ----- activation rules -----
 

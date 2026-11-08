@@ -63,6 +63,8 @@ SCHEDULED_THERMOSTAT_MODEL = {
 EVENT_OVERRIDE_STARTED = f"{DOMAIN}_override_started"
 EVENT_OVERRIDE_ENDED = f"{DOMAIN}_override_ended"
 EVENT_SCHEDULE_ACTIVATED = f"{DOMAIN}_schedule_activated"
+EVENT_LAYER_STARTED = f"{DOMAIN}_layer_started"
+EVENT_LAYER_ENDED = f"{DOMAIN}_layer_ended"
 
 # The active-schedule select entity (same id whatever the language: automations refer to it)
 SCHEDULE_ENTITY = "select.chauffage_schedule"

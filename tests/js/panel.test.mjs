@@ -135,7 +135,7 @@ describe('the Chauffage panel', () => {
       const el = panel(setup(), '/schedules');
       const card = list(el);
       assert.equal(card._config.flat, true, 'the list is the card: no card around it');
-      assert.deepEqual([...$(card, '.th-list').children].map((r) => r.dataset.schedule), ['normal', 'away', 'holiday']);
+      assert.deepEqual([...$(card, '.th-list').children].filter((r) => r.classList.contains('th-row')).map((r) => r.dataset.schedule), ['normal', 'away', 'holiday']);
       assert.equal($(card, '.th-list [data-act="schedule-new"]'), null);
       assert.ok($(card, '.th-add [data-act="schedule-new"]'));
     });

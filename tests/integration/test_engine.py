@@ -209,6 +209,52 @@ def test_a_slot_of_an_unknown_preset_changes_nothing():
     assert next_change(weeks=weeks) == at("20:00")
 
 
+# ----- layers -----
+
+# A layer's day: None is a gap, where the layer below (or the schedule) shows through
+OFFICE_OCCUPIED = [[["00:00", None], ["07:00", "comfort"], ["22:00", None]]] * 7
+SUNNY = [[["00:00", None], ["12:00", "eco"], ["17:00", None]]] * 7
+LAYER_WEEKS = {"climate.salon": {"occupied": OFFICE_OCCUPIED, "sunny": SUNNY}}
+
+
+def layered(layers, layer_weeks=LAYER_WEEKS):
+    return engine.Plan(WEEKS, "normal", PRESETS, {}, {}, layer_weeks=layer_weeks, layers=tuple(layers))
+
+
+def test_a_layer_that_applies_replaces_the_slots_it_has_and_lets_its_gaps_through():
+    """Saturday: the schedule's comfort from 08:00 to 23:00, the layer's eco from 12:00 to 17:00.
+    At 17:00 the gap lets the schedule's slot through, although that slot started at 08:00."""
+    saturday = layered(["sunny"]).week("climate.salon")[5]
+    assert saturday == [["00:00", "eco"], ["08:00", "comfort"], ["12:00", "eco"], ["17:00", "comfort"], ["23:00", "eco"]]
+
+
+def test_the_merged_day_has_no_two_slots_in_a_row_with_the_same_preset():
+    """06:30–07:00 comfort from the schedule, 07:00–22:00 comfort from the layer: one slot."""
+    assert layered(["occupied"]).week("climate.salon")[0] == [["00:00", "eco"], ["06:30", "comfort"], ["22:30", "eco"]]
+    assert layered(["occupied"]).week("climate.salon")[5] == [["00:00", "eco"], ["07:00", "comfort"], ["23:00", "eco"]]
+
+
+def test_the_top_layer_wins_where_layers_overlap():
+    day = layered(["sunny", "occupied"]).week("climate.salon")[0]
+    assert day == [["00:00", "eco"], ["06:30", "comfort"], ["12:00", "eco"], ["17:00", "comfort"], ["22:30", "eco"]]
+    day = layered(["occupied", "sunny"]).week("climate.salon")[0]
+    assert day == [["00:00", "eco"], ["06:30", "comfort"], ["22:30", "eco"]]
+
+
+def test_a_layer_that_does_not_apply_changes_nothing():
+    assert layered([]).week("climate.salon") == WEEK
+
+
+def test_a_thermostat_without_a_week_in_a_layer_follows_its_schedule():
+    assert layered(["occupied"]).week("climate.bureau") == WEEKS["climate.bureau"]["normal"]
+
+
+def test_the_slots_and_the_next_change_follow_the_layers():
+    plan = layered(["occupied"])
+    assert plan.preset_at("climate.salon", at("12:00")) == ("comfort", False)
+    assert plan.next_change("climate.salon", at("12:00"), heat(), not_before=at("12:00"), until=at("12:00", day=2)) == at("22:30")
+
+
 # ----- data rules -----
 
 def test_days_are_normalized_like_in_the_card():
@@ -229,10 +275,58 @@ def test_schedules_are_validated():
 
 def test_schedule_ids_are_unique_slugs_of_their_names():
     assert model.make_schedules(["Normal", "Vacances d'été", "Normal", "normal!"]) == [
-        {"id": "normal", "name": "Normal"},
-        {"id": "vacances_d_ete", "name": "Vacances d'été"},
-        {"id": "normal_2", "name": "normal!"},
+        {"id": "normal", "name": "Normal", "layers": []},
+        {"id": "vacances_d_ete", "name": "Vacances d'été", "layers": []},
+        {"id": "normal_2", "name": "normal!", "layers": []},
     ]
+
+
+def test_a_new_thermostat_has_no_layer_weeks():
+    assert model.new_thermostat()["layer_weeks"] == {}
+
+
+OCCUPIED = {"id": "office_occupied", "name": "Office occupied", "enabled": True, "condition": None}
+
+
+def test_editing_the_schedules_keeps_their_layers_and_a_new_schedule_has_none():
+    current = [{"id": "normal", "name": "Normal", "layers": [OCCUPIED]}]
+    schedules, _ = model.plan_schedules([{"id": "normal", "name": "Home"}, {"name": "Away"}, {"name": "Copy", "copy_of": "normal"}],
+                                        current, "normal")
+    assert [s["layers"] for s in schedules] == [[OCCUPIED], [], []]
+
+
+def test_layers_are_validated_and_a_new_layer_gets_an_id_no_other_layer_has():
+    layers = model.normalize_layers([
+        {"id": "office_occupied", "name": " Office occupied ", "enabled": False, "condition": " {{ true }} "},
+        {"name": "Office occupied 2", "condition": ""},
+        {"name": "Guests"},
+    ], current={"office_occupied"}, taken={"office_occupied", "guests"})
+    assert layers == [
+        {"id": "office_occupied", "name": "Office occupied", "enabled": False, "condition": "{{ true }}"},
+        {"id": "office_occupied_2", "name": "Office occupied 2", "enabled": True, "condition": None},
+        {"id": "guests_2", "name": "Guests", "enabled": True, "condition": None},
+    ]
+    for bad in ("x", [{"name": ""}], [{"name": "A"}, {"name": "a"}], [{"id": "unknown", "name": "A"}],
+                [{"name": "A", "enabled": "yes"}], [{"name": "A", "condition": 3}]):
+        with pytest.raises(model.InvalidData):
+            model.normalize_layers(bad, current={"office_occupied"}, taken=set())
+
+
+def test_a_layer_s_day_has_gaps_and_starts_with_a_gap_when_nothing_is_set_at_midnight():
+    assert model.normalize_layer_day([["07:00", "comfort"], ["22:00", None], ["23:00", None]]) == [
+        ["00:00", None], ["07:00", "comfort"], ["22:00", None]]
+    assert model.normalize_layer_day([]) == [["00:00", None]]
+    assert model.normalize_day([["00:00", None]]) == [["00:00", "eco"]]  # a schedule's day has no gaps
+
+
+def test_layer_weeks_are_validated():
+    week = [[["00:00", None], ["07:00", "comfort"]]] * 7
+    ok = model.normalize_layer_weeks({"climate.salon": {"office_occupied": week}}, {"office_occupied"}, {"comfort"})
+    assert ok == {"climate.salon": {"office_occupied": week}}
+    for bad in ({"climate.salon": {"other": week}}, {"light.x": {}}, {"climate.salon": {"office_occupied": [[]]}},
+                {"climate.salon": {"office_occupied": [[["00:00", "boost"]]] * 7}}):
+        with pytest.raises(model.InvalidData):
+            model.normalize_layer_weeks(bad, {"office_occupied"}, {"comfort"})
 
 
 def test_overrides_are_validated():

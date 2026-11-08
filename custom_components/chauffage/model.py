@@ -1,7 +1,11 @@
 """Stored data of the integration, as plain JSON-compatible dictionaries (no HA import).
 Vocabulary: docs/glossary.md.
 
-    schedules:       [{"id": "normal", "name": "Normal"}, …]   renaming a schedule keeps its id
+    schedules:       [{"id": "normal", "name": "Normal", "layers": [layer, …]}, …]   renaming a
+                     schedule keeps its id; its layers, top first:
+                     {"id": "office_occupied", "name": "Office occupied", "enabled": True,
+                      "condition": "{{ … }}" | None}: a layer applies while it is enabled and
+                     its condition is true (None: always); its id is unique among all layers
     active_schedule: "normal"
     presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
                      "temperature" is the default for thermostats driven by temperatures
@@ -11,6 +15,9 @@ Vocabulary: docs/glossary.md.
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
                              [start "HH:MM", preset id] slots, the first one at "00:00"
+        layer_weeks:         {layer id: [7 days]}, the thermostat's week in a layer (none:
+                             the layer leaves it alone); a slot's preset may be None, a gap
+                             where the layer below shows through
         mapping:             {preset id: {"preset": "comfort"} | {"temperature": 20.5}}, what a
                              preset means for this thermostat, only what was set by hand: the
                              rest is engine.default_target
@@ -86,7 +93,7 @@ def make_schedules(names: list[str]) -> list[dict[str, str]]:
         name = str(name).strip()
         if not name or any(s["name"] == name for s in schedules):
             continue
-        schedules.append({"id": unique_id(name, {s["id"] for s in schedules}), "name": name})
+        schedules.append({"id": unique_id(name, {s["id"] for s in schedules}), "name": name, "layers": []})
     return schedules
 
 
@@ -97,6 +104,7 @@ def plan_schedules(items: Any, current: list[dict[str, str]], active: str) -> tu
     if not isinstance(items, list) or not items:
         raise InvalidData("at least one schedule is needed")
     names = {s["id"]: s["name"] for s in current}
+    layers = {s["id"]: s.get("layers", []) for s in current}
     taken = set(names)
     schedules: list[dict[str, str]] = []
     created: dict[str, str | None] = {}
@@ -119,7 +127,7 @@ def plan_schedules(items: Any, current: list[dict[str, str]], active: str) -> tu
             schedule_id = unique_id(name, taken)
             taken.add(schedule_id)
             created[schedule_id] = source
-        schedules.append({"id": schedule_id, "name": name})
+        schedules.append({"id": schedule_id, "name": name, "layers": layers.get(schedule_id, [])})
     if active not in {s["id"] for s in schedules}:
         raise InvalidData("the active schedule cannot be deleted")
     return schedules, created
@@ -155,7 +163,7 @@ def used_presets(weeks: dict[str, Any]) -> list[str]:
 def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] | None = None,
                    preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
     """A scheduled thermostat, active."""
-    return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
+    return {"paused": False, "weeks": weeks or {}, "layer_weeks": {}, "mapping": mapping or {},
             "preset_temperatures": preset_temperatures or {}, "revision": 0}
 
 
@@ -255,26 +263,38 @@ def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str,
 def normalize_day(slots: Any) -> list[list[str]]:
     """Sorted slots, first one at 00:00, duplicates and consecutive identical presets merged
     (same rules as the card). Invalid slots are dropped; an empty day is eco all day."""
+    return _normalize_slots(slots, gaps=False) or [list(s) for s in DEFAULT_DAY]
+
+
+def normalize_layer_day(slots: Any) -> list[list[Any]]:
+    """A layer's day: as a schedule's, but a slot without a preset (None) is a gap. Nothing set at
+    midnight is a gap until the first slot; an empty day is a gap all day."""
+    day = _normalize_slots(slots, gaps=True)
+    if not day or day[0][0] != "00:00":
+        day = [["00:00", None], *day]
+    return day if len(day) == 1 or day[0][1] != day[1][1] else day[1:]
+
+
+def _normalize_slots(slots: Any, gaps: bool) -> list[list[Any]]:
     if not isinstance(slots, list):
-        return [list(s) for s in DEFAULT_DAY]
-    by_start: dict[str, str] = {}
+        return []
+    by_start: dict[str, str | None] = {}
     for slot in slots:
         if isinstance(slot, str):  # package format: "HH:MM preset"
             slot = slot.split()
         if not isinstance(slot, (list, tuple)) or len(slot) != 2:
             continue
-        start, preset = str(slot[0]), str(slot[1]).strip()
+        start, preset = str(slot[0]), (None if slot[1] is None else str(slot[1]).strip())
         if len(start) == 4:  # "6:30"
             start = "0" + start
-        if HHMM.match(start) and preset:
+        if HHMM.match(start) and (preset or (gaps and preset is None)):
             by_start[start] = preset  # the last one wins
-    day: list[list[str]] = []
+    day: list[list[Any]] = []
     for start in sorted(by_start):
         if not day or day[-1][1] != by_start[start]:
             day.append([start, by_start[start]])
-    if not day:
-        return [list(s) for s in DEFAULT_DAY]
-    day[0][0] = "00:00"
+    if day and not gaps:
+        day[0][0] = "00:00"
     return day
 
 
@@ -302,6 +322,61 @@ def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | N
         unknown_presets = set(used_presets(out)) - preset_ids
         if unknown_presets:
             raise InvalidData(f"unknown presets {sorted(unknown_presets)}")
+    return out
+
+
+def normalize_layers(layers: Any, current: set[str], taken: set[str]) -> list[dict[str, Any]]:
+    """Validated layers of a schedule, top first (the templates themselves are checked by the
+    runtime, with HA). `{"id"}` keeps one of the schedule's `current` layers; without an id, a
+    layer is new and gets an id not in `taken` (the ids of every layer)."""
+    if not isinstance(layers, list):
+        raise InvalidData("layers must be a list")
+    taken = set(taken)
+    out: list[dict[str, Any]] = []
+    for layer in layers:
+        if not isinstance(layer, dict):
+            raise InvalidData(f"invalid layer: {layer!r}")
+        name, enabled, condition = layer.get("name"), layer.get("enabled", True), layer.get("condition")
+        if not isinstance(name, str) or not name.strip():
+            raise InvalidData("a layer needs a name")
+        name = name.strip()
+        if any(other["name"].casefold() == name.casefold() for other in out):
+            raise InvalidData(f"two layers named {name}")
+        if not isinstance(enabled, bool):
+            raise InvalidData(f"{name}: enabled must be true or false")
+        if condition is not None and not isinstance(condition, str):
+            raise InvalidData(f"{name}: the condition must be a template")
+        layer_id = layer.get("id")
+        if layer_id is None:
+            layer_id = unique_id(name, taken)
+            taken.add(layer_id)
+        elif layer_id not in current or any(other["id"] == layer_id for other in out):
+            raise InvalidData(f"unknown or repeated layer: {layer_id}")
+        out.append({"id": layer_id, "name": name, "enabled": enabled, "condition": (condition or "").strip() or None})
+    return out
+
+
+def normalize_layer_weeks(weeks: Any, layer_ids: set[str], preset_ids: set[str]) -> dict[str, dict[str, Any]]:
+    """Validated copy of the layer weeks sent by the card: {thermostat: {layer id: week}}."""
+    if not isinstance(weeks, dict):
+        raise InvalidData("layer weeks must be a dictionary")
+    out: dict[str, dict[str, Any]] = {}
+    for entity_id, by_layer in weeks.items():
+        if not isinstance(entity_id, str) or not entity_id.startswith("climate."):
+            raise InvalidData(f"not a climate entity: {entity_id}")
+        if not isinstance(by_layer, dict):
+            raise InvalidData(f"{entity_id}: the weeks by layer must be a dictionary")
+        if set(by_layer) - layer_ids:
+            raise InvalidData(f"{entity_id}: unknown layers {sorted(set(by_layer) - layer_ids)}")
+        out[entity_id] = {}
+        for layer_id, week in by_layer.items():
+            if not isinstance(week, list) or len(week) != 7:
+                raise InvalidData("a week must have 7 days")
+            out[entity_id][layer_id] = [normalize_layer_day(day) for day in week]
+    unknown = {preset for by_layer in out.values() for week in by_layer.values()
+               for day in week for _, preset in day if preset is not None} - preset_ids
+    if unknown:
+        raise InvalidData(f"unknown presets {sorted(unknown)}")
     return out
 
 

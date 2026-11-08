@@ -387,3 +387,56 @@ async def test_the_diagnostics_hold_the_stored_data_and_the_thermostats_now(benc
     assert found["states"]["climate.salon"]["attributes"]["temperature"] == 21.5
     assert found["retry"] == []
     assert found["options"] == {}
+
+
+# ----- layers -----
+
+PRESENCE = "binary_sensor.office_presence"
+OCCUPIED_LAYER = {"name": "Office occupied", "condition": "{{ is_state('binary_sensor.office_presence', 'on') }}"}
+
+
+async def presence(bench: Bench, state: str) -> None:
+    bench.hass.states.async_set(PRESENCE, state)
+    await bench.hass.async_block_till_done()
+
+
+def layer_events(bench: Bench) -> list:
+    events = []
+    for name in ("chauffage_layer_started", "chauffage_layer_ended"):
+        bench.hass.bus.async_listen(name, callback(lambda event: events.append((event.event_type, event.data))))
+    return events
+
+
+async def test_a_layer_starting_and_stopping_are_told_by_events(bench: Bench):
+    await start(bench)
+    await presence(bench, "off")
+    await bench.runtime.set_layers("normal", [OCCUPIED_LAYER])
+    events = layer_events(bench)
+    await presence(bench, "on")
+    await presence(bench, "on")  # no change, no event
+    await presence(bench, "off")
+    data = {"layer": "office_occupied", "layer_name": "Office occupied", "schedule": "normal", "entity_id": bench.schedule_entity}
+    assert events == [("chauffage_layer_started", data), ("chauffage_layer_ended", data)]
+
+
+async def test_a_layer_enabled_or_removed_is_told_too(bench: Bench):
+    await start(bench)
+    await presence(bench, "on")
+    events = layer_events(bench)
+    [saved] = await bench.runtime.set_layers("normal", [OCCUPIED_LAYER])
+    await bench.hass.async_block_till_done()
+    await bench.runtime.set_layers("normal", [{**saved, "enabled": False}])
+    await bench.hass.async_block_till_done()
+    assert [event for event, _ in events] == ["chauffage_layer_started", "chauffage_layer_ended"]
+
+
+async def test_the_logbook_tells_a_layer_starting_and_stopping_in_the_select_s_logbook(bench: Bench):
+    await start(bench)
+    select = bench.schedule_entity
+    data = {"layer": "office_occupied", "layer_name": "Office occupied", "schedule": "normal", "entity_id": select}
+    started = described(bench, "chauffage_layer_started", **data)
+    assert (started["entity_id"], started["message"]) == (select, "layer started: Office occupied")
+    assert described(bench, "chauffage_layer_ended", **data)["message"] == "layer ended: Office occupied"
+    await bench.hass.config.async_update(language="fr")
+    assert described(bench, "chauffage_layer_started", **data)["message"] == "calque commencé : Office occupied"
+

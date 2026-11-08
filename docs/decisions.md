@@ -286,6 +286,19 @@ future contributor might question.
   when their entities change. A schedule chosen by hand stays if the outcome is the same. Two
   testers lost a *Holiday* chosen by hand when they edited a rule.
 
+## Layers
+
+- **A layer belongs to one schedule.** Switching the schedule switches its layers, so *Away* never
+  has to be ordered against *Office occupied*. A layer wanted in two schedules is defined twice.
+- **A layer is enabled and has a condition.** A layer switched by hand is a layer without a
+  condition, or a condition on a helper. Nothing is forced on, so a hand and a rule cannot fight.
+- **Empty is the absence of a slot.** A layer's day stores a slot without a preset where nothing is
+  drawn, because slots have no end. The user never paints it.
+- **The engine merges.** `Plan.week()` returns the week with the layers that apply, so slots,
+  override ends and the planned preset read one week.
+- **The week of the more-info dialog is the plan.** It shows the schedule and each enabled layer on
+  its own row, whatever applies now. Only today depends on the current state.
+
 ## Scheduled thermostats
 
 - **The integration keeps the list of scheduled thermostats; the cards only show them.** A card

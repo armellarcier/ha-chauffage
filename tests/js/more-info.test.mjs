@@ -416,3 +416,113 @@ describe('an override on a thermostat turned off', () => {
     assert.ok(note(el.shadowRoot));
   });
 });
+
+describe('more-info block of a thermostat with layers', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00') })); // Monday
+  afterEach(() => { mock.timers.reset(); cleanup(); });
+
+  const ECO_WEEK = { 'climate.salon': { Normal: Array(7).fill(['00:00 eco']) } };
+  const WHOLE_DAY = [['00:00', null], ['09:00', 'comfort'], ['17:00', null]];
+  const LAYER = { id: 'occupied', name: 'Salon occupé', enabled: true, condition: null };
+  function withLayer({ applying = ['occupied'], day = WHOLE_DAY, extra = {} } = {}) {
+    const data = integrationData({ weeks: ECO_WEEK, ...extra });
+    data.schedules = data.schedules.map((s) => ({ ...s, layers: s.id === 'normal' ? [LAYER] : [] }));
+    data.layer_weeks = { 'climate.salon': { occupied: Array(7).fill(day) } };
+    data.layers_applying = applying;
+    return data;
+  }
+  const todayBar = (el) => [...el.shadowRoot.querySelectorAll('.bar')][0];
+  const slots = (bar) => [...bar.querySelectorAll('.seg')].map((seg) => [seg.style.left, seg.style.width]);
+  const blocks = (el) => [...todayBar(el).querySelectorAll('.layer-block')].map((b) => [b.style.left, b.style.width, b.dataset.lane, b.textContent.trim()]);
+  const line = (el) => el.shadowRoot.querySelector('.status').textContent.replace(/\s+/g, ' ');
+  const weekRows = (el) => [...el.shadowRoot.querySelectorAll('.week .row')].map((r) => r.querySelector('span').textContent.trim());
+  const layerRow = (el) => el.shadowRoot.querySelector('.week .row.layer');
+
+  test('today shows the schedule, with the layers that apply over it, as the schedule view', () => {
+    const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
+    assert.deepEqual(slots(todayBar(el)), [['0%', '100%']]);
+    assert.deepEqual(blocks(el), [['37.5%', '33.333%', '0', 'Salon occupé']]);
+  });
+
+  test('a layer that does not apply is not drawn over today', () => {
+    const el = block(fakeHass({ data: withLayer({ applying: [] }) }), 'climate.salon');
+    assert.deepEqual(slots(todayBar(el)), [['0%', '100%']]);
+    assert.deepEqual(blocks(el), []);
+  });
+
+  test('it says which layer gives the preset now', () => {
+    const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
+    assert.match(line(el), /Salon occupé/);
+  });
+
+  test('where the layer has nothing now, it does not name it', () => {
+    const el = block(fakeHass({ data: withLayer({ day: [['00:00', null], ['18:00', 'comfort'], ['19:00', null]] }) }), 'climate.salon');
+    assert.doesNotMatch(line(el), /Salon occupé/);
+  });
+
+  test('many layers make room under today', () => {
+    const data = withLayer();
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    data.schedules[0].layers = ids.map((id) => ({ ...LAYER, id, name: id }));
+    data.layer_weeks['climate.salon'] = Object.fromEntries(ids.map((id) => [id, Array(7).fill(WHOLE_DAY)]));
+    data.layers_applying = ids;
+    assert.equal(todayBar(block(fakeHass({ data }), 'climate.salon')).style.getPropertyValue('--count'), '5');
+  });
+
+  describe('the week', () => {
+    test('shows the plain schedule, each enabled layer on its own row, whatever applies now', () => {
+      const el = block(fakeHass({ data: withLayer({ applying: [] }) }), 'climate.salon');
+      assert.equal(weekRows(el).length, 2);
+      assert.equal(weekRows(el)[1], 'Salon occupé');
+      assert.deepEqual(slots(el.shadowRoot.querySelector('.week .row .bar')), [['0%', '100%']]);
+      assert.deepEqual(slots(layerRow(el).querySelector('.bar')), [['37.5%', '33.333%']]);
+    });
+
+    test('lists the layers with the one that wins last', () => {
+      const data = withLayer();
+      data.schedules[0].layers = [{ ...LAYER, id: 'top', name: 'Wins' }, { ...LAYER, id: 'low', name: 'Loses' }];
+      data.layer_weeks['climate.salon'] = { top: Array(7).fill(WHOLE_DAY), low: Array(7).fill(WHOLE_DAY) };
+      assert.deepEqual(weekRows(block(fakeHass({ data }), 'climate.salon')).slice(1), ['Loses', 'Wins']);
+    });
+
+    test('a layer\'s title shows its condition in its tooltip', () => {
+      const data = withLayer();
+      data.schedules[0].layers = [{ ...LAYER, condition: '{{ true }}' }];
+      const title = layerRow(block(fakeHass({ data }), 'climate.salon')).querySelector('span').title;
+      assert.match(title, /Salon occupé/);
+      assert.match(title, /\{\{ true \}\}/);
+    });
+
+    test('a layer row names its layer in its tooltip', () => {
+      const el = block(fakeHass({ data: withLayer() }), 'climate.salon');
+      assert.match(layerRow(el).querySelector('.seg').title, /Salon occupé/);
+    });
+
+    test('a disabled layer has no row', () => {
+      const data = withLayer();
+      data.schedules[0].layers = [{ ...LAYER, enabled: false }];
+      assert.equal(layerRow(block(fakeHass({ data }), 'climate.salon')), null);
+    });
+
+    test('a day where a layer has nothing has no row for it', () => {
+      const data = withLayer();
+      data.layer_weeks['climate.salon'].occupied = [...Array(6).fill(WHOLE_DAY), [['00:00', null]]];
+      const el = block(fakeHass({ data }), 'climate.salon');
+      assert.equal(el.shadowRoot.querySelectorAll('.week .row.layer').length, 1);
+      assert.equal(weekRows(el).length, 3); // two groups of days, one layer row
+    });
+
+    test('days whose layers differ are not on one row', () => {
+      const data = withLayer();
+      data.layer_weeks['climate.salon'].occupied = [...Array(6).fill(WHOLE_DAY), [['00:00', 'eco']]];
+      const el = block(fakeHass({ data }), 'climate.salon');
+      assert.equal(el.shadowRoot.querySelectorAll('.week .row:not(.layer)').length, 2);
+    });
+  });
+
+  test('what follows an override takes the layers into account', () => {
+    const end = new Date('2026-10-12T11:00:00').toISOString();
+    const el = block(fakeHass({ data: withLayer({ extra: { overrides: { 'climate.salon': { kind: 'temperature', value: 21, start: end, end } } } }) }), 'climate.salon');
+    assert.match(text(el), /puis Confort/);
+  });
+});
