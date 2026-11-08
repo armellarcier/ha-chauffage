@@ -229,6 +229,24 @@ async def test_the_logbook_tells_an_override_that_turns_the_thermostat_off_or_on
         == "dérogation : arrêt, Eco jusqu'à lundi 12:00 (changée à la main)"
 
 
+async def test_the_logbook_tells_an_override_that_sets_the_fan_the_vanes_or_the_cooling_setpoint(bench: Bench):
+    """A target without preset, temperature or HVAC mode still gets a text (#91, lot 3)."""
+    await start(bench, "10:00")
+    bench.hass.states.async_set("climate.salon", "cool", {"friendly_name": "Salon"})
+    base = {"entity_id": "climate.salon", "preset": None, "end": "2026-10-12T12:00:00+02:00", "source": "card"}
+    assert described(bench, "chauffage_override_started", **base, target={"fan_mode": "3"})["message"] \
+        == "override started: fan 3 until Monday 12:00 (from the card)"
+    assert described(bench, "chauffage_override_started", **base, target={"swing_mode": "swing", "swing_horizontal_mode": "split"})["message"] \
+        == "override started: vanes swing, horizontal vanes split until Monday 12:00 (from the card)"
+    assert described(bench, "chauffage_override_started", **base, target={"cool_temperature": 24.0})["message"] \
+        == "override started: 24 °C when cooling until Monday 12:00 (from the card)"
+    assert described(bench, "chauffage_override_started", **{**base, "preset": "boost"}, target={"preset_mode": "boost", "fan_mode": "3"})["message"] \
+        == "override started: Boost, fan 3 until Monday 12:00 (from the card)"
+    bench.hass.config.language = "fr"
+    assert described(bench, "chauffage_override_started", **base, target={"fan_mode": "3", "cool_temperature": 24.5})["message"] \
+        == "dérogation : 24,5 °C en climatisation, ventilation 3 jusqu'à lundi 12:00 (depuis la carte)"
+
+
 async def test_the_logbook_still_describes_an_override_recorded_before_0_10(bench: Bench):
     """Before #91, the events carried kind and value; the logbook reads the recorded ones."""
     await start(bench, "10:00")
@@ -403,6 +421,7 @@ def test_every_source_and_reason_in_the_code_has_a_logbook_text_in_every_languag
         assert sources <= set(texts["sources"]), language
         assert reasons <= set(texts["reasons"]), language
         assert set(texts["hvac_modes"]) == {"off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"}, language
+        assert set(texts["settings"]) == {"fan_mode", "swing_mode", "swing_horizontal_mode"}, language
         assert texts.keys() == logbook.TEXTS["en"].keys(), language
 
 

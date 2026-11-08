@@ -2206,11 +2206,12 @@ function overrideWithHvac(d, src, climate, mode) {
 }
 
 // The override `d` set to a temperature (no longer a preset), until the same end; a new override
-// without `d`
+// without `d`. Its HVAC mode, fan and vanes stay: an off override stays off, a cooling one cools
 function overrideWithTemperature(d, src, value) {
   if (!d) return newOverride(src, { temperature: value });
   const { preset, ...rest } = d;
-  return { ...rest, target: { temperature: value } };
+  const { preset_mode: _p, temperature: _t, cool_temperature: _c, ...kept } = d.target || {};
+  return { ...rest, target: { ...kept, temperature: value } };
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];

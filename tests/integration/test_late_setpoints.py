@@ -136,6 +136,21 @@ async def test_a_change_on_the_device_long_after_a_command_is_an_override(bench:
     assert bench.overrides()["climate.bureau"]["target"] == {"temperature": 21}
 
 
+async def test_a_command_the_thermostat_already_shows_is_not_waited_for(bench: Bench):
+    """Nothing to send: nothing pending, or a change by hand to that value within a day would
+    pass for a command applied late."""
+    await bench.go_to("06:00")
+    bench.thermostat("climate.salon", "eco")
+    bench.thermostat("climate.bureau", "eco")
+    await bench.setup()
+    await bench.save_weeks(SCHEDULES)
+    bench.applied()
+    assert await bench.runtime.send("climate.salon", {"preset_mode": "eco"} if bench.kind != "plain" else {"temperature": 17.0}, "test")
+    assert bench.applied() == {}
+    assert bench.runtime.pending("climate.salon") == []
+    assert "climate.salon" not in bench.runtime.data["pending"]
+
+
 async def test_a_renamed_valve_still_waits_for_its_commands(bench: Bench):
     er.async_get(bench.hass).async_get_or_create("climate", "test", "salon", suggested_object_id="salon")
     await start(bench)

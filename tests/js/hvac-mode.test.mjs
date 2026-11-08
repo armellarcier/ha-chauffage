@@ -292,6 +292,27 @@ describe('overrides with an HVAC mode', () => {
     assert.deepEqual(lastCall(hass).override.target, { preset_mode: 'eco', hvac_mode: 'fan_only' });
   });
 
+  test('a temperature typed in the override block keeps the HVAC mode, the fan and the vanes, and drops the preset', () => {
+    const cooling = { target: { preset_mode: 'boost', hvac_mode: 'cool', fan_mode: '2', swing_mode: 'swing' }, preset: 'boost', start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+    const hass = setup({ overrides: { 'climate.atelier': cooling, 'climate.salon': { ...offOverride, target: { hvac_mode: 'off', preset_mode: 'boost' }, preset: 'boost' } } });
+    const card = cardOf(hass, { show: ['climate.salon', 'climate.atelier'] });
+    click(card, '.override[data-climate="climate.atelier"]');
+    change($(card, '.override-ed [data-override-temperature]'), '24');
+    assert.deepEqual(lastCall(hass).override.target, { hvac_mode: 'cool', fan_mode: '2', swing_mode: 'swing', temperature: 24 });
+    assert.equal(lastCall(hass).override.preset, undefined);
+    // An off override stays off: the thermostat restarts on that temperature
+    click(card, '.override[data-climate="climate.salon"]');
+    change($(card, '.override-ed [data-override-temperature]'), '21');
+    assert.deepEqual(lastCall(hass).override.target, { hvac_mode: 'off', temperature: 21 });
+    // In the more-info block too
+    const el = document.createElement('chauffage-moreinfo');
+    document.body.appendChild(el);
+    el.entity = 'climate.atelier';
+    el.hass = hass;
+    change($(el, 'input[data-override-temperature]'), '25');
+    assert.deepEqual(lastCall(hass).override.target, { hvac_mode: 'cool', fan_mode: '2', swing_mode: 'swing', temperature: 25 });
+  });
+
   test('a new override from the card can be Arrêt until the next slot (#77 without a script)', () => {
     const hass = setup({ planned: { 'climate.salon': { preset: 'comfort', next_preset: 'eco', next_start: '2026-10-12T22:30:00+02:00', next_slot_end: '2026-10-12T22:30:00+02:00' } } });
     const card = cardOf(hass, { show: ['climate.salon'] });

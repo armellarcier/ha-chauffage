@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
+from homeassistant.components.climate.const import HVACMode
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
@@ -35,7 +36,8 @@ SET_OVERRIDE_SCHEMA = vol.All(
         vol.Required(ATTR_ENTITY_ID): cv.entity_id,
         vol.Exclusive("temperature", "value"): vol.Coerce(float),
         vol.Exclusive("preset", "value"): cv.string,
-        vol.Optional("hvac_mode"): cv.string,
+        # One of Home Assistant's HVAC modes: reproduce_state ignores any other value silently
+        vol.Optional("hvac_mode"): vol.In([mode.value for mode in HVACMode]),
         vol.Exclusive("duration", "end"): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Exclusive("end", "end"): cv.datetime,
     }),

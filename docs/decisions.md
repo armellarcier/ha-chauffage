@@ -213,9 +213,11 @@ future contributor might question.
     from the preset's name) sends neither a setpoint nor a device preset; a device preset the
     user stored in the preset's value is still sent, because the user chose it; a stored base
     temperature is not sent on a thermostat that also heats, as before. `engine.complete()`
-    takes `default_setpoint`, which `Plan.default_setpoint()` and the runtime compute from the
-    mapping and the slot's settings; an override set to a preset follows the same rule, through
-    the preset's mapping. The slot popover's *Setpoint* line uses the same rule, with the
+    takes the setpoint's origin (`setpoint_origin`: the preset's name, the preset's value set
+    by hand, or the user's own choice), which `Plan.setpoint_origin()` and the runtime compute
+    from the mapping and the slot's settings; an override set to a preset follows the same rule,
+    through the preset's mapping, and an override without a Chauffage preset is the user's own
+    choice (see "Presets"). The slot popover's *Setpoint* line uses the same rule, with the
     mapping the card already has.
   - **"Until tomorrow" for an off override is the next morning**: the first slot of today that
     changes the thermostat's state when it is still to come, else the first one of tomorrow, or
@@ -285,7 +287,10 @@ future contributor might question.
   while the VTherm is off. The auto start/stop still comes from `hvac_off_reason`.
   - **A VTherm without `requested_state` keeps the behavior before #91** (#74): off, it is read
     as on. It gets its slots and its override while off, stays off, and starts again on them.
-    Chauffage neither turns it on nor takes it for turned off by hand. Before #91, a first fix
+    Chauffage neither turns it on nor takes it for turned off by hand. An off slot is still
+    satisfied by it: `engine.Thermostat` keeps the HVAC mode shown (`shown`) next to the one
+    read, and an off target accepts either, so the off command is not waited for and a
+    realignment does not send off again. Before #91, a first fix
     (0.7.1) only counted the reason `hvac_off_auto_start_stop`; that reason moved once, from a
     top-level attribute to `specific_states` (VTherm 10.5), and VTherm publishes no reason right
     after being turned off, so Chauffage leaves the decision to VTherm. Older versions are not
@@ -355,7 +360,17 @@ future contributor might question.
   and applied the same way. A target holding a preset and a temperature is sent as a scene
   sends it, and the thermostat decides what to do with both: Chauffage holds no rule between
   the attributes of a device. The events and the sensors keep `kind` and `value` next to the
-  target, read from its first attribute, so existing automations keep working.
+  target, read from its first attribute, so existing automations keep working. An override
+  that sets none of them (the fan, a cooling setpoint) has no kind and no value.
+- **A preset's temperature is a heating value; a temperature the user typed is their target in
+  any HVAC mode.** In `cool`, a preset without a cooling setpoint (`cool_temperature`) keeps its
+  temperature for itself, whether it is the name-based default or a value set by hand: the
+  cooling value of a preset is `cool_temperature`, so sending its temperature would cool to a
+  heating setpoint. An override without a Chauffage preset is another matter: its temperature
+  comes from the card's field, from `chauffage.set_override temperature`, or from a change by
+  hand, so the user chose it for the HVAC mode the thermostat runs in, and Chauffage sends it
+  in `cool` too. `engine.complete()` tells the two apart by the setpoint's origin
+  (`setpoint_origin`: `BY_NAME`, `BY_PRESET` or `BY_USER`).
 - **No built-in *Off* preset.** A slot turns a thermostat off with its settings, and a preset
   may set an HVAC mode by default (#91, "Scheduling"). A user who wants an *Off* preset creates
   one with `hvac_mode: off`.

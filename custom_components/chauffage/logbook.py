@@ -43,6 +43,9 @@ TEXTS = {
             "off": "off", "heat": "heat", "cool": "cool", "heat_cool": "heat/cool", "auto": "auto", "dry": "dry",
             "fan_only": "fan only",
         },
+        # A cooling setpoint, the fan and the vanes an override sets (#91, lot 3)
+        "cooling": "{value} when cooling",
+        "settings": {"fan_mode": "fan {value}", "swing_mode": "vanes {value}", "swing_horizontal_mode": "horizontal vanes {value}"},
     },
     "fr": {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
@@ -70,6 +73,8 @@ TEXTS = {
             "off": "arrêt", "heat": "chauffage", "cool": "climatisation", "heat_cool": "chauffage/climatisation",
             "auto": "auto", "dry": "déshumidification", "fan_only": "ventilation",
         },
+        "cooling": "{value} en climatisation",
+        "settings": {"fan_mode": "ventilation {value}", "swing_mode": "volets {value}", "swing_horizontal_mode": "volets horizontaux {value}"},
     },
 }
 
@@ -89,26 +94,33 @@ def async_describe_events(
         state = hass.states.get(entity_id) if entity_id else None
         return state.name if state else default
 
+    def degrees(value: Any) -> str:
+        """21 °C, not 21.0 °C; 21,5 °C in French."""
+        number = f"{round(float(value), 1):g}".replace(".", texts()["decimal"])
+        return f"{number} {hass.config.units.temperature_unit}"
+
     def value(data: dict[str, Any]) -> str:
         """The override's value: its HVAC mode if it sets one, then the Chauffage preset's name,
-        else what its target holds. An event recorded before #91 holds a kind and a value
-        instead of a target."""
+        else what its target holds (a setpoint, a cooling setpoint), then the fan and the vanes.
+        An event recorded before #91 holds a kind and a value instead of a target."""
         preset = (runtime().presets_by_id if runtime() else {}).get(data.get("preset"))
         target = data.get("target")
         if not isinstance(target, dict):
             key = "temperature" if data.get("kind") == "temperature" else "preset_mode"
             target = {key: data.get("value")}
+        t = texts()
         parts = []
         if "hvac_mode" in target:  # off, or the HVAC mode the thermostat was turned on in (#91)
-            parts.append(texts()["hvac_modes"].get(target["hvac_mode"], str(target["hvac_mode"])))
+            parts.append(t["hvac_modes"].get(target["hvac_mode"], str(target["hvac_mode"])))
         if preset:
             parts.append(preset["name"])
         elif "temperature" in target:
-            # 21 °C, not 21.0 °C; 21,5 °C in French
-            number = f"{round(float(target['temperature']), 1):g}".replace(".", texts()["decimal"])
-            parts.append(f"{number} {hass.config.units.temperature_unit}")
+            parts.append(degrees(target["temperature"]))
         elif "preset_mode" in target:
             parts.append(str(target["preset_mode"]))
+        elif "cool_temperature" in target:
+            parts.append(t["cooling"].format(value=degrees(target["cool_temperature"])))
+        parts.extend(text.format(value=target[key]) for key, text in t["settings"].items() if key in target)
         return ", ".join(parts)
 
     def until(end: Any) -> str:

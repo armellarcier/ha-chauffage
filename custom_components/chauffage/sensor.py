@@ -51,7 +51,7 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        planned = self.runtime.planned_info(self.climate)
+        planned = self.runtime.planned_targets(self.climate)
         return {
             "preset_name": self._name(planned["preset"]),
             "hvac_mode": planned["hvac_mode"],  # off, or the HVAC mode the slot sets; None: on (#91)
