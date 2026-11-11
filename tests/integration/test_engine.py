@@ -454,8 +454,9 @@ def test_the_preset_says_how_warm_and_the_slot_says_the_hvac_mode_the_fan_and_th
     assert engine.resolve("comfort", presets, mapping, ac()) == {"preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "1"}
     assert engine.resolve("eco", presets, mapping, ac()) == {"temperature": 18.0}
     # The slot has the last word: the fan and the vanes. Off is off, and nothing else
+    # (and heat, on an air conditioner: test_air_conditioner_slots.py)
     assert engine.resolve("comfort", presets, mapping, ac(), settings={"fan_mode": "3"}) == {
-        "preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "3"}
+        "preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "3", "hvac_mode": "heat"}
     assert engine.resolve("away", presets, {}, ac(), settings=OFF) == OFF
 
 
@@ -504,7 +505,7 @@ def test_a_slot_with_settings_is_a_change_the_tick_applies():
     week = [[["00:00", "eco"], ["22:00", "eco", {"fan_mode": "1"}]]] * 7
     plan = engine.Plan({"climate.salon": {"normal": week}}, "normal", PRESETS, {}, {})
     assert engine.targets(plan, at("22:00"), {"climate.salon": ac("heat", "eco")}, since=at("21:59")) == [
-        ("climate.salon", {"preset_mode": "eco", "fan_mode": "1"})]
+        ("climate.salon", {"preset_mode": "eco", "fan_mode": "1", "hvac_mode": "heat"})]
 
 
 def test_an_off_slot_is_a_next_slot_that_changes_the_target():
@@ -663,10 +664,11 @@ def test_in_cool_the_cooling_setpoint_replaces_the_preset_and_its_temperature():
     assert engine.complete(both, ac("off")) == {"preset_mode": "comfort", "temperature": 20.0, "hvac_mode": "heat"}
 
 
-def test_in_cool_without_a_cooling_setpoint_the_setpoint_is_left_alone_unless_the_ac_only_cools():
+def test_in_cool_without_a_cooling_setpoint_the_setpoint_is_left_alone():
+    """Also on an air conditioner that only cools: it never gets a heating temperature."""
     assert engine.complete({"preset_mode": "comfort", "temperature": 20.0}, ac("cool")) == {"preset_mode": "comfort"}
     cooler = ac("cool", modes=("off", "cool", "fan_only"))
-    assert engine.complete({"temperature": 20.0}, cooler) == {"temperature": 20.0}
+    assert engine.complete({"temperature": 20.0}, cooler) == {}
 
 
 def test_a_temperature_the_user_chose_is_sent_in_cool():

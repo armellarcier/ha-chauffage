@@ -1,7 +1,8 @@
 """The slot chooses the HVAC mode (#91). The preset says how warm, for that HVAC mode.
 
-A slot on a preset may say heat or cool. A slot without a preset is off, or fan only. A slot
-without an HVAC mode leaves the thermostat in the one it has. A schedule has no HVAC mode."""
+A slot on a preset says heat or cool on an air conditioner. A slot without a preset is off, or
+fan only. A schedule has no HVAC mode. What a slot that says none means on each kind of
+thermostat: test_air_conditioner_slots.py."""
 
 import pytest
 from homeassistant.core import Context, Event, callback
@@ -63,27 +64,20 @@ async def test_a_cooling_slot_switches_the_air_conditioner_to_cool(bench: Bench)
 
 
 async def test_a_heating_slot_switches_a_cooling_air_conditioner_to_heat(bench: Bench):
-    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", HEAT]], state="cool")
+    await start(bench, "13:00", [["00:00", "eco", COOL], ["14:00", "comfort", HEAT]], state="cool")
     await bench.go_to("14:00")
     assert bench.powered() == {SALON: "heat"}
     assert bench.applied()[SALON] == "comfort"
 
 
-async def test_a_slot_without_an_hvac_mode_keeps_a_cooling_air_conditioner_cooling(bench: Bench):
-    """Existing weeks behave as before: each slot leaves the thermostat in the HVAC mode it has."""
-    await start(bench, "17:00", state="cool")
-    await bench.go_to("17:30")
-    assert bench.powered() == {}
-    assert state(bench) == "cool"
-
-
 async def test_each_slot_is_independent(bench: Bench):
-    """Cool in the afternoon, then a slot without an HVAC mode: the air conditioner keeps cooling."""
-    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", COOL], ["18:00", "eco"]])
+    """Cool in the afternoon, then heat in the evening: a slot does not inherit the HVAC mode of
+    the slot before it."""
+    await start(bench, "13:00", [["00:00", "eco", HEAT], ["14:00", "comfort", COOL], ["18:00", "eco", HEAT]])
     await bench.go_to("14:00")
     clear(bench)
     await bench.go_to("18:00")
-    assert bench.powered() == {} and state(bench) == "cool"
+    assert bench.powered() == {SALON: "heat"} and state(bench) == "heat"
 
 
 async def test_a_cooling_slot_gives_a_preset_its_cooling_temperature(bench: Bench):
@@ -388,7 +382,8 @@ async def test_the_planned_preset_sensor_says_the_slot_s_hvac_mode(bench: Bench)
     await start(bench, "13:00", day)
     names = ("salon", "bureau")
     salon, bureau = (bench.hass.states.get(f"sensor.{name}_planned_preset").attributes for name in names)
-    assert (salon["hvac_mode"], salon["next_hvac_mode"], salon["next_preset"]) == (None, "cool", "comfort")
+    # A slot that says none heats, on an air conditioner that heats and cools
+    assert (salon["hvac_mode"], salon["next_hvac_mode"], salon["next_preset"]) == ("heat", "cool", "comfort")
     assert (bureau["hvac_mode"], bureau["next_hvac_mode"]) == (None, None)  # a heater does not cool
     await bench.go_to("18:00")
     sensor = bench.hass.states.get("sensor.salon_planned_preset")

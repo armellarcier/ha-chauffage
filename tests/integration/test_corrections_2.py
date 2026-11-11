@@ -34,8 +34,9 @@ async def start(bench: Bench, hhmm: str = "10:00", day: list | None = None, pres
 
 # ----- D1: a cooling AC on a preset without a cooling value -----
 
-# Comfort, then eco at 14:00, on a reversible AC that cools on its own comfort preset
-ECO_IN_COOL = [["00:00", "comfort"], ["14:00", "eco"]]
+# Comfort, then eco at 14:00, in cooling slots, on a reversible AC that cools on its own comfort preset
+COOL = {"hvac_mode": "cool"}
+ECO_IN_COOL = [["00:00", "comfort", COOL], ["14:00", "eco", COOL]]
 COOLING = {"preset": "comfort", "state": "cool", "hvac_modes": AC_MODES}
 
 
@@ -71,7 +72,7 @@ async def test_in_cool_a_cooling_value_is_sent(bench: Bench):
 
 async def test_an_override_to_a_preset_without_a_cooling_value_sends_no_temperature_in_cool(bench: Bench):
     """The same rule for an override set to a preset: its device preset, never a heating temperature."""
-    await start(bench, "10:00", **COOLING)
+    await start(bench, "10:00", ECO_IN_COOL, **COOLING)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True)
     assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "boost"})
     assert bench.temperature_calls == []

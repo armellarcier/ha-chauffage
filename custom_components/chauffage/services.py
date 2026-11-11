@@ -42,8 +42,9 @@ SET_OVERRIDE_SCHEMA = vol.All(
         vol.Exclusive("preset", "value"): cv.string,
         # One of Home Assistant's HVAC modes: reproduce_state ignores any other value silently
         vol.Optional("hvac_mode"): vol.In([mode.value for mode in HVACMode]),
-        vol.Exclusive("duration", "end"): vol.All(vol.Coerce(int), vol.Range(min=1)),
-        vol.Exclusive("end", "end"): cv.datetime,
+        # Not both: refused by the service, with a message in the user's language
+        vol.Optional("duration"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional("end"): cv.datetime,
     }),
     cv.has_at_least_one_key("temperature", "preset", "hvac_mode"),
 )
@@ -78,6 +79,26 @@ def known_schedule(runtime: ChauffageRuntime, schedule: str) -> str:
     return schedule
 
 
+def refuse_contradictions(hass: HomeAssistant, data: dict) -> None:
+    """What chauffage.set_override refuses, with a message that says why: an override that
+    contradicts itself would be recorded and do something else than what was asked."""
+    entity_id, mode = data[ATTR_ENTITY_ID], data.get("hvac_mode")
+
+    def refuse(key: str, **placeholders: str) -> None:
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key=key,
+                                     translation_placeholders={"entity_id": entity_id, **placeholders})
+
+    if "duration" in data and "end" in data:
+        refuse("duration_and_end")
+    # Off and fan only take no setpoint
+    if mode in ("off", "fan_only") and ("temperature" in data or "preset" in data):
+        refuse("no_setpoint_in_hvac_mode", hvac_mode=mode)
+    state = hass.states.get(entity_id)
+    listed = [str(getattr(m, "value", m)) for m in (state.attributes.get("hvac_modes") or ())] if state else []
+    if mode is not None and listed and mode not in listed:
+        refuse("hvac_mode_not_listed", hvac_mode=mode, hvac_modes=", ".join(listed))
+
+
 async def may_control(hass: HomeAssistant, call: ServiceCall, entity_id: str) -> None:
     """An override changes one thermostat: the user who calls the service must control it, as
     with Home Assistant's own services that target an entity. An automation has no user."""
@@ -94,6 +115,7 @@ def async_register(hass: HomeAssistant) -> None:
         entity_id = call.data[ATTR_ENTITY_ID]
         await may_control(hass, call, entity_id)
         runtime = runtime_for(hass, entity_id)
+        refuse_contradictions(hass, call.data)
         end: datetime | None = call.data.get("end")
         if end is not None:
             end = dt_util.as_local(end if end.tzinfo else end.replace(tzinfo=dt_util.get_default_time_zone()))

@@ -191,6 +191,9 @@
     "thermostat_failed": { "message": "{entity_id} n'a pas accepté le changement." },
     "unknown_schedule": { "message": "Aucun planning n'a l'identifiant {schedule}." },
     "active_schedule_off": { "message": "{schedule} est le planning actif : allumez un autre planning pour en changer." },
-    "invalid_override_duration": { "message": "{value} minutes n'est pas une durée de dérogation valable. Choisissez un nombre entier de minutes." }
+    "invalid_override_duration": { "message": "{value} minutes n'est pas une durée de dérogation valable. Choisissez un nombre entier de minutes." },
+    "no_setpoint_in_hvac_mode": { "message": "Le mode HVAC {hvac_mode} ne prend ni température ni préréglage. Envoyez {hvac_mode} seul." },
+    "hvac_mode_not_listed": { "message": "{entity_id} n'a pas le mode HVAC {hvac_mode}. Ses modes HVAC : {hvac_modes}." },
+    "duration_and_end": { "message": "Donnez une durée ou une fin, pas les deux." }
   }
 }

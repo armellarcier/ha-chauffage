@@ -72,6 +72,8 @@ SCHEDULED_THERMOSTAT_MODEL = {
 # Events, for automations (data: README, "Events")
 EVENT_OVERRIDE_STARTED = f"{DOMAIN}_override_started"
 EVENT_OVERRIDE_ENDED = f"{DOMAIN}_override_ended"
+# An override that only got a new end: the logbook tells it; "started" stays for a new value
+EVENT_OVERRIDE_END_CHANGED = f"{DOMAIN}_override_end_changed"
 EVENT_SCHEDULE_ACTIVATED = f"{DOMAIN}_schedule_activated"
 
 # The active-schedule select entity (same id whatever the language: automations refer to it)

@@ -57,6 +57,7 @@ from .const import (
     DOMAIN,
     DURATION,
     EVENT_OVERRIDE_ENDED,
+    EVENT_OVERRIDE_END_CHANGED,
     EVENT_OVERRIDE_STARTED,
     EVENT_SCHEDULE_ACTIVATED,
     MANUAL_OVERRIDE_ENDS,
@@ -991,7 +992,8 @@ class ChauffageRuntime:
     @callback
     def _keep_override(self, entity_id: str, override: dict[str, Any], source: str,
                        context: Context | None = None) -> None:
-        """Records an override; a new one, or a new value, is told (an end alone is not)."""
+        """Records an override, and tells it: a new one or a new value as an override started,
+        a new end alone as an end changed."""
         before = self.data["overrides"].get(entity_id)
         self.data["overrides"][entity_id] = override
         info = self.override_info(entity_id)
@@ -999,8 +1001,10 @@ class ChauffageRuntime:
             _LOGGER.info("%s: override started by %s: %s until %s", entity_id, source, _describe(override), info["end"])
             self.hass.bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source,
                                                               **_end_data(override)}, context=context)
-        elif before.get("end") != override.get("end"):
+        elif engine.parse_datetime(before.get("end")) != engine.parse_datetime(override.get("end")):
             _LOGGER.info("%s: override until %s, set by %s", entity_id, info["end"], source)
+            self.hass.bus.async_fire(EVENT_OVERRIDE_END_CHANGED, {"entity_id": entity_id, **info, "source": source,
+                                                                  **_end_data(override)}, context=context)
 
     @callback
     def _drop_override(self, entity_id: str, reason: str, context: Context | None = None) -> bool:

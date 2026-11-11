@@ -1,6 +1,6 @@
 """A slot is a preset, or off (#91). The schedule decides whether a thermostat is off; turning
-it off or on by hand is an override; a reversible air conditioner keeps cooling unless a slot
-says heat or cool (test_slot_hvac_mode.py)."""
+it off or on by hand is an override; on a reversible air conditioner every slot says heat or
+cool (test_slot_hvac_mode.py, test_air_conditioner_slots.py)."""
 
 import pytest
 import voluptuous as vol
@@ -12,6 +12,8 @@ OFF = {"hvac_mode": "off"}
 # Comfort from 06:30, eco from 08:30, comfort from 17:30, off from 22:30 (an off slot has no preset)
 NIGHT_OFF = [["00:00", None, OFF], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", None, OFF]]
 AC_MODES = ["off", "heat", "cool", "fan_only"]
+# The same day, in cooling slots
+COOL_WEEKDAY = [[*slot, {"hvac_mode": "cool"}] for slot in WEEKDAY]
 
 
 @pytest.fixture(params=KINDS)
@@ -208,8 +210,8 @@ async def test_set_override_turns_a_thermostat_off_or_on(bench: Bench):
 # ----- a reversible air conditioner -----
 
 async def test_a_cooling_air_conditioner_keeps_cooling(bench: Bench):
-    """Never a cooling AC switched to heat by a slot that does not say heat or cool."""
-    await start(bench, "17:00", state="cool", hvac_modes=AC_MODES)
+    """From a cooling slot to the next one: the HVAC mode is not sent again."""
+    await start(bench, "17:00", COOL_WEEKDAY, state="cool", hvac_modes=AC_MODES)
     bench.temperature_calls.clear()
     await bench.go_to("17:30")
     assert bench.powered() == {}
@@ -342,7 +344,7 @@ async def test_a_script_reads_the_hvac_mode_of_the_slots(bench: Bench):
 
 
 async def test_the_last_hvac_mode_a_thermostat_was_on_in_survives_a_restart(bench: Bench):
-    await start(bench, "17:00", state="cool", hvac_modes=AC_MODES)
+    await start(bench, "17:00", COOL_WEEKDAY, state="cool", hvac_modes=AC_MODES)
     assert bench.runtime.thermostats["climate.salon"]["hvac_mode"] == "cool"
     await bench.advance(1)  # the delayed save
     assert bench.storage["chauffage"]["data"]["thermostats"]["climate.salon"]["hvac_mode"] == "cool"
@@ -406,12 +408,13 @@ async def test_a_script_reads_the_fan_of_the_slots(bench: Bench):
 COOL_ATTRS = {"hvac_modes": AC_MODES}
 
 
-async def test_a_cooling_only_ac_gets_the_base_setpoint(bench: Bench):
+async def test_a_cooling_only_ac_never_gets_a_preset_s_heating_temperature(bench: Bench):
+    """It got the base setpoint before: frost protection cooled a room to 7 °C."""
     bench.needs("plain")
     await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort"]], state="cool", hvac_modes=["off", "cool", "fan_only"])
     bench.temperature_calls.clear()
     await bench.go_to("14:00")
-    assert bench.temperature_calls == [("climate.salon", 20.0)]
+    assert bench.temperature_calls == []
 
 
 async def test_a_heating_slot_ignores_the_cooling_setpoint(bench: Bench):
@@ -426,7 +429,7 @@ async def test_a_heating_slot_ignores_the_cooling_setpoint(bench: Bench):
 
 
 async def test_an_override_to_a_preset_in_cool_uses_the_cooling_setpoint(bench: Bench):
-    await start(bench, "10:00", state="cool", **COOL_ATTRS)
+    await start(bench, "10:00", COOL_WEEKDAY, state="cool", **COOL_ATTRS)
     await bench.runtime.set_mapping("climate.salon", {"boost": {"temperature": 21, "cool_temperature": 23}})
     await bench.hass.async_block_till_done()
     bench.temperature_calls.clear()
@@ -438,7 +441,7 @@ async def test_an_override_to_a_preset_in_cool_uses_the_cooling_setpoint(bench: 
 async def test_an_override_temperature_typed_by_the_user_is_sent_in_cool(bench: Bench):
     """A temperature the user typed (no Chauffage preset) is their cooling target: sent in cool,
     unlike a preset's heating temperature (docs/decisions.md, "Presets")."""
-    await start(bench, "10:00", state="cool", **COOL_ATTRS)
+    await start(bench, "10:00", COOL_WEEKDAY, state="cool", **COOL_ATTRS)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 24}, blocking=True)
     assert bench.temperature_calls == [("climate.salon", 24.0)]
     assert bench.overrides()["climate.salon"]["target"] == {"temperature": 24.0}
@@ -454,7 +457,7 @@ async def test_an_override_that_switches_to_cool_with_a_temperature_sends_it(ben
 
 async def test_a_preset_s_heating_temperature_is_still_not_sent_in_cool(bench: Bench):
     """The preset's value set by hand without a cooling setpoint: a heating value (D1)."""
-    await start(bench, "10:00", state="cool", **COOL_ATTRS)
+    await start(bench, "10:00", COOL_WEEKDAY, state="cool", **COOL_ATTRS)
     await bench.runtime.set_mapping("climate.salon", {"boost": {"temperature": 21}})
     await bench.hass.async_block_till_done()
     bench.temperature_calls.clear()

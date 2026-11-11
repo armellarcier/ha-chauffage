@@ -115,23 +115,40 @@ def ignored(thermostat: Thermostat) -> bool:
 
 # What a thermostat should be set to: a partial state of the climate entity, as a scene holds it.
 # Its keys are the climate attributes: "preset_mode" (one of its climate presets), "temperature"
-# (a target temperature), "hvac_mode". A slot's target says the HVAC mode the slot chose: "off"
-# or "fan_only" (alone, or with the fan and the vanes), "heat" or "cool" when the thermostat
-# lists it. Or none: the thermostat then keeps the HVAC mode it has, or gets the one `on_mode`
-# gives if it is off or in fan only (docs/decisions.md, "Scheduling").
+# (a target temperature), "hvac_mode". A slot's target says the slot's HVAC mode on this
+# thermostat (`slot_hvac_mode`): "off" or "fan_only" (alone, or with the fan and the vanes),
+# "heat" or "cool" on an air conditioner, none on a heater. A target without an HVAC mode (a
+# heater's slot, an override to a preset) leaves the thermostat in the HVAC mode it has, or gets
+# the one `on_mode` gives if it is off or in fan only (docs/decisions.md, "Scheduling").
 Target = dict[str, Any]
 SETPOINT_KEYS = ("preset_mode", "temperature")
 
 
+def slot_hvac_mode(settings: Mapping[str, Any], thermostat: Thermostat | None) -> str | None:
+    """The HVAC mode of a slot on a thermostat. Off and fan only are the slot's own. On an air
+    conditioner, every other slot heats or cools: a slot that says none is read as heat (a week
+    stored before #91), and every slot cools on a thermostat that only cools. A heater never
+    carries an HVAC mode. A thermostat whose HVAC modes are not known: as stored."""
+    mode = settings.get("hvac_mode")
+    if mode in IDLE or thermostat is None or not thermostat.hvac_modes:
+        return mode
+    if "cool" not in thermostat.hvac_modes:
+        return None
+    if "heat" not in thermostat.hvac_modes:
+        return "cool"
+    return "cool" if mode == "cool" else "heat"
+
+
 def on_mode(thermostat: Thermostat) -> str | None:
-    """The HVAC mode to turn a thermostat on in, for a setpoint: heat if it has it, else the one
-    it last heated or cooled in, else its first HVAC mode but off and fan only (fan only when it
-    has nothing else). None when it lists no HVAC mode."""
+    """The HVAC mode to turn a thermostat on in, for a setpoint that says none (an override to a
+    preset): the one it last heated or cooled in if it still lists it, else heat, else its first
+    HVAC mode but off and fan only (fan only when it has nothing else). None when it lists no
+    HVAC mode. An air conditioner that cooled in July restarts in cool."""
     modes = [mode for mode in thermostat.hvac_modes if mode not in IDLE]
-    if "heat" in modes:
-        return "heat"
     if thermostat.last_hvac_mode in modes:
         return thermostat.last_hvac_mode
+    if "heat" in modes:
+        return "heat"
     if modes:
         return modes[0]
     return FAN_ONLY if FAN_ONLY in thermostat.hvac_modes else None
@@ -153,11 +170,11 @@ def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> T
     HVAC mode when the target says none: never a cooling air conditioner switched to heat.
 
     In cool, the setpoint is the preset's cooling setpoint (`cool_temperature`, which replaces
-    its preset and its temperature). Without one, a temperature is a heating value: a thermostat
-    that also heats does not get it (never 17 °C in cool). Its climate preset is sent: the
-    device knows what its own eco means in cool. A temperature the user chose (`by_user`: an
-    override without a Chauffage preset) is their cooling target: sent. A cooling-only
-    thermostat gets the base setpoint (docs/decisions.md, "Presets")."""
+    its preset and its temperature). Without one, a temperature is a heating value: it is never
+    sent in cool (never 7 °C to an air conditioner, one that only cools included). Its climate
+    preset is sent: the device knows what its own eco means in cool. Without either, no
+    setpoint is sent. A temperature the user chose (`by_user`: an override without a Chauffage
+    preset) is their cooling target: sent (docs/decisions.md, "Presets")."""
     if target.get("hvac_mode") == OFF:
         return {"hvac_mode": OFF}
     out = {key: value for key, value in target.items() if key != "cool_temperature"}
@@ -168,7 +185,7 @@ def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> T
         if "cool_temperature" in target:
             out = {key: value for key, value in out.items() if key not in SETPOINT_KEYS}
             out["temperature"] = target["cool_temperature"]
-        elif "heat" in thermostat.hvac_modes and not by_user:
+        elif not by_user:
             out.pop("temperature", None)
     return out
 
@@ -240,15 +257,16 @@ def resolve(
     use_presets: bool = True,
     settings: dict[str, Any] | None = None,
 ) -> Target | None:
-    """Target of a slot (its preset and its settings) for one thermostat. The slot chooses the
-    HVAC mode. Off: off, and nothing else. Fan only: fan only, with the slot's fan and vanes;
-    nothing on a thermostat that does not list fan only (it is left as it is). Otherwise the
-    preset says how warm, in layers: its default (the thermostat's climate preset of the same
-    name, or its temperature), then its value on this thermostat (the mapping set by hand),
-    then the slot's fan and vanes. The slot's heat or cool is kept when the thermostat lists
-    it: a heater ignores cool."""
+    """Target of a slot (its preset and its settings) for one thermostat, or of a preset alone
+    (`settings` None: an override to a preset, which says no HVAC mode). The slot chooses the
+    HVAC mode (`slot_hvac_mode`). Off: off, and nothing else. Fan only: fan only, with the
+    slot's fan and vanes; nothing on a thermostat that does not list fan only (it is left as it
+    is). Otherwise the preset says how warm, in layers: its default (the thermostat's climate
+    preset of the same name, or its temperature), then its value on this thermostat (the
+    mapping set by hand), then the slot's fan and vanes. On an air conditioner the target says
+    heat or cool; on a heater it says no HVAC mode."""
+    mode = slot_hvac_mode(settings, thermostat) if settings is not None else None
     settings = settings or {}
-    mode = settings.get("hvac_mode")
     if mode == OFF:
         return {"hvac_mode": OFF}
     if mode == FAN_ONLY:

@@ -11,13 +11,14 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
 from . import engine
-from .const import DOMAIN, EVENT_OVERRIDE_ENDED, EVENT_OVERRIDE_STARTED, EVENT_SCHEDULE_ACTIVATED
+from .const import DOMAIN, EVENT_OVERRIDE_END_CHANGED, EVENT_OVERRIDE_ENDED, EVENT_OVERRIDE_STARTED, EVENT_SCHEDULE_ACTIVATED
 
 # Home Assistant does not translate logbook descriptions: in its language, English otherwise
 TEXTS = {
     "en": {
         "started": "override started: {value} until {end} ({source})",
         "ended": "override ended ({reason})",
+        "end_changed": "override until {end} ({source})",
         "activated": "schedule activated: {schedule} ({source})",
         "decimal": ".",
         "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -50,6 +51,7 @@ TEXTS = {
     "fr": {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
         "ended": "dérogation terminée ({reason})",
+        "end_changed": "dérogation jusqu'à {end} ({source})",
         "activated": "planning activé : {schedule} ({source})",
         "decimal": ",",
         "days": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
@@ -163,6 +165,13 @@ def async_describe_events(
         return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
 
     @callback
+    def end_changed(event: Event) -> dict[str, Any]:
+        data, t = event.data, texts()
+        message = t["end_changed"].format(end=until(engine.parse_datetime(data.get("end"))),
+                                          source=t["sources"].get(data.get("source"), data.get("source")))
+        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
+
+    @callback
     def activated(event: Event) -> dict[str, Any]:
         # On the select, next to its change ("Schedule → Away"); older events have no entity_id
         data, t = event.data, texts()
@@ -176,4 +185,5 @@ def async_describe_events(
 
     async_describe_event(DOMAIN, EVENT_OVERRIDE_STARTED, started)
     async_describe_event(DOMAIN, EVENT_OVERRIDE_ENDED, ended)
+    async_describe_event(DOMAIN, EVENT_OVERRIDE_END_CHANGED, end_changed)
     async_describe_event(DOMAIN, EVENT_SCHEDULE_ACTIVATED, activated)
