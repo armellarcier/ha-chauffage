@@ -9,7 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.9.0-beta.3] - 2026-11-11
+
+The third beta of 0.9.0, with **the access level of users who are not administrators** (#99).
+
 ### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
 
 No stored data is migrated. The access level starts on *Use*, so users who are not
 administrators can do what they did before.
