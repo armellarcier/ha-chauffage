@@ -52,6 +52,10 @@ conditioner cools. The rooms cover **every kind of thermostat**:
 | combles | A **cooling-only air conditioner** from `dev/sim_climate/`: `cool`, `fan_only` and `off`, with `fan_modes` and standard presets at cooling setpoints. The room has no heater. |
 | suite parentale | A **reversible Daikin**, simulated from what Home Assistant's `daikin` integration exposes: `heat`, `cool`, `heat_cool`, `dry` and `fan_only`, the presets `none`, `away`, `eco` and `boost`, with `fan_modes` and `swing_modes`. A preset does not change the setpoint. |
 
+The sample weeks of the mezzanine, the combles and the suite parentale show what a slot can
+choose: a slot that cools, a fan-only slot and an off slot. On the suite parentale, *Comfort*
+and *Eco* have a temperature when heating and another one when cooling.
+
 Two Versatile Thermostats also watch a **window**, an `input_boolean` you turn on to open it:
 
 | Window | What the VTherm does while the window is open |

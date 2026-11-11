@@ -53,6 +53,10 @@ pièce quand la climatisation refroidit. Les pièces couvrent **tous les types d
 | combles | Une **climatisation qui ne fait que du froid**, de `dev/sim_climate/` : `cool`, `fan_only` et `off`, avec des `fan_modes` et des presets standard réglés sur des consignes de froid. La pièce n'a pas de radiateur. |
 | suite parentale | Une **Daikin réversible**, simulée d'après ce qu'expose l'intégration `daikin` de Home Assistant : `heat`, `cool`, `heat_cool`, `dry` et `fan_only`, les presets `none`, `away`, `eco` et `boost`, avec des `fan_modes` et des `swing_modes`. Un preset ne change pas la consigne. |
 
+Les semaines d'exemple de la mezzanine, des combles et de la suite parentale montrent ce qu'un
+créneau peut choisir : un créneau qui climatise, un créneau *Ventilation* et un créneau *Arrêt*.
+Sur la suite parentale, *Confort* et *Éco* ont une température en chauffe et une autre en clim.
+
 Deux Versatile Thermostats surveillent aussi une **fenêtre** : un `input_boolean` que vous
 allumez pour l'ouvrir.
 
