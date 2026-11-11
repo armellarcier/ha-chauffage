@@ -528,12 +528,15 @@ def expired_commands(sent: list[Any], now: datetime) -> int:
 RESUME = "resume"  # back to what the schedule expects
 
 
-def preset_temperature(attributes: dict[str, Any], preset: str, learned: dict[str, Any]) -> float | None:
+def preset_temperature(attributes: dict[str, Any], preset: str, learned: dict[str, Any],
+                       cool: bool = False) -> float | None:
     """Temperature a thermostat's own preset gives: Versatile Thermostat publishes them
     (preset_temperatures: {"eco_temp": …} since its version 10, eco_temp… before), otherwise
-    the one last read while the thermostat was on that preset (`learned`)."""
+    the one last read while the thermostat was on that preset (`learned`). `cool`: the one it
+    gives when cooling (a Versatile Thermostat in AC mode: "eco_cool_temp"; `learned` while it
+    cooled)."""
     published = attributes.get("preset_temperatures")
-    key = f"{preset}_temp"
+    key = f"{preset}_cool_temp" if cool else f"{preset}_temp"
     value = published.get(key) if isinstance(published, dict) else attributes.get(key)
     return temperature_value(learned.get(preset) if value is None else value)
 

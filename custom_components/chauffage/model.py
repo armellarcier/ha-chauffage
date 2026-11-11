@@ -29,7 +29,10 @@ Vocabulary: docs/glossary.md.
                              {"temperature": 20.5}, never both. When it cools: an optional
                              "cool_temperature". Then "fan_mode", "swing_mode" and
                              "swing_horizontal_mode". No "hvac_mode": the slot chooses it
-        preset_temperatures: {climate preset: temperature} last seen on the thermostat
+        preset_temperatures: {climate preset: temperature} last seen on the thermostat, while it
+                             did not cool
+        cool_preset_temperatures: the same, last seen while it cooled (optional: none before
+                             it cooled on one of its presets)
         hvac_mode:           the HVAC mode the thermostat last heated or cooled in (None: not
                              seen on yet): what an off thermostat without heat is turned on in
         revision:            increases on every change of its weeks: a card saves against it, so

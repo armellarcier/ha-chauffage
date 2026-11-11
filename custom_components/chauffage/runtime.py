@@ -403,18 +403,21 @@ class ChauffageRuntime:
         last = self.thermostats.get(state.entity_id, {}).get("hvac_mode") if state is not None else None
         return thermostat(state, entry is not None and entry.platform == VTHERM, last)
 
-    def preset_temperature(self, state: State, preset: str) -> float | None:
+    def preset_temperature(self, state: State, preset: str, cool: bool = False) -> float | None:
         """Temperature a thermostat's own preset gives (published, else learned): the one the
-        card shows, and the one a manual setpoint is compared with."""
-        learned = self.thermostats.get(state.entity_id, {}).get("preset_temperatures", {})
-        return engine.preset_temperature(dict(state.attributes), preset, learned)
+        card shows, and the one a manual setpoint is compared with. `cool`: when it cools."""
+        key = "cool_preset_temperatures" if cool else "preset_temperatures"
+        learned = self.thermostats.get(state.entity_id, {}).get(key, {})
+        return engine.preset_temperature(dict(state.attributes), preset, learned, cool)
 
-    def temperatures_of(self, state: State | None) -> dict[str, float]:
-        """{own preset: temperature} of a thermostat, for its presets and the learned ones."""
+    def temperatures_of(self, state: State | None, cool: bool = False) -> dict[str, float]:
+        """{own preset: temperature} of a thermostat, for its presets and the learned ones.
+        `cool`: what they give when it cools."""
         if state is None:
             return {}
-        learned = self.thermostats.get(state.entity_id, {}).get("preset_temperatures", {})
-        temperatures = {p: self.preset_temperature(state, p) for p in {*thermostat(state).presets, *learned}}
+        key = "cool_preset_temperatures" if cool else "preset_temperatures"
+        learned = self.thermostats.get(state.entity_id, {}).get(key, {})
+        temperatures = {p: self.preset_temperature(state, p, cool) for p in {*thermostat(state).presets, *learned}}
         return {p: t for p, t in temperatures.items() if t is not None}
 
     def plan(self) -> engine.Plan:
@@ -469,6 +472,11 @@ class ChauffageRuntime:
             "preset_temperatures": {
                 state.entity_id: temperatures for state in self.hass.states.async_all("climate")
                 if (temperatures := self.temperatures_of(state))
+            },
+            # What its own presets give when it cools (an air conditioner)
+            "cool_preset_temperatures": {
+                state.entity_id: temperatures for state in self.hass.states.async_all("climate")
+                if (temperatures := self.temperatures_of(state, cool=True))
             },
             "use_presets": self.use_presets,
             "revision": self.data["revision"],
@@ -1214,9 +1222,9 @@ class ChauffageRuntime:
 
     @callback
     def _learn(self, state: State | None) -> bool:
-        """While a thermostat is on a preset, its setpoint is that preset's temperature. While
-        it heats or cools, its HVAC mode is the one to turn it on in later (#91): not fan only,
-        which takes no setpoint."""
+        """While a thermostat is on a preset, its setpoint is that preset's temperature: its
+        cooling temperature while it cools, kept apart. While it heats or cools, its HVAC mode
+        is the one to turn it on in later (#91): not fan only, which takes no setpoint."""
         current = self.current(state)
         if current is None or engine.ignored(current) or state.entity_id not in self.thermostats:
             return False
@@ -1225,9 +1233,11 @@ class ChauffageRuntime:
         if current.state not in engine.IDLE and state.state != engine.OFF and data["hvac_mode"] != current.state:
             data["hvac_mode"] = current.state
             learned = True
+        temperatures = (data.setdefault("cool_preset_temperatures", {}) if current.state == "cool"
+                        else data["preset_temperatures"])
         if (current.temperature is not None and not engine.is_manual_preset(current.preset)
-                and data["preset_temperatures"].get(current.preset) != current.temperature):
-            data["preset_temperatures"][current.preset] = current.temperature
+                and temperatures.get(current.preset) != current.temperature):
+            temperatures[current.preset] = current.temperature
             learned = True
         if learned:
             self._changed()
@@ -1237,6 +1247,7 @@ class ChauffageRuntime:
     def _state_changed(self, event: Event[EventStateChangedData]) -> None:
         old, new = event.data["old_state"], event.data["new_state"]
         if not self._learn(new) and (self.temperatures_of(old) != self.temperatures_of(new)
+                                     or self.temperatures_of(old, cool=True) != self.temperatures_of(new, cool=True)
                                      or _cause(old) != _cause(new)):
             self._notify()  # published by the thermostat: the card shows them
         # Paused thermostats are followed for their preset temperatures only
@@ -1272,7 +1283,7 @@ class ChauffageRuntime:
         expected = plan.target_of(new.entity_id, slot, after)
         if expected is not None:  # what the slot sends this thermostat now
             expected = engine.complete(expected, after)
-        preset_temperature = self.preset_temperature(new, expected["preset_mode"]) \
+        preset_temperature = self.preset_temperature(new, expected["preset_mode"], after.state == "cool") \
             if expected is not None and "preset_mode" in expected else None
         current = self.data["overrides"].get(new.entity_id)
         change = engine.manual_change(
@@ -1293,4 +1304,29 @@ class ChauffageRuntime:
                 resume = self.apply(include={new.entity_id}, reason=f"back from {old.state}")
             self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
+        switched = self._switched_override(new.entity_id, change, current, slot, after)
+        if switched is not None:
+            # Heat or cool chosen by hand, alone: the value planned goes on in that HVAC mode, so
+            # it is sent (the cooling value of a preset, not what the device restarted on)
+            self.record_override(new.entity_id, switched, context)
+            carry = self._realign(new.entity_id, "HVAC mode changed by hand")
+            self.entry.async_create_task(self.hass, carry, "chauffage carry the value")
+            return
         self.record_override(new.entity_id, self.manual_override(new.entity_id, change, after), context)
+
+    def _switched_override(self, entity_id: str, change: engine.Target, current: dict[str, Any] | None,
+                           slot: engine.Slot | None, after: engine.Thermostat) -> dict[str, Any] | None:
+        """The override of an air conditioner switched to heat or cool by hand, and nothing else
+        changed. The person chose an HVAC mode, not a setpoint: the override keeps the value in
+        force, in that HVAC mode. Its override's value and end if it has one with a setpoint,
+        else the preset of its slot. None when the change is something else, or when there is no
+        value to keep (an off or a fan-only slot: the thermostat keeps its own last setpoint)."""
+        mode = change.get("hvac_mode")
+        if set(change) != {"hvac_mode"} or mode in engine.IDLE:
+            return None
+        if current and any(key in current["target"] for key in (*engine.SETPOINT_KEYS, "cool_temperature")):
+            return {**current, "target": {**current["target"], "hvac_mode": mode}}
+        meaning = self.targets_of(entity_id).get(slot.preset) if slot and slot.preset else None
+        if meaning is None:
+            return None
+        return self.manual_override(entity_id, {**meaning, "hvac_mode": mode}, after) | {"preset": slot.preset}

@@ -256,10 +256,12 @@ async def test_a_preset_picked_on_an_off_air_conditioner_turns_it_on(bench: Benc
 
 
 async def test_switching_the_air_conditioner_to_heat_by_hand_in_a_cooling_slot_is_an_override(bench: Bench):
+    """The override keeps the slot's preset, in the HVAC mode chosen by hand."""
     await start(bench, "10:00", [["00:00", "eco", COOL]], state="cool")
     bench.thermostat(SALON, "eco", state="heat", hvac_modes=AC_MODES, context=CTX_USER)
-    await bench.hass.async_block_till_done()
-    assert bench.overrides()[SALON]["target"] == HEAT
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    override = bench.overrides()[SALON]
+    assert override["target"]["hvac_mode"] == "heat" and override["preset"] == "eco"
 
 
 async def test_switching_to_fan_only_by_hand_is_an_override(bench: Bench):
