@@ -79,10 +79,12 @@ def _setpoints(hass: HomeAssistant) -> Callable[[str, datetime], tuple[str, floa
         week = runtime.weeks.get(entity_id, {}).get(data["active_schedule"]) or [[["00:00", "eco"]]] * 7
         minute = t.hour * 60 + t.minute
         preset = "eco"
-        for hhmm, slot_preset in week[t.weekday()]:
+        # A slot is [start, preset] or [start, preset, settings]; an off slot and a fan-only slot
+        # have no preset: the simulated week only heats, so the room is in eco then
+        for hhmm, slot_preset, *_ in week[t.weekday()]:
             h, m = (int(x) for x in hhmm.split(":"))
             if h * 60 + m <= minute:
-                preset = slot_preset
+                preset = slot_preset or "eco"
         temperature = learned.get(entity_id, {}).get(preset) or presets.get(preset) or 17.0
         return preset, float(temperature)
 

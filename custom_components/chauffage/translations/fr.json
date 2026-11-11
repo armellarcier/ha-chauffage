@@ -90,9 +90,9 @@
         "state_attributes": {
           "preset_name": { "name": "Nom du préréglage" },
           "target": { "name": "Consigne" },
-          "hvac_mode": { "name": "Fonctionnement" },
+          "hvac_mode": { "name": "Mode HVAC" },
           "next_preset": { "name": "Préréglage suivant" },
-          "next_hvac_mode": { "name": "Fonctionnement suivant" },
+          "next_hvac_mode": { "name": "Mode HVAC suivant" },
           "next_preset_name": { "name": "Nom du préréglage suivant" },
           "next_start": { "name": "Début du créneau suivant" },
           "temperatures": { "name": "Températures des préréglages" }
@@ -152,7 +152,7 @@
         "entity_id": { "name": "Thermostat", "description": "Un thermostat programmé par Chauffage." },
         "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un préréglage)." },
         "preset": { "name": "Préréglage", "description": "Un préréglage de Chauffage, réglé sur ce qu'il signifie pour ce thermostat (ou un préréglage du thermostat lui-même) ; ou indiquer une température." },
-        "hvac_mode": { "name": "Fonctionnement", "description": "Arrêt pour éteindre le thermostat, ou un mode pour l'allumer. Sans lui, le thermostat est allumé." },
+        "hvac_mode": { "name": "Mode HVAC", "description": "Arrêt pour éteindre le thermostat, ou un mode HVAC pour l'allumer. Sans lui, le thermostat est allumé. Arrêt seul, sans durée ni fin, dure ce que dit le réglage Fin des dérogations d'arrêt." },
         "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },
         "end": { "name": "Fin", "description": "Quand la dérogation se termine (au lieu d'une durée)." }
       }
@@ -173,7 +173,7 @@
     },
     "get_schedules": {
       "name": "Obtenir les plannings",
-      "description": "Donne les plannings (identifiant, nom, chauffage ou climatisation, interrupteur), le planning actif et celui que donnent les règles d'activation, pour les scripts."
+      "description": "Donne les plannings (identifiant, nom, interrupteur), le planning actif et celui que donnent les règles d'activation, pour les scripts."
     },
     "get_week": {
       "name": "Obtenir la semaine",

@@ -155,6 +155,8 @@ describe('the week view', () => {
     assert.notEqual(seg(1).style.background, rgb(PRESET_COLORS.comfort));
     assert.equal(seg(1).querySelector('.t ha-icon').getAttribute('icon'), 'mdi:snowflake');
     assert.match(seg(1).title, /14:00 → 20:00 · Confort · Clim$/);
+    // A slot with a marker hides its time sooner in a narrow segment, so the marker is never cut
+    assert.ok(seg(1).classList.contains('marked') && !seg(0).classList.contains('marked'));
     assert.equal(seg(0).style.background, rgb(PRESET_COLORS.eco), 'a slot without an HVAC mode keeps the heat color');
     assert.equal(seg(0).querySelector('ha-icon'), null);
   });

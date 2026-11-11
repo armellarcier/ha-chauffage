@@ -844,7 +844,9 @@ const pieceSettings = (seg) => (isOff(seg) ? null : isFan(seg) ? airSettings(seg
 // ---------- colors (#91) ----------
 // Each preset has a heat color (its color) and a cool color, for its cooling slots: the one the
 // user chose (cool_color), else a cool shade derived from its color. The hue moves into the blues
-// (205° to 265°), in the order of the hues, and the shade stays dark enough for white text
+// and the violets (208° to 285°, away from the cyan of fan only), in the order of the hues from
+// red: the warm hues, where the presets' colors usually are, get the widest share. The shade
+// stays dark enough for white text
 function hexToHsl(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
   const n = m ? parseInt(m[1], 16) : 0x9e9e9e;
@@ -866,7 +868,9 @@ function hslToHex(h, s, l) {
 }
 function derivedCoolColor(color) {
   const [h, s, l] = hexToHsl(color);
-  return hslToHex(205 + (h / 360) * 60, Math.max(0.45, Math.min(0.8, s)), Math.max(0.3, Math.min(0.46, l)));
+  const from = (h + 30) % 360; // the reds on both sides of 0° together
+  const hue = from <= 90 ? 208 + (from / 90) * 36 : from <= 210 ? 244 + ((from - 90) / 120) * 18 : 262 + ((from - 210) / 150) * 23;
+  return hslToHex(hue, Math.max(0.45, Math.min(0.8, s)), Math.max(0.3, Math.min(0.46, l)));
 }
 const coolColor = (preset) => (preset && preset.cool_color) || derivedCoolColor(preset && preset.color);
 // The color of a slot of a preset: its cool color when the slot cools
@@ -3182,7 +3186,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         const fan = isFan(s);
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : '',
-          editable && i > 0 && i < segs.length - 1 ? 'movable' : '', off ? 'off' : '', fan ? 'fan' : ''].join(' ');
+          editable && i > 0 && i < segs.length - 1 ? 'movable' : '', off ? 'off' : '', fan ? 'fan' : '',
+          s.settings ? 'marked' : ''].join(' ');
         // An off slot is grey, a fan-only slot has Home Assistant's color of fan only (its class),
         // a cooling slot its preset's cool color. The title names the slot, its HVAC mode, and
         // the fan and the vanes it sets
@@ -5516,14 +5521,18 @@ const STYLE = `
      meaningless pieces such as "06:" */
   .seg { container-type:inline-size; }
   .seg .l { min-width:0; overflow:hidden; text-overflow:ellipsis; }
-  @container (max-width:38px) { .seg .t { visibility:hidden; } }
+  @container (max-width:38px) { .seg .t { visibility:hidden; font-size:0; } }
   @container (max-width:44px) { .seg .l { visibility:hidden; } }
   .h12 .seg .t { white-space:nowrap; }
-  @container (max-width:56px) { .h12 .seg .t { visibility:hidden; } }
+  @container (max-width:56px) { .h12 .seg .t { visibility:hidden; font-size:0; } }
+  /* A time with a marker needs more room: hidden sooner, so the marker is never cut. A hidden
+     time takes no room (font-size:0): its marker stays in sight */
+  @container (max-width:54px) { .seg.marked .t { visibility:hidden; font-size:0; } }
+  @container (max-width:72px) { .h12 .seg.marked .t { visibility:hidden; font-size:0; } }
   .seg.sel { box-shadow:inset 0 0 0 3px var(--primary-text-color); z-index:1; }
-  /* A slot's marker (#91), on the time's line ("00:00 ⏻"): the power icon of an off slot, a fan
-     when the slot sets the fan or the vanes. It stays even when the time is hidden, down to a
-     20 px wide segment; an off slot is grey */
+  /* A slot's markers (#91), on the time's line ("00:00 ⏻"): the icon of its HVAC mode (off, fan
+     only, cool, heat), and a mark when the slot sets the fan or the vanes. They stay even when
+     the time is hidden, down to a 20 px wide segment; an off slot is grey */
   .seg .t ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; visibility:visible; }
   .seg .t:not(:empty) ha-icon { margin-left:3px; }
   .seg .t.alone ha-icon { --mdc-icon-size:14px; width:14px; height:14px; margin-left:0; }
@@ -6203,7 +6212,7 @@ const MORE_INFO_STYLE = `
     display:flex; align-items:center; padding-left:4px; box-sizing:border-box; white-space:nowrap; }
   /* A time that does not fit is hidden, never cut ("07:0") */
   .bar.big .seg { container-type:inline-size; }
-  @container (max-width:38px) { .seg span { visibility:hidden; } }
+  @container (max-width:38px) { .seg span { visibility:hidden; font-size:0; } }
   .seg span ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; visibility:visible; }
   .seg span:not(:empty) ha-icon { margin-left:3px; }
   .override-value .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; }

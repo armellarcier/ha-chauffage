@@ -152,7 +152,7 @@
         "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." },
         "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
         "preset": { "name": "Preset", "description": "A Chauffage preset, set to what it means on this thermostat (or one of the thermostat's own presets); or give a temperature." },
-        "hvac_mode": { "name": "HVAC mode", "description": "Off to turn the thermostat off, or a mode to turn it on in. Without it, the thermostat is on." },
+        "hvac_mode": { "name": "HVAC mode", "description": "Off to turn the thermostat off, or an HVAC mode to turn it on in. Without it, the thermostat is on. Off alone, without a duration or an end, lasts as the setting End of off overrides says." },
         "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
         "end": { "name": "End", "description": "When the override ends (instead of a duration)." }
       }
@@ -173,7 +173,7 @@
     },
     "get_schedules": {
       "name": "Get schedules",
-      "description": "Gives the schedules (id, name, HVAC mode, switch), the active one, and the one the activation rules give, for scripts."
+      "description": "Gives the schedules (id, name, switch), the active one, and the one the activation rules give, for scripts."
     },
     "get_week": {
       "name": "Get week",
