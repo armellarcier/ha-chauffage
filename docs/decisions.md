@@ -790,7 +790,7 @@ Assistant can always do everything.
 | Activate a schedule | ✓ | ✓ | ✓ | ✓ |
 | Edit and save the weeks | | ✓ | ✓ | ✓ |
 | Create, copy, rename, move and delete schedules | | ✓ | ✓ | ✓ |
-| Open the Chauffage panel | | ✓ | ✓ | ✓ |
+| Open the Chauffage panel | | | ✓ | ✓ |
 | Set the presets, and their values on each thermostat | | | ✓ | ✓ |
 | Write the activation rules | | | ✓ | ✓ |
 | Schedule another thermostat, or forget one | | | ✓ | ✓ |
@@ -816,7 +816,20 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
   the *Control* switch. An access below *Use* would block the card, but not the thermostat's own
   card, so it would protect nothing. Chauffage protects as much as Home Assistant does, no more.
 - **An access never goes beyond Home Assistant's permissions.** Every action on a thermostat still
-  needs the control of that thermostat. A read-only user changes nothing, whatever their access.
+  needs the control of that thermostat. In practice, Home Assistant's UI gives every non-admin
+  user the control of every entity. Only a user made read-only outside the UI lacks it, and that
+  user changes nothing, whatever their access.
+- ***Plan* works from the dashboard card.** The card already edits the weeks, and creates,
+  renames, moves and deletes schedules. *Plan* needs no panel.
+- ***Set up* opens the panel.** The presets, the rules and the scheduled thermostats live in the
+  panel only. So Home Assistant registers the panel for every user once a user has *Set up*, and
+  for admins only otherwise.
+- **The sidebar entry stays one option for the whole installation.** Home Assistant registers a
+  panel apart from its sidebar entry, but shows the entry to every user who may open the panel.
+  It cannot show the entry to some users only. So once a user has *Set up*, and while the sidebar
+  option is on, every user sees *Chauffage* in the sidebar. A user without *Set up* sees the panel
+  read only, as the card. Each user can hide the entry in their own profile, and the setting of the
+  accesses says so.
 - ***Use* is the default**, for every user who exists today and every new user. It is what
   non-admins can do today, so an upgrade changes nothing.
 - **Only an admin gives an access.** A user with *Set up* who could give accesses could give
@@ -824,15 +837,6 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
 - **The choice is explained where it is made.** An admin sets the accesses in the panel's
   settings dialog, one row per user who is not an admin. Each access shows, in one line, what it
   lets the user change, and *Set up* says that it changes every room.
-
-#### Open questions
-
-- **The panel in every sidebar.** Home Assistant registers a panel for admins or for every user.
-  Once a user has *Plan*, the panel must be registered for every user. A user with *Use* then sees
-  *Chauffage* in their sidebar, read only. Is that acceptable, or should *Plan* edit from the
-  dashboard card only?
-- **The weeks of a thermostat the user cannot control.** Should a user with *Plan* see these
-  weeks read only, or not see them?
 
 ### The panel's addresses
 
