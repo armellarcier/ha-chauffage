@@ -373,6 +373,52 @@ describe('the Chauffage panel', () => {
     });
   });
 
+  describe('telling existing users about the new setting (#83)', () => {
+    test('the Thermostats tab says once: new, choose how long a setpoint changed by hand lasts; its link opens the settings', async () => {
+      // A user with Set up, who is not an admin: an admin is told of the access level instead (#99)
+      const hass = setup({ data: { ...integrationData({ weeks: WEEKS }), access_level: 'set_up' } });
+      hass.user = { is_admin: false };
+      const manager = fakeDialogManager(hass);
+      const el = panel(hass, '/thermostats');
+      assert.match(text($(el, '.notice.new-setting')), /Nouveau : choisissez combien de temps dure une dérogation\./);
+      $(el, '.new-setting [data-open-settings]').click();
+      await tick();
+      assert.deepEqual(manager.shown.map((d) => d.dialogTag), ['chauffage-settings-dialog']);
+      assert.equal(window.location.pathname, '/chauffage/thermostats');
+      assert.equal($(el, '.new-setting'), null, 'gone once the settings are open');
+    });
+
+    test('closed, it stays closed on this browser', () => {
+      const el = panel(setup(), '/thermostats');
+      $(el, '.new-setting [data-close-new-setting]').click();
+      assert.equal($(el, '.new-setting'), null);
+      el.remove(); // the panel opened again, in the same browser
+      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
+    });
+
+    test('once the settings are open, from anywhere, the notice is gone', async () => {
+      const hass = setup();
+      fakeDialogManager(hass);
+      const el = panel(hass, '/schedules');
+      el.shadowRoot.querySelector('[data-open-settings]').click();
+      await tick();
+      el.remove(); // the panel opened again, in the same browser
+      assert.equal($(panel(setup(), '/thermostats'), '.new-setting'), null);
+    });
+
+    test('a new user gets the next steps instead', () => {
+      const hass = setup({ weeks: {} });
+      const el = panel(hass, '/thermostats');
+      const box = $(el, '.welcome input[data-pick="climate.salon"]');
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      $(el, '[data-start]').click();
+      hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } }));
+      assert.ok($(el, '.next-steps'));
+      assert.equal($(el, '.new-setting'), null);
+    });
+  });
+
   describe('a schedule\'s sheet', () => {
     test('shows every thermostat\'s week in this schedule, without tabs: the breadcrumb names it', () => {
       const el = panel(setup(), '/schedules/holiday');
@@ -813,7 +859,7 @@ describe('the dashboard card and the panel', () => {
     assert.equal(window.location.pathname, '/chauffage');
   });
 
-  test('a user who is not an admin sees no link to the panel (it is for admins only)', () => {
+  test('a user with the access level Use sees no link to the panel (it needs Set up, #99)', () => {
     const hass = setup();
     hass.user = { is_admin: false };
     assert.equal(createCard(hass).shadowRoot.querySelector('[data-navigate^="/chauffage"]'), null);

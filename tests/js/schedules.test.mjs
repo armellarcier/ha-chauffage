@@ -378,7 +378,7 @@ test('a hidden card (no width) measures its tabs once more after drawing, not on
   }
 });
 
-test('only admins see "+" and "⋮"', () => {
+test('with the access level Use, no "+" or "⋮" (#99)', () => {
   const hass = fakeHass();
   hass.user = { is_admin: false };
   const card = createCard(hass);

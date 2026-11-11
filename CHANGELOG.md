@@ -34,6 +34,9 @@ and `value`, so your automations keep working. The `chauffage.set_override` acti
 Chauffage's lines: filter on the thermostat and its *Override* sensor together, or read the
 logbook without a filter. See the README, *Troubleshooting*.
 
+**Users who are not administrators keep their rights.** The new access level starts on *Use*, so
+these users can do what they did before.
+
 ### Added
 
 - **A slot can turn a thermostat off** (#91, #96). A slot sets its preset, and may also set the
@@ -83,6 +86,11 @@ logbook without a filter. See the README, *Troubleshooting*.
 - **The planned preset sensor says the HVAC mode of the current and next slot**, in its
   `hvac_mode` and `next_hvac_mode` attributes, and `chauffage.get_week` gives each slot's
   settings.
+- **An access level for users who are not administrators** (#99). An administrator chooses what
+  the other users may change: *Use* (overrides, pause, active schedule, as before), *Plan* (also
+  the weeks and the schedules, from the cards) or *Set up* (also the Chauffage panel). Choose it
+  in the settings of the Chauffage panel, or in the integration's options. See
+  [Who may change what](README.md#who-may-change-what).
 
 ### Changed
 
@@ -99,6 +107,14 @@ logbook without a filter. See the README, *Troubleshooting*.
   back on: Versatile Thermostat does, when the window closes. A Versatile Thermostat older than
   10.5, without `requested_state`, keeps the former behavior: it gets its slots and its override
   while off, and stays off.
+
+### Fixed
+
+- **A user who is not an administrator can no longer start editing a week that the save then
+  refuses.** With *Use*, the weeks are read only.
+- **A read-only user can no longer change an override with `chauffage.set_override` or
+  `chauffage.clear_override`.** These services now need the control of the thermostat, as Home
+  Assistant's services that target an entity do. Automations are not affected.
 
 ## [0.9.0-beta.2] - 2026-11-05
 

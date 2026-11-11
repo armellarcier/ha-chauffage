@@ -17,11 +17,12 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
+from homeassistant.auth.permissions.const import POLICY_CONTROL
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
 
@@ -74,10 +75,21 @@ def known_schedule(runtime: ChauffageRuntime, schedule: str) -> str:
     return schedule
 
 
+async def may_control(hass: HomeAssistant, call: ServiceCall, entity_id: str) -> None:
+    """An override changes one thermostat: the user who calls the service must control it, as
+    with Home Assistant's own services that target an entity. An automation has no user."""
+    if call.context.user_id is None:
+        return
+    user = await hass.auth.async_get_user(call.context.user_id)
+    if user is None or not user.permissions.check_entity(entity_id, POLICY_CONTROL):
+        raise Unauthorized(context=call.context, entity_id=entity_id, permission=POLICY_CONTROL)
+
+
 @callback
 def async_register(hass: HomeAssistant) -> None:
     async def set_override(call: ServiceCall) -> None:
         entity_id = call.data[ATTR_ENTITY_ID]
+        await may_control(hass, call, entity_id)
         runtime = runtime_for(hass, entity_id)
         end: datetime | None = call.data.get("end")
         if end is not None:
@@ -109,6 +121,7 @@ def async_register(hass: HomeAssistant) -> None:
 
     async def clear_override(call: ServiceCall) -> None:
         entity_id = call.data[ATTR_ENTITY_ID]
+        await may_control(hass, call, entity_id)
         await runtime_for(hass, entity_id).set_override(entity_id, None, source="service", context=call.context)
 
     async def activate_schedule(call: ServiceCall) -> None:

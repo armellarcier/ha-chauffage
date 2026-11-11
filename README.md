@@ -107,7 +107,8 @@ panel, on its week in the active schedule.
 
 ## The Chauffage panel
 
-The **Chauffage** panel, in the sidebar, is where an administrator sets Chauffage up. The
+The **Chauffage** panel, in the sidebar, is where an administrator sets Chauffage up. Other users
+open it too with the [access level](#who-may-change-what) *Set up*. The
 dashboard cards are for every day: they show what the heating does, switch the schedule and
 edit the weeks.
 
@@ -154,6 +155,29 @@ A schedule or a thermostat opens on a page of its own. The title of the page, fo
 Each page has its own address, for example `/chauffage/thermostats/climate.living_room`. You can
 link to a page from a dashboard or a notification.
 
+## Who may change what
+
+In Home Assistant, a user is an administrator or not. Administrators can always change
+everything. You choose what the other users may change: their **access level**.
+
+| Access level | What users who are not administrators can do |
+|---|---|
+| *Use*, the default | Set and end overrides, pause a thermostat, change the active schedule. |
+| *Plan* | Also edit the weeks, and create, rename, move or delete schedules, from the dashboard cards. |
+| *Set up* | Also everything in the Chauffage panel: the presets, the activation rules, the scheduled thermostats and the settings of overrides. |
+
+To choose the access level, open the Chauffage panel and its ⚙, or the integration's
+[options](#options). Only administrators choose the access level.
+
+**With *Set up*, every user sees *Chauffage* in the sidebar.** Home Assistant shows a panel to
+every user who may open it. Each user can hide the entry in their profile.
+
+**An access level doesn't lock the heating.** The access level covers the cards and the panel.
+Home Assistant still lets every user control the thermostats and the entities of Chauffage, and
+call its services. For example, a user with *Use* can still turn a thermostat's knob, or change
+*Override duration* from its entity. To keep a child away from the weeks, give the child a
+dashboard without the schedule card.
+
 ## Updating
 
 Read the [changelog](CHANGELOG.md), then update ha-chauffage from HACS. Chauffage migrates your
@@ -189,7 +213,7 @@ example *Comfort* or *Eco*. The [glossary](docs/glossary.md) defines these words
 
 A new installation starts with one schedule, *Normal*. In the card, **+** creates a schedule:
 an empty one, or a copy of another schedule. To rename, move or delete a schedule, open its tab
-and use **⋮**. Only administrators can change the schedules.
+and use **⋮**. Who may change the schedules depends on the [access level](#who-may-change-what).
 
 Each schedule has a **stable id**, shown in *Rename…*. The stable id never changes, even when
 you rename the schedule. Use the stable id in your automations.
@@ -258,8 +282,8 @@ actions:
 ## Activation rules
 
 Activation rules switch the schedule for you, without an automation. You write the rules in the
-Chauffage panel, on the *Schedules* tab, below the schedules. Only administrators can change the
-rules.
+Chauffage panel, on the *Schedules* tab, below the schedules. Who may change the rules depends on
+the [access level](#who-may-change-what).
 
 ### How the rules work
 
@@ -373,7 +397,8 @@ the mode.
 
 ### Set the presets in the Chauffage panel
 
-Open the Chauffage panel, then the *Presets* tab. Only administrators can change the presets. The
+Open the Chauffage panel, then the *Presets* tab. Who may change the presets depends on the
+[access level](#who-may-change-what). The
 table has a column for each preset, from the coldest to the warmest, and a row for each
 thermostat. A thermostat's page in the panel shows its presets side by side, without the table.
 
@@ -662,6 +687,8 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
   longer shows *Chauffage*. You still open the Chauffage panel from the cards, or from the
   *Visit* button of a scheduled thermostat's device.
+- **Access level of users who are not administrators.** *Use* by default. See
+  [Who may change what](#who-may-change-what).
 
 You can also change the first two settings in the settings dialog, from the ⚙ of the panel, or
 with their entities.

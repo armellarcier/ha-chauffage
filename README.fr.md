@@ -111,7 +111,8 @@ thermostat dans le panneau Chauffage, sur sa semaine dans le planning actif.
 ## Le panneau Chauffage
 
 C'est dans le panneau **Chauffage**, dans la barre latérale, qu'un administrateur règle
-Chauffage. Les cartes des tableaux de bord servent au quotidien : elles montrent ce que fait le
+Chauffage. Les autres utilisateurs l'ouvrent aussi avec le
+[niveau d'accès](#qui-peut-modifier-quoi) *Configurer*. Les cartes des tableaux de bord servent au quotidien : elles montrent ce que fait le
 chauffage, changent de planning et modifient les semaines.
 
 Pour retirer *Chauffage* de la barre latérale, désactivez l'option *Afficher Chauffage dans la
@@ -160,6 +161,32 @@ Un planning ou un thermostat s'ouvre sur une page à lui. Le titre de la page, p
 Chaque page a sa propre adresse, par exemple `/chauffage/thermostats/climate.salon`. Vous pouvez
 y renvoyer depuis un tableau de bord ou une notification.
 
+## Qui peut modifier quoi
+
+Dans Home Assistant, un utilisateur est administrateur ou non. Les administrateurs peuvent
+toujours tout modifier. Vous choisissez ce que peuvent modifier les autres utilisateurs : leur
+**niveau d'accès**.
+
+| Niveau d'accès | Ce que peuvent faire les utilisateurs non administrateurs |
+|---|---|
+| *Utiliser*, par défaut | Poser et arrêter des dérogations, mettre un thermostat en pause, changer de planning actif. |
+| *Programmer* | Aussi modifier les semaines, et créer, renommer, déplacer ou supprimer des plannings, depuis les cartes des tableaux de bord. |
+| *Configurer* | Aussi tout le panneau Chauffage : les préréglages, les règles d'activation, les thermostats programmés et les réglages des dérogations. |
+
+Pour choisir le niveau d'accès, ouvrez le panneau Chauffage et son ⚙, ou les
+[options](#options) de l'intégration. Seuls les administrateurs choisissent le niveau d'accès.
+
+**Avec *Configurer*, tous les utilisateurs voient *Chauffage* dans la barre latérale.** Home
+Assistant montre un panneau à tous les utilisateurs qui peuvent l'ouvrir. Chaque utilisateur
+peut masquer l'entrée dans son profil.
+
+**Un niveau d'accès ne verrouille pas le chauffage.** Le niveau d'accès concerne les cartes et le
+panneau. Home Assistant laisse toujours tous les utilisateurs piloter les thermostats et les
+entités de Chauffage, et appeler ses services. Par exemple, un utilisateur avec *Utiliser* peut
+toujours tourner la molette d'un thermostat, ou changer la *Durée des dérogations* depuis son
+entité. Pour qu'un enfant ne touche pas aux semaines, donnez-lui un tableau de bord sans la carte
+des plannings.
+
 ## Mettre à jour
 
 Lisez le [journal des modifications](CHANGELOG.md) (en anglais), puis mettez ha-chauffage à jour
@@ -202,8 +229,8 @@ chaque créneau demande un **préréglage**, par exemple *Confort* ou *Éco*. Le
 
 Une nouvelle installation démarre avec un seul planning, *Normal*. Dans la carte, **+** crée un
 planning : un planning vide, ou la copie d'un autre. Pour renommer, déplacer ou supprimer un
-planning, ouvrez son onglet et utilisez **⋮**. Seuls les administrateurs peuvent modifier les
-plannings.
+planning, ouvrez son onglet et utilisez **⋮**. Qui peut modifier les plannings dépend du
+[niveau d'accès](#qui-peut-modifier-quoi).
 
 Chaque planning a un **identifiant stable**, affiché dans *Renommer…*. L'identifiant stable ne
 change jamais, même si vous renommez le planning. Utilisez l'identifiant stable dans vos
@@ -279,7 +306,7 @@ actions:
 
 Les règles d'activation changent de planning à votre place, sans automatisation. Vous écrivez
 les règles dans le panneau Chauffage, sur l'onglet *Plannings*, sous la liste des plannings.
-Seuls les administrateurs peuvent modifier les règles.
+Qui peut modifier les règles dépend du [niveau d'accès](#qui-peut-modifier-quoi).
 
 ### Comment marchent les règles
 
@@ -399,8 +426,8 @@ ceux de l'hiver laissent le mode.
 
 ### Régler les préréglages dans le panneau Chauffage
 
-Ouvrez le panneau Chauffage, puis l'onglet *Préréglages*. Seuls les administrateurs peuvent
-modifier les préréglages. Le tableau a une colonne par préréglage, du plus froid au plus chaud,
+Ouvrez le panneau Chauffage, puis l'onglet *Préréglages*. Qui peut modifier les préréglages
+dépend du [niveau d'accès](#qui-peut-modifier-quoi). Le tableau a une colonne par préréglage, du plus froid au plus chaud,
 et une ligne par thermostat. La page d'un thermostat, dans le panneau, montre ses préréglages côte à côte,
 sans le tableau.
 
@@ -710,6 +737,8 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
 - **Afficher Chauffage dans la barre latérale.** Activée par défaut. Si vous la désactivez, la
   barre latérale n'affiche plus *Chauffage*. Vous ouvrez toujours le panneau Chauffage depuis les
   cartes, ou avec le bouton *Visiter* de l'appareil d'un thermostat programmé.
+- **Niveau d'accès des utilisateurs non administrateurs.** *Utiliser* par défaut. Voir
+  [Qui peut modifier quoi](#qui-peut-modifier-quoi).
 
 Vous pouvez aussi changer les deux premiers réglages dans la fenêtre des réglages, avec le
 bouton ⚙ du panneau, ou avec leurs entités.

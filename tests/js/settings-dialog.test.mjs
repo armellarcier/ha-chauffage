@@ -257,7 +257,7 @@ describe('the settings dialog', () => {
       const el = settings(hass);
       leave(durationInput(el), '4h');
       await tick();
-      assert.match(text($(el, '.override-settings .duration-row .error')), /Unauthorized/);
+      assert.match(text($(el, '.override-settings .duration-row .error')), /Votre niveau d’accès ne le permet pas./);
       assert.equal(durationInput(el).value, '2 h');
     });
 
@@ -291,7 +291,7 @@ describe('the settings dialog', () => {
       const el = settings(hass);
       change(choices(el)[2]);
       await tick();
-      assert.match(text($(el, '.override-settings .error')), /Unauthorized/);
+      assert.match(text($(el, '.override-settings .error')), /Votre niveau d’accès ne le permet pas./);
       assert.equal($(el, '.override-settings .saved'), null);
     });
 
