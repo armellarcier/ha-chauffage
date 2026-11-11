@@ -17,7 +17,8 @@ from . import model
 from .const import DOMAIN
 
 STORAGE_VERSION = 7
-STORAGE_MINOR_VERSION = 1
+# 7.2: version 7 changed while it was in development (see _clean_development_v7)
+STORAGE_MINOR_VERSION = 2
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
 Migration = Callable[[dict[str, Any], str], dict[str, Any]]
@@ -101,6 +102,41 @@ def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
 MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6, 6: _v6_to_v7}
 
 
+def _clean_development_v7(data: dict[str, Any]) -> dict[str, Any]:
+    """Version 7.1 → 7.2. Version 7 changed while #91 was developed, before a release held it: a
+    preset, a preset's value on a thermostat and a slot could set an HVAC mode, and a value could
+    hold a climate preset and a temperature. Now the schedule says heat or cool, a slot only
+    says off, and a value is a climate preset or a temperature (model.py). Only an installation
+    of a development version holds such data; a released version 6 migrates to clean data."""
+    off_preset = model.coldest_preset(data["presets"])
+
+    def value(stored: dict[str, Any]) -> dict[str, Any]:
+        kept = {key: v for key, v in stored.items() if key != "hvac_mode"}
+        if "temperature" in kept:  # with a climate preset too: the temperature was the value shown
+            kept.pop("preset_mode", None)
+        return kept
+
+    def slot(stored: list[Any]) -> list[Any]:
+        settings = stored[2] if len(stored) > 2 else {}
+        if settings.get("hvac_mode") != "off":
+            settings = {key: v for key, v in settings.items() if key != "hvac_mode"}
+        return [stored[0], stored[1], settings]
+
+    return {
+        **data,
+        "presets": [{key: v for key, v in preset.items() if key != "hvac_mode"} for preset in data["presets"]],
+        "thermostats": {
+            entity_id: {
+                **t,
+                "mapping": {preset_id: kept for preset_id, stored in t["mapping"].items() if (kept := value(stored))},
+                "weeks": {schedule_id: [model.normalize_day([slot(s) for s in day], off_preset) for day in week]
+                          for schedule_id, week in t["weeks"].items()},
+            }
+            for entity_id, t in data["thermostats"].items()
+        },
+    }
+
+
 class ChauffageStore(Store[dict[str, Any]]):
     def __init__(self, hass: HomeAssistant) -> None:
         super().__init__(hass, STORAGE_VERSION, DOMAIN, minor_version=STORAGE_MINOR_VERSION)
@@ -108,7 +144,10 @@ class ChauffageStore(Store[dict[str, Any]]):
     async def _async_migrate_func(
         self, old_major_version: int, old_minor_version: int, old_data: dict[str, Any]
     ) -> dict[str, Any]:
-        return migrate(old_data, old_major_version, language=self.hass.config.language or "en")
+        data = migrate(old_data, old_major_version, language=self.hass.config.language or "en")
+        if old_major_version == STORAGE_VERSION and old_minor_version < 2:
+            data = _clean_development_v7(data)
+        return data
 
 
 def migrate(data: dict[str, Any], version: int, target: int = STORAGE_VERSION,

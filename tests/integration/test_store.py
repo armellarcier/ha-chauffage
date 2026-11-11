@@ -41,6 +41,35 @@ async def test_a_stored_file_is_loaded(hass: HomeAssistant, hass_storage):
     assert await ChauffageStore(hass).async_load() == fixture(STORAGE_VERSION)["data"]
 
 
+async def test_the_data_of_a_development_version_7_is_cleaned(hass: HomeAssistant, hass_storage):
+    """Version 7 changed while #91 was developed, before any release held it: a preset, a preset's
+    value and a slot could set an HVAC mode. Version 7.2 keeps what the model still holds: a slot
+    says off, or the fan and the vanes; a value is a climate preset or a temperature."""
+    stored = fixture(STORAGE_VERSION)
+    data = stored["data"]
+    data["schedules"][0]["hvac_mode"] = "cool"  # what the model holds now: kept
+    data["presets"][0]["hvac_mode"] = "off"
+    salon = data["thermostats"]["climate.salon"]
+    salon["mapping"] = {
+        "comfort": {"preset_mode": "comfort", "temperature": 19.0, "cool_temperature": 25.0, "hvac_mode": "heat", "fan_mode": "3"},
+        "eco": {"hvac_mode": "cool"}, "boost": {"preset_mode": "boost", "hvac_mode": "off"}}
+    week = salon["weeks"]["normal"]
+    week[0] = [["00:00", "eco", {"hvac_mode": "off"}], ["07:00", "comfort", {"hvac_mode": "cool", "fan_mode": "2"}],
+               ["09:00", "comfort", {"hvac_mode": "heat"}], ["22:00", "boost", {"hvac_mode": "off", "fan_mode": "1"}]]
+    others = [list(day) for day in week[1:]]
+    hass_storage["chauffage"] = {**stored, "minor_version": 1}
+    loaded = await ChauffageStore(hass).async_load()
+    assert loaded["schedules"][0]["hvac_mode"] == "cool"
+    assert "hvac_mode" not in loaded["presets"][0]
+    assert loaded["thermostats"]["climate.salon"]["mapping"] == {
+        "comfort": {"temperature": 19.0, "cool_temperature": 25.0, "fan_mode": "3"}, "boost": {"preset_mode": "boost"}}
+    cleaned = loaded["thermostats"]["climate.salon"]["weeks"]["normal"]
+    off = {"hvac_mode": "off"}
+    assert cleaned[0] == [["00:00", "frost", off], ["07:00", "comfort", {"fan_mode": "2"}], ["09:00", "comfort"], ["22:00", "frost", off]]
+    assert cleaned[1:] == others
+    assert loaded["overrides"] == data["overrides"]
+
+
 def test_version_3_speaks_the_project_s_vocabulary():
     """docs/glossary.md: schedules (formerly modes), weeks, presets (formerly levels); ids and
     contents do not change."""

@@ -24,7 +24,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUs
 from custom_components.chauffage import model
 from custom_components.chauffage.const import DOMAIN
 from custom_components.chauffage.runtime import ChauffageRuntime
-from custom_components.chauffage.store import STORAGE_VERSION
+from custom_components.chauffage.store import STORAGE_MINOR_VERSION, STORAGE_VERSION
 
 PARIS = ZoneInfo("Europe/Paris")
 MONDAY = datetime(2026, 10, 12, tzinfo=PARIS)  # Monday, October 12, 2026
@@ -122,7 +122,7 @@ class Bench:
         """Set the integration up; by default as an existing installation with three schedules
         (`schedules=None`: a new installation, or one importing the package)."""
         if schedules and DOMAIN not in self.storage:
-            self.storage[DOMAIN] = {"version": STORAGE_VERSION, "minor_version": 1, "key": DOMAIN,
+            self.storage[DOMAIN] = {"version": STORAGE_VERSION, "minor_version": STORAGE_MINOR_VERSION, "key": DOMAIN,
                                     "data": model.default_data(list(schedules))}
         self.entry = entry or MockConfigEntry(domain=DOMAIN, title="Chauffage", options=options or {})
         if entry is None:
