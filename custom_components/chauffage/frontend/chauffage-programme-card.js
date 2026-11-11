@@ -1269,8 +1269,9 @@ function parseTime(text, periods = [], { hours = 23, ampm = true } = {}) {
 // The time typed in a time field, in minutes since midnight; null if it is not a time. On a 12 h
 // clock, a time from 1 to 11 typed without AM / PM keeps the period the field had, and 12 is noon.
 function typedTime(el, loc) {
-  const t = parseTime(el.value, loc.periods);
-  if (!t) return null;
+  // The end of a slot may be 24:00, the end of the day (`data-day-end`); 24:15 is not a time
+  const t = parseTime(el.value, loc.periods, { hours: 'dayEnd' in el.dataset ? 24 : 23 });
+  if (!t || (t.h === 24 && t.m)) return null;
   const keep = loc.hour12 && t.h >= 1 && t.h <= 12 ? t.h === 12 || Number(el.dataset.minutes) >= 12 * 60 : null;
   const pm = t.pm ?? keep;
   return (pm === null ? t.h : (t.h % 12) + (pm ? 12 : 0)) * 60 + t.m;
@@ -3502,7 +3503,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>`
       : timeField(`data-edge="start" ${slot}`, s.start, this._loc, this._config.step);
     const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>`
-      : timeField(`data-edge="end" ${slot}`, end, this._loc, this._config.step);
+      : timeField(`data-edge="end" data-day-end ${slot}`, end, this._loc, this._config.step);
     // One row says what the slot is (#91): off, fan only, or one of the presets, in their cool
     // color on a slot that cools
     const none = hasNoPreset(s);
@@ -4065,8 +4066,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._commit(d.climate, d.day, d.selected ? this._week(d.climate)[d.day][d.idx].start : null);
         return;
       }
-      if (d.moved) this._commit(d.climate, d.day, null);
-      else d.el.classList.remove('drag');
+      if (d.moved) {
+        this._handleMoved = Date.now(); // the click that follows opens no slot
+        this._commit(d.climate, d.day, null);
+      } else d.el.classList.remove('drag');
     };
     root.addEventListener('pointerup', endDrag);
     // The browser took the gesture over (a scroll): the slots go back as they were (#67)
@@ -4188,13 +4191,24 @@ class ChauffageProgrammeCard extends HTMLElement {
       const act = e.target.closest('[data-act]');
       if (act) { if (!act.disabled) this._action(act.dataset.act, act.dataset, act); return; }
 
-      const seg = e.target.closest('.seg');
-      if (!seg || Date.now() - (this._slotMoved || 0) < 300) return;
-      const bar = seg.parentElement;
+      // A tap on a slot, or on a handle: the handles are wider than a short slot (a quarter of
+      // an hour, or two hours on a phone), so a tap that lands on one opens the slot under it
+      const handle = e.target.closest('.handle');
+      const seg = handle ? null : e.target.closest('.seg');
+      if ((!seg && !handle) || Date.now() - (this._slotMoved || 0) < 300 || Date.now() - (this._handleMoved || 0) < 300) return;
+      const bar = (seg || handle).parentElement;
       const climate = bar.dataset.climate;
       if (!this._mayEdit(climate)) return; // read-only weeks: a tap opens nothing
       const day = Number(bar.dataset.day);
-      const idx = Number(seg.dataset.idx);
+      let idx = seg ? Number(seg.dataset.idx) : 0;
+      if (handle) {
+        const minute = this._minuteAt(bar, e.clientX);
+        this._week(climate)[day].forEach((s, i) => { if (s.start <= minute) idx = i; });
+        // A handle of the selected slot: the slot stays selected
+        const edge = Number(handle.dataset.idx);
+        const own = this._sel && this._sel.climate === climate && this._sel.day === day && (this._sel.idx === edge || this._sel.idx === edge - 1);
+        if (own) return;
+      }
       const t = Date.now();
       const lc = this._lastClick;
       this._lastClick = { climate, day, t, x: e.clientX };
@@ -5197,14 +5211,22 @@ class ChauffageProgrammeCard extends HTMLElement {
     const segs = this._week(climate)[day];
     if (!segs || !segs[idx]) return;
     const step = this._config.step;
-    const v = this._snap(minutes);
+    const endOf = (i) => (i < segs.length - 1 ? segs[i + 1].start : DAY_MIN);
     if (edge === 'start' && idx > 0) {
-      const end = idx < segs.length - 1 ? segs[idx + 1].start : DAY_MIN;
-      segs[idx].start = Math.max(segs[idx - 1].start + step, Math.min(end - step, v));
-      this._commit(climate, day, segs[idx].start);
+      const v = Math.min(endOf(idx) - step, this._snap(minutes));
+      // A start typed onto the start of a slot before it, or earlier: that slot is removed,
+      // instead of being left a step long. At 00:00, the slot is the first one of the day
+      let first = idx;
+      while (first > 0 && segs[first - 1].start >= v) first -= 1;
+      segs.splice(first, idx - first);
+      segs[first].start = first === 0 ? 0 : Math.max(segs[first - 1].start + step, v);
+      this._commit(climate, day, segs[first].start);
     } else if (edge === 'end' && idx < segs.length - 1) {
-      const nextEnd = idx + 2 < segs.length ? segs[idx + 2].start : DAY_MIN;
-      segs[idx + 1].start = Math.max(segs[idx].start + step, Math.min(nextEnd - step, v));
+      // 24:00, or 00:00, is the end of the day
+      const v = Math.max(segs[idx].start + step, minutes === 0 ? DAY_MIN : this._snap(minutes));
+      // An end typed onto the end of a slot after it, or later: that slot is removed
+      while (idx + 1 < segs.length && endOf(idx + 1) <= v) segs.splice(idx + 1, 1);
+      if (idx + 1 < segs.length) segs[idx + 1].start = v;
       this._commit(climate, day, segs[idx].start);
     }
   }
