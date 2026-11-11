@@ -715,23 +715,8 @@ older one, the older one says so.
   needs an admin, except activating a schedule, setting an override and pausing a thermostat:
   those need the control of the thermostat (see [The UX review](#the-ux-review-080-beta2)). Home Assistant's device pages are also for admins
   only.
-- **An option lets users who are not admins edit the weeks** (#99, not built yet). The option
-  *Who edits the weeks* offers two values:
-  - *Administrators*, the default, as today;
-  - *Every user who may control the thermostat*, checked per thermostat, as for overrides.
-
-  Home Assistant has only two roles, and many homes give a non-admin user to each wall tablet. In
-  those homes, nobody can edit the weeks where the heating is used. Other homes need the opposite:
-  a child's account must not change the weeks. So the owner of the installation chooses, and the
-  default keeps the current behavior.
-
-  The weeks were not kept for admins on purpose. The first websocket API put every write behind
-  an admin, as Home Assistant does for its configuration, and its test only compared an admin
-  with a read-only user. Overrides and the pause were opened later, one at a time.
-
-  The option only opens the weeks, edited and saved from the dashboard card. The presets, the
-  rules, the list of schedules and the scheduled thermostats change every room at once, so they
-  stay for admins. The panel stays for admins too.
+- **An admin gives each other user an access** (#99, not built yet): *Use*, *Plan* or *Set up*.
+  See [Who may do what](#who-may-do-what-99).
 - **The panel's sidebar icon is our own icon**, `chauffage:logo`. The card's JavaScript registers it
   in `window.customIcons`. The icon is drawn from the brand icon: bars of slots and a clock. The
   icon does not depend on the integration's name, which may change. The limit: if the card's
@@ -763,6 +748,91 @@ older one, the older one says so.
 - **Rejected: an *Overview* page.** Showing what the home does now is the dashboard cards' job.
 - **The activation rules are on the *Schedules* tab**, below the list. The rules decide which
   schedule is active.
+
+### Who may do what (#99)
+
+Not built yet. This section is the design that the implementation will follow.
+
+#### Why change
+
+Home Assistant has two roles: administrator, and user. Today Chauffage lets a user who is not an
+admin use the heating, and keeps the rest for admins. Many homes give a non-admin account to each
+wall tablet (#99). In those homes, nobody can edit the weeks where the heating is used.
+
+The weeks were not kept for admins on purpose. The first websocket API put every write behind an
+admin, as Home Assistant does for its configuration. Its test only compared an admin with a
+read-only user. Overrides and the pause were opened later, one at a time.
+
+Who may change what is the owner's choice. Chauffage must make the choice clear, and offer enough
+cases to fit a real home, but no more.
+
+#### The personas
+
+| Persona | What the persona does with the heating | Access |
+|---|---|---|
+| **The installer** | Installs Chauffage, adds the thermostats, writes the rules. An admin of Home Assistant. | Administrator |
+| **The co-manager** | Runs the heating as much as the installer, for example a partner or a second owner, without being an admin of Home Assistant. Tunes the presets of a room that is too cold, adds the new radiator. | *Set up* |
+| **The household adult** | Organizes the week: a *Holidays* schedule, Wednesday off this term, the guest room heated next weekend. Does not want to know what a preset or a template is. | *Plan* |
+| **The shared wall tablet** | A non-admin account used by everyone at home, in the hall or the kitchen (#99). The household plans from it. | *Plan* |
+| **The child or the teenager** | Own account on a phone. Warms up the bedroom tonight, nothing more. | *Use* |
+| **The guest** | A babysitter, a holiday tenant, a relative on a visit. Adjusts the room for a few hours. | *Use* |
+
+#### The accesses
+
+An access is cumulative: *Plan* includes *Use*, and *Set up* includes *Plan*. An admin of Home
+Assistant can always do everything.
+
+| What the user can do | *Use* | *Plan* | *Set up* | Admin |
+|---|:-:|:-:|:-:|:-:|
+| See the schedules, the weeks, the presets and the history | ✓ | ✓ | ✓ | ✓ |
+| Set, change and end an override | ✓ | ✓ | ✓ | ✓ |
+| Pause a thermostat and resume its control | ✓ | ✓ | ✓ | ✓ |
+| Activate a schedule | ✓ | ✓ | ✓ | ✓ |
+| Edit and save the weeks | | ✓ | ✓ | ✓ |
+| Create, copy, rename, move and delete schedules | | ✓ | ✓ | ✓ |
+| Open the Chauffage panel | | ✓ | ✓ | ✓ |
+| Set the presets, and their values on each thermostat | | | ✓ | ✓ |
+| Write the activation rules | | | ✓ | ✓ |
+| Schedule another thermostat, or forget one | | | ✓ | ✓ |
+| Change the settings of overrides | | | ✓ | ✓ |
+| Give a user an access | | | | ✓ |
+| Open the integration's options and the devices' pages | | | | ✓ |
+
+The last row belongs to Home Assistant, which keeps these pages for admins.
+
+#### The decisions
+
+- **An access per user, not one setting for every user.** The same home often has a tablet that
+  plans and a child who only uses. One setting for all users cannot fit both.
+- **Three accesses, not one switch per feature.** Each persona fits one access. A switch per
+  feature and per user makes a grid of about forty boxes, which nobody reads twice.
+- **The accesses follow the reach of a change.** *Use* changes one thermostat for a few hours.
+  *Plan* changes the coming weeks of the home. *Set up* changes what every slot of every room
+  means, and which thermostats Chauffage controls.
+- **The schedules go with the weeks.** Creating a *Holidays* schedule is planning, not setting up.
+  The activation rules go with *Set up*: they are templates, and a wrong one changes the active
+  schedule by itself.
+- **No access below *Use*.** Home Assistant lets every non-admin user control the thermostats and
+  the *Control* switch. An access below *Use* would block the card, but not the thermostat's own
+  card, so it would protect nothing. Chauffage protects as much as Home Assistant does, no more.
+- **An access never goes beyond Home Assistant's permissions.** Every action on a thermostat still
+  needs the control of that thermostat. A read-only user changes nothing, whatever their access.
+- ***Use* is the default**, for every user who exists today and every new user. It is what
+  non-admins can do today, so an upgrade changes nothing.
+- **Only an admin gives an access.** A user with *Set up* who could give accesses could give
+  themself everything.
+- **The choice is explained where it is made.** An admin sets the accesses in the panel's
+  settings dialog, one row per user who is not an admin. Each access shows, in one line, what it
+  lets the user change, and *Set up* says that it changes every room.
+
+#### Open questions
+
+- **The panel in every sidebar.** Home Assistant registers a panel for admins or for every user.
+  Once a user has *Plan*, the panel must be registered for every user. A user with *Use* then sees
+  *Chauffage* in their sidebar, read only. Is that acceptable, or should *Plan* edit from the
+  dashboard card only?
+- **The weeks of a thermostat the user cannot control.** Should a user with *Plan* see these
+  weeks read only, or not see them?
 
 ### The panel's addresses
 
