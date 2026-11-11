@@ -711,10 +711,10 @@ older one, the older one says so.
 
 ### The panel
 
-- **A *Chauffage* panel, for admins only** (`require_admin=True`). Every change of the websocket API
-  needs an admin, except activating a schedule, setting an override and pausing a thermostat:
-  those need the control of the thermostat (see [The UX review](#the-ux-review-080-beta2)). Home Assistant's device pages are also for admins
-  only.
+- **A *Chauffage* panel, for admins**, and for every user when the access level is *Set up*. Each
+  change of the websocket API needs an access level, and the control of the thermostats it
+  reaches: see [Who may do what](#who-may-do-what-99). Home Assistant's device pages are for
+  admins only.
 - **The panel's sidebar icon is our own icon**, `chauffage:logo`. The card's JavaScript registers it
   in `window.customIcons`. The icon is drawn from the brand icon: bars of slots and a clock. The
   icon does not depend on the integration's name, which may change. The limit: if the card's
@@ -746,6 +746,106 @@ older one, the older one says so.
 - **Rejected: an *Overview* page.** Showing what the home does now is the dashboard cards' job.
 - **The activation rules are on the *Schedules* tab**, below the list. The rules decide which
   schedule is active.
+
+### Who may do what (#99)
+
+#### Why change
+
+Home Assistant has two roles: administrator, and user. Today Chauffage lets a user who is not an
+admin use the heating, and keeps the rest for admins. Many homes give a non-admin account to each
+wall tablet (#99). In those homes, nobody can edit the weeks where the heating is used.
+
+The weeks were not kept for admins on purpose. The first websocket API put every write behind an
+admin, as Home Assistant does for its configuration. Its test only compared an admin with a
+read-only user. Overrides and the pause were opened later, one at a time.
+
+Who may change what is the owner's choice. Chauffage must make the choice clear, and offer enough
+cases to fit a real home, but no more.
+
+#### The access levels
+
+An admin chooses one access level for every user who is not an admin: *Use*, *Plan* or *Set up*. An
+access level is cumulative: *Plan* includes *Use*, and *Set up* includes *Plan*. An admin of Home
+Assistant can always do everything.
+
+| What the user can do | *Use* | *Plan* | *Set up* | Admin |
+|---|:-:|:-:|:-:|:-:|
+| See the schedules, the weeks, the presets and the history | ✓ | ✓ | ✓ | ✓ |
+| Set, change and end an override | ✓ | ✓ | ✓ | ✓ |
+| Pause a thermostat and resume its control | ✓ | ✓ | ✓ | ✓ |
+| Activate a schedule | ✓ | ✓ | ✓ | ✓ |
+| Edit and save the weeks | | ✓ | ✓ | ✓ |
+| Create, copy, rename, move and delete schedules | | ✓ | ✓ | ✓ |
+| Open the Chauffage panel | | | ✓ | ✓ |
+| Set the presets, and their values on each thermostat | | | ✓ | ✓ |
+| Write the activation rules | | | ✓ | ✓ |
+| Schedule another thermostat, or forget one | | | ✓ | ✓ |
+| Change the settings of overrides | | | ✓ | ✓ |
+| Choose the access level | | | | ✓ |
+| Open the integration's options and the devices' pages | | | | ✓ |
+
+The last row belongs to Home Assistant, which keeps these pages for admins.
+
+#### The decisions
+
+- **One access level for every user who is not an admin, not one per user.** Chauffage keeps Home
+  Assistant's two roles. An access level per user would protect little: with *Use*, a user can already
+  pause a thermostat or change its setpoint. It would cost a lot: a list of users to keep up to
+  date, stored data, a row per user to set, and tests per user. A home that hides the editing from
+  a child uses Home Assistant's tools: another dashboard, or the card's visibility per user. If
+  homes ask for exceptions per user, the access level becomes their default, and nothing breaks.
+- **Three access levels, not one switch per feature.** A switch per feature makes the owner read and
+  weigh about ten boxes. Three access levels cover the homes we know: a home that only uses the
+  heating, a home that plans from a shared tablet, a home run by two people.
+- **The access levels follow the reach of a change.** *Use* changes one thermostat for a few hours.
+  *Plan* changes the coming weeks of the home. *Set up* changes what every slot of every room
+  means, and which thermostats Chauffage controls.
+- **The schedules go with the weeks.** Creating a *Holidays* schedule is planning, not setting up.
+  The activation rules go with *Set up*: they are templates, and a wrong one changes the active
+  schedule by itself.
+- ***Set up* lets users write templates.** Home Assistant keeps its own template preview for
+  admins. With *Set up*, a user who is not an admin writes the activation rules and tries them, so
+  the integration renders these templates. The owner chooses it, as the rest of *Set up*.
+- **The week of a thermostat not scheduled yet needs *Set up*.** Saving that week schedules the
+  thermostat, as adding it in the panel does. With *Plan*, the card shows that week read only.
+- **A change that reaches every room needs the control of every scheduled thermostat.** The
+  active schedule, the schedules, the presets, the rules and the settings of overrides are such
+  changes. A change of one thermostat, such as its week or its presets, needs the control of that
+  thermostat.
+- **No access level below *Use*.** Home Assistant lets every non-admin user control the thermostats and
+  the *Control* switch. An access level below *Use* would block the card, but not the thermostat's own
+  card, so it would protect nothing. Chauffage protects as much as Home Assistant does, no more.
+- **An access level never goes beyond Home Assistant's permissions.** Every action on a thermostat still
+  needs the control of that thermostat. In practice, Home Assistant's UI gives every non-admin
+  user the control of every entity. Only a user made read-only outside the UI lacks it, and that
+  user changes nothing from the cards and the panel, whatever the access level.
+- **The access level covers the cards and the panel, not the entities and the services.** The
+  entities of Chauffage, for example *Override duration* or a schedule's switch, follow Home
+  Assistant's permissions, as every entity does. The services follow them too:
+  `chauffage.set_override` and `chauffage.clear_override` need the control of the thermostat,
+  as Home Assistant's services that target an entity do. `chauffage.activate_schedule` targets no
+  entity, so it checks nothing: even a read-only user can call it. The active-schedule select
+  needs the control of the select, and the cards need the control of every scheduled thermostat.
+  Activating a schedule changes no setting and nothing a user cannot change back.
+- **Admins are told of the access level, not of the end of overrides (#83).** The panel shows one
+  notice at a time. The settings dialog holds both settings, so an admin who opens it sees the
+  end of overrides too.
+- ***Plan* works from the dashboard card.** The card already edits the weeks, and creates,
+  renames, moves and deletes schedules. *Plan* needs no panel.
+- ***Set up* opens the panel.** The presets, the rules and the scheduled thermostats live in the
+  panel only. So Home Assistant registers the panel for every user with *Set up*, and for admins
+  only otherwise. The sidebar entry keeps its option, and every user who may open the panel sees
+  it. Each user can hide the entry in their own profile.
+- **A user who loses *Set up* leaves the panel at once.** Home Assistant removes a panel from a
+  user who may no longer open it, and sends the user to the home page. Weeks edited in the panel
+  and not saved are lost. The panel cannot keep them: it is gone. Lowering the access level is
+  rare, and an admin decides it.
+- ***Use* is the default.** It is what non-admins can do today, so an upgrade changes nothing.
+- **Only an admin chooses the access level.** A user with *Set up* who could choose it could give every
+  user everything.
+- **The choice is explained where it is made.** An admin chooses the access level in the panel's
+  settings dialog. Each access level shows, in one line, what it lets users change, and *Set up* says
+  that it changes every room.
 
 ### The panel's addresses
 

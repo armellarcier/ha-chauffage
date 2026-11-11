@@ -24,13 +24,15 @@
           "override_duration": "Durée des dérogations",
           "manual_override_end": "Fin des dérogations",
           "use_presets": "Utiliser les préréglages des thermostats",
-          "show_in_sidebar": "Afficher Chauffage dans la barre latérale"
+          "show_in_sidebar": "Afficher Chauffage dans la barre latérale",
+          "access_level": "Niveau d'accès des utilisateurs non administrateurs"
         },
         "data_description": {
           "override_duration": "Combien de temps dure une dérogation, au plus. Une consigne changée à la main devient une dérogation.",
           "manual_override_end": "Quand s'arrête une dérogation. Un créneau qui commence dans moins de 15 min ne compte pas.",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
-          "show_in_sidebar": "Pour les administrateurs. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter)."
+          "show_in_sidebar": "Pour les administrateurs, et pour tous les utilisateurs avec le niveau d'accès Configurer. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter).",
+          "access_level": "Ce que peuvent modifier les utilisateurs qui ne sont pas administrateurs. Les administrateurs peuvent toujours tout modifier. Avec Configurer, leurs changements touchent toutes les pièces."
         }
       }
     },
@@ -109,6 +111,13 @@
     }
   },
   "selector": {
+    "access_level": {
+      "options": {
+        "use": "Utiliser (par défaut) : dérogations, pause, planning actif",
+        "plan": "Programmer : aussi les semaines et les plannings, depuis les cartes",
+        "set_up": "Configurer : aussi le panneau Chauffage (préréglages, règles, thermostats)"
+      }
+    },
     "manual_override_end": {
       "options": {
         "duration": "Pendant la durée des dérogations",

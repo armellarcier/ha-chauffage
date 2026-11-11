@@ -349,7 +349,7 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
     assert.equal(window.location.search, '?week=holiday');
   });
 
-  test('the week shown in the block opens it too, for an admin', () => {
+  test('the week shown in the block opens it too, for an admin (not with Use)', () => {
     const el = block(fakeHass(), 'climate.salon');
     const week = el.shadowRoot.querySelector('.week');
     assert.equal(week.getAttribute('role'), 'link');
@@ -360,7 +360,7 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
     assert.equal(block(hass, 'climate.salon').shadowRoot.querySelector('.week[role="link"]'), null);
   });
 
-  test('a user who is not an admin gets Pause, as with the Control switch, but not Edit its week (the panel is for admins)', () => {
+  test('a user with the access level Use gets Pause, as with the Control switch, but not Edit its week (#99)', () => {
     const hass = fakeHass();
     hass.user = { is_admin: false };
     const el = block(hass, 'climate.salon');

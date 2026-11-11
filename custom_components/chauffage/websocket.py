@@ -1,5 +1,8 @@
 """Websocket API used by the card (vocabulary: docs/glossary.md).
 
+An admin makes every change. A user who is not an admin makes the changes their access level
+allows (require_access, #99), and overrides and pauses on the thermostats they may control.
+
 chauffage/subscribe          everything the card needs, then again after every change, when a
                              planned preset changes, and after the integration is reloaded
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
@@ -23,15 +26,17 @@ chauffage/rules/preview      {rules}: tries rules being typed, as the integratio
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled
                              thermostat. Any user who may control the thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
-chauffage/settings/set       {manual_override_end?, override_duration?}: the settings of overrides,
-                             in the integration's options (as the options flow and the entities)
+chauffage/settings/set       {manual_override_end?, override_duration?, access_level?}: the settings
+                             of overrides, in the integration's options (as the options flow and
+                             the entities), and the access level (admins only)
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
+from functools import wraps
 from typing import Any
 
 import voluptuous as vol
@@ -40,10 +45,11 @@ from homeassistant.auth.permissions.const import POLICY_CONTROL
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import Unauthorized
 from homeassistant.util import dt as dt_util
 
 from . import model
-from .const import DOMAIN
+from .const import ACCESS_LEVELS, CONF_ACCESS_LEVEL, DOMAIN, PLAN, SET_UP, USE
 from .runtime import DATA, ENTITIES, ChauffageRuntime, StaleRevision, ThermostatFailed
 
 
@@ -71,6 +77,60 @@ def _may_control(connection: websocket_api.ActiveConnection, msg: dict[str, Any]
         return True
     connection.send_error(msg["id"], websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
     return False
+
+
+ADMIN = "admin"  # above every access level: only an admin
+_RANKS = (*ACCESS_LEVELS, ADMIN)
+
+# What a change needs, from its message: an access level, and the thermostats the user must
+# control. By default every scheduled thermostat: the change reaches every room
+Needs = Callable[[ChauffageRuntime, dict[str, Any]], tuple[str, Iterable[str]]]
+
+
+def _every_thermostat(access_level: str) -> Needs:
+    return lambda runtime, msg: (access_level, runtime.scheduled)
+
+
+def _thermostat(access_level: str) -> Needs:
+    return lambda runtime, msg: (access_level, (msg["entity_id"],))
+
+
+def require_access(needs: Needs) -> Callable:
+    """A change an admin can always make. A user who is not an admin makes it when the access
+    level allows it (#99), and only on thermostats they may control: an access level never goes
+    beyond Home Assistant's permissions. Answers "unauthorized" otherwise."""
+
+    def decorate(handler: Callable) -> Callable:
+        @wraps(handler)
+        def check(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+            user = connection.user
+            if user is None or not user.is_admin:
+                entries = [e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
+                if user is None or not entries:
+                    raise Unauthorized
+                runtime: ChauffageRuntime = entries[0].runtime_data
+                needed, thermostats = needs(runtime, msg)
+                if (_RANKS.index(runtime.access_level) < _RANKS.index(needed)
+                        or not all(user.permissions.check_entity(e, POLICY_CONTROL) for e in thermostats)):
+                    raise Unauthorized
+            handler(hass, connection, msg)
+
+        return check
+
+    return decorate
+
+
+def _weeks_needs(runtime: ChauffageRuntime, msg: dict[str, Any]) -> tuple[str, Iterable[str]]:
+    """Editing the weeks is planning; the weeks of a thermostat not scheduled yet schedule it,
+    which is setting up."""
+    thermostats = list(msg["weeks"])
+    return (PLAN if all(e in runtime.scheduled for e in thermostats) else SET_UP), thermostats
+
+
+def _settings_needs(runtime: ChauffageRuntime, msg: dict[str, Any]) -> tuple[str, Iterable[str]]:
+    """Only an admin chooses the access level: a user with Set up who could would give every
+    user everything."""
+    return (ADMIN if CONF_ACCESS_LEVEL in msg else SET_UP), runtime.scheduled
 
 
 async def _run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any],
@@ -169,7 +229,7 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     vol.Optional("revision"): int,
     vol.Optional("revisions"): {str: vol.Any(None, int)},
 })
-@websocket_api.require_admin
+@require_access(_weeks_needs)
 @websocket_api.async_response
 async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     async def save(runtime: ChauffageRuntime) -> dict[str, Any]:
@@ -199,6 +259,7 @@ async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveC
     vol.Required("schedule"): str,
     vol.Optional("source", default="card"): vol.In(SOURCES),
 })
+@require_access(_every_thermostat(USE))
 @websocket_api.async_response
 async def ws_activate_schedule(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.activate_schedule(
@@ -210,7 +271,7 @@ async def ws_activate_schedule(hass: HomeAssistant, connection: websocket_api.Ac
     vol.Required("schedules"): list,
     vol.Optional("revision"): int,
 })
-@websocket_api.require_admin
+@require_access(_every_thermostat(PLAN))
 @websocket_api.async_response
 async def ws_set_schedules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     async def set_schedules(runtime: ChauffageRuntime) -> dict[str, Any]:
@@ -225,7 +286,7 @@ async def ws_set_schedules(hass: HomeAssistant, connection: websocket_api.Active
     vol.Required("presets"): list,
     vol.Optional("replacements", default={}): dict,
 })
-@websocket_api.require_admin
+@require_access(_every_thermostat(SET_UP))
 @websocket_api.async_response
 async def ws_set_presets(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_presets(msg["presets"], msg["replacements"]))
@@ -236,7 +297,7 @@ async def ws_set_presets(hass: HomeAssistant, connection: websocket_api.ActiveCo
     vol.Required("entity_id"): str,
     vol.Required("mapping"): dict,
 })
-@websocket_api.require_admin
+@require_access(_thermostat(SET_UP))
 @websocket_api.async_response
 async def ws_set_mapping(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_mapping(msg["entity_id"], msg["mapping"]))
@@ -255,7 +316,7 @@ async def ws_set_thermostat(hass: HomeAssistant, connection: websocket_api.Activ
 
 
 @websocket_api.websocket_command({vol.Required("type"): "chauffage/thermostat/forget", vol.Required("entity_id"): str})
-@websocket_api.require_admin
+@require_access(_thermostat(SET_UP))
 @websocket_api.async_response
 async def ws_forget_thermostat(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.forget(msg["entity_id"]))
@@ -266,7 +327,7 @@ async def ws_forget_thermostat(hass: HomeAssistant, connection: websocket_api.Ac
     vol.Required("rules"): list,
     vol.Required("default_schedule"): vol.Any(None, str),
 })
-@websocket_api.require_admin
+@require_access(_every_thermostat(SET_UP))
 @websocket_api.async_response
 async def ws_set_rules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.set_rules(msg["rules"], msg["default_schedule"]))
@@ -276,10 +337,11 @@ PREVIEW_TEXT = 255  # characters of a template's text sent back
 
 
 @websocket_api.websocket_command({vol.Required("type"): "chauffage/rules/preview", vol.Required("rules"): [dict]})
-@websocket_api.require_admin
+@require_access(_every_thermostat(SET_UP))
 @callback
 def ws_preview_rules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Admins only, like HA's render_template: a template can read any entity."""
+    """Admins, and users with Set up, who write the rules: Home Assistant keeps render_template
+    for admins, so the access level Set up says that it lets users write templates."""
     if (runtime := _runtime(hass, connection, msg["id"])) is None:
         return
     rules = [{"template": str(rule.get("template") or ""), "schedule": rule.get("schedule") or None} for rule in msg["rules"]]
@@ -323,13 +385,19 @@ async def ws_history(hass: HomeAssistant, connection: websocket_api.ActiveConnec
     vol.Required("type"): "chauffage/settings/set",
     vol.Optional("manual_override_end"): str,
     vol.Optional("override_duration"): int,
+    vol.Optional(CONF_ACCESS_LEVEL): str,
 })
-@websocket_api.require_admin
+@require_access(_settings_needs)
 @websocket_api.async_response
 async def ws_set_settings(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """The settings of overrides, from the panel: the integration's options, as the options flow
-    and the configuration entities change them."""
+    """The settings of overrides and the access level, from the panel: the integration's
+    options, as the options flow and the configuration entities change them."""
     async def set_settings(runtime: ChauffageRuntime) -> None:
+        # Checked before anything changes: a refused message changes nothing
+        if CONF_ACCESS_LEVEL in msg and msg[CONF_ACCESS_LEVEL] not in ACCESS_LEVELS:
+            raise model.InvalidData(f"unknown access level: {msg[CONF_ACCESS_LEVEL]}")
         runtime.set_override_settings(msg.get("manual_override_end"), msg.get("override_duration"))
+        if CONF_ACCESS_LEVEL in msg:
+            runtime.set_access_level(msg[CONF_ACCESS_LEVEL])
 
     await _run(hass, connection, msg, set_settings)

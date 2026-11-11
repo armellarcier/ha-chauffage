@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from unittest.mock import PropertyMock, patch
 
 import pytest
+from homeassistant.auth import models as auth_models
 from homeassistant.auth.const import GROUP_ID_USER
 from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
@@ -67,11 +68,15 @@ def entity_registry_enabled_by_default():
 @pytest.fixture
 def ws_client(hass_ws_client, hass_admin_user, hass_read_only_user):
     """Websocket client whose token is created now (the bench's clock jumps ahead), for a `user`:
-    "admin", "household" (a user of the household, who may control the entities) or "read_only"."""
+    "admin", "household" (a user of the household, who may control the entities), "salon_only" (a
+    user who may control climate.salon and nothing else) or "read_only"."""
 
     async def connect(hass: HomeAssistant, user: str = "admin"):
         if user == "household":
             who = MockUser(groups=[await hass.auth.async_get_group(GROUP_ID_USER)]).add_to_hass(hass)
+        elif user == "salon_only":
+            salon = auth_models.Group(name="Salon", policy={"entities": {"entity_ids": {"climate.salon": True}}})
+            who = MockUser(groups=[salon]).add_to_hass(hass)
         else:
             who = {"admin": hass_admin_user, "read_only": hass_read_only_user}[user]
         refresh = await hass.auth.async_create_refresh_token(who, "https://example.com/")

@@ -22,7 +22,15 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
 
-from .const import CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR, DOMAIN, TITLE
+from .const import (
+    CONF_ACCESS_LEVEL,
+    CONF_SHOW_IN_SIDEBAR,
+    DEFAULT_ACCESS_LEVEL,
+    DEFAULT_SHOW_IN_SIDEBAR,
+    DOMAIN,
+    SET_UP,
+    TITLE,
+)
 
 URL_BASE = "/chauffage_frontend"
 CARD = "chauffage-programme-card.js"
@@ -46,13 +54,16 @@ async def async_register(hass: HomeAssistant) -> None:
 async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """The Chauffage panel, where an admin configures Chauffage: a page per thing, for example
     /chauffage/thermostats/<climate>, the weeks of one thermostat (its device's "Visit" link).
-    Admins only, as every change of the websocket API but activating a schedule.
+    Admins only, unless users who are not admins have the access level Set up (#99): the panel
+    holds the presets, the rules and the thermostats. Home Assistant registers a panel for admins
+    or for every user, so then every user may open it, read only without Set up.
 
     Out of the sidebar (an option), the panel has no title: Home Assistant shows no entry for it,
     on every version, and its addresses still work."""
     if "frontend" not in hass.config.components:
         return
     in_sidebar = _in_sidebar(entry)
+    for_every_user = entry.options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL) == SET_UP
     async_remove_panel(hass, DOMAIN, warn_if_unknown=False)  # registered again when the option changes
     async_register_built_in_panel(
         hass,
@@ -62,7 +73,7 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
         frontend_url_path=DOMAIN,
         config={"_panel_custom": {"name": "chauffage-panel", "module_url": await _card_url(hass),
                                   "embed_iframe": False, "trust_external": False}},
-        require_admin=True,
+        require_admin=not for_every_user,
     )
 
 
@@ -70,16 +81,22 @@ def _in_sidebar(entry: ConfigEntry) -> bool:
     return entry.options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR)
 
 
+def _panel_options(entry: ConfigEntry) -> tuple[bool, bool]:
+    """The options the panel's registration depends on: the sidebar entry, and who may open it."""
+    return _in_sidebar(entry), entry.options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL) == SET_UP
+
+
 def sidebar_listener(entry: ConfigEntry) -> Callable[[HomeAssistant, ConfigEntry], Awaitable[None]]:
-    """The update listener of the sidebar option. Every setting saved updates the entry: the panel
-    is registered again only when the sidebar option changed since it was last registered."""
-    shown = _in_sidebar(entry)
+    """The update listener of the panel's options. Every setting saved updates the entry: the
+    panel is registered again only when the sidebar option, or whether every user may open the
+    panel, changed since it was last registered."""
+    registered = _panel_options(entry)
 
     async def listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-        nonlocal shown
-        if _in_sidebar(entry) == shown:
+        nonlocal registered
+        if _panel_options(entry) == registered:
             return
-        shown = _in_sidebar(entry)
+        registered = _panel_options(entry)
         await async_register_panel(hass, entry)
 
     return listener
