@@ -54,7 +54,8 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
         planned = self.runtime.planned_targets(self.climate)
         return {
             "preset_name": self._name(planned["preset"]),
-            "hvac_mode": planned["hvac_mode"],  # off, or the HVAC mode the slot sets; None: on (#91)
+            # off for an off slot, else the active schedule's HVAC mode if the thermostat lists it (#91)
+            "hvac_mode": planned["hvac_mode"],
             "target": planned["target"],
             "next_preset": planned["next_preset"],
             "next_preset_name": self._name(planned["next_preset"]),

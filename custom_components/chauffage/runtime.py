@@ -414,15 +414,29 @@ class ChauffageRuntime:
             self.mappings,
             self.data["overrides"],
             self.use_presets,
+            self.schedule_hvac_mode,
         )
 
     @property
     def use_presets(self) -> bool:
         return bool(self.entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
 
+    @property
+    def schedule_hvac_mode(self) -> str | None:
+        """The active schedule's HVAC mode, for the thermostats that list it: heat, cool, or
+        None (the schedule does not change the HVAC mode)."""
+        active = self.data["active_schedule"]
+        return next((s.get("hvac_mode") for s in self.data["schedules"] if s["id"] == active), None)
+
+    def complete(self, target: engine.Target, current: engine.Thermostat, setpoint: str = engine.BY_PRESET) -> engine.Target:
+        """The target to send (engine.complete), with the active schedule's HVAC mode: an
+        override that turns an off air conditioner on turns it on in that mode."""
+        return engine.complete(target, current, setpoint, self.schedule_hvac_mode)
+
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
-        """What each preset means for a thermostat (mapping set by hand, else the default), its
-        HVAC mode included when the preset or the mapping sets one."""
+        """What each preset means for a thermostat (mapping set by hand, else the default).
+        Without the active schedule's HVAC mode: an override set to a preset keeps the
+        thermostat's own."""
         presets = self.presets_by_id
         mapping = self.thermostats.get(entity_id, {}).get("mapping") or None
         current = self.current(self.hass.states.get(entity_id))
@@ -525,9 +539,10 @@ class ChauffageRuntime:
         return engine.current_and_next(week, now or dt_util.now())
 
     def planned_targets(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None) -> dict[str, Any]:
-        """What a scheduled thermostat follows now (its preset, its HVAC mode when a layer sets
-        one, its target on this thermostat), and the next different slot (its preset, its HVAC
-        mode, its start): the planned-preset sensor's attributes. `plan`: the one built for a
+        """What a scheduled thermostat follows now (its preset, its HVAC mode, its target on this
+        thermostat), and the next different slot (its preset, its HVAC mode, its start): the
+        planned-preset sensor's attributes. The HVAC mode is off for an off slot, else the
+        active schedule's when the thermostat lists it, else None. `plan`: the one built for a
         snapshot, else built here."""
         plan = plan or self.plan()
         current, following, next_start = self.planned(entity_id, now)
@@ -600,7 +615,8 @@ class ChauffageRuntime:
         one (`revision`, older cards). StaleRevision if one of them changed."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
-        normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
+        normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids,
+                                           model.coldest_preset(self.data["presets"]))
         if any(self._renamed_to(entity_id) for entity_id in normalized):
             raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
         # A card may list a climate removed from Home Assistant: never schedule a ghost
@@ -771,10 +787,11 @@ class ChauffageRuntime:
         """Create (empty or a copy), rename, move and delete schedules (see model.plan_schedules).
         An empty schedule puts every scheduled thermostat in eco (or the first preset) all week:
         each keeps a week in every schedule. The active schedule and its weeks do not change: the
-        thermostats are not touched."""
+        thermostats are not touched, unless the active schedule's HVAC mode changes."""
         if revision is not None and revision != self.data["revision"]:
             raise StaleRevision
         schedules, created = model.plan_schedules(items, self.data["schedules"], self.data["active_schedule"])
+        hvac_mode = self.schedule_hvac_mode
         kept = {s["id"] for s in schedules}
         in_rules = ({rule["schedule"] for rule in self.data["rules"]} | {self.data["default_schedule"]}) - {None}
         if in_rules - kept:
@@ -792,6 +809,8 @@ class ChauffageRuntime:
         self.data["schedules"] = schedules
         self.data["revision"] += 1
         self._changed()
+        if self.schedule_hvac_mode != hvac_mode:
+            await self.apply(force=True, reason="HVAC mode of the active schedule changed")
         return copy.deepcopy(schedules)
 
     async def activate_schedule(self, schedule_id: str, *, source: str, context: Context | None = None) -> None:
@@ -940,7 +959,7 @@ class ChauffageRuntime:
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
         origin = self.setpoint_origin(entity_id, override.get("preset"))
         if (new_value or resend) and not left_alone and self.needs(entity_id, target, current, origin):
-            if not await self.send(entity_id, engine.complete(target, current, origin), f"override set by {source}"):
+            if not await self.send(entity_id, self.complete(target, current, origin), f"override set by {source}"):
                 raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
         self._changed()
@@ -1091,7 +1110,7 @@ class ChauffageRuntime:
         """A target to send: the thermostat does not show it, or would apply another command later."""
         if current is None:
             return True
-        sent = engine.complete(target, current, setpoint)
+        sent = self.complete(target, current, setpoint)
         if not engine.satisfied(sent, current):
             return True
         commands = self.pending(entity_id)
@@ -1133,7 +1152,7 @@ class ChauffageRuntime:
         async with self._lock:
             current = self.current(self.hass.states.get(entity_id))
             if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current, origin):
-                await self.send(entity_id, engine.complete(target, current, origin), f"{reason}, back to the override")
+                await self.send(entity_id, self.complete(target, current, origin), f"{reason}, back to the override")
 
     # ----- scheduling -----
 
@@ -1143,6 +1162,13 @@ class ChauffageRuntime:
         command, says why (by default: a new slot)."""
         async with self._lock:
             now, retry = dt_util.now(), set(self._retry)
+            # An off override ends when an off slot starts: the schedule now says the same
+            met = self.plan().met_by_an_off_slot(now)
+            for entity_id in met:
+                self._drop_override(entity_id, "off_slot")
+            if met:
+                self._changed()
+                ended = [*(ended or ()), *met]
             todo = engine.targets(
                 self.plan(),
                 now,
@@ -1162,6 +1188,7 @@ class ChauffageRuntime:
                 if entity_id not in self.thermostats or self.is_paused(entity_id):
                     continue  # paused or forgotten meanwhile
                 why = ("retry after a failed command" if entity_id in retry
+                       else "override ended (off slot)" if entity_id in met
                        else "override ended (expired)" if entity_id in (ended or ())
                        else reason or "new slot")
                 slot, _ = self.plan().slot_at(entity_id, now)
@@ -1256,7 +1283,7 @@ class ChauffageRuntime:
         slot, _ = plan.slot_at(new.entity_id, dt_util.now())
         expected = plan.target_of(new.entity_id, slot, after)
         if expected is not None:  # what the slot sends this thermostat now
-            expected = engine.complete(expected, after, plan.setpoint_origin(new.entity_id, slot))
+            expected = self.complete(expected, after, plan.setpoint_origin(new.entity_id, slot))
         preset_temperature = self.preset_temperature(new, expected["preset_mode"]) \
             if expected is not None and "preset_mode" in expected else None
         current = self.data["overrides"].get(new.entity_id)

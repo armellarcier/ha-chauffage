@@ -163,7 +163,7 @@
     },
     "get_schedules": {
       "name": "Obtenir les plannings",
-      "description": "Donne les plannings (identifiant, nom, interrupteur), le planning actif et celui que donnent les règles d'activation, pour les scripts."
+      "description": "Donne les plannings (identifiant, nom, chauffage ou climatisation, interrupteur), le planning actif et celui que donnent les règles d'activation, pour les scripts."
     },
     "get_week": {
       "name": "Obtenir la semaine",

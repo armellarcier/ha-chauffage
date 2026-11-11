@@ -1,6 +1,6 @@
-"""A slot sets more than a preset (#91): the HVAC mode. The schedule decides whether a
-thermostat is off; turning it off or on by hand is an override; a slot, a preset's value on a
-thermostat or a preset may set the HVAC mode; a reversible air conditioner keeps cooling."""
+"""A slot is a preset, or off (#91). The schedule decides whether a thermostat is off; turning
+it off or on by hand is an override; a reversible air conditioner keeps cooling unless the
+schedule says heat or cool (test_schedule_hvac_mode.py)."""
 
 import pytest
 import voluptuous as vol
@@ -9,8 +9,9 @@ from homeassistant.core import Context
 from conftest import CTX_AUTOMATION, CTX_USER, KINDS, MANUAL_PRESET, WEEKDAY, Bench, every_day
 
 OFF = {"hvac_mode": "off"}
-# Comfort from 06:30, eco from 08:30, comfort from 17:30, off (on eco) from 22:30
-NIGHT_OFF = [["00:00", "eco", OFF], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco", OFF]]
+# Comfort from 06:30, eco from 08:30, comfort from 17:30, off from 22:30 (an off slot holds the
+# coldest preset, frost)
+NIGHT_OFF = [["00:00", "frost", OFF], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "frost", OFF]]
 AC_MODES = ["off", "heat", "cool", "fan_only"]
 
 
@@ -19,9 +20,9 @@ def thermostat_kind(request) -> str:
     return request.param
 
 
-async def start(bench: Bench, hhmm: str = "10:00", day: list | None = None, **attributes) -> None:
+async def start(bench: Bench, hhmm: str = "10:00", day: list | None = None, preset: str = "eco", **attributes) -> None:
     await bench.go_to(hhmm)
-    bench.thermostat("climate.salon", "eco", **attributes)
+    bench.thermostat("climate.salon", preset, **attributes)
     await bench.setup()
     await bench.save_weeks({"climate.salon": {"normal": [day or WEEKDAY] * 7}})
     bench.applied()
@@ -34,13 +35,13 @@ def salon(bench: Bench) -> str:
 
 # ----- off slots -----
 
-async def test_an_off_slot_turns_the_thermostat_off_and_sends_the_preset_it_restarts_on(bench: Bench):
-    """"Eco + off" means off, and start again on eco: the preset is sent while off, as a scene
-    does (docs/decisions.md, "Scheduling")."""
+async def test_an_off_slot_turns_the_thermostat_off_and_sends_the_coldest_preset(bench: Bench):
+    """An off slot sends off, then its preset, as a scene does: the coldest preset, so that a
+    thermostat that heats anyway heats as little as possible (docs/decisions.md, "Scheduling")."""
     await start(bench, "22:00", NIGHT_OFF)  # comfort
     await bench.go_to("22:30")
     assert bench.powered() == {"climate.salon": "off"}
-    assert bench.applied() == {"climate.salon": "eco"}
+    assert bench.applied() == {"climate.salon": "frost"}
     assert salon(bench) == "off"
 
 
@@ -54,7 +55,7 @@ async def test_an_on_slot_turns_the_thermostat_back_on(bench: Bench):
 
 
 async def test_a_thermostat_already_off_on_the_right_preset_gets_nothing(bench: Bench):
-    await start(bench, "23:00", NIGHT_OFF, state="off")
+    await start(bench, "23:00", NIGHT_OFF, "frost", state="off")
     await bench.save_weeks({"climate.salon": {"normal": [NIGHT_OFF] * 7}})
     assert bench.powered() == {} and bench.applied() == {}
 
@@ -133,8 +134,8 @@ async def test_turning_the_thermostat_back_on_by_hand_ends_its_off_override(benc
 
 
 async def test_turning_the_thermostat_on_by_hand_during_an_off_slot_is_an_override(bench: Bench):
-    await start(bench, "23:00", NIGHT_OFF, state="off")
-    bench.thermostat("climate.salon", "eco", context=CTX_USER)  # turned on
+    await start(bench, "23:00", NIGHT_OFF, "frost", state="off")
+    bench.thermostat("climate.salon", "frost", context=CTX_USER)  # turned on
     await bench.hass.async_block_till_done()
     assert bench.overrides()["climate.salon"]["target"] == {"hvac_mode": "heat"}
     await bench.go_to("01:00", day=1)  # the override expires: off again
@@ -184,7 +185,8 @@ async def test_set_override_refuses_an_hvac_mode_home_assistant_does_not_know(be
 async def test_a_setpoint_changed_with_the_hvac_mode_by_hand_is_in_the_override(bench: Bench):
     """climate.set_temperature with hvac_mode cool and 24 °C writes one state: the override
     holds both, not the HVAC mode alone."""
-    await start(bench, "10:00", [["00:00", "eco", {"hvac_mode": "heat"}]], hvac_modes=AC_MODES)
+    await start(bench, "10:00", [["00:00", "eco"]], hvac_modes=AC_MODES)
+    await bench.schedule_says("normal", "heat")
     bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 24.0, state="cool", hvac_modes=AC_MODES, context=CTX_USER)
     await bench.hass.async_block_till_done()
     assert bench.overrides()["climate.salon"]["target"] == {"hvac_mode": "cool", "temperature": 24.0}
@@ -204,44 +206,10 @@ async def test_set_override_turns_a_thermostat_off_or_on(bench: Bench):
     assert o["target"]["hvac_mode"] == "heat" and o["preset"] == "comfort"
 
 
-# ----- the HVAC mode in the three layers -----
-
-async def test_a_slot_can_set_the_hvac_mode(bench: Bench):
-    day = [["00:00", "eco"], ["14:00", "comfort", {"hvac_mode": "cool"}]]
-    await start(bench, "13:00", day, hvac_modes=AC_MODES)
-    await bench.go_to("14:00")
-    assert bench.powered() == {"climate.salon": "cool"}
-    # In cool without a cooling setpoint, the name-based default leaves the setpoint alone (C1, D1)
-    assert bench.applied() == {}
-
-
-async def test_a_preset_s_value_on_a_thermostat_can_set_the_hvac_mode(bench: Bench):
-    await start(bench, "17:00", hvac_modes=AC_MODES)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"cool_temperature": 24, "hvac_mode": "cool"}})
-    await bench.hass.async_block_till_done()
-    setpoint = {"preset_mode": "comfort"} if bench.kind != "plain" else {"temperature": 20.0}
-    assert bench.runtime.targets_of("climate.salon")["comfort"] == {**setpoint, "cool_temperature": 24.0, "hvac_mode": "cool"}
-    await bench.go_to("17:30")
-    assert bench.powered() == {"climate.salon": "cool"}
-    assert bench.temperature_calls[-1] == ("climate.salon", 24.0)
-
-
-async def test_a_preset_can_set_a_default_hvac_mode(bench: Bench):
-    """An "Away" preset that turns the thermostats off, on every thermostat at once."""
-    await start(bench, "17:00")
-    presets = [*bench.runtime.data["presets"], {"name": "Away", "temperature": 7, "hvac_mode": "off"}]
-    await bench.runtime.set_presets(presets)
-    await bench.save_weeks({"climate.salon": {"normal": every_day(("00:00", "eco"), ("17:30", "away"))}})
-    bench.powered()
-    await bench.go_to("17:30")
-    assert bench.powered() == {"climate.salon": "off"}
-    assert bench.runtime.targets_of("climate.salon")["away"]["hvac_mode"] == "off"
-
-
 # ----- a reversible air conditioner -----
 
 async def test_a_cooling_air_conditioner_keeps_cooling(bench: Bench):
-    """Never a cooling AC switched to heat: a slot without an HVAC mode keeps the mode."""
+    """Never a cooling AC switched to heat by a schedule that does not say heat or cool."""
     await start(bench, "17:00", state="cool", hvac_modes=AC_MODES)
     await bench.go_to("17:30")
     assert bench.powered() == {}
@@ -335,8 +303,8 @@ async def test_an_off_slot_is_satisfied_by_a_vtherm_without_requested_state_that
     await start_vtherm(bench, "22:00", NIGHT_OFF)
     await bench.go_to("22:30")
     assert bench.powered() == {"climate.salon": "off"}
-    assert bench.applied() == {"climate.salon": "eco"}
-    bench.thermostat("climate.salon", "eco", state="off", context=Context())  # the VTherm takes eco, off
+    assert bench.applied() == {"climate.salon": "frost"}
+    bench.thermostat("climate.salon", "frost", state="off", context=Context())  # the VTherm takes frost, off
     await bench.hass.async_block_till_done()
     assert bench.runtime.pending("climate.salon") == []
     await bench.save_weeks({"climate.salon": {"normal": [NIGHT_OFF] * 7}})
@@ -352,13 +320,13 @@ async def test_an_off_slot_is_satisfied_by_a_vtherm_without_requested_state_that
 async def test_the_card_sees_the_hvac_mode_of_the_current_and_next_slot(bench: Bench):
     await start(bench, "23:00", NIGHT_OFF, state="off")
     planned = bench.runtime.snapshot()["planned"]["climate.salon"]
-    assert (planned["preset"], planned["hvac_mode"]) == ("eco", "off")
+    assert (planned["preset"], planned["hvac_mode"]) == ("frost", "off")
     assert (planned["next_preset"], planned["next_hvac_mode"], planned["next_start"]) == (
         "comfort", None, "2026-10-13T06:30:00+02:00")
     sensor = bench.hass.states.get("sensor.salon_planned_preset")
-    assert sensor.state == "eco"
+    assert sensor.state == "frost"
     assert (sensor.attributes["hvac_mode"], sensor.attributes["next_hvac_mode"]) == ("off", None)
-    assert sensor.attributes["target"] == bench.runtime.targets_of("climate.salon")["eco"] | OFF
+    assert sensor.attributes["target"] == bench.runtime.targets_of("climate.salon")["frost"] | OFF
 
 
 async def test_a_script_reads_the_hvac_mode_of_the_slots(bench: Bench):
@@ -366,7 +334,7 @@ async def test_a_script_reads_the_hvac_mode_of_the_slots(bench: Bench):
     week = await bench.hass.services.async_call(
         "chauffage", "get_week", {"entity_id": "climate.salon"}, blocking=True, return_response=True)
     monday = week["climate.salon"]["monday"]
-    assert monday[0] == {"start": "00:00", "end": "06:30", "preset": "eco", "hvac_mode": "off"}
+    assert monday[0] == {"start": "00:00", "end": "06:30", "preset": "frost", "hvac_mode": "off"}
     assert monday[1] == {"start": "06:30", "end": "08:30", "preset": "comfort"}
 
 
@@ -433,28 +401,6 @@ async def test_a_script_reads_the_fan_of_the_slots(bench: Bench):
 # ----- a cooling setpoint in a preset's value (corrections C1), and the end "until tomorrow" (C4) -----
 
 COOL_ATTRS = {"hvac_modes": AC_MODES}
-
-
-async def test_a_cooling_slot_uses_the_preset_s_cooling_setpoint(bench: Bench):
-    """Comfort on a reversible AC: 20 °C when heating, 25 °C when cooling. In cool, the cooling
-    setpoint replaces the preset and its temperature."""
-    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", {"hvac_mode": "cool"}]], **COOL_ATTRS)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 20, "cool_temperature": 25}})
-    await bench.hass.async_block_till_done()
-    bench.temperature_calls.clear()
-    await bench.go_to("14:00")
-    assert bench.powered() == {"climate.salon": "cool"}
-    assert bench.temperature_calls == [("climate.salon", 25.0)]
-
-
-async def test_in_cool_without_a_cooling_setpoint_the_ac_keeps_its_own_setpoint(bench: Bench):
-    """A thermostat that lists heat and cool never gets 17 °C in cool."""
-    bench.needs("plain")
-    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", {"hvac_mode": "cool"}]], **COOL_ATTRS)
-    bench.temperature_calls.clear()
-    await bench.go_to("14:00")
-    assert bench.powered() == {"climate.salon": "cool"}
-    assert bench.temperature_calls == []
 
 
 async def test_a_cooling_only_ac_gets_the_base_setpoint(bench: Bench):

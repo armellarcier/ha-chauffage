@@ -6,10 +6,12 @@ allows (require_access, #99), and overrides and pauses on the thermostats they m
 chauffage/subscribe          everything the card needs, then again after every change, when a
                              planned slot changes, and after the integration is reloaded. A week's
                              slot is [start, preset] or [start, preset, settings] (#91:
-                             {"hvac_mode": "off"}); `planned` gives each thermostat's preset,
-                             hvac_mode (off, a mode, or null: on), target, next_preset,
-                             next_hvac_mode, next_start and next_slot_end; `thermostats` says
-                             why a VTherm protects itself (cause: window, auto_start_stop)
+                             {"hvac_mode": "off"}, or the fan and the vanes); a schedule may
+                             have an hvac_mode (heat or cool); `planned` gives each thermostat's
+                             preset, hvac_mode (off, the schedule's if the thermostat lists it,
+                             or null), target, next_preset, next_hvac_mode, next_start,
+                             next_slot_end and next_day_slot_end; `thermostats` says why a
+                             VTherm protects itself (cause: window, auto_start_stop)
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent (slots with
                              optional settings, see above), against
                              the revision of each ({climate: revision | null}), or the global one
@@ -19,12 +21,13 @@ chauffage/override/set       {entity_id, override | null, source?}: change (targ
                              thermostat, not only an admin
 chauffage/schedule/activate  {schedule, source?}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
-                             or a copy), rename, move, delete (see model.plan_schedules)
+                             or a copy), rename, move, delete, set its HVAC mode (hvac_mode:
+                             heat, cool or null; see model.plan_schedules)
 chauffage/presets/set        {presets, replacements}: the presets (a removed preset used in the
                              weeks is replaced by the preset given in replacements)
 chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one thermostat
-                             ({preset id: {"preset_mode": climate preset} | {"temperature": …} | both,
-                             with an optional "hvac_mode"}; {} = defaults)
+                             ({preset id: {"preset_mode": climate preset} | {"temperature": …},
+                             with an optional "cool_temperature", fan and vanes}; {} = defaults)
 chauffage/rules/set          {rules, default_schedule}: the activation rules ([{"template", "schedule"}],
                              the first that applies wins; schedule null: the template gives it) and
                              the schedule when none applies (or null)

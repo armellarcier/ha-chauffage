@@ -10,7 +10,6 @@ from pytest_homeassistant_custom_component.components.recorder.common import asy
 from conftest import KINDS, WEEKDAY, WEEKEND, Bench
 
 AC_MODES = ["off", "heat", "cool", "fan_only"]
-COOL = {"hvac_mode": "cool"}
 
 
 @pytest.fixture(params=KINDS)
@@ -28,6 +27,8 @@ async def start(bench: Bench, hhmm: str = "10:00", day: list | None = None, pres
     bench.thermostat("climate.salon", preset, **attributes)
     await bench.setup()
     await bench.save_weeks({"climate.salon": {"normal": [day or WEEKDAY] * 7}})
+    if day is ECO_IN_COOL:
+        await bench.schedule_says("normal", "cool")
     bench.applied()
     bench.powered()
     bench.temperature_calls.clear()
@@ -35,8 +36,9 @@ async def start(bench: Bench, hhmm: str = "10:00", day: list | None = None, pres
 
 # ----- D1: a cooling AC on a preset without a cooling value -----
 
-# Comfort, then eco at 14:00 in cool, on a reversible AC that cools on its own comfort preset
-ECO_IN_COOL = [["00:00", "comfort"], ["14:00", "eco", COOL]]
+# Comfort, then eco at 14:00, in a schedule that says cool, on a reversible AC that cools on its
+# own comfort preset
+ECO_IN_COOL = [["00:00", "comfort"], ["14:00", "eco"]]
 COOLING = {"preset": "comfort", "state": "cool", "hvac_modes": AC_MODES}
 
 

@@ -302,9 +302,9 @@ async def test_a_script_reads_the_schedules(bench: Bench):
     await bench.activate_schedule("Normal")  # chosen by hand over the rules
     assert await respond(bench, "get_schedules") == {
         "schedules": [
-            {"id": "normal", "name": "Normal", "entity_id": "switch.chauffage_schedule_normal"},
-            {"id": "away", "name": "Away", "entity_id": "switch.chauffage_schedule_away"},
-            {"id": "holiday", "name": "Holiday", "entity_id": "switch.chauffage_schedule_holiday"},
+            {"id": "normal", "name": "Normal", "hvac_mode": None, "entity_id": "switch.chauffage_schedule_normal"},
+            {"id": "away", "name": "Away", "hvac_mode": None, "entity_id": "switch.chauffage_schedule_away"},
+            {"id": "holiday", "name": "Holiday", "hvac_mode": None, "entity_id": "switch.chauffage_schedule_holiday"},
         ],
         "active_schedule": "normal",
         "rules_choice": "holiday",

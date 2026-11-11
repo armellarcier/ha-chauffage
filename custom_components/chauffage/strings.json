@@ -163,7 +163,7 @@
     },
     "get_schedules": {
       "name": "Get schedules",
-      "description": "Gives the schedules (id, name, switch), the active one, and the one the activation rules give, for scripts."
+      "description": "Gives the schedules (id, name, HVAC mode, switch), the active one, and the one the activation rules give, for scripts."
     },
     "get_week": {
       "name": "Get week",

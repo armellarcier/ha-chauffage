@@ -383,9 +383,9 @@ def test_presets_and_mappings_are_validated():
         with pytest.raises(model.InvalidData):
             model.normalize_preset(bad, set())
     assert model.normalize_mapping({"eco": {"temperature": "17"}}, {"eco"}) == {"eco": {"temperature": 17.0}}
-    # A preset and a temperature together: the device decides what to do with both (docs/decisions.md)
-    assert model.normalize_mapping({"eco": {"preset_mode": "eco", "temperature": 18}}, {"eco"}) == {"eco": {"preset_mode": "eco", "temperature": 18.0}}
-    for bad in ({"eco": {}}, {"eco": {"preset_mode": ""}}, {"eco": {"fan": "high"}}):
+    # A value is a climate preset or a temperature, not both, and never an HVAC mode (docs/decisions.md)
+    for bad in ({"eco": {}}, {"eco": {"preset_mode": ""}}, {"eco": {"fan": "high"}},
+                {"eco": {"preset_mode": "eco", "temperature": 18}}, {"eco": {"temperature": 18, "hvac_mode": "cool"}}):
         with pytest.raises(model.InvalidData):
             model.normalize_mapping(bad, {"eco"})
     with pytest.raises(model.InvalidData):
@@ -428,9 +428,9 @@ def ac(state="cool", preset="comfort", temperature=20.0, modes=AC_MODES, last=No
 
 
 def test_a_slot_holds_a_preset_and_optional_settings():
-    day = [["00:00", "eco"], ["07:00", "comfort", {"hvac_mode": "cool"}], ["22:00", "eco", OFF]]
+    day = [["00:00", "eco"], ["07:00", "comfort", {"fan_mode": "1"}], ["22:00", "eco", OFF]]
     assert engine.slot_at(day, "06:59") == (S("eco", {}), False)
-    assert engine.slot_at(day, "07:00") == (S("comfort", {"hvac_mode": "cool"}), True)
+    assert engine.slot_at(day, "07:00") == (S("comfort", {"fan_mode": "1"}), True)
     assert engine.slot_at(day, "23:00") == (S("eco", OFF), False)
 
 
@@ -441,20 +441,21 @@ def test_the_next_slot_may_differ_by_its_settings_only():
     assert engine.current_and_next(week, at("23:00")) == (S("eco", OFF), S("eco", {}), at("00:00", day=1))
 
 
-def test_the_hvac_mode_comes_from_the_slot_then_the_preset_s_value_then_the_preset():
-    """Three layers, the last one wins (docs/decisions.md, "Presets")."""
-    presets = {**PRESETS, "away": {"id": "away", "name": "Away", "color": "#000000", "temperature": 15.0, "hvac_mode": "off"}}
-    mapping = {"comfort": {"hvac_mode": "cool"}, "eco": {"temperature": 18.0}}
+def test_the_preset_says_how_warm_and_the_slot_says_off_the_fan_and_the_vanes():
+    """The preset's default, then its value on the thermostat, then the slot's settings
+    (docs/decisions.md, "Presets"). The schedule's HVAC mode: test_schedule_hvac_mode.py."""
+    presets = {**PRESETS, "away": {"id": "away", "name": "Away", "color": "#000000", "temperature": 15.0}}
+    mapping = {"comfort": {"cool_temperature": 25.0, "fan_mode": "1"}, "eco": {"temperature": 18.0}}
     # The preset's own default
-    assert engine.resolve("away", presets, {}, ac()) == {"temperature": 15.0, "hvac_mode": "off"}
+    assert engine.resolve("away", presets, {}, ac()) == {"temperature": 15.0}
     assert engine.resolve("boost", presets, {}, ac()) == {"preset_mode": "boost"}
     # The preset's value on this thermostat adds to the default, or replaces its setpoint
-    assert engine.resolve("comfort", presets, mapping, ac()) == {"preset_mode": "comfort", "hvac_mode": "cool"}
+    assert engine.resolve("comfort", presets, mapping, ac()) == {"preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "1"}
     assert engine.resolve("eco", presets, mapping, ac()) == {"temperature": 18.0}
-    assert engine.resolve("away", presets, {"away": {"preset_mode": "frost"}}, ac()) == {"preset_mode": "frost", "hvac_mode": "off"}
-    # The slot has the last word
-    assert engine.resolve("comfort", presets, mapping, ac(), settings={"hvac_mode": "heat"}) == {"preset_mode": "comfort", "hvac_mode": "heat"}
-    assert engine.resolve("away", presets, {}, ac(), settings={"hvac_mode": "heat"}) == {"temperature": 15.0, "hvac_mode": "heat"}
+    # The slot has the last word: off, the fan and the vanes
+    assert engine.resolve("comfort", presets, mapping, ac(), settings={"fan_mode": "3"}) == {
+        "preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "3"}
+    assert engine.resolve("away", presets, {}, ac(), settings=OFF) == {"temperature": 15.0, "hvac_mode": "off"}
 
 
 def test_a_target_without_hvac_mode_means_on():
@@ -619,20 +620,17 @@ def test_settings_of_a_slot_are_validated():
     assert model.normalize_day([["00:00", "eco"], ["22:00", "eco", OFF], ["23:00", "eco", OFF]]) == [
         ["00:00", "eco"], ["22:00", "eco", OFF]]
     assert model.used_presets({"climate.salon": {"normal": [[["00:00", "eco", OFF]]] * 7}}) == ["eco"]
-    for bad in (["00:00", "eco", "off"], ["00:00", "eco", {"hvac_mode": ""}], ["00:00", "eco", {"temperature": 19}]):
+    # The only HVAC mode a slot sets is off: the schedule says heat or cool
+    for bad in (["00:00", "eco", "off"], ["00:00", "eco", {"hvac_mode": ""}], ["00:00", "eco", {"temperature": 19}],
+                ["00:00", "eco", {"hvac_mode": "cool"}]):
         with pytest.raises(model.InvalidData):
             model.normalize_day([bad])
+    # Two off slots in a row are one, whatever their preset, once they take the coldest preset
+    assert model.normalize_day([["00:00", "eco"], ["22:00", "eco", OFF], ["23:00", "comfort", OFF]], "frost") == [
+        ["00:00", "eco"], ["22:00", "frost", OFF]]
 
 
-def test_a_preset_may_set_a_default_hvac_mode():
-    preset = model.normalize_preset({"name": "Off", "temperature": 7, "hvac_mode": "off"}, set())
-    assert preset == {"id": "off", "name": "Off", "color": model.DEFAULT_PRESET_COLOR, "temperature": 7.0, "hvac_mode": "off"}
-    assert "hvac_mode" not in model.normalize_preset({"name": "Eco", "hvac_mode": None}, set())
-    with pytest.raises(model.InvalidData):
-        model.normalize_preset({"name": "Eco", "hvac_mode": ""}, set())
-
-
-def test_a_target_may_set_the_hvac_mode_alone():
+def test_the_target_of_an_override_may_set_the_hvac_mode_alone():
     assert model.normalize_target({"hvac_mode": "off"}) == OFF
     assert model.normalize_target({"hvac_mode": "cool", "temperature": "24"}) == {"hvac_mode": "cool", "temperature": 24.0}
 
@@ -684,7 +682,7 @@ def test_a_temperature_the_user_chose_is_sent_in_cool():
     assert engine.setpoint_origin(None, {"temperature": 21.0}) == engine.BY_USER
     assert engine.setpoint_origin("eco", {"temperature": 21.0}) == engine.BY_PRESET
     assert engine.setpoint_origin("eco", None) == engine.BY_NAME
-    assert engine.setpoint_origin("eco", {"hvac_mode": "cool"}) == engine.BY_NAME
+    assert engine.setpoint_origin("eco", {"fan_mode": "1"}) == engine.BY_NAME
 
 
 def test_the_cooling_setpoint_is_validated_and_fitted():

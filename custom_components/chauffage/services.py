@@ -5,9 +5,11 @@ chauffage.set_override       sets a thermostat's temperature or preset, and its 
                              like a manual change
 chauffage.clear_override     ends it now: the thermostat resumes its schedule
 chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
-chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
+chauffage.get_schedules      (response) the schedules (with their HVAC mode: heat, cool or none), the
+                             active one, the one the rules give
 chauffage.get_week           (response) the week of thermostats in a schedule, as HA's
-                             schedule.get_schedule gives its schedules
+                             schedule.get_schedule gives its schedules; an off slot says
+                             hvac_mode "off", and its preset is the coldest one
 """
 
 from __future__ import annotations
@@ -133,7 +135,7 @@ def async_register(hass: HomeAssistant) -> None:
         runtime = loaded_runtime(hass)
         entities = runtime.schedule_entities()
         return {
-            "schedules": [{"id": s["id"], "name": s["name"], "entity_id": entities.get(s["id"])}
+            "schedules": [{"id": s["id"], "name": s["name"], "hvac_mode": s.get("hvac_mode"), "entity_id": entities.get(s["id"])}
                           for s in runtime.data["schedules"]],
             **{key: runtime.data[key] for key in ("active_schedule", "rules_choice", "default_schedule")},
         }

@@ -235,6 +235,12 @@ class Bench:
         await self.hass.async_block_till_done()
         return result
 
+    async def schedule_says(self, schedule: str, hvac_mode: str | None) -> None:
+        """What the card sends when the user chooses a schedule's HVAC mode: heat, cool, or None
+        (don't change)."""
+        await self.set_schedules([{"id": s, "hvac_mode": hvac_mode} if s == schedule else {"id": s}
+                                  for s, _ in self.schedule_list()])
+
     def schedule_list(self) -> list[tuple[str, str]]:
         """(id, name) of the schedules, in order."""
         return [(s["id"], s["name"]) for s in self.runtime.data["schedules"]]
@@ -296,8 +302,10 @@ async def bench(hass: HomeAssistant, freezer, thermostat_kind, hass_storage) -> 
             raise HomeAssistantError("Failed to send request: NWK_NO_ROUTE (simulated)")
         if entity_id not in b.slow:
             current = hass.states.get(entity_id)
+            # It keeps the HVAC modes it lists: an air conditioner stays one
+            modes = {"hvac_modes": current.attributes["hvac_modes"]} if current and "hvac_modes" in current.attributes else {}
             b.thermostat(entity_id, MANUAL_PRESET[b.kind], temperature, state=current.state if current else "heat",
-                         context=call.context)
+                         context=call.context, **modes)
 
     async def set_hvac_mode(call: ServiceCall) -> None:
         """The thermostat takes the HVAC mode and keeps its other attributes."""
