@@ -60,7 +60,7 @@ class Simulation:
                 self.states[name] = State.at(value)
             heater = self.hass.states.get(f"input_boolean.radiateur_{name}")
             on = heater is not None and heater.state == "on"
-            cooler = self.hass.states.get(f"input_boolean.clim_{name}")  # a reversible AC's cooler
+            cooler = self.hass.states.get(f"input_boolean.clim_{name}")  # an air conditioner's cooler
             cooling = cooler is not None and cooler.state == "on"
             self.states[name] = step(room, self.states[name], on, now, TICK.total_seconds() / 3600,
                                      mildness, sunshine, day_of(room, now.date()), cooler_on=cooling)

@@ -45,6 +45,7 @@ class Room:
     leak: float = 0.03  # per hour, air → outdoor (draughts)
     loss: float = 0.015  # per hour, walls → outdoor
     sun: float = 0.0  # °C per hour at the sunniest time of a sunny day
+    warmth: float = 0.0  # °C per hour the rest of the house brings, all day long
     cooking: bool = False
     seed: int = 0
 
@@ -70,6 +71,10 @@ ROOMS = {
     "amis": Room(power=3.3, loss=0.02, seed=5),  # north facing, seldom used
     "veranda": Room(power=4.0, leak=0.05, loss=0.03, sun=1.5, seed=6),  # glass: sunny, leaky
     "atelier": Room(power=3.2, cool=2.4, leak=0.04, sun=0.9, seed=7),  # a reversible air conditioner
+    "mezzanine": Room(power=3.4, cool=2.6, sun=0.5, seed=8),  # open on the living room
+    # Under the roof, above the heated rooms: no heater, a cooling-only air conditioner
+    "combles": Room(power=0.0, cool=2.8, warmth=1.0, sun=1.2, seed=9),
+    "suite_parentale": Room(power=3.6, cool=2.5, sun=0.4, seed=10),  # a reversible Daikin
 }
 
 
@@ -118,7 +123,7 @@ def gains(room: Room, t: datetime, sunshine: float, day: Day) -> float:
     """Free gains (and losses) in °C per hour: sun through the clouds, cooking, people, doors."""
     hour = t.hour + t.minute / 60
     minute = t.hour * 60 + t.minute
-    gain = sum(rate for start, end, rate in day.events if start <= minute < end)
+    gain = room.warmth + sum(rate for start, end, rate in day.events if start <= minute < end)
     if room.sun and 10.5 <= hour <= 17:
         gain += room.sun * sunshine * day.clouds[minute // 15] * math.sin((hour - 10.5) / 6.5 * math.pi)
     if room.cooking and (12 <= hour < 12.75 or 19 <= hour < 20):

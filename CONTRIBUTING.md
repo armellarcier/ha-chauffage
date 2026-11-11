@@ -24,7 +24,7 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 ```
 
 Open <http://localhost:8124/chauffage-dev> and log in with **`dev` / `dev`**. The *Chauffage*
-dashboard, in the sidebar, shows the card with seven thermostats.
+dashboard, in the sidebar, shows the card with ten thermostats.
 
 ### What the development HA holds
 
@@ -35,10 +35,11 @@ schedules.
 The repository is **mounted live**. Your changes to `custom_components/chauffage/` reach the
 development HA without a copy.
 
-`dev/hass/packages/simulation.yaml` creates seven simulated rooms. Each room has a heater
+`dev/hass/packages/simulation.yaml` creates ten simulated rooms. Each room has a heater
 (`input_boolean.radiateur_*`) and a temperature sensor (`sensor.temperature_*`). The sensor
-reports the temperature every minute, to 0.1 °C, like a real sensor. The rooms cover **every
-kind of thermostat**:
+reports the temperature every minute, to 0.1 °C, like a real sensor. A room with an air
+conditioner also has a cooler (`input_boolean.clim_*`): the cooler cools the room while the air
+conditioner cools. The rooms cover **every kind of thermostat**:
 
 | Rooms | Thermostat |
 |---|---|
@@ -47,6 +48,9 @@ kind of thermostat**:
 | chambre d'amis | **Standard presets** (`eco`, `comfort`, `away`, `boost`, no `frost`), from the dev-only platform [`dev/sim_climate/`](dev/sim_climate/climate.py). A manual setpoint clears the preset. |
 | véranda | **Versatile Thermostat**, "over a climate", with **auto start/stop**. The climate under it, `climate.clim_veranda`, comes from `dev/sim_climate/` and is not scheduled. |
 | atelier | A **reversible air conditioner** from `dev/sim_climate/`: standard presets, `heat`, `cool` and `fan_only`, with `fan_modes`, `swing_modes` and `swing_horizontal_modes` (the values of #61). In `cool`, `input_boolean.clim_atelier` cools the room. |
+| mezzanine | **Versatile Thermostat**, "over a climate", in **AC mode**: `heat`, `cool` and `off`. In `cool`, its presets are at 27 / 25 / 23 °C (`eco`, `comfort`, `boost`). The climate under it, `climate.clim_mezzanine`, comes from `dev/sim_climate/` and is not scheduled. |
+| combles | A **cooling-only air conditioner** from `dev/sim_climate/`: `cool`, `fan_only` and `off`, with `fan_modes` and standard presets at cooling setpoints. The room has no heater. |
+| suite parentale | A **reversible Daikin**, simulated from what Home Assistant's `daikin` integration exposes: `heat`, `cool`, `heat_cool`, `dry` and `fan_only`, the presets `none`, `away`, `eco` and `boost`, with `fan_modes` and `swing_modes`. A preset does not change the setpoint. |
 
 Two Versatile Thermostats also watch a **window**, an `input_boolean` you turn on to open it:
 

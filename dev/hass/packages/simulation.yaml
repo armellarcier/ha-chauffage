@@ -31,6 +31,24 @@ input_boolean:
   clim_atelier:
     name: Clim atelier, refroidissement (simulée)
     icon: mdi:snowflake
+  # Three more air conditioners (#91), each with a heater and a cooler like the workshop's: the
+  # unit under the mezzanine's Versatile Thermostat in AC mode, the attic's cooling-only unit
+  # (no heater) and the master suite's Daikin
+  radiateur_mezzanine:
+    name: Clim mezzanine, chauffage (simulée)
+    icon: mdi:fire
+  clim_mezzanine:
+    name: Clim mezzanine, refroidissement (simulée)
+    icon: mdi:snowflake
+  clim_combles:
+    name: Clim combles, refroidissement (simulée)
+    icon: mdi:snowflake
+  radiateur_suite_parentale:
+    name: Clim suite parentale, chauffage (simulée)
+    icon: mdi:fire
+  clim_suite_parentale:
+    name: Clim suite parentale, refroidissement (simulée)
+    icon: mdi:snowflake
   # The windows of the Versatile Thermostats that watch one (dev/setup/setup.py)
   fenetre_bureau:
     name: Fenêtre bureau (simulée)
@@ -94,6 +112,30 @@ input_number:
     max: 35
     step: 0.01
     initial: 19
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_mezzanine:
+    name: Température mezzanine (simulée)
+    min: 5
+    max: 35
+    step: 0.01
+    initial: 19
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_combles:
+    name: Température combles (simulée)
+    min: 5
+    max: 35
+    step: 0.01
+    initial: 25
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_suite_parentale:
+    name: Température suite parentale (simulée)
+    min: 5
+    max: 35
+    step: 0.01
+    initial: 18
     unit_of_measurement: "°C"
     mode: box
   temperature_exterieure:
@@ -169,6 +211,30 @@ template:
         state: "{{ states('input_number.temperature_atelier') | float(0) | round(1) }}"
         attributes:
           measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
+      - name: Température mezzanine
+        unique_id: sim_temperature_mezzanine
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_mezzanine') | float(0) | round(1) }}"
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
+      - name: Température combles
+        unique_id: sim_temperature_combles
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_combles') | float(0) | round(1) }}"
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
+      - name: Température suite parentale
+        unique_id: sim_temperature_suite_parentale
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.temperature_suite_parentale') | float(0) | round(1) }}"
+        attributes:
+          measured_at: "{{ now().replace(second=0, microsecond=0).isoformat() }}"
       - name: Température extérieure
         unique_id: sim_temperature_exterieure
         device_class: temperature
@@ -213,3 +279,27 @@ climate:
     heater: input_boolean.radiateur_atelier
     cooler: input_boolean.clim_atelier
     sensor: sensor.temperature_atelier
+  # The device under the mezzanine's Versatile Thermostat "over a climate" in AC mode
+  # (dev/setup/setup.py), not scheduled itself: heat, cool and off, nothing else
+  - platform: sim_climate
+    name: Clim mezzanine
+    unique_id: sim_climate_mezzanine
+    model: heat_cool
+    heater: input_boolean.radiateur_mezzanine
+    cooler: input_boolean.clim_mezzanine
+    sensor: sensor.temperature_mezzanine
+  # A cooling-only air conditioner: cool, fan only and off, with cooling presets and fan modes
+  - platform: sim_climate
+    name: Combles
+    unique_id: sim_climate_combles
+    model: cooling
+    cooler: input_boolean.clim_combles
+    sensor: sensor.temperature_combles
+  # A reversible Daikin, as Home Assistant's daikin integration exposes it
+  - platform: sim_climate
+    name: Suite parentale
+    unique_id: sim_climate_suite_parentale
+    model: daikin
+    heater: input_boolean.radiateur_suite_parentale
+    cooler: input_boolean.clim_suite_parentale
+    sensor: sensor.temperature_suite_parentale

@@ -37,7 +37,8 @@ TPI_OUTDOOR = 0.03  # per °C between the setpoint and the outdoor temperature
 THERMOSTATS = {
     "climate.salon": "salon", "climate.bureau": "bureau", "climate.chambre": "chambre",
     "climate.cuisine": "cuisine", "climate.chambre_d_amis": "amis", "climate.veranda": "veranda",
-    "climate.atelier": "atelier",
+    "climate.atelier": "atelier", "climate.mezzanine": "mezzanine", "climate.combles": "combles",
+    "climate.suite_parentale": "suite_parentale",
 }
 # Someone turns the living room up by hand one evening (3 days ago, 19:00 → 21:00)
 MANUAL = {"entity_id": "climate.salon", "days_ago": 3, "start": 19 * 60, "end": 21 * 60, "temperature": 22.0}
@@ -131,6 +132,8 @@ def _simulate(hass: HomeAssistant, end: datetime) -> tuple[dict[str, list[Row]],
             if minute % CYCLE == 0:
                 share = TPI_INDOOR * (target - shown) + TPI_OUTDOOR * (target - ext)
                 on_minutes[room] = round(max(0.0, min(1.0, share)) * CYCLE)
+                if not ROOMS[room].power:  # a cooling-only air conditioner never heats
+                    on_minutes[room] = 0
             heaters[room] = minute % CYCLE < on_minutes[room]
             _, sensor_attributes = attributes_of(f"sensor.temperature_{room}")
             record(f"sensor.temperature_{room}", t, f"{shown:.1f}", sensor_attributes, (shown,))
