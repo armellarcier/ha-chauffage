@@ -4,6 +4,8 @@
 from unittest.mock import patch
 
 import pytest
+from homeassistant.core import Context
+from homeassistant.exceptions import Unauthorized
 
 from conftest import WEEKDAY, Bench
 
@@ -160,6 +162,32 @@ async def test_the_options_form_chooses_the_access_level(bench: Bench):
     await options.async_configure(flow["flow_id"], {"override_duration": 120, "access_level": "set_up"})
     await bench.hass.async_block_till_done()
     assert bench.runtime.access_level == "set_up"
+
+
+# ----- the services -----
+
+@pytest.mark.parametrize(("service", "data"), [
+    ("set_override", {"entity_id": "climate.salon", "temperature": 25}),
+    ("clear_override", {"entity_id": "climate.salon"}),
+])
+async def test_a_read_only_user_cannot_change_an_override_with_a_service(bench: Bench, hass_read_only_user, service, data):
+    """The user may not control the thermostat: the service refuses, as Home Assistant's own
+    services that target an entity do."""
+    await start(bench)
+    await bench.manual_setpoint("climate.salon", 21)
+    before = bench.overrides()
+    with pytest.raises(Unauthorized):
+        await bench.hass.services.async_call("chauffage", service, data, blocking=True,
+                                             context=Context(user_id=hass_read_only_user.id))
+    assert bench.overrides() == before
+
+
+async def test_a_user_of_the_household_changes_an_override_with_a_service(bench: Bench, hass_admin_user):
+    """An automation (no user) and every user who may control the thermostat still can."""
+    await start(bench)
+    await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22},
+                                         blocking=True, context=Context(user_id=hass_admin_user.id))
+    assert bench.overrides()["climate.salon"]["value"] == 22
 
 
 # ----- the panel -----

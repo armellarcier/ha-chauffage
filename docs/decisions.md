@@ -821,10 +821,10 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
   user changes nothing from the cards and the panel, whatever the access level.
 - **The access level covers the cards and the panel, not the entities and the services.** The
   entities of Chauffage, for example *Override duration* or a schedule's switch, follow Home
-  Assistant's permissions, as every entity does. The services `chauffage.set_override`,
-  `chauffage.clear_override` and `chauffage.activate_schedule` are open to every user, as Home
-  Assistant's own domain services are. Gating them would protect nothing, since every user can
-  control the thermostats themselves.
+  Assistant's permissions, as every entity does. The services follow them too:
+  `chauffage.set_override` and `chauffage.clear_override` need the control of the thermostat,
+  as Home Assistant's services that target an entity do. `chauffage.activate_schedule` targets no
+  entity, so it stays open to every user, as the active-schedule select is.
 - **Admins are told of the access level, not of the end of overrides (#83).** The panel shows one
   notice at a time. The settings dialog holds both settings, so an admin who opens it sees the
   end of overrides too.
