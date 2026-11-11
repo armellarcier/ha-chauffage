@@ -193,6 +193,15 @@ describe('the access level in the schedule card', () => {
     assert.equal(c._week('climate.salon')[0].length, 5);
     assert.equal(text($(c, '.msg')), '');
   });
+
+  test('the access level drops after a copy: the message says the access level, not the copy', () => {
+    const hass = as('plan');
+    const c = card(hass);
+    c._copyDay('climate.salon', 0, 'weekend');
+    assert.match(text($(c, '.msg')), /copié/);
+    changeTo(hass, 'use');
+    assert.equal(text($(c, '.msg')), 'Votre niveau d’accès ne le permet pas.');
+  });
 });
 
 describe('the access level in the more-info block', () => {
@@ -334,52 +343,6 @@ describe('the access level in the panel', () => {
     assert.ok($(view, '.th-menu [data-device]'));
   });
 
-  test('the access level drops below Set up: the panel says so, with no tabs and no ⚙', () => {
-    const hass = as('set_up', { weeks: BOTH });
-    const el = panel(hass, '/thermostats');
-    changeTo(hass, 'plan', { weeks: BOTH });
-    assert.equal(text($(el, '.content')), 'Vous n’avez plus accès à ce panneau.');
-    assert.equal($(el, 'nav.tabs'), null);
-    assert.equal($(el, '[data-open-settings]'), null);
-    assert.equal(list(el), null);
-  });
-
-  test('the access level drops with weeks not saved: the page stays until they are saved, then says so', async () => {
-    const hass = as('set_up', { weeks: BOTH });
-    const el = panel(hass, '/thermostats/climate.salon');
-    const week = $$(el, 'chauffage-programme-card').find((c) => c._config.week_only);
-    week._split('climate.salon', 0, 12 * 60);
-    changeTo(hass, 'plan', { weeks: BOTH });
-    assert.ok($(el, '[data-sheet-save]'), 'Plan still saves the weeks');
-    $(el, '[data-sheet-save]').click();
-    await tick();
-    assert.ok(hass.events.some((m) => m.type === 'chauffage/weeks/save'));
-    assert.equal(text($(el, '.content')), 'Vous n’avez plus accès à ce panneau.');
-  });
-
-  test('the access level drops to Use with weeks not saved: Cancel only, which then shows the notice', () => {
-    const hass = as('set_up', { weeks: BOTH });
-    const el = panel(hass, '/thermostats/climate.salon');
-    const week = $$(el, 'chauffage-programme-card').find((c) => c._config.week_only);
-    week._split('climate.salon', 0, 12 * 60);
-    changeTo(hass, 'use', { weeks: BOTH });
-    assert.equal($(el, '[data-sheet-save]'), null);
-    assert.equal(text($(el, '.sheet-savebar .error')), 'Votre niveau d’accès ne le permet pas.');
-    $(el, '[data-sheet-cancel]').click();
-    assert.equal(text($(el, '.content')), 'Vous n’avez plus accès à ce panneau.');
-  });
-
-  test('a settings dialog left open closes when the access level drops below Set up', async () => {
-    const hass = as('set_up', { weeks: BOTH });
-    const manager = fakeDialogManager(hass);
-    const el = panel(hass, '/schedules');
-    $(el, '.toolbar [data-open-settings]').click();
-    await tick();
-    assert.deepEqual(manager.open, ['chauffage-settings-dialog']);
-    changeTo(hass, 'use', { weeks: BOTH });
-    assert.deepEqual(manager.open, []);
-  });
-
   test('admins are told once of the access level, and its Settings open the dialog', async () => {
     const hass = as('admin', { weeks: BOTH });
     const manager = fakeDialogManager(hass);
@@ -446,6 +409,34 @@ describe('the access level in the settings dialog', () => {
     assert.equal($(el, '.access-settings .sidebar-note'), null);
     hass.push({ ...dataAt('admin'), access_level: 'set_up' });
     assert.equal(text($(el, '.access-settings .sidebar-note')), 'Chacun peut masquer Chauffage de sa barre latérale, dans son profil.');
+  });
+
+  // Home Assistant may open the dialog before it puts it on the page (the first open after a load)
+  const openedBeforeConnected = (hass, params = {}) => {
+    const el = document.createElement('chauffage-settings-dialog');
+    el.hass = hass;
+    el.showDialog(params);
+    document.body.appendChild(el);
+    return el;
+  };
+
+  test('opened before Home Assistant puts it on the page, the dialog is filled once there', () => {
+    const el = openedBeforeConnected(as('admin'));
+    assert.deepEqual(choices(el).map((c) => c.checked), [true, false, false]);
+    assert.equal($$(el, '.override-settings [data-override-end]').length, 3);
+  });
+
+  test('opened from the notice, the dialog scrolls to the access level once it is filled', async () => {
+    const scrolled = [];
+    const scrollIntoView = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = function record() { scrolled.push([this.className, this.querySelectorAll('[data-access-level]').length]); };
+    try {
+      openedBeforeConnected(as('admin'), { section: 'access' });
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+      assert.deepEqual(scrolled, [['access-settings', 3]]);
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    }
   });
 
   test('a user with Set up sets the overrides, not the access level', () => {

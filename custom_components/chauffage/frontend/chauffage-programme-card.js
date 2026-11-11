@@ -126,7 +126,6 @@ const I18N = {
     entityMissing: '{entity} does not exist in Home Assistant',
     notScheduled: 'Chauffage does not schedule this thermostat.',
     scheduleIt: 'Schedule it',
-    panelNoAccess: 'You no longer have access to this panel.',
     newAccessNotice: 'New: let users who are not admins plan the weeks.',
     accessTitle: 'Access level',
     accessIntro: 'For users who are not admins.',
@@ -388,7 +387,6 @@ const I18N = {
     entityMissing: '{entity} n’existe pas dans Home Assistant',
     notScheduled: 'Chauffage ne programme pas ce thermostat.',
     scheduleIt: 'Le programmer',
-    panelNoAccess: 'Vous n’avez plus accès à ce panneau.',
     newAccessNotice: 'Nouveau : laissez les utilisateurs non administrateurs programmer les semaines.',
     accessTitle: 'Niveau d’accès',
     accessIntro: 'Pour les utilisateurs non administrateurs.',
@@ -1387,8 +1385,6 @@ async function reloadPage(win = window) {
 // used: a text, with a Reload button when reloading the page finishes an update, or "…" while
 // the data is on its way. null once the data is ready.
 const NOTICE_RELOAD = { text: 'reloadNeeded', reload: true };
-// The panel of a user whose access level no longer allows it (#99)
-const NOTICE_NO_ACCESS = { text: 'panelNoAccess' };
 function sourceNotice(src) {
   if (src.stale) return NOTICE_RELOAD;
   if (!src.available) return { text: 'integrationMissing' };
@@ -3235,7 +3231,7 @@ class ChauffageProgrammeCard extends HTMLElement {
             ${copyWeekMenu}
           </div>
         </div>`}
-        <div class="msg">${esc(this._msg || (this._dirty && !maySave ? tr('unauthorized') : ''))}</div>
+        <div class="msg">${esc(maySave ? this._msg : tr('unauthorized'))}</div>
         ${this._dirty && !weekOnly ? `<div class="savebar">
           <span class="dirty">${esc(tr('unsaved'))}</span>
           <button class="btn" data-act="cancel">${esc(tr('cancel'))}</button>
@@ -6097,14 +6093,12 @@ class ChauffageSettingsDialog extends HTMLElement {
     this._ownHistory = !!(params && params.history);
     this._moreInfo = !!(params && params.moreInfo); // opened from the more-info block
     this._popped = false;
-    this._couldSetUp = false;
+    // Opened from the notice of the access level: scrolled to its section, once filled (_update)
+    this._scrollTo = params && params.section === 'access' ? '.access-settings' : null;
     seenNewSetting(this._hass);
     this._unlisten = INTEGRATION.listen(() => this._update());
     this._build();
-    this._update();
-    // Opened from the notice of the access level: scrolled to its section
-    const section = params && params.section === 'access' && this.shadowRoot.querySelector('.access-settings');
-    if (section && typeof section.scrollIntoView === 'function') requestAnimationFrame(() => section.scrollIntoView({ block: 'start' }));
+    this._update(); // Home Assistant may put the dialog on the page later: then connectedCallback
     if (this._ownHistory) {
       window.history.pushState({ [SETTINGS_DIALOG]: true }, '');
       window.addEventListener('popstate', this._onPop);
@@ -6264,6 +6258,11 @@ class ChauffageSettingsDialog extends HTMLElement {
     this._stopLeave = null;
   }
 
+  // Home Assistant opens the dialog, then puts it on the page the first time: filled then
+  connectedCallback() {
+    this._update();
+  }
+
   disconnectedCallback() {
     this._cancelLeave();
     clearTimeout(this._savedTimer);
@@ -6273,15 +6272,13 @@ class ChauffageSettingsDialog extends HTMLElement {
   _update() {
     if (!this._open || !this._hass || !this.isConnected) return;
     const src = dataSource(this._hass);
-    // The access level dropped below Set up while the dialog was open (#99): it closes
-    if (this._couldSetUp && src.ready && !src.editable) {
-      this.closeDialog();
-      return;
-    }
-    this._couldSetUp = src.editable;
     const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
     if (settings) this._fillSettings(settings, src);
     this._fillAccess(src, this._settingsBusy || {});
+    // Scrolled once its content is drawn: earlier, the sections above it are not their height yet
+    const section = this._scrollTo && this.shadowRoot.querySelector(this._scrollTo);
+    this._scrollTo = null;
+    if (section && typeof section.scrollIntoView === 'function') requestAnimationFrame(() => section.scrollIntoView({ block: 'start' }));
   }
 
   // A field typed in is drawn again once left (timeFieldDone)
@@ -6535,8 +6532,7 @@ class ChauffagePanel extends HTMLElement {
     // the page loaded a former card first: the panel's cards would not work, so the panel asks to
     // reload the page. A second copy of the same version works: compared by version, not by class.
     const card = customElements.get('chauffage-programme-card');
-    // The access level dropped below Set up while the panel was open (#99): it says so
-    const notice = card && card.version !== VERSION ? NOTICE_RELOAD : sourceNotice(src) || (src.editable ? null : NOTICE_NO_ACCESS);
+    const notice = card && card.version !== VERSION ? NOTICE_RELOAD : sourceNotice(src);
     const route = panelRoute(this._route && this._route.path, src, hass);
     if (route.redirect) {
       window.history.replaceState(null, '', `/chauffage/${route.redirect}`);
@@ -6601,7 +6597,7 @@ class ChauffagePanel extends HTMLElement {
     const t = this._t;
     const title = (this._panel && this._panel.title) || 'Chauffage';
     let head;
-    if (route.sheet && notice !== NOTICE_NO_ACCESS) {
+    if (route.sheet) {
       const list = PANEL_TABS.find(([page]) => page === route.list);
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button>
           <nav class="title crumbs"><a href="/chauffage/${route.list}" data-navigate="/chauffage/${route.list}">${esc(t(list[1]))}</a>
@@ -6614,12 +6610,11 @@ class ChauffagePanel extends HTMLElement {
         `<a href="/chauffage/${page}" class="tab${page === route.list ? ' on' : ''}" data-navigate="/chauffage/${page}">${esc(t(label))}</a>`).join('');
       // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (canSetUp:
       // the panel). Not under a notice, like the sheet's ⋮
-      const cog = !notice
+      const cog = src.editable && !notice
         ? `<button class="page-more" data-open-settings title="${esc(t('settingsTitle'))}" aria-label="${esc(t('settingsTitle'))}"><ha-icon icon="mdi:cog"></ha-icon></button>`
         : '';
-      // Without access, no tabs: nothing to open
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div>${cog}</div>
-        ${notice === NOTICE_NO_ACCESS ? '' : `<nav class="tabs">${tabs}</nav>`}`;
+        <nav class="tabs">${tabs}</nav>`;
     }
     this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>${head}<div class="content"></div>`;
     this._cards = [];
@@ -6770,14 +6765,11 @@ class ChauffagePanel extends HTMLElement {
       </div>`);
       return;
     }
-    // The access level dropped below Plan (#99): the weeks stay until Cancel, but are not saved
-    const maySave = dirty.every(([, card]) => card._source().plannable && card._maySave());
-    const error = this._saveError || (maySave ? null : t('unauthorized'));
     setHtml(slot, `<div class="sheet-savebar">
         <span class="dirty">${esc(t('unsavedWeeks', { schedules: names }))}</span>
-        ${error ? `<span class="error">${esc(error)}</span>` : ''}
+        ${this._saveError ? `<span class="error">${esc(this._saveError)}</span>` : ''}
         <span class="btns"><button class="btn" data-sheet-cancel>${esc(t('cancel'))}</button>
-        ${maySave ? `<button class="btn primary" data-sheet-save>${esc(t('save'))}</button>` : ''}</span>
+        <button class="btn primary" data-sheet-save>${esc(t('save'))}</button></span>
       </div>`);
   }
 
@@ -6788,7 +6780,6 @@ class ChauffagePanel extends HTMLElement {
     }
     this._saveError = null;
     this._fillSavebar();
-    this._update(); // the page waited for the weeks to be saved or discarded
   }
 
   // Saves the weeks not saved yet in one call: each card sends its own schedule's week, against
@@ -6818,7 +6809,6 @@ class ChauffagePanel extends HTMLElement {
       this._saveError = err && err.code === 'stale' ? t('stale') : errorText(t, err);
     }
     this._fillSavebar();
-    this._update(); // the page waited for the weeks to be saved or discarded
   }
 
   // A thermostat's sheet, first: whether Chauffage controls it, where it is shown, its devices

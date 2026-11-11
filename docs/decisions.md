@@ -824,6 +824,10 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
   panel only. So Home Assistant registers the panel for every user with *Set up*, and for admins
   only otherwise. The sidebar entry keeps its option, and every user who may open the panel sees
   it. Each user can hide the entry in their own profile.
+- **A user who loses *Set up* leaves the panel at once.** Home Assistant removes a panel from a
+  user who may no longer open it, and sends the user to the home page. Weeks edited in the panel
+  and not saved are lost. The panel cannot keep them: it is gone. Lowering the access level is
+  rare, and an admin decides it.
 - ***Use* is the default.** It is what non-admins can do today, so an upgrade changes nothing.
 - **Only an admin chooses the access level.** A user with *Set up* who could choose it could give every
   user everything.

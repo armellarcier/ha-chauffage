@@ -32,7 +32,7 @@
           "manual_override_end": "When an override ends. A slot that starts in less than 15 min doesn't count.",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators, and for every user with the access level Set up. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit).",
-          "access_level": "What users who are not administrators may change. Administrators can always change everything."
+          "access_level": "What users who are not administrators may change. Administrators can always change everything. With Set up, their changes reach every room."
         }
       }
     },
@@ -113,9 +113,9 @@
   "selector": {
     "access_level": {
       "options": {
-        "use": "Use: overrides, pause, active schedule",
-        "plan": "Plan: also the weeks and the schedules",
-        "set_up": "Set up: everything, in the Chauffage panel too"
+        "use": "Use (default): overrides, pause, active schedule",
+        "plan": "Plan: also the weeks and the schedules, from the cards",
+        "set_up": "Set up: also the Chauffage panel (presets, rules, thermostats)"
       }
     },
     "manual_override_end": {
