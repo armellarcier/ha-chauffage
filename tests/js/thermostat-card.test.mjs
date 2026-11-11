@@ -156,7 +156,8 @@ describe('the thermostat card', () => {
     const hass = setup();
     hass.states['climate.cuisine'] = { state: 'heat', attributes: { friendly_name: 'Cuisine', current_temperature: 18 }, last_updated: '1' };
     const card = cardFor(hass, { entity: 'climate.cuisine' });
-    assert.match(text($(card, 'ha-card')), /Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur l’onglet Thermostats/);
+    assert.match(text($(card, 'ha-card')), /Chauffage ne programme pas ce thermostat\. Le programmer$/);
+    assert.ok($(card, '.msg [data-navigate="/chauffage/thermostats"]'), 'an admin schedules it from the panel');
   });
 
   test('without the integration, says so', () => {

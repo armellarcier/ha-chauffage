@@ -340,7 +340,9 @@ describe('the Chauffage panel', () => {
 
   describe('telling existing users about the new setting (#83)', () => {
     test('the Thermostats tab says once: new, choose how long a setpoint changed by hand lasts; its link opens the settings', async () => {
-      const hass = setup();
+      // A user with Set up, who is not an admin: an admin is told of the access level instead (#99)
+      const hass = setup({ data: { ...integrationData({ weeks: WEEKS }), access_level: 'set_up' } });
+      hass.user = { is_admin: false };
       const manager = fakeDialogManager(hass);
       const el = panel(hass, '/thermostats');
       assert.match(text($(el, '.notice.new-setting')), /Nouveau : choisissez combien de temps dure une dérogation\./);
@@ -822,7 +824,7 @@ describe('the dashboard card and the panel', () => {
     assert.equal(window.location.pathname, '/chauffage');
   });
 
-  test('a user who is not an admin sees no link to the panel (it is for admins only)', () => {
+  test('a user with the access level Use sees no link to the panel (it needs Set up, #99)', () => {
     const hass = setup();
     hass.user = { is_admin: false };
     assert.equal(createCard(hass).shadowRoot.querySelector('[data-navigate^="/chauffage"]'), null);
