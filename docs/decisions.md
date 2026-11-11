@@ -715,8 +715,8 @@ older one, the older one says so.
   needs an admin, except activating a schedule, setting an override and pausing a thermostat:
   those need the control of the thermostat (see [The UX review](#the-ux-review-080-beta2)). Home Assistant's device pages are also for admins
   only.
-- **An admin gives each other user an access** (#99, not built yet): *Use*, *Plan* or *Set up*.
-  See [Who may do what](#who-may-do-what-99).
+- **An admin chooses what users who are not admins may change** (#99, not built yet): *Use*,
+  *Plan* or *Set up*. See [Who may do what](#who-may-do-what-99).
 - **The panel's sidebar icon is our own icon**, `chauffage:logo`. The card's JavaScript registers it
   in `window.customIcons`. The icon is drawn from the brand icon: bars of slots and a clock. The
   icon does not depend on the integration's name, which may change. The limit: if the card's
@@ -766,20 +766,10 @@ read-only user. Overrides and the pause were opened later, one at a time.
 Who may change what is the owner's choice. Chauffage must make the choice clear, and offer enough
 cases to fit a real home, but no more.
 
-#### The personas
-
-| Persona | What the persona does with the heating | Access |
-|---|---|---|
-| **The installer** | Installs Chauffage, adds the thermostats, writes the rules. An admin of Home Assistant. | Administrator |
-| **The co-manager** | Runs the heating as much as the installer, for example a partner or a second owner, without being an admin of Home Assistant. Tunes the presets of a room that is too cold, adds the new radiator. | *Set up* |
-| **The household adult** | Organizes the week: a *Holidays* schedule, Wednesday off this term, the guest room heated next weekend. Does not want to know what a preset or a template is. | *Plan* |
-| **The shared wall tablet** | A non-admin account used by everyone at home, in the hall or the kitchen (#99). The household plans from it. | *Plan* |
-| **The child or the teenager** | Own account on a phone. Warms up the bedroom tonight, nothing more. | *Use* |
-| **The guest** | A babysitter, a holiday tenant, a relative on a visit. Adjusts the room for a few hours. | *Use* |
-
 #### The accesses
 
-An access is cumulative: *Plan* includes *Use*, and *Set up* includes *Plan*. An admin of Home
+An admin chooses one access for every user who is not an admin: *Use*, *Plan* or *Set up*. An
+access is cumulative: *Plan* includes *Use*, and *Set up* includes *Plan*. An admin of Home
 Assistant can always do everything.
 
 | What the user can do | *Use* | *Plan* | *Set up* | Admin |
@@ -795,17 +785,22 @@ Assistant can always do everything.
 | Write the activation rules | | | ✓ | ✓ |
 | Schedule another thermostat, or forget one | | | ✓ | ✓ |
 | Change the settings of overrides | | | ✓ | ✓ |
-| Give a user an access | | | | ✓ |
+| Choose the access | | | | ✓ |
 | Open the integration's options and the devices' pages | | | | ✓ |
 
 The last row belongs to Home Assistant, which keeps these pages for admins.
 
 #### The decisions
 
-- **An access per user, not one setting for every user.** The same home often has a tablet that
-  plans and a child who only uses. One setting for all users cannot fit both.
-- **Three accesses, not one switch per feature.** Each persona fits one access. A switch per
-  feature and per user makes a grid of about forty boxes, which nobody reads twice.
+- **One access for every user who is not an admin, not one per user.** Chauffage keeps Home
+  Assistant's two roles. An access per user would protect little: with *Use*, a user can already
+  pause a thermostat or change its setpoint. It would cost a lot: a list of users to keep up to
+  date, stored data, a row per user to set, and tests per user. A home that hides the editing from
+  a child uses Home Assistant's tools: another dashboard, or the card's visibility per user. If
+  homes ask for exceptions per user, the access becomes their default, and nothing breaks.
+- **Three accesses, not one switch per feature.** A switch per feature makes the owner read and
+  weigh about ten boxes. Three accesses cover the homes we know: a home that only uses the
+  heating, a home that plans from a shared tablet, a home run by two people.
 - **The accesses follow the reach of a change.** *Use* changes one thermostat for a few hours.
   *Plan* changes the coming weeks of the home. *Set up* changes what every slot of every room
   means, and which thermostats Chauffage controls.
@@ -818,25 +813,19 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
 - **An access never goes beyond Home Assistant's permissions.** Every action on a thermostat still
   needs the control of that thermostat. In practice, Home Assistant's UI gives every non-admin
   user the control of every entity. Only a user made read-only outside the UI lacks it, and that
-  user changes nothing, whatever their access.
+  user changes nothing, whatever the access.
 - ***Plan* works from the dashboard card.** The card already edits the weeks, and creates,
   renames, moves and deletes schedules. *Plan* needs no panel.
 - ***Set up* opens the panel.** The presets, the rules and the scheduled thermostats live in the
-  panel only. So Home Assistant registers the panel for every user once a user has *Set up*, and
-  for admins only otherwise.
-- **The sidebar entry stays one option for the whole installation.** Home Assistant registers a
-  panel apart from its sidebar entry, but shows the entry to every user who may open the panel.
-  It cannot show the entry to some users only. So once a user has *Set up*, and while the sidebar
-  option is on, every user sees *Chauffage* in the sidebar. A user without *Set up* sees the panel
-  read only, as the card. Each user can hide the entry in their own profile, and the setting of the
-  accesses says so.
-- ***Use* is the default**, for every user who exists today and every new user. It is what
-  non-admins can do today, so an upgrade changes nothing.
-- **Only an admin gives an access.** A user with *Set up* who could give accesses could give
-  themself everything.
-- **The choice is explained where it is made.** An admin sets the accesses in the panel's
-  settings dialog, one row per user who is not an admin. Each access shows, in one line, what it
-  lets the user change, and *Set up* says that it changes every room.
+  panel only. So Home Assistant registers the panel for every user with *Set up*, and for admins
+  only otherwise. The sidebar entry keeps its option, and every user who may open the panel sees
+  it. Each user can hide the entry in their own profile.
+- ***Use* is the default.** It is what non-admins can do today, so an upgrade changes nothing.
+- **Only an admin chooses the access.** A user with *Set up* who could choose it could give every
+  user everything.
+- **The choice is explained where it is made.** An admin chooses the access in the panel's
+  settings dialog. Each access shows, in one line, what it lets users change, and *Set up* says
+  that it changes every room.
 
 ### The panel's addresses
 
