@@ -5493,10 +5493,11 @@ class ChauffageThermostatCard extends HTMLElement {
     }
     if (!this._config) return;
     const src = dataSource(hass);
-    // Redrawn when the thermostat or the integration's data change; the block follows by itself
+    // Redrawn when the thermostat, the integration's data or the access level change; the block
+    // follows by itself
     const key = [hass.states[this._config.entity], src.stamps.weeks, src.stamps.overrides, src.stamps.schedule,
       src.stamps.thermostats, JSON.stringify(src.planned(this._config.entity)), makeLocale(hass, this._config.language).signature,
-      hass.user && hass.user.is_admin, src.ready, src.stale, src.outdated, this._config];
+      hass.user && hass.user.is_admin, src.stamps.access, src.ready, src.stale, src.outdated, this._config];
     if (!this._key || key.some((v, i) => v !== this._key[i])) {
       this._key = key;
       this._render();

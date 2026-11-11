@@ -305,6 +305,18 @@ describe('the access level in the thermostat card', () => {
     link.click();
     assert.equal(window.location.pathname, '/chauffage/thermostats');
   });
+
+  test('a thermostat Chauffage does not schedule: Schedule it follows the access level without a reload', () => {
+    const hass = as('plan');
+    const card = cardFor(hass, 'climate.cuisine');
+    assert.equal($(card, '.msg [data-navigate]'), null);
+    changeTo(hass, 'set_up');
+    card.hass = hass;
+    assert.equal(text($(card, '.msg [data-navigate]')), 'Le programmer');
+    changeTo(hass, 'use');
+    card.hass = hass;
+    assert.equal($(card, '.msg [data-navigate]'), null);
+  });
 });
 
 describe('the access level in the panel', () => {
