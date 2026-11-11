@@ -59,6 +59,11 @@ describe('the panel\'s "Thermostats" page', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
+  test('says what a paused control is', () => {
+    assert.equal(text(open(setup()).shadowRoot.querySelector('.th-hint')),
+      'Chauffage pilote les thermostats programmés. Un thermostat au pilotage suspendu reste programmé : il garde ses semaines, mais Chauffage n\'y touche plus.');
+  });
+
   test('lists every scheduled thermostat by name; only a paused one has a badge, the exception', () => {
     const card = open(setup());
     const rows = [...card.shadowRoot.querySelectorAll('.th-row')].map((r) => r.dataset.climate);

@@ -6,7 +6,7 @@ import pytest
 import voluptuous as vol
 from homeassistant.core import Context
 
-from conftest import CTX_AUTOMATION, CTX_USER, KINDS, MANUAL_PRESET, WEEKDAY, Bench, every_day
+from conftest import CTX_AUTOMATION, CTX_USER, KINDS, MANUAL_PRESET, WEEKDAY, Bench
 
 OFF = {"hvac_mode": "off"}
 # Comfort from 06:30, eco from 08:30, comfort from 17:30, off from 22:30 (an off slot holds the
