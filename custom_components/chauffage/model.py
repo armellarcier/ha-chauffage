@@ -1,40 +1,44 @@
 """Stored data of the integration, as plain JSON-compatible dictionaries (no HA import).
 Vocabulary: docs/glossary.md.
 
-    schedules:       [{"id": "normal", "name": "Normal", "hvac_mode": "cool" (optional)}, …]
-                     renaming a schedule keeps its id; "hvac_mode", "heat" or "cool": whether the
-                     thermostats that list it heat or cool while the schedule is active (the air
-                     conditioners); without it, the schedule does not change their HVAC mode (#91)
+    schedules:       [{"id": "normal", "name": "Normal"}, …]   renaming a schedule keeps its id
     active_schedule: "normal"
-    presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
-                     "temperature" is the default for thermostats driven by temperatures
+    presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0,
+                       "cool_color": "#0288d1" (optional)}, …]
+                     "temperature" is the default for thermostats driven by temperatures;
+                     "cool_color" is the color of the preset's cooling slots, when the user chose
+                     one: without it, the card derives a cool shade from "color" (#91)
     thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
                      (docs/decisions.md, "Scheduled thermostats"):
         paused:              True: kept, not controlled
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
                              [start "HH:MM", preset id] or [start, preset id, settings] slots,
-                             the first one at "00:00"; the settings are what the slot sets besides
-                             its preset (#91): {"hvac_mode": "off"} for an off slot (no other
-                             HVAC mode: the schedule says heat or cool), or the fan and the vanes
-                             of an air conditioner. An off slot's preset is the coldest preset
-                             (coldest_preset): the user does not choose it
+                             the first one at "00:00". The settings are what the slot sets besides
+                             its preset (#91): its HVAC mode ("hvac_mode"), and the fan and the
+                             vanes of an air conditioner. The slot chooses the HVAC mode: "heat"
+                             or "cool" with a preset (the preset says how warm, for that HVAC
+                             mode), "off" or "fan_only" without one ([start, None,
+                             {"hvac_mode": "off"}]). An off slot sets nothing else; a fan-only
+                             slot may set the fan and the vanes. Without an HVAC mode, the slot
+                             leaves the thermostat in the HVAC mode it has
         mapping:             {preset id: value}, what a preset means for this thermostat, only
                              what was set by hand: the rest is engine.default_target. A value is
-                             a partial state of the thermostat, as a scene holds it (#91):
-                             {"preset_mode": "comfort"} or {"temperature": 20.5}, never both, with
-                             an optional "cool_temperature" (the setpoint when the thermostat
-                             cools), "fan_mode", "swing_mode" and "swing_horizontal_mode". No
-                             "hvac_mode": a slot says off, the schedule says heat or cool
+                             a partial state of the thermostat, as a scene holds it (#91). When
+                             the thermostat heats: {"preset_mode": "comfort"} or
+                             {"temperature": 20.5}, never both. When it cools: an optional
+                             "cool_temperature". Then "fan_mode", "swing_mode" and
+                             "swing_horizontal_mode". No "hvac_mode": the slot chooses it
         preset_temperatures: {climate preset: temperature} last seen on the thermostat
-        hvac_mode:           the HVAC mode the thermostat was last on in (None: not seen on yet):
-                             what an off thermostat without heat is turned on in
+        hvac_mode:           the HVAC mode the thermostat last heated or cooled in (None: not
+                             seen on yet): what an off thermostat without heat is turned on in
         revision:            increases on every change of its weeks: a card saves against it, so
                              that two cards cannot overwrite each other's changes
     renamed:         {former climate entity id: current one}: a thermostat renamed in Home
                      Assistant, for the cards whose configuration still holds the former id
     overrides:       {climate entity id: {"target": {"temperature": 21.5} | {"preset_mode": "boost"}
-                                                    | {"hvac_mode": "off"} | …,
+                                                    | {"hvac_mode": "off"} (alone: an off
+                                                    override sets nothing else) | …,
                                           "preset": "comfort" (optional), "start": ISO datetime,
                                           "end": ISO datetime,
                                           "ends_at": "duration" | "next_slot" |
@@ -105,19 +109,13 @@ def make_schedules(names: list[str]) -> list[dict[str, str]]:
     return schedules
 
 
-SCHEDULE_HVAC_MODES = ("heat", "cool")  # what a schedule may say; None: it does not change the HVAC mode
-
-
 def plan_schedules(items: Any, current: list[dict[str, str]], active: str) -> tuple[list[dict[str, str]], dict[str, str | None]]:
     """The new ordered list of schedules from the card's list: `{"id"}` keeps a schedule (with
-    `"name"`: renamed), `{"name", "copy_of"?}` creates one, a missing id deletes one. With
-    `"hvac_mode"`, the schedule's HVAC mode is set ("heat", "cool", or None: don't change);
-    without, a kept schedule keeps its own and a copy takes its source's. Returns the list and
-    the created ids with what they copy (None: empty)."""
+    `"name"`: renamed), `{"name", "copy_of"?}` creates one, a missing id deletes one. Returns the
+    list and the created ids with what they copy (None: empty)."""
     if not isinstance(items, list) or not items:
         raise InvalidData("at least one schedule is needed")
     names = {s["id"]: s["name"] for s in current}
-    hvac_modes = {s["id"]: s.get("hvac_mode") for s in current}
     taken = set(names)
     schedules: list[dict[str, str]] = []
     created: dict[str, str | None] = {}
@@ -133,7 +131,6 @@ def plan_schedules(items: Any, current: list[dict[str, str]], active: str) -> tu
         name = name.strip()
         if any(s["name"].casefold() == name.casefold() for s in schedules):
             raise InvalidData(f"two schedules named {name}")
-        hvac_mode = hvac_modes.get(schedule_id)
         if schedule_id is None:
             source = item.get("copy_of")
             if source is not None and source not in names:
@@ -141,12 +138,7 @@ def plan_schedules(items: Any, current: list[dict[str, str]], active: str) -> tu
             schedule_id = unique_id(name, taken)
             taken.add(schedule_id)
             created[schedule_id] = source
-            hvac_mode = hvac_modes.get(source)
-        if "hvac_mode" in item:
-            hvac_mode = item["hvac_mode"]
-            if hvac_mode is not None and hvac_mode not in SCHEDULE_HVAC_MODES:
-                raise InvalidData(f"a schedule's HVAC mode is heat or cool: {hvac_mode!r}")
-        schedules.append({"id": schedule_id, "name": name} | ({"hvac_mode": hvac_mode} if hvac_mode else {}))
+        schedules.append({"id": schedule_id, "name": name})
     if active not in {s["id"] for s in schedules}:
         raise InvalidData("the active schedule cannot be deleted")
     return schedules, created
@@ -168,13 +160,13 @@ def default_presets(language: str, extra: list[str] | None = None) -> list[dict[
 
 
 def used_presets(weeks: dict[str, Any]) -> list[str]:
-    """Preset ids used in the weeks, in order of appearance."""
+    """Preset ids used in the weeks, in order of appearance (an off or a fan-only slot has none)."""
     seen: list[str] = []
     for by_schedule in weeks.values():
         for week in by_schedule.values():
             for day in week:
                 for slot in day:
-                    if slot[1] not in seen:
+                    if slot[1] is not None and slot[1] not in seen:
                         seen.append(slot[1])
     return seen
 
@@ -256,25 +248,28 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
     except (TypeError, ValueError) as err:
         raise InvalidData("invalid temperature") from err
     preset_id = preset.get("id") or unique_id(name, taken_ids)
-    return {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
-
-
-def coldest_preset(presets: list[dict[str, Any]]) -> str:
-    """The preset an off slot holds: the one with the lowest default temperature (the first of
-    them in the presets' order). The user does not choose it: a thermostat that heats anyway
-    when it receives a setpoint then heats as little as possible (docs/decisions.md,
-    "Scheduling")."""
-    return min(presets, key=lambda preset: preset["temperature"])["id"]
+    out = {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
+    # The color of its cooling slots, when the user chose one (else the card derives it, #91)
+    cool_color = preset.get("cool_color")
+    if cool_color is not None:
+        if not COLOR.match(str(cool_color)):
+            raise InvalidData(f"invalid color: {cool_color}")
+        out["cool_color"] = str(cool_color).lower()
+    return out
 
 
 # The fan and the vanes of an air conditioner (#91)
 AIR_KEYS = {"fan_mode": str, "swing_mode": str, "swing_horizontal_mode": str}
 # The attributes a slot's settings may set: everything but the setpoint, which its preset gives
-# (off, then the fan and the vanes of an air conditioner, #91)
+# (its HVAC mode, then the fan and the vanes of an air conditioner, #91)
 SETTING_KEYS = {"hvac_mode": str, **AIR_KEYS}
+# The HVAC modes a slot may choose. With a preset: heat or cool. Without one: off or fan only
+OFF, FAN_ONLY = "off", "fan_only"
+SLOT_HVAC_MODES = ("heat", "cool", OFF, FAN_ONLY)
 # The climate attributes a preset's value on a thermostat may set, and how their values are
-# read. "cool_temperature" is the setpoint when the thermostat cools (a reversible air
-# conditioner): sent as the temperature in cool, see engine.complete
+# read. "preset_mode" or "temperature" is its value when the thermostat heats.
+# "cool_temperature" is its setpoint when the thermostat cools: sent as the temperature in cool,
+# see engine.complete
 VALUE_KEYS = {"preset_mode": str, "temperature": float, "cool_temperature": float, **AIR_KEYS}
 # The climate attributes the target of an override or of a command may set: an override also
 # sets the HVAC mode (a thermostat turned off by hand, chauffage.set_override)
@@ -313,20 +308,20 @@ def normalize_target(target: Any) -> dict[str, Any]:
 
 
 def normalize_settings(settings: Any) -> dict[str, Any]:
-    """A slot's validated settings (SETTING_KEYS), possibly empty. The only HVAC mode a slot
-    sets is off: the schedule says whether the air conditioners heat or cool. An off slot sets
-    nothing else: the fan and the vanes mean nothing while the thermostat is off."""
+    """A slot's validated settings (SETTING_KEYS), possibly empty. Its HVAC mode is heat, cool,
+    off or fan only. An off slot sets nothing else: the fan and the vanes mean nothing while the
+    thermostat is off."""
     out = _normalize_attributes(settings, SETTING_KEYS, "the settings of a slot")
-    if "hvac_mode" in out:
-        if out["hvac_mode"] != "off":
-            raise InvalidData(f"a slot only sets the HVAC mode off: {out['hvac_mode']!r}")
-        return {"hvac_mode": "off"}
-    return out
+    mode = out.get("hvac_mode")
+    if mode is not None and mode not in SLOT_HVAC_MODES:
+        raise InvalidData(f"a slot's HVAC mode is heat, cool, off or fan_only: {mode!r}")
+    return {"hvac_mode": OFF} if mode == OFF else out
 
 
 def normalize_value(value: Any) -> dict[str, Any]:
     """A validated value of a preset on a thermostat (VALUE_KEYS): one of its climate presets or
-    a temperature, not both, with an optional cooling setpoint, fan and vanes. No HVAC mode."""
+    a temperature, not both (when it heats), with an optional cooling setpoint (when it cools),
+    fan and vanes. No HVAC mode: the slot chooses it."""
     out = _normalize_attributes(value, VALUE_KEYS, "the value of a preset")
     if not out:
         raise InvalidData("the value of a preset needs a climate preset or a temperature")
@@ -350,27 +345,32 @@ def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str,
     return out
 
 
-def normalize_day(slots: Any, off_preset: str | None = None) -> list[list[Any]]:
+def normalize_day(slots: Any) -> list[list[Any]]:
     """Sorted slots, first one at 00:00, duplicates and consecutive identical slots (same
     preset, same settings) merged (same rules as the card). A slot is [start, preset] or
-    [start, preset, settings] (#91); empty settings are left out. An off slot takes `off_preset`
-    when given (coldest_preset), so two off slots in a row are one. Invalid slots are dropped,
-    invalid settings refused; an empty day is eco all day."""
+    [start, preset, settings] (#91); empty settings are left out. An off slot and a fan-only
+    slot have no preset (None): two off slots in a row are one, and two fan-only slots too when
+    their fan and vanes are the same. Invalid slots are dropped, invalid settings refused; an
+    empty day is eco all day."""
     if not isinstance(slots, list):
         return [list(s) for s in DEFAULT_DAY]
-    by_start: dict[str, tuple[str, dict[str, Any]]] = {}
+    by_start: dict[str, tuple[str | None, dict[str, Any]]] = {}
     for slot in slots:
         if isinstance(slot, str):  # package format: "HH:MM preset"
             slot = slot.split()
         if not isinstance(slot, (list, tuple)) or len(slot) not in (2, 3):
             continue
-        start, preset = str(slot[0]), str(slot[1]).strip()
+        start = str(slot[0])
         settings = normalize_settings(slot[2]) if len(slot) == 3 else {}
+        if settings.get("hvac_mode") in (OFF, FAN_ONLY):
+            preset = None  # the user does not choose one: nothing to send
+        else:
+            preset = str(slot[1]).strip() if slot[1] is not None else ""
+            if not preset:
+                continue
         if len(start) == 4:  # "6:30"
             start = "0" + start
-        if off_preset and settings.get("hvac_mode") == "off":
-            preset = off_preset
-        if HHMM.match(start) and preset:
+        if HHMM.match(start):
             by_start[start] = (preset, settings)  # the last one wins
     day: list[list[Any]] = []
     previous = None
@@ -385,16 +385,14 @@ def normalize_day(slots: Any, off_preset: str | None = None) -> list[list[Any]]:
     return day
 
 
-def normalize_week(week: Any, off_preset: str | None = None) -> list[list[list[str]]]:
+def normalize_week(week: Any) -> list[list[list[str]]]:
     if not isinstance(week, list) or len(week) != 7:
         raise InvalidData("a week must have 7 days")
-    return [normalize_day(day, off_preset) for day in week]
+    return [normalize_day(day) for day in week]
 
 
-def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | None = None,
-                    off_preset: str | None = None) -> dict[str, dict[str, Any]]:
-    """Validated copy of the weeks sent by the card or an import; `off_preset`: the preset the
-    off slots take (see normalize_day)."""
+def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | None = None) -> dict[str, dict[str, Any]]:
+    """Validated copy of the weeks sent by the card or an import."""
     if not isinstance(weeks, dict):
         raise InvalidData("weeks must be a dictionary")
     out: dict[str, dict[str, Any]] = {}
@@ -406,7 +404,7 @@ def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | N
         unknown = set(by_schedule) - schedule_ids
         if unknown:
             raise InvalidData(f"{entity_id}: unknown schedules {sorted(unknown)}")
-        out[entity_id] = {schedule: normalize_week(week, off_preset) for schedule, week in by_schedule.items()}
+        out[entity_id] = {schedule: normalize_week(week) for schedule, week in by_schedule.items()}
     if preset_ids is not None:
         unknown_presets = set(used_presets(out)) - preset_ids
         if unknown_presets:
@@ -418,6 +416,8 @@ def normalize_override(override: Any) -> dict[str, Any]:
     if not isinstance(override, dict):
         raise InvalidData("an override must be a dictionary")
     target = normalize_target(override.get("target"))
+    if target.get("hvac_mode") == OFF:
+        target = {"hvac_mode": OFF}  # an off override sets nothing else: no setpoint is sent
     start, end = override.get("start"), override.get("end")
     if not isinstance(start, str) or not isinstance(end, str):
         raise InvalidData("start and end must be ISO datetimes")

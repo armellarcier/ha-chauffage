@@ -12,6 +12,10 @@ CONF_MANUAL_OVERRIDE_END = "manual_override_end"
 DURATION, NEXT_SLOT_WITHIN_DURATION, NEXT_SLOT = "duration", "next_slot_within_duration", "next_slot"
 MANUAL_OVERRIDE_ENDS = (DURATION, NEXT_SLOT_WITHIN_DURATION, NEXT_SLOT)
 DEFAULT_MANUAL_OVERRIDE_END = DURATION
+# When an off override ends (#91): a thermostat turned off by hand. The same choices; by default
+# until the next slot, however far: off for two hours is rarely what was meant
+CONF_OFF_OVERRIDE_END = "off_override_end"
+DEFAULT_OFF_OVERRIDE_END = NEXT_SLOT
 # Why an override from a change by hand ends then, stored with it: DURATION, NEXT_SLOT, or no slot
 # changes the target for a week (with NEXT_SLOT)
 NO_NEXT_SLOT = "no_next_slot"

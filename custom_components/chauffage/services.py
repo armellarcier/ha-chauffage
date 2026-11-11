@@ -2,14 +2,15 @@
 
 chauffage.set_override       sets a thermostat's temperature or preset, and its HVAC mode (off, or
                              one to turn it on in), for a while (the schedule resumes at the end),
-                             like a manual change
+                             like a manual change; off alone, without an end, lasts as the setting
+                             *End of off overrides* says
 chauffage.clear_override     ends it now: the thermostat resumes its schedule
 chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
-chauffage.get_schedules      (response) the schedules (with their HVAC mode: heat, cool or none), the
-                             active one, the one the rules give
+chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
 chauffage.get_week           (response) the week of thermostats in a schedule, as HA's
-                             schedule.get_schedule gives its schedules; an off slot says
-                             hvac_mode "off", and its preset is the coldest one
+                             schedule.get_schedule gives its schedules; a slot says its HVAC mode
+                             when it chooses one (hvac_mode), and an off slot or a fan-only slot
+                             has no preset (null)
 """
 
 from __future__ import annotations
@@ -107,7 +108,11 @@ def async_register(hass: HomeAssistant) -> None:
             target, preset_id = (dict(meaning), preset) if meaning else ({"preset_mode": preset}, None)
         if "hvac_mode" in call.data:  # off, or a mode to turn the thermostat on in (#91)
             target["hvac_mode"] = call.data["hvac_mode"]
-        override = runtime.new_override(target, minutes, end)
+        if target == {"hvac_mode": "off"} and minutes is None and end is None:
+            # Off without an end: as a thermostat turned off by hand (the setting *End of off overrides*)
+            override = runtime.manual_override(entity_id, target, runtime.current(hass.states.get(entity_id)))
+        else:
+            override = runtime.new_override(target, minutes, end)
         if preset_id:
             override["preset"] = preset_id
         try:
@@ -135,7 +140,7 @@ def async_register(hass: HomeAssistant) -> None:
         runtime = loaded_runtime(hass)
         entities = runtime.schedule_entities()
         return {
-            "schedules": [{"id": s["id"], "name": s["name"], "hvac_mode": s.get("hvac_mode"), "entity_id": entities.get(s["id"])}
+            "schedules": [{"id": s["id"], "name": s["name"], "entity_id": entities.get(s["id"])}
                           for s in runtime.data["schedules"]],
             **{key: runtime.data[key] for key in ("active_schedule", "rules_choice", "default_schedule")},
         }

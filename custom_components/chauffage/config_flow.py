@@ -22,11 +22,13 @@ from .const import (
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
     CONF_MANUAL_OVERRIDE_END,
+    CONF_OFF_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_SHOW_IN_SIDEBAR,
     CONF_USE_PRESETS,
     DEFAULT_ACCESS_LEVEL,
     DEFAULT_MANUAL_OVERRIDE_END,
+    DEFAULT_OFF_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_SHOW_IN_SIDEBAR,
     DEFAULT_USE_PRESETS,
@@ -95,6 +97,14 @@ class ChauffageOptionsFlow(OptionsFlow):
             vol.Required(
                 CONF_MANUAL_OVERRIDE_END,
                 default=options.get(CONF_MANUAL_OVERRIDE_END, DEFAULT_MANUAL_OVERRIDE_END),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=list(MANUAL_OVERRIDE_ENDS), translation_key=CONF_MANUAL_OVERRIDE_END,
+                                              mode=selector.SelectSelectorMode.LIST)
+            ),
+            # The same choices, for a thermostat turned off by hand (#91)
+            vol.Required(
+                CONF_OFF_OVERRIDE_END,
+                default=options.get(CONF_OFF_OVERRIDE_END, DEFAULT_OFF_OVERRIDE_END),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=list(MANUAL_OVERRIDE_ENDS), translation_key=CONF_MANUAL_OVERRIDE_END,
                                               mode=selector.SelectSelectorMode.LIST)

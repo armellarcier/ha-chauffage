@@ -27,8 +27,6 @@ async def start(bench: Bench, hhmm: str = "10:00", day: list | None = None, pres
     bench.thermostat("climate.salon", preset, **attributes)
     await bench.setup()
     await bench.save_weeks({"climate.salon": {"normal": [day or WEEKDAY] * 7}})
-    if day is ECO_IN_COOL:
-        await bench.schedule_says("normal", "cool")
     bench.applied()
     bench.powered()
     bench.temperature_calls.clear()
@@ -36,23 +34,20 @@ async def start(bench: Bench, hhmm: str = "10:00", day: list | None = None, pres
 
 # ----- D1: a cooling AC on a preset without a cooling value -----
 
-# Comfort, then eco at 14:00, in a schedule that says cool, on a reversible AC that cools on its
-# own comfort preset
+# Comfort, then eco at 14:00, on a reversible AC that cools on its own comfort preset
 ECO_IN_COOL = [["00:00", "comfort"], ["14:00", "eco"]]
 COOLING = {"preset": "comfort", "state": "cool", "hvac_modes": AC_MODES}
 
 
-async def test_in_cool_the_default_of_a_preset_without_a_cooling_value_leaves_the_ac_alone(bench: Bench):
-    """Eco on a reversible AC that cools, with no value of its own: its device preset would set
-    17 °C in cool. The name-based default sends no setpoint and no device preset; the HVAC mode
-    still applies."""
+async def test_in_cool_a_preset_without_a_cooling_value_sends_the_device_preset_and_no_temperature(bench: Bench):
+    """Eco on a reversible AC that cools, with no value of its own. The device knows what its
+    own eco means in cool: its climate preset is sent. Chauffage's heating temperature (17 °C)
+    is never sent in cool: a thermostat without presets keeps its setpoint."""
     await start(bench, "13:00", ECO_IN_COOL, **COOLING)
     await bench.go_to("14:00")
-    assert bench.applied() == {}
+    assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "eco"})
     assert bench.temperature_calls == []
     assert bench.powered() == {}  # already cool
-    await bench.go_to("14:30")
-    assert bench.applied() == {}  # and not sent later either
 
 
 async def test_in_cool_a_device_preset_stored_by_the_user_is_still_sent(bench: Bench):
@@ -74,11 +69,11 @@ async def test_in_cool_a_cooling_value_is_sent(bench: Bench):
     assert bench.temperature_calls == [("climate.salon", 26.0)]
 
 
-async def test_an_override_to_a_preset_without_a_cooling_value_leaves_a_cooling_ac_alone(bench: Bench):
-    """The same rule for an override set to a preset: the AC keeps its setpoint in cool."""
+async def test_an_override_to_a_preset_without_a_cooling_value_sends_no_temperature_in_cool(bench: Bench):
+    """The same rule for an override set to a preset: its device preset, never a heating temperature."""
     await start(bench, "10:00", **COOLING)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True)
-    assert bench.applied() == {}
+    assert bench.applied() == ({} if bench.kind == "plain" else {"climate.salon": "boost"})
     assert bench.temperature_calls == []
     assert "climate.salon" in bench.overrides()
 

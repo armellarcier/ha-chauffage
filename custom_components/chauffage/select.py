@@ -6,7 +6,8 @@ active schedule's stable id, for automations (with the chauffage.activate_schedu
 
 *End of a change by hand* (#83): how a setpoint changed by hand ends. It holds no state of its
 own: it reads and writes the integration's options, so that the options flow, the panel and the
-entity always agree."""
+entity always agree. *End of off overrides* (#91) is the same setting for a thermostat turned off
+by hand."""
 
 from __future__ import annotations
 
@@ -16,14 +17,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry
-from .const import CONF_MANUAL_OVERRIDE_END, DOMAIN, MANUAL_OVERRIDE_ENDS, SCHEDULE_ENTITY
+from .const import CONF_MANUAL_OVERRIDE_END, CONF_OFF_OVERRIDE_END, DOMAIN, MANUAL_OVERRIDE_ENDS, SCHEDULE_ENTITY
 from .entity import ChauffageEntity, service_device
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ChauffageConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    async_add_entities([ActiveScheduleSelect(entry.runtime_data), ManualOverrideEndSelect(entry.runtime_data)])
+    async_add_entities([ActiveScheduleSelect(entry.runtime_data), ManualOverrideEndSelect(entry.runtime_data),
+                        OffOverrideEndSelect(entry.runtime_data)])
 
 
 class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
@@ -59,20 +61,27 @@ class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
 
 
 class ManualOverrideEndSelect(ChauffageEntity, SelectEntity):
-    _attr_translation_key = CONF_MANUAL_OVERRIDE_END
+    key = CONF_MANUAL_OVERRIDE_END
     _attr_entity_category = EntityCategory.CONFIG
     _attr_options = list(MANUAL_OVERRIDE_ENDS)
 
     def __init__(self, runtime) -> None:
         super().__init__(runtime)
-        self._attr_unique_id = f"{runtime.entry.entry_id}_{CONF_MANUAL_OVERRIDE_END}"
+        self._attr_translation_key = self.key
+        self._attr_unique_id = f"{runtime.entry.entry_id}_{self.key}"
         # Same id whatever the language (automations refer to it)
-        self.entity_id = f"select.{DOMAIN}_{CONF_MANUAL_OVERRIDE_END}"
+        self.entity_id = f"select.{DOMAIN}_{self.key}"
         self._attr_device_info = service_device(runtime)
 
     @property
     def current_option(self) -> str:
-        return self.runtime.manual_override_end
+        return getattr(self.runtime, self.key)
 
     async def async_select_option(self, option: str) -> None:
-        self.runtime.set_override_settings(manual_override_end=option)
+        self.runtime.set_override_settings(**{self.key: option})
+
+
+class OffOverrideEndSelect(ManualOverrideEndSelect):
+    """*End of off overrides* (#91): the same choices, for a thermostat turned off by hand."""
+
+    key = CONF_OFF_OVERRIDE_END

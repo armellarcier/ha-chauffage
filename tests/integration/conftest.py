@@ -235,12 +235,6 @@ class Bench:
         await self.hass.async_block_till_done()
         return result
 
-    async def schedule_says(self, schedule: str, hvac_mode: str | None) -> None:
-        """What the card sends when the user chooses a schedule's HVAC mode: heat, cool, or None
-        (don't change)."""
-        await self.set_schedules([{"id": s, "hvac_mode": hvac_mode} if s == schedule else {"id": s}
-                                  for s, _ in self.schedule_list()])
-
     def schedule_list(self) -> list[tuple[str, str]]:
         """(id, name) of the schedules, in order."""
         return [(s["id"], s["name"]) for s in self.runtime.data["schedules"]]
