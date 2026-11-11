@@ -26,6 +26,9 @@ administrators can do what they did before.
 
 - **A user who is not an administrator can no longer start editing a week that the save then
   refuses.** With *Use*, the weeks are read only.
+- **A read-only user can no longer change an override with `chauffage.set_override` or
+  `chauffage.clear_override`.** These services now need the control of the thermostat, as Home
+  Assistant's services that target an entity do. Automations are not affected.
 
 ## [0.9.0-beta.2] - 2026-11-05
 
