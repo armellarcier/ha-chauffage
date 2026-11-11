@@ -49,6 +49,7 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
     revision: 4,
     override_duration: 120,
     manual_override_end: 'duration',
+    off_override_end: 'next_slot',
     use_presets: true,
     // What each thermostat follows now and the next different preset (computed by the integration)
     planned,

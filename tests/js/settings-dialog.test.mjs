@@ -68,13 +68,27 @@ describe('the settings dialog', () => {
       assert.equal(text($(el, '.override-settings .duration-row label')), 'Durée');
       assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), 'Fin des dérogations');
       // Labels only: the explanations and the examples are in the README
-      assert.deepEqual($$(el, '.override-settings .choice').map((c) => text(c)),
+      assert.deepEqual($$(el, '.override-settings .end-choices .choice').map((c) => text(c)),
         ['Pendant 2 h (par défaut)', 'Pendant 2 h, ou moins si un créneau commence avant', "Jusqu'au prochain créneau"]);
+      // Then the same choices for a thermostat turned off by hand (#91)
+      assert.equal(text($(el, '.override-settings .off-end-title')), 'Thermostat éteint à la main');
+      assert.deepEqual($$(el, '.override-settings .off-end-choices .choice').map((c) => text(c)),
+        ["Jusqu'au prochain créneau (par défaut)", 'Pendant 2 h', 'Pendant 2 h, ou moins si un créneau commence avant']);
       assert.deepEqual($$(el, '.override-settings p').map((p) => text(p)), [
         'Une consigne changée à la main devient une dérogation. Choisissez combien de temps elle dure.',
         'Un créneau qui commence dans moins de 15 min ne compte pas.',
       ]);
       assert.doesNotMatch(text(section(el)), /Par exemple|Salon|carte/);
+    });
+
+    test('the end of off overrides: until the next slot by default, sent at once when changed', async () => {
+      const el = settings(withSettings({}));
+      const off = () => $$(el, '.override-settings [data-off-override-end]');
+      assert.deepEqual(off().map((c) => `${c.value}${c.checked ? ' ✓' : ''}`), ['next_slot ✓', 'duration', 'next_slot_within_duration']);
+      change(off()[1]);
+      await el._settingsSent;
+      assert.deepEqual(el._hass.events.at(-1), { type: 'chauffage/settings/set', off_override_end: 'duration' });
+      assert.equal(off()[1].checked, true);
     });
 
     test('the choices carry the user\'s duration and mark the default; the current one is checked', () => {

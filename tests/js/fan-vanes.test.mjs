@@ -71,10 +71,10 @@ describe('fan and vanes on a slot', () => {
     assert.equal($(card, '.editor [data-slot-setting="fan_mode"] option').textContent, '3 (préréglage)');
   });
 
-  test('the week shows a fan on the slots that set the fan or the vanes, at any width, and their title says the values', () => {
+  test('the week shows a mark on the slots that set the fan or the vanes, at any width, and their title says the values', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     const seg = (idx) => $(card, `.bar[data-climate="climate.atelier"][data-day="0"] .seg[data-idx="${idx}"]`);
-    assert.equal(seg(1).querySelector('.t ha-icon.air').getAttribute('icon'), 'mdi:fan');
+    assert.equal(seg(1).querySelector('.t ha-icon.air').getAttribute('icon'), 'mdi:tune-variant');
     assert.match(seg(1).title, /Confort · Ventilateur 1 · Volets Oscillation$/);
     assert.equal(seg(0).querySelector('ha-icon'), null);
     // A slot too narrow for its time and its name keeps the marker
