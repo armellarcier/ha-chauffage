@@ -3692,9 +3692,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         const inRules = src.rules().some((r) => r.schedule === id) || src.defaultSchedule() === id;
         const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast')
           : inRules ? t('cannotDeleteInRules') : '';
-        // On a dashboard, the schedule's page in the panel; in the panel, the page is a row or
-        // the page itself
-        const open = this._config.panel ? ''
+        // On a dashboard, the schedule's page in the panel, for whoever may open the panel (Set
+        // up); in the panel, the page is a row or the page itself
+        const open = this._config.panel || !src.editable ? ''
           : `<button class="mi" data-navigate="${panelPath(`schedules/${esc(id)}`)}"><span>${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span></button><div class="sep"></div>`;
         // A schedule's sheet shows one tab (`schedule_tabs: 'one'`): no tab to move it next to; the
         // list moves it up or down

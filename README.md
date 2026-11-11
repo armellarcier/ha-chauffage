@@ -172,9 +172,11 @@ To choose the access level, open the Chauffage panel and its ⚙, or the integra
 **With *Set up*, every user sees *Chauffage* in the sidebar.** Home Assistant shows a panel to
 every user who may open it. Each user can hide the entry in their profile.
 
-**An access level doesn't lock the heating.** Home Assistant lets every user control the
-thermostats. For example, a user with *Use* can still turn a thermostat's knob. To keep a child
-away from the weeks, give the child a dashboard without the schedule card.
+**An access level doesn't lock the heating.** The access level covers the cards and the panel.
+Home Assistant still lets every user control the thermostats and the entities of Chauffage, and
+call its services. For example, a user with *Use* can still turn a thermostat's knob, or change
+*Override duration* from its entity. To keep a child away from the weeks, give the child a
+dashboard without the schedule card.
 
 ## Updating
 

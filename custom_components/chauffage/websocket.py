@@ -26,8 +26,9 @@ chauffage/rules/preview      {rules}: tries rules being typed, as the integratio
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled
                              thermostat. Any user who may control the thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
-chauffage/settings/set       {manual_override_end?, override_duration?}: the settings of overrides,
-                             in the integration's options (as the options flow and the entities)
+chauffage/settings/set       {manual_override_end?, override_duration?, access_level?}: the settings
+                             of overrides, in the integration's options (as the options flow and
+                             the entities), and the access level (admins only)
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -48,7 +49,7 @@ from homeassistant.exceptions import Unauthorized
 from homeassistant.util import dt as dt_util
 
 from . import model
-from .const import ACCESS_LEVELS, CONF_ACCESS_LEVEL, DOMAIN, PLAN, SET_UP
+from .const import ACCESS_LEVELS, CONF_ACCESS_LEVEL, DOMAIN, PLAN, SET_UP, USE
 from .runtime import DATA, ENTITIES, ChauffageRuntime, StaleRevision, ThermostatFailed
 
 
@@ -86,12 +87,12 @@ _RANKS = (*ACCESS_LEVELS, ADMIN)
 Needs = Callable[[ChauffageRuntime, dict[str, Any]], tuple[str, Iterable[str]]]
 
 
-def _every_thermostat(level: str) -> Needs:
-    return lambda runtime, msg: (level, runtime.scheduled)
+def _every_thermostat(access_level: str) -> Needs:
+    return lambda runtime, msg: (access_level, runtime.scheduled)
 
 
-def _thermostat(level: str) -> Needs:
-    return lambda runtime, msg: (level, (msg["entity_id"],))
+def _thermostat(access_level: str) -> Needs:
+    return lambda runtime, msg: (access_level, (msg["entity_id"],))
 
 
 def require_access(needs: Needs) -> Callable:
@@ -108,8 +109,8 @@ def require_access(needs: Needs) -> Callable:
                 if user is None or not entries:
                     raise Unauthorized
                 runtime: ChauffageRuntime = entries[0].runtime_data
-                level, thermostats = needs(runtime, msg)
-                if (_RANKS.index(runtime.access_level) < _RANKS.index(level)
+                needed, thermostats = needs(runtime, msg)
+                if (_RANKS.index(runtime.access_level) < _RANKS.index(needed)
                         or not all(user.permissions.check_entity(e, POLICY_CONTROL) for e in thermostats)):
                     raise Unauthorized
             handler(hass, connection, msg)
@@ -258,6 +259,7 @@ async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveC
     vol.Required("schedule"): str,
     vol.Optional("source", default="card"): vol.In(SOURCES),
 })
+@require_access(_every_thermostat(USE))
 @websocket_api.async_response
 async def ws_activate_schedule(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     await _run(hass, connection, msg, lambda runtime: runtime.activate_schedule(
@@ -391,8 +393,11 @@ async def ws_set_settings(hass: HomeAssistant, connection: websocket_api.ActiveC
     """The settings of overrides and the access level, from the panel: the integration's
     options, as the options flow and the configuration entities change them."""
     async def set_settings(runtime: ChauffageRuntime) -> None:
+        # Checked before anything changes: a refused message changes nothing
+        if CONF_ACCESS_LEVEL in msg and msg[CONF_ACCESS_LEVEL] not in ACCESS_LEVELS:
+            raise model.InvalidData(f"unknown access level: {msg[CONF_ACCESS_LEVEL]}")
+        runtime.set_override_settings(msg.get("manual_override_end"), msg.get("override_duration"))
         if CONF_ACCESS_LEVEL in msg:
             runtime.set_access_level(msg[CONF_ACCESS_LEVEL])
-        runtime.set_override_settings(msg.get("manual_override_end"), msg.get("override_duration"))
 
     await _run(hass, connection, msg, set_settings)

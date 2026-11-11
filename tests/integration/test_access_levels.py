@@ -23,6 +23,9 @@ async def start(bench: Bench, access_level: str | None = None) -> None:
 def commands(bench: Bench) -> dict[str, tuple[str, dict]]:
     """Each change of the websocket API, with a valid message, and the access level it needs."""
     return {
+        "set an override": ("use", {"type": "chauffage/override/set", "entity_id": "climate.salon", "override": None}),
+        "pause a thermostat": ("use", {"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": True}),
+        "activate a schedule": ("use", {"type": "chauffage/schedule/activate", "schedule": "away"}),
         "edit the weeks": ("plan", {"type": "chauffage/weeks/save", "weeks": SCHEDULES}),
         "manage the schedules": ("plan", {"type": "chauffage/schedules/set",
                                           "schedules": [{"id": i} for i, _ in bench.schedule_list()]}),
@@ -44,7 +47,8 @@ async def send(bench: Bench, ws_client, message: dict, user: str = "household") 
 
 
 @pytest.mark.parametrize("access_level", LEVELS)
-@pytest.mark.parametrize("change", ["edit the weeks", "manage the schedules", "schedule another thermostat",
+@pytest.mark.parametrize("change", ["set an override", "pause a thermostat", "activate a schedule",
+                                    "edit the weeks", "manage the schedules", "schedule another thermostat",
                                     "set the presets", "set a thermostat's presets", "write the rules",
                                     "try the rules", "change the settings of overrides", "forget a thermostat"])
 async def test_a_user_who_is_not_an_admin_changes_what_the_access_level_allows(bench: Bench, ws_client, access_level, change):
@@ -73,13 +77,49 @@ async def test_the_access_level_is_use_by_default_as_before(bench: Bench, ws_cli
     assert reply["error"]["code"] == "unauthorized"
 
 
-@pytest.mark.parametrize("change", ["edit the weeks", "set a thermostat's presets", "manage the schedules",
-                                    "write the rules", "change the settings of overrides"])
+@pytest.mark.parametrize("change", ["activate a schedule", "edit the weeks", "set a thermostat's presets",
+                                    "manage the schedules", "write the rules", "change the settings of overrides"])
 async def test_an_access_level_never_goes_beyond_home_assistant_s_permissions(bench: Bench, ws_client, change):
-    """A read-only user may control no thermostat: whatever the access level, nothing changes."""
+    """A read-only user may control no thermostat: whatever the access level, nothing changes from
+    the cards."""
     await start(bench, "set_up")
     reply = await send(bench, ws_client, commands(bench)[change][1], user="read_only")
     assert reply["error"]["code"] == "unauthorized"
+
+
+@pytest.mark.parametrize("change", ["activate a schedule", "manage the schedules", "set the presets",
+                                    "write the rules", "change the settings of overrides"])
+async def test_a_change_that_reaches_every_room_needs_the_control_of_every_thermostat(bench: Bench, ws_client, change):
+    """A user who may control the living room only does not change what every room follows."""
+    await start(bench, "set_up")
+    await bench.save_weeks({"climate.cuisine": {"normal": [WEEKDAY] * 7}})
+    reply = await send(bench, ws_client, commands(bench)[change][1], user="salon_only")
+    assert reply["error"]["code"] == "unauthorized"
+
+
+async def test_a_user_changes_the_week_of_a_thermostat_they_may_control(bench: Bench, ws_client):
+    await start(bench, "plan")
+    reply = await send(bench, ws_client, commands(bench)["edit the weeks"][1], user="salon_only")
+    assert reply["success"], reply
+
+
+async def test_weeks_sent_with_a_thermostat_not_scheduled_yet_need_set_up(bench: Bench, ws_client):
+    """With Plan, the weeks of the living room and of a kitchen not scheduled yet are refused
+    together: saving them would schedule the kitchen."""
+    await start(bench, "plan")
+    weeks = {**SCHEDULES, "climate.cuisine": {"normal": [WEEKDAY] * 7}}
+    reply = await send(bench, ws_client, {"type": "chauffage/weeks/save", "weeks": weeks})
+    assert reply["error"]["code"] == "unauthorized"
+    assert "climate.cuisine" not in bench.runtime.scheduled
+
+
+async def test_a_refused_setting_changes_nothing(bench: Bench, ws_client):
+    """The access level and a duration out of range sent together: nothing is half applied."""
+    await start(bench)
+    reply = await send(bench, ws_client, {"type": "chauffage/settings/set", "access_level": "plan",
+                                          "override_duration": 7}, user="admin")
+    assert reply["error"]["code"] == "invalid_format"
+    assert bench.runtime.access_level == "use"
 
 
 async def test_the_card_is_told_the_access_level(bench: Bench, ws_client):

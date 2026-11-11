@@ -180,10 +180,12 @@ Pour choisir le niveau d'accès, ouvrez le panneau Chauffage et son ⚙, ou les
 Assistant montre un panneau à tous les utilisateurs qui peuvent l'ouvrir. Chaque utilisateur
 peut masquer l'entrée dans son profil.
 
-**Un niveau d'accès ne verrouille pas le chauffage.** Home Assistant laisse tous les utilisateurs
-piloter les thermostats. Par exemple, un utilisateur avec *Utiliser* peut toujours tourner la
-molette d'un thermostat. Pour qu'un enfant ne touche pas aux semaines, donnez-lui un tableau de
-bord sans la carte des plannings.
+**Un niveau d'accès ne verrouille pas le chauffage.** Le niveau d'accès concerne les cartes et le
+panneau. Home Assistant laisse toujours tous les utilisateurs piloter les thermostats et les
+entités de Chauffage, et appeler ses services. Par exemple, un utilisateur avec *Utiliser* peut
+toujours tourner la molette d'un thermostat, ou changer la *Durée des dérogations* depuis son
+entité. Pour qu'un enfant ne touche pas aux semaines, donnez-lui un tableau de bord sans la carte
+des plannings.
 
 ## Mettre à jour
 

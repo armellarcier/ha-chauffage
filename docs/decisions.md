@@ -809,15 +809,25 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
 - **The week of a thermostat not scheduled yet needs *Set up*.** Saving that week schedules the
   thermostat, as adding it in the panel does. With *Plan*, the card shows that week read only.
 - **A change that reaches every room needs the control of every scheduled thermostat.** The
-  schedules, the presets, the rules and the settings of overrides are such changes. A change of
-  one thermostat, such as its week or its presets, needs the control of that thermostat.
+  active schedule, the schedules, the presets, the rules and the settings of overrides are such
+  changes. A change of one thermostat, such as its week or its presets, needs the control of that
+  thermostat.
 - **No access level below *Use*.** Home Assistant lets every non-admin user control the thermostats and
   the *Control* switch. An access level below *Use* would block the card, but not the thermostat's own
   card, so it would protect nothing. Chauffage protects as much as Home Assistant does, no more.
 - **An access level never goes beyond Home Assistant's permissions.** Every action on a thermostat still
   needs the control of that thermostat. In practice, Home Assistant's UI gives every non-admin
   user the control of every entity. Only a user made read-only outside the UI lacks it, and that
-  user changes nothing, whatever the access level.
+  user changes nothing from the cards and the panel, whatever the access level.
+- **The access level covers the cards and the panel, not the entities and the services.** The
+  entities of Chauffage, for example *Override duration* or a schedule's switch, follow Home
+  Assistant's permissions, as every entity does. The services `chauffage.set_override`,
+  `chauffage.clear_override` and `chauffage.activate_schedule` are open to every user, as Home
+  Assistant's own domain services are. Gating them would protect nothing, since every user can
+  control the thermostats themselves.
+- **Admins are told of the access level, not of the end of overrides (#83).** The panel shows one
+  notice at a time. The settings dialog holds both settings, so an admin who opens it sees the
+  end of overrides too.
 - ***Plan* works from the dashboard card.** The card already edits the weeks, and creates,
   renames, moves and deletes schedules. *Plan* needs no panel.
 - ***Set up* opens the panel.** The presets, the rules and the scheduled thermostats live in the

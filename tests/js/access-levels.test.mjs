@@ -116,6 +116,9 @@ describe('the access level in the schedule card', () => {
     assert.equal($(c, '.panel-open'), null);
     assert.equal($(c, '.settings-link'), null);
     assert.equal($(c, '[data-navigate^="/chauffage"]'), null);
+    $(c, '[data-act="schedule-menu"]').click();
+    assert.ok($(c, '[data-act="schedule-rename"], [data-act="schedule-move"]'), 'the menu is open');
+    assert.equal($(c, '[data-navigate^="/chauffage"]'), null, 'its menu does not open the panel either');
   });
 
   test('with Plan, the week of a thermostat Chauffage does not schedule stays read-only: editing it would schedule it', () => {
