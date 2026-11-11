@@ -824,7 +824,9 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
   Assistant's permissions, as every entity does. The services follow them too:
   `chauffage.set_override` and `chauffage.clear_override` need the control of the thermostat,
   as Home Assistant's services that target an entity do. `chauffage.activate_schedule` targets no
-  entity, so it stays open to every user, as the active-schedule select is.
+  entity, so it checks nothing: even a read-only user can call it. The active-schedule select
+  needs the control of the select, and the cards need the control of every scheduled thermostat.
+  Activating a schedule changes no setting and nothing a user cannot change back.
 - **Admins are told of the access level, not of the end of overrides (#83).** The panel shows one
   notice at a time. The settings dialog holds both settings, so an admin who opens it sees the
   end of overrides too.

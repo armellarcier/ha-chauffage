@@ -4,8 +4,10 @@
 from unittest.mock import patch
 
 import pytest
+from homeassistant.auth.const import GROUP_ID_USER
 from homeassistant.core import Context
 from homeassistant.exceptions import Unauthorized
+from pytest_homeassistant_custom_component.common import MockUser
 
 from conftest import WEEKDAY, Bench
 
@@ -182,11 +184,12 @@ async def test_a_read_only_user_cannot_change_an_override_with_a_service(bench: 
     assert bench.overrides() == before
 
 
-async def test_a_user_of_the_household_changes_an_override_with_a_service(bench: Bench, hass_admin_user):
-    """An automation (no user) and every user who may control the thermostat still can."""
+async def test_a_user_of_the_household_changes_an_override_with_a_service(bench: Bench):
+    """Every user who may control the thermostat still can, not only an admin."""
     await start(bench)
+    household = MockUser(groups=[await bench.hass.auth.async_get_group(GROUP_ID_USER)]).add_to_hass(bench.hass)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22},
-                                         blocking=True, context=Context(user_id=hass_admin_user.id))
+                                         blocking=True, context=Context(user_id=household.id))
     assert bench.overrides()["climate.salon"]["value"] == 22
 
 
