@@ -715,6 +715,23 @@ older one, the older one says so.
   needs an admin, except activating a schedule, setting an override and pausing a thermostat:
   those need the control of the thermostat (see [The UX review](#the-ux-review-080-beta2)). Home Assistant's device pages are also for admins
   only.
+- **An option lets users who are not admins edit the weeks** (#99, not built yet). The option
+  *Who edits the weeks* offers two values:
+  - *Administrators*, the default, as today;
+  - *Every user who may control the thermostat*, checked per thermostat, as for overrides.
+
+  Home Assistant has only two roles, and many homes give a non-admin user to each wall tablet. In
+  those homes, nobody can edit the weeks where the heating is used. Other homes need the opposite:
+  a child's account must not change the weeks. So the owner of the installation chooses, and the
+  default keeps the current behavior.
+
+  The weeks were not kept for admins on purpose. The first websocket API put every write behind
+  an admin, as Home Assistant does for its configuration, and its test only compared an admin
+  with a read-only user. Overrides and the pause were opened later, one at a time.
+
+  The option only opens the weeks, edited and saved from the dashboard card. The presets, the
+  rules, the list of schedules and the scheduled thermostats change every room at once, so they
+  stay for admins. The panel stays for admins too.
 - **The panel's sidebar icon is our own icon**, `chauffage:logo`. The card's JavaScript registers it
   in `window.customIcons`. The icon is drawn from the brand icon: bars of slots and a clock. The
   icon does not depend on the integration's name, which may change. The limit: if the card's

@@ -88,6 +88,9 @@ ajustements (règles par thermostat ou par intégration).
 - **Copier et coller une journée entière, tous thermostats confondus** : la journée de tous les
   thermostats affichés, collée sur un autre jour (aujourd'hui, le presse-papiers contient la
   journée d'un seul thermostat).
+- **Les utilisateurs non administrateurs modifient les semaines**
+  ([#99](https://github.com/armellarcier/ha-chauffage/issues/99)), si une option le permet. Voir
+  [docs/decisions.md](docs/decisions.md#the-panel).
 
 ### Carte
 
