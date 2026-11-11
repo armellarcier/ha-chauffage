@@ -766,10 +766,10 @@ read-only user. Overrides and the pause were opened later, one at a time.
 Who may change what is the owner's choice. Chauffage must make the choice clear, and offer enough
 cases to fit a real home, but no more.
 
-#### The accesses
+#### The access levels
 
-An admin chooses one access for every user who is not an admin: *Use*, *Plan* or *Set up*. An
-access is cumulative: *Plan* includes *Use*, and *Set up* includes *Plan*. An admin of Home
+An admin chooses one access level for every user who is not an admin: *Use*, *Plan* or *Set up*. An
+access level is cumulative: *Plan* includes *Use*, and *Set up* includes *Plan*. An admin of Home
 Assistant can always do everything.
 
 | What the user can do | *Use* | *Plan* | *Set up* | Admin |
@@ -785,35 +785,35 @@ Assistant can always do everything.
 | Write the activation rules | | | ✓ | ✓ |
 | Schedule another thermostat, or forget one | | | ✓ | ✓ |
 | Change the settings of overrides | | | ✓ | ✓ |
-| Choose the access | | | | ✓ |
+| Choose the access level | | | | ✓ |
 | Open the integration's options and the devices' pages | | | | ✓ |
 
 The last row belongs to Home Assistant, which keeps these pages for admins.
 
 #### The decisions
 
-- **One access for every user who is not an admin, not one per user.** Chauffage keeps Home
-  Assistant's two roles. An access per user would protect little: with *Use*, a user can already
+- **One access level for every user who is not an admin, not one per user.** Chauffage keeps Home
+  Assistant's two roles. An access level per user would protect little: with *Use*, a user can already
   pause a thermostat or change its setpoint. It would cost a lot: a list of users to keep up to
   date, stored data, a row per user to set, and tests per user. A home that hides the editing from
   a child uses Home Assistant's tools: another dashboard, or the card's visibility per user. If
-  homes ask for exceptions per user, the access becomes their default, and nothing breaks.
-- **Three accesses, not one switch per feature.** A switch per feature makes the owner read and
-  weigh about ten boxes. Three accesses cover the homes we know: a home that only uses the
+  homes ask for exceptions per user, the access level becomes their default, and nothing breaks.
+- **Three access levels, not one switch per feature.** A switch per feature makes the owner read and
+  weigh about ten boxes. Three access levels cover the homes we know: a home that only uses the
   heating, a home that plans from a shared tablet, a home run by two people.
-- **The accesses follow the reach of a change.** *Use* changes one thermostat for a few hours.
+- **The access levels follow the reach of a change.** *Use* changes one thermostat for a few hours.
   *Plan* changes the coming weeks of the home. *Set up* changes what every slot of every room
   means, and which thermostats Chauffage controls.
 - **The schedules go with the weeks.** Creating a *Holidays* schedule is planning, not setting up.
   The activation rules go with *Set up*: they are templates, and a wrong one changes the active
   schedule by itself.
-- **No access below *Use*.** Home Assistant lets every non-admin user control the thermostats and
-  the *Control* switch. An access below *Use* would block the card, but not the thermostat's own
+- **No access level below *Use*.** Home Assistant lets every non-admin user control the thermostats and
+  the *Control* switch. An access level below *Use* would block the card, but not the thermostat's own
   card, so it would protect nothing. Chauffage protects as much as Home Assistant does, no more.
-- **An access never goes beyond Home Assistant's permissions.** Every action on a thermostat still
+- **An access level never goes beyond Home Assistant's permissions.** Every action on a thermostat still
   needs the control of that thermostat. In practice, Home Assistant's UI gives every non-admin
   user the control of every entity. Only a user made read-only outside the UI lacks it, and that
-  user changes nothing, whatever the access.
+  user changes nothing, whatever the access level.
 - ***Plan* works from the dashboard card.** The card already edits the weeks, and creates,
   renames, moves and deletes schedules. *Plan* needs no panel.
 - ***Set up* opens the panel.** The presets, the rules and the scheduled thermostats live in the
@@ -821,10 +821,10 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
   only otherwise. The sidebar entry keeps its option, and every user who may open the panel sees
   it. Each user can hide the entry in their own profile.
 - ***Use* is the default.** It is what non-admins can do today, so an upgrade changes nothing.
-- **Only an admin chooses the access.** A user with *Set up* who could choose it could give every
+- **Only an admin chooses the access level.** A user with *Set up* who could choose it could give every
   user everything.
-- **The choice is explained where it is made.** An admin chooses the access in the panel's
-  settings dialog. Each access shows, in one line, what it lets users change, and *Set up* says
+- **The choice is explained where it is made.** An admin chooses the access level in the panel's
+  settings dialog. Each access level shows, in one line, what it lets users change, and *Set up* says
   that it changes every room.
 
 ### The panel's addresses
