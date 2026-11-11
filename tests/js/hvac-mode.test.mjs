@@ -118,7 +118,8 @@ describe('a slot is a preset, off, or fan only', () => {
     card._split('climate.atelier', 0, 16 * 60); // in 14:00 comfort, cool
     assert.deepEqual(day(card, 'climate.atelier', 0).slice(1, 3), ['14:00 comfort {"hvac_mode":"cool"}', '16:00 eco {"hvac_mode":"cool"}']);
     card._split('climate.atelier', 0, 21 * 60); // in 20:00 fan only, fan 3
-    assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 comfort {"fan_mode":"3"}']);
+    assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 comfort {"hvac_mode":"cool","fan_mode":"3"}'],
+      'on a preset, in the HVAC mode of the slot before it');
   });
 
   test('a day copied to a thermostat that cannot be turned off loses its off slot, and the message says so', () => {
@@ -156,9 +157,9 @@ describe('the week view', () => {
     assert.equal(seg(1).querySelector('.t ha-icon').getAttribute('icon'), 'mdi:snowflake');
     assert.match(seg(1).title, /14:00 → 20:00 · Confort · Clim$/);
     // A slot with a marker hides its time sooner in a narrow segment, so the marker is never cut
-    assert.ok(seg(1).classList.contains('marked') && !seg(0).classList.contains('marked'));
-    assert.equal(seg(0).style.background, rgb(PRESET_COLORS.eco), 'a slot without an HVAC mode keeps the heat color');
-    assert.equal(seg(0).querySelector('ha-icon'), null);
+    assert.ok(seg(1).classList.contains('marked'));
+    assert.equal(seg(0).style.background, rgb(PRESET_COLORS.eco), 'a slot without an HVAC mode heats: its heat color');
+    assert.equal(seg(0).querySelector('ha-icon').getAttribute('icon'), 'mdi:fire');
   });
 
   test('a preset\'s own cool color wins over the derived one', () => {
@@ -194,10 +195,10 @@ describe('the week view', () => {
   test('a slot that sets the fan or the vanes shows a mark, and its title says the values', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     const segs = $$(card, '.bar[data-climate="climate.atelier"][data-day="0"] .seg');
-    assert.deepEqual(segs.map((s) => (s.querySelector('.t ha-icon') || { getAttribute: () => null }).getAttribute('icon')), [null, 'mdi:tune-variant', null]);
-    assert.match(segs[1].title, /Confort · Ventilateur 3 · Volets Oscillation$/);
+    assert.deepEqual(segs.map((s) => (s.querySelector('.t ha-icon.air') || { getAttribute: () => null }).getAttribute('icon')), [null, 'mdi:tune-variant', null]);
+    assert.match(segs[1].title, /Confort · Chauffe · Ventilateur 3 · Volets Oscillation$/);
     assert.equal(segs[1].getAttribute('aria-label'), segs[1].title);
-    assert.equal(segs[0].title, 'Atelier · 00:00 → 14:00 · Éco');
+    assert.equal(segs[0].title, 'Atelier · 00:00 → 14:00 · Éco · Chauffe');
   });
 
   test('the legend lists the presets; Arrêt and Ventilation only when a shown week has such a slot', () => {
@@ -250,29 +251,29 @@ describe('the slot popover', () => {
     assert.doesNotMatch(text($(card, '.editor')), /Marche|Fonctionnement|Au rallumage|Copier depuis|Clim|Ventilation/);
   });
 
-  test('an air conditioner: Arrêt, Ventilation, then the presets; under them, Chauffage and Clim', () => {
+  test('an air conditioner: Arrêt, Ventilation, then the presets; under them, Chauffe and Clim', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 1); // 14:00 comfort
     assert.deepEqual(chips(card, '.editor'), ['Arrêt', 'Ventilation', 'Hors-gel', 'Éco', 'Confort ✓', 'Boost']);
-    assert.deepEqual(hvac(card), ['Chauffage', 'Clim'], 'none chosen: the thermostat keeps the HVAC mode it has');
+    assert.deepEqual(hvac(card), ['Chauffe ✓', 'Clim'], 'one is always chosen');
     assert.equal($(card, '.editor .hvac-row').getAttribute('aria-label'), 'Mode HVAC');
     assert.deepEqual($$(card, '.editor .hvac-row ha-icon').map((i) => i.getAttribute('icon')), ['mdi:fire', 'mdi:snowflake']);
   });
 
-  test('Clim makes the slot cool, and the chips take their cool colors; tapped again, the slot chooses no HVAC mode', () => {
+  test('Clim makes the slot cool, and the chips take their cool colors; Chauffe makes it heat again', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 1);
     click(card, '.editor [data-act="slot-hvac"][data-mode="cool"]');
     assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 comfort {"hvac_mode":"cool","fan_mode":"3","swing_mode":"swing"}');
     assert.ok(card._dirty);
-    assert.deepEqual(hvac(card), ['Chauffage', 'Clim ✓']);
+    assert.deepEqual(hvac(card), ['Chauffe', 'Clim ✓']);
     assert.equal($(card, '.editor [data-act="preset"][data-preset="comfort"]').style.background, rgb(derivedCoolColor(PRESET_COLORS.comfort)));
     click(card, '.editor [data-act="preset"][data-preset="eco"]'); // another preset keeps the HVAC mode
     assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 eco {"hvac_mode":"cool","fan_mode":"3","swing_mode":"swing"}');
     click(card, '.editor [data-act="slot-hvac"][data-mode="heat"]');
-    assert.deepEqual(hvac(card), ['Chauffage ✓', 'Clim']);
+    assert.deepEqual(hvac(card), ['Chauffe ✓', 'Clim']);
     click(card, '.editor [data-act="slot-hvac"][data-mode="heat"]');
-    assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 eco {"fan_mode":"3","swing_mode":"swing"}');
+    assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 eco {"hvac_mode":"heat","fan_mode":"3","swing_mode":"swing"}');
     assert.equal($(card, '.editor [data-act="preset"][data-preset="comfort"]').style.background, rgb(PRESET_COLORS.comfort));
   });
 
@@ -289,7 +290,7 @@ describe('the slot popover', () => {
     assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 - {"hvac_mode":"fan_only","fan_mode":"1","swing_mode":"swing"}');
     // A preset tapped: the slot is on that preset, and keeps its fan and its vanes
     click(card, '.editor [data-act="preset"][data-preset="eco"]');
-    assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 eco {"fan_mode":"1","swing_mode":"swing"}');
+    assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 eco {"hvac_mode":"heat","fan_mode":"1","swing_mode":"swing"}');
   });
 
   test('Arrêt turns the slot off: no preset, no fan, no vanes; a preset turns it back on', () => {
@@ -318,19 +319,19 @@ describe('the slot popover', () => {
     assert.equal(text($(card, '.msg')), '');
   });
 
-  test('a cooling-only air conditioner with a fan: the row offers Clim alone; one without a fan has no row', () => {
+  test('a cooling-only air conditioner has no row: nothing to choose', () => {
     const hass = setup();
     hass.states['climate.atelier'].attributes.hvac_modes = ['off', 'cool', 'fan_only'];
     const card = cardOf(hass, { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 1);
-    assert.deepEqual(hvac(card), ['Clim']);
+    assert.equal($(card, '.editor .hvac-row'), null);
     hass.states['climate.atelier'].attributes.hvac_modes = ['off', 'cool'];
     select(card, 'climate.atelier', 0, 1);
     assert.equal($(card, '.editor .hvac-row'), null);
     assert.equal($(card, '.editor [data-act="slot-fan"]'), null);
   });
 
-  test('a thermostat that lists no off has no Arrêt; an off slot, a fan-only slot or a cool slot it has stays, marked', () => {
+  test('a thermostat that lists no off has no Arrêt; an off slot or a fan-only slot it has stays, marked; a cool slot is a plain slot', () => {
     const hass = setup({ weeks: { 'climate.salon': { Normal: Array(7).fill(SUMMER) }, 'climate.atelier': { Normal: Array(7).fill(FAN_DAY) } } });
     hass.states['climate.salon'].attributes.hvac_modes = ['auto', 'heat'];
     const card = cardOf(hass, { show: ['climate.salon'] });
@@ -338,7 +339,7 @@ describe('the slot popover', () => {
     assert.equal($(card, '.editor [data-act="slot-off"]'), null);
     assert.equal($(card, '.editor [data-act="slot-fan"]'), null);
     select(card, 'climate.salon', 0, 1); // comfort, cool
-    assert.deepEqual(hvac(card), ['Clim (indisponible) ✓']);
+    assert.deepEqual(hvac(card), [], 'a heater never carries an HVAC mode');
     select(card, 'climate.salon', 0, 2);
     assert.equal(text($(card, '.editor [data-act="slot-fan"]')), 'Ventilation (indisponible)');
     select(card, 'climate.salon', 0, 3);
@@ -373,15 +374,15 @@ describe('the slot popover', () => {
     assert.equal(setpoint(card), 'Consigne : 25,5 °C');
   });
 
-  test('a slot without an HVAC mode: what the air conditioner does now decides', () => {
+  test('a slot without an HVAC mode heats, whatever the air conditioner does now', () => {
     const hass = setup();
     hass.states['climate.atelier'].state = 'cool';
     hass.data.targets['climate.atelier'].comfort = { temperature: 20 };
     const card = cardOf(hass, { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 1);
-    assert.equal(text($(card, '.editor .slot-setpoint')), 'Consigne inchangée en clim');
-    click(card, '.editor [data-act="slot-hvac"][data-mode="heat"]'); // the slot says heat: the heating value
     assert.equal(text($(card, '.editor .slot-setpoint')), 'Consigne : 20 °C');
+    click(card, '.editor [data-act="slot-hvac"][data-mode="cool"]'); // a heating temperature is never sent in cool
+    assert.equal(text($(card, '.editor .slot-setpoint')), 'Consigne inchangée en clim');
   });
 });
 
@@ -471,9 +472,9 @@ describe('the override block: off, fan only, a preset, a temperature and its end
     hass.push({ ...hass.data, overrides: { 'climate.atelier': { target: FAN, ...span } } });
     assert.deepEqual(chips(card, '.override-ed'), ['Arrêt', 'Ventilation ✓', 'Hors-gel', 'Éco', 'Confort', 'Boost']);
     click(card, '.override-ed [data-act="override-preset"][data-preset="eco"]');
-    assert.deepEqual(lastCall(hass).override.target, { preset_mode: 'eco' });
+    assert.deepEqual(lastCall(hass).override.target, { preset_mode: 'eco', hvac_mode: 'heat' });
     change($(card, '.override-ed [data-override-temperature]'), '24');
-    assert.deepEqual(lastCall(hass).override.target, { temperature: 24 });
+    assert.deepEqual(lastCall(hass).override.target, { temperature: 24, hvac_mode: 'heat' });
   });
 
   test('Ventilation during a fan-only slot resumes the schedule', () => {
@@ -527,7 +528,7 @@ describe('the override block: off, fan only, a preset, a temperature and its end
     assert.match(text(heating.shadowRoot), /puis Arrêt \(planning\)/);
     cleanup();
     const off = moreInfo(setup({ overrides: { 'climate.salon': { ...offOverride, ...evening } } }));
-    assert.match(text($(off, '.status')), /puis Arrêt \(planning\)/);
+    assert.match(text($(off, '.status')), /aujourd'hui, puis Arrêt/);
   });
 
   test('on a thermostat card the block is folded: the override, its end and Resume; Change unfolds the rest', () => {

@@ -660,6 +660,25 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(away._week('climate.salon'), normal._week('climate.salon'));
     });
 
+    test('the ⋮ of a week sets every slot of an air conditioner\'s week to heat or to cool, unsaved', () => {
+      const hass = setup();
+      hass.states['climate.salon'].attributes.hvac_modes = ['off', 'heat', 'cool'];
+      const el = panel(hass, '/thermostats/climate.salon');
+      $(el, '[data-copy-menu="away"]').click();
+      assert.deepEqual($$(el, '.copy-menu [data-week-hvac]').map(text), ['Tout en chauffe', 'Tout en clim']);
+      $(el, '.copy-menu [data-week-hvac="cool"]').click();
+      assert.equal($(el, '.copy-menu'), null);
+      const [normal, away] = weeks(el);
+      assert.ok(away._dirty && !normal._dirty);
+      assert.deepEqual(away._week('climate.salon')[0], [{ start: 0, preset: 'frost', settings: { hvac_mode: 'cool' } }]);
+      assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
+      // A heater's weeks have no such item
+      cleanup();
+      const heater = panel(setup(), '/thermostats/climate.bureau');
+      $(heater, '[data-copy-menu="away"]').click();
+      assert.equal($$(heater, '.copy-menu [data-week-hvac]').length, 0);
+    });
+
     test('switching Group days or History keeps the weeks not saved yet', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       $(el, '[data-copy-menu="normal"]').click();

@@ -56,11 +56,11 @@ describe('fan and vanes on a slot', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 0);
     change($(card, '.editor [data-slot-setting="fan_mode"]'), '2');
-    assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco {"fan_mode":"2"}');
+    assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco {"hvac_mode":"heat","fan_mode":"2"}');
     assert.equal(text($(card, '.editor details.more summary')), 'Ventilateur 2');
     assert.equal($(card, '.editor details.more').open, true);
     change($(card, '.editor [data-slot-setting="fan_mode"]'), '');
-    assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco');
+    assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco {"hvac_mode":"heat"}');
     select(card, 'climate.atelier', 0, 1); // 14:00: fan 1, swing
     assert.equal(text($(card, '.editor details.more summary')), 'Ventilateur 1 · Volets Oscillation');
   });
@@ -75,8 +75,8 @@ describe('fan and vanes on a slot', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     const seg = (idx) => $(card, `.bar[data-climate="climate.atelier"][data-day="0"] .seg[data-idx="${idx}"]`);
     assert.equal(seg(1).querySelector('.t ha-icon.air').getAttribute('icon'), 'mdi:tune-variant');
-    assert.match(seg(1).title, /Confort · Ventilateur 1 · Volets Oscillation$/);
-    assert.equal(seg(0).querySelector('ha-icon'), null);
+    assert.match(seg(1).title, /Confort · Chauffe · Ventilateur 1 · Volets Oscillation$/);
+    assert.equal(seg(0).querySelector('ha-icon.air'), null);
     // A slot too narrow for its time and its name keeps the marker
     card._week('climate.atelier')[0] = [{ start: 0, preset: 'eco' }, { start: 840, preset: 'comfort', settings: { fan_mode: '1' } }, { start: 870, preset: 'eco' }];
     card._render();
