@@ -1,5 +1,8 @@
 """Websocket API used by the card (vocabulary: docs/glossary.md).
 
+An admin makes every change. A user who is not an admin makes the changes their access level
+allows (require_access, #99), and overrides and pauses on the thermostats they may control.
+
 chauffage/subscribe          everything the card needs, then again after every change, when a
                              planned preset changes, and after the integration is reloaded
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against

@@ -9,6 +9,24 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+No stored data is migrated. The access level starts on *Use*, so users who are not
+administrators can do what they did before.
+
+### Added
+
+- **An access level for users who are not administrators** (#99). An administrator chooses what
+  the other users may change: *Use* (overrides, pause, active schedule, as before), *Plan* (also
+  the weeks and the schedules, from the cards) or *Set up* (also the Chauffage panel). Choose it
+  in the settings of the Chauffage panel, or in the integration's options. See
+  [Who may change what](README.md#who-may-change-what).
+
+### Fixed
+
+- **A user who is not an administrator can no longer start editing a week that the save then
+  refuses.** With *Use*, the weeks are read only.
+
 ## [0.9.0-beta.2] - 2026-11-05
 
 The second beta of **the end of overrides** (#83), with the fix of 0.8.3.

@@ -80,10 +80,6 @@ integration).
 - **Undo** (Ctrl+Z, and redo) while editing the weeks in the card, until they are saved.
 - **Copy and paste a whole day, all thermostats at once**: one day of every thermostat shown,
   pasted onto another day (today, the clipboard holds one thermostat's day).
-- **What users who are not admins may change**
-  ([#99](https://github.com/armellarcier/ha-chauffage/issues/99)): an admin lets them use the
-  heating, plan the weeks, or set Chauffage up. See
-  [docs/decisions.md](docs/decisions.md#who-may-do-what-99).
 
 ### Card
 

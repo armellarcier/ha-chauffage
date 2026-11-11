@@ -711,12 +711,10 @@ older one, the older one says so.
 
 ### The panel
 
-- **A *Chauffage* panel, for admins only** (`require_admin=True`). Every change of the websocket API
-  needs an admin, except activating a schedule, setting an override and pausing a thermostat:
-  those need the control of the thermostat (see [The UX review](#the-ux-review-080-beta2)). Home Assistant's device pages are also for admins
-  only.
-- **An admin chooses what users who are not admins may change** (#99, not built yet): *Use*,
-  *Plan* or *Set up*. See [Who may do what](#who-may-do-what-99).
+- **A *Chauffage* panel, for admins**, and for every user when the access level is *Set up*. Each
+  change of the websocket API needs an access level, and the control of the thermostats it
+  reaches: see [Who may do what](#who-may-do-what-99). Home Assistant's device pages are for
+  admins only.
 - **The panel's sidebar icon is our own icon**, `chauffage:logo`. The card's JavaScript registers it
   in `window.customIcons`. The icon is drawn from the brand icon: bars of slots and a clock. The
   icon does not depend on the integration's name, which may change. The limit: if the card's
@@ -750,8 +748,6 @@ older one, the older one says so.
   schedule is active.
 
 ### Who may do what (#99)
-
-Not built yet. This section is the design that the implementation will follow.
 
 #### Why change
 
@@ -807,6 +803,14 @@ The last row belongs to Home Assistant, which keeps these pages for admins.
 - **The schedules go with the weeks.** Creating a *Holidays* schedule is planning, not setting up.
   The activation rules go with *Set up*: they are templates, and a wrong one changes the active
   schedule by itself.
+- ***Set up* lets users write templates.** Home Assistant keeps its own template preview for
+  admins. With *Set up*, a user who is not an admin writes the activation rules and tries them, so
+  the integration renders these templates. The owner chooses it, as the rest of *Set up*.
+- **The week of a thermostat not scheduled yet needs *Set up*.** Saving that week schedules the
+  thermostat, as adding it in the panel does. With *Plan*, the card shows that week read only.
+- **A change that reaches every room needs the control of every scheduled thermostat.** The
+  schedules, the presets, the rules and the settings of overrides are such changes. A change of
+  one thermostat, such as its week or its presets, needs the control of that thermostat.
 - **No access level below *Use*.** Home Assistant lets every non-admin user control the thermostats and
   the *Control* switch. An access level below *Use* would block the card, but not the thermostat's own
   card, so it would protect nothing. Chauffage protects as much as Home Assistant does, no more.
