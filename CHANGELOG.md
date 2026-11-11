@@ -34,9 +34,6 @@ and `value`, so your automations keep working. The `chauffage.set_override` acti
 Chauffage's lines: filter on the thermostat and its *Override* sensor together, or read the
 logbook without a filter. See the README, *Troubleshooting*.
 
-**Users who are not administrators keep their rights.** The new access level starts on *Use*, so
-these users can do what they did before.
-
 ### Added
 
 - **A slot can turn a thermostat off** (#91, #96). A slot sets its preset, and may also set the
@@ -86,11 +83,6 @@ these users can do what they did before.
 - **The planned preset sensor says the HVAC mode of the current and next slot**, in its
   `hvac_mode` and `next_hvac_mode` attributes, and `chauffage.get_week` gives each slot's
   settings.
-- **An access level for users who are not administrators** (#99). An administrator chooses what
-  the other users may change: *Use* (overrides, pause, active schedule, as before), *Plan* (also
-  the weeks and the schedules, from the cards) or *Set up* (also the Chauffage panel). Choose it
-  in the settings of the Chauffage panel, or in the integration's options. See
-  [Who may change what](README.md#who-may-change-what).
 
 ### Changed
 
@@ -107,6 +99,25 @@ these users can do what they did before.
   back on: Versatile Thermostat does, when the window closes. A Versatile Thermostat older than
   10.5, without `requested_state`, keeps the former behavior: it gets its slots and its override
   while off, and stays off.
+
+## [0.9.0-beta.3] - 2026-11-11
+
+The third beta of 0.9.0, with **the access level of users who are not administrators** (#99).
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+
+No stored data is migrated. The access level starts on *Use*, so users who are not
+administrators can do what they did before.
+
+### Added
+
+- **An access level for users who are not administrators** (#99). An administrator chooses what
+  the other users may change: *Use* (overrides, pause, active schedule, as before), *Plan* (also
+  the weeks and the schedules, from the cards) or *Set up* (also the Chauffage panel). Choose it
+  in the settings of the Chauffage panel, or in the integration's options. See
+  [Who may change what](README.md#who-may-change-what).
 
 ### Fixed
 
