@@ -23,6 +23,9 @@ OFF = "off"
 FAN_ONLY = "fan_only"
 # The HVAC modes that take no setpoint: a slot on a preset turns the thermostat on from them
 IDLE = (OFF, FAN_ONLY)
+# The HVAC modes a slot or an override chooses between, and the only ones Chauffage learns and
+# restarts a thermostat in: auto, heat/cool and dry are the thermostat's own business
+HEAT_OR_COOL = ("heat", "cool")
 
 
 @dataclass(frozen=True)
@@ -156,11 +159,12 @@ def week_on(week: list[list[list[Any]]], thermostat: Thermostat | None) -> list[
 
 def on_mode(thermostat: Thermostat) -> str | None:
     """The HVAC mode to turn a thermostat on in, for a setpoint that says none (an override to a
-    preset): the one it last heated or cooled in if it still lists it, else heat, else its first
-    HVAC mode but off and fan only (fan only when it has nothing else). None when it lists no
-    HVAC mode. An air conditioner that cooled in July restarts in cool."""
+    preset): heat or cool, the one it last ran in if it still lists it, else heat, else its
+    first HVAC mode but off and fan only (fan only when it has nothing else). None when it lists
+    no HVAC mode. An air conditioner that cooled in July restarts in cool. Never in auto or dry
+    because it was last seen there: a valve once in auto restarts in heat."""
     modes = [mode for mode in thermostat.hvac_modes if mode not in IDLE]
-    if thermostat.last_hvac_mode in modes:
+    if thermostat.last_hvac_mode in HEAT_OR_COOL and thermostat.last_hvac_mode in modes:
         return thermostat.last_hvac_mode
     if "heat" in modes:
         return "heat"

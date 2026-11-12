@@ -11,7 +11,8 @@ chauffage.activate_schedule  activates a schedule by its stable id (unchanged wh
 chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
 chauffage.get_week           (response) the week of thermostats in a schedule, as HA's
                              schedule.get_schedule gives its schedules; a slot says its HVAC mode
-                             when it chooses one (hvac_mode), and an off slot or a fan-only slot
+                             as it runs on the thermostat (hvac_mode: heat or cool on an air
+                             conditioner, none on a heater), and an off slot or a fan-only slot
                              has no preset (null)
 """
 
@@ -31,6 +32,7 @@ from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
 
+from . import engine
 from .const import DOMAIN
 from .runtime import ThermostatFailed, ThermostatPaused
 
@@ -174,7 +176,9 @@ def async_register(hass: HomeAssistant) -> None:
         schedule = known_schedule(runtime, call.data.get("schedule", runtime.data["active_schedule"]))
         response = {}
         for entity_id in call.data[ATTR_ENTITY_ID]:
-            week = runtime_for(hass, entity_id).weeks[entity_id][schedule]
+            # The slots as they run on the thermostat: on an air conditioner, heat or cool
+            week = engine.week_on(runtime_for(hass, entity_id).weeks[entity_id][schedule],
+                                  runtime.current(hass.states.get(entity_id)))
             response[entity_id] = {"schedule": schedule} | {
                 name: [{"start": slot[0], "end": next_start, "preset": slot[1], **(slot[2] if len(slot) > 2 else {})}
                        for slot, next_start in zip(day, [s[0] for s in day[1:]] + ["24:00"])]

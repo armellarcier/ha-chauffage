@@ -400,7 +400,8 @@ async def test_a_script_reads_the_fan_of_the_slots(bench: Bench):
     await start(bench, "10:00", [["00:00", "eco", {"fan_mode": "1"}]], **AC_ATTRS)
     week = await bench.hass.services.async_call(
         "chauffage", "get_week", {"entity_id": "climate.salon"}, blocking=True, return_response=True)
-    assert week["climate.salon"]["monday"][0] == {"start": "00:00", "end": "24:00", "preset": "eco", "fan_mode": "1"}
+    # As the slot runs on the air conditioner: it heats
+    assert week["climate.salon"]["monday"][0] == {"start": "00:00", "end": "24:00", "preset": "eco", "hvac_mode": "heat", "fan_mode": "1"}
 
 
 # ----- a cooling setpoint in a preset's value (corrections C1), and the end "until tomorrow" (C4) -----

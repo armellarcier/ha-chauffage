@@ -312,3 +312,91 @@ def test_frost_protection_of_a_new_installation_does_not_look_like_fan_only():
     colors = {preset["id"]: preset["color"] for preset in model.default_presets("fr")}
     assert colors["frost"] == "#78909c"
     assert len(set(colors.values())) == 4
+
+
+# ----- only heat and cool are learned, carried and switched -----
+
+async def test_a_heater_last_seen_in_auto_is_turned_on_in_heat(bench: Bench):
+    """A valve that lists auto ran in auto once: turned off, it restarts in heat, as before."""
+    modes = ["off", "heat", "auto"]
+    await start(bench, "10:00", state="auto", modes=modes)
+    assert bench.runtime.thermostats[SALON]["hvac_mode"] is None  # auto is not learned
+    bench.thermostat(SALON, "eco", state="off", hvac_modes=modes, context=CTX_AUTOMATION)
+    await bench.hass.async_block_till_done()
+    clear(bench)
+    await override(bench, preset="comfort")
+    assert bench.powered() == {SALON: "heat"}
+
+
+async def test_an_air_conditioner_last_seen_in_dry_is_not_turned_on_in_dry(bench: Bench):
+    modes = ["off", "heat", "cool", "dry", "fan_only"]
+    await start(bench, "10:00", [["00:00", "eco", COOL]], state="cool", modes=modes)
+    bench.thermostat(SALON, "eco", state="dry", hvac_modes=modes, context=CTX_AUTOMATION)
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.thermostats[SALON]["hvac_mode"] == "cool"  # dry is not learned
+    bench.thermostat(SALON, "eco", state="off", hvac_modes=modes, context=CTX_AUTOMATION)
+    await bench.hass.async_block_till_done()
+    clear(bench)
+    await override(bench, preset="comfort")
+    assert bench.powered() == {SALON: "cool"}
+
+
+def test_only_heat_or_cool_is_the_hvac_mode_to_turn_on_in():
+    modes = ("off", "heat", "cool", "dry", "auto")
+    for last in ("dry", "auto", "heat_cool", None):
+        assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=modes, last_hvac_mode=last)) == "heat"
+    assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=("off", "dry", "auto"), last_hvac_mode="auto")) == "dry"
+
+
+async def test_switching_to_dry_by_hand_is_recorded_and_sends_nothing(bench: Bench):
+    """Regression: dry, auto or heat/cool chosen by hand made Chauffage send the slot's heating
+    value. Only heat and cool carry a value: the others are recorded as they were chosen."""
+    modes = ["off", "heat", "cool", "dry", "heat_cool"]
+    await start(bench, "10:00", [["00:00", "comfort", HEAT]], preset="comfort", modes=modes)
+    for mode in ("dry", "heat_cool"):
+        clear(bench)
+        bench.thermostat(SALON, "comfort", state=mode, hvac_modes=modes, context=CTX_USER)
+        await bench.hass.async_block_till_done(wait_background_tasks=True)
+        assert bench.overrides()[SALON]["target"] == {"hvac_mode": mode}
+        assert "preset" not in bench.overrides()[SALON]
+        assert sent_to(bench) == [] and bench.applied() == {} and bench.powered() == {}
+
+
+async def test_a_temperature_typed_for_heating_is_not_carried_into_cool(bench: Bench):
+    """An override to 22 °C while heating, then cool chosen by hand: 22 °C was a heating
+    temperature. It is not sent in cool, and the override no longer holds it."""
+    await start(bench, "10:00", [["00:00", "eco", HEAT]])
+    await override(bench, temperature=22, duration=180)
+    clear(bench)
+    bench.thermostat(SALON, None if bench.kind != "vtherm" else "none", 22.0, state="cool", hvac_modes=REVERSIBLE, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    override_ = bench.overrides()[SALON]
+    assert override_["target"] == COOL
+    assert override_["end"] == "2026-10-12T13:00:00+02:00"
+    assert sent_to(bench) == []
+
+
+# ----- what scripts and the sensor read -----
+
+async def test_a_script_reads_the_slots_as_they_run(bench: Bench):
+    """chauffage.get_week: a slot stored without an HVAC mode reads heat on an air conditioner
+    that heats and cools, and carries none on a heater."""
+    await start(bench, "10:00", [["00:00", "eco"], ["14:00", "comfort", COOL]])
+    week = await bench.hass.services.async_call(
+        "chauffage", "get_week", {"entity_id": [SALON, BUREAU]}, blocking=True, return_response=True)
+    assert week[SALON]["monday"] == [
+        {"start": "00:00", "end": "14:00", "preset": "eco", "hvac_mode": "heat"},
+        {"start": "14:00", "end": "24:00", "preset": "comfort", "hvac_mode": "cool"}]
+    assert week[BUREAU]["monday"] == [
+        {"start": "00:00", "end": "14:00", "preset": "eco"}, {"start": "14:00", "end": "24:00", "preset": "comfort"}]
+
+
+async def test_the_planned_preset_sensor_gives_the_cooling_temperatures_while_the_slot_cools(bench: Bench):
+    await start(bench, "10:00", [["00:00", "eco", HEAT], ["14:00", "comfort", COOL]])
+    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 24}, "eco": {"temperature": 17}})
+    await bench.hass.async_block_till_done()
+    temperatures = lambda: bench.hass.states.get("sensor.salon_planned_preset").attributes["temperatures"]
+    assert temperatures()["comfort"] == 20.0 and temperatures()["eco"] == 17.0
+    await bench.go_to("14:00")
+    assert temperatures()["comfort"] == 24.0
+    assert "eco" not in temperatures()  # no cooling value: nothing is sent, nothing is shown

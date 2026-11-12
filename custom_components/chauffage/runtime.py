@@ -448,11 +448,14 @@ class ChauffageRuntime:
                 out[preset_id] = target
         return out
 
-    def preset_temperatures_of(self, entity_id: str) -> dict[str, float]:
+    def preset_temperatures_of(self, entity_id: str, cool: bool = False) -> dict[str, float]:
         """{preset id: temperature} on a thermostat: its own for a temperature, the one its own
-        preset gives (published, else learned) for a climate preset; unknown ones left out."""
-        own = self.temperatures_of(self.hass.states.get(entity_id))
-        temperatures = {p: t.get("temperature", own.get(t.get("preset_mode"))) for p, t in self.targets_of(entity_id).items()}
+        preset gives (published, else learned) for a climate preset; unknown ones left out.
+        `cool`: what each preset gives when the thermostat cools: its cooling temperature, else
+        what its own preset gives when cooling. A heating temperature is not one."""
+        own = self.temperatures_of(self.hass.states.get(entity_id), cool)
+        key = "cool_temperature" if cool else "temperature"
+        temperatures = {p: t.get(key, own.get(t.get("preset_mode"))) for p, t in self.targets_of(entity_id).items()}
         return {p: t for p, t in temperatures.items() if t is not None}
 
     def snapshot(self) -> dict[str, Any]:
@@ -1227,13 +1230,14 @@ class ChauffageRuntime:
     def _learn(self, state: State | None) -> bool:
         """While a thermostat is on a preset, its setpoint is that preset's temperature: its
         cooling temperature while it cools, kept apart. While it heats or cools, its HVAC mode
-        is the one to turn it on in later (#91): not fan only, which takes no setpoint."""
+        is the one to turn it on in later (#91): heat or cool only, not fan only, which takes no
+        setpoint, nor auto, heat/cool or dry."""
         current = self.current(state)
         if current is None or engine.ignored(current) or state.entity_id not in self.thermostats:
             return False
         data = self.thermostats[state.entity_id]
         learned = False
-        if current.state not in engine.IDLE and state.state != engine.OFF and data["hvac_mode"] != current.state:
+        if current.state in engine.HEAT_OR_COOL and state.state != engine.OFF and data["hvac_mode"] != current.state:
             data["hvac_mode"] = current.state
             learned = True
         temperatures = (data.setdefault("cool_preset_temperatures", {}) if current.state == "cool"
@@ -1323,12 +1327,19 @@ class ChauffageRuntime:
         changed. The person chose an HVAC mode, not a setpoint: the override keeps the value in
         force, in that HVAC mode. Its override's value and end if it has one with a setpoint,
         else the preset of its slot. None when the change is something else, or when there is no
-        value to keep (an off or a fan-only slot: the thermostat keeps its own last setpoint)."""
+        value to keep (an off or a fan-only slot: the thermostat keeps its own last setpoint).
+        Only heat and cool: dry, auto or heat/cool chosen by hand is recorded as it is, and
+        nothing is sent. A temperature the user set (an override without a preset) was meant
+        for the HVAC mode it was set in: it is not carried into the other one, never 22 °C of
+        heating sent in cool."""
         mode = change.get("hvac_mode")
-        if set(change) != {"hvac_mode"} or mode in engine.IDLE:
+        if set(change) != {"hvac_mode"} or mode not in engine.HEAT_OR_COOL:
             return None
         if current and any(key in current["target"] for key in (*engine.SETPOINT_KEYS, "cool_temperature")):
-            return {**current, "target": {**current["target"], "hvac_mode": mode}}
+            target = {**current["target"], "hvac_mode": mode}
+            if not current.get("preset"):
+                target.pop("temperature", None)
+            return {**current, "target": target}
         meaning = self.targets_of(entity_id).get(slot.preset) if slot and slot.preset else None
         if meaning is None:
             return None

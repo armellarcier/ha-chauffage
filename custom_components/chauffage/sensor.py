@@ -61,7 +61,8 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
             "next_preset_name": self._name(planned["next_preset"]),
             "next_hvac_mode": planned["next_hvac_mode"],
             "next_start": planned["next_start"],
-            "temperatures": self.runtime.preset_temperatures_of(self.climate),
+            # What each preset gives in the slot's HVAC mode: the cooling values while it cools
+            "temperatures": self.runtime.preset_temperatures_of(self.climate, planned["hvac_mode"] == "cool"),
         }
 
 
