@@ -17,6 +17,33 @@ Each entry says whether the release **migrates stored data** and what to do when
   while the window was open, the thermostat then kept the old slot's setpoint for 2 hours once
   the window closed. Chauffage now reads what VTherm was asked for, not what it does by itself.
 
+## [0.9.0-beta.3] - 2026-11-11
+
+The third beta of 0.9.0, with **the access level of users who are not administrators** (#99).
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+
+No stored data is migrated. The access level starts on *Use*, so users who are not
+administrators can do what they did before.
+
+### Added
+
+- **An access level for users who are not administrators** (#99). An administrator chooses what
+  the other users may change: *Use* (overrides, pause, active schedule, as before), *Plan* (also
+  the weeks and the schedules, from the cards) or *Set up* (also the Chauffage panel). Choose it
+  in the settings of the Chauffage panel, or in the integration's options. See
+  [Who may change what](README.md#who-may-change-what).
+
+### Fixed
+
+- **A user who is not an administrator can no longer start editing a week that the save then
+  refuses.** With *Use*, the weeks are read only.
+- **A read-only user can no longer change an override with `chauffage.set_override` or
+  `chauffage.clear_override`.** These services now need the control of the thermostat, as Home
+  Assistant's services that target an entity do. Automations are not affected.
+
 ## [0.9.0-beta.2] - 2026-11-05
 
 The second beta of **the end of overrides** (#83), with the fix of 0.8.3.

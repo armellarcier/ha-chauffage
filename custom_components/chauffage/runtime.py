@@ -41,10 +41,13 @@ from homeassistant.util import dt as dt_util
 from . import engine, model, repairs
 from .history import TemperatureHistory
 from .const import (
+    ACCESS_LEVELS,
+    CONF_ACCESS_LEVEL,
     CONF_MANUAL_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
     CONTROL_KEY,
+    DEFAULT_ACCESS_LEVEL,
     DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
@@ -282,6 +285,20 @@ class ChauffageRuntime:
         if options:
             self.hass.config_entries.async_update_entry(self.entry, options={**self.entry.options, **options})
 
+    @property
+    def access_level(self) -> str:
+        """What users who are not admins may change (#99): USE (the default), PLAN or SET_UP (an
+        unknown value: the default)."""
+        level = self.entry.options.get(CONF_ACCESS_LEVEL)
+        return level if level in ACCESS_LEVELS else DEFAULT_ACCESS_LEVEL
+
+    @callback
+    def set_access_level(self, access_level: str) -> None:
+        """From the panel, as the options flow does. InvalidData for an unknown access level."""
+        if access_level not in ACCESS_LEVELS:
+            raise model.InvalidData(f"unknown access level: {access_level}")
+        self.hass.config_entries.async_update_entry(self.entry, options={**self.entry.options, CONF_ACCESS_LEVEL: access_level})
+
     @callback
     def options_changed(self) -> None:
         """The options changed: the entities and the cards show them again."""
@@ -414,6 +431,7 @@ class ChauffageRuntime:
             "revision": self.data["revision"],
             "override_duration": self.override_duration,
             "manual_override_end": self.manual_override_end,
+            "access_level": self.access_level,
             "rules": self.data["rules"],
             "default_schedule": self.data["default_schedule"],
             "rule_results": self.rule_results,

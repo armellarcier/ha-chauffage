@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.9.0-beta.2';
+const VERSION = '0.9.0-beta.3';
 
 const DAY_MIN = 1440;
 // The duration of a change by hand, in minutes: the range of the integration; its arrows move it by
@@ -24,6 +24,7 @@ const I18N = {
     presets: { comfort: 'Comfort', eco: 'Eco', boost: 'Boost', frost: 'Frost protection' },
     thermostatsRequired: 'The "thermostats" option is required (list of climate.* entities)',
     error: 'Error: {message}',
+    unauthorized: 'Your access level doesn’t allow this.',
     saved: 'Saved ✓',
     off: 'off',
     manual: 'manual',
@@ -123,7 +124,19 @@ const I18N = {
     scheduleThermostats: 'Schedule thermostats',
     entityRequired: 'The "entity" option is required (a climate.* thermostat)',
     entityMissing: '{entity} does not exist in Home Assistant',
-    notScheduled: 'Chauffage does not schedule this thermostat. An admin can schedule it in the Chauffage panel, on the Thermostats tab.',
+    notScheduled: 'Chauffage does not schedule this thermostat.',
+    scheduleIt: 'Schedule it',
+    newAccessNotice: 'New: let users who are not admins plan the weeks.',
+    accessTitle: 'Access level',
+    accessIntro: 'For users who are not admins.',
+    accessUse: 'Use (default)',
+    accessUseText: 'Overrides, pause, active schedule',
+    accessPlan: 'Plan',
+    accessPlanText: 'Also the weeks and the schedules, from the cards',
+    accessSetUp: 'Set up',
+    accessSetUpText: 'Also the Chauffage panel: presets, rules, thermostats',
+    accessSetUpWarning: 'Their changes reach every room.',
+    accessSidebarNote: 'Each user can hide Chauffage from their sidebar, in their profile.',
     thermostatCardName: 'Scheduled thermostat',
     thermostatCardDescription: 'One thermostat scheduled by Chauffage: what it does now, why and until when, an override',
     thermostatsHint: 'Chauffage controls the scheduled thermostats. A paused thermostat stays scheduled: it keeps its weeks, but Chauffage does not control it.',
@@ -272,6 +285,7 @@ const I18N = {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
     thermostatsRequired: 'Le paramètre "thermostats" est requis (liste d\'entités climate.*)',
     error: 'Erreur : {message}',
+    unauthorized: 'Votre niveau d’accès ne le permet pas.',
     saved: 'Enregistré ✓',
     off: 'arrêt',
     manual: 'manuel',
@@ -371,7 +385,19 @@ const I18N = {
     scheduleThermostats: 'Programmer des thermostats',
     entityRequired: 'Le paramètre "entity" est requis (un thermostat climate.*)',
     entityMissing: '{entity} n’existe pas dans Home Assistant',
-    notScheduled: "Chauffage ne programme pas ce thermostat. Un administrateur peut le programmer dans le panneau Chauffage, sur l’onglet Thermostats.",
+    notScheduled: 'Chauffage ne programme pas ce thermostat.',
+    scheduleIt: 'Le programmer',
+    newAccessNotice: 'Nouveau : laissez les utilisateurs non administrateurs programmer les semaines.',
+    accessTitle: 'Niveau d’accès',
+    accessIntro: 'Pour les utilisateurs non administrateurs.',
+    accessUse: 'Utiliser (par défaut)',
+    accessUseText: 'Dérogations, pause, planning actif',
+    accessPlan: 'Programmer',
+    accessPlanText: 'Aussi les semaines et les plannings, depuis les cartes',
+    accessSetUp: 'Configurer',
+    accessSetUpText: 'Aussi le panneau Chauffage : préréglages, règles, thermostats',
+    accessSetUpWarning: 'Leurs changements touchent toutes les pièces.',
+    accessSidebarNote: 'Chacun peut masquer Chauffage de sa barre latérale, dans son profil.',
     thermostatCardName: 'Thermostat programmé',
     thermostatCardDescription: 'Un thermostat programmé par Chauffage : ce qu’il fait, pourquoi et jusqu’à quand, une dérogation',
     thermostatsHint: "Chauffage pilote les thermostats programmés. Un thermostat en pause reste programmé : il garde ses semaines, mais Chauffage ne le pilote pas.",
@@ -673,8 +699,19 @@ const setHtml = (el, html) => {
   HTML_OF.set(el, html);
   el.innerHTML = html;
 };
-// Admins only: the panel, the weeks, the presets (a hass without a user, as in the tests, is an admin)
+// An admin of Home Assistant (a hass without a user, as in the tests, is an admin)
 const isAdmin = (hass) => !(hass && hass.user && !hass.user.is_admin);
+// What a user who is not an admin may change, as an admin chose for every such user (#99). Each
+// access level includes the ones before it. An admin may always do everything.
+const ACCESS_LEVELS = ['use', 'plan', 'set_up'];
+const accessLevelOf = (data) => (data && ACCESS_LEVELS.includes(data.access_level) ? data.access_level : 'use');
+const accessAllows = (hass, data, level) => isAdmin(hass)
+  || ACCESS_LEVELS.indexOf(accessLevelOf(data)) >= ACCESS_LEVELS.indexOf(level);
+// A write refused by the integration, in words: the access level, or the integration's message
+function errorText(t, e) {
+  if (e && e.code === 'unauthorized') return t('unauthorized');
+  return t('error', { message: (e && (e.message || e.code)) || e });
+}
 // The day of a new schedule's week: eco all day
 const NEW_DAY = [{ start: 0, preset: 'eco' }];
 // An activation rule as the integration reads it (no schedule: the template gives it)
@@ -1410,7 +1447,9 @@ function makeDataSource(hass, available) {
       schedule: JSON.stringify([d.active_schedule, schedules.map((s) => scheduleIcon(s.id))]),
       rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]), thermostats: JSON.stringify(d.thermostats),
       // The ids of what the cards open (an entity renamed in HA)
-      entities: JSON.stringify([d.thermostat_entities, d.schedule_entities, d.schedule_select, d.device_id]) } : {},
+      entities: JSON.stringify([d.thermostat_entities, d.schedule_entities, d.schedule_select, d.device_id]),
+      // What the user may change: the access level, and whether the user is an admin
+      access: `${accessLevelOf(d)} ${isAdmin(hass)}` } : {},
     schedules: () => schedules.map((s) => s.id),
     scheduleName: (id) => (schedules.find((s) => s.id === id) || { name: id }).name,
     activeSchedule: () => (d ? d.active_schedule : null),
@@ -1469,8 +1508,13 @@ function makeDataSource(hass, available) {
     deviceId: () => (d && d.device_id) || null,
     // What a thermostat follows now and the next different preset: { preset, next_preset, next_start }
     planned: (climate) => (d && d.planned && d.planned[climate]) || null,
-    // Presets and mappings are set from the card by admins (the integration refuses the others)
-    editable: !!d && isAdmin(hass),
+    // What the user may change (#99), as the integration checks it: `plannable` the weeks and the
+    // schedules (canPlan), `editable` the rest of the setup, the panel (canSetUp), `admin` the
+    // access level and Home Assistant's own pages
+    accessLevel: () => accessLevelOf(d),
+    plannable: !!d && accessAllows(hass, d, 'plan'),
+    editable: !!d && accessAllows(hass, d, 'set_up'),
+    admin: isAdmin(hass),
     mapping: (climate) => (d && d.mappings && d.mappings[climate]) || {},
     usePresets: () => !d || d.use_presets !== false,
     presetTemperature: (climate, preset) => ((d && d.preset_temperatures && d.preset_temperatures[climate]) || {})[preset],
@@ -1633,7 +1677,8 @@ function panelTitle(hass) {
   return (panel && panel.title) || 'Chauffage';
 }
 // Where the dashboards show each thermostat, in a Chauffage card:
-// { climate: [{ dashboard, view, path }] }. Admins only (the dashboards' configs).
+// { climate: [{ dashboard, view, path, programme }] }, `programme` when a schedule card of the view
+// shows it, where its weeks are edited (#99).
 // The placements, read once per connection (a page load): the card's list and the panel share them
 const PLACEMENTS = new WeakMap();
 function placements(hass) {
@@ -1651,18 +1696,20 @@ function placesHtml(t, places) {
 
 async function cardPlacements(hass) {
   const out = {};
-  const add = (climate, place) => {
+  const add = (climate, place, programme) => {
     const list = out[climate] || (out[climate] = []);
-    if (!list.some((p) => p.path === place.path)) list.push(place);
+    const same = list.find((p) => p.path === place.path);
+    if (same) same.programme = same.programme || programme;
+    else list.push({ ...place, programme });
   };
   // Every Chauffage card in a part of a config, nested in stacks, sections or conditions
   const walk = (node, place) => {
     if (Array.isArray(node)) return node.forEach((n) => walk(n, place));
     if (!node || typeof node !== 'object') return;
     if (node.type === 'custom:chauffage-programme-card') {
-      for (const t of node.thermostats || []) add(typeof t === 'string' ? t : t.entity, place);
+      for (const t of node.thermostats || []) add(typeof t === 'string' ? t : t.entity, place, true);
     } else if (node.type === 'custom:chauffage-thermostat-card' && node.entity) {
-      add(node.entity, place);
+      add(node.entity, place, false);
     }
     Object.values(node).forEach((v) => walk(v, place));
   };
@@ -1724,7 +1771,7 @@ function dayText(at, loc) {
 }
 
 // The end of an override, in words, under its time field: "today, at the next slot · 45 min left
-// · then Eco". The reason of a change by hand (#83) is part of its end; for an admin it opens the
+// · then Eco". The reason of a change by hand (#83) is part of its end; with Set up it opens the
 // settings dialog on top of the view (openSettings), where the user chooses it.
 function overrideEndHtml(src, climate, d, loc, hass) {
   const t = loc.t;
@@ -1733,7 +1780,7 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const day = endsAt.toDateString() === now.toDateString() ? t('today') : dayText(endsAt, loc);
   const remaining = Math.max(0, Math.round((endsAt - now) / 60000));
   const reason = endReasonText(d, loc);
-  const why = reason && isAdmin(hass)
+  const why = reason && src.editable
     ? `<span class="mi-link" role="link" tabindex="0" data-open-settings title="${esc(t('endsChoose'))}">${esc(reason)} <span aria-hidden="true">⚙</span></span>`
     : esc(reason);
   const then = thenText(src, climate, d, loc);
@@ -2029,6 +2076,18 @@ class ChauffageProgrammeCard extends HTMLElement {
     const links = `${src.stamps.entities} ${this._thermostats.map((t) => deviceOf(hass, t.entity)).join(' ')}`;
     if (links !== this._linksStamp && !this._drag && !this._overrideDrag) {
       this._linksStamp = links;
+      need = true;
+    }
+    // The access level changed (#99): the tools appear or go at once. Without Plan, what was being
+    // edited closes; the weeks not saved yet stay until Cancel
+    if (src.stamps.access !== this._accessStamp) {
+      this._accessStamp = src.stamps.access;
+      if (this._drag && !this._mayEdit(this._drag.climate)) this._cancelDrag();
+      if (this._sel && !this._mayEdit(this._sel.climate)) this._sel = null;
+      if (!src.plannable) {
+        this._schedEd = null;
+        this._copyWeekMenu = null;
+      }
       need = true;
     }
     // Activation rules changed, or one became true or false: redraw the "Rules" view
@@ -2338,7 +2397,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       await this._source().setOverride(climate, override, this._changeSource());
     } catch (e) {
       delete this._overridePending[climate];
-      this._msg = this._loc.t('error', { message: e.message || e.code || e });
+      this._msg = errorText(this._loc.t, e);
       this._render();
     }
   }
@@ -2381,6 +2440,11 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   async _save() {
     const src = this._source();
+    if (!src.plannable || !this._maySave()) {
+      this._msg = this._loc.t('unauthorized');
+      this._render();
+      return false;
+    }
     const now = this._serialized();
     // Only the thermostats changed, each against its revision (another card may edit the others)
     const loaded = this._loadedWeeks || {};
@@ -2399,7 +2463,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       return true;
     } catch (e) {
       // Integration: edited elsewhere since this copy was loaded
-      this._msg = e && e.code === 'stale' ? this._loc.t('stale') : this._loc.t('error', { message: e.message || e.code || e });
+      this._msg = e && e.code === 'stale' ? this._loc.t('stale') : errorText(this._loc.t, e);
       this._render();
       return false;
     }
@@ -2629,17 +2693,18 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _barHtml(climate, segs, days, showNow) {
     const d = days[0];
+    const editable = this._mayEdit(climate); // read-only: no handle, no slot to move
     const segHtml = segs
       .map((s, i) => {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
         const p = this._preset(s.preset);
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : '',
-          i > 0 && i < segs.length - 1 ? 'movable' : ''].join(' ');
+          editable && i > 0 && i < segs.length - 1 ? 'movable' : ''].join(' ');
         return `<div class="${cls}" data-idx="${i}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;background:${p.color}" title="${esc(this._name(climate))} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(p.name)}${esc(this._measuredText(climate, d, s.start, end))}">${this._segInner(s.start, end, s.preset)}</div>`;
       })
       .join('');
-    const handles = segs
+    const handles = !editable ? '' : segs
       .slice(1)
       .map((s, j) => `<div class="handle" data-idx="${j + 1}" style="left:${pct(s.start)}%"><span class="tip">${this._loc.time(s.start)}</span></div>`)
       .join('');
@@ -2652,7 +2717,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && days.includes(cs.day);
     const history = this._historyHtml(climate, d);
     const zoom = this._isZoomed(climate, d) ? ' zoom' : '';
-    return `<div class="bar${isSrc ? ' clipsrc' : ''}${zoom}${paused ? ' paused' : ''}${unscheduled}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
+    return `<div class="bar${isSrc ? ' clipsrc' : ''}${editable ? '' : ' ro'}${zoom}${paused ? ' paused' : ''}${unscheduled}" data-climate="${esc(climate)}" data-day="${d}">${segHtml}${handles}${history}${this._overrideHtml(climate, days)}${now}</div>`;
   }
 
   // Override drawn over the schedule (only in the active schedule's tab), on a row of days
@@ -2683,7 +2748,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         return `<div class="sub">
           ${multi ? `<div class="name" title="${esc(this._loc.t('open', { name: this._name(climate) }))}">${this._moreInfoLink(climate)}${this._nameSizer()}</div>` : ''}
           ${this._barHtml(climate, segs, days, showNow)}
-          <button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>
+          ${this._hasMenu(climate, d)
+    ? `<button class="ibtn${open ? ' open' : ''}" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" title="${esc(this._loc.t('copyPaste'))}">${ICON_MORE}</button>`
+    : `<button class="ibtn none" data-act="menu" data-climate="${esc(climate)}" data-day="${d}" disabled aria-hidden="true" tabindex="-1">${ICON_MORE}</button>`}
         </div>`;
       })
       .join('');
@@ -2719,6 +2786,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _unscheduledNotesHtml() {
     const src = this._source();
     if (!src.ready) return '';
+    // Scheduling a thermostat is setting up (canSetUp): with Plan, its week stays read-only
     const key = src.editable ? 'unscheduledNote' : 'unscheduledNoteReadOnly';
     return this._shown.filter((climate) => this._unscheduled(climate)).map((climate) => `<div class="paused-note unscheduled-note">
         <span>${withHtml(this._loc.t(key, { name: LINK_TOKEN }), this._moreInfoLink(climate))}</span></div>`).join('');
@@ -2729,13 +2797,27 @@ class ChauffageProgrammeCard extends HTMLElement {
     return src.ready && !!this._hass.states[climate] && !src.scheduled().includes(climate);
   }
 
+  // The user may edit this thermostat's weeks (#99): Plan (canPlan), and Set up (canSetUp) for a
+  // thermostat Chauffage does not schedule yet, which its first save schedules
+  _mayEdit(climate) {
+    const src = this._source();
+    return src.plannable && (src.editable || !this._unscheduled(climate));
+  }
+
+  // The weeks edited can be saved: the access level may have dropped since (U31)
+  _maySave() {
+    const now = this._serialized();
+    const loaded = this._loadedWeeks || {};
+    return Object.keys(now).filter((c) => now[c] !== loaded[c]).every((c) => this._mayEdit(c));
+  }
+
   // Renders, then runs a change of the integration; its error, if any, is shown
   async _call(change) {
     this._render();
     try {
       await change(this._source());
     } catch (e) {
-      this._msg = this._loc.t('error', { message: e.message || e.code || e });
+      this._msg = errorText(this._loc.t, e);
       this._render();
     }
   }
@@ -2754,19 +2836,28 @@ class ChauffageProgrammeCard extends HTMLElement {
     const paste = this._clip ? `${esc(t('paste'))} <small>${esc(this._clip.label)}</small>` : esc(t('paste'));
     // What can be done with this day, and a temporary setpoint on today; pausing is in the
     // "Thermostats" view. The thermostat's name opens it.
-    const paused = this._source().paused(m.climate);
+    // Copying and pasting edit the weeks: canPlan (U9)
+    const groups = this._mayEdit(m.climate) ? [
+      item('copy-day', esc(t('copyDay')), ICON_COPY) + item('paste-day', paste, ICON_PASTE, !this._clip),
+      item('fill-weekdays', esc(t('copyToWeekdays'))) + item('fill-weekend', esc(t('copyToWeekend')))
+        + item('fill-all', esc(t('copyToAll'))) + (this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''),
+    ] : [];
+    if (this._historyOf(m.climate, m.day)) groups.push(item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM));
+    if (this._mayOverride(m.climate, m.day)) groups.push(item('override-new', esc(t('newOverride'))));
     return `<div class="menu" style="top:${m.top}px;right:${m.right}px">
       <div class="mh">${this._moreInfoLink(m.climate)} · ${esc(this._rowLabel(m.day, 'long'))}</div>
-      ${item('copy-day', esc(t('copyDay')), ICON_COPY)}
-      ${item('paste-day', paste, ICON_PASTE, !this._clip)}
-      <div class="sep"></div>
-      ${item('fill-weekdays', esc(t('copyToWeekdays')))}
-      ${item('fill-weekend', esc(t('copyToWeekend')))}
-      ${item('fill-all', esc(t('copyToAll')))}
-      ${this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''}
-      ${this._historyOf(m.climate, m.day) ? `<div class="sep"></div>${item('zoom', esc(t(this._isZoomed(m.climate, m.day) ? 'showSmaller' : 'showLarger')), ICON_ZOOM)}` : ''}
-      ${this._rowOf(m.day).includes(todayIdx()) && !paused ? `<div class="sep"></div>${item('override-new', esc(t('newOverride')))}` : ''}
+      ${groups.join('<div class="sep"></div>')}
     </div>`;
+  }
+
+  // A new override is set from today's row, on a thermostat that is not paused
+  _mayOverride(climate, day) {
+    return this._rowOf(day).includes(todayIdx()) && !this._source().paused(climate);
+  }
+
+  // A day's ⋮ has something to offer: with read-only weeks, the history or a new override only
+  _hasMenu(climate, day) {
+    return this._mayEdit(climate) || !!this._historyOf(climate, day) || this._mayOverride(climate, day);
   }
 
   // `top`: under the button or the pointer; `above` (optional): where the menu ends when it opens
@@ -2799,7 +2890,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const t = this._loc.t;
     // In the words of a mouse, or of a finger on a touch screen (CSS)
     // A thermostat's page stacks one card per schedule: it shows the hint once (`week_only`)
-    const hint = this._config.week_only ? ''
+    // Not with read-only weeks (the access level): there is nothing to drag
+    const hint = this._config.week_only || !this._shown.some((c) => this._mayEdit(c)) ? ''
       : `<div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`;
     if (this._overrideSel) return hint + this._overrideEditorHtml();
     if (!this._sel || !this._shown.includes(this._sel.climate)) { this._sel = null; return hint; }
@@ -3060,20 +3152,21 @@ class ChauffageProgrammeCard extends HTMLElement {
         return `<button class="chip${on ? ' on' : ''}${paused}" data-climate="${esc(t.entity)}">${esc(this._name(t.entity))} <span class="live">${esc(this._chipMark(t.entity))}</span><span class="chip-open" data-more-info="${esc(t.entity)}" title="${esc(tr('openThermostat'))}">${ICON_OPEN}</span></button>`;
       })
       .join('');
-    const editable = src.editable;
+    // The schedules' ⋮ and + edit the schedules: canPlan
+    const plannable = src.plannable;
     // On a schedule's sheet (schedule_tabs: 'one'): its tab alone, with its menu, and no new schedule
     const one = this._config.schedule_tabs === 'one';
     // A week of a thermostat's page: the week alone (`week_only`)
     const weekOnly = !!this._config.week_only;
     const tabs = (one ? schedules.filter((m) => m === this._schedule) : schedules)
       .map((m) => { const icon = src.scheduleIcon(m); return `<button class="tab${m === this._schedule ? ' on' : ''}" data-schedule="${esc(m)}">${m === active ? `<span class="dot" title="${esc(tr('activeSchedule'))}"></span>` : ''}${icon ? `<ha-icon class="tab-icon" icon="${esc(icon)}"></ha-icon>` : ''}<span class="tab-name">${esc(this._scheduleName(m))}</span></button>${
-        editable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
+        plannable && m === this._schedule ? `<button class="tab-tool" data-act="schedule-menu" title="${esc(tr('scheduleMenu'))}">⋮</button>` : ''}`; })
       .join('');
     // Arrows on the sides of the tabs, shown when schedules are hidden on that side (_tabArrows)
     const tabsArrow = (side) => `<button class="tab-arrow" data-tabs-scroll="${side}"
       title="${esc(tr(side === 'left' ? 'tabsLeft' : 'tabsRight'))}" aria-label="${esc(tr(side === 'left' ? 'tabsLeft' : 'tabsRight'))}"><ha-icon icon="mdi:chevron-${side}"></ha-icon></button>`;
     // Out of the tabs' scrolling area: the "+" stays in place however many schedules there are
-    const newTab = editable && !one ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '';
+    const newTab = plannable && !one ? `<button class="tab-tool" data-act="schedule-new" title="${esc(tr('newSchedule'))}">+</button>` : '';
     const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span${h % 6 ? ' class="minor"' : ''} style="left:${(h / 24) * 100}%">${this._loc.tick(h)}</span>`).join('');
     // Days in the order of the user's first weekday (data stays Monday-based)
     this._layoutRows();
@@ -3096,9 +3189,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       .join('') + this._settingsLinkHtml();
     // Copying the week of the thermostat shown to another thermostat or schedule: a menu, as the
     // day's ⋮, opening upwards from the foot of the card
+    // Weeks edited, then the access level dropped (U31): kept until Cancel, but not saved
+    const maySave = !this._dirty || (plannable && this._maySave());
     const cw = this._copyWeekMenu;
     const copyWeekMenu = !cw ? '' : `<div class="menu copyweek-menu" style="${cw.top != null ? `top:${cw.top}px` : `bottom:${cw.bottom}px`};right:${cw.right}px;max-height:${Math.max(120, cw.maxHeight)}px">${
-      this._thermostats.map((t) => {
+      this._thermostats.filter((t) => this._mayEdit(t.entity)).map((t) => {
         const items = schedules
           .filter((m) => !(t.entity === focus && m === this._schedule))
           .map((m) => `<button class="mi" data-act="copy-week" data-climate="${esc(t.entity)}" data-schedule="${esc(m)}"><span>${esc(this._scheduleName(m))}</span></button>`)
@@ -3132,15 +3227,15 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${weekOnly ? '' : `<div class="foot">
           <div class="legend">${legend}</div>
           <div class="actions">
-            <button class="btn copyweek${cw ? ' on' : ''}" data-act="copyweek-menu">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</button>
+            ${plannable ? `<button class="btn copyweek${cw ? ' on' : ''}" data-act="copyweek-menu">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</button>` : ''}
             ${copyWeekMenu}
           </div>
         </div>`}
-        <div class="msg">${esc(this._msg)}</div>
+        <div class="msg">${esc(maySave ? this._msg : tr('unauthorized'))}</div>
         ${this._dirty && !weekOnly ? `<div class="savebar">
           <span class="dirty">${esc(tr('unsaved'))}</span>
           <button class="btn" data-act="cancel">${esc(tr('cancel'))}</button>
-          <button class="btn primary" data-act="save">${esc(tr('save'))}</button>
+          ${maySave ? `<button class="btn primary" data-act="save">${esc(tr('save'))}</button>` : ''}
         </div>` : ''}`,
       `${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}`);
     this._schedulePlaceEditor();
@@ -3238,6 +3333,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const bar = seg.parentElement;
         const climate = bar.dataset.climate;
         const day = Number(bar.dataset.day);
+        if (!this._mayEdit(climate)) return; // read-only weeks: nothing moves
         const idx = Number(seg.dataset.idx);
         const segs = this._week(climate)[day];
         if (idx < 1 || idx >= segs.length - 1) return;
@@ -3254,7 +3350,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         return;
       }
       const h = e.target.closest('.handle');
-      if (!h) return;
+      if (!h || !this._mayEdit(h.parentElement.dataset.climate)) return;
       e.preventDefault();
       h.setPointerCapture(e.pointerId);
       h.classList.add('drag');
@@ -3363,6 +3459,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const bar = e.target.closest('.bar');
       if (!bar) return;
       e.preventDefault();
+      if (!this._hasMenu(bar.dataset.climate, Number(bar.dataset.day))) return;
       const card = root.querySelector('ha-card').getBoundingClientRect();
       this._menu = null;
       this._openMenu(bar.dataset.climate, Number(bar.dataset.day), e.clientY - card.top + 4, Math.max(8, card.right - e.clientX - 8), e.clientY - card.top - 4);
@@ -3474,6 +3571,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (!seg || Date.now() - (this._slotMoved || 0) < 300) return;
       const bar = seg.parentElement;
       const climate = bar.dataset.climate;
+      if (!this._mayEdit(climate)) return; // read-only weeks: a tap opens nothing
       const day = Number(bar.dataset.day);
       const idx = Number(seg.dataset.idx);
       const t = Date.now();
@@ -3594,9 +3692,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         const inRules = src.rules().some((r) => r.schedule === id) || src.defaultSchedule() === id;
         const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast')
           : inRules ? t('cannotDeleteInRules') : '';
-        // On a dashboard, the schedule's page in the panel; in the panel, the page is a row or
-        // the page itself
-        const open = this._config.panel ? ''
+        // On a dashboard, the schedule's page in the panel, for whoever may open the panel (Set
+        // up); in the panel, the page is a row or the page itself
+        const open = this._config.panel || !src.editable ? ''
           : `<button class="mi" data-navigate="${panelPath(`schedules/${esc(id)}`)}"><span>${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span></button><div class="sep"></div>`;
         // A schedule's sheet shows one tab (`schedule_tabs: 'one'`): no tab to move it next to; the
         // list moves it up or down
@@ -3607,8 +3705,9 @@ class ChauffageProgrammeCard extends HTMLElement {
         // The list's rows have no Activate button: it broke their layout
         const activate = list && id !== this._activeSchedule()
           ? `${item('activate-schedule', esc(t('panelActivate')), `data-schedule="${esc(id)}"`)}<div class="sep"></div>` : '';
-        // The icon is the schedule switch's: set where Home Assistant sets every entity's icon
-        const icon = src.scheduleEntity(id) ? item('schedule-icon', esc(t('changeIcon'))) : '';
+        // The icon is the schedule switch's: set where Home Assistant sets every entity's icon, which
+        // Home Assistant keeps for admins
+        const icon = src.scheduleEntity(id) && src.admin ? item('schedule-icon', esc(t('changeIcon'))) : '';
         body = `${activate}${open}${item('schedule-rename-open', esc(t('renameMenu')))}
           ${icon}
           ${moves}
@@ -3620,7 +3719,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="menu sched-menu" style="top:${ed.top || 0}px;${side}">${body}</div>`;
   }
 
-  // Schedule actions (admins): unsaved edits of the weeks are saved first
+  // Schedule actions (canPlan): unsaved edits of the weeks are saved first
   async _scheduleAction(act, ds, el) {
     const t = this._loc.t;
     const ed = this._schedEd;
@@ -3689,7 +3788,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         if (this._view === 'schedules') openPanel(`schedules/${this._wantSchedule}`);
       }
     } catch (e) {
-      this._msg = e && e.code === 'stale' ? t('stale') : t('error', { message: e.message || e.code || e });
+      this._msg = e && e.code === 'stale' ? t('stale') : errorText(t, e);
     }
     this._render();
   }
@@ -3710,7 +3809,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       await this._source().activateSchedule(schedule, this._changeSource());
       this._msg = this._loc.t('scheduleActivated', { schedule: this._scheduleName(schedule) });
     } catch (e) {
-      this._msg = this._loc.t('error', { message: e.message || e.code || e });
+      this._msg = errorText(this._loc.t, e);
     }
     this._render();
   }
@@ -3737,21 +3836,20 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // On a dashboard, the card shows the weeks; the presets, the rules and the thermostats are set
-  // in the Chauffage panel (admins only, as the panel). The legend of the presets ends with the
+  // in the Chauffage panel (canSetUp, as the panel). The legend of the presets ends with the
   // link to set them; the panel's tabs lead to the rest. In the panel, no link to the panel.
-  // The card's top right: the Chauffage panel, for admins, as the dashboards' own panels
+  // The card's top right: the Chauffage panel, for users who may set up (canSetUp), as the
+  // dashboards' own panels
   _panelOpenHtml() {
     if (this._config.panel) return '';
     const hass = this._hass;
-    if (!isAdmin(hass)) return '';
+    if (!this._source().editable) return '';
     const label = this._loc.t('openInPanel', { panel: panelTitle(hass) });
     return `<button class="panel-open" data-navigate="${panelPath('')}" title="${esc(label)}" aria-label="${esc(label)}"><ha-icon icon="chauffage:logo"></ha-icon></button>`;
   }
 
   _settingsLinkHtml() {
-    if (this._config.panel) return '';
-    const hass = this._hass;
-    if (!isAdmin(hass)) return '';
+    if (this._config.panel || !this._source().editable) return '';
     return `<span class="mi-link settings-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}">${esc(this._loc.t('setPresets'))}</span>`;
   }
 
@@ -3836,7 +3934,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     </div>`;
   }
 
-  // The rules shown are tried by the integration (chauffage/rules/preview, admins only: a template
+  // The rules shown are tried by the integration (chauffage/rules/preview, canSetUp: a template
   // can read any entity), again whenever their entities change; a new try once they are edited
   // (after a short pause in the typing), none outside the "Rules" view
   _syncPreview() {
@@ -3900,7 +3998,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._rulesDraft = null;
         this._msg = this._loc.t('saved');
       } catch (err) {
-        this._msg = this._loc.t('error', { message: err.message || err.code || err });
+        this._msg = errorText(this._loc.t, err);
       }
     }
     return this._render();
@@ -3922,7 +4020,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const placesLine = (climate) => (this._placements
       ? `<div class="th-cards">${placesHtml(t, this._placements[climate] || [])}</div>` : '');
     // A row opens the thermostat's sheet; only a paused thermostat has a badge, the exception. Its
-    // actions wait in its ⋮ menu (admins)
+    // actions wait in its ⋮ menu (canSetUp)
     const rows = scheduled.map((climate) => {
       const paused = src.paused(climate);
       const open = this._thMore && this._thMore.climate === climate;
@@ -3939,8 +4037,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     const add = editable && climates.length ? `<div class="th-add"><div class="th-add-title">${esc(t('addThermostat'))}</div>
         <div class="th-add-row"><select data-add-climate>${climates.map((c) => `<option value="${esc(c)}">${esc(this._name(c))}</option>`).join('')}</select>
         <button class="btn primary" data-act="thermostat-add">${esc(t('scheduleThermostat'))}</button></div></div>` : '';
-    // The integration's page (admins): its options, its logs and its diagnostics
-    const integration = editable
+    // The integration's page: its options, its logs and its diagnostics. Home Assistant keeps it
+    // for admins
+    const integration = src.admin
       ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${INTEGRATION_PAGE}">${esc(t('integrationPage'))}</span>` : '';
     return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div><div class="th-list">${rows}</div>${add}
       ${integration ? `<div class="th-foot">${integration}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
@@ -3963,7 +4062,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         src.paused(m.climate) ? item(`data-act="resume" ${ref}`, esc(t('resumeShort'))) : item(`data-act="pause" ${ref}`, esc(t('pauseShort'))),
         '<div class="sep"></div>',
         item(`data-more-info="${esc(m.climate)}"`, esc(t('openThermostat'))),
-        ...thermostatDevices(this._hass, src, m.climate).map((id) => item(`data-device="${esc(id)}"`, esc(deviceLabel(this._hass, id)))),
+        // The devices' pages: Home Assistant keeps them for admins
+        ...(src.admin ? thermostatDevices(this._hass, src, m.climate) : []).map((id) => item(`data-device="${esc(id)}"`, esc(deviceLabel(this._hass, id)))),
         '<div class="sep"></div>',
         item(`data-act="thermostat-forget" ${ref}`, esc(t('forget')), 'mi danger'),
       ].join('');
@@ -3971,7 +4071,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // The panel's Schedules page: one row per schedule, as the Thermostats page, the active one
-  // marked; a row opens the schedule's sheet; Activate; its ⋮ renames, moves, deletes (admins);
+  // marked; a row opens the schedule's sheet; Activate; its ⋮ renames, moves, deletes (canSetUp, as the panel);
   // + New schedule creates an empty one or a copy, as the card's +
   _schedulesViewHtml() {
     const t = this._loc.t;
@@ -4204,7 +4304,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._cell = null;
       this._msg = this._loc.t('saved');
     } catch (err) {
-      this._msg = this._loc.t('error', { message: err.message || err.code || err });
+      this._msg = errorText(this._loc.t, err);
     }
     return this._render();
   }
@@ -4291,7 +4391,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   _copyDay(climate, day, target) {
     const src = this._week(climate)[day];
     if (target === 'others') {
-      this._shown.filter((c) => c !== climate).forEach((c) => { this._week(c)[day] = clone(src); this._spread(c, day); });
+      // Not to a thermostat whose week the user may not edit (a thermostat not scheduled, with Plan)
+      this._shown.filter((c) => c !== climate && this._mayEdit(c)).forEach((c) => { this._week(c)[day] = clone(src); this._spread(c, day); });
     } else {
       const targets = { weekdays: [0, 1, 2, 3, 4], weekend: [5, 6], all: [0, 1, 2, 3, 4, 5, 6] }[target];
       if (!targets) return;
@@ -4369,6 +4470,10 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _action(act, ds, el) {
+    // What edits the weeks or the schedules needs Plan (canPlan), on a thermostat the user may edit
+    const editsWeeks = ['copyweek-menu', 'copy-week', 'copy-day', 'paste-day', 'preset', 'insert', 'delete'].includes(act)
+      || act.startsWith('fill-') || (act.startsWith('schedule-') && act !== 'schedule-close' && !this._config.view);
+    if (editsWeeks && !(this._source().plannable && (!ds.climate || this._mayEdit(ds.climate)))) return undefined;
     if (act === 'copyweek-menu') {
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
       const b = el.getBoundingClientRect();
@@ -4694,6 +4799,8 @@ const STYLE = `
   .h12 .seg .t { white-space:nowrap; }
   @container (max-width:56px) { .h12 .seg .t { visibility:hidden; } }
   .seg.sel { box-shadow:inset 0 0 0 3px var(--primary-text-color); z-index:1; }
+  /* Read-only weeks (the access level): a slot opens nothing */
+  .bar.ro .seg { cursor:default; }
   .seg.movable { cursor:grab; }
   .seg.movable:active { cursor:grabbing; }
   .seg.movable.sel { touch-action:pan-y; } /* by touch, the selected slot slides sideways */
@@ -4746,6 +4853,8 @@ const STYLE = `
   .ibtn:hover:not(:disabled) { color:var(--primary-color); border-color:var(--primary-color); }
   .ibtn.open { color:var(--primary-color); border-color:var(--primary-color); }
   .ibtn:disabled { opacity:.35; cursor:default; }
+  /* A day with nothing to offer keeps its place in the grid */
+  .ibtn.none { visibility:hidden; }
   .bar.clipsrc { outline:2px dashed var(--primary-color); outline-offset:2px; }
   .menu { position:absolute; z-index:10; min-width:230px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color);
@@ -4979,9 +5088,9 @@ class ChauffageMoreInfo extends HTMLElement {
     if (this._key && overrides !== this._key[2]) this._pending = undefined;
     if (this._key && thermostats !== this._key[4]) this._error = null; // paused or resumed: a resume error is over
     // Redraw only when relevant data changed (or every new minute)
-    // (an admin pauses and opens devices; the registry gives the device)
+    // (the access level gives the links; the registry gives the device)
     const key = [s[this._entity], weeks, overrides, schedule, thermostats, Math.floor(Date.now() / 60000), this._loc.signature,
-      !hass.user || !!hass.user.is_admin, hass.entities && hass.entities[this._entity]];
+      src.stamps.access, hass.entities && hass.entities[this._entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return;
     if (this._drag) return; // no redraw while dragging
     if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; } // nor while the end is typed
@@ -5019,14 +5128,13 @@ class ChauffageMoreInfo extends HTMLElement {
     this._send({ ...chosen, end: (endsAt < min ? min : endsAt).toISOString() });
   }
 
-  // The active schedule's name, opening its page in the panel for an admin, and the thermostat's
-  // week in it
+  // The active schedule's name, opening its page in the panel with Set up (canSetUp), and the
+  // thermostat's week in it
   _week() {
     const src = dataSource(this._hass);
     const schedule = src.activeSchedule();
     const name = schedule ? src.scheduleName(schedule) : '';
-    const admin = isAdmin(this._hass);
-    const link = schedule && admin
+    const link = schedule && src.editable
       ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath(`schedules/${esc(schedule)}`)}">${esc(name)}</span>` : esc(name);
     return { schedule: link, week: activeWeek(src, this._entity) };
   }
@@ -5115,7 +5223,7 @@ class ChauffageMoreInfo extends HTMLElement {
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
         <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
-    const admin = isAdmin(this._hass);
+    const weekLink = this._weekLink();
 
     this.shadowRoot.innerHTML = `<style>${MORE_INFO_STYLE}</style>
       <div class="wrap">
@@ -5126,8 +5234,8 @@ class ChauffageMoreInfo extends HTMLElement {
         ${this._bar(segs, rowPiece(pieces, [today]), true, true)}
         ${endDay}
         <div class="ticks">${ticks}</div>
-        <details><summary>${esc(t('week'))}</summary>${admin
-          ? `<div class="week" role="link" tabindex="0" title="${esc(t('editWeek'))}" ${this._weekLink()}>${rows}</div>`
+        <details><summary>${esc(t('week'))}</summary>${weekLink
+          ? `<div class="week" role="link" tabindex="0" title="${esc(t('editWeek'))}" ${weekLink}>${rows}</div>`
           : `<div class="week">${rows}</div>`}</details>
         ${this._footHtml()}
       </div>`;
@@ -5138,21 +5246,37 @@ class ChauffageMoreInfo extends HTMLElement {
     if (typed !== null) restoreTyped(this.shadowRoot, OVERRIDE_TEMPERATURE, typed);
   }
 
-  // Where "Edit its week" leads: the thermostat's page, scrolled to its week in the active schedule
-  _weekLink() {
-    const week = dataSource(this._hass).activeSchedule();
-    return `data-navigate="${esc(weeksPath(this._entity, week))}"`;
+  // Where "Edit its week" leads (#99). With Set up (canSetUp): the thermostat's page in the panel,
+  // scrolled to its week in the active schedule. With Plan (canPlan): the first dashboard view
+  // with a schedule card of this thermostat, the thermostat cards can't edit a week. Else nowhere.
+  _weekPath() {
+    const src = dataSource(this._hass);
+    if (src.editable) return weeksPath(this._entity, src.activeSchedule());
+    if (!src.plannable) return null;
+    if (this._placements === undefined) {
+      this._placements = null;
+      placements(this._hass).then((p) => {
+        this._placements = p;
+        if (this._hass && this.isConnected) this._render();
+      });
+    }
+    const place = ((this._placements || {})[this._entity] || []).find((p) => p.programme);
+    return place ? place.path : null;
   }
 
-  // The foot: Edit its week (admins), and Pause, or Control in its place (anyone who may control
+  _weekLink() {
+    const path = this._weekPath();
+    return path ? `data-navigate="${esc(path)}"` : '';
+  }
+
+  // The foot: Edit its week (canPlan), and Pause, or Control in its place (anyone who may control
   // the thermostat). Its entities and its devices are on the device's page and on the panel's page
   _footHtml() {
     const t = this._loc.t;
     const src = dataSource(this._hass);
-    const admin = isAdmin(this._hass);
-    // Its week in the active schedule, on the thermostat's page in the panel (admins, as the panel)
-    const links = admin
-      ? `<span class="mi-link" role="link" tabindex="0" ${this._weekLink()}>${esc(t('editWeek'))}</span>`
+    const weekLink = this._weekLink();
+    const links = weekLink
+      ? `<span class="mi-link" role="link" tabindex="0" ${weekLink}>${esc(t('editWeek'))}</span>`
       : '';
     const paused = src.paused(this._entity);
     // Pause and Control: anyone who may control the thermostat, as with its Control switch
@@ -5174,8 +5298,10 @@ class ChauffageMoreInfo extends HTMLElement {
     }
     const to = e.target.closest('[data-navigate]');
     if (to) {
-      // In the more-info dialog: closed first, the page under it otherwise
-      leaveMoreInfo(this, () => navigate(to.dataset.navigate));
+      // In the more-info dialog: closed first, the page under it otherwise. A link to the view
+      // already shown only closes the dialog
+      const path = to.dataset.navigate;
+      leaveMoreInfo(this, () => { if (path !== window.location.pathname) navigate(path); });
       return;
     }
     const b = e.target.closest('button:not(.time-step)'); // the small arrows: listenTimeFields()
@@ -5184,7 +5310,7 @@ class ChauffageMoreInfo extends HTMLElement {
     this._error = null;
     if (b.hasAttribute('data-resume') || b.hasAttribute('data-pause')) {
       return dataSource(this._hass).setPaused(this._entity, b.hasAttribute('data-pause')).catch((err) => {
-        this._error = this._loc.t('error', { message: err.message || err.code || err });
+        this._error = errorText(this._loc.t, err);
         this._render();
       });
     }
@@ -5367,10 +5493,11 @@ class ChauffageThermostatCard extends HTMLElement {
     }
     if (!this._config) return;
     const src = dataSource(hass);
-    // Redrawn when the thermostat or the integration's data change; the block follows by itself
+    // Redrawn when the thermostat, the integration's data or the access level change; the block
+    // follows by itself
     const key = [hass.states[this._config.entity], src.stamps.weeks, src.stamps.overrides, src.stamps.schedule,
       src.stamps.thermostats, JSON.stringify(src.planned(this._config.entity)), makeLocale(hass, this._config.language).signature,
-      hass.user && hass.user.is_admin, src.ready, src.stale, src.outdated, this._config];
+      hass.user && hass.user.is_admin, src.stamps.access, src.ready, src.stale, src.outdated, this._config];
     if (!this._key || key.some((v, i) => v !== this._key[i])) {
       this._key = key;
       this._render();
@@ -5423,7 +5550,10 @@ class ChauffageThermostatCard extends HTMLElement {
       return;
     }
     if (!src.scheduled().includes(entity)) {
-      card(`${head}<div class="msg">${esc(t('notScheduled'))}</div>`);
+      // Scheduling it is setting up (canSetUp): from the panel's Thermostats tab
+      const scheduleIt = src.editable
+        ? ` <span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath('thermostats')}">${esc(t('scheduleIt'))}</span>` : '';
+      card(`${head}<div class="msg">${esc(t('notScheduled'))}${scheduleIt}</div>`);
       return;
     }
     // The block of the more-info dialog, with its foot: the thermostat's own entities, its device,
@@ -5469,6 +5599,8 @@ class ChauffageThermostatCard extends HTMLElement {
   _onClick(e) {
     const link = e.target.closest('[data-more-info]');
     if (link) openMoreInfo(this, link.dataset.moreInfo);
+    const to = e.target.closest('[data-navigate]');
+    if (to && this.shadowRoot.contains(to)) navigate(to.dataset.navigate);
   }
 }
 
@@ -5812,27 +5944,35 @@ const INTEGRATION_PAGE = '/config/integrations/integration/chauffage';
 // The notice of the setting *End of a change by hand* for existing users (#83): 'seen' once closed,
 // once the settings were opened, or for a new user, who gets the next steps (this browser)
 const LS_NEW_SETTING = 'chauffage-panel:override-settings';
-const seenNewSetting = () => { try { localStorage.setItem(LS_NEW_SETTING, 'seen'); } catch (e) { /* ignore */ } };
+// The access level (#99), told once to admins
+const LS_NEW_ACCESS = 'chauffage-panel:access-level';
+const seenNewSetting = (hass) => {
+  try {
+    localStorage.setItem(LS_NEW_SETTING, 'seen');
+    if (isAdmin(hass)) localStorage.setItem(LS_NEW_ACCESS, 'seen');
+  } catch (e) { /* ignore */ }
+};
 
 // Opens the settings dialog on top of the current view. In Home Assistant, its dialog manager
 // (`show-dialog`) puts the dialog on top of the dialogs already open, the more-info dialog for
 // example, and gives it a history entry: Back closes it, and only it. Without Home Assistant's
 // frontend, the dialog opens by itself and takes its own history entry.
-function openSettings(from, hass) {
-  seenNewSetting();
+// `section`: 'access' scrolls the dialog to the access level
+function openSettings(from, hass, section = null) {
+  seenNewSetting(hass);
   // From the more-info block: leaving for a page closes the more-info dialog too
   const moreInfo = from.localName === 'chauffage-moreinfo';
   if (document.querySelector('home-assistant')) {
     from.dispatchEvent(new CustomEvent('show-dialog', {
       bubbles: true,
       composed: true,
-      detail: { dialogTag: SETTINGS_DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { moreInfo } },
+      detail: { dialogTag: SETTINGS_DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { moreInfo, section } },
     }));
     return;
   }
   const dialog = document.querySelector(SETTINGS_DIALOG) || document.body.appendChild(document.createElement(SETTINGS_DIALOG));
   dialog.hass = hass;
-  dialog.showDialog({ history: true, moreInfo });
+  dialog.showDialog({ history: true, moreInfo, section });
 }
 
 // An event from inside the settings dialog: not a press outside a popover, nor its Escape
@@ -5876,6 +6016,16 @@ const SETTINGS_CSS = `
   .choice:has(input:checked) { border-color:var(--primary-color); box-shadow:inset 0 0 0 1px var(--primary-color); }
   .choice input { flex:0 0 auto; width:20px; height:20px; margin:0; accent-color:var(--primary-color); }
   .choice-label { min-width:0; }
+  /* The access level: a name, what it adds, and the warning of Set up, always shown */
+  .choice-name, .choice-text, .choice .warning { display:block; }
+  .choice-text { font-size:13px; line-height:1.4; color:var(--secondary-text-color); }
+  .choice .warning { font-size:13px; line-height:1.4; color:var(--warning-color, #ffa600); }
+  .access-settings { margin-top:16px; }
+  .access-settings h3 { margin:12px 0 4px; font-size:16px; font-weight:500; }
+  .access-settings p { margin:4px 0 8px; line-height:1.5; }
+  .access-settings .note { font-size:13px; color:var(--secondary-text-color); }
+  .section-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
+  .access-settings .saved { color:var(--success-color, #43a047); font-size:14px; }
   /* The duration: a stepped field, the same as the end of an override */
   .duration-field { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   input.time { ${FIELD_BOX} }
@@ -5893,6 +6043,7 @@ class ChauffageSettingsDialog extends HTMLElement {
     // The settings: sent at once, as Home Assistant's own settings
     this.shadowRoot.addEventListener('change', (e) => {
       if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
+      if (e.target.matches('[data-access-level]')) this._setSettings({ access_level: e.target.value });
     });
     // Its ✕, and a tap outside the browser's dialog (on its backdrop: the dialog element itself)
     this.shadowRoot.addEventListener('click', (e) => {
@@ -5943,10 +6094,12 @@ class ChauffageSettingsDialog extends HTMLElement {
     this._ownHistory = !!(params && params.history);
     this._moreInfo = !!(params && params.moreInfo); // opened from the more-info block
     this._popped = false;
-    seenNewSetting();
+    // Opened from the notice of the access level: scrolled to its section, once filled (_update)
+    this._scrollTo = params && params.section === 'access' ? '.access-settings' : null;
+    seenNewSetting(this._hass);
     this._unlisten = INTEGRATION.listen(() => this._update());
     this._build();
-    this._update();
+    this._update(); // Home Assistant may put the dialog on the page later: then connectedCallback
     if (this._ownHistory) {
       window.history.pushState({ [SETTINGS_DIALOG]: true }, '');
       window.addEventListener('popstate', this._onPop);
@@ -5990,7 +6143,7 @@ class ChauffageSettingsDialog extends HTMLElement {
     const body = `<div class="body"><section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
         <p class="intro">${esc(t('overrideEndIntro'))}</p>
         <div class="duration-row"><div class="duration-field"></div><span data-fill="settings-saved"></span></div>
-        <div data-fill="settings"></div></section>${this._footHtml()}</div>`;
+        <div data-fill="settings"></div></section>${this._accessHtml()}${this._footHtml()}</div>`;
     this.shadowRoot.innerHTML = `<style>${SETTINGS_CSS}</style>`;
     const HaDialog = customElements.get('ha-dialog');
     let frame;
@@ -6033,6 +6186,43 @@ class ChauffageSettingsDialog extends HTMLElement {
     else frame.setAttribute('open', '');
   }
 
+  // The section *Access level* (#99): what users who are not admins may change. Admins only: a
+  // user with Set up who chose it would give every user everything
+  _accessHtml() {
+    if (!isAdmin(this._hass)) return '';
+    const t = this._t;
+    return `<section class="access-settings"><div class="section-head"><h3>${esc(t('accessTitle'))}</h3><span data-fill="access-saved"></span></div>
+        <p class="intro">${esc(t('accessIntro'))}</p>
+        <div data-fill="access"></div><div data-fill="access-note"></div><div data-fill="access-error"></div></section>`;
+  }
+
+  // The three access levels, each with what it adds; Set up warns that its changes reach every
+  // room. Drawn once, then updated in place, as the ends of an override
+  _fillAccess(src, busy) {
+    const host = this.shadowRoot.querySelector('[data-fill="access"]');
+    if (!host) return;
+    const t = this._t;
+    const current = (this._settingsPending && this._settingsPending.access_level) || src.accessLevel();
+    const levels = [['use', 'accessUse', 'accessUseText'], ['plan', 'accessPlan', 'accessPlanText'], ['set_up', 'accessSetUp', 'accessSetUpText']];
+    setHtml(host, `<div class="choices" role="radiogroup" aria-label="${esc(t('accessTitle'))}">${levels.map(([value, label, text]) => `<label class="choice">
+        <input type="radio" name="access-level" value="${value}" data-access-level>
+        <span class="choice-label"><span class="choice-name">${esc(t(label))}</span>
+          <span class="choice-text">${esc(t(text))}</span>
+          ${value === 'set_up' ? `<span class="warning">${esc(t('accessSetUpWarning'))}</span>` : ''}</span>
+      </label>`).join('')}</div>`);
+    for (const input of host.querySelectorAll('input')) {
+      input.checked = input.value === current;
+      input.disabled = !!busy.access_level;
+    }
+    // Set up opens the panel to every user: each one can hide it from the sidebar
+    setHtml(this.shadowRoot.querySelector('[data-fill="access-note"]'), current === 'set_up'
+      ? `<p class="note sidebar-note">${esc(t('accessSidebarNote'))}</p>` : '');
+    setHtml(this.shadowRoot.querySelector('[data-fill="access-saved"]'), this._settingsSaved && this._savedKey === 'access_level' && !this._settingsError
+      ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
+    setHtml(this.shadowRoot.querySelector('[data-fill="access-error"]'), this._settingsError && this._settingsErrorAt === 'access'
+      ? `<div class="error">${esc(this._settingsError)}</div>` : '');
+  }
+
   // The foot: the other options of the integration (the options flow), on its page in Home
   // Assistant, where *Configure* opens them. Admins only, as that page.
   _footHtml() {
@@ -6069,6 +6259,11 @@ class ChauffageSettingsDialog extends HTMLElement {
     this._stopLeave = null;
   }
 
+  // Home Assistant opens the dialog, then puts it on the page the first time: filled then
+  connectedCallback() {
+    this._update();
+  }
+
   disconnectedCallback() {
     this._cancelLeave();
     clearTimeout(this._savedTimer);
@@ -6077,8 +6272,14 @@ class ChauffageSettingsDialog extends HTMLElement {
   // Not once off the page: its former Home Assistant would subscribe again (dataSource)
   _update() {
     if (!this._open || !this._hass || !this.isConnected) return;
+    const src = dataSource(this._hass);
     const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
-    if (settings) this._fillSettings(settings, dataSource(this._hass));
+    if (settings) this._fillSettings(settings, src);
+    this._fillAccess(src, this._settingsBusy || {});
+    // Scrolled once its content is drawn: earlier, the sections above it are not their height yet
+    const section = this._scrollTo && this.shadowRoot.querySelector(this._scrollTo);
+    this._scrollTo = null;
+    if (section && typeof section.scrollIntoView === 'function') requestAnimationFrame(() => section.scrollIntoView({ block: 'start' }));
   }
 
   // A field typed in is drawn again once left (timeFieldDone)
@@ -6093,7 +6294,8 @@ class ChauffageSettingsDialog extends HTMLElement {
     const t = loc.t;
     // A setting just sent shows at once, until the integration gives it back
     const pending = this._settingsPending || {};
-    if (Object.entries(pending).every(([key, value]) => (key === 'override_duration' ? src.overrideDuration() : src.manualOverrideEnd()) === value)) {
+    const given = { override_duration: src.overrideDuration(), manual_override_end: src.manualOverrideEnd(), access_level: src.accessLevel() };
+    if (Object.entries(pending).every(([key, value]) => given[key] === value)) {
       this._settingsPending = null;
     }
     const minutes = (this._settingsPending && pending.override_duration) || src.overrideDuration();
@@ -6107,7 +6309,7 @@ class ChauffageSettingsDialog extends HTMLElement {
     if (saved) {
       setHtml(saved, this._settingsError && this._settingsErrorAt === 'duration'
         ? `<span class="error" role="alert">${esc(this._settingsError)}</span>`
-        : this._settingsSaved ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
+        : this._settingsSaved && this._savedKey !== 'access_level' ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
     }
     // The choices are drawn once, then updated in place: a click on a choice lands, even when the
     // press on it has just left the duration field and sent the duration
@@ -6129,7 +6331,7 @@ class ChauffageSettingsDialog extends HTMLElement {
       input.disabled = !src.editable || !!busy.manual_override_end;
       choice.querySelector('.choice-label').textContent = t(label, { duration });
     });
-    setHtml(settings.querySelector('[data-fill="settings-end-error"]'), this._settingsError && this._settingsErrorAt !== 'duration'
+    setHtml(settings.querySelector('[data-fill="settings-end-error"]'), this._settingsError && this._settingsErrorAt === 'end'
       ? `<div class="error">${esc(this._settingsError)}</div>` : '');
   }
 
@@ -6170,11 +6372,12 @@ class ChauffageSettingsDialog extends HTMLElement {
     try {
       await dataSource(this._hass).setSettings(settings);
       this._settingsSaved = true;
+      this._savedKey = key;
       clearTimeout(this._savedTimer);
       this._savedTimer = setTimeout(() => { this._settingsSaved = false; this._update(); }, 3000);
     } catch (err) {
-      this._settingsError = this._t('error', { message: err.message || err.code || err });
-      this._settingsErrorAt = key === 'override_duration' ? 'duration' : 'end';
+      this._settingsError = errorText(this._t, err);
+      this._settingsErrorAt = { override_duration: 'duration', access_level: 'access' }[key] || 'end';
       if (this._settingsPending) delete this._settingsPending[key];
     }
     this._settingsBusy = { ...this._settingsBusy, [key]: this._settingsBusy[key] - 1 };
@@ -6183,7 +6386,7 @@ class ChauffageSettingsDialog extends HTMLElement {
 }
 
 // =====================================================================
-//  The Chauffage panel (frontend.py): where an admin configures Chauffage. Lists, then sheets,
+//  The Chauffage panel (frontend.py): where an admin, or a user with Set up, configures Chauffage. Lists, then sheets,
 //  as Home Assistant's settings:
 //  - a list has the panel's tabs: the schedules (and the activation rules), the thermostats,
 //    the presets;
@@ -6338,7 +6541,7 @@ class ChauffagePanel extends HTMLElement {
       // The settings open once for this address, after the redirect: their history entry comes
       // after it. Home Assistant gives the new route a moment later.
       // Not under a notice: without the integration's data, the dialog would show the defaults
-      if (route.settings && this._settingsFor !== this._route && isAdmin(hass) && !notice) {
+      if (route.settings && this._settingsFor !== this._route && !notice) {
         this._settingsFor = this._route;
         openSettings(this, hass);
       }
@@ -6406,9 +6609,9 @@ class ChauffagePanel extends HTMLElement {
     } else {
       const tabs = PANEL_TABS.map(([page, label]) =>
         `<a href="/chauffage/${page}" class="tab${page === route.list ? ' on' : ''}" data-navigate="/chauffage/${page}">${esc(t(label))}</a>`).join('');
-      // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (admins).
-      // Not under a notice, like the sheet's ⋮
-      const cog = isAdmin(this._hass) && !notice
+      // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (canSetUp:
+      // the panel). Not under a notice, like the sheet's ⋮
+      const cog = src.editable && !notice
         ? `<button class="page-more" data-open-settings title="${esc(t('settingsTitle'))}" aria-label="${esc(t('settingsTitle'))}"><ha-icon icon="mdi:cog"></ha-icon></button>`
         : '';
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div>${cog}</div>
@@ -6497,15 +6700,16 @@ class ChauffagePanel extends HTMLElement {
       let notice = false;
       try {
         shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending';
-        notice = localStorage.getItem(LS_NEW_SETTING) !== 'seen';
+        // Admins are told of the access level (#99), in place of the settings of overrides
+        notice = localStorage.getItem(src.admin ? LS_NEW_ACCESS : LS_NEW_SETTING) !== 'seen';
       } catch (e) { /* ignore */ }
       setHtml(next, shown ? `<div class="box next-steps">
           <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
           <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li><li>${esc(this._nextOverrideText(src))}
             <div><button class="btn" data-open-settings>${esc(t('endsChoose'))}</button></div></li></ul></div>`
         // An existing user never sees the next steps: the new setting is told once (#83)
-        : notice ? `<div class="notice new-setting"><span>${esc(t('newSettingNotice'))}
-            <a href="${panelPath('settings')}" data-open-settings>${esc(t('pageSettings'))}</a></span>
+        : notice ? `<div class="notice new-setting"><span>${esc(t(src.admin ? 'newAccessNotice' : 'newSettingNotice'))}
+            <a href="${panelPath('settings')}" data-open-settings${src.admin ? '="access"' : ''}>${esc(t('pageSettings'))}</a></span>
             <button class="btn" data-close-new-setting>${esc(t('nextClose'))}</button></div>` : '');
     }
     // A week's heading: its schedule (a link to its sheet), and its ⋮ menu to copy it to another
@@ -6603,7 +6807,7 @@ class ChauffagePanel extends HTMLElement {
       }
       this._saveError = null;
     } catch (err) {
-      this._saveError = err && err.code === 'stale' ? t('stale') : t('error', { message: err.message || err.code || err });
+      this._saveError = err && err.code === 'stale' ? t('stale') : errorText(t, err);
     }
     this._fillSavebar();
   }
@@ -6652,7 +6856,7 @@ class ChauffagePanel extends HTMLElement {
     const head = `<h2>${esc(t('welcomeTitle'))}</h2><p>${esc(t('welcomeIntro'))}</p>`;
     if (!climates.length) {
       return `${head}<p class="none">${esc(t('welcomeNoClimate'))}</p>
-        <button class="btn primary" data-navigate="/config/integrations/dashboard">${esc(t('welcomeAddDevice'))}</button>`;
+        ${src.admin ? `<button class="btn primary" data-navigate="/config/integrations/dashboard">${esc(t('welcomeAddDevice'))}</button>` : ''}`;
     }
     const picked = climates.filter((c) => this._picked.has(c));
     const picks = climates.map((c) => `<label class="pick"><input type="checkbox" data-pick="${esc(c)}"${this._picked.has(c) ? ' checked' : ''}>
@@ -6754,7 +6958,7 @@ class ChauffagePanel extends HTMLElement {
       }
       // The settings, on top of the panel: the notice of the new setting is then told
       if ('openSettings' in ds) {
-        openSettings(this, this._hass);
+        openSettings(this, this._hass, ds.openSettings || null);
         return this._update();
       }
       if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
@@ -6783,7 +6987,7 @@ class ChauffagePanel extends HTMLElement {
         return this._update();
       }
       if ('closeNewSetting' in ds) {
-        seenNewSetting();
+        seenNewSetting(this._hass);
         return this._update();
       }
       if ('closeNext' in ds) {
@@ -6796,7 +7000,7 @@ class ChauffagePanel extends HTMLElement {
         const climates = [...this._picked].sort();
         if (!climates.length) return undefined;
         try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
-        seenNewSetting(); // the next steps say it
+        seenNewSetting(this._hass); // the next steps say it
         await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])), null,
           Object.fromEntries(climates.map((c) => [c, null])));
         this._picked.clear();
@@ -6804,7 +7008,7 @@ class ChauffagePanel extends HTMLElement {
       }
       if (ds.pause != null) return await src.setPaused(route.id, ds.pause === '1');
     } catch (err) {
-      this._error = this._t('error', { message: err.message || err.code || err });
+      this._error = errorText(this._t, err);
       this._update();
     }
     return undefined;

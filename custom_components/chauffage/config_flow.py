@@ -19,10 +19,13 @@ from homeassistant.helpers import selector
 
 from . import importer
 from .const import (
+    ACCESS_LEVELS,
+    CONF_ACCESS_LEVEL,
     CONF_MANUAL_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_SHOW_IN_SIDEBAR,
     CONF_USE_PRESETS,
+    DEFAULT_ACCESS_LEVEL,
     DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_SHOW_IN_SIDEBAR,
@@ -102,5 +105,11 @@ class ChauffageOptionsFlow(OptionsFlow):
             vol.Required(
                 CONF_SHOW_IN_SIDEBAR, default=options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR),
             ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_ACCESS_LEVEL, default=options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=list(ACCESS_LEVELS), translation_key=CONF_ACCESS_LEVEL,
+                                              mode=selector.SelectSelectorMode.LIST)
+            ),
         })
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

@@ -23,7 +23,7 @@ async def test_the_options_form(bench: Bench):
     flow = await options.async_init(bench.entry.entry_id)
     assert flow["type"] == "form"
     assert {str(key) for key in flow["data_schema"].schema} == {
-        "override_duration", "manual_override_end", "use_presets", "show_in_sidebar"}
+        "override_duration", "manual_override_end", "use_presets", "show_in_sidebar", "access_level"}
     result = await options.async_configure(flow["flow_id"], {"override_duration": 30, "manual_override_end": "next_slot",
                                                              "use_presets": True})
     assert result["type"] == "create_entry"

@@ -24,13 +24,15 @@
           "override_duration": "Override duration",
           "manual_override_end": "End of overrides",
           "use_presets": "Use the thermostats' presets",
-          "show_in_sidebar": "Show Chauffage in the sidebar"
+          "show_in_sidebar": "Show Chauffage in the sidebar",
+          "access_level": "Access level of users who are not administrators"
         },
         "data_description": {
           "override_duration": "How long an override lasts, at most. A setpoint changed by hand becomes an override.",
           "manual_override_end": "When an override ends. A slot that starts in less than 15 min doesn't count.",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
-          "show_in_sidebar": "For administrators. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit)."
+          "show_in_sidebar": "For administrators, and for every user with the access level Set up. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit).",
+          "access_level": "What users who are not administrators may change. Administrators can always change everything. With Set up, their changes reach every room."
         }
       }
     },
@@ -109,6 +111,13 @@
     }
   },
   "selector": {
+    "access_level": {
+      "options": {
+        "use": "Use (default): overrides, pause, active schedule",
+        "plan": "Plan: also the weeks and the schedules, from the cards",
+        "set_up": "Set up: also the Chauffage panel (presets, rules, thermostats)"
+      }
+    },
     "manual_override_end": {
       "options": {
         "duration": "For the override duration",
