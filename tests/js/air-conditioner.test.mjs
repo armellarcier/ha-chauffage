@@ -311,6 +311,33 @@ describe('the override block of an air conditioner says heat or cool', () => {
     assert.match(text($(card, '.override-ed')), /Arrêt.*jusqu'à.*demain, puis Éco/);
   });
 
+  test('an override to a preset that sends no setpoint in cool says so, and does not show its heating temperature', () => {
+    // Frost protection on a unit that only cools: 7 °C is never sent, the unit keeps its 26 °C
+    const frost = { target: { temperature: 7, hvac_mode: 'cool' }, preset: 'frost', ...span };
+    const hass = setup({ planned: planned('heat'), overrides: { [COMBLES]: frost } });
+    const card = cardOf(hass, { show: [COMBLES] });
+    click(card, `.override[data-climate="${COMBLES}"]`);
+    assert.equal($(card, '.override-ed [data-override-temperature]').value, '26');
+    assert.equal(text($(card, '.override-ed .override-note')), 'Consigne inchangée');
+    // With a cooling temperature: that one, and no note
+    hass.data.targets[COMBLES].frost = { temperature: 7, cool_temperature: 28 };
+    hass.push({ ...hass.data, overrides: { [COMBLES]: { ...frost, target: { temperature: 7, cool_temperature: 28, hvac_mode: 'cool' } } } });
+    assert.equal($(card, '.override-ed [data-override-temperature]').value, '28');
+    assert.equal($(card, '.override-ed .override-note'), null);
+    // A temperature the user typed is their own: shown as it is
+    hass.push({ ...hass.data, overrides: { [COMBLES]: { target: { temperature: 23, hvac_mode: 'cool' }, ...span } } });
+    assert.equal($(card, '.override-ed [data-override-temperature]').value, '23');
+    assert.equal($(card, '.override-ed .override-note'), null);
+  });
+
+  test('on a unit that heats and cools, the same override says "unchanged when cooling"', () => {
+    const frost = { target: { temperature: 7, hvac_mode: 'cool' }, preset: 'frost', ...span };
+    const card = cardOf(setup({ planned: planned('cool'), overrides: { [ATELIER]: frost } }));
+    click(card, `.override[data-climate="${ATELIER}"]`);
+    assert.equal($(card, '.override-ed [data-override-temperature]').value, '20');
+    assert.equal(text($(card, '.override-ed .override-note')), 'Consigne inchangée en clim');
+  });
+
   test('the more-info block has the same row', () => {
     const hass = setup({ planned: planned('heat'), overrides: { [ATELIER]: boost } });
     const el = document.createElement('chauffage-moreinfo');

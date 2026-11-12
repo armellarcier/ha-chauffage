@@ -36,6 +36,21 @@ describe('a tap that lands on a handle', () => {
     assert.equal(card._sel.idx, 0);
   });
 
+  test('opens the slot where the finger went down, not where the browser put the click', () => {
+    // On a touch screen, Chromium moves the click to the centre of the handle it picked: read
+    // there, the time is the edge of the slot, and one tap in three opened the neighbor
+    const card = cardOf();
+    const h = handle(card, 4); // the handle of 22:30
+    mouse(h, 'pointerdown', 22 * 60 + 38);
+    mouse(h, 'pointerup', 22 * 60 + 38);
+    mouse(h, 'click', 22 * 60 + 29); // the click, moved just left of the handle's centre
+    assert.equal(card._sel.idx, 4, 'the slot of 22:30, under the finger');
+    card._action('close', {});
+    // A click without a pointerdown before it (a keyboard, an old browser) reads its own place
+    mouse(handle(card, 4), 'click', 22 * 60 + 15); // elsewhere: not the second tap of a double tap
+    assert.equal(card._sel.idx, 3);
+  });
+
   test('keeps the selected slot when the handle is one of its own', () => {
     const card = cardOf(SHORT);
     select(card, 2);

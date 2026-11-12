@@ -857,8 +857,8 @@ const pieceSettings = (seg) => (isOff(seg) ? null : isFan(seg) ? airSettings(seg
 
 // ---------- colors (#91) ----------
 // Each preset has a heat color (its color) and a cool color, for its cooling slots: the one the
-// user chose (cool_color), else a cool shade derived from its color. The hue moves into the blues
-// and the violets (205° to 295°, away from the cyan of fan only), in the order of the hues from
+// user chose (cool_color), else a cool shade derived from its color. The hue moves into the blues and the indigos
+// (200° to 250°, away from the cyan of fan only and from the purple of an override), in the order of the hues from
 // red: the warm hues, where the presets' colors usually are, get the widest share. The shade
 // stays dark enough for white text. The default presets' colors have cool colors of their own
 function hexToHsl(hex) {
@@ -881,15 +881,16 @@ function hslToHex(h, s, l) {
   return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 // The cool colors of the default presets' colors, chosen by hand so that they can be told apart
-// from each other, from the heat colors and from the cyan of fan only: a blue for comfort, a
-// violet for eco, a navy for boost, a purple for frost protection (its former light blue too)
-const DEFAULT_COOL_COLORS = { '#f57c00': '#1565c0', '#43a047': '#673ab7', '#e53935': '#283593', '#78909c': '#8e24aa', '#29b6f6': '#8e24aa' };
+// from each other, from the heat colors, from the cyan of fan only and from the purple stripes of
+// an override: a blue for comfort, a dark teal for eco, a navy for boost, a light indigo for
+// frost protection (its former light blue too). Hue and lightness both differ
+const DEFAULT_COOL_COLORS = { '#f57c00': '#1976d2', '#43a047': '#00796b', '#e53935': '#1a237e', '#78909c': '#5c6bc0', '#29b6f6': '#5c6bc0' };
 function derivedCoolColor(color) {
   const known = DEFAULT_COOL_COLORS[String(color || '').toLowerCase()];
   if (known) return known;
   const [h, s, l] = hexToHsl(color);
   const from = (h + 30) % 360; // the reds on both sides of 0° together
-  const hue = from <= 90 ? 205 + (from / 90) * 45 : from <= 210 ? 250 + ((from - 90) / 120) * 25 : 275 + ((from - 210) / 150) * 20;
+  const hue = from <= 90 ? 200 + (from / 90) * 30 : from <= 210 ? 230 + ((from - 90) / 120) * 12 : 242 + ((from - 210) / 150) * 8;
   return hslToHex(hue, Math.max(0.45, Math.min(0.8, s)), Math.max(0.3, Math.min(0.46, l)));
 }
 const coolColor = (preset) => (preset && preset.cool_color) || derivedCoolColor(preset && preset.color);
@@ -2158,10 +2159,18 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
       : targetKind(d.target) === 'preset' && targetKind(target) === 'preset' && targetValue(d.target) === targetValue(target));
     return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${cools ? coolColor(l) : l.color}">${esc(l.name)}</button>`;
   }).join('');
-  const value = d && targetKind(d.target) === 'temperature' ? d.target.temperature : attrs.temperature;
+  // The temperature the thermostat gets. An override to a preset that cools sends the preset's
+  // cooling temperature, else its own preset, else nothing: never its heating temperature. The
+  // field then shows the thermostat's setpoint, and a note says it is left alone
+  let value = d && targetKind(d.target) === 'temperature' ? d.target.temperature : attrs.temperature;
+  let note = '';
+  if (picked && cools && !off && !fan) {
+    value = 'cool_temperature' in d.target ? d.target.cool_temperature : attrs.temperature;
+    if (!('cool_temperature' in d.target) && !('preset_mode' in d.target)) note = loc.t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept');
+  }
   // A text field, in the user's number format, read with either decimal separator
   const temperature = `<label>${esc(loc.t('presetTemperature'))} <input type="text" inputmode="decimal" data-override-temperature
-    value="${value != null ? esc(loc.number(value)) : ''}"> ${esc(loc.unit)}</label>`;
+    value="${value != null ? esc(loc.number(value)) : ''}"> ${esc(loc.unit)}</label>${note ? ` <span class="muted override-note">${esc(note)}</span>` : ''}`;
   const chips = `${offChipHtml(hass, climate, loc, 'override-off', off)}${fanChipHtml(hass, climate, loc, 'override-fan', fan)}`;
   // Off takes no temperature and no HVAC mode; fan only no HVAC mode (a temperature typed leaves it)
   return { presets: `<div class="presets">${chips}${presets}</div>`, temperature: off ? '' : temperature,
@@ -4000,6 +4009,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     }, true);
 
     root.addEventListener('pointerdown', (e) => {
+      // Where the finger went down on a row: a tap on a handle opens the slot there. On a touch
+      // screen the browser may move the click that follows to the centre of the handle
+      if (e.target.closest('.bar')) this._downAt = { x: e.clientX, t: Date.now() };
       // End handle of an override
       const dh = e.target.closest('.override-handle');
       if (dh) {
@@ -4270,7 +4282,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       const day = Number(bar.dataset.day);
       let idx = seg ? Number(seg.dataset.idx) : 0;
       if (handle) {
-        const minute = this._minuteAt(bar, e.clientX);
+        const down = this._downAt;
+        this._downAt = null;
+        const minute = this._minuteAt(bar, down && Date.now() - down.t < 1000 ? down.x : e.clientX);
         this._week(climate)[day].forEach((s, i) => { if (s.start <= minute) idx = i; });
         // A handle of the selected slot: the slot stays selected
         const edge = Number(handle.dataset.idx);

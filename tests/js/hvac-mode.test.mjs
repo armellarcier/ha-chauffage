@@ -169,12 +169,12 @@ describe('the week view', () => {
     assert.equal($(card, '.bar[data-climate="climate.atelier"][data-day="0"] .seg[data-idx="1"]').style.background, rgb('#123456'));
   });
 
-  test('the derived cool colors are blue shades, dark enough for white text, one per preset', () => {
+  test('the derived cool colors are cool shades (a blue, a teal, a navy, an indigo), dark enough for white text, one per preset', () => {
     const cool = Object.values(PRESET_COLORS).map(derivedCoolColor);
     assert.equal(new Set(cool).size, 4);
     for (const hex of cool) {
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-      assert.ok(b > r && b > g, `${hex} is a blue`);
+      assert.ok(b > r && g > r, `${hex} is a cool shade`);
       assert.ok((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5, `${hex} is dark enough for white text`);
     }
     assert.equal(derivedCoolColor('not a color'), derivedCoolColor('#9e9e9e'));

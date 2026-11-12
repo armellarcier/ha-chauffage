@@ -64,6 +64,9 @@ afterEach(() => cleanup());
 
 describe('colors that can be told apart', () => {
   const FAN_CYAN = '#00bcd4'; // Home Assistant's color of fan only
+  const OFF_GREY = '#616161'; // an off slot
+  const STRIPES = ['#7b1fa2', '#9c4dcc']; // the purple stripes of an override
+  const hueFrom = (a, b) => { const d = Math.abs(hsl(a).h - hsl(b).h); return Math.min(d, 360 - d); };
   // The presets of a new installation, in the integration's own colors
   const defaults = [{ id: 'comfort', color: '#f57c00' }, { id: 'eco', color: '#43a047' }, { id: 'boost', color: '#e53935' }, { id: 'frost', color: '#78909c' }];
 
@@ -74,6 +77,21 @@ describe('colors that can be told apart', () => {
       assert.ok(apart(cool[i], FAN_CYAN), `${defaults[i].id} ${cool[i]} and fan only`);
       for (const preset of defaults) assert.ok(apart(cool[i], preset.color), `${defaults[i].id} ${cool[i]} and the heat color of ${preset.id}`);
     }
+  });
+
+  test('no cool color is a purple: an override is drawn in purple stripes', () => {
+    for (const preset of [...defaults, { id: 'former frost', color: '#29b6f6' }]) {
+      for (const stripe of STRIPES) assert.ok(hueFrom(coolColor(preset), stripe) >= 40, `${preset.id} ${coolColor(preset)} and ${stripe}`);
+    }
+    // Any other color: its derived cool color stays in the blues too
+    for (const color of ['#ff0000', '#ffeb3b', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#9e9e9e']) {
+      for (const stripe of STRIPES) assert.ok(hueFrom(coolColor({ color }), stripe) >= 25, `${color} gives ${coolColor({ color })}`);
+      assert.ok(hueFrom(coolColor({ color }), FAN_CYAN) >= 12, `${color} gives ${coolColor({ color })}, too close to fan only`);
+    }
+  });
+
+  test('frost protection of a new installation is not the grey of an off slot', () => {
+    assert.ok(Math.abs(hsl('#78909c').l - hsl(OFF_GREY).l) >= 0.15);
   });
 
   test('the cool color of an installation\'s frost protection (light blue) is still apart from the others', () => {
