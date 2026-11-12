@@ -272,3 +272,29 @@ async def test_the_card_sees_what_a_thermostat_s_own_preset_gives_when_cooling(b
     assert snapshot["cool_preset_temperatures"][SALON]["comfort"] == 25.0
     assert snapshot["preset_temperatures"][SALON]["comfort"] == 20.0
     assert SALON not in snapshot["cool_preset_temperatures"].get(BUREAU, {})
+
+
+# ----- one name for the setting of a thermostat turned off -----
+
+def test_the_setting_for_a_thermostat_turned_off_has_one_name_everywhere():
+    """In the options, on its entity and in the service: "Turned off", as on the card. Its
+    description says it also applies to automations."""
+    import json
+    from pathlib import Path
+    component = Path(engine.__file__).parent
+    for file, name in (("strings.json", "Turned off"), ("translations/en.json", "Turned off"),
+                       ("translations/fr.json", "Thermostat éteint")):
+        texts = json.loads((component / file).read_text(encoding="utf-8"))
+        options = texts["options"]["step"]["init"]
+        assert options["data"]["off_override_end"] == name
+        assert texts["entity"]["select"]["off_override_end"]["name"] == name
+        assert name in texts["services"]["set_override"]["fields"]["hvac_mode"]["description"]
+        assert "automati" in options["data_description"]["off_override_end"]
+
+
+def test_frost_protection_of_a_new_installation_does_not_look_like_fan_only():
+    """Its light blue looked like Home Assistant's cyan of fan only. Stored presets keep theirs."""
+    from custom_components.chauffage import model
+    colors = {preset["id"]: preset["color"] for preset in model.default_presets("fr")}
+    assert colors["frost"] == "#78909c"
+    assert len(set(colors.values())) == 4

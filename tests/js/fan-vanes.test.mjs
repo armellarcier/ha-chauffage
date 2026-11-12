@@ -126,7 +126,7 @@ describe('fan and vanes on a slot', () => {
     const card = cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
     card._copyDay('climate.atelier', 0, 'others');
     assert.equal(day(card, 'climate.salon', 0)[1], '14:00 comfort');
-    assert.match(text($(card, '.msg')), /réglages non pris en charge ignorés/);
+    assert.match(text($(card, '.msg')), /non repris : Ventilateur, Volets$/);
   });
 });
 

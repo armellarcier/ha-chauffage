@@ -47,7 +47,9 @@ DEFAULT_PRESETS = (
     ("comfort", "#f57c00", 20.0),
     ("eco", "#43a047", 17.0),
     ("boost", "#e53935", 21.0),
-    ("frost", "#29b6f6", 7.0),
+    # A blue grey: its former light blue (#29b6f6) looked like Home Assistant's cyan of fan only.
+    # Only for a new installation: the stored presets keep their colors
+    ("frost", "#78909c", 7.0),
 )
 PRESET_NAMES = {
     "en": {"comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection"},

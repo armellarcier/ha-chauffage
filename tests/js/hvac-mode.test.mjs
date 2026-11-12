@@ -126,8 +126,8 @@ describe('a slot is a preset, off, or fan only', () => {
     const card = cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
     card._hass.states['climate.atelier'].attributes.hvac_modes = ['heat', 'cool'];
     card._copyDay('climate.salon', 0, 'others');
-    assert.deepEqual(day(card, 'climate.atelier', 0).at(-1), '17:30 comfort', 'the slot before it goes on');
-    assert.match(text($(card, '.msg')), /réglages non pris en charge ignorés/);
+    assert.deepEqual(day(card, 'climate.atelier', 0).at(-1), '17:30 comfort {"hvac_mode":"heat"}', 'the slot before it goes on');
+    assert.match(text($(card, '.msg')), /non repris : Arrêt$/);
   });
 
   test('a day copied to a heater loses its cool and its fan-only slots', () => {

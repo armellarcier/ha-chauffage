@@ -23,7 +23,7 @@
         "data": {
           "override_duration": "Durée des dérogations",
           "manual_override_end": "Fin des dérogations",
-          "off_override_end": "Fin des dérogations d'arrêt",
+          "off_override_end": "Thermostat éteint",
           "use_presets": "Utiliser les préréglages des thermostats",
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale",
           "access_level": "Niveau d'accès des utilisateurs non administrateurs"
@@ -31,7 +31,7 @@
         "data_description": {
           "override_duration": "Combien de temps dure une dérogation, au plus. Une consigne changée à la main devient une dérogation.",
           "manual_override_end": "Quand s'arrête une dérogation. Un créneau qui commence dans moins de 15 min ne compte pas.",
-          "off_override_end": "Quand un thermostat éteint à la main reprend son planning.",
+          "off_override_end": "Quand un thermostat éteint reprend son planning : à la main, depuis la carte, ou par une automatisation qui l'éteint sans donner de fin.",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
           "show_in_sidebar": "Pour les administrateurs, et pour tous les utilisateurs avec le niveau d'accès Configurer. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter).",
           "access_level": "Ce que peuvent modifier les utilisateurs qui ne sont pas administrateurs. Les administrateurs peuvent toujours tout modifier. Avec Configurer, leurs changements touchent toutes les pièces."
@@ -60,7 +60,7 @@
         }
       },
       "off_override_end": {
-        "name": "Fin des dérogations d'arrêt",
+        "name": "Thermostat éteint",
         "state": {
           "duration": "Pendant la durée des dérogations",
           "next_slot_within_duration": "Pendant la durée, ou moins si un créneau commence avant",
@@ -152,7 +152,7 @@
         "entity_id": { "name": "Thermostat", "description": "Un thermostat programmé par Chauffage." },
         "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un préréglage)." },
         "preset": { "name": "Préréglage", "description": "Un préréglage de Chauffage, réglé sur ce qu'il signifie pour ce thermostat (ou un préréglage du thermostat lui-même) ; ou indiquer une température." },
-        "hvac_mode": { "name": "Mode HVAC", "description": "Arrêt pour éteindre le thermostat, ou un mode HVAC pour l'allumer. Sans lui, le thermostat est allumé. Arrêt seul, sans durée ni fin, dure ce que dit le réglage Fin des dérogations d'arrêt." },
+        "hvac_mode": { "name": "Mode HVAC", "description": "Arrêt pour éteindre le thermostat, ou un mode HVAC pour l'allumer. Sans lui, le thermostat est allumé. Arrêt seul, sans durée ni fin, dure ce que dit le réglage Thermostat éteint. Arrêt et ventilation ne prennent ni température ni préréglage." },
         "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },
         "end": { "name": "Fin", "description": "Quand la dérogation se termine (au lieu d'une durée)." }
       }

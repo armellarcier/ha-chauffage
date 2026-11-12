@@ -23,7 +23,7 @@
         "data": {
           "override_duration": "Override duration",
           "manual_override_end": "End of overrides",
-          "off_override_end": "End of off overrides",
+          "off_override_end": "Turned off",
           "use_presets": "Use the thermostats' presets",
           "show_in_sidebar": "Show Chauffage in the sidebar",
           "access_level": "Access level of users who are not administrators"
@@ -31,7 +31,7 @@
         "data_description": {
           "override_duration": "How long an override lasts, at most. A setpoint changed by hand becomes an override.",
           "manual_override_end": "When an override ends. A slot that starts in less than 15 min doesn't count.",
-          "off_override_end": "When a thermostat turned off by hand resumes its schedule.",
+          "off_override_end": "When a thermostat that was turned off resumes its schedule: by hand, from the card, or by an automation that turns it off without an end.",
           "use_presets": "A preset uses the thermostat's own preset with the same name when it has one (Versatile Thermostat: comfort, eco, boost, frost). Turned off, every thermostat is driven by temperatures, set in the Chauffage panel (Presets tab).",
           "show_in_sidebar": "For administrators, and for every user with the access level Set up. Turned off, you still open the Chauffage panel from the cards and from a scheduled thermostat's device (Visit).",
           "access_level": "What users who are not administrators may change. Administrators can always change everything. With Set up, their changes reach every room."
@@ -60,7 +60,7 @@
         }
       },
       "off_override_end": {
-        "name": "End of off overrides",
+        "name": "Turned off",
         "state": {
           "duration": "For the override duration",
           "next_slot_within_duration": "For the override duration, or less if a slot starts first",
@@ -152,7 +152,7 @@
         "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." },
         "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
         "preset": { "name": "Preset", "description": "A Chauffage preset, set to what it means on this thermostat (or one of the thermostat's own presets); or give a temperature." },
-        "hvac_mode": { "name": "HVAC mode", "description": "Off to turn the thermostat off, or an HVAC mode to turn it on in. Without it, the thermostat is on. Off alone, without a duration or an end, lasts as the setting End of off overrides says." },
+        "hvac_mode": { "name": "HVAC mode", "description": "Off to turn the thermostat off, or an HVAC mode to turn it on in. Without it, the thermostat is on. Off alone, without a duration or an end, lasts as the setting Turned off says. Off and fan only take no temperature and no preset." },
         "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
         "end": { "name": "End", "description": "When the override ends (instead of a duration)." }
       }

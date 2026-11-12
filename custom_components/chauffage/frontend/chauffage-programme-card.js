@@ -91,13 +91,14 @@ const I18N = {
     slotSetpointKept: 'Setpoint unchanged',
     offEndThen: '{day}, then {preset}',
     presetCoolColor: 'Color when cooling',
+    presetHeatColor: 'Color when heating',
     whenHeating: 'When heating',
     whenCooling: 'When cooling',
     change: 'Change',
     untilTomorrow: 'Until tomorrow {time}',
     untilDay: 'Until {day} {time}',
     unsupported: '{value} (not available)',
-    unsupportedLeftOut: 'unsupported settings left out',
+    slotsLeftOut: 'left out: {list}',
     moreSettings: 'More settings',
     fanMode: 'Fan',
     swingMode: 'Vanes',
@@ -159,7 +160,8 @@ const I18N = {
     overrideEndDuration: 'For {duration} (default)',
     overrideEndWithin: 'For {duration}, or less if a slot starts first',
     overrideEndNextSlot: 'Until the next slot',
-    offEndTitle: 'When turned off by hand',
+    offEndTitle: 'Turned off',
+    offEndHelp: 'By hand, from the card, or by an automation that turns it off without an end.',
     offEndNextSlot: 'Until the next slot (default)',
     offEndDuration: 'For {duration}',
     overrideNextSlotMeans: "A slot that starts in less than 15 min doesn't count.",
@@ -388,6 +390,7 @@ const I18N = {
     weekAllDone: '{name} : tous les créneaux de la semaine en {mode}',
     slotHvac: 'Mode HVAC',
     presetCoolColor: 'Couleur en clim',
+    presetHeatColor: 'Couleur en chauffe',
     keep: 'Ne pas changer',
     fromPreset: '{value} (préréglage)',
     slotSetpoint: 'Consigne : {value}',
@@ -401,7 +404,7 @@ const I18N = {
     untilTomorrow: 'Jusqu\'à demain {time}',
     untilDay: 'Jusqu\'à {day} {time}',
     unsupported: '{value} (indisponible)',
-    unsupportedLeftOut: 'réglages non pris en charge ignorés',
+    slotsLeftOut: 'non repris : {list}',
     moreSettings: 'Plus de réglages',
     fanMode: 'Ventilateur',
     swingMode: 'Volets',
@@ -463,7 +466,8 @@ const I18N = {
     overrideEndDuration: 'Pendant {duration} (par défaut)',
     overrideEndWithin: 'Pendant {duration}, ou moins si un créneau commence avant',
     overrideEndNextSlot: "Jusqu'au prochain créneau",
-    offEndTitle: 'Thermostat éteint à la main',
+    offEndTitle: 'Thermostat éteint',
+    offEndHelp: "À la main, depuis la carte, ou par une automatisation qui l'éteint sans donner de fin.",
     offEndNextSlot: "Jusqu'au prochain créneau (par défaut)",
     offEndDuration: 'Pendant {duration}',
     overrideNextSlotMeans: 'Un créneau qui commence dans moins de 15 min ne compte pas.',
@@ -854,9 +858,9 @@ const pieceSettings = (seg) => (isOff(seg) ? null : isFan(seg) ? airSettings(seg
 // ---------- colors (#91) ----------
 // Each preset has a heat color (its color) and a cool color, for its cooling slots: the one the
 // user chose (cool_color), else a cool shade derived from its color. The hue moves into the blues
-// and the violets (208° to 285°, away from the cyan of fan only), in the order of the hues from
+// and the violets (205° to 295°, away from the cyan of fan only), in the order of the hues from
 // red: the warm hues, where the presets' colors usually are, get the widest share. The shade
-// stays dark enough for white text
+// stays dark enough for white text. The default presets' colors have cool colors of their own
 function hexToHsl(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
   const n = m ? parseInt(m[1], 16) : 0x9e9e9e;
@@ -876,10 +880,16 @@ function hslToHex(h, s, l) {
   const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
   return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
+// The cool colors of the default presets' colors, chosen by hand so that they can be told apart
+// from each other, from the heat colors and from the cyan of fan only: a blue for comfort, a
+// violet for eco, a navy for boost, a purple for frost protection (its former light blue too)
+const DEFAULT_COOL_COLORS = { '#f57c00': '#1565c0', '#43a047': '#673ab7', '#e53935': '#283593', '#78909c': '#8e24aa', '#29b6f6': '#8e24aa' };
 function derivedCoolColor(color) {
+  const known = DEFAULT_COOL_COLORS[String(color || '').toLowerCase()];
+  if (known) return known;
   const [h, s, l] = hexToHsl(color);
   const from = (h + 30) % 360; // the reds on both sides of 0° together
-  const hue = from <= 90 ? 208 + (from / 90) * 36 : from <= 210 ? 244 + ((from - 90) / 120) * 18 : 262 + ((from - 210) / 150) * 23;
+  const hue = from <= 90 ? 205 + (from / 90) * 45 : from <= 210 ? 250 + ((from - 90) / 120) * 25 : 275 + ((from - 210) / 150) * 20;
   return hslToHex(hue, Math.max(0.45, Math.min(0.8, s)), Math.max(0.3, Math.min(0.46, l)));
 }
 const coolColor = (preset) => (preset && preset.cool_color) || derivedCoolColor(preset && preset.color);
@@ -960,6 +970,11 @@ const isReversible = (hass, climate) => {
   const { on } = hvacModesOf(hass, climate);
   return on.includes('heat') && on.includes('cool');
 };
+// An air conditioner that only cools: no heating value means anything on it
+const coolsOnly = (hass, climate) => {
+  const { on } = hvacModesOf(hass, climate);
+  return on.includes('cool') && !on.includes('heat');
+};
 // The HVAC modes a slot on a preset may choose on a thermostat: heat and cool, on a thermostat
 // that lists both. None otherwise: a heater has no HVAC mode to choose, and an air conditioner
 // that only cools has no choice
@@ -1004,14 +1019,30 @@ function settingOptionsOf(hass, climate) {
 // a popover. A value's name: Home Assistant's own (since HA 2023.9), else the raw value made
 // readable: "1_up" reads "1 up"
 const attributeName = (hass, climate, attr, loc) => loc.t(SETTING_LABELS[attr]);
-function attributeValue(hass, climate, attr, value, loc) {
+// The name Home Assistant gives a value of a climate attribute (a preset, a fan or a vane value),
+// as its own dialogs show it: the entity's own translation, else the climate domain's; null
+// without one
+function haValueName(hass, climate, attr, value) {
   const st = hass && hass.states && hass.states[climate];
   if (st && typeof hass.formatEntityAttributeValue === 'function') {
     try {
       const name = hass.formatEntityAttributeValue(st, attr, value);
       if (typeof name === 'string' && name && name !== String(value)) return name;
+    } catch (e) { /* the next source */ }
+  }
+  if (hass && typeof hass.localize === 'function') {
+    try {
+      const name = hass.localize(`component.climate.entity_component._.state_attributes.${attr}.state.${value}`);
+      if (typeof name === 'string' && name) return name;
     } catch (e) { /* the raw value */ }
   }
+  return null;
+}
+// One of a thermostat's own presets, named as Home Assistant names it, else in the card's words
+const ownPresetName = (hass, climate, value, loc) => haValueName(hass, climate, 'preset_mode', value) || loc.preset(value);
+function attributeValue(hass, climate, attr, value, loc) {
+  const known = haValueName(hass, climate, attr, value);
+  if (known) return known;
   // "1_up" reads "1 up", and the common words of a vane value in the user's language ("1 haut")
   const text = String(value).replace(/_/g, ' ').split(' ').map((word) => loc.settingWord(word)).join(' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -1031,17 +1062,6 @@ function captureState(hass, climate) {
   const options = settingOptionsOf(hass, climate);
   for (const attr of SETTING_ATTRS) if (attr in options && a[attr] != null) settings[attr] = String(a[attr]);
   return { hvac, preset: manual ? null : preset, temperature: temperature != null ? Number(temperature) : null, settings };
-}
-
-// A slot's settings without those the thermostat does not list (a day copied to another thermostat)
-function supportedSettings(settings, hass, climate) {
-  if (!settings) return { settings: null, dropped: false };
-  const { modes } = hvacModesOf(hass, climate);
-  const options = settingOptionsOf(hass, climate);
-  const out = { ...settings };
-  if ('hvac_mode' in out && !(modes || []).includes(out.hvac_mode)) delete out.hvac_mode;
-  for (const attr of SETTING_ATTRS) if (attr in out && !(options[attr] || []).includes(out[attr])) delete out[attr];
-  return { settings: Object.keys(out).length ? out : null, dropped: Object.keys(out).length !== Object.keys(settings).length };
 }
 
 // The fan and the vanes a slot or a preset's value sets, in words: "Fan 3 · Vanes Swing"
@@ -2167,9 +2187,10 @@ function slotSetpointText(hass, climate, seg, target, loc, { temperatureOf = () 
   const t = loc.t;
   if (hasNoPreset(seg) || !target) return '';
   const degrees = (value) => `${loc.number(value)} ${loc.unit}`;
+  const name = () => ownPresetName(hass, climate, target.preset_mode, loc);
   const own = (temperature) => t('slotSetpoint', { value: temperature != null
-    ? t('slotSetpointOwn', { temperature: degrees(temperature), preset: loc.preset(target.preset_mode) })
-    : t('cellOwnPreset', { preset: loc.preset(target.preset_mode) }) });
+    ? t('slotSetpointOwn', { temperature: degrees(temperature), preset: name() })
+    : t('cellOwnPreset', { preset: name() }) });
   if (slotCools(hass, climate, seg)) {
     if ('cool_temperature' in target) return t('slotSetpoint', { value: degrees(target.cool_temperature) });
     if ('preset_mode' in target) return own(coolTemperatureOf(target));
@@ -3604,10 +3625,36 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
   }
 
+  // The presets table scrolled back to where it was before a redraw, and its cues: a fade on the
+  // side with more columns to see. Again once ha-card (a Lit component, rendered asynchronously)
+  // shows its content: before that, the table has no width to scroll
+  _keepTable() {
+    const set = () => {
+      const wrap = this.shadowRoot.querySelector('.table-wrap');
+      if (!wrap) return;
+      if (this._tableLeft) wrap.scrollLeft = this._tableLeft;
+      this._tableCue();
+    };
+    set();
+    const card = this.shadowRoot.querySelector('ha-card');
+    if (card && card.updateComplete instanceof Promise) card.updateComplete.then(set);
+  }
+
+  _tableCue() {
+    const wrap = this.shadowRoot.querySelector('.table-wrap');
+    if (!wrap) return;
+    const more = wrap.scrollWidth - wrap.clientWidth - wrap.scrollLeft;
+    wrap.parentElement.classList.toggle('more-left', wrap.scrollLeft > 4);
+    wrap.parentElement.classList.toggle('more-right', more > 4);
+  }
+
   // Places the popover under the selected slot / override / preset cell (or above it when there
   // is no room). Returns false if the layout is not ready yet.
   _placeEditor() {
     const root = this.shadowRoot;
+    // The table first: the popover points at the cell where the table is scrolled
+    const table = root.querySelector('.table-wrap');
+    if (table && this._tableLeft) table.scrollLeft = this._tableLeft;
     const ed = root.querySelector('.editor');
     // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
     const sel = this._overrideSel;
@@ -3654,7 +3701,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     const temperature = field ? field.value : null;
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
     const tabsLeft = tabs ? tabs.scrollLeft : 0;
+    // The presets table keeps where it was scrolled sideways: a tap on a cell redraws it
+    const table = this.shadowRoot.querySelector('.table-wrap');
+    if (table) this._tableLeft = table.scrollLeft;
     this._draw();
+    this._keepTable();
+    this._cellCoolNote(); // the notes under the cooling field of a cell popover just opened
     this._tabsWait = false;
     this._placeTabs(tabsLeft);
     if (typing) this._restoreSchedName(typing.value, typing.focused);
@@ -3798,14 +3850,23 @@ class ChauffageProgrammeCard extends HTMLElement {
     // What each preset means for the focused thermostat (see _presetTemperature), then where to
     // set the presets
     const panelOpen = this._panelOpenHtml();
+    // Its heat color, then its cool color when a shown thermostat cools: each swatch then has
+    // its mark, a flame or a snowflake. No heat color when every thermostat shown only cools.
+    // Then its values on the thermostat shown alone: "Comfort 20° · ❄ 24°"
+    const showsCool = this._showsCool();
+    const showsHeat = this._shown.some((c) => !coolsOnly(this._hass, c));
+    const single = !multi && !!st;
     const legend = this._presets()
       .map((l) => {
         const target = this._targetOf(focus, l);
-        const t = multi || !st ? null : this._presetTemperature(focus, target);
-        const hint = !multi && 'preset_mode' in target ? ` ${tr('presetHint')}` : '';
-        // Its heat color, then its cool color when a shown thermostat cools
-        const cool = this._showsCool() ? `<i class="cool" style="background:${coolColor(l)}" title="${esc(tr('slotCool'))}"></i>` : '';
-        return `<span><i style="background:${l.color}"></i>${cool}${esc(l.name)}${t != null ? ` ${this._loc.number(t)}°` : esc(hint)}</span>`;
+        const t = single && !coolsOnly(this._hass, focus) ? this._presetTemperature(focus, target) : null;
+        const c = single && listsMode(this._hass, focus, 'cool') ? this._coolPresetTemperature(focus, target) : null;
+        const hint = !multi && 'preset_mode' in target && t == null && c == null && !coolsOnly(this._hass, focus) ? ` ${tr('presetHint')}` : '';
+        const heat = showsHeat ? `<i class="heat${showsCool ? ' mk' : ''}" style="background:${l.color}"${showsCool ? ` title="${esc(tr('slotHeat'))}"` : ''}>${showsCool ? hvacIcon('heat') : ''}</i>` : '';
+        const cool = showsCool ? `<i class="cool mk" style="background:${coolColor(l)}" title="${esc(tr('slotCool'))}">${hvacIcon('cool')}</i>` : '';
+        const values = [t != null ? `${this._loc.number(t)}°` : '', c != null ? `${t != null ? `<span class="cv">${hvacIcon('cool')}</span>` : ''}${this._loc.number(c)}°` : '']
+          .filter(Boolean).join(' · ');
+        return `<span>${heat}${cool}${esc(l.name)}${values ? ` ${values}` : esc(hint)}</span>`;
       })
       .join('') + this._legendOffHtml() + this._settingsLinkHtml();
     // Copying the week of the thermostat shown to another thermostat or schedule: a menu, as the
@@ -3903,7 +3964,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The schedule tabs scroll natively (a finger, a trackpad, Shift + wheel): their fades and arrows
     // follow. An arrow scrolls by most of a width (the tab cut at the edge then shows whole), with
     // the browser's smooth scrolling, which stops when the user scrolls
-    root.addEventListener('scroll', (e) => { if (e.target.matches && e.target.matches('.tabs-scroll')) this._tabArrows(); }, true);
+    root.addEventListener('scroll', (e) => {
+      if (!e.target.matches) return;
+      if (e.target.matches('.tabs-scroll')) this._tabArrows();
+      // The presets table scrolled sideways: kept across redraws, and its cues follow
+      if (e.target.matches('.table-wrap')) { this._tableLeft = e.target.scrollLeft; this._tableCue(); }
+    }, true);
     root.addEventListener('click', (e) => {
       const arrow = e.target.closest('[data-tabs-scroll]');
       const tabs = arrow && root.querySelector('.tabs-scroll');
@@ -4185,7 +4251,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       }
       const chip = e.target.closest('.chip[data-climate]');
       if (chip) {
-        this._toggleShown(chip.dataset.climate, this._multiSel || e.ctrlKey || e.metaKey || e.shiftKey);
+        const fresh = this._multiSel && this._multiFresh;
+        this._multiFresh = false;
+        this._toggleShown(chip.dataset.climate, !fresh && (this._multiSel || e.ctrlKey || e.metaKey || e.shiftKey));
         return;
       }
       const act = e.target.closest('[data-act]');
@@ -4508,7 +4576,19 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!note) return;
     const choice = (root.querySelector('.cell-ed input[name="cell-choice"]:checked') || {}).value;
     const own = choice === 'own' || (choice === 'default' && note.hasAttribute('data-own'));
-    note.hidden = own || root.querySelector('.cell-ed [data-cell-cool]').value.trim() !== '';
+    const empty = root.querySelector('.cell-ed [data-cell-cool]').value.trim() === '';
+    note.hidden = own || !empty;
+    // One of its own presets, and no cooling temperature: what that preset gives when cooling
+    const fallback = root.querySelector('.cell-ed .pv-cooldefault');
+    const climate = this._cell && this._cell.climate;
+    if (!fallback || !climate) return;
+    const preset = choice === 'own' ? (root.querySelector('.cell-ed [data-cell-preset]') || {}).value : fallback.dataset.default;
+    fallback.hidden = !own || !empty || !preset;
+    if (fallback.hidden) return;
+    const t = this._loc.t;
+    const temperature = this._source().coolPresetTemperature(climate, preset);
+    const name = t('cellOwnPreset', { preset: ownPresetName(this._hass, climate, preset, this._loc) });
+    fallback.textContent = t('presetAuto', { value: typeof temperature === 'number' ? `${name}, ${this._loc.number(temperature)}°` : name });
   }
 
   // The cool color of the preset popover follows the color while the user has not chosen one
@@ -4831,11 +4911,15 @@ class ChauffageProgrammeCard extends HTMLElement {
     const what = (entity, l) => {
       const explicit = src.mapping(entity);
       const target = this._targetOf(entity, l);
-      const temp = this._presetTemperature(entity, target);
+      // An air conditioner that only cools has no heating value; one that cools has a cooling
+      // value: its cooling temperature, else what its own preset gives when cooling
+      const coolOnly = coolsOnly(this._hass, entity);
+      const temp = coolOnly ? null : this._presetTemperature(entity, target);
+      const coolTemp = listsMode(this._hass, entity, 'cool') ? this._coolPresetTemperature(entity, target) : null;
       let how;
       let cls;
       if ('preset_mode' in target) {
-        how = t('cellOwnPreset', { preset: this._loc.preset(target.preset_mode) });
+        how = t('cellOwnPreset', { preset: ownPresetName(this._hass, entity, target.preset_mode, this._loc) });
         cls = 'preset';
         if (l.id in explicit) how += ` · ${t('cellSetHere')}`;
       } else if (l.id in explicit) {
@@ -4845,15 +4929,16 @@ class ChauffageProgrammeCard extends HTMLElement {
         how = t('cellDefault');
         cls = 'default';
       }
-      if (temp == null) unknown = true;
+      if (temp == null && !coolOnly) unknown = true;
       // A fan or swing setting: one icon whatever their number (the popover details); a cooling
       // setpoint after the heating one, "🔥 20° · ❄ 25°"
       const tuned = SETTING_ATTRS.some((attr) => attr in target) ? '<span class="m"><ha-icon icon="mdi:tune-variant"></ha-icon></span>' : '';
-      const cool = 'cool_temperature' in target ? `${hvacIconHtml('cool')}${this._loc.number(target.cool_temperature)}°` : '';
+      const cool = coolTemp != null ? `${hvacIconHtml('cool')}${this._loc.number(coolTemp)}°` : '';
       // A heating setpoint known: "20°", with its icon next to a cooling one ("🔥 20° · ❄ 25°");
-      // unknown: "?", unless the cooling one is the value
-      const heat = temp != null ? `${cool ? hvacIconHtml('heat') : ''}${this._loc.number(temp)}°` : cool ? '' : '?';
-      const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat;
+      // unknown: "?", unless the cooling one is the value. Only cooling, without a cooling
+      // value: "—", the setpoint is left alone
+      const heat = coolOnly ? '' : temp != null ? `${cool ? hvacIconHtml('heat') : ''}${this._loc.number(temp)}°` : cool ? '' : '?';
+      const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat || (coolOnly ? '—' : '');
       return { value: `${setpoint}${tuned}`, how, cls };
     };
     let body;
@@ -4865,10 +4950,10 @@ class ChauffageProgrammeCard extends HTMLElement {
         }).join('');
         return `<tr><th class="name">${this._moreInfoLink(entity)}</th>${cells}</tr>`;
       }).join('');
-      body = `<div class="table-wrap"><table class="pv-table">
+      body = `<div class="table-outer"><div class="table-wrap"><table class="pv-table">
         <thead><tr><th></th>${head}</tr></thead>
         <tbody>${rows}</tbody>
-      </table></div>`;
+      </table></div></div>`;
     } else {
       // One thermostat (its sheet in the panel): a list, one item per preset, not a table of one
       // row; an item opens the same editor as a cell of the table
@@ -4918,10 +5003,14 @@ class ChauffageProgrammeCard extends HTMLElement {
       // thermostats' presets" option allows it), else the preset's default temperature
       const defaults = this._cellDefaults(sel.climate, preset, own);
       const degrees = (value) => `${this._loc.number(value)}°`;
-      const defaultTemperature = this._presetTemperature(sel.climate, defaults);
+      // An air conditioner that only cools: no heating value. Its own preset, or a cooling
+      // temperature
+      const coolOnly = coolsOnly(this._hass, sel.climate);
+      const ownName = (p) => ownPresetName(this._hass, sel.climate, p, this._loc);
+      const defaultTemperature = coolOnly ? this._coolPresetTemperature(sel.climate, defaults) : this._presetTemperature(sel.climate, defaults);
       const defaultText = 'preset_mode' in defaults
-        ? `${t('cellOwnPreset', { preset: this._loc.preset(defaults.preset_mode) })}${defaultTemperature != null ? `, ${degrees(defaultTemperature)}` : ''}`
-        : degrees(defaults.temperature);
+        ? `${t('cellOwnPreset', { preset: ownName(defaults.preset_mode) })}${defaultTemperature != null ? `, ${degrees(defaultTemperature)}` : ''}`
+        : coolOnly ? t('slotSetpointKept') : degrees(defaults.temperature);
       // One question, three answers: the default, one of the thermostat's own presets, or a
       // temperature. The cell opens on what is stored; using a row's field chooses the row
       const choice = 'preset_mode' in explicit ? 'own' : 'temperature' in explicit ? 'temperature' : 'default';
@@ -4930,26 +5019,30 @@ class ChauffageProgrammeCard extends HTMLElement {
       const row = (value, label, field = '') => `<label class="pv-row"><input type="radio" name="cell-choice" value="${value}"${choice === value ? ' checked' : ''}>
           <span>${esc(label)}</span>${field ? `<span class="pv-field">${field}</span>` : ''}</label>`;
       const picked = own.includes(explicit.preset_mode) ? explicit.preset_mode : own[0];
-      const options = own.map((p) => `<option value="${esc(p)}"${picked === p ? ' selected' : ''}>${esc(this._loc.preset(p))}</option>`).join('');
+      const options = own.map((p) => `<option value="${esc(p)}"${picked === p ? ' selected' : ''}>${esc(ownName(p))}</option>`).join('');
       const reversible = isReversible(this._hass, sel.climate);
-      const rows = row('default', t('presetAuto', { value: defaultText }))
+      // Only cooling: the default, or one of its own presets when it has some; no heating
+      // temperature, and no choice at all without presets of its own
+      const rows = coolOnly && !own.length ? '' : row('default', t('presetAuto', { value: defaultText }))
         + (own.length ? row('own', t('cellOwn'), `<select data-cell-preset aria-label="${esc(t('ownPreset'))}">${options}</select>`) : '')
-        + row('temperature', t('presetTemperature'), tempInput(temp, 'data-cell-temp', reversible ? t('temperatureHeatAria') : t('presetTemperature')));
-      // An air conditioner that heats and cools: the rows above say how warm when heating, and a
-      // field says how warm when cooling. Empty: one of its own presets is sent when cooling
-      // too, and a temperature is not (the setpoint is then left alone, and the note says so)
+        + (coolOnly ? '' : row('temperature', t('presetTemperature'), tempInput(temp, 'data-cell-temp', reversible ? t('temperatureHeatAria') : t('presetTemperature'))));
+      // An air conditioner: the rows above say how warm when heating, and a field says how warm
+      // when cooling. Empty: one of its own presets is sent when cooling too, and the note says
+      // what it gives ("Default (its Eco preset, 27°)"); a temperature is not sent (the
+      // setpoint is then left alone, and the note says so)
       const cool = explicit.cool_temperature;
       const ownDefault = 'preset_mode' in defaults;
       const unchanged = cool == null && (choice === 'temperature' || (choice === 'default' && !ownDefault));
-      const cooling = !reversible ? '' : `<div class="pv-when">${hvacIcon('cool')}${esc(t('whenCooling'))}</div>
+      const cooling = !reversible && !coolOnly ? '' : `<div class="pv-when">${hvacIcon('cool')}${esc(t('whenCooling'))}</div>
         <div class="pv-row pv-cool"><span class="pv-field">${tempInput(cool, 'data-cell-cool', t('temperatureCoolAria'))}</span></div>
-        <div class="pv-coolnote muted"${ownDefault ? ' data-own' : ''}${unchanged ? '' : ' hidden'}>${esc(t('slotSetpointUnchanged'))}</div>`;
+        <div class="pv-coolnote muted"${ownDefault ? ' data-own' : ''}${unchanged ? '' : ' hidden'}>${esc(t(coolOnly ? 'slotSetpointKept' : 'slotSetpointUnchanged'))}</div>
+        <div class="pv-cooldefault muted" data-default="${esc(defaults.preset_mode || '')}" hidden></div>`;
       // The fan and the vanes, folded (lot 3)
       const more = moreSettingsHtml(this._hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting');
       // Its own presets are set on its device (their temperatures, on a Versatile Thermostat)
       const device = own.length ? this._deviceLink(this._deviceOf(sel.climate), t('ownPresetsOnDevice')) : '';
       body = `${reversible ? `<div class="pv-when">${hvacIcon('heat')}${esc(t('whenHeating'))}</div>` : ''}
-        <div class="pv-choices" role="radiogroup">${rows}</div>
+        ${rows ? `<div class="pv-choices" role="radiogroup">${rows}</div>` : ''}
         ${cooling}
         ${more}
         <div class="capture-row">${captureButtonHtml(this._hass, sel.climate, this._loc)}</div>
@@ -4967,12 +5060,17 @@ class ChauffageProgrammeCard extends HTMLElement {
         return this._cellPopover(preset, title, body, `<button class="btn" data-act="cell-delete-cancel">${esc(t('cancel'))}</button>
           <button class="btn danger" data-act="cell-delete-confirm">${esc(t('deletePreset'))}</button>`);
       }
+      // With an air conditioner: its color when heating and its color when cooling, each on a
+      // row with its label. Without one: its color, beside its name
+      const cools = this._thermostats.some(({ entity }) => listsMode(this._hass, entity, 'cool'));
+      const color = `<input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t(cools ? 'presetHeatColor' : 'presetColor'))}">`;
       body = `<div class="pv-fields">
           <span>${esc(t('presetName'))}</span>
-          <span class="pv-name"><input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t('presetColor'))}">
+          <span class="pv-name">${cools ? '' : color}
             <input type="text" data-cell-name value="${esc(isNew ? '' : preset.name)}" placeholder="${esc(t('presetName'))}"></span>
           <span>${esc(t('presetDefaultTemperature'))}</span>${tempInput(isNew ? 19 : preset.temperature ?? 19)}
-          ${this._thermostats.some(({ entity }) => listsMode(this._hass, entity, 'cool')) ? `<span>${esc(t('presetCoolColor'))}</span>
+          ${cools ? `<span>${esc(t('presetHeatColor'))}</span><span class="pv-name">${color}</span>
+          <span>${esc(t('presetCoolColor'))}</span>
           <span class="pv-name"><input type="color" data-cell-cool-color${preset.cool_color ? ' data-chosen' : ''} value="${esc(coolColor(isNew ? { color: '#9e9e9e' } : preset))}" title="${esc(t('presetCoolColor'))}"></span>` : ''}
         </div>
         <div class="muted">${esc(t('defaultHelp'))}</div>`;
@@ -5016,8 +5114,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const cool = root.querySelector('[data-cell-cool]');
     if (act === 'cell-step') { // the field of the row of the button tapped: heating or cooling
       const field = (el && el.closest('.pv-temp') || root).querySelector('input') || input;
-      // An empty cooling field starts from the heating temperature
-      const from = Number.isFinite(parseDecimal(field.value)) ? parseDecimal(field.value) : parseDecimal(input.value);
+      // An empty cooling field starts from the heating temperature (24° on a unit that only cools)
+      const from = Number.isFinite(parseDecimal(field.value)) ? parseDecimal(field.value) : input ? parseDecimal(input.value) : 24;
       field.value = this._loc.number(Math.round((from + Number(ds.delta)) * 10) / 10);
       if (field === cool) this._cellCoolNote(); else this._cellChoose('temperature');
       return undefined;
@@ -5185,6 +5283,9 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   // A fan or swing setting of the selected slot (#91, lot 3): a value, or null (the default)
   _setSlotSetting(climate, day, idx, attr, value) {
+    const slot = (this._week(climate)[day] || [])[idx];
+    // The value it already has: nothing to save
+    if (!slot || ((slot.settings || {})[attr] || null) === (value || null)) return;
     this._changeSlot(climate, day, idx, (s) => {
       const next = { ...(s.settings || {}) };
       if (value) next[attr] = value; else delete next[attr];
@@ -5192,17 +5293,29 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
   }
 
-  // A day's slots for another thermostat: the settings it does not list are left out (#91). A
-  // slot without a preset whose HVAC mode it does not list (off, fan only) is left out: the slot
-  // before it goes on. `dropped` says whether something was left out
+  // A day's slots for another thermostat (#91): each slot as it runs there, without the fan and
+  // the vanes it does not list. A slot without a preset whose HVAC mode it does not list (off,
+  // fan only) is left out: the slot before it goes on. `dropped` names what was left out, in a
+  // fixed order: "Cool", "Fan only", "Fan". An HVAC mode only added (a heater's day on an air
+  // conditioner) is not something left out
   _adapted(segs, climate) {
-    let dropped = false;
-    const out = segs.map((s) => {
-      const fit = supportedSettings(s.settings, this._hass, climate);
-      dropped = dropped || fit.dropped;
-      return withSettings(s, fit.settings);
-    }).filter((s) => s.preset || hasNoPreset(s));
-    return { segs: normalize(out), dropped };
+    const { modes } = hvacModesOf(this._hass, climate);
+    const options = settingOptionsOf(this._hass, climate);
+    const left = new Set();
+    const out = [];
+    for (const s of segs) {
+      const mode = slotMode(s);
+      if (hasNoPreset(s) && modes && !modes.includes(mode)) { left.add(mode === 'off' ? 'hvacOff' : 'hvacFan'); continue; }
+      const settings = { ...(s.settings || {}) };
+      for (const attr of SETTING_ATTRS) {
+        if (attr in settings && !(options[attr] || []).includes(settings[attr])) { delete settings[attr]; left.add(SETTING_LABELS[attr]); }
+      }
+      const slot = slotOn(this._hass, climate, withSettings(s, slotSettings(settings)));
+      if (mode && !hasNoPreset(s) && slotMode(slot) !== mode) left.add(mode === 'cool' ? 'slotCool' : 'slotHeat');
+      out.push(slot);
+    }
+    const order = ['slotHeat', 'slotCool', 'hvacOff', 'hvacFan', ...SETTING_ATTRS.map((attr) => SETTING_LABELS[attr])];
+    return { segs: normalize(out), dropped: order.filter((key) => left.has(key)) };
   }
 
   // A time typed in the slot editor (minutes), for the slot it was typed for (a tap outside the
@@ -5233,12 +5346,12 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _copyDay(climate, day, target) {
     const src = this._week(climate)[day];
-    let dropped = false;
+    const dropped = [];
     if (target === 'others') {
       // Not to a thermostat whose week the user may not edit (a thermostat not scheduled, with Plan)
       this._shown.filter((c) => c !== climate && this._mayEdit(c)).forEach((c) => {
         const fit = this._adapted(clone(src), c);
-        dropped = dropped || fit.dropped;
+        dropped.push(...fit.dropped);
         this._week(c)[day] = fit.segs;
         this._spread(c, day);
       });
@@ -5255,19 +5368,21 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._render();
   }
 
-  // " · unsupported settings left out", after a copy to a thermostat that lacks a setting (#91)
+  // " · left out: Cool, Fan only", after a copy to a thermostat that cannot follow every slot
+  // (#91): what `_adapted` left out, each named once
   _droppedText(dropped) {
-    return dropped ? ` · ${this._loc.t('unsupportedLeftOut')}` : '';
+    const names = [...new Set(dropped)].map((key) => this._loc.t(key));
+    return names.length ? ` · ${this._loc.t('slotsLeftOut', { list: names.join(', ') })}` : '';
   }
 
   _copyWeek(value) {
     if (!value) return;
     const [climate, schedule] = value.split('|');
     const source = this._focusClimate();
-    let dropped = false;
+    const dropped = [];
     const week = clone(this._week(source)).map((segs) => {
       const fit = this._adapted(segs, climate);
-      dropped = dropped || fit.dropped;
+      dropped.push(...fit.dropped);
       return fit.segs;
     });
     if (!this._data[climate]) this._data[climate] = {};
@@ -5282,10 +5397,10 @@ class ChauffageProgrammeCard extends HTMLElement {
   // gets it, unsaved, and this card's save bar asks to save it
   _receiveWeek(climate, week, sourceName) {
     if (!this._data[climate]) this._data[climate] = {};
-    let dropped = false;
+    const dropped = [];
     this._data[climate][this._schedule] = clone(week).map((segs) => {
       const fit = this._adapted(segs, climate);
-      dropped = dropped || fit.dropped;
+      dropped.push(...fit.dropped);
       return fit.segs;
     });
     this._dirty = true;
@@ -5430,6 +5545,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'multi-sel') {
       this._multiSel = !this._multiSel;
+      // Turned on while every room is shown: the first room tapped starts the choice, the next
+      // ones add to it. Removing rooms one by one from all of them is not what "several" asks
+      this._multiFresh = this._multiSel && this._shown.length === this._thermostats.length && this._thermostats.length > 1;
       return this._render();
     }
     if (act === 'history') return this._toggleHistory();
@@ -5701,6 +5819,10 @@ const STYLE = `
   .legend .legend-off ha-icon { --mdc-icon-size:14px; width:14px; height:14px; vertical-align:-3px; margin-right:4px; }
   /* A preset's cool color, next to its heat color */
   .legend i.cool { margin-left:-3px; }
+  /* A swatch with its mark, a flame or a snowflake: larger, the icon in white */
+  .legend i.mk { width:15px; height:15px; display:inline-flex; align-items:center; justify-content:center; vertical-align:-3px; color:#fff; }
+  .legend i.mk ha-icon { --mdc-icon-size:11px; width:11px; height:11px; display:flex; }
+  .legend .cv ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; margin-right:1px; }
   /* The Off chip and the Fan only chip, before the presets of a slot or of an override: grey as
      an off slot, Home Assistant's color of fan only as a fan-only slot */
   .presets .off-chip, .presets .fan-chip { display:inline-flex; align-items:center; gap:4px; }
@@ -5871,6 +5993,15 @@ const STYLE = `
   .panel-open:hover, .panel-open:focus-visible { background:var(--secondary-background-color); color:var(--primary-color); }
   /* Many presets stay on one line: the table scrolls sideways, the names of the thermostats stay */
   .table-wrap { overflow-x:auto; }
+  /* A table wider than the screen says so: a fade and a chevron on the side with more to see, a
+     shadow along the names once it is scrolled (_tableCue) */
+  .table-outer { position:relative; }
+  .table-outer::after { content:'›'; position:absolute; top:0; right:0; bottom:0; width:30px; z-index:2; pointer-events:none;
+    display:flex; align-items:center; justify-content:flex-end; font-size:24px; line-height:1; color:var(--primary-text-color);
+    background:linear-gradient(to right, transparent, var(--ha-card-background, var(--card-background-color)) 75%);
+    opacity:0; transition:opacity .15s; }
+  .table-outer.more-right::after { opacity:1; }
+  .table-outer.more-left .pv-table th.name, .table-outer.more-left .pv-table thead th:first-child { box-shadow:6px 0 6px -4px rgba(0,0,0,.3); }
   .pv-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
   .pv-list .cell { align-items:flex-start; min-width:0; box-sizing:border-box; padding:8px 10px; gap:2px;
     border-color:var(--divider-color); text-align:left; }
@@ -5976,9 +6107,11 @@ const STYLE = `
   }
   /* On a touch screen, the hint speaks of a finger */
   .hint .touch { display:none; }
-  @media (hover:none) {
+  @media (hover:none), (pointer:coarse) {
     .hint .mouse { display:none; }
     .hint .touch { display:inline; }
+  }
+  @media (hover:none) {
     /* A finger: the chip's ↗ gets a larger target, so a tap beside it does not pick the chip */
     .chip-open { width:32px; height:32px; margin:-8px -10px -8px 0; }
   }
@@ -7326,10 +7459,11 @@ class ChauffageSettingsDialog extends HTMLElement {
       ['next_slot', 'overrideEndNextSlot'],
     ];
     // The same choices for a thermostat turned off by hand (#91): until the next slot by default
+    // In the same order as the choices above
     const offChoices = [
-      ['next_slot', 'offEndNextSlot'],
       ['duration', 'offEndDuration'],
       ['next_slot_within_duration', 'overrideEndWithin'],
+      ['next_slot', 'offEndNextSlot'],
     ];
     const offCurrent = (this._settingsPending && pending.off_override_end) || src.offOverrideEnd();
     const group = (list, name, attr, label, cls) => `<div class="choices ${cls}" role="radiogroup" aria-label="${esc(label)}">${list.map(([value]) => `<label class="choice">
@@ -7338,6 +7472,7 @@ class ChauffageSettingsDialog extends HTMLElement {
       </label>`).join('')}</div>`;
     setHtml(settings, `${group(choices, 'override-end', 'data-override-end', t('overrideEndTitle'), 'end-choices')}
         <h4 class="off-end-title">${esc(t('offEndTitle'))}</h4>
+        <p class="note off-end-help">${esc(t('offEndHelp'))}</p>
         ${group(offChoices, 'off-override-end', 'data-off-override-end', t('offEndTitle'), 'off-end-choices')}
         <p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>
         <div data-fill="settings-end-error"></div>`);
@@ -8182,7 +8317,7 @@ const PANEL_CSS = `
   .chip.on { border-color:var(--primary-color); color:var(--primary-color); }
   .hint { margin:0 8px; font-size:12px; color:var(--secondary-text-color); }
   .hint .touch { display:none; }
-  @media (hover:none) { .hint .mouse { display:none; } .hint .touch { display:inline; } }
+  @media (hover:none), (pointer:coarse) { .hint .mouse { display:none; } .hint .touch { display:inline; } }
 `;
 
 // The integration's own icons (`chauffage:<name>`), as HA's custom icon sets: the sidebar shows

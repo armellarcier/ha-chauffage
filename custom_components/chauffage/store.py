@@ -21,16 +21,19 @@ STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
 Migration = Callable[[dict[str, Any], str], dict[str, Any]]
+# The colors of the default presets before #91, where they differ from today's
+FORMER_COLORS = {"frost": "#29b6f6"}
 
 
 def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
     """Heating levels (v0.3): slots named a VTherm preset now name a level with the same id, and
     each thermostat with that preset keeps using it (default mapping), so nothing changes."""
-    return {
-        **data,
-        "levels": model.default_presets(language, model.used_presets(data.get("schedules", {}))),
-        "mappings": {},
-    }
+    levels = model.default_presets(language, model.used_presets(data.get("schedules", {})))
+    # An existing installation keeps the colors it had: frost protection's changed for the new
+    # ones only (#91)
+    for level in levels:
+        level["color"] = FORMER_COLORS.get(level["id"], level["color"])
+    return {**data, "levels": levels, "mappings": {}}
 
 
 def _v2_to_v3(data: dict[str, Any], language: str) -> dict[str, Any]:
