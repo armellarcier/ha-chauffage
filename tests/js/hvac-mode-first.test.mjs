@@ -241,6 +241,18 @@ describe('an override has the same two rows', () => {
     assert.equal($(card, '.override-ed [data-override-temperature]'), null);
   });
 
+  test('an override that only says an HVAC mode highlights no preset', () => {
+    const now = Date.now();
+    const overrides = { [SUITE]: { target: { hvac_mode: 'cool' }, start: new Date(now - 60000).toISOString(), end: new Date(now + 3600000).toISOString() } };
+    const summer = { ...TARGETS, [SUITE]: { ...TARGETS[SUITE], summer: { cool_temperature: 26 } } };
+    const hass = setup({ overrides, planned: PLANNED, targets: summer });
+    hass.data.presets.push({ id: 'summer', name: 'Été', color: '#123456', temperature: null, cool_temperature: 26 });
+    const card = cardOf(hass);
+    card._overrideSel = { climate: SUITE };
+    card._render();
+    assert.deepEqual(presetRow(card, '.override-ed'), ['Éco', 'Confort', 'Boost', 'Été']);
+  });
+
   test('a heater keeps one row', () => {
     const card = cardOf(setup(), { show: [SALON] });
     card._overrideSel = { climate: SALON, create: true };

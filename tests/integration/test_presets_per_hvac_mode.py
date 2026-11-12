@@ -10,7 +10,9 @@ from homeassistant.exceptions import ServiceValidationError
 
 from conftest import CTX_AUTOMATION, CTX_USER, KINDS, PRESETS_OF, Bench
 
-from custom_components.chauffage import engine, model
+from homeassistant.core import Event, callback
+
+from custom_components.chauffage import engine, logbook, model
 from custom_components.chauffage.store import migrate
 from test_store import fixture
 
@@ -264,6 +266,18 @@ async def test_set_override_takes_heat_cool_with_a_pair_of_temperatures(bench: B
     await override(bench, hvac_mode="heat_cool", target_temp_low=19, target_temp_high=24.5)
     assert bench.powered() == {SALON: "heat_cool"} and bench.range_calls == [(SALON, 19.0, 24.5)]
     assert bench.overrides()[SALON]["target"] == {"hvac_mode": "heat_cool", "target_temp_low": 19.0, "target_temp_high": 24.5}
+
+
+async def test_the_logbook_says_the_range_of_a_heat_cool_override(bench: Bench):
+    await start(bench, [["00:00", "eco"]])
+    events: list[Event] = []
+    bench.hass.bus.async_listen("chauffage_override_started", callback(lambda event: events.append(event)))
+    await override(bench, hvac_mode="heat_cool", target_temp_low=19, target_temp_high=24.5, duration=60)
+    described = {}
+    logbook.async_describe_events(bench.hass, lambda domain, name, describe: described.update({name: describe}))
+    assert "heat/cool, 19–24.5 °C" in described["chauffage_override_started"](events[0])["message"]
+    bench.hass.config.language = "fr"
+    assert "19–24,5 °C" in described["chauffage_override_started"](events[0])["message"]
 
 
 async def test_set_override_takes_heat_cool_with_a_preset(bench: Bench):

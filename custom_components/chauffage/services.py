@@ -13,9 +13,8 @@ chauffage.activate_schedule  activates a schedule by its stable id (unchanged wh
 chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
 chauffage.get_week           (response) the week of thermostats in a schedule, as HA's
                              schedule.get_schedule gives its schedules; a slot says its HVAC mode
-                             as it runs on the thermostat (hvac_mode: heat or cool on an air
-                             conditioner, none on a heater), and an off slot or a fan-only slot
-                             has no preset (null)
+                             as it runs on the thermostat (hvac_mode: none on a heater), and a
+                             slot that is off, fan only, dry or auto has no preset (null)
 """
 
 from __future__ import annotations

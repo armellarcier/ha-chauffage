@@ -2299,7 +2299,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
     .filter((l) => targets[l.id] && (picked === l.id || presetModes(targets[l.id]).includes(inMode))).map((l) => {
       const value = targets[l.id];
       const on = !!d && !none && (picked ? picked === l.id
-        : targetKind(target) === 'preset' && targetKind(value) === 'preset' && targetValue(target) === targetValue(value));
+        : targetKind(target) === 'preset' && targetKind(value) === 'preset' && targetValue(target) != null && targetValue(target) === targetValue(value));
       return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${presetColorIn(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
     }).join('');
   // The temperature the thermostat gets. An override to a preset that cools sends the preset's

@@ -6,10 +6,12 @@ allows (require_access, #99), and overrides and pauses on the thermostats they m
 chauffage/subscribe          everything the card needs, then again after every change, when a
                              planned slot changes, and after the integration is reloaded. A week's
                              slot is [start, preset] or [start, preset, settings] (#91: its
-                             HVAC mode, heat or cool with a preset, off or fan_only without one
-                             (preset null), and the fan and the vanes); `planned` gives each
-                             thermostat's preset, hvac_mode (the slot's on this thermostat: off,
-                             fan_only, heat or cool on an air conditioner, null on a heater), target, next_preset,
+                             HVAC mode, heat, cool or heat_cool with a preset, off, fan_only, dry
+                             or auto without one (preset null), and the fan and the vanes);
+                             `targets` gives what each preset means on each thermostat, for each
+                             HVAC mode (engine.value_on); `planned` gives each thermostat's
+                             preset, hvac_mode (the slot's on this thermostat, null on a
+                             heater), target, next_preset,
                              next_hvac_mode, next_start, next_slot_end and next_day_slot_end;
                              `thermostats` says why a VTherm protects itself (cause: window, auto_start_stop);
                              `cool_preset_temperatures`, what a thermostat's own presets give when it cools
@@ -23,8 +25,10 @@ chauffage/override/set       {entity_id, override | null, source?}: change (targ
 chauffage/schedule/activate  {schedule, source?}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
                              or a copy), rename, move, delete (see model.plan_schedules)
-chauffage/presets/set        {presets, replacements}: the presets, each with an optional cool_color,
-                             the color of its cooling slots (a removed preset used in the
+chauffage/presets/set        {presets, replacements}: the presets, each with its temperature when
+                             heating ("temperature", null: none), an optional "cool_temperature"
+                             and an optional cool_color, the color of its cooling slots (a
+                             removed preset used in the
                              weeks is replaced by the preset given in replacements)
 chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one thermostat
                              ({preset id: {"preset_mode": climate preset} | {"temperature": …},
