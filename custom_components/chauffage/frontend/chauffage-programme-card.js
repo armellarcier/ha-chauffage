@@ -2517,10 +2517,10 @@ function overrideUntilText(d, src, climate, loc, hass) {
 const slotName = (seg, presets, loc) => (hasNoPreset(seg) ? modeName(loc, slotMode(seg)) : presetOf(presets, seg.preset, loc).name);
 
 // "then Eco (schedule)": what the thermostat goes back to at the override's end
-function thenText(src, climate, d, loc) {
+function thenText(src, climate, d, loc, hass) {
   const slot = slotAt(activeWeek(src, climate), parseDate(d.end));
   if (!slot) return '';
-  return loc.t('thenSchedule', { preset: slotName(slot, presetsOf(src, loc), loc) });
+  return loc.t('thenSchedule', { preset: slotNameOn(hass, climate, slot, presetsOf(src, loc), loc) });
 }
 
 // The day of an instant to come, in a sentence: its day name ("monday") within the 6 days to come,
@@ -2554,7 +2554,7 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const why = reason && src.editable
     ? `<span class="mi-link" role="link" tabindex="0" data-open-settings title="${esc(t('endsChoose'))}">${esc(reason)} <span aria-hidden="true">⚙</span></span>`
     : esc(reason);
-  const then = thenText(src, climate, d, loc);
+  const then = thenText(src, climate, d, loc, hass);
   return `${esc(day)}${reason ? `, ${why}` : ''} · ${esc(t('remaining', { duration: remainingText(remaining, loc) }))}${then ? ` · ${esc(then)}` : ''}`;
 }
 
@@ -3678,7 +3678,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const forLabel = (compact ? 180 : 150) + wide;
     // On an off slot and a fan-only slot, the word wins over the time: a phone has no tooltip
     // to say what the color means. Too narrow for the word, the icon alone, larger
-    const off = hasNoPreset(s);
+    // A heat/cool slot too: its two colors are no preset's color, so its name says which one
+    const off = hasNoPreset(s) || slotMode(s) === 'heat_cool';
     const t = dur >= (off ? forLabel : forTime) ? this._loc.time(start) : '';
     const l = dur >= (off ? forTime : forLabel) ? esc(this._slotLabel(s)) : '';
     // Markers on the time's line, kept even in a narrow segment, so a slot's settings are never
@@ -7292,12 +7293,12 @@ class ChauffageThermostatCard extends HTMLElement {
     const d = !paused && filterActive(src.overrides())[this._config.entity];
     // An off override: "⏱ Off", no setpoint (#91)
     if (d && d.target && d.target.hvac_mode === 'off') return `<span class="tc-state override">⏱ ${esc(t('hvacOff'))}</span>`;
+    // On a thermostat that lists more than one "on" HVAC mode: "⏱ Cool · Comfort 25°"
+    if (d && hasModeRow(this._hass, this._config.entity)) return `<span class="tc-state override">⏱ ${esc(overrideSummary(d, src, this._config.entity, loc, this._hass))}</span>`;
     // An override at a temperature (not a preset) is that temperature: said once, not "17,5 °C · 17,5°"
     if (d && targetKind(d.target) === 'temperature' && !presets.some((p) => p.id === d.preset)) {
       return `<span class="tc-state override">⏱ ${hvacIconHtml(overrideHvac(d))}${esc(`${loc.number(d.target.temperature)}°`)}</span>`;
     }
-    // On a thermostat that lists more than one "on" HVAC mode: "⏱ Cool · Comfort 25°"
-    if (d && hasModeRow(this._hass, this._config.entity)) return `<span class="tc-state override">⏱ ${esc(overrideSummary(d, src, this._config.entity, loc, this._hass))}</span>`;
     if (d) return `<span class="tc-state override">⏱ ${hvacIconHtml(overrideHvac(d))}${text(overrideLabel(d, loc, presets))}</span>`;
     const plan = paused ? null : src.planned(this._config.entity);
     // A thermostat that protects itself (a VTherm's window, auto start/stop) says why, and the

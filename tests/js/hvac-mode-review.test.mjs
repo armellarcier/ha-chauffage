@@ -271,6 +271,19 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
     assert.equal(text($(card, '.tc-state')), '⏱ Clim · Confort 25°');
   });
 
+  test('the thermostat card\'s header names the HVAC mode of an override to a temperature too', () => {
+    const card = document.createElement('chauffage-thermostat-card');
+    card.setConfig({ type: 'custom:chauffage-thermostat-card', entity: SUITE });
+    document.body.appendChild(card);
+    card.hass = setup({ planned: PLANNED, overrides: { [SUITE]: override({ temperature: 26, hvac_mode: 'cool' }, { end: at('14:00') }) } });
+    assert.equal(text($(card, '.tc-state')), '⏱ Clim · 26 °C');
+  });
+
+  test('the end of an override names the HVAC mode of the slot that follows', () => {
+    const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }), SUITE);
+    assert.match(text(el.shadowRoot.querySelector('.end-block .muted')), /puis Chauffe · Confort \(planning\)$/);
+  });
+
   test('the override on the week, and its tooltip', () => {
     const card = cardOf(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }));
     const badge = $(card, `.override[data-climate="${SUITE}"]`);
@@ -456,6 +469,12 @@ describe('the legend and the week', () => {
   test('a heat/cool slot wide enough says its preset', () => {
     const card = cardOf(setup({ suite: DAYS }));
     assert.equal(text(seg(card, 2).querySelector('.l')), 'Confort');
+  });
+
+  test('a heat/cool slot of two hours says its preset rather than its time: its two colors are no preset\'s color', () => {
+    const card = cardOf(setup({ suite: ['00:00 eco', ['12:00', 'comfort', { hvac_mode: 'heat_cool' }], ['14:00', 'comfort', { hvac_mode: 'cool' }]] }));
+    assert.equal(text(seg(card, 1).querySelector('.l')), 'Confort');
+    assert.equal(text(seg(card, 1).querySelector('.t')), '');
   });
 
   test('a dry slot is hatched in Home Assistant\'s color of dry on a neutral base: it does not look like Comfort', () => {
