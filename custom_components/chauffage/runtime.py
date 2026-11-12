@@ -103,10 +103,11 @@ def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat |
         return None
     attributes = state.attributes
     presets = attributes.get("preset_modes") or ()
+    preset, temperature = engine.asked(attributes, vtherm)
     return engine.Thermostat(
         state.state,
-        engine.preset_value(attributes.get("preset_mode")),
-        engine.temperature_value(attributes.get("temperature")),
+        preset,
+        temperature,
         tuple(p for p in (engine.preset_value(p) for p in presets) if p),
         engine.temperature_value(attributes.get("min_temp")),
         engine.temperature_value(attributes.get("max_temp")),
@@ -151,9 +152,9 @@ def _time(iso: str) -> str:
     return dt_util.as_local(when).strftime("%H:%M:%S") if when else str(iso)
 
 
-def _change(old: State, new: State) -> str:
-    """What changed on a thermostat, for the log: its state, preset and setpoint."""
-    before, after = thermostat(old), thermostat(new)
+def _change(before: engine.Thermostat, after: engine.Thermostat) -> str:
+    """What changed on a thermostat, for the log: its state, and the preset and the setpoint
+    it was asked for, the ones the override is made of (#92)."""
     parts = [after.state]
     if before.preset or after.preset:
         parts.append(f"preset {before.preset} → {after.preset}")
@@ -1108,6 +1109,10 @@ class ChauffageRuntime:
             return False
         if engine.is_manual_preset(current.preset) or state.entity_id not in self.thermostats:
             return False
+        # A VTherm on another preset than asked, for example its central mode in frost
+        # protection: its setpoint is not the asked preset's temperature (#92)
+        if current.preset != engine.preset_value(state.attributes.get("preset_mode")):
+            return False
         known = self.thermostats[state.entity_id]["preset_temperatures"]
         if known.get(current.preset) == current.temperature:
             return False
@@ -1160,7 +1165,7 @@ class ChauffageRuntime:
         if change is None:
             return
         _LOGGER.info("%s: changed %s (%s); the slot asks for %s: %s", new.entity_id,
-                     "by a user" if context.user_id else "on the device", _change(old, new),
+                     "by a user" if context.user_id else "on the device", _change(before, after),
                      _describe(expected) if expected else "nothing",
                      "back to its slot" if change == engine.RESUME else "an override")
         if change == engine.RESUME:

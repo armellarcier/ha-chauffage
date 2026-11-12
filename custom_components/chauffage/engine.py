@@ -49,6 +49,22 @@ def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
     return any(attributes.get(key) is not None for key in (*SETPOINTS, "preset_mode"))
 
 
+def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | None, float | None]:
+    """The preset and the setpoint a thermostat was asked for. Versatile Thermostat may change
+    its preset or its setpoint by itself, for example the frost setpoint for an open window
+    (#92). VTherm keeps what it was asked for in requested_state. Its target_temperature is the
+    last manual setpoint, so it counts only on the manual preset, and only when it is known."""
+    preset = preset_value(attributes.get("preset_mode"))
+    temperature = temperature_value(attributes.get("temperature"))
+    requested = attributes.get("requested_state") if vtherm else None
+    if isinstance(requested, Mapping) and requested.get("preset") is not None:
+        preset = preset_value(requested["preset"])
+        target = temperature_value(requested.get("target_temperature"))
+        if is_manual_preset(preset) and target is not None:
+            temperature = target
+    return preset, temperature
+
+
 def ignored(thermostat: Thermostat) -> bool:
     """A thermostat left alone: turned off, unavailable or unknown, or not ready yet.
     Not a VTherm turned off: it keeps the preset asked while off, stays off, and starts again on

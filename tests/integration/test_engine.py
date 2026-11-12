@@ -118,6 +118,38 @@ def test_a_vtherm_is_not_ready_while_it_says_so():
     assert engine.ready({"temperature": 20.0, "is_ready": False})  # not a VTherm's attribute
 
 
+def test_a_vtherm_is_read_as_it_was_asked_not_as_it_changed_itself():
+    """VTherm keeps what it was asked for in requested_state (#92)."""
+    window = {"preset_mode": "none", "temperature": 7.0,
+              "requested_state": {"hvac_mode": "heat", "target_temperature": 17.5, "preset": "none"}}
+    assert engine.asked(window, vtherm=True) == ("none", 17.5)
+    assert engine.asked(window) == ("none", 7.0)  # not a VTherm's attribute
+
+
+def test_a_vtherm_on_a_preset_keeps_the_setpoint_it_shows():
+    """On a preset, requested_state keeps the last manual setpoint, not the preset's."""
+    window = {"preset_mode": "eco", "temperature": 7.0,
+              "requested_state": {"hvac_mode": "heat", "target_temperature": 19.0, "preset": "eco"}}
+    assert engine.asked(window, vtherm=True) == ("eco", 7.0)
+    central = {"preset_mode": "frost", "temperature": 7.0,
+               "requested_state": {"hvac_mode": "heat", "target_temperature": 19.0, "preset": "comfort"}}
+    assert engine.asked(central, vtherm=True) == ("comfort", 7.0)
+
+
+def test_a_vtherm_asked_for_no_setpoint_keeps_the_setpoint_it_shows():
+    """A requested_state on the manual preset without a setpoint: the setpoint shown counts."""
+    shown = {"preset_mode": "none", "temperature": 19.0,
+             "requested_state": {"hvac_mode": "heat", "target_temperature": None, "preset": "none"}}
+    assert engine.asked(shown, vtherm=True) == ("none", 19.0)
+
+
+def test_a_vtherm_without_requested_state_is_read_as_it_shows():
+    """VTherm before its state manager, or a state without it."""
+    assert engine.asked({"preset_mode": "eco", "temperature": 17.0}, vtherm=True) == ("eco", 17.0)
+    assert engine.asked({"preset_mode": "eco", "temperature": 17.0, "requested_state": {}}, vtherm=True) \
+        == ("eco", 17.0)
+
+
 def test_a_thermostat_that_is_not_ready_is_ignored():
     starting = Thermostat("heat", None, None, (), 5.0, 30.0, 0.5, ready=False)
     assert engine.ignored(starting)

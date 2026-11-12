@@ -225,6 +225,77 @@ async def test_a_vtherm_turned_off_by_hand_still_gets_its_slots(bench: Bench):
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
+# Versatile Thermostat with a window sensor, as recorded in a development HA (#92). With the
+# "Frost protection" action, an open window sets the frost setpoint and keeps the preset. With
+# the "Turn off" action, it turns the VTherm off. The setpoint and preset asked are kept in
+# requested_state.
+TEMPERATURE_SLOTS = {"eco": {"temperature": 17.5}, "comfort": {"temperature": 19.0}}
+
+
+def vtherm_window(bench: Bench, asked: float, shown: float, state: str = "heat") -> None:
+    """climate.salon, a VTherm on a temperature slot (`asked`), shows `shown`: VTherm changed it
+    by itself, for example for an open window."""
+    bench.thermostat(
+        "climate.salon", "none", shown, state=state, context=Context(),
+        current_state={"hvac_mode": state, "target_temperature": shown, "preset": "none"},
+        requested_state={"hvac_mode": "heat", "target_temperature": asked, "preset": "none"},
+    )
+
+
+async def start_vtherm_on_temperature_slots(bench: Bench, hhmm: str) -> None:
+    await start_vtherm(bench, hhmm)
+    await bench.runtime.set_mapping("climate.salon", TEMPERATURE_SLOTS)
+    await bench.hass.async_block_till_done()
+    bench.applied()
+
+
+async def test_a_vtherm_window_lowering_the_setpoint_of_a_temperature_slot_is_not_an_override(bench: Bench):
+    await start_vtherm_on_temperature_slots(bench, "10:00")
+    vtherm_window(bench, asked=17.5, shown=7.0)  # window open
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+    vtherm_window(bench, asked=17.5, shown=17.5)  # window closed
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+    assert bench.applied() == {}
+
+
+async def test_a_slot_change_while_a_vtherm_window_is_open_is_kept_once_it_closes(bench: Bench):
+    """Before #92, the window made an override, so the next slot was not sent. Once the window
+    closed, the old slot's setpoint became a 2-hour override."""
+    await start_vtherm_on_temperature_slots(bench, "17:00")
+    vtherm_window(bench, asked=17.5, shown=7.0)
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "19.0"}
+    vtherm_window(bench, asked=19.0, shown=7.0)  # VTherm keeps the frost setpoint
+    await bench.hass.async_block_till_done()
+    vtherm_window(bench, asked=19.0, shown=19.0)  # window closed
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+
+
+async def test_a_setpoint_changed_by_hand_while_a_vtherm_window_is_open_is_an_override(bench: Bench):
+    await start_vtherm_on_temperature_slots(bench, "10:00")
+    vtherm_window(bench, asked=17.5, shown=7.0)
+    await bench.hass.async_block_till_done()
+    vtherm_window(bench, asked=21.0, shown=7.0)  # the knob, while VTherm keeps the frost setpoint
+    await bench.hass.async_block_till_done()
+    override = bench.overrides()["climate.salon"]
+    assert (override["kind"], override["value"]) == ("temperature", 21.0)
+
+
+async def test_a_vtherm_turned_off_by_its_window_is_not_an_override(bench: Bench):
+    await start_vtherm_on_temperature_slots(bench, "17:00")
+    vtherm_window(bench, asked=17.5, shown=17.5, state="off")  # window open
+    await bench.go_to("17:30")
+    assert bench.applied() == {"climate.salon": "19.0"}
+    vtherm_window(bench, asked=19.0, shown=19.0, state="off")
+    await bench.hass.async_block_till_done()
+    vtherm_window(bench, asked=19.0, shown=19.0)  # window closed
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+
+
 async def test_a_vtherm_is_recognized_by_its_integration_not_by_its_attributes(bench: Bench):
     """VTherm moved hvac_off_reason once, and publishes none right after being turned off. A
     thermostat of another integration with the same attributes is left alone."""
