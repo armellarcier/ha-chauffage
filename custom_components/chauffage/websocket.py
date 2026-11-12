@@ -8,10 +8,11 @@ chauffage/subscribe          everything the card needs, then again after every c
                              slot is [start, preset] or [start, preset, settings] (#91: its
                              HVAC mode, heat or cool with a preset, off or fan_only without one
                              (preset null), and the fan and the vanes); `planned` gives each
-                             thermostat's preset, hvac_mode (the slot's: off, fan_only, heat or
-                             cool if the thermostat lists it, or null), target, next_preset,
+                             thermostat's preset, hvac_mode (the slot's on this thermostat: off,
+                             fan_only, heat or cool on an air conditioner, null on a heater), target, next_preset,
                              next_hvac_mode, next_start, next_slot_end and next_day_slot_end;
-                             `thermostats` says why a VTherm protects itself (cause: window, auto_start_stop)
+                             `thermostats` says why a VTherm protects itself (cause: window, auto_start_stop);
+                             `cool_preset_temperatures`, what a thermostat's own presets give when it cools
 chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent (slots with
                              optional settings, see above), against
                              the revision of each ({climate: revision | null}), or the global one

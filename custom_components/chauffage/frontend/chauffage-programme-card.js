@@ -2420,7 +2420,7 @@ function overrideWithHvac(d, src, climate, mode) {
 // off slot ends the override, as setting a thermostat back to what its slot plans by hand does
 const RESUME = Symbol('resume');
 
-// A new off override (#91): it ends as the setting *End of off overrides* says. Until the next
+// A new off override (#91): it ends as the setting *Turned off* says. Until the next
 // slot, as the integration computes it (`next_slot_end`), a week later without one; for the
 // override duration; or the sooner of both
 function newOffOverride(src, climate) {

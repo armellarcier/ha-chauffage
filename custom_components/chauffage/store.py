@@ -84,8 +84,8 @@ def _target(command: dict[str, Any]) -> dict[str, Any]:
 def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
     """A slot sets more than a preset (#91): what a preset means for a thermostat, an override
     and a command not applied yet are partial states of the thermostat, as a scene holds them.
-    The values do not change. The weeks do not change either: a slot without settings chooses
-    no HVAC mode, so every thermostat keeps the one it has, as before. The HVAC mode a
+    The values do not change. The weeks do not change either: a slot without settings says
+    no HVAC mode, and is read as engine.slot_hvac_mode says. The HVAC mode a
     thermostat last heated or cooled in is not known yet."""
     def without(command: dict[str, Any]) -> dict[str, Any]:
         return {key: value for key, value in command.items() if key not in ("kind", "value")}

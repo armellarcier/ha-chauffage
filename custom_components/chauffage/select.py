@@ -6,7 +6,7 @@ active schedule's stable id, for automations (with the chauffage.activate_schedu
 
 *End of a change by hand* (#83): how a setpoint changed by hand ends. It holds no state of its
 own: it reads and writes the integration's options, so that the options flow, the panel and the
-entity always agree. *End of off overrides* (#91) is the same setting for a thermostat turned off
+entity always agree. *Turned off* (#91) is the same setting for a thermostat turned off
 by hand."""
 
 from __future__ import annotations
@@ -82,6 +82,6 @@ class ManualOverrideEndSelect(ChauffageEntity, SelectEntity):
 
 
 class OffOverrideEndSelect(ManualOverrideEndSelect):
-    """*End of off overrides* (#91): the same choices, for a thermostat turned off by hand."""
+    """*Turned off* (#91): the same choices, for a thermostat turned off by hand."""
 
     key = CONF_OFF_OVERRIDE_END

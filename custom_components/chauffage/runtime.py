@@ -298,7 +298,7 @@ class ChauffageRuntime:
 
     @property
     def off_override_end(self) -> str:
-        """The setting *End of off overrides* (#91), for a thermostat turned off by hand: the
+        """The setting *Turned off* (#91), for a thermostat turned off by hand: the
         same choices, NEXT_SLOT by default (an unknown value: the default)."""
         end = self.entry.options.get(CONF_OFF_OVERRIDE_END)
         return end if end in MANUAL_OVERRIDE_ENDS else DEFAULT_OFF_OVERRIDE_END
@@ -1033,7 +1033,7 @@ class ChauffageRuntime:
 
     def manual_override(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None) -> dict[str, Any]:
         """The override of a change by hand (#83), by the setting *End of a change by hand*, or
-        *End of off overrides* for a thermostat turned off (#91): after the override duration
+        *Turned off* for a thermostat turned off (#91): after the override duration
         (DURATION), at the next slot that changes the thermostat's target in the active schedule
         but at the latest after the duration (NEXT_SLOT_WITHIN_DURATION), or at that slot
         however far (NEXT_SLOT: a week later without one). A slot starting less than

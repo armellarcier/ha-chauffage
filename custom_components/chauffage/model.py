@@ -20,8 +20,10 @@ Vocabulary: docs/glossary.md.
                              or "cool" with a preset (the preset says how warm, for that HVAC
                              mode), "off" or "fan_only" without one ([start, None,
                              {"hvac_mode": "off"}]). An off slot sets nothing else; a fan-only
-                             slot may set the fan and the vanes. Without an HVAC mode, the slot
-                             leaves the thermostat in the HVAC mode it has
+                             slot may set the fan and the vanes. A slot on a preset that says
+                             no HVAC mode (a week stored before #91) is read as heat on an
+                             air conditioner that heats and cools, as cool on one that only
+                             cools, and carries none on a heater (engine.slot_hvac_mode)
         mapping:             {preset id: value}, what a preset means for this thermostat, only
                              what was set by hand: the rest is engine.default_target. A value is
                              a partial state of the thermostat, as a scene holds it (#91). When

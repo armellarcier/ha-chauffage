@@ -2,8 +2,10 @@
 
 chauffage.set_override       sets a thermostat's temperature or preset, and its HVAC mode (off, or
                              one to turn it on in), for a while (the schedule resumes at the end),
-                             like a manual change; off alone, without an end, lasts as the setting
-                             *End of off overrides* says
+                             like a manual change; refused when it contradicts itself (off or fan
+                             only with a setpoint, an HVAC mode the thermostat does not list, a
+                             duration with an end); off alone, without an end, lasts as the setting
+                             *Turned off* says
 chauffage.clear_override     ends it now: the thermostat resumes its schedule
 chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
 chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
@@ -131,7 +133,7 @@ def async_register(hass: HomeAssistant) -> None:
         if "hvac_mode" in call.data:  # off, or a mode to turn the thermostat on in (#91)
             target["hvac_mode"] = call.data["hvac_mode"]
         if target == {"hvac_mode": "off"} and minutes is None and end is None:
-            # Off without an end: as a thermostat turned off by hand (the setting *End of off overrides*)
+            # Off without an end: as a thermostat turned off by hand (the setting *Turned off*)
             override = runtime.manual_override(entity_id, target, runtime.current(hass.states.get(entity_id)))
         else:
             override = runtime.new_override(target, minutes, end)
