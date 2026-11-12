@@ -156,9 +156,11 @@ describe('the slot popover says the HVAC mode first, then the presets', () => {
 describe('the week and the legend', () => {
   const DAYS = ['00:00 eco', ['08:00', null, { hvac_mode: 'dry' }], ['12:00', 'comfort', { hvac_mode: 'heat_cool' }], ['18:00', null, { hvac_mode: 'auto' }]];
 
-  test('a dry slot and an auto slot have Home Assistant\'s color and icon', () => {
+  test('a dry slot and an auto slot have Home Assistant\'s color and icon, with dots: not a preset\'s slot', () => {
     const card = cardOf(setup({ suite: DAYS }));
-    assert.match(seg(card, SUITE, 1).getAttribute('style'), /--state-climate-dry-color/);
+    assert.match(seg(card, SUITE, 1).getAttribute('style'), /--state-climate-dry-color.*radial-gradient/);
+    assert.doesNotMatch(seg(card, SUITE, 2).getAttribute('style'), /radial-gradient/);
+    assert.match($(card, '.legend .legend-off i').getAttribute('style'), /--state-climate-dry-color.*radial-gradient/);
     assert.deepEqual(icons(seg(card, SUITE, 1)), ['mdi:water-percent']);
     assert.match(seg(card, SUITE, 1).getAttribute('aria-label'), /Déshum\.$/);
     assert.match(seg(card, SUITE, 3).getAttribute('style'), /--state-climate-auto-color/);
@@ -332,6 +334,13 @@ describe('the presets tab sets a temperature when heating and one when cooling',
     assert.equal(cell(SUITE, 'frost'), '7°');
     assert.equal(cell(COMBLES, 'frost'), '—');
     assert.equal(cell(COMBLES, 'eco'), '27°');
+  });
+
+  test('a cell says "?" for a preset of the thermostat whose temperature when cooling is not known yet', () => {
+    const own = { ...TARGETS, [COMBLES]: { ...TARGETS[COMBLES], comfort: { preset_mode: 'comfort', cool_preset_mode: 'comfort' } } };
+    const card = panel(setup({ targets: own }));
+    assert.equal(text($(card, `[data-kind="thermostat"][data-climate="${COMBLES}"][data-preset="comfort"] .pv-val`)), '?');
+    assert.match(text($(card, '.pv-note')), /^\? :/);
   });
 
   test('the cell popover says what an empty cooling field gives', () => {

@@ -303,8 +303,11 @@ CARD = {
     + [{"entity": entity, "name": name} for entity, name in OTHER_THERMOSTATS.items()],
 }
 
-# What a slot may say besides its preset (#91): its HVAC mode. Off and fan only have no preset
-MODES = {"off": "off", "fan": "fan_only", "cool": "cool", "heat": "heat"}
+# What a slot may say besides its preset (#91): its HVAC mode. Off, fan only, dry and auto have
+# no preset
+MODES = {"off": "off", "fan": "fan_only", "dry": "dry", "auto": "auto", "cool": "cool", "heat": "heat",
+         "heatcool": "heat_cool"}
+NO_PRESET = ("off", "fan", "dry", "auto")
 
 
 def day(*slots: str) -> list[list]:
@@ -314,7 +317,7 @@ def day(*slots: str) -> list[list]:
     out: list[list] = []
     for slot in slots:
         start, *words = slot.split()
-        if words[0] in ("off", "fan"):
+        if words[0] in NO_PRESET:
             out.append([start, None, {"hvac_mode": MODES[words[0]]}])
         elif len(words) > 1:
             out.append([start, words[0], {"hvac_mode": MODES[words[1]]}])
@@ -337,19 +340,20 @@ SAMPLE_WEEKS = {
     "climate.cuisine": [day("00:00 eco", "07:00 comfort", "09:00 eco", "18:30 comfort", "21:00 eco")] * 7,
     "climate.chambre_d_amis": [day("00:00 frost")] * 5 + [day("00:00 eco", "08:00 comfort", "22:00 eco")] * 2,
     "climate.veranda": [day("00:00 frost", "10:00 comfort", "19:00 frost")] * 7,
-    "climate.atelier": [day("00:00 eco", "09:00 comfort", "18:00 eco")] * 5 + [day("00:00 eco")] * 2,
-    # The air conditioners show what a slot may choose (#91): cool, fan only, off
+    "climate.atelier": [day("00:00 eco", "09:00 comfort", "18:00 eco")] * 5 + [day("00:00 eco", "10:00 auto", "17:00 eco")] * 2,
+    # The air conditioners show what a slot may choose (#91): cool, heat/cool, dry, auto, fan
+    # only, off
     "climate.mezzanine": [day("00:00 eco", "17:00 comfort", "21:30 eco")] * 5
     + [day("00:00 eco", "09:30 comfort", "14:00 comfort cool", "18:00 comfort heat", "21:30 eco")] * 2,
     "climate.combles": [day("00:00 off", "13:00 comfort cool", "19:00 fan", "22:00 off")] * 7,
-    "climate.suite_parentale": [day("00:00 eco", "06:00 comfort", "08:00 off", "14:00 comfort cool", "17:00 fan",
-                                    "20:30 comfort", "23:00 eco")] * 7,
+    "climate.suite_parentale": [day("00:00 eco", "06:00 comfort", "08:00 off", "10:00 dry", "12:00 comfort heatcool",
+                                    "14:00 comfort cool", "17:00 fan", "20:30 comfort", "23:00 eco")] * 7,
 }
 
-# Values of the presets set by hand, by thermostat
+# Values of the presets set by hand, by thermostat. The Daikin has an eco preset of its own (its
+# "econo" function), which sets no temperature: eco gets temperatures there
 SAMPLE_MAPPINGS = {
     "climate.suite_parentale": {
-        "comfort": {"temperature": 20, "cool_temperature": 25},
         "eco": {"temperature": 17, "cool_temperature": 27},
     },
 }
@@ -415,8 +419,7 @@ async def sample_schedules(ws: WS) -> None:
         weeks[entity] = {first: SAMPLE_WEEKS[entity], **dict(zip(others, other_weeks))}
     log(f"schedules: sample weeks for {', '.join(missing)}")
     await ws.call(type="chauffage/weeks/save", weeks=weeks)
-    # What the presets mean on the Daikin, which has no preset named like them: a temperature
-    # when it heats, another one when it cools (#91)
+    # What eco means on the Daikin: a temperature when it heats, another one when it cools (#91)
     for entity, mapping in SAMPLE_MAPPINGS.items():
         if entity in missing:
             await ws.call(type="chauffage/mapping/set", entity_id=entity, mapping=mapping)

@@ -986,6 +986,12 @@ const hvacColor = (mode) => HVAC_COLORS[mode] || OFF_COLOR;
 // White is not legible on the light ones: dark text
 const HVAC_LIGHT = ['heat_cool', 'dry', 'fan_only'];
 const hvacStyle = (mode) => `background:${hvacColor(mode)};color:${HVAC_LIGHT.includes(mode) ? 'rgba(0,0,0,.87)' : '#fff'}`;
+// A dry slot and an auto slot in a week and in a legend: Home Assistant's orange and green are
+// close to the default colors of Comfort and Eco, so dots tell these slots from a preset's
+const HVAC_DOTTED = ['dry', 'auto'];
+const hvacSlotStyle = (mode) => (HVAC_DOTTED.includes(mode)
+  ? `${hvacStyle(mode)};background-image:radial-gradient(${HVAC_LIGHT.includes(mode) ? 'rgba(255,255,255,.7)' : 'rgba(0,0,0,.3)'} 1.3px, transparent 1.7px);background-size:6px 6px`
+  : hvacStyle(mode));
 // The name of an HVAC mode, short, for a button: "Heat", "Cool", "Dry"
 const MODE_LABELS = { off: 'hvacOff', heat: 'slotHeat', cool: 'slotCool', heat_cool: 'hvacHeatCool', dry: 'hvacDry', auto: 'hvacAuto', fan_only: 'hvacFan' };
 const modeName = (loc, mode) => (MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : loc.hvacMode(mode));
@@ -3434,7 +3440,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _legendOffHtml() {
     const has = (mode) => this._shown.some((climate) => this._week(climate).some((segs) => segs.some((s) => slotMode(s) === mode)));
     return NO_PRESET_MODES.filter(has).map((mode) => {
-      const swatch = mode === 'fan_only' ? '<i class="fan"></i>' : `<i style="background:${hvacColor(mode)}"></i>`;
+      const swatch = mode === 'fan_only' ? '<i class="fan"></i>' : `<i style="${hvacSlotStyle(mode)}"></i>`;
       return `<span class="legend-off${mode === 'fan_only' ? ' legend-fan' : ''}">${swatch}${hvacIcon(mode)}${esc(mode === 'off' ? this._loc.t('legendOff') : modeName(this._loc, mode))}</span>`;
     }).join('');
   }
@@ -3488,7 +3494,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         // An off slot is grey; a fan-only, a dry and an auto slot have Home Assistant's color of
         // their HVAC mode; a cooling slot its preset's cool color, a heat/cool slot both colors.
         // The title names the slot, its HVAC mode, and the fan and the vanes it sets
-        const background = off ? `background:${OFF_COLOR}` : fan ? '' : none ? hvacStyle(slotMode(s)) : `background:${slotColor(this._preset(s.preset), s)}`;
+        const background = off ? `background:${OFF_COLOR}` : fan ? '' : none ? hvacSlotStyle(slotMode(s)) : `background:${slotColor(this._preset(s.preset), s)}`;
         const mode = none || !slotMode(s) ? '' : modeName(this._loc, slotMode(s));
         const air = settingsText(this._hass, climate, this._loc, s.settings);
         const what = [this._slotLabel(s), mode, air].filter(Boolean).join(' · ');
@@ -5148,7 +5154,11 @@ class ChauffageProgrammeCard extends HTMLElement {
       // unknown: "?", unless the cooling one is the value. Only cooling, without a cooling
       // value: "—", the setpoint is left alone
       const heat = !heats ? '' : temp != null ? `${cool ? hvacIconHtml('heat') : ''}${this._loc.number(temp)}°` : cool ? '' : '?';
-      const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat || '—';
+      // Nothing to show: "—" when the preset has no value here, "?" when the temperature of
+      // the thermostat's own preset when cooling is not known yet
+      const coolUnknown = !heats && usable.includes('cool');
+      if (coolUnknown && !cool) unknown = true;
+      const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat || (coolUnknown ? '?' : '—');
       return { value: `${setpoint}${tuned}`, how, cls };
     };
     let body;
@@ -6094,6 +6104,7 @@ const STYLE = `
   .btn.capture { display:inline-flex; align-items:center; gap:6px; min-height:36px; }
   .btn.capture ha-icon { --mdc-icon-size:16px; width:16px; height:16px; }
   .pv-val .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-1px; margin-left:3px; }
+  .pv-default .m ha-icon { --mdc-icon-size:11px; width:11px; height:11px; vertical-align:-1px; }
   .override-label .m ha-icon, .override-value .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; }
   /* Read-only weeks (the access level): a slot opens nothing */
   .bar.ro .seg { cursor:default; }
@@ -6473,7 +6484,7 @@ class ChauffageMoreInfo extends HTMLElement {
       const time = big && end - s.start >= (this._loc.hour12 ? 120 : 90) ? this._loc.time(s.start) : '';
       const txt = big ? `<span>${time}${hvacIcon(slotMode(s))}</span>` : '';
       const what = slotName(s, presetsOf(dataSource(this._hass), this._loc), this._loc);
-      const background = off ? `background:${OFF_COLOR}` : fan ? '' : hasNoPreset(s) ? hvacStyle(slotMode(s)) : `background:${slotColor(this._preset(s.preset), s)}`;
+      const background = off ? `background:${OFF_COLOR}` : fan ? '' : hasNoPreset(s) ? hvacSlotStyle(slotMode(s)) : `background:${slotColor(this._preset(s.preset), s)}`;
       return `<div class="seg${off ? ' off' : ''}${fan ? ' fan' : ''}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;${background}" title="${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(what)}">${txt}</div>`;
     }).join('');
     let override = '';

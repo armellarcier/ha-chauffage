@@ -47,14 +47,17 @@ conditioner cools. The rooms cover **every kind of thermostat**:
 | cuisine | Home Assistant's **`generic_thermostat`**, without presets, declared in YAML. |
 | chambre d'amis | **Standard presets** (`eco`, `comfort`, `away`, `boost`, no `frost`), from the dev-only platform [`dev/sim_climate/`](dev/sim_climate/climate.py). A manual setpoint clears the preset. |
 | véranda | **Versatile Thermostat**, "over a climate", with **auto start/stop**. The climate under it, `climate.clim_veranda`, comes from `dev/sim_climate/` and is not scheduled. |
-| atelier | A **reversible air conditioner** from `dev/sim_climate/`: standard presets, `heat`, `cool` and `fan_only`, with `fan_modes`, `swing_modes` and `swing_horizontal_modes` (the values of #61). In `cool`, `input_boolean.clim_atelier` cools the room. |
+| atelier | A **reversible air conditioner** from `dev/sim_climate/`: standard presets, `heat`, `cool`, `auto` and `fan_only`, with `fan_modes`, `swing_modes` and `swing_horizontal_modes` (the values of #61). In `cool`, `input_boolean.clim_atelier` cools the room. |
 | mezzanine | **Versatile Thermostat**, "over a climate", in **AC mode**: `heat`, `cool` and `off`. In `cool`, its presets are at 27 / 25 / 23 °C (`eco`, `comfort`, `boost`). The climate under it, `climate.clim_mezzanine`, comes from `dev/sim_climate/` and is not scheduled. |
 | combles | A **cooling-only air conditioner** from `dev/sim_climate/`: `cool`, `fan_only` and `off`, with `fan_modes` and standard presets at cooling setpoints. The room has no heater. |
 | suite parentale | A **reversible Daikin**, simulated from what Home Assistant's `daikin` integration exposes: `heat`, `cool`, `heat_cool`, `dry` and `fan_only`, the presets `none`, `away`, `eco` and `boost`, with `fan_modes` and `swing_modes`. A preset does not change the setpoint. |
 
-The sample weeks of the mezzanine, the combles and the suite parentale show what a slot can
-choose: a slot that cools, a fan-only slot and an off slot. On the suite parentale, *Comfort*
-and *Eco* have a temperature when heating and another one when cooling.
+The sample weeks of the air conditioners show what a slot can choose. The suite parentale has
+a slot that cools, a heat/cool slot, a dry slot, a fan-only slot and an off slot. The atelier
+has an auto slot on the weekend.
+
+The simulated Daikin differs from the real one on one point. In `heat_cool`, it takes a range
+of temperatures, so that the development HA has a thermostat for heat/cool slots.
 
 Two Versatile Thermostats also watch a **window**, an `input_boolean` you turn on to open it:
 

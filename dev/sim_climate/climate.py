@@ -12,8 +12,8 @@ heater (input_boolean) and temperature sensor:
         sensor: sensor.temperature_amis
 
 With `cooler`, the climate is a reversible air conditioner (#61, #91): it heats, cools (the
-cooler, another input_boolean, read by dev/sim_rooms) or runs its fan only, and it lists fan and
-swing modes like a real one:
+cooler, another input_boolean, read by dev/sim_rooms), chooses by itself in auto, or runs its
+fan only, and it lists fan and swing modes like a real one:
 
       - platform: sim_climate
         name: Atelier
@@ -28,7 +28,10 @@ swing modes like a real one:
   is the device under a Versatile Thermostat "over a climate" in AC mode.
 - `cooling`: a cooling-only unit, without `heater`. It cools, runs its fan only or is off, with
   cooling presets and fan modes.
-- `daikin`: a reversible Daikin, as Home Assistant's `daikin` integration exposes it.
+- `daikin`: a reversible Daikin, as Home Assistant's `daikin` integration exposes it. One
+  difference, on purpose: in heat_cool it takes a range of temperatures (target_temp_low and
+  target_temp_high), which the real integration does not, so that the development HA has a
+  thermostat for heat/cool slots.
 """
 
 from __future__ import annotations
@@ -44,6 +47,7 @@ from homeassistant.components.climate import (
     HVACAction,
     HVACMode,
 )
+from homeassistant.components.climate.const import ATTR_TARGET_TEMP_HIGH, ATTR_TARGET_TEMP_LOW
 from homeassistant.const import ATTR_TEMPERATURE, CONF_NAME, CONF_UNIQUE_ID, UnitOfTemperature
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
@@ -54,7 +58,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 PRESETS = {"eco": 17.0, "comfort": 20.0, "away": 15.0, "boost": 22.0}
 HYSTERESIS = 0.3
 # What a reversible air conditioner lists (the values of issue #61)
-AC_HVAC_MODES = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.FAN_ONLY]
+AC_HVAC_MODES = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.AUTO, HVACMode.FAN_ONLY]
 AC_FAN_MODES = ["auto", "1", "2", "3", "4", "5"]
 AC_SWING_MODES = ["auto", "1_up", "2", "3", "4", "5_down", "swing"]
 AC_SWING_HORIZONTAL_MODES = ["auto", "1_left", "2", "3", "4", "5_right", "split", "swing"]
@@ -114,6 +118,8 @@ class SimClimate(ClimateEntity, RestoreEntity):
         self._attr_hvac_mode = HVACMode.HEAT
         self._attr_preset_mode = "eco"
         self._attr_target_temperature = PRESETS["eco"]
+        # The range of a unit that takes one in heat_cool (see SimDaikin)
+        self._low, self._high = 19.0, 25.0
         model = config.get("model")
         if model == "heat_cool":
             self._attr_hvac_modes = HEAT_COOL_HVAC_MODES
@@ -147,7 +153,9 @@ class SimClimate(ClimateEntity, RestoreEntity):
                 self._attr_hvac_mode = HVACMode(last.state)
             if self._attr_preset_modes:
                 self._attr_preset_mode = last.attributes.get("preset_mode")
-            self._attr_target_temperature = last.attributes.get(ATTR_TEMPERATURE, self._attr_target_temperature)
+            self._attr_target_temperature = last.attributes.get(ATTR_TEMPERATURE) or self._attr_target_temperature
+            self._low = last.attributes.get(ATTR_TARGET_TEMP_LOW) or self._low
+            self._high = last.attributes.get(ATTR_TARGET_TEMP_HIGH) or self._high
             for key in ("fan_mode", "swing_mode", "swing_horizontal_mode"):
                 if key in last.attributes and getattr(self, f"_attr_{key}s", None):
                     setattr(self, f"_attr_{key}", last.attributes[key])
@@ -169,24 +177,51 @@ class SimClimate(ClimateEntity, RestoreEntity):
 
     async def _control(self) -> None:
         """Simple thermostat: heater on below the setpoint, off above it. An air conditioner in
-        cool does the opposite with its cooler, and runs neither in fan only or dry. In
-        heat_cool (a Daikin's "auto"), it heats or cools to reach the setpoint."""
+        cool does the opposite with its cooler, and runs neither in fan only or dry. In auto
+        and in heat_cool, it heats or cools to reach the setpoint. With a range (heat_cool on a
+        unit that takes one), it heats under the low temperature and cools above the high one."""
         current, target = self._attr_current_temperature, self._attr_target_temperature
         if current is None or target is None:
             return
         mode = self._attr_hvac_mode
-        heats = mode in (HVACMode.HEAT, HVACMode.HEAT_COOL)
-        cools = mode in (HVACMode.COOL, HVACMode.HEAT_COOL)
+        low, high = (self._low, self._high) if self._ranged else (target, target)
+        heats = mode in (HVACMode.HEAT, HVACMode.HEAT_COOL, HVACMode.AUTO)
+        cools = mode in (HVACMode.COOL, HVACMode.HEAT_COOL, HVACMode.AUTO)
         if self._heater:
-            on = heats and current < target - HYSTERESIS
-            off = not heats or current > target + HYSTERESIS
+            on = heats and current < low - HYSTERESIS
+            off = not heats or current > low + HYSTERESIS
             if on or off:
                 await self._switch(self._heater, on)
         if self._cooler:
-            cool = cools and current > target + HYSTERESIS
-            stop = not cools or current < target - HYSTERESIS
+            cool = cools and current > high + HYSTERESIS
+            stop = not cools or current < high - HYSTERESIS
             if cool or stop:
                 await self._switch(self._cooler, cool)
+
+    @property
+    def _ranged(self) -> bool:
+        """In heat_cool, on a unit that takes a range: its setpoint is the range."""
+        return (self._attr_hvac_mode == HVACMode.HEAT_COOL
+                and bool(self._attr_supported_features & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE))
+
+    @property
+    def target_temperature(self) -> float | None:
+        return None if self._ranged else self._attr_target_temperature
+
+    @property
+    def target_temperature_low(self) -> float | None:
+        return self._low if self._ranged else None
+
+    @property
+    def target_temperature_high(self) -> float | None:
+        return self._high if self._ranged else None
+
+    def _take_range(self, kwargs: dict[str, Any]) -> bool:
+        """The range of climate.set_temperature, when it gives one."""
+        if kwargs.get(ATTR_TARGET_TEMP_LOW) is None or kwargs.get(ATTR_TARGET_TEMP_HIGH) is None:
+            return False
+        self._low, self._high = float(kwargs[ATTR_TARGET_TEMP_LOW]), float(kwargs[ATTR_TARGET_TEMP_HIGH])
+        return True
 
     async def _switch(self, entity_id: str, on: bool) -> None:
         if on:
@@ -205,7 +240,8 @@ class SimClimate(ClimateEntity, RestoreEntity):
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """A setpoint set by hand clears the preset (like many integrations)."""
-        self._attr_target_temperature = float(kwargs[ATTR_TEMPERATURE])
+        if not self._take_range(kwargs):
+            self._attr_target_temperature = float(kwargs[ATTR_TEMPERATURE])
         self._attr_preset_mode = None
         await self._control()
         self.async_write_ha_state()
@@ -233,7 +269,10 @@ class SimDaikin(SimClimate):
 
     A Daikin's presets are functions of the unit, not setpoints: away is its holiday mode, eco
     its "econo" mode and boost its "powerful" mode. A preset does not change the setpoint, and a
-    setpoint set by hand does not clear the preset."""
+    setpoint set by hand does not clear the preset.
+
+    Unlike the real one, it takes a range of temperatures in heat_cool (see the module's
+    docstring)."""
 
     _attr_hvac_modes = DAIKIN_HVAC_MODES
     _attr_preset_modes = DAIKIN_PRESET_MODES
@@ -241,6 +280,7 @@ class SimDaikin(SimClimate):
     _attr_swing_modes = DAIKIN_SWING_MODES
     _attr_supported_features = (
         ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.TARGET_TEMPERATURE_RANGE
         | ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.SWING_MODE
     )
     _attr_min_temp = 7.0
@@ -273,6 +313,7 @@ class SimDaikin(SimClimate):
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """The integration rounds the setpoint to half a degree, and keeps the preset."""
-        self._attr_target_temperature = round(float(kwargs[ATTR_TEMPERATURE]) * 2) / 2
+        if not self._take_range(kwargs):
+            self._attr_target_temperature = round(float(kwargs[ATTR_TEMPERATURE]) * 2) / 2
         await self._control()
         self.async_write_ha_state()
