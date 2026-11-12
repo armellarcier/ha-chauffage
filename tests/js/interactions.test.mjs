@@ -607,12 +607,12 @@ describe('the override popover in the card', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
 
-  test('the same editor as the more-info block: the end first, then the value, the durations, Resume the schedule', () => {
+  test('the same editor as the more-info block: the value, then the end and the durations, Resume the schedule', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });
     $(card, '.override[data-climate="climate.salon"]').click();
     const ed = $(card, '.override-ed');
-    const order = ['input.time[data-override-end]', '.presets', 'input[data-override-temperature]', '[data-act="override-add"]', '[data-act="override-del"]']
+    const order = ['.presets', 'input[data-override-temperature]', 'input.time[data-override-end]', '[data-act="override-add"]', '[data-act="override-del"]']
       .map((s) => ed.querySelector(s));
     for (let i = 1; i < order.length; i += 1) {
       assert.ok(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `${i}: in the block's order`);
@@ -671,7 +671,7 @@ describe('the override popover in the card', () => {
     const card = createCard(withTargets({ 'climate.salon': { ...override, target: { temperature: 20 }, preset: 'comfort' } }), { show: ['climate.salon'] });
     assert.match($(card, '.override[data-climate="climate.salon"]').title, /Confort/);
     $(card, '.override[data-climate="climate.salon"]').click();
-    assert.equal($(card, '.override-ed .override-value').textContent, 'Confort');
+    assert.equal($(card, '.override-ed .override-value').textContent, 'Confort 20°');
     assert.ok($(card, '.override-ed .presets [data-preset="comfort"]').classList.contains('on'));
   });
 

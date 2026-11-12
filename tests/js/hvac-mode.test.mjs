@@ -283,7 +283,7 @@ describe('the slot popover', () => {
     assert.equal($(card, '.editor [data-act="preset"][data-preset="comfort"]').style.background, rgb(PRESET_COLORS.comfort));
   });
 
-  test('Ventilation: no preset, no setpoint; the fan and the vanes stay under "Plus de réglages"', () => {
+  test('Ventilation: no preset, no setpoint; the fan in sight, the vanes under "Plus de réglages"', () => {
     const card = cardOf(setup(), { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 1);
     click(card, '.editor [data-act="slot-mode"][data-mode="fan_only"]');
@@ -291,12 +291,13 @@ describe('the slot popover', () => {
     assert.deepEqual(modes(card), ['Arrêt', 'Chauffe', 'Clim', 'Ventilation ✓']);
     assert.equal($(card, '.editor .presets'), null);
     assert.equal($(card, '.editor .slot-setpoint'), null);
-    assert.equal(text($(card, '.editor details.more summary')), 'Ventilateur 3 · Volets Oscillation');
+    assert.equal(text($(card, '.editor details.more summary')), 'Volets Oscillation');
+    assert.equal($(card, '.editor .more-rows.direct [data-slot-setting="fan_mode"]').value, '3');
     change($(card, '.editor [data-slot-setting="fan_mode"]'), '1');
     assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 - {"hvac_mode":"fan_only","fan_mode":"1","swing_mode":"swing"}');
-    // Chauffe tapped: the slot is on a preset again, and keeps its fan and its vanes
+    // Chauffe tapped: the slot is on its preset again, and keeps its fan and its vanes
     click(card, '.editor [data-act="slot-mode"][data-mode="heat"]');
-    assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 eco {"hvac_mode":"heat","fan_mode":"1","swing_mode":"swing"}');
+    assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 comfort {"hvac_mode":"heat","fan_mode":"1","swing_mode":"swing"}');
   });
 
   test('Arrêt turns the slot off: no preset, no fan, no vanes; a preset turns it back on', () => {
@@ -810,7 +811,7 @@ describe('the presets tab', () => {
     assert.equal($(card, '.cell-ed'), null);
   });
 
-  test('an air conditioner that heats and cools: "En chauffe" over the rows, "En clim" over a field of its own', async () => {
+  test('an air conditioner that heats and cools: "En chauffe" over its rows, "En clim" over the same rows', async () => {
     const hass = setup();
     const card = open(hass);
     cell(card, 'comfort', 'climate.atelier').click();
@@ -824,9 +825,9 @@ describe('the presets tab', () => {
     // And with a temperature when heating
     cell(card, 'comfort', 'climate.atelier').click();
     type(card, '[data-cell-temp]', '20');
-    click(card, '.cell-ed .pv-cool [data-act="cell-step"][data-delta="0.5"]'); // from the heating temperature
+    click(card, '.cell-ed .pv-cool [data-act="cell-step"][data-delta="0.5"]'); // an empty field starts from 25°, never from the heating temperature
     await card._action('cell-apply', {});
-    assert.deepEqual(lastCall(hass).mapping, { comfort: { temperature: 20, cool_temperature: 20.5 } });
+    assert.deepEqual(lastCall(hass).mapping, { comfort: { temperature: 20, cool_temperature: 25.5 } });
   });
 
   test('an empty cooling field says what the thermostat gets when cooling', () => {
@@ -836,10 +837,12 @@ describe('the presets tab', () => {
     assert.equal(text(note()), 'Par défaut (son préréglage Confort)');
     type(card, '[data-cell-temp]', '20'); // a temperature when heating: when cooling, the default goes on
     assert.equal(text(note()), 'Par défaut (son préréglage Confort)');
+    // A temperature typed when cooling chooses its row; the default stays in sight
+    const chosen = () => $(card, '.cell-ed input[name="cell-cool-choice"]:checked').value;
+    assert.equal(chosen(), 'default');
     type(card, '[data-cell-cool]', '25');
-    assert.equal(note().hidden, true);
-    type(card, '[data-cell-cool]', '');
-    assert.equal(note().hidden, false);
+    assert.equal(chosen(), 'temperature');
+    assert.equal(text(note()), 'Par défaut (son préréglage Confort)');
     cell(card, 'frost', 'climate.atelier').click(); // frost protection has no temperature when cooling
     assert.equal(text(note()), 'Pas utilisé en clim');
     // A thermostat without a preset of its own: the preset's temperature when cooling
@@ -848,7 +851,7 @@ describe('the presets tab', () => {
     assert.equal(text(note()), 'Par défaut (25°)');
   });
 
-  test('a cooling setpoint stored shows in its field and in the cell; emptied, it is dropped', async () => {
+  test('a cooling setpoint stored shows in its field and in the cell; with the default chosen, it is dropped', async () => {
     const hass = setup();
     hass.data.mappings = { 'climate.atelier': { comfort: { temperature: 20, cool_temperature: 25 } } };
     hass.data.targets['climate.atelier'].comfort = { temperature: 20, cool_temperature: 25 };
@@ -858,8 +861,8 @@ describe('the presets tab', () => {
     assert.deepEqual([...shown.querySelectorAll('.pv-val ha-icon')].map((i) => i.getAttribute('icon')), ['mdi:fire', 'mdi:snowflake']);
     shown.click();
     assert.equal($(card, '.cell-ed [data-cell-cool]').value, '25');
-    assert.equal($(card, '.cell-ed .pv-cooldefault').hidden, true);
-    type(card, '[data-cell-cool]', '');
+    assert.equal($(card, '.cell-ed input[name="cell-cool-choice"]:checked').value, 'temperature');
+    click(card, '.cell-ed input[name="cell-cool-choice"][value="default"]');
     await card._action('cell-apply', {});
     assert.deepEqual(lastCall(hass).mapping, { comfort: { temperature: 20 } });
   });

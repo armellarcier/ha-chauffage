@@ -201,10 +201,12 @@ describe('editing a day', () => {
     assert.deepEqual(day(card, 'climate.salon', 0).slice(0, 3), ['00:00 eco', '08:15 comfort', '08:30 eco']);
   });
 
-  test('changing a slot preset merges it with identical neighbors', () => {
+  test('changing a slot preset merges it with identical neighbors, once its popover is closed', () => {
     const card = createCard(fakeHass());
     card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
     card._action('preset', { preset: 'eco' });
+    assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '06:30 eco', '08:30 eco', '17:30 comfort', '22:30 eco']);
+    card._action('close', {});
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '17:30 comfort', '22:30 eco']);
   });
 });

@@ -230,7 +230,7 @@ describe('the override block of an air conditioner says heat or cool', () => {
   const span = { start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
   const boost = { target: { preset_mode: 'boost' }, preset: 'boost', ...span };
   const planned = (mode) => ({ [ATELIER]: { preset: 'comfort', hvac_mode: mode }, [COMBLES]: { preset: 'eco', hvac_mode: 'cool' }, [SALON]: { preset: 'eco', hvac_mode: null } });
-  const row = (card) => $$(card, '.override-ed .mode-row [data-mode="heat"], .override-ed .mode-row [data-mode="cool"]').map((b) => `${text(b)}${b.getAttribute('aria-pressed') === 'true' ? ' ✓' : ''}`);
+  const row = (card) => $$(card, '.override-ed .mode-row [data-mode="heat"], .override-ed .mode-row [data-mode="cool"]').map((b) => `${text(b)}${b.getAttribute('aria-pressed') === 'true' || b.classList.contains('default') ? ' ✓' : ''}`); // chosen, or the default of a new override
   const sent = (hass) => hass.events.at(-1).override;
   const open = (card, climate) => { card._action('override-new', { climate }); };
   const change = (el, value) => { el.value = value; el.dispatchEvent(new window.Event('change', { bubbles: true })); };

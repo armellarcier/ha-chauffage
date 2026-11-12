@@ -244,7 +244,7 @@ describe('more-info block', () => {
 
   test('an override set to a preset shows that preset, on a thermostat without presets', () => {
     const el = block(withTargets({ 'climate.salon': { ...override, target: { temperature: 20 }, preset: 'comfort' } }), 'climate.salon');
-    assert.equal(el.shadowRoot.querySelector('.override-value').textContent, '⏱ Confort');
+    assert.equal(el.shadowRoot.querySelector('.override-value').textContent, '⏱ Confort 20°');
     assert.ok(el.shadowRoot.querySelector('.presets [data-preset="comfort"]').classList.contains('on'));
   });
 

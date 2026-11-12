@@ -167,8 +167,9 @@ describe('the presets table', () => {
     const card = presetsTab(setup());
     cell(card, 'frost', COMBLES).click();
     assert.equal($(card, '.cell-ed [data-cell-temp]'), null);
-    assert.equal($(card, '.cell-ed .pv-choices'), null);
-    assert.ok($(card, '.cell-ed [data-cell-cool]'));
+    // One question: the default, or a temperature when cooling
+    assert.deepEqual($$(card, '.cell-ed input[name="cell-choice"]').map((r) => `${r.value}${r.checked ? ' ✓' : ''}`), ['default ✓', 'cool']);
+    assert.ok($(card, '.cell-ed .pv-cool [data-cell-cool]'));
     assert.match(text($(card, '.cell-ed')), /Pas utilisé en clim/);
     assert.doesNotMatch(text($(card, '.cell-ed')), /En chauffe/);
   });
@@ -180,7 +181,7 @@ describe('the presets table', () => {
     const field = $(card, '.cell-ed [data-cell-cool]');
     field.value = '28';
     field.dispatchEvent(new window.Event('input', { bubbles: true }));
-    assert.equal($(card, '.cell-ed .pv-cooldefault').hidden, true);
+    assert.equal($(card, '.cell-ed input[name="cell-choice"]:checked').value, 'cool', 'typing a temperature chooses its row');
     await card._action('cell-apply', {});
     assert.deepEqual(hass.events.at(-1).mapping, { comfort: { cool_temperature: 26 }, frost: { cool_temperature: 28 } });
   });
@@ -189,11 +190,13 @@ describe('the presets table', () => {
     const card = presetsTab(setup());
     cell(card, 'eco', ATELIER).click();
     assert.equal(text($(card, '.cell-ed .pv-cooldefault')), 'Par défaut (son préréglage Éco, 27°)');
-    assert.equal($(card, '.cell-ed .pv-cooldefault').hidden, false);
+    const chosen = () => $(card, '.cell-ed input[name="cell-cool-choice"]:checked').value;
+    assert.equal(chosen(), 'default');
     const field = $(card, '.cell-ed [data-cell-cool]');
+    assert.equal(field.value, '27', 'the field opens on what the default gives');
     field.value = '26';
     field.dispatchEvent(new window.Event('input', { bubbles: true }));
-    assert.equal($(card, '.cell-ed .pv-cooldefault').hidden, true);
+    assert.equal(chosen(), 'temperature');
   });
 
   test('tapping a cell keeps the table where it was scrolled', () => {

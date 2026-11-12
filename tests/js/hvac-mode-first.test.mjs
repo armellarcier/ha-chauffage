@@ -100,7 +100,7 @@ describe('the slot popover says the HVAC mode first, then the presets', () => {
     assert.deepEqual(modeRow(card).filter((m) => m.endsWith('✓')), ['Déshum. ✓']);
     assert.equal($(card, '.editor .presets'), null);
     assert.equal($(card, '.editor .slot-setpoint'), null);
-    assert.ok($(card, '.editor details.more [data-slot-setting="fan_mode"]'));
+    assert.ok($(card, '.editor [data-slot-setting="fan_mode"]'));
     mode(card, 'auto');
     assert.equal(day(card, SUITE)[1], '14:00 - {"hvac_mode":"auto"}');
     // Back to a preset: one that keeps the slot apart from the slots around it (eco, frost)
@@ -156,11 +156,11 @@ describe('the slot popover says the HVAC mode first, then the presets', () => {
 describe('the week and the legend', () => {
   const DAYS = ['00:00 eco', ['08:00', null, { hvac_mode: 'dry' }], ['12:00', 'comfort', { hvac_mode: 'heat_cool' }], ['18:00', null, { hvac_mode: 'auto' }]];
 
-  test('a dry slot and an auto slot have Home Assistant\'s color and icon, with dots: not a preset\'s slot', () => {
+  test('a dry slot and an auto slot have Home Assistant\'s color and icon, hatched: not a preset\'s slot', () => {
     const card = cardOf(setup({ suite: DAYS }));
-    assert.match(seg(card, SUITE, 1).getAttribute('style'), /--state-climate-dry-color.*radial-gradient/);
-    assert.doesNotMatch(seg(card, SUITE, 2).getAttribute('style'), /radial-gradient/);
-    assert.match($(card, '.legend .legend-off i').getAttribute('style'), /--state-climate-dry-color.*radial-gradient/);
+    assert.match(seg(card, SUITE, 1).getAttribute('style'), /repeating-linear-gradient.*--state-climate-dry-color/);
+    assert.doesNotMatch(seg(card, SUITE, 2).getAttribute('style'), /repeating-linear-gradient/);
+    assert.match($(card, '.legend .legend-off i').getAttribute('style'), /repeating-linear-gradient.*--state-climate-dry-color/);
     assert.deepEqual(icons(seg(card, SUITE, 1)), ['mdi:water-percent']);
     assert.match(seg(card, SUITE, 1).getAttribute('aria-label'), /Déshum\.$/);
     assert.match(seg(card, SUITE, 3).getAttribute('style'), /--state-climate-auto-color/);
@@ -198,7 +198,9 @@ describe('an override has the same two rows', () => {
 
   test('a new override starts on the HVAC mode planned, with the presets it can use', () => {
     const card = open(setup({ planned: { [SUITE]: { preset: 'comfort', hvac_mode: 'cool' } } }));
-    assert.deepEqual(modeRow(card, '.override-ed'), ['Arrêt', 'Chauffe', 'Clim ✓', 'Chauffe/Clim', 'Déshum.', 'Auto', 'Ventilation']);
+    // Nothing is chosen yet: Cool, the HVAC mode planned, is the default
+    assert.deepEqual(modeRow(card, '.override-ed'), ['Arrêt', 'Chauffe', 'Clim', 'Chauffe/Clim', 'Déshum.', 'Auto', 'Ventilation']);
+    assert.equal($(card, '.override-ed .mode-row .default').dataset.mode, 'cool');
     assert.deepEqual(presetRow(card, '.override-ed'), ['Éco', 'Confort', 'Boost']);
   });
 
@@ -237,7 +239,7 @@ describe('an override has the same two rows', () => {
     const card = cardOf(setup({ overrides, planned: PLANNED }));
     card._overrideSel = { climate: SUITE };
     card._render();
-    assert.equal(text($(card, '.override-ed .override-value')), '19–24,5 °C');
+    assert.equal(text($(card, '.override-ed .override-value')), 'Chauffe/Clim · 19–24,5 °C');
     assert.equal($(card, '.override-ed [data-override-temperature]'), null);
   });
 
@@ -322,11 +324,12 @@ describe('the presets tab sets a temperature when heating and one when cooling',
     const saved = () => Object.fromEntries(hass.events.at(-1).presets.map((p) => [p.id, p]));
     assert.equal(saved().comfort.cool_temperature, 26.5);
     assert.equal(saved().frost.cool_temperature, undefined);
-    click(card, '[data-kind="preset"][data-preset="eco"]');
+    // Boost is in no week: its temperature when cooling can be cleared
+    click(card, '[data-kind="preset"][data-preset="boost"]');
     $(card, '.cell-ed [data-cell-cool]').value = '';
     await card._action('cell-apply', {});
-    assert.equal('cool_temperature' in saved().eco, false);
-    assert.equal(saved().eco.temperature, 17);
+    assert.equal('cool_temperature' in saved().boost, false);
+    assert.equal(saved().boost.temperature, 21);
   });
 
   test('the preset popover clears the heating temperature', async () => {
