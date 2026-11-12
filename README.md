@@ -209,9 +209,10 @@ A **schedule** is a weekly plan, for example *Normal* or *Holidays*. A schedule 
 for each thermostat. A week is made of **slots**, and each slot asks for a **preset**, for
 example *Comfort* or *Eco*. The [glossary](docs/glossary.md) defines these words.
 
-**Who decides what.** A slot says when, and what the room gets: *Off*, *Fan only*, or a preset.
-On an air conditioner, the slot also chooses the HVAC mode, *Heat* or *Cool*. The preset says
-how warm, for each thermostat, when it heats and when it cools.
+**Who decides what.** A slot says when, and what the device does: its HVAC mode. On a heater,
+that is *Off* or a preset. On an air conditioner, that is *Off*, *Heat*, *Cool*, *Heat/Cool*,
+*Dry*, *Auto* or *Fan only*. The preset says how warm, for each thermostat, when it heats and
+when it cools.
 
 ### Create a schedule
 
@@ -224,8 +225,9 @@ you rename the schedule. Use the stable id in your automations.
 
 ### Turn a thermostat off from a slot
 
-A slot is a preset, or *Off*. Open the slot, then tap **Off**, the first chip of the row of
-presets. The slot turns grey, named *Off*. Tap a preset to let the thermostat run again.
+Open the slot, then tap **Off**. On a heater, *Off* is the first chip of the row of presets.
+On an air conditioner, *Off* is the first HVAC mode. The slot turns grey, named *Off*. Tap a
+preset, or another HVAC mode, to let the thermostat run again.
 
 The thermostat turns off when the slot starts. Chauffage sends it nothing else: if you turn the
 thermostat on by hand, it starts again on its own last setpoint. The next slot that asks for a
@@ -238,16 +240,25 @@ of the next day. To keep a room off through the night, turn off both.
 thermostat, with its number: "Setpoint: 20 °C (its *Comfort* preset)". An administrator taps
 the line to open the *Presets* tab.
 
-### Heat or cool: the air conditioners
+### The HVAC mode first: the air conditioners
 
-On an air conditioner that heats and cools, every slot on a preset says **Heat** or **Cool**.
-Open the slot: the *Heat · Cool* row is under the presets, and one of the two is always chosen.
-The air conditioner switches to this HVAC mode when the slot starts.
+On a thermostat that lists more than one HVAC mode besides off, the slot popover has two rows.
 
-- **A new slot** takes the HVAC mode of the slot it comes from. A slot added in an *Off* slot or
-  in a *Fan only* slot takes the HVAC mode of the slot before it.
-- **An air conditioner that only cools** has no such row: its slots always cool.
-- **A heater** has no such row either: its slots carry no HVAC mode.
+**1. What the device does.** The first row lists the HVAC modes of the thermostat, among *Off ·
+Heat · Cool · Heat/Cool · Dry · Auto · Fan only*. Each one has Home Assistant's icon, and the
+chosen one has Home Assistant's color. The thermostat switches to this HVAC mode when the slot
+starts.
+
+**2. How warm.** The second row lists the presets that have a value for the HVAC mode chosen.
+For example, *Frost protection* has no temperature when cooling: *Cool* does not offer it.
+*Off*, *Dry*, *Auto* and *Fan only* have no preset and no setpoint.
+
+- **Heat/Cool** sends two temperatures: the preset's temperature when heating and its
+  temperature when cooling. The popover says "Setpoint: 20–25 °C". Chauffage offers *Heat/Cool*
+  on a thermostat that takes a range of temperatures.
+- **A new slot** takes the HVAC mode of the slot it comes from.
+- **An air conditioner that only cools** has *Cool* chosen: its slots always cool.
+- **A heater** has one row: *Off*, then the presets. Its slots carry no HVAC mode.
 - **A whole week.** Open the ⋮ menu of a day of the thermostat, then tap *All heat* or *All
   cool*. Every slot of the thermostat's week, in the schedule shown, takes this HVAC mode.
   *Save* keeps the change. In the Chauffage panel, the ⋮ menu of a week has the same items.
@@ -260,24 +271,25 @@ only cools. The week shows them so.
 with a snowflake, and a slot that heats in its heat color, with a flame. Chauffage derives the
 cool color from the preset's color, and you can change it in the *Presets* tab. The legend
 shows both colors, each with its mark, then the two values of the preset on the thermostat
-shown: "Comfort 20° · ❄ 24°".
+shown: "Comfort 20° · ❄ 24°". A *Heat/Cool* slot shows both colors of its preset. The legend
+lists only the presets and the colors that the thermostats shown can use.
 
-**How warm when cooling.** On an air conditioner that heats and cools, each preset has a value
-*when heating* and a temperature *when cooling* (see
-[Presets](#what-a-preset-does-on-each-thermostat)). The slot's HVAC mode picks which one
-Chauffage sends. Without a temperature when cooling, Chauffage sends the thermostat's own
-preset when the preset uses one. Chauffage never sends a heating temperature to an air
-conditioner that cools, one that only cools included: the slot then says "Setpoint unchanged".
+**How warm when cooling.** Each preset has a temperature *when heating* and a temperature
+*when cooling* (see [Presets](#what-a-preset-does-on-each-thermostat)). The slot's HVAC mode
+picks which one Chauffage sends. Chauffage never sends a heating temperature to an air
+conditioner that cools, one that only cools included.
 
 **Summer and winter.** Create a *Summer* schedule whose slots say *Cool*, as a copy of your
 *Winter* schedule. To change season, activate the other schedule: by hand, from an automation,
 or with an [activation rule](#activation-rules).
 
-### Fan only
+### Fan only, dry and auto
 
-On a thermostat that has a fan-only HVAC mode, the row of presets starts with **Off**, then
-**Fan only**. A fan-only slot runs the fan without heating or cooling. It has no preset and no
-setpoint. The week shows it in Home Assistant's color of fan only, with a fan.
+On a thermostat that lists them, **Fan only**, **Dry** and **Auto** are HVAC modes of the first
+row. A fan-only slot runs the fan without heating or cooling. A dry slot dehumidifies. An auto
+slot lets the device choose. These slots have no preset and no setpoint. The week shows each
+one in Home Assistant's color of its HVAC mode, with its icon. A dry slot and an auto slot have
+dots, so that you can tell them from a *Comfort* slot or an *Eco* slot.
 
 **Fan and vanes.** On an air conditioner, *More settings* holds the fan speed and the vanes,
 one list per setting the thermostat lists. *Don't change* leaves the setting to the preset's
@@ -403,19 +415,30 @@ an online calendar only syncs at that pace.
 ## Presets
 
 Slots ask for presets. Chauffage comes with four presets: *Comfort* 20 °C, *Eco* 17 °C,
-*Boost* 21 °C and *Frost protection* 7 °C.
+*Boost* 22 °C and *Frost protection* 7 °C.
 
 ### What a preset does on each thermostat
 
-If the thermostat has its own preset with the same name, Chauffage uses that preset. Otherwise,
-Chauffage sets the preset's temperature. You can change this for each thermostat: a preset's
-value on a thermostat is one of the thermostat's own presets, or a temperature.
+**A preset has two temperatures**: one *when heating* and one *when cooling*. Either can be
+empty. A new installation has these presets:
 
-**An air conditioner that heats and cools** has two values for each preset: one *when heating*,
-and a temperature *when cooling*. For example, *Comfort* is 20 °C when it heats and 25 °C when
-it cools. The slot's HVAC mode picks which one Chauffage sends. Without a temperature when
-cooling, Chauffage sends the thermostat's own preset, which the thermostat reads for the HVAC
-mode it runs in. A temperature *when heating* is never sent to an air conditioner that cools.
+| Preset | When heating | When cooling |
+|---|---|---|
+| *Frost protection* | 7 °C | none |
+| *Eco* | 17 °C | 27 °C |
+| *Comfort* | 20 °C | 25 °C |
+| *Boost* | 22 °C | 23 °C |
+
+**On each thermostat.** If the thermostat has its own preset with the same name, Chauffage
+uses that preset. Otherwise, Chauffage sets the preset's temperature. You can change this for
+each thermostat: the value when heating is one of the thermostat's own presets, or a
+temperature, and the value when cooling is a temperature.
+
+**A preset is offered where it has a value.** A thermostat can use a preset in *Heat* when the
+preset has a value when heating, and in *Cool* when it has a value when cooling. *Heat/Cool*
+needs both temperatures. *Frost protection* has no temperature when cooling: an air
+conditioner never cools on it. A temperature *when heating* is never sent to an air
+conditioner that cools.
 
 A preset's value can also set the fan and the vanes of an air conditioner.
 
@@ -430,16 +453,17 @@ table has a column for each preset, from the coldest to the warmest, and a row f
 thermostat. A thermostat's page in the panel shows its presets side by side, without the table.
 
 - **A column header** opens the preset: its name, its color and its default temperature. With
-  an air conditioner, the preset has a *Color when heating* and a *Color when cooling*, for its
-  slots that cool. Chauffage derives the second one from the first until you choose one. You can also delete the
+  an air conditioner, the preset has a temperature *when heating* and a temperature *when
+  cooling*: empty a field to remove one. It also has a *Color when heating* and a *Color when
+  cooling*, for its slots that cool. Chauffage derives the second one from the first until you choose one. You can also delete the
   preset from there. To add a preset, click *+ Add a preset* under the table.
 - **A cell** opens what the preset does on this thermostat. The cell says where its temperature
   comes from, for example "its *Comfort* preset", "set here" or "default". The popover asks one
   question, with three answers: *Default*, *Its preset* (one of the thermostat's own presets)
   or *Temperature*. On an air conditioner that heats and cools, these answers are the value
   *when heating*, and one more field holds the temperature *when cooling*. Left empty, the
-  field says what the thermostat's own preset gives when cooling, when Chauffage knows it:
-  "Default (its *Comfort* preset, 25°)". An air conditioner that only cools has the field *when
+  field says what the thermostat then gets: "Default (25°)", "Default (its *Comfort* preset,
+  25°)" or "Not used when cooling". An air conditioner that only cools has the field *when
   cooling* alone. *More settings* holds
   the fan and the vanes. *Copy from the thermostat* fills the fields from the thermostat as it
   is now: its setpoint, its fan and its vanes, never its preset. You tap *OK* to keep them. The
@@ -527,10 +551,9 @@ slot)*: it may also shorten the override.
   temperature, and an end. Every user can, not only administrators, as with the knob.
   A new override lasts the override duration; *Off* lasts until the next slot, or as the setting
   *Turned off* says. Then you can change its end.
-  On an air conditioner that heats and cools, the block has the *Heat · Cool* row of a slot. A
-  new override starts in the HVAC mode of the slot planned now.
+  On an air conditioner, the block has the two rows of a slot: the HVAC mode, then the
+  presets. A new override starts in the HVAC mode of the slot planned now.
   To turn a thermostat off until the morning, tap *Off*, then *Until tomorrow 06:30*.
-  On a thermostat that has a fan-only HVAC mode, *Fan only* is the second chip.
   On a thermostat card, the override shows with its end and *Resume the schedule*. *Change*
   unfolds the rest.
 - **From an automation**, with the `chauffage.set_override` action.
@@ -575,6 +598,8 @@ conditioner that cooled in July restarts in cool.
 slot that heats, and Chauffage makes it an override. The override keeps the preset in force:
 the preset of the slot, or the one of the override the thermostat already had. Chauffage sends
 its value when cooling, so the temperature *when cooling* that you set for the preset applies.
+*Heat/Cool* chosen by hand keeps the preset too, with its two temperatures. *Dry* or *Auto*
+chosen by hand is an override to that HVAC mode: Chauffage sends nothing else.
 
 **A Versatile Thermostat that turns itself off.** A Versatile Thermostat turns itself off for an
 open window, or with its auto start/stop. Chauffage reads what the thermostat was asked
@@ -639,7 +664,7 @@ thermostat's page in the Chauffage panel.
 | Entity | What it says |
 |---|---|
 | **Control** (switch) | Off while the thermostat is **paused**. |
-| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `hvac_mode` (the slot's HVAC mode: `off`, `fan_only`, or `heat` or `cool` when the thermostat lists it, else empty; the state is unknown during an off slot or a fan-only slot, which have no preset), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat: its temperature when cooling during a slot that cools). |
+| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `hvac_mode` (the slot's HVAC mode: `off`, `fan_only`, `dry` or `auto`, or `heat`, `cool` or `heat_cool` on an air conditioner, else empty; the state is unknown during a slot without a preset), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat: its temperature when cooling during a slot that cools). |
 | **Override** (binary sensor) | On while the thermostat has an override. Attributes: `target` (what the thermostat is set to, for example `{"temperature": 21.5}` or `{"preset_mode": "boost"}`), `preset` (the Chauffage preset asked for, if any), `end`, and `kind` and `value` as before 0.10. |
 | **Override end** (sensor, disabled by default) | The end of the current override as a timestamp, for a dashboard tile. |
 
@@ -668,7 +693,7 @@ not exposed. To expose an entity or not, go to Settings → Voice assistants →
 
 | Action | What it does |
 |---|---|
-| `chauffage.set_override` | Sets an override on a thermostat: a temperature or a preset, for a duration or until a time. A preset means the same as in the card. `hvac_mode`: `off` to turn the thermostat off, or an HVAC mode to turn it on in. `hvac_mode: off` without a duration or a time lasts as the setting *Turned off* says. The action refuses what contradicts itself, with a message that says why: `off` or `fan_only` with a temperature or a preset, an HVAC mode the thermostat does not list, a duration and a time together. |
+| `chauffage.set_override` | Sets an override on a thermostat: a temperature or a preset, for a duration or until a time. A preset means the same as in the card. `hvac_mode`: `off` to turn the thermostat off, or an HVAC mode to turn it on in. `dry`, `auto` and `fan_only` go alone. `heat_cool` takes a preset, or `target_temp_low` and `target_temp_high`. `hvac_mode: off` without a duration or a time lasts as the setting *Turned off* says. The action refuses what contradicts itself, with a message that says why. For example: `off` or `dry` with a temperature, a preset that has no value in that HVAC mode, an HVAC mode the thermostat does not list, a duration and a time together. |
 | `chauffage.clear_override` | Ends the override: the thermostat goes back to its schedule now. |
 | `chauffage.activate_schedule` | Activates a schedule, by its stable id. |
 | `chauffage.get_schedules` | Returns the schedules (`id`, `name` and `entity_id` of their switch), `active_schedule`, `rules_choice` and `default_schedule`. |
@@ -676,8 +701,8 @@ not exposed. To expose an entity or not, go to Settings → Voice assistants →
 
 `chauffage.get_week` returns one entry for each thermostat, in the format of Home Assistant's
 `schedule.get_schedule`: `schedule`, then a list for each day (`monday`…), and each slot with its `start`, its
-`end` and its `preset`. A slot also has its `hvac_mode` as it runs on the thermostat: `heat` or
-`cool` on an air conditioner, `off` or `fan_only`, and none on a heater. An off slot and a fan-only slot have no preset: `preset` is empty. For example, to send tomorrow's comfort time:
+`end` and its `preset`. A slot also has its `hvac_mode` as it runs on the thermostat: `heat`,
+`cool` or `heat_cool` on an air conditioner, `off`, `fan_only`, `dry` or `auto`, and none on a heater. A slot that is off, fan only, dry or auto has no preset: `preset` is empty. For example, to send tomorrow's comfort time:
 
 ```yaml
 - action: chauffage.get_week
