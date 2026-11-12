@@ -41,9 +41,11 @@ COOLING = {"preset": "comfort", "state": "cool", "hvac_modes": AC_MODES}
 
 
 async def without_cooling(bench: Bench, preset_id: str) -> None:
-    """The preset has no temperature when cooling."""
-    await bench.runtime.set_presets([{**p, "cool_temperature": None} if p["id"] == preset_id else p
-                                     for p in bench.runtime.data["presets"]])
+    """The preset has no temperature when cooling: a preset the user created before #91, whose
+    weeks cool. Chauffage now refuses to clear a temperature that the weeks use."""
+    bench.runtime.data["presets"] = [{k: v for k, v in p.items() if k != "cool_temperature"} if p["id"] == preset_id else p
+                                     for p in bench.runtime.data["presets"]]
+    await bench.runtime.apply(force=True)
     await bench.hass.async_block_till_done()
     bench.applied()
     bench.temperature_calls.clear()

@@ -766,6 +766,8 @@ class ChauffageRuntime:
             new_presets.append(normalized)
         if not new_presets:
             raise model.InvalidData("at least one preset is needed")
+        for preset in new_presets:
+            self._refuse_lost_temperature(preset)
         removed = self.preset_ids - taken
         replacements = replacements or {}
         used = set(model.used_presets(self.weeks))
@@ -788,6 +790,30 @@ class ChauffageRuntime:
         self.data["presets"] = new_presets
         self._changed()
         await self.apply(force=True, reason="presets changed")
+
+    def _refuse_lost_temperature(self, preset: dict[str, Any]) -> None:
+        """Refuses a preset that loses its temperature when heating or when cooling while a
+        week uses the preset in that HVAC mode: the slot would have nothing to send. As for a
+        preset removed while the weeks use it. A thermostat with a value of its own for the
+        preset, in that HVAC mode, does not need the preset's temperature."""
+        old = self.presets_by_id.get(preset["id"])
+        if old is None:
+            return
+        own = {"heat": ("preset_mode", "temperature"), "cool": ("preset_mode", "cool_temperature")}
+        for mode, key in (("heat", "temperature"), ("cool", "cool_temperature")):
+            if old.get(key) is None or preset.get(key) is not None:
+                continue
+            for entity_id, by_schedule in self.weeks.items():
+                cell = self.mappings.get(entity_id, {}).get(preset["id"]) or {}
+                if any(k in cell for k in own[mode]):
+                    continue
+                current = self.current(self.hass.states.get(entity_id))
+                modes = {engine.slot_hvac_mode(slot[2] if len(slot) > 2 else {}, current) or "heat"
+                         for week in by_schedule.values() for day in week for slot in day if slot[1] == preset["id"]}
+                if mode in modes or engine.HEAT_COOL in modes:
+                    raise model.InvalidData(
+                        f"{preset['id']} is used in the weeks when {'heating' if mode == 'heat' else 'cooling'}: "
+                        "it needs a temperature there")
 
     async def set_mapping(self, entity_id: str, mapping: Any) -> None:
         """Mapping set by hand for one thermostat ({} = defaults only)."""
@@ -1099,6 +1125,9 @@ class ChauffageRuntime:
         shown = dataclasses.replace(current, state=hvac_mode or current.state) if current else None
         attributes = {key: value for key, value in target.items()
                       if key != "hvac_mode" and (shown is None or not engine.satisfied({key: value}, shown))}
+        if any(key in attributes for key in engine.RANGE_KEYS):
+            # climate.set_temperature takes the two ends of a range together, or refuses the call
+            attributes |= {key: target[key] for key in engine.RANGE_KEYS if key in target}
         if hvac_mode is None and not attributes:
             _LOGGER.debug("%s: %s already shown, nothing sent (%s)", entity_id, _describe(target), why)
             return True

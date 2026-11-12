@@ -6,7 +6,9 @@ chauffage.set_override       sets a thermostat's temperature or preset, and its 
                              (target_temp_low and target_temp_high); refused when it contradicts
                              itself (off, fan only, dry or auto with a setpoint, a preset that
                              has no value in that HVAC mode, an HVAC mode the thermostat does
-                             not list, a duration with an end); off alone, without an end, lasts
+                             not list, heat_cool on a thermostat that takes no range, a single
+                             temperature while it runs heat_cool on a range, a duration with an
+                             end); off alone, without an end, lasts
                              as the setting *Turned off* says
 chauffage.clear_override     ends it now: the thermostat resumes its schedule
 chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
@@ -115,6 +117,10 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
     current = runtime.current(state)
     if mode == engine.HEAT_COOL and current is not None and not current.supports_range:
         refuse("no_range")
+    # A single temperature, while the thermostat runs heat/cool on a range: it would refuse it
+    if (mode is None and "temperature" in data and current is not None and current.supports_range
+            and current.state == engine.HEAT_COOL):
+        refuse("temperature_in_heat_cool")
     # A Chauffage preset that has no value in that HVAC mode: frost protection when cooling
     meaning = runtime.targets_of(entity_id).get(data.get("preset"))
     if meaning is not None and mode in engine.SETPOINT_MODES and mode not in engine.offered_modes(meaning):

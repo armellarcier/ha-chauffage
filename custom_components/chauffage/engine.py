@@ -204,9 +204,11 @@ def on_mode(thermostat: Thermostat) -> str | None:
 
 def needs_turning_on(target: Target, thermostat: Thermostat) -> bool:
     """A target without an HVAC mode, on a thermostat that cannot follow it as it is: off, or in
-    fan only or dry while the target holds a setpoint (they take none). Not when the thermostat
-    has no HVAC mode to be turned on in."""
-    if thermostat.state != OFF and not any(key in target for key in (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)):
+    fan only or dry, while the target holds a setpoint (fan only and dry take none). A target
+    without a setpoint turns nothing on: the slot of a preset that has no value on this
+    thermostat has nothing to send. Not when the thermostat has no HVAC mode to be turned on
+    in."""
+    if not any(key in target for key in (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)):
         return False
     return thermostat.state in IDLE and on_mode(thermostat) not in (None, thermostat.state)
 
@@ -223,7 +225,9 @@ def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> T
     heat/cool, its range does. Without a value for that HVAC mode, no setpoint is sent: a
     heating temperature is never sent in cool (never 7 °C to an air conditioner, one that only
     cools included). A setpoint the user chose (`by_user`: an override without a Chauffage
-    preset) is their target in any HVAC mode: sent (docs/decisions.md, "Presets")."""
+    preset) is their target in any HVAC mode: sent (docs/decisions.md, "Presets"). Not in
+    heat/cool on a thermostat that takes a range there: it would refuse a single temperature,
+    and the command would be sent again every minute."""
     if target.get("hvac_mode") == OFF:
         return {"hvac_mode": OFF}
     out = {key: value for key, value in target.items() if key not in (*COOL_KEYS, *RANGE_KEYS)}
@@ -238,7 +242,8 @@ def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> T
             value = {"preset_mode": target["cool_preset_mode"]}
     elif mode == HEAT_COOL and all(key in target for key in RANGE_KEYS):
         value = {key: target[key] for key in RANGE_KEYS}
-    if mode in ("cool", HEAT_COOL) and (value is not None or not by_user):
+    ranged = mode == HEAT_COOL and thermostat.supports_range
+    if mode in ("cool", HEAT_COOL) and (value is not None or not by_user or ranged):
         out = {key: v for key, v in out.items() if key not in SETPOINT_KEYS}
     return {**out, **(value or {})}
 
@@ -299,8 +304,9 @@ def value_on(preset: dict[str, Any], cell: Mapping[str, Any] | None, thermostat:
       it for the HVAC mode it runs in), else the preset's default, as when heating. Nothing when
       the preset has no temperature when cooling: frost protection never cools.
     - In heat/cool ("target_temp_low" and "target_temp_high"), on a thermostat that takes a
-      range: the two temperatures, each one set by hand or the preset's, when it has both. A
-      climate preset is not used: the range needs numbers.
+      range: the two temperatures, each one set by hand or the preset's, when it has both and
+      the low one is under the high one once fitted to the thermostat. A climate preset is not
+      used: the range needs numbers.
     Then the fan and the vanes set by hand. Temperatures are fitted to the thermostat."""
     cell = cell or {}
     own = preset["id"] if use_presets and thermostat and preset["id"] in thermostat.presets else None
@@ -316,8 +322,11 @@ def value_on(preset: dict[str, Any], cell: Mapping[str, Any] | None, thermostat:
         elif cool is not None:
             out |= {"cool_preset_mode": own} if own else {"cool_temperature": cool}
     low, high = cell.get("temperature", heat), cell.get("cool_temperature", cool)
-    if thermostat and HEAT_COOL in setpoint_modes(thermostat) and low is not None and high is not None and low < high:
-        out |= {"target_temp_low": low, "target_temp_high": high}
+    if thermostat and HEAT_COOL in setpoint_modes(thermostat) and low is not None and high is not None:
+        # Compared once fitted: two temperatures above the thermostat's maximum are not a range
+        low, high = fit_temperature(low, thermostat), fit_temperature(high, thermostat)
+        if low < high:
+            out |= {"target_temp_low": low, "target_temp_high": high}
     out |= {key: value for key, value in cell.items() if key in EQUAL_KEYS}
     return fit(out, thermostat)
 
@@ -666,8 +675,10 @@ def manual_change(
     thermostat restarted on (the slot is applied). Heat to cool when the slot gives no HVAC
     mode is not a change: both are "on".
 
-    In heat/cool, the setpoint is a range: a range changed is an override to that range, and
-    back to the slot's range is RESUME. A preset or a single temperature means nothing there.
+    In heat/cool, on a thermostat that takes a range there, the setpoint is a range: a range
+    changed is an override to that range, and back to the slot's range is RESUME. A preset or a
+    single temperature means nothing there. A thermostat that takes a single setpoint in
+    heat/cool is read as in heat.
     """
     if ignored(after) or before.state in IGNORED_STATES:
         return None
@@ -677,7 +688,7 @@ def manual_change(
     switched = after.state != before.state and not accepted
     if after.state == OFF:
         return {"hvac_mode": OFF} if switched else None
-    if after.state == HEAT_COOL and not switched:
+    if after.state == HEAT_COOL and after.supports_range and not switched:
         if after.target_temp_low is None or after.target_temp_high is None or all(
                 same_temperature(getattr(after, key), getattr(before, key), after) for key in RANGE_KEYS):
             return None
