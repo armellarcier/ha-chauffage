@@ -232,6 +232,15 @@ future contributor might question.
     a range it refuses. A preset whose low is not under its high has no range. Heat/cool
     chosen by hand is read like heat or cool chosen by hand: the override keeps the preset in
     force and sends its range. A range changed by hand is an override to that range.
+  - **A range is sent whole, and only to a thermostat that takes one.** `climate.set_temperature`
+    takes `target_temp_low` and `target_temp_high` together. Chauffage sends only what a
+    thermostat does not show: a range whose low was already shown went out as its high alone,
+    Home Assistant refused it, and the command was sent again every minute. Now the two ends
+    go together. A single temperature is never sent in heat/cool to a thermostat that takes a
+    range, even one the user typed: `complete` drops it, and `chauffage.set_override` refuses
+    it with a message. A thermostat that takes one setpoint in heat/cool (a Daikin) is read as
+    in heat there: its setpoint changed by hand is an override. A range is checked once fitted
+    to the thermostat: two temperatures above its maximum are not a range.
   - **A temperature belongs to the HVAC mode it was set in.** An override to 22 °C set while
     heating, then cool chosen by hand: the override keeps cool and its end, and drops the
     temperature. 22 °C was never meant as a cooling setpoint. An override to a preset keeps the
@@ -584,6 +593,12 @@ future contributor might question.
   temperature`, or from a change by hand, so the user chose it for the HVAC mode the thermostat
   runs in, and Chauffage sends it in `cool` too. `engine.complete()` tells the two apart
   (`by_user`).
+- **A preset keeps a temperature that the weeks use.** A preset whose temperature when
+  cooling is emptied while a week cools on it left a slot with nothing to send. Chauffage
+  refuses the change, as it refuses to remove a preset that the weeks use: the card says so in
+  the popover, and the integration checks again. A thermostat with a value of its own for
+  that HVAC mode does not count. Data stored before the refusal is read without harm: a target
+  without a setpoint turns nothing on, so a heater that is off stays off.
 - **No *Off* preset.** Off is what a slot says, not how warm a preset is (#91, "Scheduling").
   A first version let a preset turn the thermostats off, so "off" existed in four forms. A home
   turned off is a schedule whose slots are off.
@@ -1010,9 +1025,40 @@ dashboards, automations, scripts and by voice without the card
     preset that has a value there: the one of the nearest slot, else eco, else the first one,
     and rather one that does not make the slot the same as the slot before or after it. A
     slot like its neighbor would merge into it, and the user would see the slot disappear.
-  - **A dry slot and an auto slot have dots.** Home Assistant's orange of dry and green of
-    auto are close to the default colors of *Comfort* and *Eco*. The dots tell a slot without
-    a preset from a slot on a preset, at 360 px too, where a slot has no room for its name.
+  - **A dry slot and an auto slot are hatched on a neutral base.** Home Assistant's orange of
+    dry and green of auto are close to the default colors of *Comfort* and *Eco*. A first
+    version drew dots over the color: at a glance, a dry slot still read as *Comfort*. Now the
+    color of the HVAC mode is only the hatch, on the theme's neutral background, at 360 px too,
+    where a slot has no room for its name.
+  - **A slot stays apart while its popover is open.** A slot that became the same as its
+    neighbor merged into it at once: *Fan only* tried next to a fan-only slot lost the slot's
+    start, and going back to *Cool* turned the whole evening to *Cool*. The owner's testers
+    could not try an HVAC mode. Now the popover's changes do not merge. The slots merge when
+    the popover closes, when another slot is opened, and when the weeks are saved
+    (`_settle`). The slot remembers the preset it had: back to *Heat* or *Cool*, it takes it
+    again.
+  - **The chosen HVAC mode is tinted, a chosen preset is filled.** A filled HVAC mode button
+    read as one more preset chip. The button follows Home Assistant's own control
+    (`ha-control-select`): its color at 20 % behind, and its text in a mix of 45 % of that
+    color with the text color. The pure color fails WCAG AA as text (amber on a light theme),
+    and the mix passes in the light and the dark theme (measured: 5.2:1 at least).
+  - **A new override shows a default, not a choice.** The HVAC mode planned now is outlined,
+    and nothing is filled: no override exists yet. The block says the end a tap will give,
+    "until 12:00 (2 h)", and the end of *Off* when it differs (the setting *Turned off*).
+  - **One height for every chip.** The HVAC mode buttons, the preset chips and the − and + of
+    a temperature share `--chauffage-chip-h` (34 px) and one radius, in the slot popover, the
+    override block of the card, the thermostat cards and the more-info dialog (`CHIP_STYLE`).
+  - **A thermostat that only heats says no HVAC mode in an override from the card.** The card
+    wrote `heat` in every override of a valve that lists heat and auto, and the valve stayed
+    in heat afterwards. The card now follows the rule of the slots (`engine.slot_hvac_mode`):
+    no HVAC mode unless the user taps one. The first row then shows the HVAC mode the valve
+    runs in.
+  - **The fan speed in sight in fan only and in dry.** It is the one thing to set there. The
+    vanes stay under *More settings*.
+  - **A double tap cuts a short slot.** On a slot narrower than its two handles, the first tap
+    selects the slot, and the second one lands on a handle of the slot selected, which did
+    nothing. Now it cuts the slot, a step away from its ends. On a wider slot, a double tap on
+    its own handle still does nothing. *Insert a slot* cuts a slot of two steps in two.
   - **A heat/cool slot is split in two colors**, the heat color and the cool color of its
     preset, with Home Assistant's icon of heat/cool. A third color per preset would be one
     more color to tell apart.

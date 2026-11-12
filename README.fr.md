@@ -258,7 +258,8 @@ les deux à l'arrêt.
 
 **La consigne du créneau.** La fenêtre dit quelle consigne le créneau appliquera sur ce
 thermostat, avec son chiffre : « Consigne : 20 °C (son préréglage *Confort*) ». Un
-administrateur touche la ligne pour ouvrir l'onglet *Préréglages*.
+administrateur touche la ligne pour ouvrir l'onglet *Préréglages*, sur la ligne de ce
+thermostat.
 
 ### Le mode HVAC d'abord : les climatisations
 
@@ -267,12 +268,17 @@ a deux lignes.
 
 **1. Ce que fait l'appareil.** La première ligne donne les modes HVAC du thermostat, parmi
 *Arrêt · Chauffe · Clim · Chauffe/Clim · Déshum. · Auto · Ventilation*. Chacun a l'icône de
-Home Assistant, et celui qui est choisi a la couleur de Home Assistant. Le thermostat passe
-dans ce mode HVAC au début du créneau.
+Home Assistant, et celui qui est choisi est teinté dans la couleur de Home Assistant. Le
+thermostat passe dans ce mode HVAC au début du créneau.
 
 **2. À quelle température.** La seconde ligne donne les préréglages qui ont une valeur pour le
 mode HVAC choisi. Par exemple, *Hors-gel* n'a pas de température en clim : *Clim* ne le propose
 pas. *Arrêt*, *Déshum.*, *Auto* et *Ventilation* n'ont ni préréglage ni consigne.
+
+**Essayer un mode HVAC.** Tant que la fenêtre est ouverte, le créneau garde ses horaires, même
+s'il devient identique au créneau d'avant ou d'après. Les deux créneaux n'en font plus qu'un
+quand vous fermez la fenêtre, ouvrez un autre créneau ou enregistrez. Revenez à *Chauffe* ou à
+*Clim*, et le créneau retrouve son préréglage.
 
 - **Chauffe/Clim** envoie deux températures : la température en chauffe du préréglage et sa
   température en clim. La fenêtre dit « Consigne : 20–25 °C ». Chauffage propose *Chauffe/Clim*
@@ -298,8 +304,9 @@ couleur en chauffe, avec une flamme. Chauffage déduit la couleur en clim de la 
 préréglage, et vous pouvez la changer dans l'onglet *Préréglages*. La légende montre les deux
 couleurs, chacune avec son repère, puis les deux valeurs du préréglage sur le thermostat
 affiché : « Confort 20° · ❄ 24° ». Un créneau *Chauffe/Clim* montre les deux couleurs de son
-préréglage. La légende ne donne que les préréglages et les couleurs que les thermostats
-affichés peuvent utiliser.
+préréglage, et son nom. La légende nomme *Chauffe/Clim* quand une semaine affichée a un tel
+créneau. La légende ne donne que les préréglages et les couleurs que les thermostats affichés
+peuvent utiliser.
 
 **Quelle température en clim.** Chaque préréglage a une température *en chauffe* et une
 température *en clim* (voir [Préréglages](#ce-que-fait-un-préréglage-sur-chaque-thermostat)).
@@ -317,14 +324,16 @@ Sur un thermostat qui les propose, **Ventilation**, **Déshum.** et **Auto** son
 de la première ligne. Un créneau *Ventilation* fait tourner le ventilateur sans chauffer ni
 climatiser. Un créneau *Déshum.* déshumidifie. Un créneau *Auto* laisse l'appareil choisir. Ces
 créneaux n'ont ni préréglage ni consigne. La semaine montre chacun dans la couleur que Home
-Assistant donne à son mode HVAC, avec son icône. Un créneau *Déshum.* et un créneau *Auto* ont
-des points : vous les distinguez ainsi d'un créneau *Confort* ou *Éco*.
+Assistant donne à son mode HVAC, avec son icône. Un créneau *Déshum.* et un créneau *Auto* sont
+hachurés dans cette couleur sur un fond neutre : vous les distinguez ainsi d'un créneau
+*Confort* ou *Éco*.
 
 **Ventilateur et volets.** Sur une climatisation, *Plus de réglages* contient la vitesse du
 ventilateur et les volets, une liste par réglage que le thermostat connaît. *Ne pas changer*
 laisse le réglage à la valeur du préréglage, ou au thermostat. La ligne repliée montre les
 valeurs que le créneau fixe, et la semaine montre une marque sur les créneaux qui en fixent
-une. Un créneau *Arrêt* n'en a pas.
+une. Un créneau *Arrêt* n'en a pas. Dans un créneau *Ventilation* ou *Déshum.*, la vitesse du
+ventilateur s'affiche tout de suite, et *Plus de réglages* contient les volets.
 
 ### Changer de planning actif
 
@@ -490,7 +499,8 @@ sans le tableau.
 
 - **Un en-tête de colonne** ouvre le préréglage : son nom, sa couleur et sa température par
   défaut. Avec une climatisation, le préréglage a une température *en chauffe* et une
-  température *en clim* : videz un champ pour en retirer une. Il a aussi une *Couleur en
+  température *en clim* : videz un champ pour en retirer une. Chauffage garde une température
+  qu'une semaine utilise : changez d'abord la semaine. Il a aussi une *Couleur en
   chauffe* et une *Couleur en clim*, pour ses créneaux qui climatisent. Chauffage déduit la seconde de la première tant que
   vous n'en choisissez pas une. Vous pouvez aussi y supprimer le préréglage. Pour ajouter un préréglage, cliquez sur
   *+ Ajouter un préréglage* sous le tableau.
@@ -498,11 +508,13 @@ sans le tableau.
   température, par exemple « son préréglage *Confort* », « réglé ici » ou « par défaut ». La
   fenêtre pose une question, avec trois réponses : *Par défaut*, *Son préréglage* (un des
   préréglages du thermostat) ou *Température*. Sur une climatisation qui chauffe et climatise,
-  ces réponses sont la valeur *en chauffe*, et un champ de plus contient la température *en
-  clim*. Laissé vide, le champ dit ce que le thermostat reçoit alors : « Par défaut (25°) »,
-  « Par défaut (son préréglage *Confort*, 25°) » ou « Pas utilisé en clim ». Une climatisation qui ne
-  fait que climatiser n'a que le champ *en clim*. *Plus de réglages* contient le ventilateur et
-  les volets. *Copier depuis le thermostat*
+  la fenêtre pose la question deux fois : *en chauffe*, puis *en clim*, avec *Par défaut* ou
+  *Température*. *Par défaut* dit ce que le thermostat reçoit alors : « Par défaut (25°) »,
+  « Par défaut (son préréglage *Confort*, 25°) » ou « Pas utilisé en clim ». La case dit
+  ensuite quelle valeur est réglée ici : « chauffe réglée ici » ou « clim réglée ici ». Une
+  climatisation qui ne fait que climatiser n'a que la question *en clim*. Le − et le +
+  déplacent une température du pas du thermostat. *Plus de réglages* contient le ventilateur
+  et les volets. *Copier depuis le thermostat*
   remplit les champs avec l'état du thermostat en ce moment : sa consigne, son ventilateur et
   ses volets, jamais son préréglage. Vous touchez *OK* pour les garder. La fenêtre donne aussi
   un lien vers l'appareil du thermostat, où se règlent les préréglages propres au thermostat.
@@ -591,12 +603,18 @@ par exemple *Jusqu'à 17:30 (prochain créneau)* : il peut aussi raccourcir la d
 - **Sur le thermostat.** Changez la consigne ou le préréglage à la main, avec la molette ou dans
   Home Assistant. Chauffage fait de votre changement une dérogation.
 - **Depuis la carte**, ou depuis la fenêtre de détail du thermostat. Choisissez *Arrêt*, un
-  préréglage ou une température, et une fin. Tous les utilisateurs le peuvent, pas seulement les
+  préréglage ou une température. Tous les utilisateurs le peuvent, pas seulement les
   administrateurs, comme avec la molette.
   Une nouvelle dérogation dure le temps réglé dans les options. *Arrêt* dure jusqu'au prochain
-  créneau, ou ce que dit le réglage *Thermostat éteint*. Vous pouvez ensuite changer sa fin.
+  créneau, ou ce que dit le réglage *Thermostat éteint*. Le bloc dit cette fin avant votre
+  premier appui : « jusqu'à 12:00 (2 h) ». Vous pouvez ensuite changer la fin, dans un seul
+  bloc : son heure, les boutons qui la déplacent, et *Jusqu'à 17:30 (prochain créneau)*.
   Sur une climatisation, le bloc a les deux lignes d'un créneau : le mode HVAC, puis les
-  préréglages. Une nouvelle dérogation commence dans le mode HVAC du créneau prévu maintenant.
+  préréglages. Le mode HVAC du créneau prévu maintenant est entouré : une nouvelle dérogation
+  commence dans ce mode HVAC, sauf si vous en touchez un autre. En *Ventilation* et en
+  *Déshum.*, le bloc montre la vitesse du ventilateur.
+  Sur un thermostat qui propose plusieurs modes HVAC, les cartes nomment le mode HVAC d'une
+  dérogation : « Clim · Confort 25° jusqu'à 23:00, puis Chauffe · Éco ».
   Pour éteindre un thermostat jusqu'au matin, touchez *Arrêt*, puis *Jusqu'à demain 06:30*.
   Sur une carte de thermostat, la dérogation s'affiche avec sa fin et *Reprendre le planning*.
   *Modifier* déplie le reste.
@@ -749,7 +767,7 @@ Assistants vocaux → Exposer.
 
 | Action | Ce qu'elle fait |
 |---|---|
-| `chauffage.set_override` | Crée une dérogation sur un thermostat : une température ou un préréglage, pour une durée ou jusqu'à une heure. Un préréglage a le même sens que dans la carte. `hvac_mode` : `off` pour éteindre le thermostat, ou un mode HVAC pour l'allumer. `dry`, `auto` et `fan_only` s'envoient seuls. `heat_cool` prend un préréglage, ou `target_temp_low` et `target_temp_high`. `hvac_mode: off` sans durée ni heure dure ce que dit le réglage *Thermostat éteint*. L'action refuse ce qui se contredit, avec un message qui dit pourquoi. Par exemple : `off` ou `dry` avec une température, un préréglage qui n'a pas de valeur dans ce mode HVAC, un mode HVAC que le thermostat ne propose pas, une durée et une heure ensemble. |
+| `chauffage.set_override` | Crée une dérogation sur un thermostat : une température ou un préréglage, pour une durée ou jusqu'à une heure. Un préréglage a le même sens que dans la carte. `hvac_mode` : `off` pour éteindre le thermostat, ou un mode HVAC pour l'allumer. `dry`, `auto` et `fan_only` s'envoient seuls. `heat_cool` prend un préréglage, ou `target_temp_low` et `target_temp_high`. `hvac_mode: off` sans durée ni heure dure ce que dit le réglage *Thermostat éteint*. L'action refuse ce qui se contredit, avec un message qui dit pourquoi. Par exemple : `off` ou `dry` avec une température, un préréglage qui n'a pas de valeur dans ce mode HVAC, un mode HVAC que le thermostat ne propose pas, `heat_cool` sur un thermostat qui ne prend pas de plage de températures, une température seule pendant que le thermostat est en `heat_cool` sur une plage, une durée et une heure ensemble. |
 | `chauffage.clear_override` | Arrête la dérogation : le thermostat reprend son planning tout de suite. |
 | `chauffage.activate_schedule` | Active un planning, par son identifiant stable. |
 | `chauffage.get_schedules` | Renvoie les plannings (`id`, `name` et `entity_id` de leur interrupteur), `active_schedule`, `rules_choice` et `default_schedule`. |
