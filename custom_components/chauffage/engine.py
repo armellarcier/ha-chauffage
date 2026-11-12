@@ -139,6 +139,21 @@ def slot_hvac_mode(settings: Mapping[str, Any], thermostat: Thermostat | None) -
     return "cool" if mode == "cool" else "heat"
 
 
+def week_on(week: list[list[list[Any]]], thermostat: Thermostat | None) -> list[list[list[Any]]]:
+    """A week as it runs on a thermostat: each slot with its HVAC mode there (`slot_hvac_mode`).
+    A slot that says heat and one that says nothing are then the same slot on an air
+    conditioner: what compares two slots (the next different slot) reads this week."""
+    def on(raw: list[Any]) -> list[Any]:
+        settings = dict(raw[2]) if len(raw) > 2 else {}
+        mode = slot_hvac_mode(settings, thermostat)
+        settings.pop("hvac_mode", None)
+        if mode:
+            settings = {"hvac_mode": mode, **settings}
+        return [raw[0], raw[1], settings] if settings else [raw[0], raw[1]]
+
+    return [[on(raw) for raw in day] for day in week]
+
+
 def on_mode(thermostat: Thermostat) -> str | None:
     """The HVAC mode to turn a thermostat on in, for a setpoint that says none (an override to a
     preset): the one it last heated or cooled in if it still lists it, else heat, else its first

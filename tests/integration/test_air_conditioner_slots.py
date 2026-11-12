@@ -95,6 +95,20 @@ async def test_a_heater_never_carries_an_hvac_mode(bench: Bench):
     assert bench.applied()[BUREAU] == "comfort"
 
 
+async def test_a_slot_that_says_heat_aloud_is_not_a_new_slot_after_one_that_says_nothing(bench: Bench):
+    """A day the card saved says heat on every slot; the next day, not edited, says nothing.
+    Both heat: the planned-preset sensor sees one slot across midnight, not "eco, then eco"."""
+    edited = [["00:00", "eco", HEAT], ["06:30", "comfort", HEAT], ["22:30", "eco", HEAT]]
+    stored = [["00:00", "eco"], ["06:30", "comfort"], ["22:30", "eco"]]
+    await bench.go_to("23:00")
+    bench.thermostat(SALON, "eco", hvac_modes=REVERSIBLE)
+    await bench.setup()
+    await bench.save_weeks({SALON: {"normal": [edited, *[stored] * 6]}})
+    planned = bench.runtime.planned_targets(SALON)
+    assert (planned["preset"], planned["next_preset"]) == ("eco", "comfort")
+    assert planned["next_start"] == "2026-10-13T06:30:00+02:00"
+
+
 # ----- turning on -----
 
 async def test_a_preset_override_turns_on_an_air_conditioner_in_the_hvac_mode_it_last_ran_in(bench: Bench):

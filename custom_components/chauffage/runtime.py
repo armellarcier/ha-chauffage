@@ -539,11 +539,14 @@ class ChauffageRuntime:
         return _cause(self.hass.states.get(entity_id))
 
     def planned(self, entity_id: str, now: datetime | None = None) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
-        """(slot now, next different slot, its start) for a thermostat in the active schedule."""
+        """(slot now, next different slot, its start) for a thermostat in the active schedule.
+        The slots as they run on it: on an air conditioner, a slot that says heat does not
+        differ from one that says nothing."""
         week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
         if not week:
             return None, None, None
-        return engine.current_and_next(week, now or dt_util.now())
+        thermostat = self.current(self.hass.states.get(entity_id))
+        return engine.current_and_next(engine.week_on(week, thermostat), now or dt_util.now())
 
     def planned_targets(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None) -> dict[str, Any]:
         """What a scheduled thermostat follows now (its preset, its HVAC mode, its target on this
