@@ -14,9 +14,11 @@ const PRESET_NAMES = {
   en: { comfort: 'Comfort', eco: 'Eco', boost: 'Boost', frost: 'Frost protection' },
   fr: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
 };
+// Each with its temperature when heating, and when cooling: frost protection has none (#91)
 export const PRESETS = (language = 'fr') => [
-  ['comfort', '#f57c00', 20], ['eco', '#43a047', 17], ['boost', '#e53935', 21], ['frost', '#29b6f6', 7],
-].map(([id, color, temperature]) => ({ id, name: PRESET_NAMES[language.startsWith('fr') ? 'fr' : 'en'][id], color, temperature }));
+  ['comfort', '#f57c00', 20, 25], ['eco', '#43a047', 17, 27], ['boost', '#e53935', 21, 23], ['frost', '#29b6f6', 7],
+].map(([id, color, temperature, cool]) => ({ id, name: PRESET_NAMES[language.startsWith('fr') ? 'fr' : 'en'][id], color, temperature,
+  ...(cool ? { cool_temperature: cool } : {}) }));
 
 const slug = (name) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');

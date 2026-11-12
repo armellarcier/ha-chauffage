@@ -77,6 +77,12 @@ const I18N = {
     hvacFan: 'Fan only',
     slotHeat: 'Heat',
     slotCool: 'Cool',
+    hvacHeatCool: 'Heat/Cool',
+    hvacDry: 'Dry',
+    hvacAuto: 'Auto',
+    noPresetInMode: 'No preset has a value for this HVAC mode',
+    notWhenCooling: 'Not used when cooling',
+    notWhenHeating: 'Not used when heating',
     weekMenu: 'Week menu',
     weekAllHeat: 'All heat',
     weekAllCool: 'All cool',
@@ -384,6 +390,12 @@ const I18N = {
     hvacFan: 'Ventilation',
     slotHeat: 'Chauffe',
     slotCool: 'Clim',
+    hvacHeatCool: 'Chauffe/Clim',
+    hvacDry: 'Déshum.',
+    hvacAuto: 'Auto',
+    noPresetInMode: 'Aucun préréglage n’a de valeur pour ce mode HVAC',
+    notWhenCooling: 'Pas utilisé en clim',
+    notWhenHeating: 'Pas utilisé en chauffe',
     weekMenu: 'Menu de la semaine',
     weekAllHeat: 'Tout en chauffe',
     weekAllCool: 'Tout en clim',
@@ -820,21 +832,27 @@ const todayIdx = () => (new Date().getDay() + 6) % 7;
 
 // A slot is { start (minutes), preset, settings? } (#91). `settings` is what the slot sets besides
 // its preset, only when it sets something: its HVAC mode, and the fan and the vanes of an air
-// conditioner. The slot chooses the HVAC mode: heat or cool with a preset, off or fan only
-// without one (preset null). The integration stores a slot as [start, preset] or
+// conditioner. The slot chooses the HVAC mode: heat, cool or heat/cool with a preset; off, fan
+// only, dry or auto without one (preset null). The integration stores a slot as [start, preset] or
 // [start, preset, settings]; the card's text form, in the clipboard and the tests, is
 // "HH:MM preset", 'HH:MM preset {"hvac_mode":"cool"}' or 'HH:MM - {"hvac_mode":"off"}'.
+// The HVAC modes, in the order of the first row of a slot: what the device does
+const HVAC_ORDER = ['off', 'heat', 'cool', 'heat_cool', 'dry', 'auto', 'fan_only'];
+// Those of a slot on a preset: the preset says how warm, for each of them
+const SETPOINT_MODES = ['heat', 'cool', 'heat_cool'];
+// Those of a slot without a preset: no setpoint
+const NO_PRESET_MODES = ['off', 'fan_only', 'dry', 'auto'];
 const slotMode = (seg) => (seg && seg.settings && seg.settings.hvac_mode) || null;
 const isOff = (seg) => slotMode(seg) === 'off';
 const isFan = (seg) => slotMode(seg) === 'fan_only';
-// An off slot and a fan-only slot have no preset
-const hasNoPreset = (seg) => isOff(seg) || isFan(seg);
+// An off, a fan-only, a dry and an auto slot have no preset
+const hasNoPreset = (seg) => NO_PRESET_MODES.includes(slotMode(seg));
 const sameSlot = (a, b) => (a.preset ?? null) === (b.preset ?? null)
   && JSON.stringify(a.settings || null) === JSON.stringify(b.settings || null);
 const withSettings = (seg, settings) => (settings && Object.keys(settings).length ? { ...seg, settings } : (({ settings: _, ...rest }) => rest)(seg));
 // The HVAC modes a slot may choose, and its settings as the integration accepts them, always in
 // the same order (two slots are compared as text). An off slot sets nothing else
-const SLOT_HVAC_MODES = ['heat', 'cool', 'off', 'fan_only'];
+const SLOT_HVAC_MODES = HVAC_ORDER;
 function slotSettings(settings) {
   if (!settings || typeof settings !== 'object') return null;
   if (settings.hvac_mode === 'off') return { hvac_mode: 'off' };
@@ -849,11 +867,12 @@ const airSettings = (seg) => { const { hvac_mode: _, ...air } = (seg && seg.sett
 const slotOf = (start, preset, settings) => withSettings({ start, preset }, slotSettings(settings));
 // The slot turned off: off, and nothing else
 const offSlot = (seg) => slotOf(seg.start, null, { hvac_mode: 'off' });
-// The slot set to fan only: no preset; it keeps its fan and its vanes
-const fanSlot = (seg) => slotOf(seg.start, null, { ...airSettings(seg), hvac_mode: 'fan_only' });
+// The slot set to an HVAC mode without a preset: off, and nothing else; fan only, dry or auto,
+// and it keeps its fan and its vanes
+const noPresetSlot = (seg, mode) => (mode === 'off' ? offSlot(seg) : slotOf(seg.start, null, { ...airSettings(seg), hvac_mode: mode }));
 // The settings a piece cut out of a slot keeps: none out of an off slot, the fan and the vanes
-// out of a fan-only slot (the piece is on a preset), else all of them
-const pieceSettings = (seg) => (isOff(seg) ? null : isFan(seg) ? airSettings(seg) : seg.settings);
+// out of another slot without a preset (the piece is on a preset), else all of them
+const pieceSettings = (seg) => (isOff(seg) ? null : hasNoPreset(seg) ? airSettings(seg) : seg.settings);
 
 // ---------- colors (#91) ----------
 // Each preset has a heat color (its color) and a cool color, for its cooling slots: the one the
@@ -894,8 +913,11 @@ function derivedCoolColor(color) {
   return hslToHex(hue, Math.max(0.45, Math.min(0.8, s)), Math.max(0.3, Math.min(0.46, l)));
 }
 const coolColor = (preset) => (preset && preset.cool_color) || derivedCoolColor(preset && preset.color);
-// The color of a slot of a preset: its cool color when the slot cools
-const slotColor = (preset, seg) => (slotMode(seg) === 'cool' ? coolColor(preset) : preset.color);
+// The color of a preset in an HVAC mode: its cool color in cool, both in heat/cool
+const presetColorIn = (preset, mode) => (mode === 'cool' ? coolColor(preset)
+  : mode === 'heat_cool' ? `linear-gradient(135deg, ${preset.color} 50%, ${coolColor(preset)} 50%)` : preset.color);
+// The color of a slot of a preset
+const slotColor = (preset, seg) => presetColorIn(preset, slotMode(seg));
 
 // Merges consecutive identical slots (same preset, same settings) and removes duplicate start times
 function normalize(segs) {
@@ -920,7 +942,7 @@ function parseSlot(raw) {
   // An off slot and a fan-only slot have no preset, whatever was written with them
   const slot = (start, preset, settings) => {
     const set = slotSettings(settings);
-    const none = set && (set.hvac_mode === 'off' || set.hvac_mode === 'fan_only');
+    const none = set && NO_PRESET_MODES.includes(set.hvac_mode);
     return withSettings({ start, preset: none ? null : preset }, set);
   };
   if (Array.isArray(raw)) return slot(toMin(raw[0]), raw[1] == null ? '' : String(raw[1]), raw[2]);
@@ -942,19 +964,46 @@ const serializeDay = (segs) => segs.map(serializeSlot);
 const slotToArray = (s) => (s.settings ? [toHM(s.start), s.preset ?? null, s.settings] : [toHM(s.start), s.preset]);
 
 // ---------- the HVAC mode (#91) ----------
-// The slot chooses the HVAC mode: heat or cool with a preset, off or fan only without one. The
-// preset says how warm, for each thermostat and for that HVAC mode.
+// The slot chooses the HVAC mode: heat, cool or heat/cool with a preset; off, fan only, dry or
+// auto without one. The preset says how warm, for each thermostat and for that HVAC mode.
 // Home Assistant's icons of the HVAC modes
 const HVAC_ICONS = { off: 'mdi:power', heat: 'mdi:fire', cool: 'mdi:snowflake', heat_cool: 'mdi:sun-snowflake-variant',
   auto: 'mdi:thermostat-auto', dry: 'mdi:water-percent', fan_only: 'mdi:fan' };
-// Home Assistant's color of fan only, with the cyan it is by default
-const FAN_COLOR = 'var(--state-climate-fan_only-color, rgb(0, 188, 212))';
+// Home Assistant's color of each HVAC mode (its state color), with the color it is by default.
+// Off is grey, as an off slot
 const OFF_COLOR = '#616161';
+const HVAC_COLORS = {
+  off: OFF_COLOR,
+  heat: 'var(--state-climate-heat-color, #ff5722)',
+  cool: 'var(--state-climate-cool-color, #2196f3)',
+  heat_cool: 'var(--state-climate-heat-cool-color, #ffc107)',
+  dry: 'var(--state-climate-dry-color, #ff9800)',
+  auto: 'var(--state-climate-auto-color, #4caf50)',
+  fan_only: 'var(--state-climate-fan_only-color, rgb(0, 188, 212))',
+};
+const FAN_COLOR = HVAC_COLORS.fan_only;
+const hvacColor = (mode) => HVAC_COLORS[mode] || OFF_COLOR;
+// White is not legible on the light ones: dark text
+const HVAC_LIGHT = ['heat_cool', 'dry', 'fan_only'];
+const hvacStyle = (mode) => `background:${hvacColor(mode)};color:${HVAC_LIGHT.includes(mode) ? 'rgba(0,0,0,.87)' : '#fff'}`;
+// The name of an HVAC mode, short, for a button: "Heat", "Cool", "Dry"
+const MODE_LABELS = { off: 'hvacOff', heat: 'slotHeat', cool: 'slotCool', heat_cool: 'hvacHeatCool', dry: 'hvacDry', auto: 'hvacAuto', fan_only: 'hvacFan' };
+const modeName = (loc, mode) => (MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : loc.hvacMode(mode));
 // Fan only, in a week, a legend and a chip: Home Assistant's color, with dark text (white is
-// not legible on its cyan)
+// not legible on its cyan). The first row of a slot or of an override: one button per HVAC
+// mode, the icon and the label centered in a box of one height
 const FAN_STYLE = `
   .seg.fan, .presets button.fan-chip, .legend i.fan { background:${FAN_COLOR}; }
   .seg.fan, .presets button.fan-chip { color:rgba(0,0,0,.87); }
+  .mode-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .mode-row .mode { display:inline-flex; align-items:center; justify-content:center; gap:5px; box-sizing:border-box; height:34px;
+    margin:0; padding:0 10px; border:1px solid var(--divider-color); border-radius:6px; background:none;
+    color:var(--primary-text-color); font:inherit; line-height:1; cursor:pointer; }
+  .mode-row .mode ha-icon { --mdc-icon-size:16px; width:16px; height:16px; display:flex; flex:none; }
+  .mode-row .mode span { white-space:nowrap; }
+  .mode-row .mode.on { border-color:transparent; font-weight:600; }
+  .mode-row .mode[disabled] { opacity:.45; cursor:default; }
+  .presets button.unsupported { outline:2px dashed var(--secondary-text-color); outline-offset:1px; }
 `;
 const hvacIcon = (mode) => (mode ? `<ha-icon icon="${esc(HVAC_ICONS[mode] || 'mdi:thermostat')}"></ha-icon>` : '');
 const hvacIconHtml = (mode) => (mode ? `<span class="m">${hvacIcon(mode)}</span>` : '');
@@ -976,24 +1025,46 @@ const coolsOnly = (hass, climate) => {
   const { on } = hvacModesOf(hass, climate);
   return on.includes('cool') && !on.includes('heat');
 };
-// The HVAC modes a slot on a preset may choose on a thermostat: heat and cool, on a thermostat
-// that lists both. None otherwise: a heater has no HVAC mode to choose, and an air conditioner
-// that only cools has no choice
+// The whole week to heat or to cool (the week's menu): on a thermostat that lists both
 const slotModesOf = (hass, climate) => (isReversible(hass, climate) ? ['heat', 'cool'] : []);
 const listsMode = (hass, climate, mode) => hvacModesOf(hass, climate).on.includes(mode);
+// Whether a thermostat takes a range of temperatures (Home Assistant's TARGET_TEMPERATURE_RANGE):
+// heat/cool needs it
+const supportsRange = (hass, climate) => {
+  const st = hass && hass.states && hass.states[climate];
+  return !!st && (Number(st.attributes.supported_features) & 2) !== 0;
+};
+// The HVAC modes a slot on a preset may choose on a thermostat: heat, cool and heat/cool, the
+// ones it lists (engine.setpoint_modes)
+const setpointModesOf = (hass, climate) => {
+  const { modes } = hvacModesOf(hass, climate);
+  return SETPOINT_MODES.filter((m) => (modes || []).includes(m) && (m !== 'heat_cool' || supportsRange(hass, climate)));
+};
+// The HVAC modes of the first row of a slot or of an override, in order: the ones the
+// thermostat lists
+const rowModesOf = (hass, climate) => {
+  const { modes } = hvacModesOf(hass, climate);
+  const set = setpointModesOf(hass, climate);
+  return HVAC_ORDER.filter((m) => (modes || []).includes(m) && (!SETPOINT_MODES.includes(m) || set.includes(m)));
+};
+// Two rows, the HVAC mode then the presets, on a thermostat that lists more than one "on" HVAC
+// mode. A heater keeps one row: Off, then the presets
+const hasModeRow = (hass, climate) => rowModesOf(hass, climate).filter((m) => m !== 'off').length > 1;
 // The HVAC mode of a slot on a thermostat, as the integration reads it (engine.slot_hvac_mode).
-// Off and fan only are the slot's own. On an air conditioner, every other slot heats or cools: a
-// slot that says none heats (a week stored before #91), and every slot cools on a thermostat
-// that only cools. A heater never carries an HVAC mode. A thermostat whose HVAC modes are not
-// known (unavailable): as stored
+// Off, fan only, dry and auto are the slot's own. A slot on a preset keeps its HVAC mode when
+// the thermostat can follow it. Otherwise, on a thermostat that cools, the slot heats, or cools
+// when the thermostat does not heat. A thermostat that only heats carries no HVAC mode, unless
+// the slot says heat and the thermostat lists another "on" HVAC mode. A thermostat whose HVAC
+// modes are not known (unavailable): as stored
 function slotModeOn(hass, climate, seg) {
   const mode = slotMode(seg);
-  if (mode === 'off' || mode === 'fan_only') return mode;
-  const { modes } = hvacModesOf(hass, climate);
-  if (!modes) return mode;
-  if (!modes.includes('cool')) return null;
-  if (!modes.includes('heat')) return 'cool';
-  return mode === 'cool' ? 'cool' : 'heat';
+  if (NO_PRESET_MODES.includes(mode)) return mode;
+  const { modes, on } = hvacModesOf(hass, climate);
+  if (!modes || !modes.length) return mode;
+  const choices = setpointModesOf(hass, climate);
+  if (choices.includes(mode)) return on.length > 1 || mode !== 'heat' ? mode : null;
+  if (!choices.length || (choices.length === 1 && choices[0] === 'heat')) return null;
+  return choices.includes('heat') ? 'heat' : choices[0];
 }
 // A slot as it runs on a thermostat: with that HVAC mode. What the card draws, and what an edit
 // writes
@@ -1003,6 +1074,48 @@ function slotOn(hass, climate, seg) {
   return withSettings(seg, slotSettings({ ...airSettings(seg), ...(mode ? { hvac_mode: mode } : {}) }));
 }
 const dayOn = (hass, climate, segs) => segs.map((seg) => slotOn(hass, climate, seg));
+// What a preset means on a thermostat, for each HVAC mode: the integration's rule
+// (engine.value_on), for a thermostat the integration does not know yet and for what a popover
+// is about to save. When heating: preset_mode or temperature. When cooling, on a thermostat
+// that cools: cool_preset_mode or cool_temperature. In heat/cool, on a thermostat that takes a
+// range: target_temp_low and target_temp_high. `cell`: the value set by hand on the thermostat
+function valueOn(preset, cell, hass, climate, usePresets = true) {
+  const set = cell || {};
+  const st = hass && hass.states && hass.states[climate];
+  const own = usePresets && st && (st.attributes.preset_modes || []).map(String).includes(preset.id) ? preset.id : null;
+  const heat = preset.temperature ?? null;
+  const cool = preset.cool_temperature ?? null;
+  const out = {};
+  if ('preset_mode' in set) out.preset_mode = set.preset_mode;
+  else if ('temperature' in set) out.temperature = set.temperature;
+  else if (heat != null) Object.assign(out, own ? { preset_mode: own } : { temperature: heat });
+  if (listsMode(hass, climate, 'cool')) {
+    if ('cool_temperature' in set) out.cool_temperature = set.cool_temperature;
+    else if ('preset_mode' in set) out.cool_preset_mode = set.preset_mode;
+    else if (cool != null) Object.assign(out, own ? { cool_preset_mode: own } : { cool_temperature: cool });
+  }
+  const low = 'temperature' in set ? set.temperature : heat;
+  const high = 'cool_temperature' in set ? set.cool_temperature : cool;
+  if (setpointModesOf(hass, climate).includes('heat_cool') && low != null && high != null && low < high) {
+    out.target_temp_low = low;
+    out.target_temp_high = high;
+  }
+  for (const attr of ['fan_mode', 'swing_mode', 'swing_horizontal_mode']) if (attr in set) out[attr] = set[attr];
+  return out;
+}
+// The HVAC modes a preset can be used in, from its value on a thermostat (engine.offered_modes):
+// those it has a value for. The one place of the card that says so
+function presetModes(value) {
+  const v = value || {};
+  const modes = [];
+  if ('preset_mode' in v || 'temperature' in v) modes.push('heat');
+  if ('cool_preset_mode' in v || 'cool_temperature' in v) modes.push('cool');
+  if ('target_temp_low' in v && 'target_temp_high' in v) modes.push('heat_cool');
+  return modes;
+}
+// The HVAC mode whose presets a thermostat is offered when a slot or an override says none: heat
+// on a heater, cool on an air conditioner that only cools
+const defaultSetpointMode = (hass, climate) => setpointModesOf(hass, climate)[0] || 'heat';
 // The fan and the vanes of an air conditioner (#91, lot 3): the attributes a slot or a preset's
 // value may set, and the values the thermostat lists for each
 const SETTING_ATTRS = ['fan_mode', 'swing_mode', 'swing_horizontal_mode'];
@@ -1178,14 +1291,18 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   if (target.hvac_mode === 'off') return locale.t('hvacOff');
   const picked = d.preset && presets.find((p) => p.id === d.preset);
   if (picked) return picked.name;
+  // Heat/cool with a range set by hand: "19–24.5 °C"
+  if ('target_temp_low' in target && 'target_temp_high' in target && !('temperature' in target) && !('preset_mode' in target)) {
+    return `${locale.number(target.target_temp_low)}–${locale.number(target.target_temp_high)} ${locale.unit}`;
+  }
   if ('temperature' in target) return `${locale.number(target.temperature)} ${locale.unit}`;
   if ('preset_mode' in target) return locale.preset(target.preset_mode);
-  return target.hvac_mode ? locale.hvacMode(target.hvac_mode) : '';
+  return target.hvac_mode ? modeName(locale, target.hvac_mode) : '';
 }
 // The HVAC mode an override turns the thermostat on in, when it sets one
 const overrideHvac = (d) => (d && d.target && d.target.hvac_mode && d.target.hvac_mode !== 'off' ? d.target.hvac_mode : null);
-// The same, when it takes a setpoint: not fan only
-const setpointHvac = (d) => (overrideHvac(d) === 'fan_only' ? null : overrideHvac(d));
+// The same, when it takes a setpoint: heat, cool or heat/cool
+const setpointHvac = (d) => (SETPOINT_MODES.includes(overrideHvac(d)) ? overrideHvac(d) : null);
 
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 
@@ -2107,74 +2224,102 @@ async function cardPlacements(hass) {
   return out;
 }
 
-// Presets [{ id, name, color, temperature, cool_color? }]
+// Presets [{ id, name, color, temperature, cool_temperature?, cool_color? }]: its temperature
+// when heating (null: none) and when cooling (absent: none)
 function presetsOf(src, loc) {
   return src.presets().map((l) => ({ id: l.id, color: l.color || '#9e9e9e', name: l.name || loc.preset(l.id), temperature: l.temperature,
+    ...(l.cool_temperature != null ? { cool_temperature: l.cool_temperature } : {}),
     ...(l.cool_color ? { cool_color: l.cool_color } : {}) }));
 }
 const presetOf = (presets, id, loc) => presets.find((p) => p.id === id) || { id, color: '#9e9e9e', name: loc.preset(id) };
 // From the coldest to the warmest
-const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => (a.temperature ?? 19) - (b.temperature ?? 19));
+const presetWarmth = (p) => p.temperature ?? p.cool_temperature ?? 19;
+const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => presetWarmth(a) - presetWarmth(b));
 
-// The Off chip and the Fan only chip, first in the row of the presets of a slot or of an override
-// (#91): one row says off, fan only, or which preset. Each one only on a thermostat that lists
-// its HVAC mode; one set on a thermostat that does not stays, marked
+// A chip of an HVAC mode without a preset, in the single row of a thermostat with one "on" HVAC
+// mode (#91): Off, first, on a thermostat that lists it; another one only when it is set on a
+// thermostat that does not list it: it stays, marked
 function modeChipHtml(hass, climate, loc, mode, act, on) {
   const { modes } = hvacModesOf(hass, climate);
   const listed = !!modes && modes.includes(mode);
   if (!listed && !on) return '';
-  const name = mode === 'off' ? loc.t('hvacOff') : loc.t('hvacFan');
+  const name = modeName(loc, mode);
   const label = modes && !listed ? loc.t('unsupported', { value: name }) : name;
-  return `<button data-act="${act}" class="${mode === 'off' ? 'off-chip' : 'fan-chip'}${on ? ' on' : ''}${modes && !listed ? ' unsupported' : ''}" aria-pressed="${on ? 'true' : 'false'}">${hvacIcon(mode)}${esc(label)}</button>`;
+  const style = mode === 'off' || mode === 'fan_only' ? '' : ` style="${hvacStyle(mode)}"`;
+  return `<button data-act="${act}" data-mode="${mode}" class="${mode === 'off' ? 'off-chip' : 'fan-chip'}${on ? ' on' : ''}${modes && !listed ? ' unsupported' : ''}"${style} aria-pressed="${on ? 'true' : 'false'}">${hvacIcon(mode)}${esc(label)}</button>`;
 }
 const offChipHtml = (hass, climate, loc, act, on) => modeChipHtml(hass, climate, loc, 'off', act, on);
-// The Heat · Cool row of a slot or of an override (#91), on an air conditioner that heats and
-// cools: one of the two is always chosen (`mode`). '' on any other thermostat
-function hvacRowHtml(hass, climate, loc, mode, act) {
-  const modes = slotModesOf(hass, climate);
-  if (!modes.length) return '';
-  return `<div class="hvac-row" role="group" aria-label="${esc(loc.t('slotHvac'))}">${modes.map((m) => `<button class="btn hvac-choice${mode === m ? ' on' : ''}" data-act="${act}" data-mode="${m}" aria-pressed="${mode === m ? 'true' : 'false'}">${hvacIcon(m)}${esc(loc.t(m === 'cool' ? 'slotCool' : 'slotHeat'))}</button>`).join('')}</div>`;
+// The first row of a slot or of an override (#91): what the device does. One button per HVAC
+// mode the thermostat lists, in a fixed order, with Home Assistant's icon; the chosen one in
+// Home Assistant's color. A chosen one the thermostat does not list stays, marked. `disabled`:
+// the HVAC modes no preset has a value for
+function modeRowHtml(hass, climate, loc, chosen, act, disabled = []) {
+  const listed = rowModesOf(hass, climate);
+  const modes = HVAC_ORDER.filter((m) => listed.includes(m) || m === chosen);
+  const buttons = modes.map((m) => {
+    const on = m === chosen;
+    const name = modeName(loc, m);
+    const missing = !listed.includes(m);
+    const off = disabled.includes(m) && !on;
+    return `<button class="mode${on ? ' on' : ''}${missing ? ' unsupported' : ''}" data-act="${m === 'off' ? act.replace('-mode', '-off') : act}" data-mode="${m}" aria-pressed="${on ? 'true' : 'false'}"${on ? ` style="${hvacStyle(m)}"` : ''}${off ? ` disabled title="${esc(loc.t('noPresetInMode'))}"` : ''}>${hvacIcon(m)}<span>${esc(missing ? loc.t('unsupported', { value: name }) : name)}</span></button>`;
+  }).join('');
+  return `<div class="mode-row" role="group" aria-label="${esc(loc.t('slotHvac'))}">${buttons}</div>`;
 }
-const fanChipHtml = (hass, climate, loc, act, on) => modeChipHtml(hass, climate, loc, 'fan_only', act, on);
 
-// The value of an override, in the card's popover and the more-info block: off, one of the
-// presets (what it means on this thermostat, as the integration says: `targets`), or a
-// temperature (the thermostat's setpoint while the override is a preset). The preset picked is
-// highlighted (one at the same temperature is not); without one, the preset whose climate preset
-// the thermostat is on. Returns { presets, temperature } HTML.
+// The value of an override, in the card's popover and the more-info block (#91). On a thermostat
+// with more than one "on" HVAC mode, two rows: the HVAC mode, then the presets that have a value
+// for it (what each means on this thermostat, as the integration says: `targets`). Off, fan
+// only, dry and auto have no preset. A heater has one row: Off, then the presets. Then a
+// temperature (the thermostat's setpoint while the override is a preset); in heat/cool, the
+// range instead. The preset picked is highlighted (one at the same temperature is not); without
+// one, the preset whose climate preset the thermostat is on. Returns { presets, temperature }
+// HTML.
 function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   const targets = src.targets(climate);
-  const off = !!d && !!d.target && d.target.hvac_mode === 'off';
+  const target = (d && d.target) || {};
+  const off = target.hvac_mode === 'off';
   // On an air conditioner, the override heats or cools: its own HVAC mode, else the planned one
   const mode = overrideHvacOn(d, hass, src, climate);
-  // Fan only: an override that sets it and no setpoint
-  const fan = !!d && !!d.target && d.target.hvac_mode === 'fan_only' && !('temperature' in d.target) && !('preset_mode' in d.target);
+  // Fan only, dry or auto: an override that sets it and no setpoint
+  const idle = !off && NO_PRESET_MODES.includes(target.hvac_mode) && !('temperature' in target) && !('preset_mode' in target) ? target.hvac_mode : null;
   const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
   // The presets in their cool color while the override cools (a heater's: while it does)
   const state = hass && hass.states && hass.states[climate];
   const cools = mode ? mode === 'cool' : overrideHvac(d) === 'cool' || (!overrideHvac(d) && !!state && state.state === 'cool');
-  const presets = sortedPresets(src, loc).filter((l) => targets[l.id]).map((l) => {
-    const target = targets[l.id];
-    const on = !!d && !off && !fan && (picked ? picked === l.id
-      : targetKind(d.target) === 'preset' && targetKind(target) === 'preset' && targetValue(d.target) === targetValue(target));
-    return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${cools ? coolColor(l) : l.color}">${esc(l.name)}</button>`;
-  }).join('');
+  const rows = hasModeRow(hass, climate);
+  const inMode = mode || defaultSetpointMode(hass, climate);
+  const none = off || !!idle;
+  const presets = rows && none ? '' : sortedPresets(src, loc)
+    .filter((l) => targets[l.id] && (picked === l.id || presetModes(targets[l.id]).includes(inMode))).map((l) => {
+      const value = targets[l.id];
+      const on = !!d && !none && (picked ? picked === l.id
+        : targetKind(target) === 'preset' && targetKind(value) === 'preset' && targetValue(target) === targetValue(value));
+      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${presetColorIn(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
+    }).join('');
   // The temperature the thermostat gets. An override to a preset that cools sends the preset's
-  // cooling temperature, else its own preset, else nothing: never its heating temperature. The
-  // field then shows the thermostat's setpoint, and a note says it is left alone
-  let value = d && targetKind(d.target) === 'temperature' ? d.target.temperature : attrs.temperature;
+  // value when cooling, never its heating temperature. The field then shows the thermostat's
+  // setpoint, and a note says it is left alone
+  let value = d && targetKind(target) === 'temperature' ? target.temperature : attrs.temperature;
   let note = '';
-  if (picked && cools && !off && !fan) {
-    value = 'cool_temperature' in d.target ? d.target.cool_temperature : attrs.temperature;
-    if (!('cool_temperature' in d.target) && !('preset_mode' in d.target)) note = loc.t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept');
+  if (picked && cools && !none) {
+    value = 'cool_temperature' in target ? target.cool_temperature : attrs.temperature;
+    if (!('cool_temperature' in target) && !('cool_preset_mode' in target)) note = loc.t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept');
   }
   // A text field, in the user's number format, read with either decimal separator
-  const temperature = `<label>${esc(loc.t('presetTemperature'))} <input type="text" inputmode="decimal" data-override-temperature
+  let temperature = `<label>${esc(loc.t('presetTemperature'))} <input type="text" inputmode="decimal" data-override-temperature
     value="${value != null ? esc(loc.number(value)) : ''}"> ${esc(loc.unit)}</label>${note ? ` <span class="muted override-note">${esc(note)}</span>` : ''}`;
-  const chips = `${offChipHtml(hass, climate, loc, 'override-off', off)}${fanChipHtml(hass, climate, loc, 'override-fan', fan)}`;
-  // Off takes no temperature and no HVAC mode; fan only no HVAC mode (a temperature typed leaves it)
-  return { presets: `<div class="presets">${chips}${presets}</div>`, temperature: off ? '' : temperature,
-    hvac: off || fan ? '' : hvacRowHtml(hass, climate, loc, mode, 'override-hvac') };
+  // Heat/cool takes a range: the one of the preset, or the one set by hand
+  if (mode === 'heat_cool' && !none) {
+    temperature = 'target_temp_low' in target
+      ? `<span class="override-range">${esc(`${loc.number(target.target_temp_low)}–${loc.number(target.target_temp_high)} ${loc.unit}`)}</span>` : '';
+  }
+  const disabled = SETPOINT_MODES.filter((m) => !Object.values(targets).some((v) => presetModes(v).includes(m)));
+  const chosen = off ? 'off' : idle || mode || defaultSetpointMode(hass, climate);
+  const first = rows ? modeRowHtml(hass, climate, loc, chosen, 'override-mode', disabled)
+    : '';
+  const chips = rows ? '' : `${offChipHtml(hass, climate, loc, 'override-off', off)}${idle ? modeChipHtml(hass, climate, loc, idle, 'override-mode', true) : ''}`;
+  // Off, fan only, dry and auto take no temperature
+  return { presets: `${first}${rows && !presets ? '' : `<div class="presets">${chips}${presets}</div>`}`, temperature: none ? '' : temperature, hvac: '' };
 }
 
 // Whether a slot will run in cool on a thermostat (#91): the slot says cool and the thermostat
@@ -2187,31 +2332,38 @@ function slotCools(hass, climate, seg) {
 }
 
 // The setpoint a slot will apply, with its number: "Setpoint: 20 °C (its Comfort preset)". With
-// the integration's rule when cooling: the preset's cooling setpoint; else the thermostat's own
-// preset, whose temperature when cooling the device knows; else "Setpoint unchanged": a heating
-// temperature is never sent in cool, on a thermostat that only cools either.
+// the integration's rule: the preset's value for the slot's HVAC mode. When cooling without one,
+// "Setpoint unchanged": a heating temperature is never sent in cool, on a thermostat that only
+// cools either. In heat/cool, the range: "20–25 °C".
 // `temperatureOf`: the temperature a device preset gives when heating; `coolTemperatureOf`:
 // when cooling
 function slotSetpointText(hass, climate, seg, target, loc, { temperatureOf = () => null, coolTemperatureOf = () => null } = {}) {
   const t = loc.t;
   if (hasNoPreset(seg) || !target) return '';
   const degrees = (value) => `${loc.number(value)} ${loc.unit}`;
-  const name = () => ownPresetName(hass, climate, target.preset_mode, loc);
-  const own = (temperature) => t('slotSetpoint', { value: temperature != null
-    ? t('slotSetpointOwn', { temperature: degrees(temperature), preset: name() })
-    : t('cellOwnPreset', { preset: name() }) });
+  const own = (preset, temperature) => {
+    const name = ownPresetName(hass, climate, preset, loc);
+    return t('slotSetpoint', { value: temperature != null
+      ? t('slotSetpointOwn', { temperature: degrees(temperature), preset: name })
+      : t('cellOwnPreset', { preset: name }) });
+  };
+  if (slotModeOn(hass, climate, seg) === 'heat_cool') {
+    if (!('target_temp_low' in target)) return t('slotSetpointKept');
+    return t('slotSetpoint', { value: `${loc.number(target.target_temp_low)}–${degrees(target.target_temp_high)}` });
+  }
   if (slotCools(hass, climate, seg)) {
     if ('cool_temperature' in target) return t('slotSetpoint', { value: degrees(target.cool_temperature) });
-    if ('preset_mode' in target) return own(coolTemperatureOf(target));
+    if ('cool_preset_mode' in target) return own(target.cool_preset_mode, coolTemperatureOf(target));
     return t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept');
   }
   if ('temperature' in target) return t('slotSetpoint', { value: degrees(target.temperature) });
   if (!('preset_mode' in target)) return '';
-  return own(temperatureOf(target));
+  return own(target.preset_mode, temperatureOf(target));
 }
 
-// A slot's name: "Off" for an off slot, "Fan only" for a fan-only slot, else its preset's
-const slotName = (seg, presets, loc) => (isOff(seg) ? loc.t('hvacOff') : isFan(seg) ? loc.t('hvacFan') : presetOf(presets, seg.preset, loc).name);
+// A slot's name: its HVAC mode for a slot without a preset ("Off", "Fan only", "Dry"), else its
+// preset's
+const slotName = (seg, presets, loc) => (hasNoPreset(seg) ? modeName(loc, slotMode(seg)) : presetOf(presets, seg.preset, loc).name);
 
 // "then Eco (schedule)": what the thermostat goes back to at the override's end
 function thenText(src, climate, d, loc) {
@@ -2305,8 +2457,8 @@ const endedAt = (d, at) => { const { ends_at: _, ...rest } = d; return { ...rest
 // (`plan` computed by the integration, like the schedule sensor: the next different preset, maybe
 // on another day); '' without one
 function planText(plan, presetName, loc) {
-  // An off slot reads "Off", a fan-only slot "Fan only": they have no preset (#91)
-  const name = (mode, preset) => (mode === 'off' ? loc.t('hvacOff') : mode === 'fan_only' ? loc.t('hvacFan') : preset ? presetName(preset) : '');
+  // A slot without a preset reads as its HVAC mode: "Off", "Fan only", "Dry" (#91)
+  const name = (mode, preset) => (NO_PRESET_MODES.includes(mode) ? modeName(loc, mode) : preset ? presetName(preset) : '');
   const current = plan ? name(plan.hvac_mode, plan.preset) : '';
   if (!current) return '';
   const start = plan.next_start ? parseDate(plan.next_start) : null;
@@ -2377,25 +2529,24 @@ function slotAt(week, date) {
 }
 const presetAt = (week, date) => (slotAt(week, date) || {}).preset || null;
 
-// The HVAC mode a new override takes on an air conditioner (#91): the one of the slot planned
-// now; during an off slot or a fan-only slot, the one the thermostat runs in, else heat. Always
-// cool on a thermostat that only cools. Null on a heater: its override says no HVAC mode
+// The HVAC mode a new override takes (#91): the one of the slot planned now when it takes a
+// setpoint; else the one the thermostat runs in; else the first one it lists (heat, or cool on a
+// thermostat that only cools). Null on a heater with one "on" HVAC mode: its override says none
 function defaultOverrideHvac(hass, src, climate) {
-  const { modes } = hvacModesOf(hass, climate);
-  if (!modes || !modes.includes('cool')) return null;
-  if (!modes.includes('heat')) return 'cool';
+  const choices = setpointModesOf(hass, climate);
+  if (!choices.length || (!hasModeRow(hass, climate) && !choices.includes('cool'))) return null;
   const planned = (src.planned(climate) || {}).hvac_mode;
-  if (planned === 'heat' || planned === 'cool') return planned;
+  if (choices.includes(planned)) return planned;
   const st = hass.states[climate];
-  return st && st.state === 'cool' ? 'cool' : 'heat';
+  return st && choices.includes(st.state) ? st.state : choices[0];
 }
-// The HVAC mode of the override `d` (or of a new one) on a thermostat: on an air conditioner,
-// its own heat or cool, else the default. On a heater, the one set by hand on it, if any
+// The HVAC mode of the override `d` (or of a new one) on a thermostat, among those that take a
+// setpoint: its own, else the default. On a heater, the one set by hand on it, if any
 function overrideHvacOn(d, hass, src, climate) {
   const own = setpointHvac(d);
   const fallback = defaultOverrideHvac(hass, src, climate);
   if (!fallback) return own;
-  return slotModesOf(hass, climate).includes(own) ? own : fallback;
+  return setpointModesOf(hass, climate).includes(own) ? own : fallback;
 }
 const withHvac = (target, mode) => { const { hvac_mode: _, ...value } = target; return mode ? { ...value, hvac_mode: mode } : value; };
 
@@ -2410,19 +2561,21 @@ function overrideWithPreset(d, src, climate, preset, hass) {
   return { ...(d || newOverride(src, target)), target, preset };
 }
 
-// The override `d` set to heat or to cool (the Heat · Cool row), until the same end: it keeps
-// its preset or its temperature. Without a setpoint to keep (no override yet, off, fan only):
-// the preset planned now, in that HVAC mode
+// The override `d` set to heat, cool or heat/cool (the first row), until the same end. It keeps
+// its preset when the preset has a value for that HVAC mode, or the temperature typed by the
+// user. Otherwise (no override yet, off, fan only, a preset without a value there): the preset
+// planned now if it has one for that HVAC mode, else the first preset that has
 function overrideWithHvac(d, src, climate, mode) {
+  const targets = src.targets(climate);
+  const offers = (id) => !!id && !!targets[id] && presetModes(targets[id]).includes(mode);
   const target = (d && d.target) || {};
-  if ('temperature' in target || 'preset_mode' in target || 'cool_temperature' in target) {
-    return { ...d, target: withHvac((d.preset && src.targets(climate)[d.preset]) || target, mode) };
-  }
-  const preset = (src.planned(climate) || {}).preset;
-  const meaning = preset && src.targets(climate)[preset];
-  const next = withHvac(meaning || {}, mode);
-  const { ends_at: _, ...base } = d || newOverride(src, next);
-  return { ...base, target: next, ...(meaning ? { preset } : {}) };
+  if (d && offers(d.preset)) return { ...d, target: withHvac(targets[d.preset], mode) };
+  if (d && !d.preset && mode !== 'heat_cool' && ('temperature' in target || 'preset_mode' in target)) return { ...d, target: withHvac(target, mode) };
+  const planned = (src.planned(climate) || {}).preset;
+  const preset = offers(planned) ? planned : src.presets().map((l) => l.id).find(offers);
+  const next = withHvac(preset ? targets[preset] : {}, mode);
+  const { ends_at: _, preset: _p, ...base } = d || newOverride(src, next);
+  return { ...base, target: next, ...(preset ? { preset } : {}) };
 }
 
 // Resuming the schedule, as the value of an override: Off tapped on an "on" override during an
@@ -2450,24 +2603,31 @@ function overrideOff(d, src, climate) {
   return { ...rest, target: { hvac_mode: 'off' } };
 }
 
-// The override `d` set to fan only, until the same end: fan only, and no setpoint; a new override
-// without `d`. RESUME when the schedule plans fan only now
-function overrideFan(d, src, climate) {
-  if (d && (src.planned(climate) || {}).hvac_mode === 'fan_only') return RESUME;
-  const target = { hvac_mode: 'fan_only' };
+// The override `d` set to an HVAC mode without a preset, until the same end: off (see
+// overrideOff), or fan only, dry or auto and no setpoint; a new override without `d`. RESUME
+// when the schedule plans that HVAC mode now
+function overrideNoPreset(d, src, climate, mode) {
+  if (mode === 'off') return overrideOff(d, src, climate);
+  if (d && (src.planned(climate) || {}).hvac_mode === mode) return RESUME;
+  const target = { hvac_mode: mode };
   if (!d) return newOverride(src, target);
   const { preset: _, ...rest } = d;
   return { ...rest, target };
 }
+// The override `d` set to an HVAC mode of the first row
+const overrideWithMode = (d, src, climate, mode) => (NO_PRESET_MODES.includes(mode)
+  ? overrideNoPreset(d, src, climate, mode) : overrideWithHvac(d, src, climate, mode));
 
 // The override `d` set to a temperature (no longer a preset), until the same end; a new override
 // without `d`. The fan and the vanes stay. On an air conditioner it carries its HVAC mode: a
 // cooling override cools. An off override becomes "on", as with a preset
 function overrideWithTemperature(d, src, climate, value, hass) {
-  const mode = overrideHvacOn(d, hass, src, climate);
+  // Heat/cool takes a range: a single temperature heats, or cools on a thermostat that does not heat
+  const on = overrideHvacOn(d, hass, src, climate);
+  const mode = on === 'heat_cool' ? setpointModesOf(hass, climate)[0] : on;
   if (!d) return newOverride(src, withHvac({ temperature: value }, mode));
   const { preset, ...rest } = d;
-  const { preset_mode: _p, temperature: _t, cool_temperature: _c, ...kept } = d.target || {};
+  const { preset_mode: _p, temperature: _t, cool_temperature: _c, cool_preset_mode: _cp, target_temp_low: _l, target_temp_high: _h, ...kept } = d.target || {};
   return { ...rest, target: withHvac({ ...kept, temperature: value }, mode) };
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
@@ -3269,13 +3429,22 @@ class ChauffageProgrammeCard extends HTMLElement {
     return slotName(s, this._presets(), this._loc);
   }
 
-  // "Off" and "Fan only" in the legend, after the presets: each only when a shown week has such
-  // a slot
+  // The HVAC modes without a preset in the legend, after the presets ("Off", "Fan only", "Dry",
+  // "Auto"): each only when a shown week has such a slot
   _legendOffHtml() {
-    const has = (is) => this._shown.some((climate) => this._week(climate).some((segs) => segs.some(is)));
-    const off = has(isOff) ? `<span class="legend-off"><i style="background:${OFF_COLOR}"></i>${hvacIcon('off')}${esc(this._loc.t('legendOff'))}</span>` : '';
-    const fan = has(isFan) ? `<span class="legend-off legend-fan"><i class="fan"></i>${hvacIcon('fan_only')}${esc(this._loc.t('hvacFan'))}</span>` : '';
-    return off + fan;
+    const has = (mode) => this._shown.some((climate) => this._week(climate).some((segs) => segs.some((s) => slotMode(s) === mode)));
+    return NO_PRESET_MODES.filter(has).map((mode) => {
+      const swatch = mode === 'fan_only' ? '<i class="fan"></i>' : `<i style="background:${hvacColor(mode)}"></i>`;
+      return `<span class="legend-off${mode === 'fan_only' ? ' legend-fan' : ''}">${swatch}${hvacIcon(mode)}${esc(mode === 'off' ? this._loc.t('legendOff') : modeName(this._loc, mode))}</span>`;
+    }).join('');
+  }
+
+  // The HVAC modes a shown thermostat can use a preset in: the legend lists a preset only with
+  // the colors it can have in the weeks shown
+  _legendModes(preset) {
+    const modes = new Set();
+    for (const climate of this._shown) for (const mode of presetModes(this._targetOf(climate, preset))) modes.add(mode);
+    return modes;
   }
 
   // Whether a shown thermostat cools: the legend then shows each preset's cool color too
@@ -3311,15 +3480,16 @@ class ChauffageProgrammeCard extends HTMLElement {
         const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
         const off = isOff(s);
         const fan = isFan(s);
+        const none = hasNoPreset(s);
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : '',
           editable && i > 0 && i < segs.length - 1 ? 'movable' : '', off ? 'off' : '', fan ? 'fan' : '',
           s.settings ? 'marked' : ''].join(' ');
-        // An off slot is grey, a fan-only slot has Home Assistant's color of fan only (its class),
-        // a cooling slot its preset's cool color. The title names the slot, its HVAC mode, and
-        // the fan and the vanes it sets
-        const background = off ? `background:${OFF_COLOR}` : fan ? '' : `background:${slotColor(this._preset(s.preset), s)}`;
-        const mode = hasNoPreset(s) || !slotMode(s) ? '' : this._loc.t(slotMode(s) === 'cool' ? 'slotCool' : 'slotHeat');
+        // An off slot is grey; a fan-only, a dry and an auto slot have Home Assistant's color of
+        // their HVAC mode; a cooling slot its preset's cool color, a heat/cool slot both colors.
+        // The title names the slot, its HVAC mode, and the fan and the vanes it sets
+        const background = off ? `background:${OFF_COLOR}` : fan ? '' : none ? hvacStyle(slotMode(s)) : `background:${slotColor(this._preset(s.preset), s)}`;
+        const mode = none || !slotMode(s) ? '' : modeName(this._loc, slotMode(s));
         const air = settingsText(this._hass, climate, this._loc, s.settings);
         const what = [this._slotLabel(s), mode, air].filter(Boolean).join(' · ');
         const label = `${this._name(climate)} · ${this._loc.time(s.start)} → ${this._loc.time(end)} · ${what}`;
@@ -3534,17 +3704,27 @@ class ChauffageProgrammeCard extends HTMLElement {
       : timeField(`data-edge="start" ${slot}`, s.start, this._loc, this._config.step);
     const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>`
       : timeField(`data-edge="end" data-day-end ${slot}`, end, this._loc, this._config.step);
-    // One row says what the slot is (#91): off, fan only, or one of the presets, in their cool
-    // color on a slot that cools
+    // On a thermostat with more than one "on" HVAC mode, two rows (#91). First what the device
+    // does: its HVAC modes. Then how warm: the presets that have a value for the HVAC mode
+    // chosen, in its color; none for off, fan only, dry and auto. A heater has one row: Off,
+    // then the presets
     const none = hasNoPreset(s);
     const target = none ? null : this._targetOf(climate, this._preset(s.preset));
     const off = isOff(s);
-    const presets = `${offChipHtml(this._hass, climate, this._loc, 'slot-off', off)}${fanChipHtml(this._hass, climate, this._loc, 'slot-fan', isFan(s))}${this._presets()
-      .map((l) => `<button data-act="preset" data-preset="${esc(l.id)}" class="${!none && s.preset === l.id ? 'on' : ''}" style="background:${slotColor(l, s)}">${esc(l.name)}</button>`)
-      .join('')}`;
-    // Under the presets, on an air conditioner that heats and cools: the HVAC mode of the slot,
-    // Heat or Cool. One is always chosen. None on a heater, nor on a unit that only cools
-    const hvacRow = none ? '' : hvacRowHtml(this._hass, climate, this._loc, slotMode(s), 'slot-hvac');
+    const rows = hasModeRow(this._hass, climate);
+    const mode = slotMode(s);
+    const inMode = none || !mode ? defaultSetpointMode(this._hass, climate) : mode;
+    const chips = rows && none ? '' : this._presets()
+      .filter((l) => (!none && s.preset === l.id) || this._presetsIn(climate, inMode).includes(l.id))
+      .map((l) => {
+        const missing = !this._presetsIn(climate, inMode).includes(l.id);
+        return `<button data-act="preset" data-preset="${esc(l.id)}" class="${!none && s.preset === l.id ? 'on' : ''}${missing ? ' unsupported' : ''}"${missing ? ` title="${esc(t('noPresetInMode'))}"` : ''} style="background:${presetColorIn(l, none ? null : mode)}">${esc(l.name)}</button>`;
+      }).join('');
+    const disabled = SETPOINT_MODES.filter((m) => !this._presetsIn(climate, m).length);
+    const modeRow = rows ? modeRowHtml(this._hass, climate, this._loc, none ? mode : inMode, 'slot-mode', disabled) : '';
+    // One row: Off first; a fan-only, a dry or an auto slot pasted on this thermostat stays, marked
+    const single = rows ? '' : `${offChipHtml(this._hass, climate, this._loc, 'slot-off', off)}${none && !off ? modeChipHtml(this._hass, climate, this._loc, mode, 'slot-mode', true) : ''}`;
+    const presets = `${single}${chips}`;
     // The setpoint the slot will apply, with its number, as the preset's value gives it for the
     // slot's HVAC mode: a link to the presets page for an admin
     const setpoint = slotSetpointText(this._hass, climate, s, target, this._loc, {
@@ -3566,8 +3746,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
       </div>
       ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
-      <div class="presets">${presets}</div>
-      ${hvacRow}
+      ${modeRow}
+      ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
       ${setpointLine}
       ${more}
       <div class="ed-actions">
@@ -3592,8 +3772,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${d ? `<span class="override-value">${esc(this._overrideLabel(d))}</span>` : ''}
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>`;
-    // Off, fan only or a preset (one row), heat or cool on an air conditioner, or a temperature (#91)
-    const values = `${value.presets}${value.hvac}
+    // The HVAC mode, then a preset or a temperature (#91)
+    const values = `${value.presets}
       ${value.temperature ? `<div class="ed-head">${value.temperature}</div>` : ''}`;
     if (!d) return `<div class="editor override-ed">${head}${values}</div>`;
     const endsAt = parseDate(d.end);
@@ -3867,12 +4047,17 @@ class ChauffageProgrammeCard extends HTMLElement {
     const single = !multi && !!st;
     const legend = this._presets()
       .map((l) => {
+        // Only what the thermostats shown can use: a preset with no value on any of them is
+        // left out, and each of its colors shows only if a week shown can have it
+        const usable = this._legendModes(l);
+        if (!usable.size) return '';
         const target = this._targetOf(focus, l);
         const t = single && !coolsOnly(this._hass, focus) ? this._presetTemperature(focus, target) : null;
         const c = single && listsMode(this._hass, focus, 'cool') ? this._coolPresetTemperature(focus, target) : null;
-        const hint = !multi && 'preset_mode' in target && t == null && c == null && !coolsOnly(this._hass, focus) ? ` ${tr('presetHint')}` : '';
-        const heat = showsHeat ? `<i class="heat${showsCool ? ' mk' : ''}" style="background:${l.color}"${showsCool ? ` title="${esc(tr('slotHeat'))}"` : ''}>${showsCool ? hvacIcon('heat') : ''}</i>` : '';
-        const cool = showsCool ? `<i class="cool mk" style="background:${coolColor(l)}" title="${esc(tr('slotCool'))}">${hvacIcon('cool')}</i>` : '';
+        const hint = !multi && ('preset_mode' in target || 'cool_preset_mode' in target) && t == null && c == null && !coolsOnly(this._hass, focus) ? ` ${tr('presetHint')}` : '';
+        const heat = showsHeat && usable.has('heat') ? `<i class="heat${showsCool ? ' mk' : ''}" style="background:${l.color}"${showsCool ? ` title="${esc(tr('slotHeat'))}"` : ''}>${showsCool ? hvacIcon('heat') : ''}</i>` : '';
+        const cool = showsCool && usable.has('cool') ? `<i class="cool mk" style="background:${coolColor(l)}" title="${esc(tr('slotCool'))}">${hvacIcon('cool')}</i>` : '';
+        if (!heat && !cool) return '';
         const values = [t != null ? `${this._loc.number(t)}°` : '', c != null ? `${t != null ? `<span class="cv">${hvacIcon('cool')}</span>` : ''}${this._loc.number(c)}°` : '']
           .filter(Boolean).join(' · ');
         return `<span>${heat}${cool}${esc(l.name)}${values ? ` ${values}` : esc(hint)}</span>`;
@@ -4542,10 +4727,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._render();
   }
 
-  // What a preset gives a thermostat by default: its own preset of the same name when the option
-  // allows it, else the preset's temperature. `own`: the thermostat's own presets
-  _cellDefaults(climate, preset, own) {
-    return this._source().usePresets() && own.includes(preset.id) ? { preset_mode: preset.id } : { temperature: preset.temperature ?? 19 };
+  // What a preset gives a thermostat by default, in each HVAC mode (valueOn without a value set
+  // by hand): its own preset of the same name when the option allows it, else the preset's
+  // temperature, for the HVAC modes the preset has a temperature for
+  _cellDefaults(climate, preset) {
+    return valueOn(preset, null, this._hass, climate, this._source().usePresets());
   }
 
   // The cell popover takes the thermostat's current state (#91, lot 3): its setpoint, as the
@@ -4581,28 +4767,32 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._cellCoolNote();
   }
 
-  // Under the cooling field of the cell popover: an empty field leaves the setpoint alone when
-  // the value when heating is a temperature. One of the thermostat's own presets is sent when
-  // cooling too (the note's data-own: the default is one)
+  // What an empty cooling field gives, in words: "Default (25°)", "Default (its Comfort preset,
+  // 25°)", or "Not used when cooling" when the preset has no value there. `cell`: the value
+  // being set by hand, without a cooling temperature
+  _coolFallbackText(climate, preset, cell) {
+    const t = this._loc.t;
+    const value = valueOn(preset, cell, this._hass, climate, this._source().usePresets());
+    if ('cool_temperature' in value) return t('presetAuto', { value: `${this._loc.number(value.cool_temperature)}°` });
+    if (!('cool_preset_mode' in value)) return t('notWhenCooling');
+    const temperature = this._source().coolPresetTemperature(climate, value.cool_preset_mode);
+    const name = t('cellOwnPreset', { preset: ownPresetName(this._hass, climate, value.cool_preset_mode, this._loc) });
+    return t('presetAuto', { value: typeof temperature === 'number' ? `${name}, ${this._loc.number(temperature)}°` : name });
+  }
+
+  // Under the cooling field of the cell popover: what an empty field gives, from the row chosen
+  // when heating (one of the thermostat's own presets is sent when cooling too)
   _cellCoolNote() {
     const root = this.shadowRoot;
-    const note = root.querySelector('.cell-ed .pv-coolnote');
-    if (!note) return;
+    const note = root.querySelector('.cell-ed .pv-cooldefault');
+    const sel = this._cell;
+    if (!note || !sel || !sel.climate) return;
+    note.hidden = root.querySelector('.cell-ed [data-cell-cool]').value.trim() !== '';
+    if (note.hidden) return;
     const choice = (root.querySelector('.cell-ed input[name="cell-choice"]:checked') || {}).value;
-    const own = choice === 'own' || (choice === 'default' && note.hasAttribute('data-own'));
-    const empty = root.querySelector('.cell-ed [data-cell-cool]').value.trim() === '';
-    note.hidden = own || !empty;
-    // One of its own presets, and no cooling temperature: what that preset gives when cooling
-    const fallback = root.querySelector('.cell-ed .pv-cooldefault');
-    const climate = this._cell && this._cell.climate;
-    if (!fallback || !climate) return;
-    const preset = choice === 'own' ? (root.querySelector('.cell-ed [data-cell-preset]') || {}).value : fallback.dataset.default;
-    fallback.hidden = !own || !empty || !preset;
-    if (fallback.hidden) return;
-    const t = this._loc.t;
-    const temperature = this._source().coolPresetTemperature(climate, preset);
-    const name = t('cellOwnPreset', { preset: ownPresetName(this._hass, climate, preset, this._loc) });
-    fallback.textContent = t('presetAuto', { value: typeof temperature === 'number' ? `${name}, ${this._loc.number(temperature)}°` : name });
+    const own = (root.querySelector('.cell-ed [data-cell-preset]') || {}).value;
+    const preset = this._presets().find((l) => l.id === sel.preset);
+    if (preset) note.textContent = this._coolFallbackText(sel.climate, preset, choice === 'own' && own ? { preset_mode: own } : null);
   }
 
   // The cool color of the preset popover follows the color while the user has not chosen one
@@ -4617,7 +4807,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   // a manual setpoint with
   _presetTemperature(climate, target) {
     if ('temperature' in target) return target.temperature;
-    const temperature = this._source().presetTemperature(climate, target.preset_mode);
+    const temperature = 'preset_mode' in target ? this._source().presetTemperature(climate, target.preset_mode) : null;
     return typeof temperature === 'number' ? temperature : null;
   }
 
@@ -4625,7 +4815,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   // own preset gives when cooling, when the integration knows it; null otherwise
   _coolPresetTemperature(climate, target) {
     if ('cool_temperature' in target) return target.cool_temperature;
-    const temperature = 'preset_mode' in target ? this._source().coolPresetTemperature(climate, target.preset_mode) : null;
+    const temperature = 'cool_preset_mode' in target ? this._source().coolPresetTemperature(climate, target.cool_preset_mode) : null;
     return typeof temperature === 'number' ? temperature : null;
   }
 
@@ -4634,8 +4824,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _targetOf(climate, preset) {
     const known = this._source().targets(climate)[preset.id];
     if (known) return known;
-    const st = this._hass.states[climate];
-    return this._cellDefaults(climate, preset, (st && st.attributes.preset_modes) || []);
+    return valueOn(preset, this._source().mapping(climate)[preset.id], this._hass, climate, this._source().usePresets());
   }
 
   // On a dashboard, the card shows the weeks; the presets, the rules and the thermostats are set
@@ -4915,8 +5104,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     // A preset's header holds all of it: its color, name and default temperature
     // On a thermostat's sheet, the presets themselves are not set (they are every thermostat's)
     const definitions = this._config.preset_definitions !== false;
+    // Its temperature when heating, then when cooling with an air conditioner: "20° by default
+    // · ❄ 25°". Either can be empty
+    const anyCools = this._thermostats.some(({ entity }) => listsMode(this._hass, entity, 'cool'));
+    const headDefaults = (l) => [l.temperature != null ? esc(t('defaultTemperature', { value: this._loc.number(l.temperature) })) : '',
+      anyCools && l.cool_temperature != null ? `${hvacIconHtml('cool')}${esc(`${this._loc.number(l.cool_temperature)}°`)}` : ''].filter(Boolean).join(' · ');
     const headInner = (l) => `<span class="pv-pname"><i style="background:${l.color}"></i>${esc(l.name)}</span>
-       <span class="pv-default">${esc(t('defaultTemperature', { value: this._loc.number(l.temperature ?? 19) }))}</span>`;
+       <span class="pv-default">${headDefaults(l)}</span>`;
     const head = presets.map((l) => `<th>${definitions ? cell('preset', l.id, null, headInner(l), 'head')
       : `<span class="cell head">${headInner(l)}</span>`}</th>`).join('');
     let unknown = false;
@@ -4928,7 +5122,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       // An air conditioner that only cools has no heating value; one that cools has a cooling
       // value: its cooling temperature, else what its own preset gives when cooling
       const coolOnly = coolsOnly(this._hass, entity);
-      const temp = coolOnly ? null : this._presetTemperature(entity, target);
+      const usable = presetModes(target);
+      const heats = !coolOnly && usable.includes('heat');
+      const temp = heats ? this._presetTemperature(entity, target) : null;
       const coolTemp = listsMode(this._hass, entity, 'cool') ? this._coolPresetTemperature(entity, target) : null;
       let how;
       let cls;
@@ -4943,7 +5139,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         how = t('cellDefault');
         cls = 'default';
       }
-      if (temp == null && !coolOnly) unknown = true;
+      if (temp == null && heats) unknown = true;
       // A fan or swing setting: one icon whatever their number (the popover details); a cooling
       // setpoint after the heating one, "🔥 20° · ❄ 25°"
       const tuned = SETTING_ATTRS.some((attr) => attr in target) ? '<span class="m"><ha-icon icon="mdi:tune-variant"></ha-icon></span>' : '';
@@ -4951,8 +5147,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       // A heating setpoint known: "20°", with its icon next to a cooling one ("🔥 20° · ❄ 25°");
       // unknown: "?", unless the cooling one is the value. Only cooling, without a cooling
       // value: "—", the setpoint is left alone
-      const heat = coolOnly ? '' : temp != null ? `${cool ? hvacIconHtml('heat') : ''}${this._loc.number(temp)}°` : cool ? '' : '?';
-      const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat || (coolOnly ? '—' : '');
+      const heat = !heats ? '' : temp != null ? `${cool ? hvacIconHtml('heat') : ''}${this._loc.number(temp)}°` : cool ? '' : '?';
+      const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat || '—';
       return { value: `${setpoint}${tuned}`, how, cls };
     };
     let body;
@@ -5015,16 +5211,18 @@ class ChauffageProgrammeCard extends HTMLElement {
         .sort((a, b) => (b === preset.id) - (a === preset.id));
       // What "default" gives: the thermostat's own preset of the same name (when the "use the
       // thermostats' presets" option allows it), else the preset's default temperature
-      const defaults = this._cellDefaults(sel.climate, preset, own);
+      const defaults = this._cellDefaults(sel.climate, preset);
       const degrees = (value) => `${this._loc.number(value)}°`;
       // An air conditioner that only cools: no heating value. Its own preset, or a cooling
       // temperature
       const coolOnly = coolsOnly(this._hass, sel.climate);
       const ownName = (p) => ownPresetName(this._hass, sel.climate, p, this._loc);
+      // What the default gives: when cooling on a unit that only cools, else when heating
       const defaultTemperature = coolOnly ? this._coolPresetTemperature(sel.climate, defaults) : this._presetTemperature(sel.climate, defaults);
-      const defaultText = 'preset_mode' in defaults
-        ? `${t('cellOwnPreset', { preset: ownName(defaults.preset_mode) })}${defaultTemperature != null ? `, ${degrees(defaultTemperature)}` : ''}`
-        : coolOnly ? t('slotSetpointKept') : degrees(defaults.temperature);
+      const defaultOwn = coolOnly ? defaults.cool_preset_mode : defaults.preset_mode;
+      const defaultText = defaultOwn
+        ? `${t('cellOwnPreset', { preset: ownName(defaultOwn) })}${defaultTemperature != null ? `, ${degrees(defaultTemperature)}` : ''}`
+        : defaultTemperature != null ? degrees(defaultTemperature) : t(coolOnly ? 'notWhenCooling' : 'notWhenHeating');
       // One question, three answers: the default, one of the thermostat's own presets, or a
       // temperature. The cell opens on what is stored; using a row's field chooses the row
       const choice = 'preset_mode' in explicit ? 'own' : 'temperature' in explicit ? 'temperature' : 'default';
@@ -5041,16 +5239,13 @@ class ChauffageProgrammeCard extends HTMLElement {
         + (own.length ? row('own', t('cellOwn'), `<select data-cell-preset aria-label="${esc(t('ownPreset'))}">${options}</select>`) : '')
         + (coolOnly ? '' : row('temperature', t('presetTemperature'), tempInput(temp, 'data-cell-temp', reversible ? t('temperatureHeatAria') : t('presetTemperature'))));
       // An air conditioner: the rows above say how warm when heating, and a field says how warm
-      // when cooling. Empty: one of its own presets is sent when cooling too, and the note says
-      // what it gives ("Default (its Eco preset, 27°)"); a temperature is not sent (the
-      // setpoint is then left alone, and the note says so)
+      // when cooling. Empty: the note says what the thermostat then gets, "Default (25°)",
+      // "Default (its Eco preset, 27°)" or "Not used when cooling"
       const cool = explicit.cool_temperature;
-      const ownDefault = 'preset_mode' in defaults;
-      const unchanged = cool == null && (choice === 'temperature' || (choice === 'default' && !ownDefault));
+      const fallback = this._coolFallbackText(sel.climate, preset, 'preset_mode' in explicit ? { preset_mode: explicit.preset_mode } : null);
       const cooling = !reversible && !coolOnly ? '' : `<div class="pv-when">${hvacIcon('cool')}${esc(t('whenCooling'))}</div>
         <div class="pv-row pv-cool"><span class="pv-field">${tempInput(cool, 'data-cell-cool', t('temperatureCoolAria'))}</span></div>
-        <div class="pv-coolnote muted"${ownDefault ? ' data-own' : ''}${unchanged ? '' : ' hidden'}>${esc(t(coolOnly ? 'slotSetpointKept' : 'slotSetpointUnchanged'))}</div>
-        <div class="pv-cooldefault muted" data-default="${esc(defaults.preset_mode || '')}" hidden></div>`;
+        <div class="pv-cooldefault muted"${cool == null ? '' : ' hidden'}>${esc(fallback)}</div>`;
       // The fan and the vanes, folded (lot 3)
       const more = moreSettingsHtml(this._hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting');
       // Its own presets are set on its device (their temperatures, on a Versatile Thermostat)
@@ -5082,8 +5277,9 @@ class ChauffageProgrammeCard extends HTMLElement {
           <span>${esc(t('presetName'))}</span>
           <span class="pv-name">${cools ? '' : color}
             <input type="text" data-cell-name value="${esc(isNew ? '' : preset.name)}" placeholder="${esc(t('presetName'))}"></span>
-          <span>${esc(t('presetDefaultTemperature'))}</span>${tempInput(isNew ? 19 : preset.temperature ?? 19)}
-          ${cools ? `<span>${esc(t('presetHeatColor'))}</span><span class="pv-name">${color}</span>
+          <span>${esc(t(cools ? 'whenHeating' : 'presetDefaultTemperature'))}</span>${tempInput(isNew ? 19 : preset.temperature, 'data-cell-temp', t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
+          ${cools ? `<span>${esc(t('whenCooling'))}</span>${tempInput(isNew ? null : preset.cool_temperature, 'data-cell-cool', t('temperatureCoolAria'))}
+          <span>${esc(t('presetHeatColor'))}</span><span class="pv-name">${color}</span>
           <span>${esc(t('presetCoolColor'))}</span>
           <span class="pv-name"><input type="color" data-cell-cool-color${preset.cool_color ? ' data-chosen' : ''} value="${esc(coolColor(isNew ? { color: '#9e9e9e' } : preset))}" title="${esc(t('presetCoolColor'))}"></span>` : ''}
         </div>
@@ -5129,7 +5325,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'cell-step') { // the field of the row of the button tapped: heating or cooling
       const field = (el && el.closest('.pv-temp') || root).querySelector('input') || input;
       // An empty cooling field starts from the heating temperature (24° on a unit that only cools)
-      const from = Number.isFinite(parseDecimal(field.value)) ? parseDecimal(field.value) : input ? parseDecimal(input.value) : 24;
+      const typed = [field, input].map((f) => (f ? parseDecimal(f.value) : NaN)).find(Number.isFinite);
+      const from = typed ?? (field === cool ? 24 : 19);
       field.value = this._loc.number(Math.round((from + Number(ds.delta)) * 10) / 10);
       if (field === cool) this._cellCoolNote(); else this._cellChoose('temperature');
       return undefined;
@@ -5139,17 +5336,23 @@ class ChauffageProgrammeCard extends HTMLElement {
       return undefined;
     }
     const src = this._source();
-    const presets = presetsOf(src, this._loc).map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature ?? 19,
+    const presets = presetsOf(src, this._loc).map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature === undefined ? 19 : l.temperature,
+      ...(l.cool_temperature != null ? { cool_temperature: l.cool_temperature } : {}),
       ...(l.cool_color ? { cool_color: l.cool_color } : {}) }));
     const value = (sel2) => { const el = root.querySelector(sel2); return el ? el.value : ''; };
     // The cool color is stored only when the user chose one that is not the derived one: a
     // preset without one keeps following its color
+    // Either temperature can be empty: the preset is then not used in that HVAC mode. Without
+    // an air conditioner, the popover has no cooling field: the cooling temperature stays
     const edited = (l) => {
-      const { cool_color: _, ...rest } = l;
+      const { cool_color: _, cool_temperature: kept, ...rest } = l;
       const color = value('[data-cell-color]');
       const coolField = root.querySelector('[data-cell-cool-color]');
-      const cool = coolField ? (coolField.hasAttribute('data-chosen') && coolField.value !== derivedCoolColor(color) ? coolField.value : null) : l.cool_color;
-      return { ...rest, name: value('[data-cell-name]').trim(), color, temperature: parseDecimal(input.value), ...(cool ? { cool_color: cool } : {}) };
+      const coolColorChosen = coolField ? (coolField.hasAttribute('data-chosen') && coolField.value !== derivedCoolColor(color) ? coolField.value : null) : l.cool_color;
+      const number = (field) => (Number.isFinite(parseDecimal(field.value)) ? parseDecimal(field.value) : null);
+      const coolTemperature = cool ? number(cool) : kept ?? null;
+      return { ...rest, name: value('[data-cell-name]').trim(), color, temperature: number(input),
+        ...(coolTemperature != null ? { cool_temperature: coolTemperature } : {}), ...(coolColorChosen ? { cool_color: coolColorChosen } : {}) };
     };
     try {
       if (sel.kind === 'thermostat') {
@@ -5166,8 +5369,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         for (const attr of SETTING_ATTRS) if (value(`[data-cell-setting="${attr}"]`)) target[attr] = value(`[data-cell-setting="${attr}"]`);
         // Its own preset of the same name, chosen by hand: the default, so nothing more is stored
         const preset = presets.find((l) => l.id === sel.preset);
-        const own = ((this._hass.states[sel.climate] || { attributes: {} }).attributes.preset_modes || []).map(String);
-        const defaults = this._cellDefaults(sel.climate, preset, own);
+        const defaults = this._cellDefaults(sel.climate, preset);
         if (target.preset_mode && target.preset_mode === defaults.preset_mode) delete target.preset_mode;
         const mapping = { ...src.mapping(sel.climate) };
         if (Object.keys(target).length) mapping[sel.preset] = target; else delete mapping[sel.preset];
@@ -5295,6 +5497,38 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._commit(climate, day, s.start);
   }
 
+  // The presets a thermostat can use in an HVAC mode: those with a value for it there
+  _presetsIn(climate, mode) {
+    return this._presets().filter((l) => presetModes(this._targetOf(climate, l)).includes(mode)).map((l) => l.id);
+  }
+
+  // The selected slot set to an HVAC mode (the first row). Off, fan only, dry and auto have no
+  // preset. Heat, cool and heat/cool keep the slot's preset when it has a value for that HVAC
+  // mode. Else a preset that has one: the preset of the nearest slot on a preset, else eco,
+  // else the first one, and rather one that keeps the slot apart from its neighbors (a slot
+  // like the one before it would merge into it). The HVAC mode already chosen changes nothing
+  _setSlotMode(climate, day, idx, mode) {
+    const segs = this._week(climate)[day];
+    const s = segs && segs[idx];
+    if (!s || !HVAC_ORDER.includes(mode)) return;
+    if (NO_PRESET_MODES.includes(mode)) {
+      if (slotMode(s) !== mode) this._changeSlot(climate, day, idx, (slot) => noPresetSlot(slot, mode));
+      return;
+    }
+    if (!hasNoPreset(s) && slotMode(s) === mode) return;
+    const offered = this._presetsIn(climate, mode);
+    const made = (preset) => slotOf(s.start, preset, { ...airSettings(s), hvac_mode: mode });
+    let preset = !hasNoPreset(s) && offered.includes(s.preset) ? s.preset : null;
+    if (!preset) {
+      const near = [...segs.slice(0, idx).reverse(), ...segs.slice(idx + 1)].find((slot) => !hasNoPreset(slot));
+      const candidates = [near && near.preset, 'eco', ...offered].filter((id) => offered.includes(id));
+      const merges = (id) => [segs[idx - 1], segs[idx + 1]].some((n) => n && sameSlot(slotOn(this._hass, climate, n), made(id)));
+      preset = candidates.find((id) => !merges(id)) || candidates[0];
+    }
+    if (!preset) return;
+    this._changeSlot(climate, day, idx, () => made(preset));
+  }
+
   // A fan or swing setting of the selected slot (#91, lot 3): a value, or null (the default)
   _setSlotSetting(climate, day, idx, attr, value) {
     const slot = (this._week(climate)[day] || [])[idx];
@@ -5319,16 +5553,16 @@ class ChauffageProgrammeCard extends HTMLElement {
     const out = [];
     for (const s of segs) {
       const mode = slotMode(s);
-      if (hasNoPreset(s) && modes && !modes.includes(mode)) { left.add(mode === 'off' ? 'hvacOff' : 'hvacFan'); continue; }
+      if (hasNoPreset(s) && modes && !modes.includes(mode)) { left.add(MODE_LABELS[mode]); continue; }
       const settings = { ...(s.settings || {}) };
       for (const attr of SETTING_ATTRS) {
         if (attr in settings && !(options[attr] || []).includes(settings[attr])) { delete settings[attr]; left.add(SETTING_LABELS[attr]); }
       }
       const slot = slotOn(this._hass, climate, withSettings(s, slotSettings(settings)));
-      if (mode && !hasNoPreset(s) && slotMode(slot) !== mode) left.add(mode === 'cool' ? 'slotCool' : 'slotHeat');
+      if (mode && !hasNoPreset(s) && slotMode(slot) !== mode) left.add(MODE_LABELS[mode]);
       out.push(slot);
     }
-    const order = ['slotHeat', 'slotCool', 'hvacOff', 'hvacFan', ...SETTING_ATTRS.map((attr) => SETTING_LABELS[attr])];
+    const order = ['slotHeat', 'slotCool', 'hvacHeatCool', 'hvacOff', 'hvacFan', 'hvacDry', 'hvacAuto', ...SETTING_ATTRS.map((attr) => SETTING_LABELS[attr])];
     return { segs: normalize(out), dropped: order.filter((key) => left.has(key)) };
   }
 
@@ -5466,7 +5700,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _action(act, ds, el) {
     // What edits the weeks or the schedules needs Plan (canPlan), on a thermostat the user may edit
-    const editsWeeks = ['copyweek-menu', 'copy-week', 'copy-day', 'paste-day', 'preset', 'slot-off', 'slot-fan', 'slot-hvac', 'week-hvac', 'insert', 'delete'].includes(act)
+    const editsWeeks = ['copyweek-menu', 'copy-week', 'copy-day', 'paste-day', 'preset', 'slot-off', 'slot-mode', 'week-hvac', 'insert', 'delete'].includes(act)
       || act.startsWith('fill-') || (act.startsWith('schedule-') && act !== 'schedule-close' && !this._config.view);
     if (editsWeeks && !(this._source().plannable && (!ds.climate || this._mayEdit(ds.climate)))) return undefined;
     if (act === 'copyweek-menu') {
@@ -5532,9 +5766,8 @@ class ChauffageProgrammeCard extends HTMLElement {
         const changed = overrideWithPreset(d, this._source(), c, ds.preset, this._hass);
         return changed && this._sendOverride(c, changed);
       }
-      if (act === 'override-hvac' && c) return this._sendOverride(c, overrideWithHvac(d, this._source(), c, ds.mode));
-      if ((act === 'override-off' || act === 'override-fan') && c) { // off, fan only; what the schedule plans resumes it
-        const changed = (act === 'override-off' ? overrideOff : overrideFan)(d, this._source(), c);
+      if ((act === 'override-off' || act === 'override-mode') && c) { // an HVAC mode; what the schedule plans resumes it
+        const changed = overrideWithMode(d, this._source(), c, act === 'override-off' ? 'off' : ds.mode);
         return this._sendOverride(c, changed === RESUME ? null : changed);
       }
       if (act === 'override-close' || !d) { this._overrideSel = null; return this._render(); }
@@ -5590,14 +5823,8 @@ class ChauffageProgrammeCard extends HTMLElement {
       // A preset: the slot keeps its fan and vanes, and its heat or cool. An off slot or a
       // fan-only slot takes the HVAC mode of the slot on a preset before it
       this._changeSlot(climate, day, idx, (slot) => slotOf(slot.start, ds.preset, this._pieceSettings(climate, segs, idx)));
-    } else if (act === 'slot-off') {
-      this._changeSlot(climate, day, idx, offSlot);
-    } else if (act === 'slot-fan') {
-      this._changeSlot(climate, day, idx, fanSlot);
-    } else if (act === 'slot-hvac') {
-      // Heat or Cool: one is always chosen, so the one chosen tapped again changes nothing
-      if (hasNoPreset(s) || slotModeOn(this._hass, climate, s) === ds.mode) return;
-      this._changeSlot(climate, day, idx, (slot) => slotOf(slot.start, slot.preset, { ...airSettings(slot), hvac_mode: ds.mode }));
+    } else if (act === 'slot-off' || act === 'slot-mode') {
+      this._setSlotMode(climate, day, idx, act === 'slot-off' ? 'off' : ds.mode);
     } else if (act === 'insert') {
       const end = idx < segs.length - 1 ? segs[idx + 1].start : DAY_MIN;
       const m1 = this._snap(s.start + (end - s.start) / 3);
@@ -6246,7 +6473,7 @@ class ChauffageMoreInfo extends HTMLElement {
       const time = big && end - s.start >= (this._loc.hour12 ? 120 : 90) ? this._loc.time(s.start) : '';
       const txt = big ? `<span>${time}${hvacIcon(slotMode(s))}</span>` : '';
       const what = slotName(s, presetsOf(dataSource(this._hass), this._loc), this._loc);
-      const background = off ? `background:${OFF_COLOR}` : fan ? '' : `background:${slotColor(this._preset(s.preset), s)}`;
+      const background = off ? `background:${OFF_COLOR}` : fan ? '' : hasNoPreset(s) ? hvacStyle(slotMode(s)) : `background:${slotColor(this._preset(s.preset), s)}`;
       return `<div class="seg${off ? ' off' : ''}${fan ? ' fan' : ''}" style="left:${pct(s.start)}%;width:${pct(end - s.start)}%;${background}" title="${this._loc.time(s.start)} → ${this._loc.time(end)} · ${esc(what)}">${txt}</div>`;
     }).join('');
     let override = '';
@@ -6287,7 +6514,7 @@ class ChauffageMoreInfo extends HTMLElement {
       const lastPiece = pieces.find((p) => p.isLast);
       const addButton = (m, label) => `<button data-min="${m}">${label}</button>`;
       // What changes the override: off or a preset (one row), a temperature, its end
-      const change = `${value.presets}${value.hvac}
+      const change = `${value.presets}
         ${value.temperature ? `<div class="line">${value.temperature}</div>` : ''}
         <div class="btns">
           ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
@@ -6322,7 +6549,7 @@ class ChauffageMoreInfo extends HTMLElement {
       status = `<div class="status${value ? ' derogation' : ''}">
         <div class="line"><span><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}</span>
           <button data-new-override>${esc(t('newOverride'))}</button></div>
-        ${value ? `${value.presets}${value.hvac}<div class="line">${value.temperature}</div>` : ''}
+        ${value ? `${value.presets}<div class="line">${value.temperature}</div>` : ''}
       </div>`;
     }
 
@@ -6431,9 +6658,8 @@ class ChauffageMoreInfo extends HTMLElement {
       const changed = overrideWithPreset(d, dataSource(this._hass), this._entity, b.dataset.preset, this._hass);
       return changed && this._send(changed);
     }
-    if (b.dataset.act === 'override-hvac') return this._send(overrideWithHvac(d, dataSource(this._hass), this._entity, b.dataset.mode));
-    if (b.dataset.act === 'override-off' || b.dataset.act === 'override-fan') { // off, fan only; what the schedule plans resumes it
-      const changed = (b.dataset.act === 'override-off' ? overrideOff : overrideFan)(d, dataSource(this._hass), this._entity);
+    if (b.dataset.act === 'override-off' || b.dataset.act === 'override-mode') { // an HVAC mode; what the schedule plans resumes it
+      const changed = overrideWithMode(d, dataSource(this._hass), this._entity, b.dataset.act === 'override-off' ? 'off' : b.dataset.mode);
       return this._send(changed === RESUME ? null : changed);
     }
     if (!d) return;
@@ -6728,8 +6954,8 @@ class ChauffageThermostatCard extends HTMLElement {
       requested ? presetOf(presets, String(requested), loc).name : null);
     if (cause) return `<span class="tc-state"><i style="background:#616161"></i>${esc(cause.long)}</span>`;
     if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return `<span class="tc-state"><i style="background:#616161"></i>${esc(t('hvacOff'))}</span>`;
-    // A fan-only slot: "Fan only", in Home Assistant's color of fan only, without setpoint
-    if (plan && plan.hvac_mode === 'fan_only') return `<span class="tc-state"><i style="background:${FAN_COLOR}"></i>${esc(t('hvacFan'))}</span>`;
+    // A fan-only, a dry or an auto slot: its HVAC mode, in Home Assistant's color, without setpoint
+    if (plan && NO_PRESET_MODES.includes(plan.hvac_mode)) return `<span class="tc-state"><i style="background:${hvacColor(plan.hvac_mode)}"></i>${esc(modeName(loc, plan.hvac_mode))}</span>`;
     let label;
     let color = null;
     if (plan && plan.preset) ({ name: label, color } = presetOf(presets, plan.preset, loc));
@@ -8468,7 +8694,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
   VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay, parseTime,
-  overridePieces, overrideLabel, planText, coolColor, derivedCoolColor, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
+  overridePieces, overrideLabel, planText, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
   ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS, reloadPage,
 };

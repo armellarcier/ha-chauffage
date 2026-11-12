@@ -178,7 +178,7 @@ describe('Copy from the thermostat, in the popover of a preset\'s value', () => 
     button.click();
     assert.equal(text($(card, '.cell-ed [data-act="capture"]')), 'Copié ✓');
     assert.equal($(card, '.cell-ed [data-cell-cool]').value, '20'); // the AC cools: its setpoint is the cooling one
-    assert.equal($(card, '.cell-ed .pv-coolnote').hidden, true);
+    assert.equal($(card, '.cell-ed .pv-cooldefault').hidden, true);
     assert.equal(chosen(card), 'default', 'the heating value is left alone');
     assert.equal($(card, '.cell-ed [data-cell-setting="fan_mode"]').value, '2');
     assert.equal($(card, '.cell-ed details.more').open, true);

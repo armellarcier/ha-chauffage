@@ -25,8 +25,10 @@ const week = (d) => Array(7).fill(d);
 
 function setup({ atelier = PLAIN, combles = PLAIN, salon = PLAIN } = {}) {
   const data = integrationData({ weeks: { [SALON]: { Normal: week(salon) }, [ATELIER]: { Normal: week(atelier) }, [COMBLES]: { Normal: week(combles) } } });
-  const own = { comfort: { preset_mode: 'comfort' }, eco: { preset_mode: 'eco' }, boost: { preset_mode: 'boost' }, frost: { temperature: 7 } };
-  data.targets = { [SALON]: own, [ATELIER]: { ...own, comfort: { preset_mode: 'comfort', cool_temperature: 24 } },
+  // What each preset means, as the integration says it for each HVAC mode (engine.value_on)
+  const heats = { comfort: { preset_mode: 'comfort' }, eco: { preset_mode: 'eco' }, boost: { preset_mode: 'boost' }, frost: { temperature: 7 } };
+  const own = { eco: { preset_mode: 'eco', cool_preset_mode: 'eco' }, boost: { preset_mode: 'boost', cool_preset_mode: 'boost' }, frost: { temperature: 7 } };
+  data.targets = { [SALON]: heats, [ATELIER]: { ...own, comfort: { preset_mode: 'comfort', cool_temperature: 24 } },
     [COMBLES]: { comfort: { temperature: 20, cool_temperature: 26 }, eco: { temperature: 17 }, boost: { temperature: 21 }, frost: { temperature: 7 } } };
   data.mappings = { [ATELIER]: { comfort: { cool_temperature: 24 } }, [COMBLES]: { comfort: { cool_temperature: 26 } } };
   data.preset_temperatures = { [SALON]: { comfort: 20, eco: 17, boost: 21 }, [ATELIER]: { comfort: 20, eco: 17, boost: 21, away: 15 } };
@@ -140,7 +142,8 @@ describe('the legend says heat and cool', () => {
     const card = cardOf(setup(), { show: [COMBLES] });
     const legend = (name) => text($$(card, '.legend > span').find((s) => s.textContent.includes(name)));
     assert.equal(legend('Confort'), 'Confort 26°');
-    assert.equal(legend('Hors-gel'), 'Hors-gel');
+    // Frost protection has no value when cooling: the unit cannot use it
+    assert.equal($$(card, '.legend > span').some((s) => s.textContent.includes('Hors-gel')), false);
     const comfort = $$(card, '.legend > span').find((s) => /Confort/.test(s.textContent));
     assert.equal(comfort.querySelectorAll('i').length, 1, 'no heat swatch');
   });
@@ -166,7 +169,7 @@ describe('the presets table', () => {
     assert.equal($(card, '.cell-ed [data-cell-temp]'), null);
     assert.equal($(card, '.cell-ed .pv-choices'), null);
     assert.ok($(card, '.cell-ed [data-cell-cool]'));
-    assert.match(text($(card, '.cell-ed')), /Consigne inchangée/);
+    assert.match(text($(card, '.cell-ed')), /Pas utilisé en clim/);
     assert.doesNotMatch(text($(card, '.cell-ed')), /En chauffe/);
   });
 
@@ -177,7 +180,7 @@ describe('the presets table', () => {
     const field = $(card, '.cell-ed [data-cell-cool]');
     field.value = '28';
     field.dispatchEvent(new window.Event('input', { bubbles: true }));
-    assert.equal($(card, '.cell-ed .pv-coolnote').hidden, true);
+    assert.equal($(card, '.cell-ed .pv-cooldefault').hidden, true);
     await card._action('cell-apply', {});
     assert.deepEqual(hass.events.at(-1).mapping, { comfort: { cool_temperature: 26 }, frost: { cool_temperature: 28 } });
   });
