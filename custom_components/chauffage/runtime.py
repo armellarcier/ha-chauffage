@@ -152,9 +152,9 @@ def _time(iso: str) -> str:
     return dt_util.as_local(when).strftime("%H:%M:%S") if when else str(iso)
 
 
-def _change(old: State, new: State) -> str:
-    """What changed on a thermostat, for the log: its state, preset and setpoint."""
-    before, after = thermostat(old), thermostat(new)
+def _change(before: engine.Thermostat, after: engine.Thermostat) -> str:
+    """What changed on a thermostat, for the log: its state, and the preset and the setpoint
+    it was asked for, the ones the override is made of (#92)."""
     parts = [after.state]
     if before.preset or after.preset:
         parts.append(f"preset {before.preset} → {after.preset}")
@@ -1161,7 +1161,7 @@ class ChauffageRuntime:
         if change is None:
             return
         _LOGGER.info("%s: changed %s (%s); the slot asks for %s: %s", new.entity_id,
-                     "by a user" if context.user_id else "on the device", _change(old, new),
+                     "by a user" if context.user_id else "on the device", _change(before, after),
                      _describe(expected) if expected else "nothing",
                      "back to its slot" if change == engine.RESUME else "an override")
         if change == engine.RESUME:

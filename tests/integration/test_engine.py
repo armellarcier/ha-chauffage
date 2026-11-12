@@ -136,6 +136,13 @@ def test_a_vtherm_on_a_preset_keeps_the_setpoint_it_shows():
     assert engine.asked(central, vtherm=True) == ("comfort", 7.0)
 
 
+def test_a_vtherm_asked_for_no_setpoint_keeps_the_setpoint_it_shows():
+    """A requested_state on the manual preset without a setpoint: the setpoint shown counts."""
+    shown = {"preset_mode": "none", "temperature": 19.0,
+             "requested_state": {"hvac_mode": "heat", "target_temperature": None, "preset": "none"}}
+    assert engine.asked(shown, vtherm=True) == ("none", 19.0)
+
+
 def test_a_vtherm_without_requested_state_is_read_as_it_shows():
     """VTherm before its state manager, or a state without it."""
     assert engine.asked({"preset_mode": "eco", "temperature": 17.0}, vtherm=True) == ("eco", 17.0)
