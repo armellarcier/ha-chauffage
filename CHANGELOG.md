@@ -128,8 +128,10 @@ cools.
 - **Temperatures in your number format**: the temperature fields of the popovers show "20,5"
   for a French user, and read both "20,5" and "20.5".
 - **The planned preset sensor says the HVAC mode of the current and next slot**, in its
-  `hvac_mode` and `next_hvac_mode` attributes: `off`, `fan_only`, or `heat` or `cool` when the
-  thermostat lists it. `chauffage.get_week` gives each slot's settings. An off slot and a
+  `hvac_mode` and `next_hvac_mode` attributes: `off`, `fan_only`, or `heat` or `cool` on an air
+  conditioner. Its `temperatures` are the cooling ones during a slot that cools.
+  `chauffage.get_week` gives each slot's settings, with its HVAC mode as it runs on the
+  thermostat. An off slot and a
   fan-only slot have no preset.
 
 ### Changed

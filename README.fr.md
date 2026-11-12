@@ -695,7 +695,7 @@ ouvre la page du thermostat dans le panneau Chauffage.
 | Entité | Ce qu'elle indique |
 |---|---|
 | **Pilotage** (interrupteur) | Éteint quand le pilotage du thermostat est **suspendu**. |
-| **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `hvac_mode` (le mode HVAC du créneau : `off`, `fan_only`, ou `heat` ou `cool` quand le thermostat le propose, sinon vide ; l'état est inconnu pendant un créneau *Arrêt* ou *Ventilation*, qui n'ont pas de préréglage), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat). |
+| **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `hvac_mode` (le mode HVAC du créneau : `off`, `fan_only`, ou `heat` ou `cool` quand le thermostat le propose, sinon vide ; l'état est inconnu pendant un créneau *Arrêt* ou *Ventilation*, qui n'ont pas de préréglage), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat : sa température en clim pendant un créneau qui climatise). |
 | **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs : `target` (ce que le thermostat reçoit, par exemple `{"temperature": 21.5}` ou `{"preset_mode": "boost"}`), `preset` (le préréglage Chauffage demandé, s'il y en a un), `end`, et `kind` et `value` comme avant 0.10. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours, sous forme d'horodatage, pour une tuile de tableau de bord. |
 
@@ -733,8 +733,8 @@ Assistants vocaux → Exposer.
 
 `chauffage.get_week` renvoie une entrée par thermostat, au format de `schedule.get_schedule` de
 Home Assistant : `schedule`, puis une liste par jour (`monday`…), et chaque créneau avec son `start`, son `end` et
-son `preset`. Un créneau qui choisit un mode HVAC a aussi `hvac_mode` (`heat`, `cool`, `off` ou
-`fan_only`). Un créneau *Arrêt* et un créneau *Ventilation* n'ont pas de préréglage : `preset`
+son `preset`. Un créneau a aussi son `hvac_mode`, tel qu'il s'applique sur le thermostat : `heat`
+ou `cool` sur une climatisation, `off` ou `fan_only`, et aucun sur un radiateur. Un créneau *Arrêt* et un créneau *Ventilation* n'ont pas de préréglage : `preset`
 est vide. Par exemple, pour envoyer l'heure du confort de demain :
 
 ```yaml

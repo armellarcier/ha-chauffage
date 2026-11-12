@@ -203,6 +203,20 @@ future contributor might question.
     before: an air conditioner that cooled in July restarted in heat on an override to
     *Comfort*. Fan only takes no setpoint, so a preset slot that follows a fan-only slot must
     leave it, as it leaves off. A thermostat that lists no HVAC mode gets its setpoint only.
+  - **Chauffage only knows heat and cool.** They are what a slot and an override choose
+    between, so they are the only HVAC modes Chauffage learns, restarts a thermostat in, and
+    carries a value into. A version learned any HVAC mode: a valve seen once in `auto`
+    restarted in `auto`, an air conditioner last in `dry` in `dry`. And `dry`, `auto` or
+    `heat_cool` chosen by hand made Chauffage send the slot's heating value. Now such a change
+    is recorded as an override to that HVAC mode, and nothing is sent, as before #91.
+  - **A temperature belongs to the HVAC mode it was set in.** An override to 22 °C set while
+    heating, then cool chosen by hand: the override keeps cool and its end, and drops the
+    temperature. 22 °C was never meant as a cooling setpoint. An override to a preset keeps the
+    preset: its value when cooling applies.
+  - **Scripts and the sensor read the slots as they run.** `chauffage.get_week` and the
+    planned-preset sensor give each slot's HVAC mode on the thermostat (`engine.week_on`), not
+    the stored one: a script must not have to know the rule. The sensor's `temperatures` are
+    the cooling ones during a slot that cools.
   - **A thermostat without fan only is left as it is by a fan-only slot**: the slot has no
     preset to fall back on. The card only offers the HVAC modes the thermostat lists, so this
     only happens to a week copied by an automation.
@@ -307,9 +321,11 @@ future contributor might question.
     derives the rest, so the integration holds no color rule.
   - **The default presets have cool colors chosen by hand.** Derived by the formula, the four
     default colors gave four blues a few degrees of hue apart. Now the card holds a blue for
-    *Comfort*, a violet for *Eco*, a navy for *Boost* and a purple for *Frost protection*. A
-    test checks that they differ from each other, from fan only and from every heat color. Any
-    other color still uses the formula.
+    *Comfort*, a dark teal for *Eco*, a navy for *Boost* and a light indigo for *Frost
+    protection*: hue and lightness both differ. No purple: a first palette had a violet and a
+    purple, the colors of the stripes of an override. A test checks that the cool colors differ
+    from each other, from fan only, from every heat color and from those stripes. Any other
+    color still uses the formula, whose hues stay between 200° and 250° for the same reason.
   - **Frost protection of a new installation is a blue grey** (`#78909c`). Its light blue
     looked like Home Assistant's cyan of fan only. Existing installations keep the colors they
     stored, and the migration from version 1 keeps the light blue: a color the user sees every
@@ -925,7 +941,9 @@ dashboards, automations, scripts and by voice without the card
   a phone, was covered by its two handles and could not be opened. Narrower handles would be
   harder to drag. So a tap, a press without a move, on a handle opens the slot under the
   finger. A handle of the selected slot does nothing on a tap: the slot stays selected, and its
-  handles stay easy to drag.
+  handles stay easy to drag. The slot is the one where the finger went down (`pointerdown`):
+  on a touch screen, Chromium moves the click to the centre of the handle, the very edge of
+  the slot, and one tap in three opened the neighbor.
 - **A time typed onto a neighbor removes the slot between** (#91). The end of a slot typed as
   the end of the next slot was moved back by a step, and left the next slot a step long: a
   sliver nobody asked for. Now the slot between is removed. An end typed as 24:00, or 00:00, is

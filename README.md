@@ -639,7 +639,7 @@ thermostat's page in the Chauffage panel.
 | Entity | What it says |
 |---|---|
 | **Control** (switch) | Off while the thermostat is **paused**. |
-| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `hvac_mode` (the slot's HVAC mode: `off`, `fan_only`, or `heat` or `cool` when the thermostat lists it, else empty; the state is unknown during an off slot or a fan-only slot, which have no preset), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat). |
+| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `hvac_mode` (the slot's HVAC mode: `off`, `fan_only`, or `heat` or `cool` when the thermostat lists it, else empty; the state is unknown during an off slot or a fan-only slot, which have no preset), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat: its temperature when cooling during a slot that cools). |
 | **Override** (binary sensor) | On while the thermostat has an override. Attributes: `target` (what the thermostat is set to, for example `{"temperature": 21.5}` or `{"preset_mode": "boost"}`), `preset` (the Chauffage preset asked for, if any), `end`, and `kind` and `value` as before 0.10. |
 | **Override end** (sensor, disabled by default) | The end of the current override as a timestamp, for a dashboard tile. |
 
@@ -676,8 +676,8 @@ not exposed. To expose an entity or not, go to Settings → Voice assistants →
 
 `chauffage.get_week` returns one entry for each thermostat, in the format of Home Assistant's
 `schedule.get_schedule`: `schedule`, then a list for each day (`monday`…), and each slot with its `start`, its
-`end` and its `preset`. A slot that chooses an HVAC mode also has `hvac_mode` (`heat`, `cool`,
-`off` or `fan_only`). An off slot and a fan-only slot have no preset: `preset` is empty. For example, to send tomorrow's comfort time:
+`end` and its `preset`. A slot also has its `hvac_mode` as it runs on the thermostat: `heat` or
+`cool` on an air conditioner, `off` or `fan_only`, and none on a heater. An off slot and a fan-only slot have no preset: `preset` is empty. For example, to send tomorrow's comfort time:
 
 ```yaml
 - action: chauffage.get_week
