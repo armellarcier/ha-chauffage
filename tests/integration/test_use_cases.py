@@ -225,7 +225,7 @@ async def test_a_vtherm_turned_off_by_hand_still_gets_its_slots(bench: Bench):
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
-# Versatile Thermostat 10.5 with a window sensor, as recorded in a development HA (#92). With the
+# Versatile Thermostat with a window sensor, as recorded in a development HA (#92). With the
 # "Frost protection" action, an open window sets the frost setpoint and keeps the preset. With
 # the "Turn off" action, it turns the VTherm off. The setpoint and preset asked are kept in
 # requested_state.

@@ -1109,6 +1109,10 @@ class ChauffageRuntime:
             return False
         if engine.is_manual_preset(current.preset) or state.entity_id not in self.thermostats:
             return False
+        # A VTherm on another preset than asked, for example its central mode in frost
+        # protection: its setpoint is not the asked preset's temperature (#92)
+        if current.preset != engine.preset_value(state.attributes.get("preset_mode")):
+            return False
         known = self.thermostats[state.entity_id]["preset_temperatures"]
         if known.get(current.preset) == current.temperature:
             return False
