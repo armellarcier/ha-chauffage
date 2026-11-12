@@ -2,10 +2,12 @@
 
 chauffage.set_override       sets a thermostat's temperature or preset, and its HVAC mode (off, or
                              one to turn it on in), for a while (the schedule resumes at the end),
-                             like a manual change; refused when it contradicts itself (off or fan
-                             only with a setpoint, an HVAC mode the thermostat does not list, a
-                             duration with an end); off alone, without an end, lasts as the setting
-                             *Turned off* says
+                             like a manual change; heat_cool takes a preset or a range
+                             (target_temp_low and target_temp_high); refused when it contradicts
+                             itself (off, fan only, dry or auto with a setpoint, a preset that
+                             has no value in that HVAC mode, an HVAC mode the thermostat does
+                             not list, a duration with an end); off alone, without an end, lasts
+                             as the setting *Turned off* says
 chauffage.clear_override     ends it now: the thermostat resumes its schedule
 chauffage.activate_schedule  activates a schedule by its stable id (unchanged when renamed)
 chauffage.get_schedules      (response) the schedules, the active one, the one the rules give
@@ -44,13 +46,16 @@ SET_OVERRIDE_SCHEMA = vol.All(
         vol.Required(ATTR_ENTITY_ID): cv.entity_id,
         vol.Exclusive("temperature", "value"): vol.Coerce(float),
         vol.Exclusive("preset", "value"): cv.string,
+        # Heat/cool: the range of temperatures, both together
+        vol.Inclusive("target_temp_low", "range"): vol.Coerce(float),
+        vol.Inclusive("target_temp_high", "range"): vol.Coerce(float),
         # One of Home Assistant's HVAC modes: reproduce_state ignores any other value silently
         vol.Optional("hvac_mode"): vol.In([mode.value for mode in HVACMode]),
         # Not both: refused by the service, with a message in the user's language
         vol.Optional("duration"): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional("end"): cv.datetime,
     }),
-    cv.has_at_least_one_key("temperature", "preset", "hvac_mode"),
+    cv.has_at_least_one_key("temperature", "preset", "hvac_mode", "target_temp_low"),
 )
 CLEAR_OVERRIDE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
 ACTIVATE_SCHEDULE_SCHEMA = vol.Schema({vol.Required("schedule"): cv.string})
@@ -83,10 +88,11 @@ def known_schedule(runtime: ChauffageRuntime, schedule: str) -> str:
     return schedule
 
 
-def refuse_contradictions(hass: HomeAssistant, data: dict) -> None:
+def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: dict) -> None:
     """What chauffage.set_override refuses, with a message that says why: an override that
     contradicts itself would be recorded and do something else than what was asked."""
     entity_id, mode = data[ATTR_ENTITY_ID], data.get("hvac_mode")
+    has_range = "target_temp_low" in data
 
     def refuse(key: str, **placeholders: str) -> None:
         raise ServiceValidationError(translation_domain=DOMAIN, translation_key=key,
@@ -94,13 +100,26 @@ def refuse_contradictions(hass: HomeAssistant, data: dict) -> None:
 
     if "duration" in data and "end" in data:
         refuse("duration_and_end")
-    # Off and fan only take no setpoint
-    if mode in ("off", "fan_only") and ("temperature" in data or "preset" in data):
+    # Off, fan only, dry and auto take no setpoint
+    if mode in engine.NO_PRESET_MODES and ("temperature" in data or "preset" in data or has_range):
         refuse("no_setpoint_in_hvac_mode", hvac_mode=mode)
+    # Heat/cool takes a range, and nothing else does
+    if has_range and (mode != engine.HEAT_COOL or "temperature" in data or "preset" in data
+                      or data["target_temp_low"] >= data["target_temp_high"]):
+        refuse("range_in_heat_cool")
+    if mode == engine.HEAT_COOL and "temperature" in data:
+        refuse("range_in_heat_cool")
     state = hass.states.get(entity_id)
     listed = [str(getattr(m, "value", m)) for m in (state.attributes.get("hvac_modes") or ())] if state else []
     if mode is not None and listed and mode not in listed:
         refuse("hvac_mode_not_listed", hvac_mode=mode, hvac_modes=", ".join(listed))
+    current = runtime.current(state)
+    if mode == engine.HEAT_COOL and current is not None and not current.supports_range:
+        refuse("no_range")
+    # A Chauffage preset that has no value in that HVAC mode: frost protection when cooling
+    meaning = runtime.targets_of(entity_id).get(data.get("preset"))
+    if meaning is not None and mode in engine.SETPOINT_MODES and mode not in engine.offered_modes(meaning):
+        refuse("preset_not_in_hvac_mode", hvac_mode=mode, preset=data["preset"])
 
 
 async def may_control(hass: HomeAssistant, call: ServiceCall, entity_id: str) -> None:
@@ -119,7 +138,7 @@ def async_register(hass: HomeAssistant) -> None:
         entity_id = call.data[ATTR_ENTITY_ID]
         await may_control(hass, call, entity_id)
         runtime = runtime_for(hass, entity_id)
-        refuse_contradictions(hass, call.data)
+        refuse_contradictions(hass, runtime, call.data)
         end: datetime | None = call.data.get("end")
         if end is not None:
             end = dt_util.as_local(end if end.tzinfo else end.replace(tzinfo=dt_util.get_default_time_zone()))
@@ -128,6 +147,8 @@ def async_register(hass: HomeAssistant) -> None:
         preset_id = None
         if "temperature" in call.data:
             target["temperature"] = call.data["temperature"]
+        elif "target_temp_low" in call.data:
+            target = {key: call.data[key] for key in engine.RANGE_KEYS}
         elif "preset" in call.data:  # a Chauffage preset (what it means on this thermostat), else a climate preset of its own
             preset = call.data["preset"]
             meaning = runtime.targets_of(entity_id).get(preset)

@@ -138,8 +138,8 @@ async def test_frost_protection_never_cools_an_air_conditioner_to_7_degrees(benc
     await override(bench, preset="frost")
     assert sent_to(bench) == []
     assert bench.hass.states.get(SALON).attributes["temperature"] != 7.0
-    # Its own frost preset, when it has one: the device knows what it means in cool
-    assert bench.applied().get(SALON) == ("frost" if bench.kind == "vtherm" else None)
+    # Frost protection has no value when cooling: its own frost preset is not sent either
+    assert SALON not in bench.applied()
 
 
 async def test_a_slot_never_sends_a_heating_temperature_to_an_air_conditioner_that_only_cools(bench: Bench):
@@ -345,7 +345,7 @@ def test_only_heat_or_cool_is_the_hvac_mode_to_turn_on_in():
     modes = ("off", "heat", "cool", "dry", "auto")
     for last in ("dry", "auto", "heat_cool", None):
         assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=modes, last_hvac_mode=last)) == "heat"
-    assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=("off", "dry", "auto"), last_hvac_mode="auto")) == "dry"
+    assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=("off", "dry", "auto"), last_hvac_mode="dry")) == "auto"
 
 
 async def test_switching_to_dry_by_hand_is_recorded_and_sends_nothing(bench: Bench):
@@ -393,10 +393,10 @@ async def test_a_script_reads_the_slots_as_they_run(bench: Bench):
 
 async def test_the_planned_preset_sensor_gives_the_cooling_temperatures_while_the_slot_cools(bench: Bench):
     await start(bench, "10:00", [["00:00", "eco", HEAT], ["14:00", "comfort", COOL]])
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 24}, "eco": {"temperature": 17}})
+    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 24}, "frost": {"temperature": 8}})
     await bench.hass.async_block_till_done()
     temperatures = lambda: bench.hass.states.get("sensor.salon_planned_preset").attributes["temperatures"]
-    assert temperatures()["comfort"] == 20.0 and temperatures()["eco"] == 17.0
+    assert temperatures()["comfort"] == 20.0 and temperatures()["frost"] == 8.0
     await bench.go_to("14:00")
     assert temperatures()["comfort"] == 24.0
-    assert "eco" not in temperatures()  # no cooling value: nothing is sent, nothing is shown
+    assert "frost" not in temperatures()  # no cooling value: nothing is sent, nothing is shown

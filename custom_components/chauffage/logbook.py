@@ -120,6 +120,8 @@ def async_describe_events(
             parts.append(degrees(target["temperature"]))
         elif "preset_mode" in target:
             parts.append(str(target["preset_mode"]))
+        elif "target_temp_low" in target and "target_temp_high" in target:  # heat/cool: "20–25 °C"
+            parts.append(f"{degrees(target['target_temp_low']).split(' ')[0]}–{degrees(target['target_temp_high'])}")
         elif "cool_temperature" in target:
             parts.append(t["cooling"].format(value=degrees(target["cool_temperature"])))
         parts.extend(text.format(value=target[key]) for key, text in t["settings"].items() if key in target)

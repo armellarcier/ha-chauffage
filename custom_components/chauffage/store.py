@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from . import model
-from .const import DOMAIN
+from .const import DEFAULT_PRESETS, DOMAIN
 
 STORAGE_VERSION = 7
 STORAGE_MINOR_VERSION = 1
@@ -23,6 +23,8 @@ SAVE_DELAY = 1  # seconds: several quick changes are written once
 Migration = Callable[[dict[str, Any], str], dict[str, Any]]
 # The colors of the default presets before #91, where they differ from today's
 FORMER_COLORS = {"frost": "#29b6f6"}
+# Their temperatures when heating before #91, where they differ from today's
+FORMER_TEMPERATURES = {"boost": 21.0}
 
 
 def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
@@ -33,6 +35,8 @@ def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
     # ones only (#91)
     for level in levels:
         level["color"] = FORMER_COLORS.get(level["id"], level["color"])
+        level["temperature"] = FORMER_TEMPERATURES.get(level["id"], level["temperature"])
+        level.pop("cool_temperature", None)  # added in version 7
     return {**data, "levels": levels, "mappings": {}}
 
 
@@ -86,12 +90,20 @@ def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
     and a command not applied yet are partial states of the thermostat, as a scene holds them.
     The values do not change. The weeks do not change either: a slot without settings says
     no HVAC mode, and is read as engine.slot_hvac_mode says. The HVAC mode a
-    thermostat last heated or cooled in is not known yet."""
+    thermostat last heated or cooled in is not known yet.
+
+    A preset has a temperature when cooling too. The default presets get theirs, by their id:
+    eco, comfort and boost. Frost protection and the presets the user created get none: they
+    are not offered when cooling until the user gives them one. The temperatures when heating
+    do not change."""
     def without(command: dict[str, Any]) -> dict[str, Any]:
         return {key: value for key, value in command.items() if key not in ("kind", "value")}
 
+    cooling = {preset_id: cool for preset_id, _, _, cool in DEFAULT_PRESETS if cool is not None}
     return {
         **data,
+        "presets": [{**preset, "cool_temperature": cooling[preset["id"]]} if preset["id"] in cooling else preset
+                    for preset in data["presets"]],
         "thermostats": {
             entity_id: {**t, "mapping": {preset_id: {"preset_mode": v["preset"]} if "preset" in v else v
                                          for preset_id, v in t["mapping"].items()}, "hvac_mode": None}

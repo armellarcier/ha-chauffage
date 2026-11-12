@@ -272,18 +272,18 @@ def test_a_target_is_a_partial_state_the_thermostat_satisfies_or_not():
 
 
 def test_a_preset_uses_the_thermostat_s_climate_preset_with_the_same_name():
-    assert engine.default_target(PRESETS["comfort"], heat()) == {"preset_mode": "comfort"}
+    assert engine.value_on(PRESETS["comfort"], None, heat()) == {"preset_mode": "comfort"}
 
 
 def test_without_that_climate_preset_the_preset_s_temperature_is_used():
     standard = heat(presets=("eco", "comfort", "away", "boost"))  # no "frost"
-    assert engine.default_target(PRESETS["frost"], standard) == {"temperature": 7.0}
-    assert engine.default_target(PRESETS["comfort"], plain()) == {"temperature": 20.0}
+    assert engine.value_on(PRESETS["frost"], None, standard) == {"temperature": 7.0}
+    assert engine.value_on(PRESETS["comfort"], None, plain()) == {"temperature": 20.0}
 
 
 def test_temperatures_are_fitted_to_the_thermostat():
-    assert engine.default_target(PRESETS["frost"], plain(min_temp=10.0)) == {"temperature": 10.0}
-    assert engine.default_target(PRESETS["comfort"], plain(max_temp=18.0)) == {"temperature": 18.0}
+    assert engine.value_on(PRESETS["frost"], None, plain(min_temp=10.0)) == {"temperature": 10.0}
+    assert engine.value_on(PRESETS["comfort"], None, plain(max_temp=18.0)) == {"temperature": 18.0}
     assert engine.fit_temperature(20.3, plain(step=0.5)) == 20.5
     assert engine.fit_temperature(20.26, plain(step=0.1)) == 20.3
 
@@ -449,10 +449,11 @@ def test_the_preset_says_how_warm_and_the_slot_says_the_hvac_mode_the_fan_and_th
     mapping = {"comfort": {"cool_temperature": 25.0, "fan_mode": "1"}, "eco": {"temperature": 18.0}}
     # The preset's own default
     assert engine.resolve("away", presets, {}, ac()) == {"temperature": 15.0}
-    assert engine.resolve("boost", presets, {}, ac()) == {"preset_mode": "boost"}
-    # The preset's value on this thermostat adds to the default, or replaces its setpoint
+    assert engine.resolve("boost", presets, {}, ac()) == {"preset_mode": "boost", "cool_preset_mode": "boost"}
+    # The preset's value on this thermostat adds to the default, or replaces its setpoint, when
+    # heating and when cooling apart
     assert engine.resolve("comfort", presets, mapping, ac()) == {"preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "1"}
-    assert engine.resolve("eco", presets, mapping, ac()) == {"temperature": 18.0}
+    assert engine.resolve("eco", presets, mapping, ac()) == {"temperature": 18.0, "cool_preset_mode": "eco"}
     # The slot has the last word: the fan and the vanes. Off is off, and nothing else
     # (and heat, on an air conditioner: test_air_conditioner_slots.py)
     assert engine.resolve("comfort", presets, mapping, ac(), settings={"fan_mode": "3"}) == {
@@ -471,14 +472,15 @@ def test_a_target_without_hvac_mode_means_on():
 
 def test_an_off_thermostat_is_turned_on_in_heat_else_the_mode_it_last_heated_or_cooled_in_else_its_first_mode():
     """Never a cooling AC switched to heat: a thermostat that is on keeps its HVAC mode."""
-    target = {"preset_mode": "comfort"}
-    assert engine.complete(target, ac("cool")) == target
+    target = {"preset_mode": "comfort", "cool_preset_mode": "comfort"}
+    sent = {"preset_mode": "comfort"}
+    assert engine.complete(target, ac("cool")) == sent
     assert engine.complete(target, ac("off")) == {"preset_mode": "comfort", "hvac_mode": "heat"}
     cooler = ("off", "fan_only", "dry", "cool")
     assert engine.complete(target, ac("off", modes=cooler, last="cool")) == {"preset_mode": "comfort", "hvac_mode": "cool"}
-    assert engine.complete(target, ac("off", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "dry"}
-    assert engine.complete(target, ac("off", modes=())) == target  # no HVAC mode known: nothing to turn on with
-    assert engine.complete({"preset_mode": "comfort", "hvac_mode": "cool"}, ac("off")) == {"preset_mode": "comfort", "hvac_mode": "cool"}
+    assert engine.complete(target, ac("off", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "cool"}  # never dry
+    assert engine.complete(target, ac("off", modes=())) == sent  # no HVAC mode known: nothing to turn on with
+    assert engine.complete({**target, "hvac_mode": "cool"}, ac("off")) == {"preset_mode": "comfort", "hvac_mode": "cool"}
 
 
 def test_a_thermostat_turned_off_gets_its_slots_and_is_turned_on():
@@ -618,9 +620,9 @@ def test_settings_of_a_slot_are_validated():
     assert model.normalize_day([["00:00", "eco"], ["21:00", "eco", cool], ["22:00", "eco", cool], ["23:00", "comfort", cool]]) == [
         ["00:00", "eco"], ["21:00", "eco", cool], ["23:00", "comfort", cool]]
     assert model.used_presets({"climate.salon": {"normal": [[["00:00", None, OFF], ["08:00", "eco", cool]]] * 7}}) == ["eco"]
-    # A slot's HVAC mode is heat, cool, off or fan only
+    # A slot's HVAC mode is one of Home Assistant's
     for bad in (["00:00", "eco", "off"], ["00:00", "eco", {"hvac_mode": ""}], ["00:00", "eco", {"temperature": 19}],
-                ["00:00", "eco", {"hvac_mode": "auto"}]):
+                ["00:00", "eco", {"hvac_mode": "defrost"}]):
         with pytest.raises(model.InvalidData):
             model.normalize_day([bad])
     # Heat and cool need a preset: a slot without one is dropped, as any invalid slot
@@ -666,7 +668,7 @@ def test_in_cool_the_cooling_setpoint_replaces_the_preset_and_its_temperature():
 
 def test_in_cool_without_a_cooling_setpoint_the_setpoint_is_left_alone():
     """Also on an air conditioner that only cools: it never gets a heating temperature."""
-    assert engine.complete({"preset_mode": "comfort", "temperature": 20.0}, ac("cool")) == {"preset_mode": "comfort"}
+    assert engine.complete({"preset_mode": "comfort", "temperature": 20.0}, ac("cool")) == {}
     cooler = ac("cool", modes=("off", "cool", "fan_only"))
     assert engine.complete({"temperature": 20.0}, cooler) == {}
 
@@ -677,9 +679,12 @@ def test_a_temperature_the_user_chose_is_sent_in_cool():
     assert engine.complete({"temperature": 24.0}, ac("cool"), by_user=True) == {"temperature": 24.0}
     assert engine.complete({"temperature": 24.0, "hvac_mode": "cool"}, ac("heat"), by_user=True) \
         == {"temperature": 24.0, "hvac_mode": "cool"}
-    # A preset's temperature is a heating value: dropped. Its climate preset is the device's own: sent
+    # A preset's value when heating is dropped. Its climate preset when cooling is sent
     assert engine.complete({"temperature": 21.0}, ac("cool")) == {}
-    assert engine.complete({"preset_mode": "eco"}, ac("cool")) == {"preset_mode": "eco"}
+    assert engine.complete({"preset_mode": "eco"}, ac("cool")) == {}
+    assert engine.complete({"temperature": 21.0, "cool_preset_mode": "eco"}, ac("cool")) == {"preset_mode": "eco"}
+    # A climate preset the user picked by hand is theirs in any HVAC mode
+    assert engine.complete({"preset_mode": "eco"}, ac("cool"), by_user=True) == {"preset_mode": "eco"}
 
 
 def test_the_cooling_setpoint_is_validated_and_fitted():

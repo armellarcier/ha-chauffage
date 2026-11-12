@@ -89,7 +89,7 @@ async def test_the_planned_preset_sensor_gives_the_temperature_of_each_preset_on
     expected = {
         "vtherm": {"eco": 17.0},  # on eco now (learned); comfort, boost, frost not known yet
         "standard": {"eco": 17.0, "frost": 7.0},  # no frost preset of its own: a temperature
-        "plain": {"comfort": 20.0, "eco": 17.0, "boost": 21.0, "frost": 7.0},
+        "plain": {"comfort": 20.0, "eco": 17.0, "boost": 22.0, "frost": 7.0},
     }
     assert temperatures == expected[bench.kind]
 

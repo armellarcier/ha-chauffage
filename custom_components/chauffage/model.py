@@ -4,8 +4,11 @@ Vocabulary: docs/glossary.md.
     schedules:       [{"id": "normal", "name": "Normal"}, …]   renaming a schedule keeps its id
     active_schedule: "normal"
     presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0,
-                       "cool_color": "#0288d1" (optional)}, …]
-                     "temperature" is the default for thermostats driven by temperatures;
+                       "cool_temperature": 25.0 (optional), "cool_color": "#0288d1" (optional)}, …]
+                     "temperature" is the default when heating, for thermostats driven by
+                     temperatures, and "cool_temperature" the default when cooling (#91). Either
+                     can be empty ("temperature": None, no "cool_temperature"), not both: a
+                     preset is only used in the HVAC modes it has a value for (engine.value_on).
                      "cool_color" is the color of the preset's cooling slots, when the user chose
                      one: without it, the card derives a cool shade from "color" (#91)
     thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
@@ -16,16 +19,18 @@ Vocabulary: docs/glossary.md.
                              [start "HH:MM", preset id] or [start, preset id, settings] slots,
                              the first one at "00:00". The settings are what the slot sets besides
                              its preset (#91): its HVAC mode ("hvac_mode"), and the fan and the
-                             vanes of an air conditioner. The slot chooses the HVAC mode: "heat"
-                             or "cool" with a preset (the preset says how warm, for that HVAC
-                             mode), "off" or "fan_only" without one ([start, None,
-                             {"hvac_mode": "off"}]). An off slot sets nothing else; a fan-only
-                             slot may set the fan and the vanes. A slot on a preset that says
-                             no HVAC mode (a week stored before #91) is read as heat on an
-                             air conditioner that heats and cools, as cool on one that only
-                             cools, and carries none on a heater (engine.slot_hvac_mode)
+                             vanes of an air conditioner. The slot chooses the HVAC mode: "heat",
+                             "cool" or "heat_cool" with a preset (the preset says how warm, for
+                             that HVAC mode), "off", "fan_only", "dry" or "auto" without one
+                             ([start, None, {"hvac_mode": "off"}]). An off slot sets nothing
+                             else; the other slots without a preset may set the fan and the
+                             vanes. A slot on a preset that says no HVAC mode (a week stored
+                             before #91) is read as heat on an air conditioner that heats and
+                             cools, as cool on one that only cools, and carries none on a
+                             heater (engine.slot_hvac_mode)
         mapping:             {preset id: value}, what a preset means for this thermostat, only
-                             what was set by hand: the rest is engine.default_target. A value is
+                             what was set by hand: the rest is the preset's default
+                             (engine.value_on). A value is
                              a partial state of the thermostat, as a scene holds it (#91). When
                              the thermostat heats: {"preset_mode": "comfort"} or
                              {"temperature": 20.5}, never both. When it cools: an optional
@@ -156,7 +161,8 @@ def default_presets(language: str, extra: list[str] | None = None) -> list[dict[
     """The four default presets named in `language`, then `extra` preset ids (found in existing
     weeks, kept so that nothing changes for those thermostats)."""
     names = PRESET_NAMES.get((language or "en").split("-")[0], PRESET_NAMES["en"])
-    presets = [{"id": i, "name": names[i], "color": c, "temperature": t} for i, c, t in DEFAULT_PRESETS]
+    presets = [{"id": i, "name": names[i], "color": c, "temperature": t} | ({} if cool is None else {"cool_temperature": cool})
+               for i, c, t, cool in DEFAULT_PRESETS]
     for preset_id in extra or []:
         if not any(preset["id"] == preset_id for preset in presets):
             presets.append({"id": preset_id, "name": preset_id, "color": DEFAULT_PRESET_COLOR,
@@ -248,12 +254,19 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
     color = str(preset.get("color", DEFAULT_PRESET_COLOR))
     if not COLOR.match(color):
         raise InvalidData(f"invalid color: {color}")
+    # Its default temperature when heating and when cooling: either can be empty, not both (#91)
     try:
-        temperature = float(preset.get("temperature", DEFAULT_PRESET_TEMPERATURE))
+        temperature = preset.get("temperature", DEFAULT_PRESET_TEMPERATURE)
+        temperature = None if temperature is None else float(temperature)
+        cool_temperature = None if preset.get("cool_temperature") is None else float(preset["cool_temperature"])
     except (TypeError, ValueError) as err:
         raise InvalidData("invalid temperature") from err
+    if temperature is None and cool_temperature is None:
+        raise InvalidData("a preset needs a temperature when heating or when cooling")
     preset_id = preset.get("id") or unique_id(name, taken_ids)
     out = {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
+    if cool_temperature is not None:
+        out["cool_temperature"] = cool_temperature
     # The color of its cooling slots, when the user chose one (else the card derives it, #91)
     cool_color = preset.get("cool_color")
     if cool_color is not None:
@@ -268,17 +281,22 @@ AIR_KEYS = {"fan_mode": str, "swing_mode": str, "swing_horizontal_mode": str}
 # The attributes a slot's settings may set: everything but the setpoint, which its preset gives
 # (its HVAC mode, then the fan and the vanes of an air conditioner, #91)
 SETTING_KEYS = {"hvac_mode": str, **AIR_KEYS}
-# The HVAC modes a slot may choose. With a preset: heat or cool. Without one: off or fan only
-OFF, FAN_ONLY = "off", "fan_only"
-SLOT_HVAC_MODES = ("heat", "cool", OFF, FAN_ONLY)
+# The HVAC modes a slot may choose. With a preset: heat, cool or heat/cool. Without one: off, fan
+# only, dry or auto
+OFF = "off"
+NO_PRESET_MODES = (OFF, "fan_only", "dry", "auto")
+SLOT_HVAC_MODES = ("heat", "cool", "heat_cool", *NO_PRESET_MODES)
 # The climate attributes a preset's value on a thermostat may set, and how their values are
 # read. "preset_mode" or "temperature" is its value when the thermostat heats.
 # "cool_temperature" is its setpoint when the thermostat cools: sent as the temperature in cool,
 # see engine.complete
 VALUE_KEYS = {"preset_mode": str, "temperature": float, "cool_temperature": float, **AIR_KEYS}
 # The climate attributes the target of an override or of a command may set: an override also
-# sets the HVAC mode (a thermostat turned off by hand, chauffage.set_override)
-TARGET_KEYS = {**VALUE_KEYS, "hvac_mode": str}
+# sets the HVAC mode (a thermostat turned off by hand, chauffage.set_override), and holds what
+# its preset means in each HVAC mode (engine.value_on): its climate preset when cooling, its
+# range in heat/cool
+TARGET_KEYS = {**VALUE_KEYS, "cool_preset_mode": str, "target_temp_low": float, "target_temp_high": float,
+               "hvac_mode": str}
 
 
 def _normalize_attributes(attributes: Any, keys: dict[str, type], what: str) -> dict[str, Any]:
@@ -313,13 +331,13 @@ def normalize_target(target: Any) -> dict[str, Any]:
 
 
 def normalize_settings(settings: Any) -> dict[str, Any]:
-    """A slot's validated settings (SETTING_KEYS), possibly empty. Its HVAC mode is heat, cool,
-    off or fan only. An off slot sets nothing else: the fan and the vanes mean nothing while the
+    """A slot's validated settings (SETTING_KEYS), possibly empty. Its HVAC mode is one of
+    SLOT_HVAC_MODES. An off slot sets nothing else: the fan and the vanes mean nothing while the
     thermostat is off."""
     out = _normalize_attributes(settings, SETTING_KEYS, "the settings of a slot")
     mode = out.get("hvac_mode")
     if mode is not None and mode not in SLOT_HVAC_MODES:
-        raise InvalidData(f"a slot's HVAC mode is heat, cool, off or fan_only: {mode!r}")
+        raise InvalidData(f"a slot's HVAC mode is one of {', '.join(SLOT_HVAC_MODES)}: {mode!r}")
     return {"hvac_mode": OFF} if mode == OFF else out
 
 
@@ -353,9 +371,9 @@ def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str,
 def normalize_day(slots: Any) -> list[list[Any]]:
     """Sorted slots, first one at 00:00, duplicates and consecutive identical slots (same
     preset, same settings) merged (same rules as the card). A slot is [start, preset] or
-    [start, preset, settings] (#91); empty settings are left out. An off slot and a fan-only
-    slot have no preset (None): two off slots in a row are one, and two fan-only slots too when
-    their fan and vanes are the same. Invalid slots are dropped, invalid settings refused; an
+    [start, preset, settings] (#91); empty settings are left out. An off, a fan-only, a dry and
+    an auto slot have no preset (None): two off slots in a row are one, and two of the others
+    too when their HVAC mode, their fan and their vanes are the same. Invalid slots are dropped, invalid settings refused; an
     empty day is eco all day."""
     if not isinstance(slots, list):
         return [list(s) for s in DEFAULT_DAY]
@@ -367,7 +385,7 @@ def normalize_day(slots: Any) -> list[list[Any]]:
             continue
         start = str(slot[0])
         settings = normalize_settings(slot[2]) if len(slot) == 3 else {}
-        if settings.get("hvac_mode") in (OFF, FAN_ONLY):
+        if settings.get("hvac_mode") in NO_PRESET_MODES:
             preset = None  # the user does not choose one: nothing to send
         else:
             preset = str(slot[1]).strip() if slot[1] is not None else ""

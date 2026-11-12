@@ -31,7 +31,7 @@ def presets(bench: Bench) -> list[dict]:
 async def test_a_new_installation_has_the_four_default_presets(bench: Bench):
     await bench.setup()
     assert [(p["id"], p["temperature"]) for p in bench.runtime.data["presets"]] == [
-        ("comfort", 20.0), ("eco", 17.0), ("boost", 21.0), ("frost", 7.0)]
+        ("comfort", 20.0), ("eco", 17.0), ("boost", 22.0), ("frost", 7.0)]
 
 
 async def test_storage_from_v0_2_is_migrated_without_changing_anything(bench: Bench, hass_storage):

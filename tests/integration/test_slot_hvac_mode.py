@@ -93,18 +93,19 @@ async def test_a_cooling_slot_gives_a_preset_its_cooling_temperature(bench: Benc
     assert sent_to(bench) == [20.0]
 
 
-async def test_a_cooling_slot_sends_the_device_preset_and_never_a_heating_temperature(bench: Bench):
-    """A preset without a cooling temperature: the device knows what its own comfort means in
-    cool, so its climate preset is sent. Chauffage's heating temperature (20 °C) is not."""
-    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", COOL]])
+async def test_a_cooling_slot_on_a_preset_without_a_cooling_temperature_sends_no_setpoint(bench: Bench):
+    """Frost protection has no temperature when cooling. The slot switches the air conditioner
+    to cool, and sends neither Chauffage's heating temperature (7 °C) nor the thermostat's own
+    frost preset."""
+    await start(bench, "13:00", [["00:00", "eco"], ["14:00", "frost", COOL]])
     await bench.go_to("14:00")
-    assert sent_to(bench) == []
-    assert bench.applied().get(SALON) == ("comfort" if bench.kind != "plain" else None)
+    assert bench.powered() == {SALON: "cool"}
+    assert sent_to(bench) == [] and SALON not in bench.applied()
 
 
-async def test_a_slot_s_hvac_mode_is_heat_cool_off_or_fan_only(bench: Bench):
+async def test_a_slot_s_hvac_mode_is_one_of_home_assistant_s(bench: Bench):
     await start(bench)
-    for bad in ({"hvac_mode": "auto"}, {"hvac_mode": "dry"}, {"hvac_mode": ""}, {"temperature": 19}):
+    for bad in ({"hvac_mode": "defrost"}, {"hvac_mode": ""}, {"temperature": 19}):
         with pytest.raises(model.InvalidData):
             await bench.save_weeks({SALON: {"normal": every_day(("00:00", "eco", bad))}})
     assert bench.runtime.weeks[SALON]["normal"][0] == WEEKDAY
@@ -258,7 +259,8 @@ async def test_a_preset_picked_on_an_off_air_conditioner_turns_it_on(bench: Benc
 async def test_switching_the_air_conditioner_to_heat_by_hand_in_a_cooling_slot_is_an_override(bench: Bench):
     """The override keeps the slot's preset, in the HVAC mode chosen by hand."""
     await start(bench, "10:00", [["00:00", "eco", COOL]], state="cool")
-    bench.thermostat(SALON, "eco", state="heat", hvac_modes=AC_MODES, context=CTX_USER)
+    setpoint = bench.hass.states.get(SALON).attributes["temperature"]  # only the HVAC mode changes
+    bench.thermostat(SALON, "eco", setpoint, state="heat", hvac_modes=AC_MODES, context=CTX_USER)
     await bench.hass.async_block_till_done(wait_background_tasks=True)
     override = bench.overrides()[SALON]
     assert override["target"]["hvac_mode"] == "heat" and override["preset"] == "eco"
@@ -412,7 +414,8 @@ PRESETS = {p["id"]: p for p in model.default_presets("en")}
 
 
 def test_the_slot_s_hvac_mode_is_the_target_s_when_the_thermostat_lists_it():
-    assert engine.resolve("comfort", PRESETS, {}, ac("heat"), settings=COOL) == {"preset_mode": "comfort", "hvac_mode": "cool"}
+    assert engine.resolve("comfort", PRESETS, {}, ac("heat"), settings=COOL) == {
+        "preset_mode": "comfort", "cool_preset_mode": "comfort", "hvac_mode": "cool"}
     heater = engine.Thermostat("heat", "eco", 17.0, ("eco", "comfort"), hvac_modes=("off", "heat"))
     assert engine.resolve("comfort", PRESETS, {}, heater, settings=COOL) == {"preset_mode": "comfort"}
     assert engine.resolve("comfort", PRESETS, {}, None, settings=COOL) == {"temperature": 20.0}  # a thermostat not seen yet
@@ -433,15 +436,17 @@ def test_an_off_target_is_sent_alone():
 
 
 def test_in_cool_the_device_preset_is_sent_and_the_heating_temperature_is_not():
-    assert engine.complete({"preset_mode": "eco"}, ac("cool")) == {"preset_mode": "eco"}
-    assert engine.complete({"preset_mode": "eco", "hvac_mode": "cool"}, ac("heat")) == {"preset_mode": "eco", "hvac_mode": "cool"}
+    own = {"preset_mode": "eco", "cool_preset_mode": "eco"}
+    assert engine.complete(own, ac("cool")) == {"preset_mode": "eco"}
+    assert engine.complete({**own, "hvac_mode": "cool"}, ac("heat")) == {"preset_mode": "eco", "hvac_mode": "cool"}
+    assert engine.complete({"preset_mode": "frost"}, ac("cool")) == {}  # no value when cooling
     assert engine.complete({"temperature": 21.0}, ac("cool")) == {}
     assert engine.complete({"temperature": 21.0, "cool_temperature": 26.0}, ac("cool")) == {"temperature": 26.0}
     assert engine.complete({"temperature": 24.0}, ac("cool"), by_user=True) == {"temperature": 24.0}
 
 
 def test_a_thermostat_off_or_in_fan_only_is_turned_on_for_a_preset():
-    target = {"preset_mode": "comfort"}
+    target = {"preset_mode": "comfort", "cool_preset_mode": "comfort"}
     assert engine.complete(target, ac("fan_only")) == {"preset_mode": "comfort", "hvac_mode": "heat"}
     cooler = ("off", "fan_only", "cool")
     assert engine.complete(target, ac("fan_only", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "cool"}

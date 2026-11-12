@@ -41,15 +41,16 @@ DEFAULT_ACCESS_LEVEL = USE
 # preset_mode values meaning "manual setpoint" (Versatile Thermostat: "none")
 MANUAL_PRESETS = frozenset({"", "none", "manual", "manuel"})
 
-# Default presets: (id, color, default temperature). Their ids are Versatile Thermostat's
-# preset names, so a thermostat with those climate presets uses them (see engine.default_target).
+# Default presets: (id, color, default temperature when heating, when cooling). Their ids are
+# Versatile Thermostat's preset names, so a thermostat with those climate presets uses them (see
+# engine.value_on). Frost protection has no temperature when cooling: it never cools (#91).
 DEFAULT_PRESETS = (
-    ("comfort", "#f57c00", 20.0),
-    ("eco", "#43a047", 17.0),
-    ("boost", "#e53935", 21.0),
+    ("comfort", "#f57c00", 20.0, 25.0),
+    ("eco", "#43a047", 17.0, 27.0),
+    ("boost", "#e53935", 22.0, 23.0),
     # A blue grey: its former light blue (#29b6f6) looked like Home Assistant's cyan of fan only.
     # Only for a new installation: the stored presets keep their colors
-    ("frost", "#78909c", 7.0),
+    ("frost", "#78909c", 7.0, None),
 )
 PRESET_NAMES = {
     "en": {"comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection"},

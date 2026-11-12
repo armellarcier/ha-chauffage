@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
+from homeassistant.components.climate.const import ClimateEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Context, Event, EventStateChangedData, HomeAssistant, State, callback
@@ -126,6 +127,8 @@ def thermostat(state: State | None, vtherm: bool = False, last_hvac_mode: str | 
         tuple(m for m in (engine.preset_value(m) for m in attributes.get("hvac_modes") or ()) if m),
         last_hvac_mode,
         *(engine.preset_value(attributes.get(key)) for key in engine.EQUAL_KEYS),
+        supports_range=bool(int(attributes.get("supported_features") or 0) & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE),
+        **{key: engine.temperature_value(attributes.get(key)) for key in engine.RANGE_KEYS},
     )
     if vtherm and hvac_mode is None and state.state == engine.OFF:
         current = dataclasses.replace(current, state=engine.on_mode(current) or "heat", shown=engine.OFF)
@@ -436,8 +439,9 @@ class ChauffageRuntime:
         return bool(self.entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
-        """What each preset means for a thermostat (mapping set by hand, else the default).
-        Without an HVAC mode: an override set to a preset keeps the thermostat's own."""
+        """What each preset means for a thermostat, in each HVAC mode (engine.value_on: the
+        mapping set by hand, else the default). Without an HVAC mode: an override set to a
+        preset keeps the thermostat's own."""
         presets = self.presets_by_id
         mapping = self.thermostats.get(entity_id, {}).get("mapping") or None
         current = self.current(self.hass.states.get(entity_id))
@@ -454,8 +458,8 @@ class ChauffageRuntime:
         `cool`: what each preset gives when the thermostat cools: its cooling temperature, else
         what its own preset gives when cooling. A heating temperature is not one."""
         own = self.temperatures_of(self.hass.states.get(entity_id), cool)
-        key = "cool_temperature" if cool else "temperature"
-        temperatures = {p: t.get(key, own.get(t.get("preset_mode"))) for p, t in self.targets_of(entity_id).items()}
+        key, own_key = ("cool_temperature", "cool_preset_mode") if cool else ("temperature", "preset_mode")
+        temperatures = {p: t.get(key, own.get(t.get(own_key))) for p, t in self.targets_of(entity_id).items()}
         return {p: t for p, t in temperatures.items() if t is not None}
 
     def snapshot(self) -> dict[str, Any]:
@@ -1231,7 +1235,8 @@ class ChauffageRuntime:
         """While a thermostat is on a preset, its setpoint is that preset's temperature: its
         cooling temperature while it cools, kept apart. While it heats or cools, its HVAC mode
         is the one to turn it on in later (#91): heat or cool only, not fan only, which takes no
-        setpoint, nor auto, heat/cool or dry."""
+        setpoint, nor auto, heat/cool or dry. In heat/cool, in dry and in fan only, the setpoint
+        shown is not a preset's temperature: nothing is learned."""
         current = self.current(state)
         if current is None or engine.ignored(current) or state.entity_id not in self.thermostats:
             return False
@@ -1243,6 +1248,7 @@ class ChauffageRuntime:
         temperatures = (data.setdefault("cool_preset_temperatures", {}) if current.state == "cool"
                         else data["preset_temperatures"])
         if (current.temperature is not None and not engine.is_manual_preset(current.preset)
+                and current.state not in (engine.HEAT_COOL, engine.DRY, engine.FAN_ONLY)
                 and temperatures.get(current.preset) != current.temperature):
             temperatures[current.preset] = current.temperature
             learned = True
@@ -1323,24 +1329,28 @@ class ChauffageRuntime:
 
     def _switched_override(self, entity_id: str, change: engine.Target, current: dict[str, Any] | None,
                            slot: engine.Slot | None, after: engine.Thermostat) -> dict[str, Any] | None:
-        """The override of an air conditioner switched to heat or cool by hand, and nothing else
-        changed. The person chose an HVAC mode, not a setpoint: the override keeps the value in
+        """The override of an air conditioner switched to heat, cool or heat/cool by hand, and
+        nothing else changed. The person chose an HVAC mode, not a setpoint: the override keeps the value in
         force, in that HVAC mode. Its override's value and end if it has one with a setpoint,
         else the preset of its slot. None when the change is something else, or when there is no
         value to keep (an off or a fan-only slot: the thermostat keeps its own last setpoint).
-        Only heat and cool: dry, auto or heat/cool chosen by hand is recorded as it is, and
-        nothing is sent. A temperature the user set (an override without a preset) was meant
+        Dry or auto chosen by hand is recorded as it is, and nothing is sent. So is heat/cool
+        when the value in force has no range. A temperature the user set (an override without a preset) was meant
         for the HVAC mode it was set in: it is not carried into the other one, never 22 °C of
         heating sent in cool."""
         mode = change.get("hvac_mode")
-        if set(change) != {"hvac_mode"} or mode not in engine.HEAT_OR_COOL:
+        if set(change) != {"hvac_mode"} or mode not in engine.SETPOINT_MODES:
             return None
-        if current and any(key in current["target"] for key in (*engine.SETPOINT_KEYS, "cool_temperature")):
+
+        def carried(target: engine.Target) -> bool:
+            return mode != engine.HEAT_COOL or all(key in target for key in engine.RANGE_KEYS)
+
+        if current and any(key in current["target"] for key in (*engine.SETPOINT_KEYS, *engine.COOL_KEYS)):
             target = {**current["target"], "hvac_mode": mode}
             if not current.get("preset"):
                 target.pop("temperature", None)
-            return {**current, "target": target}
+            return {**current, "target": target} if carried(target) else None
         meaning = self.targets_of(entity_id).get(slot.preset) if slot and slot.preset else None
-        if meaning is None:
+        if meaning is None or not carried(meaning):
             return None
         return self.manual_override(entity_id, {**meaning, "hvac_mode": mode}, after) | {"preset": slot.preset}

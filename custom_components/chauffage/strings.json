@@ -152,7 +152,9 @@
         "entity_id": { "name": "Thermostat", "description": "A thermostat that Chauffage schedules." },
         "temperature": { "name": "Temperature", "description": "Target temperature (or give a preset)." },
         "preset": { "name": "Preset", "description": "A Chauffage preset, set to what it means on this thermostat (or one of the thermostat's own presets); or give a temperature." },
-        "hvac_mode": { "name": "HVAC mode", "description": "Off to turn the thermostat off, or an HVAC mode to turn it on in. Without it, the thermostat is on. Off alone, without a duration or an end, lasts as the setting Turned off says. Off and fan only take no temperature and no preset." },
+        "hvac_mode": { "name": "HVAC mode", "description": "Off to turn the thermostat off, or an HVAC mode to turn it on in. Without it, the thermostat is on. Off alone, without a duration or an end, lasts as the setting Turned off says. Off, fan only, dry and auto take no temperature and no preset. Heat/cool takes a preset, or a low and a high temperature." },
+        "target_temp_low": { "name": "Low temperature", "description": "With the HVAC mode heat/cool: the temperature under which the thermostat heats." },
+        "target_temp_high": { "name": "High temperature", "description": "With the HVAC mode heat/cool: the temperature above which the thermostat cools." },
         "duration": { "name": "Duration", "description": "How long, in minutes (default: the integration's option)." },
         "end": { "name": "End", "description": "When the override ends (instead of a duration)." }
       }
@@ -193,6 +195,9 @@
     "active_schedule_off": { "message": "{schedule} is the active schedule: turn on another schedule instead." },
     "invalid_override_duration": { "message": "{value} minutes is not a valid override duration. Choose a whole number of minutes." },
     "no_setpoint_in_hvac_mode": { "message": "The HVAC mode {hvac_mode} takes no temperature and no preset. Send {hvac_mode} alone." },
+    "range_in_heat_cool": { "message": "The HVAC mode heat_cool takes a preset, or target_temp_low and target_temp_high, with target_temp_low under target_temp_high. No other HVAC mode takes them." },
+    "no_range": { "message": "{entity_id} takes no range of temperatures: it cannot follow the HVAC mode heat_cool." },
+    "preset_not_in_hvac_mode": { "message": "The preset {preset} has no value for the HVAC mode {hvac_mode} on {entity_id}." },
     "hvac_mode_not_listed": { "message": "{entity_id} has no HVAC mode {hvac_mode}. It has: {hvac_modes}." },
     "duration_and_end": { "message": "Give a duration or an end, not both." }
   }

@@ -15,18 +15,21 @@
     "presets": [
       {
         "color": "#f57c00",
+        "cool_temperature": 25.0,
         "id": "comfort",
         "name": "Comfort",
         "temperature": 20
       },
       {
         "color": "#43a047",
+        "cool_temperature": 27.0,
         "id": "eco",
         "name": "Eco",
         "temperature": 17
       },
       {
         "color": "#e53935",
+        "cool_temperature": 23.0,
         "id": "boost",
         "name": "Boost",
         "temperature": 21

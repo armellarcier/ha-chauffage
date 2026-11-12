@@ -39,7 +39,7 @@ PRESETS_OF = {
     "plain": [],  # no presets (generic_thermostat)
 }
 MANUAL_PRESET = {"vtherm": "none", "standard": None, "plain": None}  # after a manual setpoint
-PRESET_TEMPERATURES = {"comfort": 20.0, "eco": 17.0, "boost": 21.0, "frost": 7.0}  # defaults
+PRESET_TEMPERATURES = {"comfort": 20.0, "eco": 17.0, "boost": 22.0, "frost": 7.0}  # defaults
 
 WEEKDAY = [["00:00", "eco"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco"]]
 WEEKEND = [["00:00", "eco"], ["08:00", "comfort"], ["23:00", "eco"]]
@@ -108,6 +108,7 @@ class Bench:
         self.calls: list[tuple[str, str]] = []
         self.temperature_calls: list[tuple[str, float]] = []
         self.hvac_calls: list[tuple[str, str]] = []  # climate.set_hvac_mode calls (#91)
+        self.range_calls: list[tuple[str, float, float]] = []  # climate.set_temperature with a range (#91)
         self.setting_calls: list[tuple[str, str, str]] = []  # fan and swing modes set (#91, lot 3)
         self.unreachable: set[str] = set()
         self.slow: set[str] = set()  # accept a command, apply it later (battery valves)
@@ -288,7 +289,15 @@ async def bench(hass: HomeAssistant, freezer, thermostat_kind, hass_storage) -> 
     async def set_temperature(call: ServiceCall) -> None:
         """The thermostat takes the setpoint (VTherm switches to preset "none"), written with the
         call's context."""
-        entity_id, temperature = call.data["entity_id"], call.data["temperature"]
+        entity_id = call.data["entity_id"]
+        if "target_temp_low" in call.data:  # heat/cool: the thermostat takes the range
+            low, high = call.data["target_temp_low"], call.data["target_temp_high"]
+            b.range_calls.append((entity_id, low, high))
+            current = hass.states.get(entity_id)
+            hass.states.async_set(entity_id, current.state, {**current.attributes, "target_temp_low": low,
+                                                             "target_temp_high": high}, context=call.context)
+            return
+        temperature = call.data["temperature"]
         b.temperature_calls.append((entity_id, temperature))
         preset = next((p for p, t in PRESET_TEMPERATURES.items() if t == temperature), str(temperature))
         b.calls.append((entity_id, preset))
