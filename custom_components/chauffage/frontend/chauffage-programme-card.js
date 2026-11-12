@@ -990,7 +990,7 @@ const hvacStyle = (mode) => `background:${hvacColor(mode)};color:${HVAC_LIGHT.in
 // close to the default colors of Comfort and Eco, so dots tell these slots from a preset's
 const HVAC_DOTTED = ['dry', 'auto'];
 const hvacSlotStyle = (mode) => (HVAC_DOTTED.includes(mode)
-  ? `${hvacStyle(mode)};background-image:radial-gradient(${HVAC_LIGHT.includes(mode) ? 'rgba(255,255,255,.7)' : 'rgba(0,0,0,.3)'} 1.3px, transparent 1.7px);background-size:6px 6px`
+  ? `${hvacStyle(mode)};background-image:radial-gradient(${HVAC_LIGHT.includes(mode) ? 'rgba(255,255,255,.5)' : 'rgba(0,0,0,.3)'} 1.3px, transparent 1.7px);background-size:6px 6px`
   : hvacStyle(mode));
 // The name of an HVAC mode, short, for a button: "Heat", "Cool", "Dry"
 const MODE_LABELS = { off: 'hvacOff', heat: 'slotHeat', cool: 'slotCool', heat_cool: 'hvacHeatCool', dry: 'hvacDry', auto: 'hvacAuto', fan_only: 'hvacFan' };
