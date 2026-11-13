@@ -154,6 +154,16 @@ cools.
   10.5, without `requested_state`, keeps the former behavior: it gets its slots and its override
   while off, and stays off.
 
+## [0.9.0-beta.4] - 2026-11-13
+
+The fourth beta of 0.9.0, with **a fix for the open windows of Versatile Thermostat** (#92).
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+
+No stored data is migrated.
+
 ### Fixed
 
 - **The *Frost protection* window of a Versatile Thermostat no longer makes an override on a
