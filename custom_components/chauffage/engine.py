@@ -65,15 +65,17 @@ def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | No
     Thermostat may change them by itself: it turns off for an open window or its auto start/stop,
     and sets the frost setpoint for a window (#92). VTherm keeps what it was asked for in
     requested_state. Its target_temperature is the last manual setpoint, so it counts only on
-    the manual preset. The HVAC mode is None without requested_state: the state says it."""
+    the manual preset, and only when it is known. The HVAC mode is None without requested_state:
+    the state says it."""
     preset = preset_value(attributes.get("preset_mode"))
     temperature = temperature_value(attributes.get("temperature"))
     requested = attributes.get("requested_state") if vtherm else None
     hvac_mode = None
     if isinstance(requested, Mapping) and requested.get("preset") is not None:
         preset = preset_value(requested["preset"])
-        if is_manual_preset(preset):
-            temperature = temperature_value(requested.get("target_temperature"))
+        target = temperature_value(requested.get("target_temperature"))
+        if is_manual_preset(preset) and target is not None:
+            temperature = target
     if isinstance(requested, Mapping) and requested.get("hvac_mode") is not None:
         hvac_mode = preset_value(requested["hvac_mode"])
     return hvac_mode, preset, temperature

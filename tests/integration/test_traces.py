@@ -83,6 +83,27 @@ async def test_an_override_and_its_end_are_logged(bench: Bench, log):
     assert sent([command]) == ["override ended (expired), eco of schedule normal"]
 
 
+async def test_an_override_on_a_vtherm_logs_the_setpoint_it_was_asked_for(bench: Bench, log):
+    """VTherm shows its frost setpoint while a window is open: the log gives the setpoint the
+    override is made of, the one VTherm was asked for (#92)."""
+    bench.needs("vtherm")
+    bench.versatile_thermostat("climate.salon")
+    await start(bench, "10:00")
+    await bench.runtime.set_mapping("climate.salon", {"eco": {"temperature": 17.5}, "comfort": {"temperature": 19.0}})
+    await bench.hass.async_block_till_done()
+
+    def window_open(asked: float) -> None:
+        bench.thermostat("climate.salon", "none", 7.0, context=Context(),
+                         requested_state={"hvac_mode": "heat", "target_temperature": asked, "preset": "none"})
+    window_open(17.5)
+    await bench.hass.async_block_till_done()
+    log()
+    window_open(21.0)  # the knob, while VTherm keeps the frost setpoint
+    await bench.hass.async_block_till_done()
+    change, _started = log()
+    assert "setpoint 17.5 → 21.0" in change
+
+
 async def test_an_override_from_a_service_and_its_removal_are_logged(bench: Bench, log):
     await start(bench, "10:00")
     log()

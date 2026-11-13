@@ -70,6 +70,17 @@ async def test_the_temperature_of_each_preset_is_learned_while_it_is_active(benc
     assert bench.runtime.learned_temperatures["climate.salon"]["comfort"] == 20.5
 
 
+async def test_a_vtherm_on_another_preset_than_asked_teaches_no_temperature(bench: Bench):
+    """VTherm's central mode in frost protection shows frost at 7 °C, while it was asked for
+    comfort: 7 °C is not the temperature of comfort (#92)."""
+    bench.versatile_thermostat("climate.salon")
+    await start(bench)
+    bench.thermostat("climate.salon", "frost", 7.0,
+                     requested_state={"hvac_mode": "heat", "target_temperature": None, "preset": "comfort"})
+    await bench.hass.async_block_till_done()
+    assert "comfort" not in bench.runtime.learned_temperatures["climate.salon"]
+
+
 async def test_learned_temperatures_are_given_to_the_card(bench: Bench):
     await start(bench)
     assert bench.runtime.snapshot()["preset_temperatures"] == {"climate.salon": {"eco": 17.0}}

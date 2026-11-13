@@ -154,6 +154,18 @@ cools.
   10.5, without `requested_state`, keeps the former behavior: it gets its slots and its override
   while off, and stays off.
 
+### Fixed
+
+- **The *Frost protection* window of a Versatile Thermostat no longer makes an override on a
+  temperature slot** (#92). With this window action, VTherm sets its frost setpoint while the
+  window is open. On a temperature slot, Chauffage took this setpoint for a change by hand. If
+  the slot changed while the window was open, the thermostat then kept the old slot's setpoint
+  for 2 hours once the window closed. Chauffage now reads the preset and the setpoint VTherm was
+  asked for, in its `requested_state`. VTherm publishes `requested_state` since its version 8.
+
+  With the *Turn off* window action, a valve that reports its own setpoint when it turns off
+  could also make an override. Versatile Thermostat 10.6.4 fixes this case.
+
 ## [0.9.0-beta.3] - 2026-11-11
 
 The third beta of 0.9.0, with **the access level of users who are not administrators** (#99).

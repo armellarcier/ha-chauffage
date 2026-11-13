@@ -498,6 +498,34 @@ future contributor might question.
   at once and done again (the valve, the card), a false one heats a room at the wrong
   temperature for hours without anyone knowing why. A change made in Home Assistant by a user
   is always an override. After a day a command is not waited for anymore.
+- **A VTherm is read as it was asked, not as it changed itself** (#92). VTherm publishes two
+  states since its version 8: `current_state`, what it does now, and `requested_state`, what it
+  was asked for.
+  An open window with the *Frost protection* action sets the frost setpoint and keeps the
+  preset. On a temperature slot, Chauffage took the frost setpoint for a change on the device:
+  an override at 7 °C while the window was open. If the slot changed meanwhile, the old slot's
+  setpoint became a 2-hour override once the window closed.
+  - **What Chauffage reads.** For a VTherm with `requested_state`, Chauffage reads the preset
+    from `requested_state`. On the manual preset (`none`), it also reads the setpoint from
+    `requested_state`. On another preset, `requested_state` keeps the last manual setpoint, not
+    the preset's: Chauffage reads the setpoint VTherm shows. Without `requested_state`, for
+    example a VTherm older than version 8, Chauffage reads the attributes as before.
+  - **What Chauffage learns.** A VTherm can show another preset than the one asked, for example
+    *frost* while its central mode is in frost protection. Chauffage then learns no preset
+    temperature: the setpoint shown is not the asked preset's.
+  - **Why not the window.** Reading `is_window_detected` or the window action would tie
+    Chauffage to one VTherm feature. `requested_state` also covers the other changes VTherm
+    makes by itself on the manual preset, for example the central mode, the power shedding or
+    the safety mode. On another preset, Chauffage reads the setpoint VTherm shows, as before:
+    a setpoint that keeps the preset was never an override.
+  - **What is checked.** In a development HA with VTherm 10.5, without the fix: the *Frost
+    protection* action made an override on a temperature slot, and none on a preset slot. The
+    *Turn off* action made no override. With the fix, on VTherm 10.6.4: neither action makes an
+    override, and a slot change while the window is open applies once it closes. The other
+    changes VTherm makes by itself are only read in VTherm's code, not tested.
+  - **The timed preset.** VTherm writes a timed preset into `requested_state` since its
+    version 9.3.3. Chauffage sees it as a preset picked by a user. Its end leaves a stale
+    override: #101.
 - **No special case for Versatile Thermostat's safety mode**: VTherm keeps the requested preset
   and returns to it by itself, so the usual rules are right (v0.2.0-beta.3 removed a special
   case that overwrote a user's choice).
