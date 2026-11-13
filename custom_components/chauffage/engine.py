@@ -248,6 +248,28 @@ def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> T
     return {**out, **(value or {})}
 
 
+def preset_to_leave(attributes: Target, thermostat: Thermostat | None) -> str | None:
+    """The preset "none" to set before a setpoint is sent (`attributes`: what is sent), on a
+    thermostat that lists it and shows another preset; None otherwise. A Daikin keeps its
+    preset when it gets a setpoint: its eco preset would go on against the temperature asked.
+    Set before the setpoint: a thermostat may give back an older setpoint when it leaves a
+    preset. Not on a Versatile Thermostat, which goes to its manual preset by itself."""
+    if thermostat is None or thermostat.vtherm or is_manual_preset(thermostat.preset):
+        return None
+    if "preset_mode" in attributes or not any(key in attributes for key in SETPOINTS):
+        return None
+    return next((preset for preset in thermostat.presets if preset.lower() == "none"), None)
+
+
+def restored(target: Target | None, own: Mapping[str, str] | None) -> Target | None:
+    """The target with the fan and the vanes to give back to the thermostat (`own`: what it had
+    before a slot or an override chose others), for those the target does not choose. An off
+    target is sent alone."""
+    if target is None or not own or target.get("hvac_mode") == OFF:
+        return target
+    return {**{key: value for key, value in own.items() if key not in target}, **target}
+
+
 def preset_value(raw: Any) -> str | None:
     """preset_mode as text: some integrations (ZHA…) expose an Enum (<Preset.ECO: 'eco'>)."""
     if raw is None:
@@ -479,6 +501,8 @@ class Plan:
     mappings: dict[str, dict[str, Any]]
     overrides: dict[str, Any]
     use_presets: bool = True
+    # {thermostat: the fan and the vanes it had before a slot or an override chose others}
+    own_settings: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def week(self, entity_id: str) -> list[list[list[str]]] | None:
         """The thermostat's week in the active schedule (None: none, or not 7 days)."""
@@ -497,6 +521,11 @@ class Plan:
             return None
         return resolve(slot.preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets,
                        slot.settings)
+
+    def sent_target_of(self, entity_id: str, slot: Slot | None, thermostat: Thermostat | None) -> Target | None:
+        """What a slot sends a thermostat: what it means there, and the fan and the vanes the
+        thermostat had before, when the slot chooses none (`restored`)."""
+        return restored(self.target_of(entity_id, slot, thermostat), self.own_settings.get(entity_id))
 
     def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
         slot, _ = self.slot_at(entity_id, now)
@@ -580,7 +609,7 @@ def targets(
         changed = plan.slot_at(entity_id, since)[0] != slot if since is not None else starts_now
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
-        target = plan.target_of(entity_id, slot, thermostat)
+        target = plan.sent_target_of(entity_id, slot, thermostat)
         if target is None or ignored(thermostat):
             continue
         target = complete(target, thermostat)

@@ -20,8 +20,9 @@ chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the the
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set       {entity_id, override | null, source?}: change (target, end) or remove an override;
-                             a new value is sent to the thermostat. Any user who may control the
-                             thermostat, not only an admin
+                             a new value is sent to the thermostat; a single temperature in
+                             heat_cool is refused on a thermostat that takes a range there. Any
+                             user who may control the thermostat, not only an admin
 chauffage/schedule/activate  {schedule, source?}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
                              or a copy), rename, move, delete (see model.plan_schedules)
@@ -265,8 +266,11 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if not _may_control(connection, msg):
         return
-    await _run(hass, connection, msg, lambda runtime: runtime.set_override(
-        msg["entity_id"], msg["override"], source=msg["source"], context=connection.context(msg)))
+    async def set_override(runtime: ChauffageRuntime) -> None:
+        runtime.refuse_lone_temperature(msg["entity_id"], msg["override"])
+        await runtime.set_override(msg["entity_id"], msg["override"], source=msg["source"], context=connection.context(msg))
+
+    await _run(hass, connection, msg, set_override)
 
 
 @websocket_api.websocket_command({
