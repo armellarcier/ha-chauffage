@@ -253,9 +253,9 @@ the slot starts.
 For example, *Frost protection* has no temperature when cooling: *Cool* does not offer it.
 *Off*, *Dry*, *Auto* and *Fan only* have no preset and no setpoint.
 
-**Try an HVAC mode.** While the popover is open, the slot keeps its times, even when it becomes
-the same as the slot before or after it. The two slots become one when you close the popover,
-open another slot or save. Come back to *Heat* or *Cool*, and the slot gets its preset back.
+**Try an HVAC mode.** The slot keeps its times, even when it becomes the same as the slot
+before or after it: the two slots stay two slots. Come back to *Heat* or *Cool* while the
+popover is open, and the slot gets its preset back. To make one slot of two, delete one.
 
 - **Heat/Cool** sends two temperatures: the preset's temperature when heating and its
   temperature when cooling. The popover says "Setpoint: 20–25 °C". Chauffage offers *Heat/Cool*

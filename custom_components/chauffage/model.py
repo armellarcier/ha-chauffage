@@ -17,7 +17,8 @@ Vocabulary: docs/glossary.md.
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
                              [start "HH:MM", preset id] or [start, preset id, settings] slots,
-                             the first one at "00:00". The settings are what the slot sets besides
+                             the first one at "00:00"; two slots alike in a row stay two
+                             slots. The settings are what the slot sets besides
                              its preset (#91): its HVAC mode ("hvac_mode"), and the fan and the
                              vanes of an air conditioner. The slot chooses the HVAC mode: "heat",
                              "cool" or "heat_cool" with a preset (the preset says how warm, for
@@ -40,6 +41,9 @@ Vocabulary: docs/glossary.md.
                              did not cool
         cool_preset_temperatures: the same, last seen while it cooled (optional: none before
                              it cooled on one of its presets)
+        own_settings:        {"fan_mode": "auto", …}: the fan and the vanes the thermostat had
+                             before a slot or an override chose others, to give back by the next
+                             one that chooses none (optional: none to give back)
         hvac_mode:           the HVAC mode the thermostat last heated or cooled in (None: not
                              seen on yet): what an off thermostat without heat is turned on in
         revision:            increases on every change of its weeks: a card saves against it, so

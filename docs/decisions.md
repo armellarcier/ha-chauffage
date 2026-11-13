@@ -305,6 +305,26 @@ future contributor might question.
     not a choice of the user. A preset or a setpoint changed on the thermostat itself while it
     is off is not an override: the thermostat stays off, and keeps what the user set for when it
     is turned on. A preset tapped in the card's override block turns it on (see below).
+  - **The fan and the vanes go back to what the thermostat had** (#91, the second review). A
+    target is a partial state: a slot that chooses no fan left the fan of the slot before it.
+    A tester set the fan to *High* for a dry night slot, and the air conditioner blew hard all
+    day. Now Chauffage keeps what the thermostat showed before a slot or an override changed
+    its fan or its vanes (`own_settings`, stored with the thermostat). The next slot or
+    override that chooses none gives it back. A fan changed by hand is the user's choice: it
+    is kept from then on. An off slot still sends off alone. *A choice to validate with the
+    owner*: the other way was to leave the fan as it is, and to say so in the popover.
+  - **A thermostat leaves its preset before it gets a setpoint**, when it lists the preset
+    `none` and shows another one (`engine.preset_to_leave`). A Daikin keeps its preset when it
+    gets a temperature: left on `eco`, it saved energy against the setpoint the slot asked
+    for. The preset is left first, in a call of its own: a thermostat such as Home Assistant's
+    `generic_thermostat` gives back an older setpoint when it leaves a preset, so the setpoint
+    must come last. Not on a Versatile Thermostat, which goes to its manual preset by itself.
+    The preset `none` is not part of the target: what the slot expects, and what an override
+    holds, do not change.
+  - **The card cannot set a single temperature in heat/cool** on a thermostat that takes a
+    range there: the websocket API refuses it, as `chauffage.set_override` does. The override
+    was recorded and did nothing. An override that already has this value keeps it: its end
+    can still change.
   - **Chauffage applies a target like a scene**, with Home Assistant's `async_reproduce_state`:
     the HVAC mode, then the setpoint, then the preset, the swing and the fan, in Home
     Assistant's order. Chauffage sends only the attributes the thermostat does not show, and the
@@ -1037,6 +1057,22 @@ dashboards, automations, scripts and by voice without the card
     the popover closes, when another slot is opened, and when the weeks are saved
     (`_settle`). The slot remembers the preset it had: back to *Heat* or *Cool*, it takes it
     again.
+  - **Two slots that become the same stay two slots** (the second review). *A choice to
+    validate with the owner.* The slots merged when the popover closed and when the weeks were
+    saved: a tester set the evening to the preset of the afternoon, and the cut at 20:00 was
+    gone. The user cut the slot on purpose, and a silent merge surprises. So neither the card
+    nor the integration merges two slots any more: `normalize` and `model.normalize_day` keep
+    them, and the second slot sends nothing (`engine.targets`). What still joins two slots:
+    - a slot deleted, or a time typed over a slot, joins the two slots it brings together;
+    - a day copied to a thermostat that cannot follow its slots, and *All heat* or *All cool*,
+      join the slots they made the same (`joined`).
+  - **A piece the card cuts is like the slot it is cut from.** A double tap on *Eco* made a
+    *Comfort* piece: a tester who wanted to turn the night off got a heated hour instead. Now
+    the piece has the slot's preset, HVAC mode, fan and vanes, and its popover is open: the
+    user says what it is. *Insert a slot* does the same in the middle of the slot. A piece
+    left as it was cut is the card's, not the user's: it joins its slot again when the popover
+    closes, when another slot is opened, when another schedule is shown, or on save, on every
+    day of its row (`_settle`). So a double tap by mistake leaves nothing to save.
   - **The chosen HVAC mode is tinted, a chosen preset is filled.** A filled HVAC mode button
     read as one more preset chip. The button follows Home Assistant's own control
     (`ha-control-select`): its color at 20 % behind, and its text in a mix of 45 % of that
@@ -1055,6 +1091,42 @@ dashboards, automations, scripts and by voice without the card
     runs in.
   - **The fan speed in sight in fan only and in dry.** It is the one thing to set there. The
     vanes stay under *More settings*.
+  - **An override that changes kind gets the end of its new kind** (the second review). An off
+    override ends as the setting *Turned off* says, by default at the next slot, maybe days
+    later. Set to *Cool* from the card, it kept that end: an override to 24 °C for a week. Now
+    an off override turned on starts now and lasts the override duration, as a new override.
+    An override turned off ends as the setting *Turned off* says. An override that stays on,
+    or stays off, keeps its end.
+  - **A preset can have a value when cooling on one thermostat only.** *Frost protection* has
+    no temperature when cooling, and the cell of a cooling-only air conditioner still takes
+    one. The reviewers asked whether this was a mistake. It is the model: a preset is offered
+    in an HVAC mode on a thermostat when it has a value for it there (`engine.value_on`, the
+    card's `valueOn`). The slot popover, the override block and the integration agree, and a
+    test says so. The cell stays as it is.
+  - **The second review of the layout** (#91):
+    - **The HVAC mode a new override would take has a neutral outline**, with the text color
+      at 8 % behind. In the color of its HVAC mode, it read as already chosen.
+    - **Five or six HVAC modes are rows of three.** Wrapped as they came, they made rows of
+      three, two and one on a phone.
+    - **A short override says its HVAC mode and its end next to it**, on the week:
+      "⏱ ❄ 02:31". With several thermostats, the override was a clock in a small box, and its
+      tooltip said the rest: a phone has no tooltip. The tag goes on the side with room.
+    - **The more-info block and a thermostat card name the HVAC modes in full**, as Home
+      Assistant names them (`hass.formatEntityState`), else in the card's own full words:
+      "Climatisation · Confort 25°", "Éteint". They sit next to Home Assistant's own dialog,
+      which says *Chauffage* and *Éteint*. The buttons of the first row keep their short
+      labels, and so does the schedule card, where room is short.
+    - **On a row shared by several thermostats, the name of a slot without a preset wins over
+      its time**: "⏻ Off", not "00:00 ⏻ O…". The color of such a slot is no preset's color.
+    - **The setpoint line is words, then a button.** "Setpoint: 20 °C", then *Set*, a button
+      to the presets tab, for an administrator. The whole line was a dotted link, which did
+      not read as a control. A heat/cool override says its range in the same line.
+    - **One height for the buttons and the fields of a block**: 34 px, the height of a chip,
+      with its radius, and 13 px text. `FIELD_BOX` is the one box of every field.
+    - **The text of a chip is white only where it reads**: with a contrast of 4.5 at least on
+      the chip's color. Otherwise it is dark. A heat/cool chip has two colors: its text is the
+      one that reads best on the color it reads worst on (`chipTextColor`).
+    - **A popover takes the width of a narrow card**, so that it is centred on a phone.
   - **A double tap cuts a short slot.** On a slot narrower than its two handles, the first tap
     selects the slot, and the second one lands on a handle of the slot selected, which did
     nothing. Now it cuts the slot, a step away from its ends. On a wider slot, a double tap on

@@ -77,10 +77,20 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   only cools has *Cool* chosen. A heater keeps one row: *Off*, then the presets. A *Summer*
   schedule whose slots say *Cool* and a *Winter* schedule change the season, by hand or with an
   activation rule.
-- **Try an HVAC mode without losing the slot** (#91). While its popover is open, a slot keeps
-  its times, even when it becomes the same as the slot before or after it. The two slots
-  become one when you close the popover, open another slot or save. Come back to *Heat* or
-  *Cool*, and the slot gets its preset back.
+- **Try an HVAC mode without losing the slot** (#91). A slot keeps its times, even when it
+  becomes the same as the slot before or after it: the two slots stay two slots, in the card
+  and once saved. Come back to *Heat* or *Cool* while the popover is open, and the slot gets
+  its preset back. To make one slot of two, delete one.
+- **A double tap cuts a piece like its slot** (#91). The piece has the slot's preset and HVAC
+  mode, and its popover opens: choose what the piece is. *Insert a slot* does the same in the
+  middle of the slot. Before, the piece took another preset. A piece you leave as it was cut
+  joins its slot again when you close the popover.
+- **The fan and the vanes go back to what the thermostat had** (#91). A slot or an override
+  that chooses no fan gives back the fan the air conditioner had before a slot chose one. A
+  fan you set by hand is kept.
+- **A thermostat leaves its preset before a setpoint** (#91). A thermostat that lists the
+  preset `none`, for example a Daikin, kept its `eco` preset when a slot sent it a temperature.
+  Chauffage now sets the preset `none` first. Versatile Thermostat is not concerned.
 - **A preset has a temperature when heating and a temperature when cooling** (#91). On a new
   installation: *Frost protection* 7 °C and none, *Eco* 17 °C and 27 °C, *Comfort* 20 °C and
   25 °C, *Boost* 22 °C and 23 °C. In the *Presets* tab, a preset's popover sets both, and an
@@ -101,11 +111,14 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   mode is outlined until you tap one. The block says the end the override will have before
   your first tap: "until 12:00 (2 h)". Then the end has one block: its time, the buttons that
   move it, and *Until 17:30 (next slot)*. The temperature has a − and a +, on the thermostat's
-  step. On a valve that lists *Heat* and *Auto*, an override says no HVAC mode unless you tap
+  step. An off override that you turn on starts now and lasts the override duration. An
+  override that you turn off ends as the setting *Turned off* says. On a valve that lists *Heat* and *Auto*, an override says no HVAC mode unless you tap
   one: a valve in *Auto* keeps *Auto*.
 - **The cards name the HVAC mode** (#91), on a thermostat that lists more than one: "Cool ·
   Comfort 25° until 23:00, then Heat · Eco". On a thermostat card, in the more-info dialog,
-  and on the override drawn on the week, with its tooltip. Switch the
+  and on the override drawn on the week, with its tooltip. A thermostat card and the more-info
+  dialog name the HVAC modes in full, as Home Assistant does. On a week with several
+  thermostats, a short override says its HVAC mode and its end next to it: "⏱ ❄ 02:31". Switch the
   air conditioner to *Cool* or to *Heat/Cool* by hand, and the override keeps the preset in
   force, with its value for that HVAC mode. Switch it to *Dry* or to *Auto* by hand, and the
   override keeps that HVAC mode: Chauffage sends nothing.

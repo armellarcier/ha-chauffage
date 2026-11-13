@@ -275,10 +275,10 @@ thermostat passe dans ce mode HVAC au début du créneau.
 mode HVAC choisi. Par exemple, *Hors-gel* n'a pas de température en clim : *Clim* ne le propose
 pas. *Arrêt*, *Déshum.*, *Auto* et *Ventilation* n'ont ni préréglage ni consigne.
 
-**Essayer un mode HVAC.** Tant que la fenêtre est ouverte, le créneau garde ses horaires, même
-s'il devient identique au créneau d'avant ou d'après. Les deux créneaux n'en font plus qu'un
-quand vous fermez la fenêtre, ouvrez un autre créneau ou enregistrez. Revenez à *Chauffe* ou à
-*Clim*, et le créneau retrouve son préréglage.
+**Essayer un mode HVAC.** Le créneau garde ses horaires, même s'il devient identique au
+créneau d'avant ou d'après : les deux créneaux restent deux créneaux. Revenez à *Chauffe* ou à
+*Clim* tant que la fenêtre est ouverte, et le créneau retrouve son préréglage. Pour ne garder
+qu'un créneau, supprimez l'autre.
 
 - **Chauffe/Clim** envoie deux températures : la température en chauffe du préréglage et sa
   température en clim. La fenêtre dit « Consigne : 20–25 °C ». Chauffage propose *Chauffe/Clim*
