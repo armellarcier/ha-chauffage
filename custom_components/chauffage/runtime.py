@@ -185,9 +185,9 @@ def _time(iso: str) -> str:
     return dt_util.as_local(when).strftime("%H:%M:%S") if when else str(iso)
 
 
-def _change(old: State, new: State) -> str:
-    """What changed on a thermostat, for the log: its state, preset and setpoint."""
-    before, after = thermostat(old), thermostat(new)
+def _change(before: engine.Thermostat, after: engine.Thermostat) -> str:
+    """What changed on a thermostat, for the log: its state, and the preset and the setpoint
+    it was asked for, the ones the override is made of (#92)."""
     parts = [after.state]
     if before.preset or after.preset:
         parts.append(f"preset {before.preset} → {after.preset}")
@@ -1342,8 +1342,11 @@ class ChauffageRuntime:
             learned = True
         temperatures = (data.setdefault("cool_preset_temperatures", {}) if current.state == "cool"
                         else data["preset_temperatures"])
+        # A VTherm on another preset than asked, for example its central mode in frost
+        # protection: its setpoint is not the asked preset's temperature (#92)
         if (current.temperature is not None and not engine.is_manual_preset(current.preset)
                 and current.state not in (engine.HEAT_COOL, engine.DRY, engine.FAN_ONLY)
+                and current.preset == engine.preset_value(state.attributes.get("preset_mode"))
                 and temperatures.get(current.preset) != current.temperature):
             temperatures[current.preset] = current.temperature
             learned = True
@@ -1403,7 +1406,7 @@ class ChauffageRuntime:
         if change is None:
             return
         _LOGGER.info("%s: changed %s (%s); the slot asks for %s: %s", new.entity_id,
-                     "by a user" if context.user_id else "on the device", _change(old, new),
+                     "by a user" if context.user_id else "on the device", _change(before, after),
                      _describe(expected) if expected else "nothing",
                      "back to its slot" if change == engine.RESUME else "an override")
         if change == engine.RESUME:

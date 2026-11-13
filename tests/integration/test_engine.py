@@ -124,6 +124,13 @@ def test_a_vtherm_is_not_ready_while_it_says_so():
     assert engine.ready({"temperature": 20.0, "is_ready": False})  # not a VTherm's attribute
 
 
+def test_a_vtherm_asked_for_no_setpoint_keeps_the_setpoint_it_shows():
+    """A requested_state on the manual preset without a setpoint: the setpoint shown counts."""
+    shown = {"preset_mode": "none", "temperature": 19.0,
+             "requested_state": {"hvac_mode": "heat", "target_temperature": None, "preset": "none"}}
+    assert engine.asked(shown, vtherm=True) == ("heat", "none", 19.0)
+
+
 def test_a_thermostat_that_is_not_ready_is_ignored():
     starting = Thermostat("heat", None, None, (), 5.0, 30.0, 0.5, ready=False)
     assert engine.ignored(starting)
