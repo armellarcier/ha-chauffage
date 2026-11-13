@@ -258,10 +258,10 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
   const COOL = override({ ...both(20, 25), hvac_mode: 'cool' }, { preset: 'comfort', end: at('14:00') });
   // At 14:00 the suite's week plans Comfort, in heat
 
-  test('the more-info block: "Clim · Confort 25°", until when, and what comes next', () => {
+  test('the more-info block: "Climatisation · Confort 25°", until when, and what comes next', () => {
     const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }), SUITE);
-    assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Clim · Confort 25°');
-    assert.equal(text(el.shadowRoot.querySelector('.override-until')), 'jusqu\'à 14:00, puis Chauffe · Confort');
+    assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Climatisation · Confort 25°');
+    assert.equal(text(el.shadowRoot.querySelector('.override-until')), 'jusqu\'à 14:00, puis Chauffage · Confort');
   });
 
   test('the thermostat card\'s header', () => {
@@ -269,7 +269,7 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
     card.setConfig({ type: 'custom:chauffage-thermostat-card', entity: SUITE });
     document.body.appendChild(card);
     card.hass = setup({ planned: PLANNED, overrides: { [SUITE]: COOL } });
-    assert.equal(text($(card, '.tc-state')), '⏱ Clim · Confort 25°');
+    assert.equal(text($(card, '.tc-state')), '⏱ Climatisation · Confort 25°');
   });
 
   test('the thermostat card\'s header names the HVAC mode of an override to a temperature too', () => {
@@ -277,12 +277,12 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
     card.setConfig({ type: 'custom:chauffage-thermostat-card', entity: SUITE });
     document.body.appendChild(card);
     card.hass = setup({ planned: PLANNED, overrides: { [SUITE]: override({ temperature: 26, hvac_mode: 'cool' }, { end: at('14:00') }) } });
-    assert.equal(text($(card, '.tc-state')), '⏱ Clim · 26 °C');
+    assert.equal(text($(card, '.tc-state')), '⏱ Climatisation · 26 °C');
   });
 
   test('the end of an override names the HVAC mode of the slot that follows', () => {
     const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }), SUITE);
-    assert.match(text(el.shadowRoot.querySelector('.end-block .muted')), /puis Chauffe · Confort \(planning\)$/);
+    assert.match(text(el.shadowRoot.querySelector('.end-block .muted')), /puis Chauffage · Confort \(planning\)$/);
   });
 
   test('the override on the week, and its tooltip', () => {
@@ -295,7 +295,7 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
   test('the schedule followed names the HVAC mode too', () => {
     const planned = { [SUITE]: { preset: 'comfort', hvac_mode: 'cool', next_preset: 'eco', next_hvac_mode: 'heat', next_start: at('17:30') } };
     const el = moreInfo(setup({ planned }), SUITE);
-    assert.match(text(el.shadowRoot), /Suit le planning : Clim · Confort jusqu'à 17:30, puis Chauffe · Éco/);
+    assert.match(text(el.shadowRoot.querySelector('.status')), /Suit le planning : Climatisation · Confort jusqu'à 17:30, puis Chauffage · Éco/);
   });
 
   test('a heater names no HVAC mode', () => {
@@ -307,7 +307,7 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
 
   test('off and dry say themselves', () => {
     const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: override({ hvac_mode: 'dry' }, { end: at('14:00') }) } }), SUITE);
-    assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Déshum.');
+    assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Déshumidification');
   });
 });
 
@@ -446,7 +446,7 @@ describe('the cell popover of the presets tab', () => {
   test('the setpoint of a slot opens the presets tab on the thermostat\'s row', () => {
     const card = cardOf(setup());
     select(card, SUITE, 1);
-    assert.equal($(card, '.editor .slot-setpoint').dataset.navigate, `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
+    assert.equal($(card, '.editor .setpoint-edit').dataset.navigate, `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
     window.history.replaceState(null, '', `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
     const tab = panel(setup());
     assert.ok($(tab, `tr[data-climate="${SUITE}"]`).classList.contains('target'));

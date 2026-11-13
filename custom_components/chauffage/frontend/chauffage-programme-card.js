@@ -92,6 +92,7 @@ const I18N = {
     keep: 'Don’t change',
     fromPreset: '{value} (preset)',
     slotSetpoint: 'Setpoint: {value}',
+    setpointEdit: 'Set',
     slotSetpointOwn: '{temperature} (its {preset} preset)',
     slotSetpointUnchanged: 'Setpoint unchanged when cooling',
     slotSetpointKept: 'Setpoint unchanged',
@@ -413,6 +414,7 @@ const I18N = {
     keep: 'Ne pas changer',
     fromPreset: '{value} (préréglage)',
     slotSetpoint: 'Consigne : {value}',
+    setpointEdit: 'Régler',
     slotSetpointOwn: '{temperature} (son préréglage {preset})',
     slotSetpointUnchanged: 'Consigne inchangée en clim',
     slotSetpointKept: 'Consigne inchangée',
@@ -932,6 +934,26 @@ const presetColorIn = (preset, mode) => (mode === 'cool' ? coolColor(preset)
   : mode === 'heat_cool' ? `linear-gradient(135deg, ${preset.color} 50%, ${coolColor(preset)} 50%)` : preset.color);
 // The color of a slot of a preset
 const slotColor = (preset, seg) => presetColorIn(preset, slotMode(seg));
+// The text of a chip filled with `colors` (hex; two for a heat/cool chip): white where it reads
+// with a contrast of 4.5 at least on each of them (WCAG AA). Otherwise white or dark, the one
+// that reads best on the color it reads worst on
+const DARK_TEXT = 'rgba(0,0,0,.87)';
+function luminance(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  const n = m ? parseInt(m[1], 16) : 0x9e9e9e;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+}
+function chipTextColor(colors) {
+  const worst = (text) => Math.min(...colors.map((c) => { const [hi, lo] = [luminance(c), text].sort((a, b) => b - a); return (hi + 0.05) / (lo + 0.05); }));
+  const white = worst(1);
+  // Dark text is black at 87 %: on a color, close to #212121
+  return white >= 4.5 || white >= worst(luminance('#212121')) ? '#fff' : DARK_TEXT;
+}
+// The style of a preset's chip in an HVAC mode: its color, and a text that reads on it
+const chipStyle = (preset, mode) => `background:${presetColorIn(preset, mode)};color:${chipTextColor(
+  mode === 'cool' ? [coolColor(preset)] : mode === 'heat_cool' ? [preset.color, coolColor(preset)] : [preset.color])}`;
 
 // A day's slots in order, the first one at 00:00, one slot per start time. Two slots in a row
 // that are the same stay two slots: the user cut them (docs/decisions.md, "Card")
@@ -1014,7 +1036,23 @@ const hvacSlotStyle = (mode) => (HVAC_HATCHED.includes(mode)
 const modeColor = (mode) => (mode === 'off' ? 'var(--secondary-text-color, #727272)' : hvacColor(mode));
 // The name of an HVAC mode, short, for a button: "Heat", "Cool", "Dry"
 const MODE_LABELS = { off: 'hvacOff', heat: 'slotHeat', cool: 'slotCool', heat_cool: 'hvacHeatCool', dry: 'hvacDry', auto: 'hvacAuto', fan_only: 'hvacFan' };
-const modeName = (loc, mode) => (MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : loc.hvacMode(mode));
+const modeName = (loc, mode) => (loc.modeName ? loc.modeName(mode) : MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : loc.hvacMode(mode));
+// The words of a thermostat's own blocks, the more-info block and a thermostat card: an HVAC
+// mode is named in full, as Home Assistant names it next to them ("Chauffage", "Éteint"), else
+// in the card's own full words. The buttons of the first row keep their short labels
+function fullNames(loc, hass, climate) {
+  const st = hass && hass.states && hass.states[climate];
+  const name = (mode) => {
+    if (st && typeof hass.formatEntityState === 'function') {
+      try {
+        const known = hass.formatEntityState(st, mode);
+        if (typeof known === 'string' && known && known !== mode) return known;
+      } catch (e) { /* the card's own words */ }
+    }
+    return loc.hvacMode(mode);
+  };
+  return Object.assign(Object.create(loc), { modeName: name });
+}
 // Fan only, in a week, a legend and a chip: Home Assistant's color, with dark text (white is
 // not legible on its cyan). The first row of a slot or of an override: one button per HVAC
 // mode, the icon and the label centered in a box of one height
@@ -1022,9 +1060,17 @@ const modeName = (loc, mode) => (MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : 
 // temperature, in every block (the slot popover, the override block of the card, of a
 // thermostat card and of the more-info dialog). The chosen HVAC mode is tinted with its color,
 // as Home Assistant's own control does: a filled chip is a preset
+// One box for every field of the cards: a text, a time, a temperature, a list. As high as a chip,
+// with its radius
+const FIELD_BOX = 'box-sizing:border-box; height:var(--chauffage-chip-h, 34px); font:inherit; padding:0 8px; border-radius:8px;'
+  + ' border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color);';
 const CHIP_STYLE = `
-  :host { --chauffage-chip-h:34px; }
+  :host { --chauffage-chip-h:34px; --chauffage-row-gap:10px; }
   .mode-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:0; }
+  /* Five or six HVAC modes: three columns, each as wide as its widest button, on a phone too */
+  .mode-row.cols3 { display:grid; grid-template-columns:repeat(3, minmax(0, max-content)); }
+  .mode-row.cols3 .mode { padding:0 7px; min-width:0; }
+  .mode-row.cols3 .mode span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .mode-row .mode, .presets button { box-sizing:border-box; height:var(--chauffage-chip-h); min-height:0; display:inline-flex;
     align-items:center; justify-content:center; gap:5px; margin:0; padding:0 10px; border-radius:8px; font:inherit; font-size:13px;
     line-height:1; white-space:nowrap; cursor:pointer; }
@@ -1033,7 +1079,8 @@ const CHIP_STYLE = `
   .mode-row .mode.on { border-color:var(--mode-color); font-weight:600; background:var(--secondary-background-color);
     background:color-mix(in srgb, var(--mode-color) 20%, transparent);
     color:color-mix(in srgb, var(--mode-color) 45%, var(--primary-text-color)); }
-  .mode-row .mode.default { border-color:var(--mode-color); box-shadow:inset 0 0 0 1px var(--mode-color); }
+  .mode-row .mode.default { border-color:var(--secondary-text-color); background:rgba(127,127,127,.08);
+    background:color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
   .mode-row .mode[disabled] { opacity:.45; cursor:default; }
   .presets { display:flex; flex-wrap:wrap; gap:6px; }
   /* Every chip in its full color: a faded chip reads as disabled. The chosen one has a ring */
@@ -1047,14 +1094,17 @@ const CHIP_STYLE = `
     display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:16px; line-height:1;
     border:1px solid var(--divider-color); border-radius:8px; background:var(--card-background-color);
     color:var(--primary-text-color); cursor:pointer; }
-  .pv-temp input[type=text] { box-sizing:border-box; width:56px; height:var(--chauffage-chip-h); padding:0 6px; text-align:center;
-    font:inherit; border:1px solid var(--divider-color); border-radius:8px; background:var(--card-background-color);
-    color:var(--primary-text-color); }
-  .end-block { display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--divider-color); }
+  .pv-temp input[type=text] { ${FIELD_BOX} width:56px; padding:0 6px; text-align:center; }
+  .end-block { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); padding-top:var(--chauffage-row-gap);
+    border-top:1px solid var(--divider-color); }
+  /* The line of a setpoint, the same in every block: its words, then a button to the presets */
+  .setpoint-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; font-size:13px; }
+  .setpoint-edit { box-sizing:border-box; height:var(--chauffage-chip-h); display:inline-flex; align-items:center; gap:5px;
+    padding:0 10px; border:1px solid var(--divider-color); border-radius:8px; color:var(--primary-color); cursor:pointer; }
+  .setpoint-edit ha-icon { --mdc-icon-size:16px; width:16px; height:16px; display:flex; flex:none; }
   .end-new { font-size:.85em; }
   .more-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
-  .more-row select { margin-left:auto; min-width:0; max-width:100%; box-sizing:border-box; min-height:var(--chauffage-chip-h); padding:0 8px;
-    border-radius:8px; border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); font:inherit; }
+  .more-row select { ${FIELD_BOX} margin-left:auto; min-width:0; max-width:100%; }
 `;
 const FAN_STYLE = `
   .seg.fan, .presets button.fan-chip, .legend i.fan { background:${FAN_COLOR}; }
@@ -1350,7 +1400,7 @@ const targetValue = (target) => (target ? target[targetKind(target) === 'tempera
 function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   if (!d) return '';
   const target = d.target || {};
-  if (target.hvac_mode === 'off') return locale.t('hvacOff');
+  if (target.hvac_mode === 'off') return modeName(locale, 'off');
   const picked = d.preset && presets.find((p) => p.id === d.preset);
   if (picked) return picked.name;
   // Heat/cool with a range set by hand: "19–24.5 °C"
@@ -2319,16 +2369,17 @@ function modeRowHtml(hass, climate, loc, chosen, act, disabled = [], asDefault =
   const listed = rowModesOf(hass, climate);
   const modes = HVAC_ORDER.filter((m) => listed.includes(m) || m === chosen);
   const buttons = modes.map((m) => {
-    // `asDefault`: nothing is chosen yet (a new override). The HVAC mode it would take is
-    // outlined, not filled: it does not read as already active
+    // `asDefault`: nothing is chosen yet (a new override). The HVAC mode it would take has a
+    // neutral outline, without the color of a chosen HVAC mode: it does not read as active
     const on = m === chosen && !asDefault;
     const preselected = m === chosen && asDefault;
     const name = modeName(loc, m);
     const missing = !listed.includes(m);
     const off = disabled.includes(m) && !on;
-    return `<button class="mode${on ? ' on' : ''}${preselected ? ' default' : ''}${missing ? ' unsupported' : ''}" data-act="${m === 'off' ? act.replace('-mode', '-off') : act}" data-mode="${m}" aria-pressed="${on ? 'true' : 'false'}"${on || preselected ? ` style="--mode-color:${modeColor(m)}"` : ''}${off ? ` disabled title="${esc(loc.t('noPresetInMode'))}"` : ''}>${hvacIcon(m)}<span>${esc(missing ? loc.t('unsupported', { value: name }) : name)}</span></button>`;
+    return `<button class="mode${on ? ' on' : ''}${preselected ? ' default' : ''}${missing ? ' unsupported' : ''}" data-act="${m === 'off' ? act.replace('-mode', '-off') : act}" data-mode="${m}" aria-pressed="${on ? 'true' : 'false'}"${on ? ` style="--mode-color:${modeColor(m)}"` : ''}${off ? ` disabled title="${esc(loc.t('noPresetInMode'))}"` : ''}>${hvacIcon(m)}<span>${esc(missing ? loc.t('unsupported', { value: name }) : name)}</span></button>`;
   }).join('');
-  return `<div class="mode-row" role="group" aria-label="${esc(loc.t('slotHvac'))}">${buttons}</div>`;
+  // Five or six HVAC modes: rows of three, instead of three, two, then one
+  return `<div class="mode-row${[5, 6].includes(modes.length) ? ' cols3' : ''}" role="group" aria-label="${esc(loc.t('slotHvac'))}">${buttons}</div>`;
 }
 
 // The step of a thermostat's setpoint (its target_temp_step, else half a degree), and a
@@ -2395,7 +2446,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
       const value = targets[l.id];
       const on = !!d && !none && (picked ? picked === l.id
         : targetKind(target) === 'preset' && targetKind(value) === 'preset' && targetValue(target) != null && targetValue(target) === targetValue(value));
-      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="background:${presetColorIn(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
+      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="${chipStyle(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
     }).join('');
   // The temperature the thermostat gets. An override to a preset that cools sends the preset's
   // value when cooling, never its heating temperature. The field then shows the thermostat's
@@ -2412,7 +2463,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   // Heat/cool takes a range: the one of the preset, or the one set by hand
   if (mode === 'heat_cool' && !none) {
     temperature = 'target_temp_low' in target
-      ? `<span class="override-range">${esc(`${loc.number(target.target_temp_low)}–${loc.number(target.target_temp_high)} ${loc.unit}`)}</span>` : '';
+      ? setpointLineHtml(loc.t('slotSetpoint', { value: `${loc.number(target.target_temp_low)}–${loc.number(target.target_temp_high)} ${loc.unit}` }), loc) : '';
   }
   const disabled = SETPOINT_MODES.filter((m) => !Object.values(targets).some((v) => presetModes(v).includes(m)));
   const chosen = off ? 'off' : idle || mode || running;
@@ -2464,6 +2515,14 @@ function slotSetpointText(hass, climate, seg, target, loc, { temperatureOf = () 
   if ('temperature' in target) return t('slotSetpoint', { value: degrees(target.temperature) });
   if (!('preset_mode' in target)) return '';
   return own(target.preset_mode, temperatureOf(target));
+}
+
+// The line that says a setpoint, the same in every block: "Setpoint: 20 °C". `path`: the
+// presets tab, for who may set the presets: a button after the words
+function setpointLineHtml(text, loc, path = null) {
+  if (!text) return '';
+  const edit = path ? `<span class="setpoint-edit" role="link" tabindex="0" data-navigate="${esc(path)}" title="${esc(loc.t('setPresets'))}"><ha-icon icon="mdi:tune-variant"></ha-icon><span>${esc(loc.t('setpointEdit'))}</span></span>` : '';
+  return `<div class="setpoint-line"><span class="slot-setpoint">${esc(text)}</span>${edit}</div>`;
 }
 
 // A slot's name on a thermostat that lists more than one "on" HVAC mode: "Heat · Eco"
@@ -3728,7 +3787,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         const sel = this._sel && this._sel.climate === climate && this._sel.day === d && this._sel.idx === i;
         const cls = ['seg', sel ? 'sel' : '', i === 0 ? 'first' : '', i === segs.length - 1 ? 'last' : '',
           editable && i > 0 && i < segs.length - 1 ? 'movable' : '', off ? 'off' : '', fan ? 'fan' : '',
-          s.settings ? 'marked' : ''].join(' ');
+          s.settings ? 'marked' : '', none || slotMode(s) === 'heat_cool' ? 'word' : ''].join(' ');
         // An off slot is grey; a fan-only, a dry and an auto slot have Home Assistant's color of
         // their HVAC mode; a cooling slot its preset's cool color, a heat/cool slot both colors.
         // The title names the slot, its HVAC mode, and the fan and the vanes it sets
@@ -3773,7 +3832,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === piece.day;
     return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${piece.day}"
         style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%" title="${esc(this._loc.t('temporarySetpointTitle', { label: sentence }))}">
-      <span class="override-label">${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120) ? `⏱ ${named ? '' : hvacIconHtml(overrideHvac(d))}${esc(label)}` : '⏱'}</span>
+      ${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120)
+    ? `<span class="override-label">⏱ ${named ? '' : hvacIconHtml(overrideHvac(d))}${esc(label)}</span>`
+    // Too short for its label: its HVAC mode and its end next to it, on the side with room.
+    // A phone has no tooltip
+    : piece.isLast ? `<span class="override-tag${piece.end > DAY_MIN * 0.6 ? ' before' : ''}">⏱${hvacIcon(overrideHvac(d))} ${endHM}</span>`
+      : '<span class="override-label">⏱</span>'}
       ${piece.isLast ? `<div class="override-handle" title="${esc(this._loc.t('dragToChangeEnd'))}"><span class="tip">${endHM}</span></div>` : ''}
     </div>`;
   }
@@ -3968,7 +4032,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       .filter((l) => (!none && s.preset === l.id) || this._presetsIn(climate, inMode).includes(l.id))
       .map((l) => {
         const missing = !this._presetsIn(climate, inMode).includes(l.id);
-        return `<button data-act="preset" data-preset="${esc(l.id)}" class="${!none && s.preset === l.id ? 'on' : ''}${missing ? ' unsupported' : ''}"${missing ? ` title="${esc(t('noPresetInMode'))}"` : ''} style="background:${presetColorIn(l, none ? null : mode)}">${esc(l.name)}</button>`;
+        return `<button data-act="preset" data-preset="${esc(l.id)}" class="${!none && s.preset === l.id ? 'on' : ''}${missing ? ' unsupported' : ''}"${missing ? ` title="${esc(t('noPresetInMode'))}"` : ''} style="${chipStyle(l, none ? null : mode)}">${esc(l.name)}</button>`;
       }).join('');
     const disabled = SETPOINT_MODES.filter((m) => !this._presetsIn(climate, m).length);
     const modeRow = rows ? modeRowHtml(this._hass, climate, this._loc, none ? mode : inMode, 'slot-mode', disabled) : '';
@@ -3982,9 +4046,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       coolTemperatureOf: (value) => this._coolPresetTemperature(climate, value),
     });
     // The link opens the presets tab on this thermostat's row
-    const setpointLine = !setpoint ? '' : isAdmin(this._hass)
-      ? `<span class="slot-setpoint mi-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}?thermostat=${encodeURIComponent(climate)}">${esc(setpoint)}</span>`
-      : `<span class="slot-setpoint muted">${esc(setpoint)}</span>`;
+    const setpointLine = setpointLineHtml(setpoint, this._loc, isAdmin(this._hass) ? `${panelPath('presets')}?thermostat=${encodeURIComponent(climate)}` : null);
     // With the history shown, what the slot measured: the slot's tooltip says it too, but a phone
     // shows no tooltip
     const measured = this._measuredText(climate, day, s.start, end).replace(/^ · /, '');
@@ -4113,6 +4175,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!card.width || !bar.width) return false;
     const sr = seg.getBoundingClientRect();
     const row = isCell ? sr : bar;
+    // On a narrow card (a phone), the popover takes the card's width: centred, whatever it holds
+    ed.style.width = card.width <= 516 ? `${card.width - 16}px` : '';
     const w = ed.offsetWidth;
     const h = ed.offsetHeight;
     const cx = (Math.max(sr.left, bar.left) + Math.min(sr.right, bar.right)) / 2 - card.left;
@@ -6223,23 +6287,22 @@ const BADGE_STYLE = `
 `;
 
 // The box of a field typed in: a time field, a number (the more-info block, the settings dialog)
-const FIELD_BOX = 'font:inherit; padding:3px 6px; border-radius:6px; border:1px solid var(--divider-color);'
-  + ' background:var(--card-background-color); color:var(--primary-text-color);';
 
 // A time field and its small arrows (the card's popovers, the more-info block). Each arrow takes
 // a finger a few pixels beyond its edge, away from the other arrow.
 const TIME_FIELD_STYLE = `
   input.time { font-variant-numeric:tabular-nums; }
   .time-field { display:inline-flex; align-items:stretch; vertical-align:middle; }
-  .time-field input.time { border-radius:6px 0 0 6px; }
+  /* As wide as the longest time, counted in characters: the padding comes on top */
+  .time-field input.time { border-radius:8px 0 0 8px; box-sizing:content-box; height:calc(var(--chauffage-chip-h, 34px) - 2px); padding:0 6px; }
   .time-spin { display:flex; flex-direction:column; }
-  .time-step { position:relative; flex:1; width:22px; min-height:0; padding:0; border:1px solid var(--divider-color);
+  .time-step { position:relative; flex:1; width:22px; height:auto; min-height:0; padding:0; border:1px solid var(--divider-color);
     border-left:0; background:none; color:var(--primary-text-color); cursor:pointer;
     display:flex; align-items:center; justify-content:center; }
   .time-step::after { content:''; position:absolute; left:0; right:-8px; }
-  .time-step:first-child { border-radius:0 6px 0 0; border-bottom:0; }
+  .time-step:first-child { border-radius:0 8px 0 0; border-bottom:0; }
   .time-step:first-child::after { top:-8px; bottom:0; }
-  .time-step:last-child { border-radius:0 0 6px 0; }
+  .time-step:last-child { border-radius:0 0 8px 0; }
   .time-step:last-child::after { top:0; bottom:-8px; }
   .time-step svg { width:16px; height:16px; fill:currentColor; }
 `;
@@ -6407,6 +6470,9 @@ const STYLE = `
      time takes no room (font-size:0): its marker stays in sight */
   @container (max-width:54px) { .seg.marked .t { visibility:hidden; font-size:0; } }
   @container (max-width:72px) { .h12 .seg.marked .t { visibility:hidden; font-size:0; } }
+  /* With several thermostats, the time and the name share one line. On a slot without a
+     preset, the name wins: "⏻ Off", not "00:00 ⏻ O…" */
+  @container (max-width:96px) { .multi .seg.word .t { visibility:hidden; font-size:0; } }
   .seg.sel { box-shadow:inset 0 0 0 3px var(--primary-text-color); z-index:1; }
   /* A slot's markers (#91), on the time's line ("00:00 ⏻"): the icon of its HVAC mode (off, fan
      only, cool, heat), and a mark when the slot sets the fan or the vanes. They stay even when
@@ -6430,7 +6496,6 @@ const STYLE = `
   .hvac-row .hvac-choice ha-icon { --mdc-icon-size:14px; width:14px; height:14px; }
   .hvac-row .hvac-choice.on { background:var(--primary-color); color:var(--text-primary-color, #fff); border-color:var(--primary-color); font-weight:600; }
   .unsupported, .btn.unsupported { border-style:dashed; }
-  .slot-setpoint { font-size:.9em; }
   /* The fan and the vanes of a slot (#91, lot 3), folded behind a summary that looks like a
      button, with a chevron; the summary may wrap; the capture button on its own line */
   details.more summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px; min-height:36px;
@@ -6439,12 +6504,11 @@ const STYLE = `
   details.more summary > span { flex:1; min-width:0; overflow-wrap:anywhere; }
   details.more summary ha-icon { --mdc-icon-size:18px; width:18px; height:18px; flex:none; transition:transform .15s; }
   details.more[open] summary ha-icon { transform:rotate(180deg); }
-  .more-rows { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .more-rows { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); margin-top:var(--chauffage-row-gap); }
   .more-rows.direct { margin-top:0; }
   .more-row > span { flex:none; }
   .more-row select, .pv-row select { text-overflow:ellipsis; }
-  .pv-row select { min-width:0; max-width:100%; box-sizing:border-box; min-height:var(--chauffage-chip-h); padding:0 8px; border-radius:8px;
-    border:1px solid var(--divider-color); background:var(--card-background-color); }
+  .pv-row select { ${FIELD_BOX} min-width:0; max-width:100%; }
   .capture-row { display:flex; }
   /* One height for the buttons of a popover of the presets tab; the icon of "Copy from the
      thermostat" on the line of its text */
@@ -6528,7 +6592,7 @@ const STYLE = `
   .editor { position:absolute; z-index:9; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
     padding:10px 12px; border-radius:10px; background:var(--card-background-color);
     border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25);
-    display:flex; flex-direction:column; gap:10px; }
+    display:flex; flex-direction:column; gap:var(--chauffage-row-gap); }
   .editor.placed { visibility:visible; }
   .editor::before { content:''; position:absolute; top:-7px; left:var(--caret,50%); width:12px; height:12px;
     margin-left:-6px; transform:rotate(45deg); background:var(--card-background-color);
@@ -6542,6 +6606,10 @@ const STYLE = `
     background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px);
     box-shadow:0 1px 4px rgba(0,0,0,.35); text-shadow:0 1px 1px rgba(0,0,0,.4); }
   .override .override-label { overflow:hidden; text-overflow:ellipsis; }
+  .override-tag { position:absolute; top:50%; left:calc(100% + 12px); transform:translateY(-50%); display:inline-flex; align-items:center;
+    gap:2px; padding:1px 5px; border-radius:4px; border:1px solid #fff; background:#7b1fa2; line-height:1.3; }
+  .override-tag.before { left:auto; right:calc(100% + 4px); }
+  .override-tag ha-icon { --mdc-icon-size:12px; width:12px; height:12px; display:flex; flex:none; }
   .override.sel { outline:2px solid var(--primary-text-color); outline-offset:1px; }
   .override-handle { position:absolute; top:-6px; bottom:-6px; right:-10px; width:18px; cursor:ew-resize; touch-action:none; }
   .override-handle::after { content:''; position:absolute; left:6px; top:3px; bottom:3px; width:6px; border-radius:3px;
@@ -6561,9 +6629,12 @@ const STYLE = `
   .ed-times { display:inline-flex; align-items:center; gap:12px; flex:none; white-space:nowrap; }
   .ed-times label { display:inline-flex; align-items:center; gap:4px; }
   .temp-label { flex:none; }
-  .ed-measured { margin-top:6px; font-size:12px; color:var(--secondary-text-color); }
-  .editor input { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
-    background:var(--secondary-background-color); }
+  .ed-measured { font-size:12px; color:var(--secondary-text-color); }
+  .editor input[type=text], .sched-menu input[type=text] { ${FIELD_BOX} }
+  /* The buttons of a popover: as high as a chip, at its text size */
+  .editor .btn { box-sizing:border-box; height:var(--chauffage-chip-h); min-height:0; padding:0 10px; font-size:13px; line-height:1;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  .editor .btn.icon { min-width:var(--chauffage-chip-h); }
   ${TIME_FIELD_STYLE}
   .fixed { font-variant-numeric:tabular-nums; padding:0 4px; }
   .ed-actions { display:flex; gap:6px; margin-left:auto; }
@@ -6863,7 +6934,9 @@ class ChauffageMoreInfo extends HTMLElement {
     this._pieces = pieces;
 
     const segs = week[today];
-    const followText = planText(dataSource(this._hass).planned(this._entity), (id) => this._preset(id).name, this._loc,
+    // Next to Home Assistant's own dialog: the HVAC modes in full, as it names them
+    const names = fullNames(this._loc, this._hass, this._entity);
+    const followText = planText(dataSource(this._hass).planned(this._entity), (id) => this._preset(id).name, names,
       hasModeRow(this._hass, this._entity));
 
     let status;
@@ -6883,7 +6956,7 @@ class ChauffageMoreInfo extends HTMLElement {
         <div class="end-block">
           <div class="line">
             <label>${esc(t('until'))} ${timeField(`data-end data-ends-at="${esc(d.end)}"`, minutesOf(endsAt), this._loc, MORE_INFO_CFG.step)}</label>
-            <span class="muted">${overrideEndHtml(src, this._entity, d, this._loc, this._hass)}</span>
+            <span class="muted">${overrideEndHtml(src, this._entity, d, names, this._hass)}</span>
           </div>
           <div class="btns">
             ${addButton(-30, '−30 min')}${addButton(30, '+30 min')}${addButton(60, '+1 h')}${addButton(120, '+2 h')}
@@ -6897,8 +6970,8 @@ class ChauffageMoreInfo extends HTMLElement {
       // more-info dialog, everything shows
       status = `<div class="status derogation">
         <div class="line">
-          <span class="override-value">⏱ ${esc(overrideSummary(d, src, this._entity, this._loc, this._hass))}</span>
-          <span class="override-until">${esc(overrideUntilText(d, src, this._entity, this._loc, this._hass))}</span>
+          <span class="override-value">⏱ ${esc(overrideSummary(d, src, this._entity, names, this._hass))}</span>
+          <span class="override-until">${esc(overrideUntilText(d, src, this._entity, names, this._hass))}</span>
         </div>
         ${this.hasAttribute('embedded')
     ? `<div class="btns">${resume}</div><details class="change"${this._changeOpen ? ' open' : ''}><summary>${esc(t('change'))}</summary><div class="change-body">${change}</div></details>`
@@ -7099,7 +7172,7 @@ const MORE_INFO_STYLE = `
   .off-note { margin:6px 0; padding:6px 10px; border-radius:8px; font-size:.9em;
     background:rgba(255,152,0,.15); color:var(--primary-text-color); }
   :host { display:block; margin:16px 0 8px; }
-  .wrap { padding:14px 12px 4px 16px; border-top:1px solid var(--divider-color); }
+  .wrap { padding:14px 16px 4px; border-top:1px solid var(--divider-color); }
   /* In the thermostat card: under its header */
   :host([embedded]) { margin:0; }
   :host([embedded]) .wrap { padding:0; border-top:0; }
@@ -7111,11 +7184,12 @@ const MORE_INFO_STYLE = `
   .muted { color:var(--secondary-text-color); font-weight:normal; font-size:.9em; }
   .status { font-size:.92em; margin-bottom:10px; }
   .msg { font-size:.85em; color:var(--error-color,#db4437); margin-bottom:10px; }
-  .status.derogation { display:flex; flex-direction:column; gap:8px; }
+  .status.derogation { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); }
   .override-value { padding:2px 8px; border-radius:6px; color:#fff; font-weight:600;
     background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
   .btns { display:flex; flex-wrap:wrap; gap:6px; }
-  button { font:inherit; font-size:.85em; padding:5px 10px; border-radius:8px; cursor:pointer;
+  button { box-sizing:border-box; height:var(--chauffage-chip-h); font:inherit; font-size:13px; line-height:1; padding:0 10px;
+    border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
     border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); }
   button.danger { color:var(--error-color,#db4437); border-color:var(--error-color,#db4437); }
   .today-lbl { font-size:.8em; color:var(--secondary-text-color); margin-bottom:4px; }
@@ -7150,8 +7224,8 @@ const MORE_INFO_STYLE = `
   ${FAN_STYLE}
   .override-until { font-size:.92em; }
   /* "Change", on a thermostat card: what changes the override is folded under it */
-  details.change > summary { margin-bottom:8px; }
-  .change-body { display:flex; flex-direction:column; gap:8px; }
+  details.change > summary { margin-bottom:var(--chauffage-row-gap); }
+  .change-body { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); }
   .bar.big + .today-lbl { margin-top:8px; }
   .now { position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; z-index:3; pointer-events:none;
     background:var(--primary-text-color); }
@@ -7304,6 +7378,7 @@ class ChauffageThermostatCard extends HTMLElement {
   // What it does now: its temporary setpoint, or the preset of its schedule (the thermostat's
   // own when paused), with its setpoint
   _stateHtml(loc, src, st) {
+    loc = fullNames(loc, this._hass, this._config.entity); // as Home Assistant names the HVAC modes
     const t = loc.t;
     const a = st.attributes;
     const setpoint = a.temperature != null ? `${loc.number(a.temperature)}°` : '';
@@ -7312,7 +7387,7 @@ class ChauffageThermostatCard extends HTMLElement {
     const paused = src.paused(this._config.entity);
     const d = !paused && filterActive(src.overrides())[this._config.entity];
     // An off override: "⏱ Off", no setpoint (#91)
-    if (d && d.target && d.target.hvac_mode === 'off') return `<span class="tc-state override">⏱ ${esc(t('hvacOff'))}</span>`;
+    if (d && d.target && d.target.hvac_mode === 'off') return `<span class="tc-state override">⏱ ${esc(modeName(loc, 'off'))}</span>`;
     // On a thermostat that lists more than one "on" HVAC mode: "⏱ Cool · Comfort 25°"
     if (d && hasModeRow(this._hass, this._config.entity)) return `<span class="tc-state override">⏱ ${esc(overrideSummary(d, src, this._config.entity, loc, this._hass))}</span>`;
     // An override at a temperature (not a preset) is that temperature: said once, not "17,5 °C · 17,5°"
@@ -7328,7 +7403,7 @@ class ChauffageThermostatCard extends HTMLElement {
     const cause = causeText(src, this._config.entity, loc,
       requested ? presetOf(presets, String(requested), loc).name : null);
     if (cause) return `<span class="tc-state"><i style="background:#616161"></i>${esc(cause.long)}</span>`;
-    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return `<span class="tc-state"><i style="background:#616161"></i>${esc(t('hvacOff'))}</span>`;
+    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return `<span class="tc-state"><i style="background:#616161"></i>${esc(modeName(loc, 'off'))}</span>`;
     // A fan-only, a dry or an auto slot: its HVAC mode, in Home Assistant's color, without setpoint
     if (plan && NO_PRESET_MODES.includes(plan.hvac_mode)) return `<span class="tc-state"><i style="background:${hvacColor(plan.hvac_mode)}"></i>${esc(modeName(loc, plan.hvac_mode))}</span>`;
     let label;
@@ -9077,7 +9152,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
   VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, joined, parseDay, serializeDay, parseTime,
-  overridePieces, overrideLabel, planText, CHIP_STYLE, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
+  overridePieces, overrideLabel, planText, CHIP_STYLE, STYLE, MORE_INFO_STYLE, FIELD_BOX, chipTextColor, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
   ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS, reloadPage,
 };

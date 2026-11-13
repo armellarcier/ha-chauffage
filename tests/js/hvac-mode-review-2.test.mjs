@@ -2,7 +2,7 @@
 // slots, a double tap cuts a piece like its slot, an override that changes kind gets a new end,
 // and the blocks name the HVAC modes as Home Assistant does.
 import { fakeHass, createCard, cleanup, integrationData, PRESETS } from './helpers.mjs';
-import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { serializeDay, CHIP_STYLE, STYLE as STYLE_TEXT, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, FIELD_BOX, chipTextColor } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -314,5 +314,205 @@ describe('an override that changes kind gets the end of its new kind', () => {
     const el = moreInfo(hass, SUITE);
     el.shadowRoot.querySelector('.mode-row [data-mode="cool"]').click();
     assert.equal(new Date(sent(hass).end).toISOString(), new Date(at('12:00')).toISOString());
+  });
+});
+
+describe('a preset given a cooling value on one thermostat', () => {
+  test('is offered there when cooling, and nowhere else', () => {
+    // Frost protection has no temperature when cooling. The combles cool on it at their own 28°
+    const targets = { ...TARGETS, [COMBLES]: { ...TARGETS[COMBLES], frost: { cool_temperature: 28 } } };
+    const hass = setup({ targets, suite: [['00:00', 'eco', { hvac_mode: 'cool' }]] });
+    const card = cardOf(hass, { show: [COMBLES, SUITE] });
+    const offered = (climate) => { select(card, climate, 0); return $$(card, '.editor .presets [data-act="preset"]').map((b) => b.dataset.preset); };
+    assert.ok(offered(COMBLES).includes('frost'));
+    assert.ok(!offered(SUITE).includes('frost'));
+    card._overrideSel = { climate: COMBLES, create: true };
+    card._sel = null;
+    card._render();
+    assert.ok($(card, '.override-ed [data-act="override-preset"][data-preset="frost"]'));
+  });
+});
+
+describe('the HVAC mode a new override would take', () => {
+  test('is outlined in a neutral color, not in the color of a chosen HVAC mode', () => {
+    const card = cardOf(setup({ planned: { [SUITE]: { preset: 'eco', hvac_mode: 'heat' } } }), { show: [SUITE] });
+    card._overrideSel = { climate: SUITE, create: true };
+    card._render();
+    const preselected = $(card, '.override-ed .mode-row .mode.default');
+    assert.equal(preselected.dataset.mode, 'heat');
+    assert.equal(preselected.getAttribute('style'), null, 'no HVAC color');
+    assert.equal(preselected.getAttribute('aria-pressed'), 'false');
+    assert.equal($(card, '.override-ed .mode-row .mode.on'), null);
+    assert.match(CHIP_STYLE, /\.mode-row \.mode\.default \{[^}]*8%/);
+    assert.doesNotMatch(CHIP_STYLE, /\.mode-row \.mode\.default \{[^}]*--mode-color/);
+  });
+});
+
+describe('the first row is a grid of three columns with five or six HVAC modes', () => {
+  const rowOf = (modes) => {
+    const hass = setup();
+    hass.states[SUITE].attributes.hvac_modes = modes;
+    const card = cardOf(hass, { show: [SUITE] });
+    select(card, SUITE, 0);
+    return $(card, '.editor .mode-row');
+  };
+
+  test('five or six HVAC modes: rows of three', () => {
+    assert.ok(rowOf(['off', 'heat', 'cool', 'heat_cool', 'dry', 'fan_only']).classList.contains('cols3'));
+    assert.ok(rowOf(['off', 'heat', 'cool', 'dry', 'fan_only']).classList.contains('cols3'));
+  });
+
+  test('four or seven HVAC modes wrap as they come', () => {
+    assert.ok(!rowOf(['off', 'heat', 'cool', 'fan_only']).classList.contains('cols3'));
+    assert.ok(!rowOf(ALL).classList.contains('cols3'));
+  });
+});
+
+describe('an override on a week with several thermostats', () => {
+  test('says its HVAC mode and its end on the week, without a tooltip', () => {
+    const hass = setup({ overrides: { [SUITE]: override({ temperature: 24, hvac_mode: 'cool' }) } });
+    const card = cardOf(hass, { show: [SALON, SUITE] });
+    const tag = $(card, `.override[data-climate="${SUITE}"] .override-tag`);
+    assert.ok(tag, 'a short override has a tag next to it');
+    assert.match(text(tag), /11:30/);
+    assert.equal(tag.querySelector('ha-icon').getAttribute('icon'), 'mdi:snowflake');
+  });
+
+  test('on a heater: its end', () => {
+    const hass = setup({ overrides: { [SALON]: override({ temperature: 21 }) } });
+    const card = cardOf(hass, { show: [SALON, SUITE] });
+    const tag = $(card, `.override[data-climate="${SALON}"] .override-tag`);
+    assert.match(text(tag), /11:30/);
+    assert.equal(tag.querySelector('ha-icon'), null);
+  });
+
+  test('a long override keeps its label inside', () => {
+    const hass = setup({ overrides: { [SUITE]: override({ temperature: 24, hvac_mode: 'cool' }, { end: at('16:30') }) } });
+    const card = cardOf(hass, { show: [SALON, SUITE] });
+    assert.equal($(card, `.override[data-climate="${SUITE}"] .override-tag`), null);
+    assert.match(text($(card, `.override[data-climate="${SUITE}"] .override-label`)), /16:30/);
+  });
+});
+
+describe('the more-info block and a thermostat card name the HVAC modes in full', () => {
+  const cooling = { [SUITE]: override({ temperature: 24, hvac_mode: 'cool' }) };
+  const planned = { [SUITE]: { preset: 'eco', hvac_mode: 'heat', next_preset: 'comfort', next_hvac_mode: 'cool', next_start: at('14:00') } };
+
+  test('an override reads "Climatisation", its first row keeps the short "Clim"', () => {
+    const el = moreInfo(setup({ overrides: cooling, planned }), SUITE);
+    assert.match(text(el.shadowRoot.querySelector('.override-value')), /Climatisation · 24/);
+    assert.equal(text(el.shadowRoot.querySelector('.mode-row [data-mode="cool"]')), 'Clim');
+  });
+
+  test('what the schedule plans too', () => {
+    const el = moreInfo(setup({ planned }), SUITE);
+    assert.match(text(el.shadowRoot.querySelector('.status')), /Chauffage · Éco jusqu'à 14:00, puis Climatisation · Confort/);
+  });
+
+  test('in the words of Home Assistant when it gives them', () => {
+    const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'off' }) }, planned });
+    hass.formatEntityState = (st, state) => ({ off: 'Éteint', heat: 'Chauffage', cool: 'Refroidissement' })[state] || state;
+    const el = moreInfo(hass, SUITE);
+    assert.match(text(el.shadowRoot.querySelector('.override-value')), /Éteint/);
+  });
+
+  test('on a thermostat card', () => {
+    const hass = setup({ overrides: cooling, planned });
+    const card = document.createElement('chauffage-thermostat-card');
+    card.setConfig({ entity: SUITE });
+    document.body.appendChild(card);
+    card.hass = hass;
+    assert.match(text(card.shadowRoot.querySelector('.tc-state')), /Climatisation/);
+  });
+
+  test('the schedule card keeps the short names', () => {
+    const card = cardOf(setup({ overrides: cooling, planned }), { show: [SUITE] });
+    card._overrideSel = { climate: SUITE };
+    card._render();
+    assert.match(text($(card, '.override-ed .override-value')), /^Clim · 24/);
+  });
+});
+
+describe('a slot without a preset on a narrow week', () => {
+  test('is marked, so that its name wins over its time', () => {
+    const card = cardOf(setup({ salon: [['00:00', null, { hvac_mode: 'off' }], '06:30 comfort'] }), { show: [SALON, SUITE] });
+    const segs = $$(card, `.bar[data-climate="${SALON}"][data-day="0"] .seg`);
+    assert.ok(segs[0].classList.contains('word'));
+    assert.ok(!segs[1].classList.contains('word'));
+    assert.match(STYLE_TEXT, /\.multi \.seg\.word \.t/);
+  });
+});
+
+describe('the line of the setpoint', () => {
+  test('says the setpoint, then a button to the presets tab for an administrator', () => {
+    const card = cardOf(setup(), { show: [SUITE] });
+    select(card, SUITE, 1);
+    const line = $(card, '.editor .setpoint-line');
+    assert.equal(text(line.querySelector('.slot-setpoint')), 'Consigne : 20 °C');
+    const edit = line.querySelector('.setpoint-edit');
+    assert.equal(text(edit), 'Régler');
+    assert.equal(edit.dataset.navigate, `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
+    assert.equal(edit.getAttribute('role'), 'link');
+  });
+
+  test('without the button for a user who is not an administrator', () => {
+    const hass = setup();
+    hass.user = { is_admin: false };
+    const card = cardOf(hass, { show: [SUITE] });
+    card._sel = { climate: SUITE, day: 0, idx: 1 };
+    card._render();
+    const line = $(card, '.editor .setpoint-line');
+    if (line) {
+      assert.equal(text(line), 'Consigne : 20 °C');
+      assert.equal(line.querySelector('.setpoint-edit'), null);
+    }
+  });
+
+  test('the range of a heat/cool override is the same line', () => {
+    const hass = setup({ overrides: { [SUITE]: override({ ...TARGETS[SUITE].comfort, hvac_mode: 'heat_cool' }, { preset: 'comfort' }) } });
+    const card = cardOf(hass, { show: [SUITE] });
+    card._overrideSel = { climate: SUITE };
+    card._render();
+    assert.equal(text($(card, '.override-ed .setpoint-line')), 'Consigne : 20–25 °C');
+  });
+});
+
+describe('the text of a chip is dark where white is hard to read', () => {
+  test('white on a color that gives it a contrast of 4.5 at least, dark otherwise', () => {
+    assert.equal(chipTextColor(['#1976d2']), '#fff');
+    assert.equal(chipTextColor(['#1a237e']), '#fff');
+    assert.notEqual(chipTextColor(['#f57c00']), '#fff');
+    assert.notEqual(chipTextColor(['#43a047']), '#fff');
+  });
+
+  test('a chip in two colors takes the text that reads best on its worst color', () => {
+    assert.notEqual(chipTextColor(['#f57c00', '#1976d2']), '#fff'); // orange and blue: dark
+    assert.equal(chipTextColor(['#e53935', '#1a237e']), '#fff'); // red and navy: white
+  });
+
+  test('the chips of a slot follow it', () => {
+    const card = cardOf(setup(), { show: [SUITE] });
+    select(card, SUITE, 1);
+    assert.notEqual($(card, '.editor .presets [data-preset="comfort"]').style.color, 'rgb(255, 255, 255)');
+    click(card, '.editor .mode-row [data-mode="cool"]');
+    assert.equal($(card, '.editor .presets [data-preset="comfort"]').style.color, 'rgb(255, 255, 255)');
+  });
+});
+
+describe('one height for the buttons and the fields', () => {
+  test('the buttons of a popover and of the more-info block are as high as a chip, at 13 px', () => {
+    assert.match(STYLE_TEXT, /\.editor \.btn \{[^}]*height:var\(--chauffage-chip-h\)[^}]*font-size:13px/);
+    assert.match(MORE_INFO_STYLE_TEXT, /\n {2}button \{[^}]*height:var\(--chauffage-chip-h\)[^}]*font-size:13px/);
+  });
+
+  test('the rows of a block are one gap apart', () => {
+    assert.match(CHIP_STYLE, /--chauffage-row-gap:10px/);
+    assert.match(STYLE_TEXT, /\.editor \{[^}]*gap:var\(--chauffage-row-gap\)/);
+    assert.match(MORE_INFO_STYLE_TEXT, /\.status\.derogation \{[^}]*gap:var\(--chauffage-row-gap\)/);
+  });
+
+  test('a field is as high as a chip, with its radius', () => {
+    assert.match(FIELD_BOX, /height:var\(--chauffage-chip-h, 34px\)/);
+    assert.match(FIELD_BOX, /border-radius:8px/);
   });
 });
