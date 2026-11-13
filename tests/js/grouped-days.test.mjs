@@ -208,7 +208,7 @@ describe('grouping the days or not', () => {
 
 describe('today in a row of days', () => {
   // From Sunday 20:00 to Tuesday 01:00: a piece on Sunday (past), all Monday, and Tuesday morning
-  const overrides = { 'climate.salon': { kind: 'temperature', value: 21.5, start: '2026-10-11T20:00:00+02:00', end: '2026-10-13T01:00:00+02:00' } };
+  const overrides = { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-11T20:00:00+02:00', end: '2026-10-13T01:00:00+02:00' } };
   const weeks = { 'climate.salon': { Normal: [WEEKDAY, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND] } };
 
   test('the row holding today stands out, with the current time', () => {
@@ -221,7 +221,7 @@ describe('today in a row of days', () => {
 
   test('an override on a day in the middle of its row opens its popover', () => {
     mock.timers.setTime(new Date('2026-10-14T10:00:00+02:00').getTime()); // Wednesday, in Mon–Fri
-    const midday = { 'climate.salon': { kind: 'temperature', value: 21.5, start: '2026-10-14T09:00:00+02:00', end: '2026-10-14T18:00:00+02:00' } };
+    const midday = { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-14T09:00:00+02:00', end: '2026-10-14T18:00:00+02:00' } };
     const card = createCard(fakeHass({ overrides: midday }), { show: ['climate.salon'] });
     $(card, '.override').click();
     assert.ok($(card, '.override.sel'));
@@ -246,7 +246,7 @@ describe('today in a row of days', () => {
   });
 
   test('an override for the week also shows on a row of the days it covers', () => {
-    const week = { 'climate.salon': { kind: 'temperature', value: 19, start: '2026-10-12T08:00:00+02:00', end: '2026-10-18T01:00:00+02:00' } };
+    const week = { 'climate.salon': { target: { temperature: 19 }, start: '2026-10-12T08:00:00+02:00', end: '2026-10-18T01:00:00+02:00' } };
     const three = { 'climate.salon': { Normal: [WEEKDAY, OTHER, OTHER, OTHER, OTHER, WEEKEND, WEEKEND] } };
     const card = createCard(fakeHass({ weeks: three, overrides: week }), { show: ['climate.salon'] });
     assert.deepEqual(labels(card), ['Lun', 'Mar–Ven', 'Sam, Dim']);
@@ -273,7 +273,7 @@ describe('the week in the more-info block', () => {
   });
 
   test('an override shows today, and on another row where it ends', () => {
-    const overrides = { 'climate.salon': { kind: 'temperature', value: 21.5, start: '2026-10-11T20:00:00+02:00', end: '2026-10-13T01:00:00+02:00' } };
+    const overrides = { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-11T20:00:00+02:00', end: '2026-10-13T01:00:00+02:00' } };
     const weeks = { 'climate.salon': { Normal: [WEEKDAY, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND] } };
     const el = block(fakeHass({ weeks, overrides }));
     assert.deepEqual(rows(el), ['Lun', 'Mar–Dim']);

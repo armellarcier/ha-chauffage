@@ -70,10 +70,10 @@ async def test_a_late_setpoint_does_not_end_an_override_and_the_override_is_sent
     await start(bench)
     await bench.go_to("07:00")
     await bench.change_on_device("climate.salon", 21)
-    assert bench.overrides()["climate.salon"]["value"] == 21
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 21}
     bench.applied()
     await bench.applies_late("climate.salon", "comfort")
-    assert bench.overrides()["climate.salon"]["value"] == 21
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 21}
     assert bench.temperature_calls[-1] == ("climate.salon", 21)
 
 
@@ -108,7 +108,7 @@ async def test_a_change_in_home_assistant_is_an_override_even_to_a_value_not_app
     await start(bench)
     await bench.go_to("08:30")
     await bench.manual_setpoint("climate.salon", 20)
-    assert bench.overrides()["climate.salon"]["value"] == 20
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 20}
 
 
 async def test_once_the_valve_applied_the_last_command_a_change_on_it_is_an_override(bench: Bench):
@@ -118,22 +118,37 @@ async def test_once_the_valve_applied_the_last_command_a_change_on_it_is_an_over
     await bench.applies_late("climate.salon", "eco")
     await bench.go_to("09:00")
     await bench.change_on_device("climate.salon", 20)
-    assert bench.overrides()["climate.salon"]["value"] == 20
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 20}
 
 
 async def test_a_change_on_the_device_long_after_a_command_is_an_override(bench: Bench):
     """A command not applied after a day is not waited for anymore: turning the valve to its
     value is a change by hand."""
     await start(bench)
-    await bench.set_override("climate.bureau", bench.runtime.new_override("temperature", 21.0))
+    await bench.set_override("climate.bureau", bench.runtime.new_override({"temperature": 21.0}))
     await bench.advance(3 * 60)  # the override ended: eco sent again, not applied either
     await bench.change_on_device("climate.bureau", 21)
     assert bench.overrides() == {}  # still a command the valve may apply late
     await bench.applies_late("climate.bureau", "eco")
-    await bench.set_override("climate.bureau", bench.runtime.new_override("temperature", 21.0))
+    await bench.set_override("climate.bureau", bench.runtime.new_override({"temperature": 21.0}))
     await bench.advance(25 * 60)
     await bench.change_on_device("climate.bureau", 21)
-    assert bench.overrides()["climate.bureau"]["value"] == 21
+    assert bench.overrides()["climate.bureau"]["target"] == {"temperature": 21}
+
+
+async def test_a_command_the_thermostat_already_shows_is_not_waited_for(bench: Bench):
+    """Nothing to send: nothing pending, or a change by hand to that value within a day would
+    pass for a command applied late."""
+    await bench.go_to("06:00")
+    bench.thermostat("climate.salon", "eco")
+    bench.thermostat("climate.bureau", "eco")
+    await bench.setup()
+    await bench.save_weeks(SCHEDULES)
+    bench.applied()
+    assert await bench.runtime.send("climate.salon", {"preset_mode": "eco"} if bench.kind != "plain" else {"temperature": 17.0}, "test")
+    assert bench.applied() == {}
+    assert bench.runtime.pending("climate.salon") == []
+    assert "climate.salon" not in bench.runtime.data["pending"]
 
 
 async def test_a_renamed_valve_still_waits_for_its_commands(bench: Bench):

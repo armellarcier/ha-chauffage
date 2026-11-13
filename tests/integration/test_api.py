@@ -139,7 +139,7 @@ async def test_an_override_created_from_the_card(bench: Bench, ws_client):
     """The card sends UTC times (JavaScript's toISOString)."""
     await start(bench)  # 10:00, eco
     client = await ws_client(bench.hass)
-    override = {"kind": "temperature", "value": 22, "start": "2026-10-12T08:00:00.000Z", "end": "2026-10-12T10:00:00.000Z"}
+    override = {"target": {"temperature": 22}, "start": "2026-10-12T08:00:00.000Z", "end": "2026-10-12T10:00:00.000Z"}
     await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": override})
     assert (await client.receive_json())["success"]
     assert bench.temperature_calls == [("climate.salon", 22.0)]
@@ -156,7 +156,7 @@ async def test_an_override_s_new_value_on_a_thermostat_that_does_not_answer(benc
     client = await ws_client(bench.hass)
     o = bench.overrides()["climate.salon"]
     bench.unreachable.add("climate.salon")
-    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "target": {"temperature": 22}}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "thermostat_failed"
     assert bench.overrides()["climate.salon"] == o
@@ -181,9 +181,9 @@ async def test_anyone_at_home_sets_changes_and_ends_an_override_from_a_card(benc
     await bench.manual_setpoint("climate.salon", 21)
     client = await ws_client(bench.hass, user="household")
     o = bench.overrides()["climate.salon"]
-    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "target": {"temperature": 22}}})
     assert (await client.receive_json())["success"]
-    assert bench.overrides()["climate.salon"]["value"] == 22
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 22}
     await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": None})
     assert (await client.receive_json())["success"]
     assert bench.overrides() == {}
@@ -195,7 +195,7 @@ async def test_a_read_only_user_cannot_change_an_override(bench: Bench, ws_clien
     await bench.manual_setpoint("climate.salon", 21)
     client = await ws_client(bench.hass, user="read_only")
     o = bench.overrides()["climate.salon"]
-    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "value": 22}})
+    await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": "climate.salon", "override": {**o, "target": {"temperature": 22}}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
     assert bench.overrides()["climate.salon"] == o
@@ -207,7 +207,7 @@ async def test_an_override_only_goes_to_a_scheduled_thermostat(bench: Bench, ws_
     await start(bench)
     bench.hass.states.async_set("climate.grenier", "heat", {"temperature": 19})
     client = await ws_client(bench.hass, user="household")
-    override = {"kind": "temperature", "value": 22, "start": "2026-10-12T08:00:00+02:00", "end": "2026-10-12T12:00:00+02:00"}
+    override = {"target": {"temperature": 22}, "start": "2026-10-12T08:00:00+02:00", "end": "2026-10-12T12:00:00+02:00"}
     for entity_id in ("climate.grenier", "light.x"):
         await client.send_json_auto_id({"type": "chauffage/override/set", "entity_id": entity_id, "override": override})
         reply = await client.receive_json()
@@ -244,7 +244,7 @@ async def test_set_override_drives_the_thermostat_and_records_the_override(bench
     )
     assert bench.temperature_calls == [("climate.salon", 22.0)]
     o = bench.overrides()["climate.salon"]
-    assert (o["kind"], o["value"]) == ("temperature", 22.0)
+    assert o["target"] == {"temperature": 22.0}
     assert dt_util.parse_datetime(o["end"]) - dt_util.parse_datetime(o["start"]) == timedelta(hours=1)
     # The thermostat's answer (same context) is not a second, manual override
     await bench.go_to("11:00")
@@ -258,7 +258,7 @@ async def test_set_override_does_not_send_what_the_thermostat_already_has(bench:
         "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "eco", "duration": 60}, blocking=True
     )
     assert bench.applied() == {}
-    assert bench.overrides()["climate.salon"]["value"] == "eco"
+    assert bench.overrides()["climate.salon"]["target"] == {"preset_mode": "eco"}
 
 
 async def test_set_override_again_sets_a_thermostat_that_drifted(bench: Bench):
@@ -284,7 +284,7 @@ async def test_set_override_with_a_preset_and_clear_override(bench: Bench):
         "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True
     )
     assert bench.applied() == {"climate.salon": "boost"}
-    assert bench.overrides()["climate.salon"]["value"] == "boost"
+    assert bench.overrides()["climate.salon"]["target"] == {"preset_mode": "boost"}
     bench.thermostat("climate.salon", "boost")  # the thermostat applied it
     await bench.hass.services.async_call("chauffage", "clear_override", {"entity_id": "climate.salon"}, blocking=True)
     assert bench.overrides() == {}

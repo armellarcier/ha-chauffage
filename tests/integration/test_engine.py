@@ -38,17 +38,22 @@ def plain(temperature=17.0, state="heat", **kw) -> Thermostat:
     return Thermostat(state, None, temperature, (), kw.get("min_temp", 5.0), kw.get("max_temp", 30.0), kw.get("step", 0.5))
 
 
+def value_of(target: dict) -> object:
+    """The one value of a target of lot 1: its climate preset, or its temperature."""
+    return target.get("preset_mode", target.get("temperature"))
+
+
 def targets(now, thermostats, schedule="normal", overrides=None, mappings=None, **kw):
     plan = engine.Plan(WEEKS, schedule, PRESETS, mappings or {}, overrides or {})
-    return [(entity_id, target.value) for entity_id, target in engine.targets(plan, now, thermostats, **kw)]
+    return [(entity_id, value_of(target)) for entity_id, target in engine.targets(plan, now, thermostats, **kw)]
 
 
 # ----- slots -----
 
 def test_the_slot_running_at_a_given_time():
-    assert engine.slot_at(WEEKDAY, "06:29") == ("eco", False)
-    assert engine.slot_at(WEEKDAY, "06:30") == ("comfort", True)
-    assert engine.slot_at(WEEKDAY, "23:59") == ("eco", False)
+    assert engine.slot_at(WEEKDAY, "06:29") == (engine.Slot("eco", {}), False)
+    assert engine.slot_at(WEEKDAY, "06:30") == (engine.Slot("comfort", {}), True)
+    assert engine.slot_at(WEEKDAY, "23:59") == (engine.Slot("eco", {}), False)
 
 
 def test_a_slot_in_the_hour_skipped_by_summer_time_starts_when_the_clocks_go_forward():
@@ -56,7 +61,7 @@ def test_a_slot_in_the_hour_skipped_by_summer_time_starts_when_the_clocks_go_for
     engine applies it at 3:00 summer time (slot_at), so it starts then, not at 3:30."""
     week = [[["00:00", "eco"], ["02:30", "comfort"], ["12:00", "eco"]]] * 7
     now = datetime(2027, 3, 28, 1, 40, tzinfo=PARIS)
-    assert engine.current_and_next(week, now) == ("eco", "comfort", datetime(2027, 3, 28, 3, 0, tzinfo=PARIS))
+    assert engine.current_and_next(week, now) == (engine.Slot("eco", {}), engine.Slot("comfort", {}), datetime(2027, 3, 28, 3, 0, tzinfo=PARIS))
     assert engine.current_and_next(week, now)[2].utcoffset() == timedelta(hours=2)
     # The next day, the 2:30 slot exists again
     after = datetime(2027, 3, 28, 13, 0, tzinfo=PARIS)
@@ -64,10 +69,11 @@ def test_a_slot_in_the_hour_skipped_by_summer_time_starts_when_the_clocks_go_for
 
 
 def test_current_and_next_slot_even_on_another_day():
-    assert engine.current_and_next(WEEK, at("10:00")) == ("eco", "comfort", at("17:30"))
+    eco, comfort = engine.Slot("eco", {}), engine.Slot("comfort", {})
+    assert engine.current_and_next(WEEK, at("10:00")) == (eco, comfort, at("17:30"))
     # Friday 23:00 → Saturday 08:00
-    assert engine.current_and_next(WEEK, at("23:00", day=4)) == ("eco", "comfort", at("08:00", day=5))
-    assert engine.current_and_next([[["00:00", "eco"]]] * 7, at("10:00")) == ("eco", None, None)
+    assert engine.current_and_next(WEEK, at("23:00", day=4)) == (eco, comfort, at("08:00", day=5))
+    assert engine.current_and_next([[["00:00", "eco"]]] * 7, at("10:00")) == (eco, None, None)
 
 
 # ----- what to apply -----
@@ -94,8 +100,8 @@ def test_another_schedule_and_thermostats_without_a_week_in_it():
     assert targets(at("10:00"), thermostats, schedule="away", force=True) == [("climate.salon", "eco")]
 
 
-def test_off_unavailable_and_unknown_thermostats_are_ignored():
-    for state in ("off", "unavailable", "unknown"):
+def test_unavailable_and_unknown_thermostats_are_ignored():
+    for state in ("unavailable", "unknown"):
         assert targets(at("10:00"), {"climate.bureau": heat("eco", state=state)}, force=True) == []
     assert targets(at("10:00"), {}, force=True) == []  # entity missing
 
@@ -118,36 +124,11 @@ def test_a_vtherm_is_not_ready_while_it_says_so():
     assert engine.ready({"temperature": 20.0, "is_ready": False})  # not a VTherm's attribute
 
 
-def test_a_vtherm_is_read_as_it_was_asked_not_as_it_changed_itself():
-    """VTherm keeps what it was asked for in requested_state (#92)."""
-    window = {"preset_mode": "none", "temperature": 7.0,
-              "requested_state": {"hvac_mode": "heat", "target_temperature": 17.5, "preset": "none"}}
-    assert engine.asked(window, vtherm=True) == ("none", 17.5)
-    assert engine.asked(window) == ("none", 7.0)  # not a VTherm's attribute
-
-
-def test_a_vtherm_on_a_preset_keeps_the_setpoint_it_shows():
-    """On a preset, requested_state keeps the last manual setpoint, not the preset's."""
-    window = {"preset_mode": "eco", "temperature": 7.0,
-              "requested_state": {"hvac_mode": "heat", "target_temperature": 19.0, "preset": "eco"}}
-    assert engine.asked(window, vtherm=True) == ("eco", 7.0)
-    central = {"preset_mode": "frost", "temperature": 7.0,
-               "requested_state": {"hvac_mode": "heat", "target_temperature": 19.0, "preset": "comfort"}}
-    assert engine.asked(central, vtherm=True) == ("comfort", 7.0)
-
-
 def test_a_vtherm_asked_for_no_setpoint_keeps_the_setpoint_it_shows():
     """A requested_state on the manual preset without a setpoint: the setpoint shown counts."""
     shown = {"preset_mode": "none", "temperature": 19.0,
              "requested_state": {"hvac_mode": "heat", "target_temperature": None, "preset": "none"}}
-    assert engine.asked(shown, vtherm=True) == ("none", 19.0)
-
-
-def test_a_vtherm_without_requested_state_is_read_as_it_shows():
-    """VTherm before its state manager, or a state without it."""
-    assert engine.asked({"preset_mode": "eco", "temperature": 17.0}, vtherm=True) == ("eco", 17.0)
-    assert engine.asked({"preset_mode": "eco", "temperature": 17.0, "requested_state": {}}, vtherm=True) \
-        == ("eco", 17.0)
+    assert engine.asked(shown, vtherm=True) == ("heat", "none", 19.0)
 
 
 def test_a_thermostat_that_is_not_ready_is_ignored():
@@ -156,13 +137,14 @@ def test_a_thermostat_that_is_not_ready_is_ignored():
     assert targets(at("10:00"), {"climate.bureau": starting}, force=True) == []
 
 
-def test_a_vtherm_turned_off_still_gets_its_slots():
-    """VTherm keeps the preset asked while it is off, whatever turned it off, and starts again
-    on it (#74). Another thermostat turned off is left alone."""
-    vtherm = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, vtherm=True)
-    assert targets(at("10:00"), {"climate.bureau": vtherm}, force=True) == [("climate.bureau", "comfort")]
-    other = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5)
-    assert targets(at("10:00"), {"climate.bureau": other}, force=True) == []
+def test_a_vtherm_turned_off_is_turned_on_like_any_thermostat():
+    """A VTherm asked to be off (requested_state, #91) comes back on at the next slot, as any
+    thermostat. Before #91 it got its slots while off and stayed off (#74): that reading stays
+    for a VTherm without requested_state, see runtime.thermostat."""
+    vtherm = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, vtherm=True, hvac_modes=("off", "heat"))
+    plan = engine.Plan(WEEKS, "normal", PRESETS, {}, {})
+    assert engine.targets(plan, at("10:00"), {"climate.bureau": vtherm}, force=True) == [
+        ("climate.bureau", {"preset_mode": "comfort", "hvac_mode": "heat"})]
     unavailable = Thermostat("unavailable", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, vtherm=True)
     assert targets(at("10:00"), {"climate.bureau": unavailable}, force=True) == []
 
@@ -195,19 +177,20 @@ def test_an_enum_preset_is_read_as_its_value():
 # ----- manual changes -----
 
 def test_a_setpoint_changed_by_hand_is_a_temperature_override():
-    assert engine.manual_change(heat("eco", 17), heat("none", 21.5), by_user=True) == ("temperature", 21.5)
+    assert engine.manual_change(heat("eco", 17), heat("none", 21.5), by_user=True) == {"temperature": 21.5}
     # Integrations without a user (physical knob) count too
-    assert engine.manual_change(heat("eco", 17), heat("none", 21.5), by_user=False) == ("temperature", 21.5)
+    assert engine.manual_change(heat("eco", 17), heat("none", 21.5), by_user=False) == {"temperature": 21.5}
 
 
 def test_a_preset_picked_by_a_user_is_a_preset_override():
-    assert engine.manual_change(heat("eco"), heat("boost"), by_user=True) == ("preset", "boost")
+    assert engine.manual_change(heat("eco"), heat("boost"), by_user=True) == {"preset_mode": "boost"}
     assert engine.manual_change(heat("eco"), heat("boost"), by_user=False) is None
 
 
 def test_no_override_when_nothing_relevant_changed_or_the_thermostat_is_off():
     assert engine.manual_change(heat("eco", 17), heat("eco", 17), by_user=True) is None
-    assert engine.manual_change(heat("eco", 17), heat("none", 21, state="off"), by_user=True) is None
+    # Turned off and set to 21 in one state: the override says off, alone
+    assert engine.manual_change(heat("eco", 17), heat("none", 21, state="off"), by_user=True) == {"hvac_mode": "off"}
     assert engine.manual_change(heat("eco", 17, state="unavailable"), heat("none", 21), by_user=True) is None
 
 
@@ -268,14 +251,14 @@ def test_schedule_ids_are_unique_slugs_of_their_names():
 
 
 def test_overrides_are_validated():
-    o = model.normalize_override({"kind": "temperature", "value": "21.5", "start": "a", "end": "b"})
-    assert o["value"] == 21.5
+    o = model.normalize_override({"target": {"temperature": "21.5"}, "start": "a", "end": "b"})
+    assert o["target"] == {"temperature": 21.5}
     with pytest.raises(model.InvalidData):
-        model.normalize_override({"kind": "temp", "value": 21, "start": "a", "end": "b"})
+        model.normalize_override({"target": {"temp": 21}, "start": "a", "end": "b"})
 
 
 def test_an_override_keeps_why_it_ends_if_the_reason_is_known():
-    base = {"kind": "temperature", "value": 21, "start": "a", "end": "b"}
+    base = {"target": {"temperature": 21}, "start": "a", "end": "b"}
     assert model.normalize_override({**base, "ends_at": "next_slot"})["ends_at"] == "next_slot"
     assert model.normalize_override({**base, "ends_at": "no_next_slot"})["ends_at"] == "no_next_slot"
     assert "ends_at" not in model.normalize_override({**base, "ends_at": "whenever"})
@@ -283,28 +266,40 @@ def test_an_override_keeps_why_it_ends_if_the_reason_is_known():
 
 # ----- presets → climate presets or temperatures -----
 
+def test_a_target_is_a_partial_state_the_thermostat_satisfies_or_not():
+    """What a thermostat is set to is a partial state, as a scene holds it (#91): every key it
+    holds must be shown by the thermostat."""
+    assert engine.satisfied({"preset_mode": "eco"}, heat("eco", 17.0))
+    assert not engine.satisfied({"preset_mode": "eco"}, heat("comfort", 20.0))
+    assert engine.satisfied({"temperature": 17.0}, plain(17.2))
+    assert not engine.satisfied({"temperature": 17.0}, plain(18.0))
+    assert engine.satisfied({"preset_mode": "eco", "temperature": 17.0}, heat("eco", 17.0))
+    assert not engine.satisfied({"preset_mode": "eco", "temperature": 17.0}, heat("eco", 18.0))
+
+
+
 def test_a_preset_uses_the_thermostat_s_climate_preset_with_the_same_name():
-    assert engine.default_target(PRESETS["comfort"], heat()) == engine.Target("preset", "comfort")
+    assert engine.default_target(PRESETS["comfort"], heat()) == {"preset_mode": "comfort"}
 
 
 def test_without_that_climate_preset_the_preset_s_temperature_is_used():
     standard = heat(presets=("eco", "comfort", "away", "boost"))  # no "frost"
-    assert engine.default_target(PRESETS["frost"], standard) == engine.Target("temperature", 7.0)
-    assert engine.default_target(PRESETS["comfort"], plain()) == engine.Target("temperature", 20.0)
+    assert engine.default_target(PRESETS["frost"], standard) == {"temperature": 7.0}
+    assert engine.default_target(PRESETS["comfort"], plain()) == {"temperature": 20.0}
 
 
 def test_temperatures_are_fitted_to_the_thermostat():
-    assert engine.default_target(PRESETS["frost"], plain(min_temp=10.0)).value == 10.0
-    assert engine.default_target(PRESETS["comfort"], plain(max_temp=18.0)).value == 18.0
+    assert engine.default_target(PRESETS["frost"], plain(min_temp=10.0)) == {"temperature": 10.0}
+    assert engine.default_target(PRESETS["comfort"], plain(max_temp=18.0)) == {"temperature": 18.0}
     assert engine.fit_temperature(20.3, plain(step=0.5)) == 20.5
     assert engine.fit_temperature(20.26, plain(step=0.1)) == 20.3
 
 
 def test_a_mapping_set_by_hand_wins_over_the_default():
-    mapping = {"comfort": {"temperature": 19.5}, "eco": {"preset": "away"}}
-    assert engine.resolve("comfort", PRESETS, mapping, heat()) == engine.Target("temperature", 19.5)
-    assert engine.resolve("eco", PRESETS, mapping, heat()) == engine.Target("preset", "away")
-    assert engine.resolve("boost", PRESETS, mapping, heat()) == engine.Target("preset", "boost")
+    mapping = {"comfort": {"temperature": 19.5}, "eco": {"preset_mode": "away"}}
+    assert engine.resolve("comfort", PRESETS, mapping, heat()) == {"temperature": 19.5}
+    assert engine.resolve("eco", PRESETS, mapping, heat()) == {"preset_mode": "away"}
+    assert engine.resolve("boost", PRESETS, mapping, heat()) == {"preset_mode": "boost"}
     assert engine.resolve("unknown", PRESETS, mapping, heat()) is None
 
 
@@ -317,35 +312,35 @@ def test_a_thermostat_without_presets_gets_temperatures():
 
 
 def test_temperature_expected_manual_changes():
-    expected = engine.Target("temperature", 20.0)
+    expected = {"temperature": 20.0}
     # A new setpoint, by a user or on the device itself
-    assert engine.manual_change(plain(20.0), plain(22.0), by_user=False, expected=expected) == ("temperature", 22.0)
+    assert engine.manual_change(plain(20.0), plain(22.0), by_user=False, expected=expected) == {"temperature": 22.0}
     # The thermostat reaching what the schedule expects is not an override: back to the schedule
     assert engine.manual_change(plain(17.0), plain(20.0), by_user=False, expected=expected) == engine.RESUME
     # VTherm mapped to temperatures: safety mode in (not an override) and out (back to the schedule)
     assert engine.manual_change(heat("none", 20.0), heat("safety", 7.0), by_user=False, expected=expected) is None
     assert engine.manual_change(heat("safety", 7.0), heat("none", 20.0), by_user=False, expected=expected) == engine.RESUME
     # A preset picked by a user
-    assert engine.manual_change(heat("none", 20.0), heat("boost", 22.0), by_user=True, expected=expected) == ("preset", "boost")
+    assert engine.manual_change(heat("none", 20.0), heat("boost", 22.0), by_user=True, expected=expected) == {"preset_mode": "boost"}
     # Then that preset's own temperature edited (VTherm): still that preset, as when a preset is expected
     assert engine.manual_change(heat("boost", 22.0), heat("boost", 23.0), by_user=True, expected=expected) is None
 
 
 def test_a_setpoint_change_keeping_the_preset_is_the_preset_s_temperature():
     """VTherm preset temperatures: editing the comfort temperature is not an override."""
-    expected = engine.Target("preset", "comfort")
+    expected = {"preset_mode": "comfort"}
     assert engine.manual_change(heat("comfort", 20.0), heat("comfort", 21.0), by_user=True, expected=expected) is None
 
 
 def test_going_back_to_what_the_schedule_expects_resumes_it():
     """Issue #19: not a "Comfort in Comfort" override. As for overrides: a preset only when a
     user picks it (not VTherm leaving its safety mode), a setpoint by a user or on the device."""
-    eco = engine.Target("preset", "eco")
+    eco = {"preset_mode": "eco"}
     assert engine.manual_change(heat("none", 21.5), heat("eco", 17.0), by_user=True, expected=eco) == engine.RESUME
     assert engine.manual_change(heat("none", 21.5), heat("eco", 17.0), by_user=False, expected=eco) is None
     # The slot's preset temperature edited (VTherm): still that preset, nothing to resume
     assert engine.manual_change(heat("eco", 17.0), heat("eco", 18.0), by_user=True, expected=eco) is None
-    seventeen = engine.Target("temperature", 17.0)
+    seventeen = {"temperature": 17.0}
     assert engine.manual_change(plain(21.5), plain(17.0), by_user=True, expected=seventeen) == engine.RESUME
     assert engine.manual_change(plain(21.5), plain(17.0), by_user=False, expected=seventeen) == engine.RESUME
     # Something else changed (an attribute), the setpoint did not
@@ -355,20 +350,20 @@ def test_going_back_to_what_the_schedule_expects_resumes_it():
 def test_a_manual_setpoint_at_the_temperature_of_the_slot_s_preset_resumes_the_schedule():
     """What the slot gives on this thermostat: the temperature of its own preset, not the
     default temperature of the ha-chauffage preset (only used without that climate preset)."""
-    eco = engine.Target("preset", "eco")
+    eco = {"preset_mode": "eco"}
     knob = (heat("none", 21.5), heat("none", 17.0))
     assert engine.manual_change(*knob, by_user=False, expected=eco, preset_temperature=17.0) == engine.RESUME
-    assert engine.manual_change(*knob, by_user=False, expected=eco, preset_temperature=16.0) == ("temperature", 17.0)
-    assert engine.manual_change(*knob, by_user=False, expected=eco) == ("temperature", 17.0)  # not known
+    assert engine.manual_change(*knob, by_user=False, expected=eco, preset_temperature=16.0) == {"temperature": 17.0}
+    assert engine.manual_change(*knob, by_user=False, expected=eco) == {"temperature": 17.0}  # not known
 
 
 def test_an_override_already_at_what_the_slot_gives_is_kept():
     """Held from the card past the next slots: the thermostat coming back to it by itself
     (VTherm mapped to temperatures leaving its safety mode) does not end it."""
-    seventeen = engine.Target("temperature", 17.0)
+    seventeen = {"temperature": 17.0}
     back = (heat("safety", 7.0), heat("none", 17.0))
     assert engine.manual_change(*back, by_user=False, expected=seventeen, override=seventeen) is None
-    assert engine.manual_change(*back, by_user=False, expected=seventeen, override=engine.Target("temperature", 22.0)) == engine.RESUME
+    assert engine.manual_change(*back, by_user=False, expected=seventeen, override={"temperature": 22.0}) == engine.RESUME
 
 
 def test_the_temperature_of_a_thermostat_s_own_preset():
@@ -395,8 +390,13 @@ def test_presets_and_mappings_are_validated():
         with pytest.raises(model.InvalidData):
             model.normalize_preset(bad, set())
     assert model.normalize_mapping({"eco": {"temperature": "17"}}, {"eco"}) == {"eco": {"temperature": 17.0}}
+    # A value is a climate preset or a temperature, not both, and never an HVAC mode (docs/decisions.md)
+    for bad in ({"eco": {}}, {"eco": {"preset_mode": ""}}, {"eco": {"fan": "high"}},
+                {"eco": {"preset_mode": "eco", "temperature": 18}}, {"eco": {"temperature": 18, "hvac_mode": "cool"}}):
+        with pytest.raises(model.InvalidData):
+            model.normalize_mapping(bad, {"eco"})
     with pytest.raises(model.InvalidData):
-        model.normalize_mapping({"night": {"preset": "sleep"}}, {"eco"})
+        model.normalize_mapping({"night": {"preset_mode": "sleep"}}, {"eco"})
 
 
 def test_weeks_with_an_unknown_preset_are_refused():
@@ -407,7 +407,7 @@ def test_weeks_with_an_unknown_preset_are_refused():
 # ----- commands applied late -----
 
 def test_a_thermostat_takes_a_command_by_changing_to_it():
-    pending = [engine.Target("temperature", 20.0), engine.Target("temperature", 17.0)]
+    pending = [{"temperature": 20.0}, {"temperature": 17.0}]
     eco, comfort = Thermostat("heat", None, 17.0), Thermostat("heat", None, 20.0)
     assert engine.applied_command(pending, eco, comfort) == 0
     assert engine.applied_command(pending, comfort, eco) == 1
@@ -420,3 +420,275 @@ def test_commands_not_taken_after_a_day_are_not_waited_for():
     assert engine.expired_commands(sent, at("07:00", day=1)) == 1
     assert engine.expired_commands(sent, at("09:00", day=1)) == 3
     assert engine.expired_commands(sent, at("09:00")) == 0
+
+
+# ----- a slot sets more than a preset: the HVAC mode (#91) -----
+
+S = engine.Slot
+OFF = {"hvac_mode": "off"}
+AC_MODES = ("off", "heat", "cool", "fan_only")
+
+
+def ac(state="cool", preset="comfort", temperature=20.0, modes=AC_MODES, last=None) -> Thermostat:
+    """A reversible air conditioner."""
+    return Thermostat(state, preset, temperature, VTHERM, 5.0, 30.0, 0.5, hvac_modes=modes, last_hvac_mode=last)
+
+
+def test_a_slot_holds_a_preset_and_optional_settings():
+    day = [["00:00", "eco"], ["07:00", "comfort", {"fan_mode": "1"}], ["22:00", None, OFF]]
+    assert engine.slot_at(day, "06:59") == (S("eco", {}), False)
+    assert engine.slot_at(day, "07:00") == (S("comfort", {"fan_mode": "1"}), True)
+    assert engine.slot_at(day, "23:00") == (S(None, OFF), False)
+
+
+def test_the_next_slot_may_differ_by_its_settings_only():
+    """Eco, then eco in cool: the cooling slot is a change."""
+    cool = {"hvac_mode": "cool"}
+    week = [[["00:00", "eco"], ["22:00", "eco", cool]]] * 7
+    assert engine.current_and_next(week, at("10:00")) == (S("eco", {}), S("eco", cool), at("22:00"))
+    assert engine.current_and_next(week, at("23:00")) == (S("eco", cool), S("eco", {}), at("00:00", day=1))
+
+
+def test_the_preset_says_how_warm_and_the_slot_says_the_hvac_mode_the_fan_and_the_vanes():
+    """The preset's default, then its value on the thermostat, then the slot's settings
+    (docs/decisions.md, "Presets"). The slot's HVAC mode: test_slot_hvac_mode.py."""
+    presets = {**PRESETS, "away": {"id": "away", "name": "Away", "color": "#000000", "temperature": 15.0}}
+    mapping = {"comfort": {"cool_temperature": 25.0, "fan_mode": "1"}, "eco": {"temperature": 18.0}}
+    # The preset's own default
+    assert engine.resolve("away", presets, {}, ac()) == {"temperature": 15.0}
+    assert engine.resolve("boost", presets, {}, ac()) == {"preset_mode": "boost"}
+    # The preset's value on this thermostat adds to the default, or replaces its setpoint
+    assert engine.resolve("comfort", presets, mapping, ac()) == {"preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "1"}
+    assert engine.resolve("eco", presets, mapping, ac()) == {"temperature": 18.0}
+    # The slot has the last word: the fan and the vanes. Off is off, and nothing else
+    # (and heat, on an air conditioner: test_air_conditioner_slots.py)
+    assert engine.resolve("comfort", presets, mapping, ac(), settings={"fan_mode": "3"}) == {
+        "preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "3", "hvac_mode": "heat"}
+    assert engine.resolve("away", presets, {}, ac(), settings=OFF) == OFF
+
+
+def test_a_target_without_hvac_mode_means_on():
+    """An "on" target is satisfied by any HVAC mode but off (docs/decisions.md, "Scheduling")."""
+    assert engine.satisfied({"preset_mode": "comfort"}, ac("cool"))
+    assert engine.satisfied({"preset_mode": "comfort"}, ac("heat"))
+    assert not engine.satisfied({"preset_mode": "comfort"}, ac("off"))
+    assert engine.satisfied(OFF, ac("off"))
+    assert not engine.satisfied({"preset_mode": "comfort", "hvac_mode": "cool"}, ac("heat"))
+
+
+def test_an_off_thermostat_is_turned_on_in_heat_else_the_mode_it_last_heated_or_cooled_in_else_its_first_mode():
+    """Never a cooling AC switched to heat: a thermostat that is on keeps its HVAC mode."""
+    target = {"preset_mode": "comfort"}
+    assert engine.complete(target, ac("cool")) == target
+    assert engine.complete(target, ac("off")) == {"preset_mode": "comfort", "hvac_mode": "heat"}
+    cooler = ("off", "fan_only", "dry", "cool")
+    assert engine.complete(target, ac("off", modes=cooler, last="cool")) == {"preset_mode": "comfort", "hvac_mode": "cool"}
+    assert engine.complete(target, ac("off", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "dry"}
+    assert engine.complete(target, ac("off", modes=())) == target  # no HVAC mode known: nothing to turn on with
+    assert engine.complete({"preset_mode": "comfort", "hvac_mode": "cool"}, ac("off")) == {"preset_mode": "comfort", "hvac_mode": "cool"}
+
+
+def test_a_thermostat_turned_off_gets_its_slots_and_is_turned_on():
+    """The schedule decides whether a thermostat is off (#91): a thermostat turned off is not
+    left alone anymore, unlike one unavailable or unknown."""
+    off = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, hvac_modes=("off", "heat"))
+    plan = engine.Plan(WEEKS, "normal", PRESETS, {}, {})
+    assert engine.targets(plan, at("10:00"), {"climate.bureau": off}, force=True) == [
+        ("climate.bureau", {"preset_mode": "comfort", "hvac_mode": "heat"})]
+    for state in ("unavailable", "unknown"):
+        assert targets(at("10:00"), {"climate.bureau": heat("eco", state=state)}, force=True) == []
+
+
+def test_an_off_slot_turns_the_thermostat_off_and_sends_nothing_else():
+    """An off slot has no preset: off, alone (docs/decisions.md)."""
+    week = [[["00:00", "comfort"], ["22:00", None, OFF]]] * 7
+    plan = engine.Plan({"climate.salon": {"normal": week}}, "normal", PRESETS, {}, {})
+    assert engine.targets(plan, at("22:00"), {"climate.salon": ac("heat")}) == [("climate.salon", OFF)]
+    assert engine.targets(plan, at("22:00"), {"climate.salon": ac("off", "boost")}) == []
+
+
+def test_a_slot_with_settings_is_a_change_the_tick_applies():
+    """A slot that only changes the settings of the slot before it is applied at its start."""
+    week = [[["00:00", "eco"], ["22:00", "eco", {"fan_mode": "1"}]]] * 7
+    plan = engine.Plan({"climate.salon": {"normal": week}}, "normal", PRESETS, {}, {})
+    assert engine.targets(plan, at("22:00"), {"climate.salon": ac("heat", "eco")}, since=at("21:59")) == [
+        ("climate.salon", {"preset_mode": "eco", "fan_mode": "1", "hvac_mode": "heat"})]
+
+
+def test_an_off_slot_is_a_next_slot_that_changes_the_target():
+    """The end of a change by hand counts an off slot as a change (#83)."""
+    weeks = {"climate.salon": {"normal": [[["00:00", "eco"], ["22:00", None, OFF]]] * 7}}
+    assert next_change(weeks=weeks) == at("22:00")
+
+
+def test_a_vtherm_is_read_as_it_was_asked_not_as_it_changed_itself():
+    """VTherm keeps what it was asked for in requested_state (#92): an open window turns it off
+    or sets the frost setpoint, and its intent stays heat."""
+    window = {"preset_mode": "none", "temperature": 7.0,
+              "requested_state": {"hvac_mode": "heat", "target_temperature": 17.5, "preset": "none"}}
+    assert engine.asked(window, vtherm=True) == ("heat", "none", 17.5)
+    assert engine.asked(window) == (None, "none", 7.0)  # not a VTherm's attribute
+
+
+def test_a_vtherm_on_a_preset_keeps_the_setpoint_it_shows():
+    """On a preset, requested_state keeps the last manual setpoint, not the preset's."""
+    window = {"preset_mode": "eco", "temperature": 7.0,
+              "requested_state": {"hvac_mode": "heat", "target_temperature": 19.0, "preset": "eco"}}
+    assert engine.asked(window, vtherm=True) == ("heat", "eco", 7.0)
+    central = {"preset_mode": "frost", "temperature": 7.0,
+               "requested_state": {"hvac_mode": "heat", "target_temperature": 19.0, "preset": "comfort"}}
+    assert engine.asked(central, vtherm=True) == ("heat", "comfort", 7.0)
+
+
+def test_a_vtherm_without_requested_state_is_read_as_it_shows():
+    """VTherm before its state manager, or a state without it."""
+    assert engine.asked({"preset_mode": "eco", "temperature": 17.0}, vtherm=True) == (None, "eco", 17.0)
+    assert engine.asked({"preset_mode": "eco", "temperature": 17.0, "requested_state": {}}, vtherm=True) \
+        == (None, "eco", 17.0)
+
+
+def test_why_a_vtherm_protects_itself():
+    """For the card: VTherm says why it turned itself off (hvac_off_reason, moved into
+    specific_states in VTherm 10.5), and whether its window is open while it keeps heating at
+    the frost setpoint (window_manager, C8)."""
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_window"}}, "off") == "window"  # VTherm 10.5
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}, "off") == "auto_start_stop"
+    assert engine.cause({"hvac_off_reason": "auto_start_stop"}, "off") == "auto_start_stop"
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_manual"}}, "off") is None
+    # The window action "frost": the VTherm stays on
+    assert engine.cause({"specific_states": {"window_manager": {"window_state": "on"}, "hvac_mode_reason": "hvac_off_window_detection"}}, "heat") == "window"
+    assert engine.cause({"specific_states": {"window_manager": {"window_state": "off"}, "hvac_mode_reason": "hvac_off_window_detection"}}, "heat") is None
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}, "heat") is None  # started again
+    assert engine.cause({}, "heat") is None
+
+
+def test_turning_a_thermostat_off_by_hand_during_an_on_slot_is_an_off_override():
+    expected = {"preset_mode": "comfort"}
+    assert engine.manual_change(ac("heat"), ac("off"), by_user=True, expected=expected) == OFF
+    assert engine.manual_change(ac("heat"), ac("off"), by_user=False, expected=expected) == OFF  # its button
+    assert engine.manual_change(ac("heat"), ac("off"), by_user=True) == OFF  # no week: still a change
+
+
+def test_turning_a_thermostat_on_by_hand_during_an_off_slot_is_an_override():
+    expected = OFF
+    assert engine.manual_change(ac("off", "eco"), ac("heat", "eco"), by_user=True, expected=expected) == {"hvac_mode": "heat"}
+    assert engine.manual_change(ac("off", "eco"), ac("cool", "eco"), by_user=False, expected=expected) == {"hvac_mode": "cool"}
+
+
+def test_turning_a_thermostat_back_on_ends_its_off_override():
+    """Back on in any HVAC mode the slot accepts: the override ends, and the thermostat is set
+    to its slot (what it restarted on does not count as a change)."""
+    expected = {"preset_mode": "comfort"}
+    assert engine.manual_change(ac("off", "eco"), ac("heat", "eco"), by_user=True, expected=expected, override=OFF) == engine.RESUME
+    assert engine.manual_change(ac("off", "eco"), ac("cool", "eco"), by_user=False, expected=expected, override=OFF) == engine.RESUME
+    # Turned off again while the slot says off: back to the slot too
+    assert engine.manual_change(ac("heat"), ac("off"), by_user=True, expected=OFF, override={"hvac_mode": "heat"}) == engine.RESUME
+
+
+def test_switching_the_hvac_mode_by_hand_is_an_override_when_the_slot_sets_one():
+    expected = {"preset_mode": "comfort", "hvac_mode": "cool"}
+    assert engine.manual_change(ac("cool"), ac("heat"), by_user=True, expected=expected) == {"hvac_mode": "heat"}
+    assert engine.manual_change(ac("heat"), ac("cool"), by_user=True, expected=expected, override={"hvac_mode": "heat"}) == engine.RESUME
+    # Without an HVAC mode on the slot, switching heat to cool is not a change: both are "on"
+    assert engine.manual_change(ac("heat"), ac("cool"), by_user=True, expected={"preset_mode": "comfort"}) is None
+
+
+def test_a_setpoint_or_a_preset_changed_with_the_hvac_mode_is_part_of_the_override():
+    """climate.set_temperature with an HVAC mode writes one state: the override holds both, by
+    the rules of each gesture (a preset counts when a user picked it)."""
+    heating = {"preset_mode": "comfort", "hvac_mode": "heat"}
+    assert engine.manual_change(ac("heat"), ac("cool", "none", 24.0), by_user=True, expected=heating) \
+        == {"hvac_mode": "cool", "temperature": 24.0}
+    # Turned off: off, alone, whatever came with it
+    assert engine.manual_change(ac("heat"), ac("off", "boost", 21.0), by_user=True, expected={"preset_mode": "comfort"}) == OFF
+    assert engine.manual_change(ac("heat"), ac("off", "boost", 21.0), by_user=False, expected={"preset_mode": "comfort"}) == OFF
+    # Heat to cool during an "on" slot is no change of HVAC mode, and the setpoint still counts
+    assert engine.manual_change(ac("heat"), ac("cool", "none", 24.0), by_user=True, expected={"preset_mode": "comfort"}) \
+        == {"temperature": 24.0}
+    # Back to an HVAC mode the slot accepts: the slot is applied, whatever came with it
+    assert engine.manual_change(ac("off", "eco"), ac("heat", "none", 24.0), by_user=True, expected={"preset_mode": "comfort"},
+                                override=OFF) == engine.RESUME
+
+
+def test_a_preset_picked_while_the_thermostat_is_off_is_not_an_override():
+    """The thermostat stays off, and keeps the preset for when it is turned on."""
+    expected = {"preset_mode": "comfort"}
+    assert engine.manual_change(ac("off", "eco"), ac("off", "boost"), by_user=True, expected=expected) is None
+    assert engine.manual_change(ac("off", "eco"), ac("off", "comfort"), by_user=True, expected=expected) is None
+
+
+def test_settings_of_a_slot_are_validated():
+    assert model.normalize_day([["00:00", "eco", {"hvac_mode": "off"}], ["07:00", "comfort", {}]]) == [
+        ["00:00", None, OFF], ["07:00", "comfort"]]
+    # Consecutive slots merge only when their settings are the same too
+    cool = {"hvac_mode": "cool"}
+    assert model.normalize_day([["00:00", "eco"], ["21:00", "eco", cool], ["22:00", "eco", cool], ["23:00", "comfort", cool]]) == [
+        ["00:00", "eco"], ["21:00", "eco", cool], ["23:00", "comfort", cool]]
+    assert model.used_presets({"climate.salon": {"normal": [[["00:00", None, OFF], ["08:00", "eco", cool]]] * 7}}) == ["eco"]
+    # A slot's HVAC mode is heat, cool, off or fan only
+    for bad in (["00:00", "eco", "off"], ["00:00", "eco", {"hvac_mode": ""}], ["00:00", "eco", {"temperature": 19}],
+                ["00:00", "eco", {"hvac_mode": "auto"}]):
+        with pytest.raises(model.InvalidData):
+            model.normalize_day([bad])
+    # Heat and cool need a preset: a slot without one is dropped, as any invalid slot
+    assert model.normalize_day([["00:00", "eco"], ["12:00", None, cool], ["13:00", None]]) == [["00:00", "eco"]]
+    # Two off slots in a row are one: an off slot has no preset
+    assert model.normalize_day([["00:00", "eco"], ["22:00", "eco", OFF], ["23:00", "comfort", OFF]]) == [
+        ["00:00", "eco"], ["22:00", None, OFF]]
+
+
+def test_the_target_of_an_override_may_set_the_hvac_mode_alone():
+    assert model.normalize_target({"hvac_mode": "off"}) == OFF
+    assert model.normalize_target({"hvac_mode": "cool", "temperature": "24"}) == {"hvac_mode": "cool", "temperature": 24.0}
+
+
+# ----- fan and vanes (lot 3 of #91) -----
+
+def test_a_target_may_set_the_fan_and_the_vanes():
+    assert model.normalize_target({"fan_mode": "3", "swing_mode": "swing", "swing_horizontal_mode": "split"}) == {
+        "fan_mode": "3", "swing_mode": "swing", "swing_horizontal_mode": "split"}
+    assert model.normalize_day([["00:00", "eco", {"fan_mode": "1"}]]) == [["00:00", "eco", {"fan_mode": "1"}]]
+    with pytest.raises(model.InvalidData):
+        model.normalize_target({"fan_mode": ""})
+
+
+def test_the_fan_and_the_vanes_are_satisfied_by_equal_values():
+    quiet = Thermostat("cool", "comfort", 20.0, VTHERM, fan_mode="1", swing_mode="auto")
+    assert engine.satisfied({"fan_mode": "1"}, quiet)
+    assert not engine.satisfied({"fan_mode": "3"}, quiet)
+    assert engine.satisfied({"preset_mode": "comfort", "swing_mode": "auto"}, quiet)
+    assert not engine.satisfied({"swing_horizontal_mode": "split"}, quiet)  # not shown: not satisfied
+
+
+# ----- a cooling setpoint in a preset's value (corrections C1) -----
+
+def test_in_cool_the_cooling_setpoint_replaces_the_preset_and_its_temperature():
+    both = {"preset_mode": "comfort", "temperature": 20.0, "cool_temperature": 25.0}
+    assert engine.complete(both, ac("cool")) == {"temperature": 25.0}
+    assert engine.complete({"temperature": 20.0, "cool_temperature": 25.0, "hvac_mode": "cool"}, ac("heat")) == {"temperature": 25.0, "hvac_mode": "cool"}
+    # Not in cool: the cooling setpoint is not sent
+    assert engine.complete(both, ac("heat")) == {"preset_mode": "comfort", "temperature": 20.0}
+    assert engine.complete(both, ac("off")) == {"preset_mode": "comfort", "temperature": 20.0, "hvac_mode": "heat"}
+
+
+def test_in_cool_without_a_cooling_setpoint_the_setpoint_is_left_alone():
+    """Also on an air conditioner that only cools: it never gets a heating temperature."""
+    assert engine.complete({"preset_mode": "comfort", "temperature": 20.0}, ac("cool")) == {"preset_mode": "comfort"}
+    cooler = ac("cool", modes=("off", "cool", "fan_only"))
+    assert engine.complete({"temperature": 20.0}, cooler) == {}
+
+
+def test_a_temperature_the_user_chose_is_sent_in_cool():
+    """An override without a Chauffage preset: the temperature is the user's cooling target, not
+    a preset's heating value (docs/decisions.md, "Presets")."""
+    assert engine.complete({"temperature": 24.0}, ac("cool"), by_user=True) == {"temperature": 24.0}
+    assert engine.complete({"temperature": 24.0, "hvac_mode": "cool"}, ac("heat"), by_user=True) \
+        == {"temperature": 24.0, "hvac_mode": "cool"}
+    # A preset's temperature is a heating value: dropped. Its climate preset is the device's own: sent
+    assert engine.complete({"temperature": 21.0}, ac("cool")) == {}
+    assert engine.complete({"preset_mode": "eco"}, ac("cool")) == {"preset_mode": "eco"}
+
+
+def test_the_cooling_setpoint_is_validated_and_fitted():
+    assert model.normalize_target({"cool_temperature": "25"}) == {"cool_temperature": 25.0}
+    assert engine.fit({"cool_temperature": 25.3}, plain(step=0.5)) == {"cool_temperature": 25.5}

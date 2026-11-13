@@ -67,7 +67,7 @@ async def test_weeks_overrides_and_active_schedule_are_imported(bench: Bench):
     assert salon["normal"][0] == [["00:00", "eco"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"], ["22:30", "eco"]]
     assert bench.runtime.weeks["climate.bureau"]["normal"][5] == [["00:00", "frost"]]
     assert data["overrides"]["climate.salon"] == {
-        "kind": "temperature", "value": 21.5, "start": OVERRIDE["debut"], "end": OVERRIDE["fin"]}
+        "target": {"temperature": 21.5}, "start": OVERRIDE["debut"], "end": OVERRIDE["fin"]}
 
     # The package's automations are turned off, and the user is told to remove the package
     assert sorted(calls[0]["entity_id"]) == ["automation.chauffage_derogation_manuelle", "automation.chauffage_programmes_hebdo"]

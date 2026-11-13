@@ -149,23 +149,309 @@ future contributor might question.
   service, the value every time (an automation setting it again puts a thermostat that lost it
   back); a change by hand, nothing (the thermostat set it itself: sending it back could undo a
   second change made meanwhile).
-- **Thermostats turned off, unavailable or overridden are left alone**; one coming back is
-  realigned at once. A command that was not delivered is sent again every minute. Commands are
-  spaced out (Zigbee networks).
-  A thermostat turned off gets nothing, not even an override, because some integrations turn
-  heating back on when they get a setpoint: Tado, evohome and Netatmo do. Turned off is also the
-  only way to say "no heating", as there is no *Off* preset. Generic thermostat, Nest and ecobee
-  stay off, and Zigbee valves depend on their firmware. The override set while the thermostat was
-  off is sent when it is turned back on.
-- **A VTherm turned off still gets its slots and its override, whatever turned it off** (#74).
-  VTherm keeps the preset asked while it is off, publishes it, stays off, and starts again on it.
-  Left alone, a VTherm turned off by its auto start/stop would never see the next comfort slot,
-  so it would never start again. A first fix (0.7.1) only counted the reason
-  `hvac_off_auto_start_stop`. That reason moved once, from a top-level attribute to
-  `specific_states` (VTherm 10.5), and VTherm publishes no reason right after being turned off.
-  Chauffage now leaves the decision to VTherm, as for its safety mode. Checked on VTherm 10.5: a
-  VTherm turned off by hand stays off when it gets a preset or a setpoint. Older versions are
-  not checked; they are rare, and the risk is accepted.
+- **Thermostats unavailable or overridden are left alone**; one coming back is realigned at
+  once. A command that was not delivered is sent again every minute. Commands are spaced out
+  (Zigbee networks).
+- **The schedule decides whether a thermostat is off** (#91, #96, #77). Before, a thermostat
+  turned off was left alone: some integrations turn heating back on when they get a setpoint
+  (Tado, evohome, Netatmo), and turned off was the only way to say "no heating". So a thermostat
+  turned off at bedtime by a script never came back on in the morning (#77), and a schedule could
+  not stop a thermostat (#96). Now a slot can say `off`, in its settings (the optional third
+  element of a slot, `["22:00", null, {"hvac_mode": "off"}]`).
+  - **The slot chooses the HVAC mode, and the preset says how warm for it.** A slot's settings
+    may hold `hvac_mode`: `heat` or `cool` with a preset, `off` or `fan_only` without one. The
+    preset's value on a thermostat holds what the preset means when the thermostat heats (a
+    climate preset or a temperature) and when it cools (`cool_temperature`), as Versatile
+    Thermostat's presets do. The slot's HVAC mode picks which one is sent. A preset and a
+    preset's value have no HVAC mode: a value could say "heat" and hold a cooling temperature.
+  - **Two models came before this one.** The first one let a preset, a preset's value, a slot
+    and an override each set the HVAC mode, the last one winning: nobody could predict what a
+    slot would do. The second one put heat or cool on the schedule, and only off on a slot. It
+    read well, but a day could not cool in the afternoon and heat in the morning, and a user
+    had to copy a schedule to change the season. The owner chose the slot: the week shows every
+    choice, where the user already looks.
+  - **On an air conditioner, every slot on a preset heats or cools.** This reverses "a slot
+    without an HVAC mode leaves the thermostat in the one it has". With that rule a slot had
+    three states, *Heat*, *Cool* and "unchanged", and the third one could not be read in the
+    week: what the room got depended on what the thermostat did before. The owner chose two
+    states. The rule lives in one place on each side: `engine.slot_hvac_mode` in the
+    integration, `slotModeOn` in the card. Both read a slot the same way:
+    - on a thermostat that lists `heat` and `cool`, the slot's HVAC mode, and `heat` when the
+      slot says none;
+    - on a thermostat that lists `cool` and not `heat`, always `cool`, whatever the slot says:
+      a day pasted from a reversible unit cools;
+    - on a thermostat that does not list `cool`, a heater, no HVAC mode at all: the target of
+      its slot holds none, and it is turned on as before;
+    - on a thermostat whose HVAC modes are not known (unavailable), the slot as stored.
+  - **A stored slot without an HVAC mode is read, not migrated.** Stored data of version 6, and
+    weeks saved by a development version 7, hold slots that say none. Rewriting them would need
+    the HVAC modes of each thermostat, which the migration does not have, and which may change
+    (a thermostat replaced). So the rule above applies when a slot is read, and the card writes
+    the HVAC mode of every slot of a day the user edits. **This changes the behavior of an
+    upgraded installation**: a reversible air conditioner that cools is switched to heat by a
+    week that says nothing. The changelog says so under "Upgrading".
+  - **A new slot takes the HVAC mode of the slot it comes from**: a slot inserted or cut in a
+    slot keeps its HVAC mode. In an off slot or a fan-only slot, it takes the HVAC mode of the
+    slot on a preset before it in the day, else heat. A new slot that heated in the middle of a
+    summer day would be a surprise.
+  - **Each slot is independent**: a slot does not inherit the HVAC mode of the slot before it
+    when it runs. It says its own.
+  - **A target without an HVAC mode turns on a thermostat that is off or in fan only**: in the
+    HVAC mode it last heated or cooled in (learned and stored, as the temperatures of its own
+    presets are), else in `heat`, else in its first HVAC mode but off and fan only. Such a
+    target is a heater's slot, or an override to a preset set by an automation. Heat came first
+    before: an air conditioner that cooled in July restarted in heat on an override to
+    *Comfort*. Fan only takes no setpoint, so a preset slot that follows a fan-only slot must
+    leave it, as it leaves off. A thermostat that lists no HVAC mode gets its setpoint only.
+  - **Chauffage only knows heat and cool.** They are what a slot and an override choose
+    between, so they are the only HVAC modes Chauffage learns, restarts a thermostat in, and
+    carries a value into. A version learned any HVAC mode: a valve seen once in `auto`
+    restarted in `auto`, an air conditioner last in `dry` in `dry`. And `dry`, `auto` or
+    `heat_cool` chosen by hand made Chauffage send the slot's heating value. Now such a change
+    is recorded as an override to that HVAC mode, and nothing is sent, as before #91.
+  - **A temperature belongs to the HVAC mode it was set in.** An override to 22 °C set while
+    heating, then cool chosen by hand: the override keeps cool and its end, and drops the
+    temperature. 22 °C was never meant as a cooling setpoint. An override to a preset keeps the
+    preset: its value when cooling applies.
+  - **Scripts and the sensor read the slots as they run.** `chauffage.get_week` and the
+    planned-preset sensor give each slot's HVAC mode on the thermostat (`engine.week_on`), not
+    the stored one: a script must not have to know the rule. The sensor's `temperatures` are
+    the cooling ones during a slot that cools.
+  - **A thermostat without fan only is left as it is by a fan-only slot**: the slot has no
+    preset to fall back on. The card only offers the HVAC modes the thermostat lists, so this
+    only happens to a week copied by an automation.
+  - **Switching an air conditioner by hand to another HVAC mode than the slot's is an
+    override**, as turning it off is, and as switching it to fan only is.
+  - **Heat or cool chosen by hand keeps the value in force.** The person chose an HVAC mode,
+    not a setpoint. So the override keeps its preset and its end when the thermostat had one,
+    else it takes the preset of the slot, and Chauffage sends that value in the new HVAC mode.
+    Before, the override held the HVAC mode alone, and an existing override to *Comfort* was
+    left as it was: a Versatile Thermostat then went to its own *Comfort* for cooling (25 °C),
+    and the temperature when cooling set in Chauffage (24 °C) was never sent. This is the one
+    case where a change by hand makes Chauffage send something: the value is the one planned,
+    in the HVAC mode the person asked for. In an off slot or a fan-only slot there is no value
+    to keep: the thermostat keeps its own last setpoint.
+  - **An off slot has no preset, and Chauffage sends only off.** A first version sent a preset
+    with off, as a scene does, and chose the coldest preset so that a thermostat that heats
+    anyway heats as little as possible. The preset was hidden: the user could not see it, and
+    a thermostat turned on by hand restarted on it, at 7 °C, instead of on its own last
+    setpoint. Now an off slot and an off override send `{"hvac_mode": "off"}` and nothing else.
+    Two off slots in a row are one slot. An off slot sets nothing else: the fan and the vanes
+    mean nothing while the thermostat is off. A thermostat that turns back on when it receives
+    a setpoint (Tado) receives none.
+  - **A fan-only slot has no preset either.** Fan only takes no setpoint. The slot may set the
+    fan and the vanes, under *More settings*. Two fan-only slots in a row are one slot when
+    their fan and their vanes are the same.
+  - **No rule at midnight.** A night is two slots: the last one of a day and the first one of
+    the next day. A version of the card turned off the next morning's first slot when the
+    evening was turned off. The rule changed a day the user was not editing, and it could not
+    tell a morning the user wants on from one that only continued the evening. Now each slot is
+    independent: to keep a room off through the night, turn off both slots. Two off slots
+    across midnight give the same target, so nothing is sent at midnight.
+  - **An override never ends because a slot meets it.** A version ended an off override when
+    an off slot started. An override then had two ends, and the card had to explain the second
+    one. An override ends at its end, or when the user puts the thermostat back on what its
+    slot plans, as before #91.
+  - **A thermostat turned off by hand stays off until the next slot, by default.** The setting
+    *End of off overrides* has the three choices of *End of overrides*, and its own default.
+    Two hours of off is rarely what a person who turns a radiator off means: they air a room,
+    or they leave. The next slot that changes the thermostat is when the schedule would have
+    acted anyway. The setting also gives the end of `chauffage.set_override` called with
+    `hvac_mode: off` and no end, and of *Off* tapped on the card. The end the user chooses on
+    the card or in the service still wins.
+  - **Turning a thermostat off by hand during an "on" slot is a manual change**, like a setpoint
+    changed by hand: an `off` override, and then the thermostat comes back on, on its slot.
+    Turning it on by hand during an off slot is an override too: the thermostat keeps its own
+    last setpoint. A
+    change by an automation or a script is not an override, as for a setpoint: a thermostat
+    turned off by an "all off" script stays off until the next slot that changes something
+    (#77). A day's first slot repeats the last slot of the day before in most weeks (eco at
+    22:30, eco at 00:00): it changes nothing, so the tick does not apply it, and the thermostat
+    stays off until the morning. Before #91, every slot start was applied, which sent nothing to
+    a thermostat already on its preset; now it would turn one off back on. Turned back on by
+    hand, a thermostat ends its off override at once and gets its slot: what it restarted on is
+    not a choice of the user. A preset or a setpoint changed on the thermostat itself while it
+    is off is not an override: the thermostat stays off, and keeps what the user set for when it
+    is turned on. A preset tapped in the card's override block turns it on (see below).
+  - **Chauffage applies a target like a scene**, with Home Assistant's `async_reproduce_state`:
+    the HVAC mode, then the setpoint, then the preset, the swing and the fan, in Home
+    Assistant's order. Chauffage sends only the attributes the thermostat does not show, and the
+    HVAC mode only when it must change. `send()` stays the single path of every command, with
+    its reason logged. A thermostat that may still apply an older command (pending) gets the
+    whole target.
+  - **The device validates the values, not Chauffage.** Chauffage keeps no rule such as "this
+    thermostat has no cool": the card offers only the values the thermostat lists, and the
+    thermostat decides. Chauffage only checks the shape of its own data: what each layer may
+    hold (`model.py`).
+  - **The slot's HVAC mode and a preset's cooling setpoint work together.** A preset's value
+    may hold a cooling setpoint, `cool_temperature`, next to its heating one. A reversible air
+    conditioner wants Comfort at 20 °C in winter and at 25 °C in summer, and the user panel
+    refused a second *Comfort* preset for that. The slot says which of the two applies: when
+    the target is applied in `cool`, the cooling setpoint replaces the preset and the
+    temperature of the target. In `heat`, the cooling setpoint is dropped. The rule lives in
+    `engine.complete()`, with the "on" rule, so overrides and slots follow it alike, also when
+    the slot does not say and the air conditioner cools by itself.
+  - **In cool, Chauffage sends the thermostat's own preset, and never its own heating
+    temperature.** Without a cooling setpoint, a temperature is a heating value: a thermostat
+    that lists `heat` and `cool` does not get it, so 17 °C never reaches an air conditioner that
+    cools. Its climate preset is sent, also the one a preset gets from its name: the device
+    knows what its own `eco` means in cool (Versatile Thermostat has AC preset temperatures). A
+    version dropped the name-based preset in cool, after a simulated air conditioner cooled to
+    17 °C on `eco`. That protected a device with wrong presets, and left every device with
+    right ones without a setpoint. A user whose device cools too much on a preset sets a
+    cooling temperature for it. An air conditioner that only cools follows the same rule. A
+    version sent it the preset's temperature, "the base setpoint": an override to frost
+    protection cooled a room to 7 °C. On such a unit a preset without a cooling temperature
+    and without a device preset sends no setpoint, and the unit keeps its own. A temperature the
+    user typed in an override is their cooling target: sent. The slot popover's *Setpoint* line
+    uses the same rule, and reads "Setpoint unchanged" when nothing is sent. The legend, the
+    presets table and the cell popover of a unit that only cools show cooling values alone.
+  - **What a thermostat's own preset gives when cooling is kept apart.** A Versatile Thermostat
+    in AC mode publishes it (`comfort_cool_temp`). For the others, Chauffage learns it while the
+    thermostat cools on the preset, in `cool_preset_temperatures`, an optional key of a
+    scheduled thermostat: no migration. Before, a setpoint read while cooling was learned as
+    the preset's heating temperature. The card shows it as the default of the cooling field:
+    "Default (its *Comfort* preset, 25°)".
+  - **Each preset has a heat color and a cool color.** A cooling slot is drawn in its preset's
+    cool color, in the week, the legend and the chips, with a snowflake. The cool color is
+    derived from the preset's color: the hue moves into the blues, in the order of the hues,
+    and the shade stays dark enough for white text. So a new preset needs no second choice, and
+    a preset whose color changes keeps a matching cool color. The user can choose another one
+    in the preset's popover. Only a color the user chose is stored (`cool_color`): the card
+    derives the rest, so the integration holds no color rule.
+  - **The default presets have cool colors chosen by hand.** Derived by the formula, the four
+    default colors gave four blues a few degrees of hue apart. Now the card holds a blue for
+    *Comfort*, a dark teal for *Eco*, a navy for *Boost* and a light indigo for *Frost
+    protection*: hue and lightness both differ. No purple: a first palette had a violet and a
+    purple, the colors of the stripes of an override. A test checks that the cool colors differ
+    from each other, from fan only, from every heat color and from those stripes. Any other
+    color still uses the formula, whose hues stay between 200° and 250° for the same reason.
+  - **Frost protection of a new installation is a blue grey** (`#78909c`). Its light blue
+    looked like Home Assistant's cyan of fan only. Existing installations keep the colors they
+    stored, and the migration from version 1 keeps the light blue: a color the user sees every
+    day does not change in an update.
+  - **The legend marks its swatches** with a flame and a snowflake when a shown thermostat
+    cools, and gives the cool value after the heat value. Two unmarked squares per preset did
+    not say which was which.
+  - **Fan only is drawn in Home Assistant's color of fan only**
+    (`--state-climate-fan_only-color`, cyan by default), with a fan icon and dark text: white is
+    not legible on that cyan. Off stays grey. Both are chips of their own, before the presets.
+  - **The slot popover gives the number the slot will apply**: "Setpoint: 20 °C (its *Comfort*
+    preset)". A slot never sets a temperature: the preset says how warm, and an override is the
+    knob. So the popover must show the number the preset gives, or the user reads "its Comfort
+    preset" and has to open another screen to know what the room gets.
+  - **"Until tomorrow" for an off override is the next morning**: the first slot of today that
+    changes the thermostat's state when it is still to come, else the first one of tomorrow, or
+    of the next day that has one. Computed by the integration (`next_day_slot_end`), because the
+    card cannot tell a 00:00 slot that repeats the evening from one that changes something. At
+    01:30 the morning is today's, the same instant as the next slot: the card then hides the
+    button, so one button says it. Before, "tomorrow" at 01:30 on Sunday meant Monday, 29 h
+    away. The button names the day when the morning is not tomorrow (a flat Sunday).
+  - **Chauffage's logbook lines do not show for a thermostat filtered alone, and Chauffage
+    cannot change that.** Home Assistant's logbook only queries the custom events whose
+    describer domain is the config-entry domain of one of the filtered entities
+    (`async_determine_event_types`): for `climate.bureau`, Versatile Thermostat's events, never
+    `chauffage`'s, whatever `entity_id` the event carries. Filtered on the thermostat and its
+    *Override* sensor (a `chauffage` entity), both the gate and the `entity_id` matcher pass,
+    and the lines show. Registering the describers under another domain would not help: the
+    gate uses config-entry domains, not entity domains, and a YAML thermostat has none. Firing
+    `logbook_entry` events instead would show the lines on the thermostat alone, but duplicate
+    them in the unfiltered logbook next to the described events, which automations rely on. So
+    the README says to filter on the thermostat and its *Override* sensor.
+  - **The fan and the vanes are more keys of the same partial state** (#61): `fan_mode`,
+    `swing_mode` and `swing_horizontal_mode`, on a slot's settings and on a preset's value,
+    compared and sent as they are. The fan differs with the time of day (#61), so a slot keeps
+    them, under *More settings*, on air conditioners only. A slot that sets one shows a mark in
+    the week, down to a narrow segment, and its title and its `aria-label` say the values: a
+    slot's settings are never invisible. A slot that chooses an HVAC mode shows its icon the
+    same way: a power icon, a fan, a snowflake or a flame.
+  - **Heat and Cool are a row under the presets of the slot popover**, only on a thermostat
+    that lists heat and cool: a heater never sees it, and an air conditioner that only cools
+    has nothing to choose. One of the two is always filled; tapped again, it stays. The words
+    are short: *Heat*, *Cool* (*Chauffe*, *Clim*).
+  - **The week menu sets a whole week to heat or to cool** (*All heat*, *All cool*). Changing
+    the season of a week slot by slot is fifteen taps. The items are in the ⋮ menu of a day on
+    the card, and in the ⋮ menu of a week in the panel. They edit the week shown, unsaved until
+    *Save*, like any edit.
+  - **A capture button fills the popover of a preset's value from the thermostat's current
+    state**, in the spirit of Home Assistant's scene editor, and never saves by itself: the
+    value waits for *OK*. The button says where it copies from (*Copy from the thermostat*). It
+    never copies the thermostat's preset: the user panel saw it tick "Comfort" in the *Boost*
+    cell. It copies the setpoint instead, as the cooling temperature while an air conditioner
+    that also heats cools, and the fan and the vanes. The slot popover has no capture: a slot
+    is a preset or off, and the button never copied either.
+  - **The override block says off, fan only, a preset, a temperature and an end.** *On* and the
+    list of HVAC modes are gone: Home Assistant's own controls, just above the block in the
+    more-info dialog, already set the HVAC mode, and a change made there is an override by
+    hand. On an air conditioner that heats and cools, the block has the *Heat · Cool* row of a
+    slot: an override from the card always says its HVAC mode, so a preset tapped never
+    depends on what the thermostat happens to do. A new override starts in the HVAC mode of the
+    slot planned now; during an off slot or a fan-only slot, in the one the thermostat runs in,
+    else heat. While *Off* is chosen the temperature field and the row are hidden: off takes
+    neither.
+  - **`chauffage.set_override` refuses what contradicts itself.** Off or fan only with a
+    temperature or a preset, an HVAC mode the thermostat does not list, a duration with an end:
+    each was recorded and did something else than asked. The device still validates the values
+    (see below); these three are contradictions in the call itself, and the message says which.
+  - **An end changed is an event of its own**, `chauffage_override_end_changed`, so the logbook
+    tells it. `chauffage_override_started` stays for a new override or a new value: automations
+    that count overrides are not triggered by "+30 min". *Off* is the first chip of the row of presets, then *Fan only* on a thermostat that
+    lists it. A preset tapped, or a temperature typed, on an off override turns the thermostat
+    on: a person who taps *Comfort* on a thermostat that is off expects heat. An off override
+    holds nothing but off. *Off* tapped on an "on" override
+    during an off slot ends the override, as setting a thermostat back to what its slot plans
+    by hand does. `chauffage.set_override` keeps its `hvac_mode` field, for automations.
+  - **On a thermostat card, the override block is folded.** The card showed eight controls
+    before the end. Now it shows the override, its end and *Resume the schedule*, and *Change*
+    unfolds the presets, the temperature and the durations. The more-info dialog shows
+    everything: the user opened it to act.
+  - **The chips of the presets keep their full color.** Unchosen chips were drawn at half
+    opacity, which reads as disabled. A ring marks the chosen chip.
+  - **"Until tomorrow" is one tap, the configured end stays the default** for an off override:
+    the setting *End of off overrides*. The button sets the end to tomorrow's first slot that
+    changes the thermostat's state, computed by the integration.
+  - **The cell popover asks one question, with three answers**: *Default (its Comfort preset,
+    20°)*, *Its preset* or *Temperature*, as radio rows. A first version asked twice, *Default |
+    Custom* then a checkbox per setting, so a user could tick nothing, or tick a device preset
+    and a temperature together and leave the device to decide. Using a row's field chooses the
+    row. On an air conditioner that heats and cools, the rows are headed *When heating*, and a
+    field of its own holds the temperature *when cooling*. Empty, with a temperature when
+    heating, it reads "Setpoint unchanged when cooling"; with one of the thermostat's own
+    presets when heating, it says nothing, because that preset is sent when cooling too. The
+    cooling field is not under the *Temperature* row, so a device preset or the default when
+    heating can go with a temperature when cooling. The fan and the vanes are under *More
+    settings*.
+  - **The card names the fan and the vanes with short words of its own** (*Fan*, *Vanes*,
+    *Horizontal vanes*), not Home Assistant's attribute names, which are too long for a popover.
+    The values keep Home Assistant's names when it has them, else "1_up" reads "1 up", and the
+    common words of a vane value are translated word by word ("1 haut", "Oscillation"); any
+    other word stays as it is.
+  - **This is a behavior change for upgrading users**: a thermostat turned off by hand in the
+    past comes back on at the next slot, and at the restart that follows the upgrade. The
+    changelog says so under "Upgrading". A thermostat to leave alone is paused.
+- **A Versatile Thermostat is read as it was asked, not as it protects itself** (#91, #92).
+  VTherm turns itself off for an open window or with its auto start/stop, and refuses heat
+  until the cause ends. VTherm 10.5 keeps what it was asked for in `requested_state`
+  (`hvac_mode`, `preset`, `target_temperature`): Chauffage reads the HVAC mode there, so a VTherm
+  off by its window is "on" for Chauffage. It never gets an off override, Chauffage never sends
+  it heat while the window is open, and it gets its slots meanwhile, so it restarts on the right
+  preset. A VTherm asked to be off (turned off by hand) is an off override, as any thermostat.
+  Why not the window: reading `is_window_detected` or the window action would tie Chauffage to
+  one VTherm feature. For the card, Chauffage says why a VTherm protects itself (`cause`: `window`
+  or `auto_start_stop`), so the card does not read VTherm's attributes. The window comes from
+  `window_manager.window_state`, because the window action *frost* keeps the VTherm on, at the
+  frost setpoint: the card must say "Window open" then too, and `hvac_off_reason` only exists
+  while the VTherm is off. The auto start/stop still comes from `hvac_off_reason`.
+  - **A VTherm without `requested_state` keeps the behavior before #91** (#74): off, it is read
+    as on. It gets its slots and its override while off, stays off, and starts again on them.
+    Chauffage neither turns it on nor takes it for turned off by hand. An off slot is still
+    satisfied by it: `engine.Thermostat` keeps the HVAC mode shown (`shown`) next to the one
+    read, and an off target accepts either, so the off command is not waited for and a
+    realignment does not send off again. Before #91, a first fix
+    (0.7.1) only counted the reason `hvac_off_auto_start_stop`; that reason moved once, from a
+    top-level attribute to `specific_states` (VTherm 10.5), and VTherm publishes no reason right
+    after being turned off, so Chauffage leaves the decision to VTherm. Older versions are not
+    checked; they are rare, and the risk is accepted.
 - **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
   thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
   `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its
@@ -251,7 +537,41 @@ future contributor might question.
   (and the option allows it), otherwise the preset's temperature, fitted to the thermostat's
   limits and step. It can be set by hand per thermostat. Versatile Thermostat becomes one case
   among others.
-- **No *Off* preset** (yet): thermostats turned off, by hand or for the summer, are left alone.
+- **What a preset means on a thermostat is a partial state, as a scene holds it** (#91, stored
+  data version 7). A target is a dictionary of climate attributes: `{"preset_mode": "comfort"}`
+  or `{"temperature": 19}`. Overrides and the commands not applied yet hold a target too.
+  Before, a target was a kind and a value, "preset" or "temperature": a slot could not set
+  anything else. With a partial state, off, the fan and the vanes are more keys, read and
+  applied the same way. The events and the sensors keep `kind` and `value` next to the target,
+  read from its first attribute, so existing automations keep working. An override that sets
+  none of them (the fan, a cooling setpoint) has no kind and no value.
+- **A preset's value on a thermostat is a climate preset or a temperature, not both, and never
+  an HVAC mode.** A first version stored any mix, as a scene does, and let the device decide
+  what to do with a preset and a temperature together. The user could not tell what the room
+  would get. Now the integration refuses both together, and the card asks for one. A value
+  may add a cooling setpoint, a fan and vanes to it; alone, they add to the default. The target
+  of an override stays free: a change by hand may write a preset and a temperature at once, and
+  an override sets the HVAC mode. An off override holds nothing but off.
+- **Storage version 7 changed in place, and has no cleanup of development data.** Version 7
+  only existed on the branch of #91: the main branch and every release hold version 6. So the
+  model changed its format without a version 8, and the store's minor version stays 1. The
+  migration from version 6 changes no week: a slot without settings says no HVAC mode, and is
+  read as heat on an air conditioner that heats and cools, as cool on one that only cools (see
+  "Scheduling"). A user who upgrades from version 6 loses nothing. A development version stored other things in version 7 (an HVAC mode on a schedule,
+  a preset on an off slot). The code reads them without harm: a schedule's HVAC mode is
+  ignored, and an off slot is off whatever preset it holds. They are gone once the weeks or the
+  schedules are saved again.
+- **A preset's temperature is a heating value; a temperature the user typed is their target in
+  any HVAC mode.** In `cool`, a preset without a cooling setpoint (`cool_temperature`) keeps its
+  temperature for itself: the cooling value of a preset is `cool_temperature`, so sending its
+  temperature would cool to a heating setpoint. An override without a Chauffage preset is
+  another matter: its temperature comes from the card's field, from `chauffage.set_override
+  temperature`, or from a change by hand, so the user chose it for the HVAC mode the thermostat
+  runs in, and Chauffage sends it in `cool` too. `engine.complete()` tells the two apart
+  (`by_user`).
+- **No *Off* preset.** Off is what a slot says, not how warm a preset is (#91, "Scheduling").
+  A first version let a preset turn the thermostats off, so "off" existed in four forms. A home
+  turned off is a schedule whose slots are off.
 - **A preset used in the weeks cannot simply be removed**: another one takes its place.
 - **Temperatures of the thermostats' own presets** are learned while each preset is active (no
   standard attribute gives them); Versatile Thermostat's are read from its attributes, a
@@ -644,6 +964,26 @@ dashboards, automations, scripts and by voice without the card
   the tab shown is not the schedule edited. A thermostat's page in the panel is different: its
   weeks are all shown at once, and one save bar at the bottom of the window saves them all (see
   [The UX review](#the-ux-review-080-beta2)).
+- **A tap that lands on a handle opens the slot under it** (#91). The handles are 18 px wide
+  and sit on the edges of a slot: a slot of a quarter of an hour at 1280 px, or of two hours on
+  a phone, was covered by its two handles and could not be opened. Narrower handles would be
+  harder to drag. So a tap, a press without a move, on a handle opens the slot under the
+  finger. A handle of the selected slot does nothing on a tap: the slot stays selected, and its
+  handles stay easy to drag. The slot is the one where the finger went down (`pointerdown`):
+  on a touch screen, Chromium moves the click to the centre of the handle, the very edge of
+  the slot, and one tap in three opened the neighbor.
+- **A time typed onto a neighbor removes the slot between** (#91). The end of a slot typed as
+  the end of the next slot was moved back by a step, and left the next slot a step long: a
+  sliver nobody asked for. Now the slot between is removed. An end typed as 24:00, or 00:00, is
+  the end of the day.
+- **The presets table says when it is wider than the screen** (#91): a fade and a chevron on
+  the right, a shadow along the names once scrolled. A tap on a cell redraws the table: the
+  card puts it back where it was scrolled, before it places the popover on the cell.
+- ***Several* starts from the room tapped when every room is shown** (#91). With every room
+  shown, the first tap removed a room. A person who presses *Several* wants to pick rooms.
+- **A device's own values are named as Home Assistant names them** (#91): its presets, its fan
+  and its vanes, by `hass.formatEntityAttributeValue`, else by the climate domain's
+  translations, else in the card's words, else as they are.
 - **A time field is a text field read by the card's own parser, not `<input type="time">`**
   (#63). A browser shows its time input in the format of its own language, and a page cannot
   change it: an English browser showed "8:30 AM" to a user whose profile says 24 hours. The

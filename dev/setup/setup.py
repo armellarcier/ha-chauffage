@@ -6,11 +6,13 @@ already done.
 
   1. onboarding: user dev / dev, location, analytics, integrations
   2. long-lived access token written to /config/.dev-token (read by scripts/_ha.sh)
-  3. three Versatile Thermostat "over a switch" thermostats on the simulated rooms
+  3. five Versatile Thermostats on the simulated rooms (VTHERMS): three "over a switch", two of
+     them with a window, and two "over a climate": one with auto start/stop, one in AC mode
   4. a dashboard with the card
   5. the Chauffage integration's config entry
   6. two more schedules (Vacances, Absent: Normal, Vacances, Absent in this order) and sample weeks for every kind of thermostat (VTherm; kitchen: generic_thermostat without
-     presets; guest room: standard presets, dev/sim_climate), saved through the integration
+     presets; guest room: standard presets, dev/sim_climate; air conditioners), saved through the
+     integration
   7. a week of history before the creation of the dev HA, simulated with the rooms' thermal
      model and the sample schedules (dev/sim_rooms; only on a new dev HA)
 """
@@ -151,8 +153,25 @@ async def long_lived_token(ws: WS) -> str:
 
 # ----- Versatile Thermostat -----
 
-ROOMS = {"salon": "Salon", "bureau": "Bureau", "chambre": "Chambre"}
+# The Versatile Thermostats, by room. Each one covers a VTherm feature that changes the
+# thermostat by itself, so that Chauffage can be tried against it:
+#   window: the action when the room's window (input_boolean.fenetre_<room>) opens (#92);
+#   over:   the climate entity under a VTherm "over a climate";
+#   auto_start_stop: the VTherm turns its climate off and on by itself (#74);
+#   ac:     the VTherm's AC mode (#91). The VTherm heats and cools, and each preset has a second
+#           temperature for cooling (AC_PRESET_TEMPERATURES).
+VTHERMS = {
+    "salon": {"name": "Salon"},
+    "bureau": {"name": "Bureau", "window": "window_frost_temp"},
+    "chambre": {"name": "Chambre", "window": "window_turn_off"},
+    "veranda": {"name": "Véranda", "over": "climate.clim_veranda", "auto_start_stop": True},
+    "mezzanine": {"name": "Mezzanine", "over": "climate.clim_mezzanine", "ac": True},
+}
+ROOMS = {room: vtherm["name"] for room, vtherm in VTHERMS.items()}
 PRESET_TEMPERATURES = {"frost": 7, "eco": 17, "comfort": 20, "boost": 22}
+# The presets of a VTherm in AC mode while it cools (number.<room>_preset_<preset>_ac_temp)
+AC_PRESET_TEMPERATURES = {"eco": 27, "comfort": 25, "boost": 23}
+WINDOW_DELAY = 5  # seconds: the window reacts at once in the dev HA
 
 
 class Api:
@@ -174,9 +193,11 @@ class Api:
             return body
 
 
-async def create_vtherm(api: Api, room: str, name: str) -> None:
-    """Walks through the Versatile Thermostat config flow for an "over a switch"
-    thermostat (same screens as the UI, menu-based)."""
+async def create_vtherm(api: Api, room: str, vtherm: dict) -> None:
+    """Walks through the Versatile Thermostat config flow (same screens as the UI, menu-based):
+    a thermostat "over a switch", or "over a climate" with `over`."""
+    name, over, window = vtherm["name"], vtherm.get("over"), vtherm.get("window")
+    auto_start_stop = bool(vtherm.get("auto_start_stop"))
     flow = await api.post("config/config_entries/flow", {"handler": "versatile_thermostat", "show_advanced_options": True})
     flow_id = flow["flow_id"]
 
@@ -186,25 +207,39 @@ async def create_vtherm(api: Api, room: str, name: str) -> None:
             raise RuntimeError(f"VTherm {name}: {result['errors']}")
         return result
 
-    await step({"thermostat_type": "thermostat_over_switch"})
-    for section, forms in (
+    await step({"thermostat_type": "thermostat_over_climate" if over else "thermostat_over_switch"})
+    features = {"use_window_feature": bool(window)}
+    if over:
+        features["use_auto_start_stop_feature"] = auto_start_stop
+    sections = [
         ("main", [
             {"name": name, "temperature_sensor_entity_id": f"sensor.temperature_{room}", "cycle_min": 5,
              "use_main_central_config": False, "use_central_mode": False, "used_by_controls_central_boiler": False},
             {"external_temperature_sensor_entity_id": "sensor.temperature_exterieure",
              "temp_min": 7, "temp_max": 30, "step_temperature": 0.5},
         ]),
-        ("type", [{"underlying_entity_ids": [f"input_boolean.radiateur_{room}"], "proportional_function": "tpi"}]),
+        ("features", [features]),
+        ("type", [{"underlying_entity_ids": [over], "ac_mode": bool(vtherm.get("ac"))} if over else
+                  {"underlying_entity_ids": [f"input_boolean.radiateur_{room}"], "proportional_function": "tpi"}]),
         ("presets", [{"use_presets_central_config": False}]),
-        ("tpi", [
+    ]
+    if not over:
+        sections.append(("tpi", [
             {"use_tpi_central_config": False},
             {"tpi_coef_int": 0.6, "tpi_coef_ext": 0.01, "minimal_activation_delay": 10, "minimal_deactivation_delay": 0},
-        ]),
-        ("advanced", [
-            {"use_advanced_central_config": False},
-            {"safety_delay_min": 60, "safety_min_on_percent": 0.5, "safety_default_on_percent": 0.1},
-        ]),
-    ):
+        ]))
+    if window:
+        sections.append(("window", [
+            {"window_sensor_entity_id": f"input_boolean.fenetre_{room}", "use_window_central_config": False},
+            {"window_delay": WINDOW_DELAY, "window_off_delay": WINDOW_DELAY, "window_action": window},
+        ]))
+    if auto_start_stop:
+        sections.append(("auto_start_stop", [{"auto_start_stop_level": "auto_start_stop_fast"}]))
+    sections.append(("advanced", [
+        {"use_advanced_central_config": False},
+        {"safety_delay_min": 60, "safety_min_on_percent": 0.5, "safety_default_on_percent": 0.1},
+    ]))
+    for section, forms in sections:
         await step({"next_step_id": section})
         for form in forms:
             await step(form)
@@ -235,22 +270,31 @@ async def wait_until_running(api: Api) -> None:
 async def thermostats(api: Api) -> None:
     entries = await api.get("config/config_entries/entry?domain=versatile_thermostat") or []
     existing = {e["title"] for e in entries}
-    for room, name in ROOMS.items():
+    for room, vtherm in VTHERMS.items():
+        name = vtherm["name"]
         if name in existing:
             continue
         log(f"Versatile Thermostat: creating {name}")
-        await create_vtherm(api, room, name)
+        await create_vtherm(api, room, vtherm)
         await wait_for_entity(api, f"climate.{room}")
         for preset, temperature in PRESET_TEMPERATURES.items():
             await api.post("services/number/set_value",
                            {"entity_id": f"number.{room}_preset_{preset}_temp", "value": temperature})
+        for preset, temperature in AC_PRESET_TEMPERATURES.items() if vtherm.get("ac") else ():
+            await api.post("services/number/set_value",
+                           {"entity_id": f"number.{room}_preset_{preset}_ac_temp", "value": temperature})
         await api.post("services/climate/set_hvac_mode", {"entity_id": f"climate.{room}", "hvac_mode": "heat"})
 
 
 # ----- dashboard and sample schedules -----
 
-# Thermostats of the other kinds (simulation.yaml): no presets, standard presets
-OTHER_THERMOSTATS = {"climate.cuisine": "Cuisine", "climate.chambre_d_amis": "Chambre d'amis"}
+# Thermostats of the other kinds (simulation.yaml): no presets, standard presets, a reversible
+# air conditioner (standard presets, heat / cool / fan only, fan and swing modes, #91), a
+# cooling-only air conditioner and a reversible Daikin
+OTHER_THERMOSTATS = {
+    "climate.cuisine": "Cuisine", "climate.chambre_d_amis": "Chambre d'amis", "climate.atelier": "Atelier",
+    "climate.combles": "Combles", "climate.suite_parentale": "Suite parentale",
+}
 
 CARD = {
     "type": "custom:chauffage-programme-card",
@@ -259,9 +303,24 @@ CARD = {
     + [{"entity": entity, "name": name} for entity, name in OTHER_THERMOSTATS.items()],
 }
 
-def day(*slots: str) -> list[list[str]]:
-    """"06:30 comfort" → ["06:30", "comfort"]"""
-    return [slot.split() for slot in slots]
+# What a slot may say besides its preset (#91): its HVAC mode. Off and fan only have no preset
+MODES = {"off": "off", "fan": "fan_only", "cool": "cool", "heat": "heat"}
+
+
+def day(*slots: str) -> list[list]:
+    """"06:30 comfort" → ["06:30", "comfort"]; "13:00 comfort cool" → ["13:00", "comfort",
+    {"hvac_mode": "cool"}]; "22:00 off" → ["22:00", None, {"hvac_mode": "off"}]; "19:00 fan" →
+    ["19:00", None, {"hvac_mode": "fan_only"}]"""
+    out: list[list] = []
+    for slot in slots:
+        start, *words = slot.split()
+        if words[0] in ("off", "fan"):
+            out.append([start, None, {"hvac_mode": MODES[words[0]]}])
+        elif len(words) > 1:
+            out.append([start, words[0], {"hvac_mode": MODES[words[1]]}])
+        else:
+            out.append([start, words[0]])
+    return out
 
 
 WEEKDAY = day("00:00 eco", "06:30 comfort", "08:30 eco", "17:30 comfort", "22:30 eco")
@@ -277,6 +336,22 @@ SAMPLE_WEEKS = {
     "climate.chambre": [day("00:00 eco", "06:30 comfort", "07:30 eco", "21:00 comfort", "22:30 eco")] * 7,
     "climate.cuisine": [day("00:00 eco", "07:00 comfort", "09:00 eco", "18:30 comfort", "21:00 eco")] * 7,
     "climate.chambre_d_amis": [day("00:00 frost")] * 5 + [day("00:00 eco", "08:00 comfort", "22:00 eco")] * 2,
+    "climate.veranda": [day("00:00 frost", "10:00 comfort", "19:00 frost")] * 7,
+    "climate.atelier": [day("00:00 eco", "09:00 comfort", "18:00 eco")] * 5 + [day("00:00 eco")] * 2,
+    # The air conditioners show what a slot may choose (#91): cool, fan only, off
+    "climate.mezzanine": [day("00:00 eco", "17:00 comfort", "21:30 eco")] * 5
+    + [day("00:00 eco", "09:30 comfort", "14:00 comfort cool", "18:00 comfort heat", "21:30 eco")] * 2,
+    "climate.combles": [day("00:00 off", "13:00 comfort cool", "19:00 fan", "22:00 off")] * 7,
+    "climate.suite_parentale": [day("00:00 eco", "06:00 comfort", "08:00 off", "14:00 comfort cool", "17:00 fan",
+                                    "20:30 comfort", "23:00 eco")] * 7,
+}
+
+# Values of the presets set by hand, by thermostat
+SAMPLE_MAPPINGS = {
+    "climate.suite_parentale": {
+        "comfort": {"temperature": 20, "cool_temperature": 25},
+        "eco": {"temperature": 17, "cool_temperature": 27},
+    },
 }
 
 
@@ -340,6 +415,11 @@ async def sample_schedules(ws: WS) -> None:
         weeks[entity] = {first: SAMPLE_WEEKS[entity], **dict(zip(others, other_weeks))}
     log(f"schedules: sample weeks for {', '.join(missing)}")
     await ws.call(type="chauffage/weeks/save", weeks=weeks)
+    # What the presets mean on the Daikin, which has no preset named like them: a temperature
+    # when it heats, another one when it cools (#91)
+    for entity, mapping in SAMPLE_MAPPINGS.items():
+        if entity in missing:
+            await ws.call(type="chauffage/mapping/set", entity_id=entity, mapping=mapping)
 
 
 async def history(api: Api) -> None:

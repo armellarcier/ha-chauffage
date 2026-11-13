@@ -16,21 +16,24 @@ from homeassistant.helpers.storage import Store
 from . import model
 from .const import DOMAIN
 
-STORAGE_VERSION = 6
+STORAGE_VERSION = 7
 STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
 Migration = Callable[[dict[str, Any], str], dict[str, Any]]
+# The colors of the default presets before #91, where they differ from today's
+FORMER_COLORS = {"frost": "#29b6f6"}
 
 
 def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
     """Heating levels (v0.3): slots named a VTherm preset now name a level with the same id, and
     each thermostat with that preset keeps using it (default mapping), so nothing changes."""
-    return {
-        **data,
-        "levels": model.default_presets(language, model.used_presets(data.get("schedules", {}))),
-        "mappings": {},
-    }
+    levels = model.default_presets(language, model.used_presets(data.get("schedules", {})))
+    # An existing installation keeps the colors it had: frost protection's changed for the new
+    # ones only (#91)
+    for level in levels:
+        level["color"] = FORMER_COLORS.get(level["id"], level["color"])
+    return {**data, "levels": levels, "mappings": {}}
 
 
 def _v2_to_v3(data: dict[str, Any], language: str) -> dict[str, Any]:
@@ -56,13 +59,14 @@ def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
     temperatures = data.pop("preset_temperatures", {})
     schedule_ids = [schedule["id"] for schedule in data["schedules"]]
     preset_ids = [preset["id"] for preset in data["presets"]]
-    data["thermostats"] = {
-        entity_id: model.new_thermostat(
+    data["thermostats"] = {}
+    for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]:
+        thermostat = model.new_thermostat(
             model.complete_weeks(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else None,
             mappings.get(entity_id), temperatures.get(entity_id),
         )
-        for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]
-    }
+        thermostat.pop("hvac_mode")  # added in version 7
+        data["thermostats"][entity_id] = thermostat
     data["renamed"] = {}
     return data
 
@@ -72,7 +76,34 @@ def _v5_to_v6(data: dict[str, Any], language: str) -> dict[str, Any]:
     return {**data, "pending": {}}
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6}
+def _target(command: dict[str, Any]) -> dict[str, Any]:
+    """A command's target from its kind and value (the format before #91)."""
+    return {"preset_mode": command["value"]} if command["kind"] == "preset" else {"temperature": command["value"]}
+
+
+def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """A slot sets more than a preset (#91): what a preset means for a thermostat, an override
+    and a command not applied yet are partial states of the thermostat, as a scene holds them.
+    The values do not change. The weeks do not change either: a slot without settings says
+    no HVAC mode, and is read as engine.slot_hvac_mode says. The HVAC mode a
+    thermostat last heated or cooled in is not known yet."""
+    def without(command: dict[str, Any]) -> dict[str, Any]:
+        return {key: value for key, value in command.items() if key not in ("kind", "value")}
+
+    return {
+        **data,
+        "thermostats": {
+            entity_id: {**t, "mapping": {preset_id: {"preset_mode": v["preset"]} if "preset" in v else v
+                                         for preset_id, v in t["mapping"].items()}, "hvac_mode": None}
+            for entity_id, t in data["thermostats"].items()
+        },
+        "overrides": {entity_id: {"target": _target(o), **without(o)} for entity_id, o in data["overrides"].items()},
+        "pending": {entity_id: [{"target": _target(c), **without(c)} for c in commands]
+                    for entity_id, commands in data["pending"].items()},
+    }
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6, 6: _v6_to_v7}
 
 
 class ChauffageStore(Store[dict[str, Any]]):

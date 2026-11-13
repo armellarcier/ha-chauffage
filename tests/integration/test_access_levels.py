@@ -190,7 +190,7 @@ async def test_a_user_of_the_household_changes_an_override_with_a_service(bench:
     household = MockUser(groups=[await bench.hass.auth.async_get_group(GROUP_ID_USER)]).add_to_hass(bench.hass)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22},
                                          blocking=True, context=Context(user_id=household.id))
-    assert bench.overrides()["climate.salon"]["value"] == 22
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 22}
 
 
 # ----- the panel -----

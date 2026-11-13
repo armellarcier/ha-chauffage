@@ -47,18 +47,22 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         current, _, _ = self.runtime.planned(self.climate)
-        return current if current in self.options else None
+        return current.preset if current and current.preset in self.options else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        current, next_preset, next_start = self.runtime.planned(self.climate)
+        planned = self.runtime.planned_targets(self.climate)
         return {
-            "preset_name": self._name(current),
-            "target": self.runtime.targets_of(self.climate).get(current) if current else None,
-            "next_preset": next_preset,
-            "next_preset_name": self._name(next_preset),
-            "next_start": next_start.isoformat() if next_start else None,
-            "temperatures": self.runtime.preset_temperatures_of(self.climate),
+            "preset_name": self._name(planned["preset"]),
+            # The HVAC mode the slot chooses: off, fan_only, or heat or cool if the thermostat lists it (#91)
+            "hvac_mode": planned["hvac_mode"],
+            "target": planned["target"],
+            "next_preset": planned["next_preset"],
+            "next_preset_name": self._name(planned["next_preset"]),
+            "next_hvac_mode": planned["next_hvac_mode"],
+            "next_start": planned["next_start"],
+            # What each preset gives in the slot's HVAC mode: the cooling values while it cools
+            "temperatures": self.runtime.preset_temperatures_of(self.climate, planned["hvac_mode"] == "cool"),
         }
 
 
@@ -75,4 +79,4 @@ class OverrideEndSensor(ThermostatSensorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         info = self.runtime.override_info(self.climate)
-        return {key: info[key] for key in ("kind", "value", "preset")}
+        return {key: info[key] for key in ("target", "kind", "value", "preset")}

@@ -68,7 +68,7 @@ def test_version_5_keeps_each_thermostat_s_data_together():
     assert set(weeks) == {"normal", "absent"}  # none in "vacances"
     v4 = {**v4, "mappings": {"climate.salon": {"eco": {"temperature": 16.5}}, "climate.bureau": {"eco": {"preset": "eco"}}},
           "preset_temperatures": {"climate.salon": {"eco": 17.0}}}
-    v5 = migrate(v4, 4)
+    v5 = migrate(v4, 4, target=5)
     assert not {"weeks", "mappings", "preset_temperatures"} & set(v5)
     assert v5["thermostats"] == {
         "climate.salon": {"paused": False, "revision": 0, "weeks": {**weeks, "vacances": [[["00:00", "eco"]]] * 7},
@@ -78,3 +78,21 @@ def test_version_5_keeps_each_thermostat_s_data_together():
     }
     assert v5["renamed"] == {} and "cards" not in v5
     assert (v5["overrides"], v5["revision"]) == (v4["overrides"], v4["revision"])
+
+
+def test_version_7_holds_targets_as_partial_states():
+    """A slot sets more than a preset (#91): what a preset means for a thermostat, an override and
+    a command not applied yet become partial states of the thermostat, as a scene holds them.
+    The values do not change."""
+    v6 = fixture(6)["data"]
+    salon = v6["thermostats"]["climate.salon"]
+    v6 = {**v6,
+          "thermostats": {"climate.salon": {**salon, "mapping": {"eco": {"preset": "away"}, "comfort": {"temperature": 19.5}}}},
+          "pending": {"climate.salon": [{"kind": "preset", "value": "comfort", "sent": "2026-10-12T06:30:00+02:00"}]}}
+    v7 = migrate(v6, 6, target=7)
+    assert v7["thermostats"]["climate.salon"]["mapping"] == {"eco": {"preset_mode": "away"}, "comfort": {"temperature": 19.5}}
+    assert v7["overrides"]["climate.salon"] == {
+        "target": {"temperature": 21.5}, "start": "2026-10-12T09:30:00+02:00", "end": "2026-10-12T11:30:00+02:00"}
+    assert v7["pending"]["climate.salon"] == [{"target": {"preset_mode": "comfort"}, "sent": "2026-10-12T06:30:00+02:00"}]
+    assert v7["thermostats"]["climate.salon"]["weeks"] == salon["weeks"]
+    assert v7["thermostats"]["climate.salon"]["hvac_mode"] is None  # the last HVAC mode it was on in: unknown yet

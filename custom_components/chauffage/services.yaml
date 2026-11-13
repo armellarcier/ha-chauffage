@@ -17,6 +17,11 @@ set_override:
         select:
           options: [comfort, eco, boost, frost]
           translation_key: preset
+    hvac_mode:
+      selector:
+        select:
+          options: ["off", heat, cool, heat_cool, auto, dry, fan_only]
+          translation_key: hvac_mode
     duration:
       selector:
         number:

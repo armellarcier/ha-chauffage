@@ -12,6 +12,10 @@ CONF_MANUAL_OVERRIDE_END = "manual_override_end"
 DURATION, NEXT_SLOT_WITHIN_DURATION, NEXT_SLOT = "duration", "next_slot_within_duration", "next_slot"
 MANUAL_OVERRIDE_ENDS = (DURATION, NEXT_SLOT_WITHIN_DURATION, NEXT_SLOT)
 DEFAULT_MANUAL_OVERRIDE_END = DURATION
+# When an off override ends (#91): a thermostat turned off by hand. The same choices; by default
+# until the next slot, however far: off for two hours is rarely what was meant
+CONF_OFF_OVERRIDE_END = "off_override_end"
+DEFAULT_OFF_OVERRIDE_END = NEXT_SLOT
 # Why an override from a change by hand ends then, stored with it: DURATION, NEXT_SLOT, or no slot
 # changes the target for a week (with NEXT_SLOT)
 NO_NEXT_SLOT = "no_next_slot"
@@ -43,7 +47,9 @@ DEFAULT_PRESETS = (
     ("comfort", "#f57c00", 20.0),
     ("eco", "#43a047", 17.0),
     ("boost", "#e53935", 21.0),
-    ("frost", "#29b6f6", 7.0),
+    # A blue grey: its former light blue (#29b6f6) looked like Home Assistant's cyan of fan only.
+    # Only for a new installation: the stored presets keep their colors
+    ("frost", "#78909c", 7.0),
 )
 PRESET_NAMES = {
     "en": {"comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection"},
@@ -68,6 +74,8 @@ SCHEDULED_THERMOSTAT_MODEL = {
 # Events, for automations (data: README, "Events")
 EVENT_OVERRIDE_STARTED = f"{DOMAIN}_override_started"
 EVENT_OVERRIDE_ENDED = f"{DOMAIN}_override_ended"
+# An override that only got a new end: the logbook tells it; "started" stays for a new value
+EVENT_OVERRIDE_END_CHANGED = f"{DOMAIN}_override_end_changed"
 EVENT_SCHEDULE_ACTIVATED = f"{DOMAIN}_schedule_activated"
 
 # The active-schedule select entity (same id whatever the language: automations refer to it)

@@ -3,34 +3,58 @@ Vocabulary: docs/glossary.md.
 
     schedules:       [{"id": "normal", "name": "Normal"}, …]   renaming a schedule keeps its id
     active_schedule: "normal"
-    presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0}, …]
-                     "temperature" is the default for thermostats driven by temperatures
+    presets:         [{"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 20.0,
+                       "cool_color": "#0288d1" (optional)}, …]
+                     "temperature" is the default for thermostats driven by temperatures;
+                     "cool_color" is the color of the preset's cooling slots, when the user chose
+                     one: without it, the card derives a cool shade from "color" (#91)
     thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
                      (docs/decisions.md, "Scheduled thermostats"):
         paused:              True: kept, not controlled
         weeks:               {schedule id: [7 days, Monday first]}, one per schedule once it is
                              scheduled ({}: not scheduled); a day is a list of
-                             [start "HH:MM", preset id] slots, the first one at "00:00"
-        mapping:             {preset id: {"preset": "comfort"} | {"temperature": 20.5}}, what a
-                             preset means for this thermostat, only what was set by hand: the
-                             rest is engine.default_target
-        preset_temperatures: {climate preset: temperature} last seen on the thermostat
+                             [start "HH:MM", preset id] or [start, preset id, settings] slots,
+                             the first one at "00:00". The settings are what the slot sets besides
+                             its preset (#91): its HVAC mode ("hvac_mode"), and the fan and the
+                             vanes of an air conditioner. The slot chooses the HVAC mode: "heat"
+                             or "cool" with a preset (the preset says how warm, for that HVAC
+                             mode), "off" or "fan_only" without one ([start, None,
+                             {"hvac_mode": "off"}]). An off slot sets nothing else; a fan-only
+                             slot may set the fan and the vanes. A slot on a preset that says
+                             no HVAC mode (a week stored before #91) is read as heat on an
+                             air conditioner that heats and cools, as cool on one that only
+                             cools, and carries none on a heater (engine.slot_hvac_mode)
+        mapping:             {preset id: value}, what a preset means for this thermostat, only
+                             what was set by hand: the rest is engine.default_target. A value is
+                             a partial state of the thermostat, as a scene holds it (#91). When
+                             the thermostat heats: {"preset_mode": "comfort"} or
+                             {"temperature": 20.5}, never both. When it cools: an optional
+                             "cool_temperature". Then "fan_mode", "swing_mode" and
+                             "swing_horizontal_mode". No "hvac_mode": the slot chooses it
+        preset_temperatures: {climate preset: temperature} last seen on the thermostat, while it
+                             did not cool
+        cool_preset_temperatures: the same, last seen while it cooled (optional: none before
+                             it cooled on one of its presets)
+        hvac_mode:           the HVAC mode the thermostat last heated or cooled in (None: not
+                             seen on yet): what an off thermostat without heat is turned on in
         revision:            increases on every change of its weeks: a card saves against it, so
                              that two cards cannot overwrite each other's changes
     renamed:         {former climate entity id: current one}: a thermostat renamed in Home
                      Assistant, for the cards whose configuration still holds the former id
-    overrides:       {climate entity id: {"kind": "temperature" | "preset", "value": 21.5 | "boost",
+    overrides:       {climate entity id: {"target": {"temperature": 21.5} | {"preset_mode": "boost"}
+                                                    | {"hvac_mode": "off"} (alone: an off
+                                                    override sets nothing else) | …,
                                           "preset": "comfort" (optional), "start": ISO datetime,
                                           "end": ISO datetime,
                                           "ends_at": "duration" | "next_slot" |
-                                                     "no_next_slot" (optional)}}: kind
-                     and value are what the thermostat is set to; "preset", the Chauffage preset
-                     picked (card, service), which they mean on this thermostat (none for a change
+                                                     "no_next_slot" (optional)}}: the target
+                     is what the thermostat is set to; "preset", the Chauffage preset picked
+                     (card, service), which the target means on this thermostat (none for a change
                      by hand); "ends_at", why a change by hand ends then: after the override
                      duration, at the next slot, or a week later as no slot changes its target
                      (none once its end is chosen on the card, nor before #83: an optional key,
                      no migration)
-    pending:         {climate entity id: [{"kind": "temperature" | "preset", "value": 20.0 | "comfort",
+    pending:         {climate entity id: [{"target": {"temperature": 20.0} | {"preset_mode": "comfort"},
                                            "sent": ISO datetime}, …]}: commands sent that the
                      thermostat does not show yet, oldest first (a battery valve applies them
                      late); dropped once shown, or after a day
@@ -92,8 +116,8 @@ def make_schedules(names: list[str]) -> list[dict[str, str]]:
 
 def plan_schedules(items: Any, current: list[dict[str, str]], active: str) -> tuple[list[dict[str, str]], dict[str, str | None]]:
     """The new ordered list of schedules from the card's list: `{"id"}` keeps a schedule (with
-    `"name"`: renamed), `{"name", "copy_of"?}` creates one, a missing id deletes one. Returns
-    the list and the created ids with what they copy (None: empty)."""
+    `"name"`: renamed), `{"name", "copy_of"?}` creates one, a missing id deletes one. Returns the
+    list and the created ids with what they copy (None: empty)."""
     if not isinstance(items, list) or not items:
         raise InvalidData("at least one schedule is needed")
     names = {s["id"]: s["name"] for s in current}
@@ -141,14 +165,14 @@ def default_presets(language: str, extra: list[str] | None = None) -> list[dict[
 
 
 def used_presets(weeks: dict[str, Any]) -> list[str]:
-    """Preset ids used in the weeks, in order of appearance."""
+    """Preset ids used in the weeks, in order of appearance (an off or a fan-only slot has none)."""
     seen: list[str] = []
     for by_schedule in weeks.values():
         for week in by_schedule.values():
             for day in week:
-                for _, preset in day:
-                    if preset not in seen:
-                        seen.append(preset)
+                for slot in day:
+                    if slot[1] is not None and slot[1] not in seen:
+                        seen.append(slot[1])
     return seen
 
 
@@ -156,7 +180,7 @@ def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] 
                    preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
     """A scheduled thermostat, active."""
     return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
-            "preset_temperatures": preset_temperatures or {}, "revision": 0}
+            "preset_temperatures": preset_temperatures or {}, "hvac_mode": None, "revision": 0}
 
 
 def empty_week(preset_ids: list[str]) -> list[list[list[str]]]:
@@ -229,49 +253,137 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
     except (TypeError, ValueError) as err:
         raise InvalidData("invalid temperature") from err
     preset_id = preset.get("id") or unique_id(name, taken_ids)
-    return {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
-
-
-def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
-    """{preset id: {"preset": climate preset} | {"temperature": …}} set by hand for one thermostat."""
-    if not isinstance(mapping, dict):
-        raise InvalidData("a mapping must be a dictionary")
-    out: dict[str, dict[str, Any]] = {}
-    for preset_id, target in mapping.items():
-        if preset_id not in preset_ids:
-            raise InvalidData(f"unknown preset: {preset_id}")
-        if isinstance(target, dict) and isinstance(target.get("preset"), str) and target["preset"]:
-            out[preset_id] = {"preset": target["preset"]}
-        elif isinstance(target, dict) and "temperature" in target:
-            try:
-                out[preset_id] = {"temperature": float(target["temperature"])}
-            except (TypeError, ValueError) as err:
-                raise InvalidData("invalid temperature") from err
-        else:
-            raise InvalidData(f"{preset_id}: a climate preset or a temperature is needed")
+    out = {"id": str(preset_id), "name": name, "color": color.lower(), "temperature": temperature}
+    # The color of its cooling slots, when the user chose one (else the card derives it, #91)
+    cool_color = preset.get("cool_color")
+    if cool_color is not None:
+        if not COLOR.match(str(cool_color)):
+            raise InvalidData(f"invalid color: {cool_color}")
+        out["cool_color"] = str(cool_color).lower()
     return out
 
 
-def normalize_day(slots: Any) -> list[list[str]]:
-    """Sorted slots, first one at 00:00, duplicates and consecutive identical presets merged
-    (same rules as the card). Invalid slots are dropped; an empty day is eco all day."""
+# The fan and the vanes of an air conditioner (#91)
+AIR_KEYS = {"fan_mode": str, "swing_mode": str, "swing_horizontal_mode": str}
+# The attributes a slot's settings may set: everything but the setpoint, which its preset gives
+# (its HVAC mode, then the fan and the vanes of an air conditioner, #91)
+SETTING_KEYS = {"hvac_mode": str, **AIR_KEYS}
+# The HVAC modes a slot may choose. With a preset: heat or cool. Without one: off or fan only
+OFF, FAN_ONLY = "off", "fan_only"
+SLOT_HVAC_MODES = ("heat", "cool", OFF, FAN_ONLY)
+# The climate attributes a preset's value on a thermostat may set, and how their values are
+# read. "preset_mode" or "temperature" is its value when the thermostat heats.
+# "cool_temperature" is its setpoint when the thermostat cools: sent as the temperature in cool,
+# see engine.complete
+VALUE_KEYS = {"preset_mode": str, "temperature": float, "cool_temperature": float, **AIR_KEYS}
+# The climate attributes the target of an override or of a command may set: an override also
+# sets the HVAC mode (a thermostat turned off by hand, chauffage.set_override)
+TARGET_KEYS = {**VALUE_KEYS, "hvac_mode": str}
+
+
+def _normalize_attributes(attributes: Any, keys: dict[str, type], what: str) -> dict[str, Any]:
+    if not isinstance(attributes, dict):
+        raise InvalidData(f"{what} must be a dictionary")
+    unknown = set(attributes) - set(keys)
+    if unknown:
+        raise InvalidData(f"unknown attributes in {what}: {sorted(unknown)}")
+    out: dict[str, Any] = {}
+    for key, read in keys.items():
+        if key not in attributes:
+            continue
+        try:
+            value = read(attributes[key])
+        except (TypeError, ValueError) as err:
+            raise InvalidData(f"invalid {key}") from err
+        if read is str and not value:
+            raise InvalidData(f"invalid {key}")
+        out[key] = value
+    return out
+
+
+def normalize_target(target: Any) -> dict[str, Any]:
+    """A validated target of an override or a command: a partial state of the thermostat with at
+    least one known attribute (TARGET_KEYS). No rule between the attributes: a change by hand
+    may write a preset and a temperature at once, and the thermostat decides what to do with
+    both (docs/decisions.md, "Presets")."""
+    out = _normalize_attributes(target, TARGET_KEYS, "a target")
+    if not out:
+        raise InvalidData("a target needs a climate preset, a temperature or an HVAC mode")
+    return out
+
+
+def normalize_settings(settings: Any) -> dict[str, Any]:
+    """A slot's validated settings (SETTING_KEYS), possibly empty. Its HVAC mode is heat, cool,
+    off or fan only. An off slot sets nothing else: the fan and the vanes mean nothing while the
+    thermostat is off."""
+    out = _normalize_attributes(settings, SETTING_KEYS, "the settings of a slot")
+    mode = out.get("hvac_mode")
+    if mode is not None and mode not in SLOT_HVAC_MODES:
+        raise InvalidData(f"a slot's HVAC mode is heat, cool, off or fan_only: {mode!r}")
+    return {"hvac_mode": OFF} if mode == OFF else out
+
+
+def normalize_value(value: Any) -> dict[str, Any]:
+    """A validated value of a preset on a thermostat (VALUE_KEYS): one of its climate presets or
+    a temperature, not both (when it heats), with an optional cooling setpoint (when it cools),
+    fan and vanes. No HVAC mode: the slot chooses it."""
+    out = _normalize_attributes(value, VALUE_KEYS, "the value of a preset")
+    if not out:
+        raise InvalidData("the value of a preset needs a climate preset or a temperature")
+    if "preset_mode" in out and "temperature" in out:
+        raise InvalidData("the value of a preset is a climate preset or a temperature, not both")
+    return out
+
+
+def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
+    """{preset id: value} set by hand for one thermostat."""
+    if not isinstance(mapping, dict):
+        raise InvalidData("a mapping must be a dictionary")
+    out: dict[str, dict[str, Any]] = {}
+    for preset_id, value in mapping.items():
+        if preset_id not in preset_ids:
+            raise InvalidData(f"unknown preset: {preset_id}")
+        try:
+            out[preset_id] = normalize_value(value)
+        except InvalidData as err:
+            raise InvalidData(f"{preset_id}: {err}") from err
+    return out
+
+
+def normalize_day(slots: Any) -> list[list[Any]]:
+    """Sorted slots, first one at 00:00, duplicates and consecutive identical slots (same
+    preset, same settings) merged (same rules as the card). A slot is [start, preset] or
+    [start, preset, settings] (#91); empty settings are left out. An off slot and a fan-only
+    slot have no preset (None): two off slots in a row are one, and two fan-only slots too when
+    their fan and vanes are the same. Invalid slots are dropped, invalid settings refused; an
+    empty day is eco all day."""
     if not isinstance(slots, list):
         return [list(s) for s in DEFAULT_DAY]
-    by_start: dict[str, str] = {}
+    by_start: dict[str, tuple[str | None, dict[str, Any]]] = {}
     for slot in slots:
         if isinstance(slot, str):  # package format: "HH:MM preset"
             slot = slot.split()
-        if not isinstance(slot, (list, tuple)) or len(slot) != 2:
+        if not isinstance(slot, (list, tuple)) or len(slot) not in (2, 3):
             continue
-        start, preset = str(slot[0]), str(slot[1]).strip()
+        start = str(slot[0])
+        settings = normalize_settings(slot[2]) if len(slot) == 3 else {}
+        if settings.get("hvac_mode") in (OFF, FAN_ONLY):
+            preset = None  # the user does not choose one: nothing to send
+        else:
+            preset = str(slot[1]).strip() if slot[1] is not None else ""
+            if not preset:
+                continue
         if len(start) == 4:  # "6:30"
             start = "0" + start
-        if HHMM.match(start) and preset:
-            by_start[start] = preset  # the last one wins
-    day: list[list[str]] = []
+        if HHMM.match(start):
+            by_start[start] = (preset, settings)  # the last one wins
+    day: list[list[Any]] = []
+    previous = None
     for start in sorted(by_start):
-        if not day or day[-1][1] != by_start[start]:
-            day.append([start, by_start[start]])
+        preset, settings = by_start[start]
+        if (preset, settings) != previous:
+            day.append([start, preset, settings] if settings else [start, preset])
+        previous = (preset, settings)
     if not day:
         return [list(s) for s in DEFAULT_DAY]
     day[0][0] = "00:00"
@@ -308,18 +420,13 @@ def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | N
 def normalize_override(override: Any) -> dict[str, Any]:
     if not isinstance(override, dict):
         raise InvalidData("an override must be a dictionary")
-    kind = override.get("kind")
-    if kind not in ("temperature", "preset"):
-        raise InvalidData("kind must be temperature or preset")
-    value = override.get("value")
-    try:
-        value = float(value) if kind == "temperature" else str(value)
-    except (TypeError, ValueError) as err:
-        raise InvalidData("invalid override value") from err
+    target = normalize_target(override.get("target"))
+    if target.get("hvac_mode") == OFF:
+        target = {"hvac_mode": OFF}  # an off override sets nothing else: no setpoint is sent
     start, end = override.get("start"), override.get("end")
     if not isinstance(start, str) or not isinstance(end, str):
         raise InvalidData("start and end must be ISO datetimes")
-    out = {"kind": kind, "value": value, "start": start, "end": end}
+    out = {"target": target, "start": start, "end": end}
     preset = override.get("preset")
     if isinstance(preset, str) and preset:
         out["preset"] = preset

@@ -24,7 +24,7 @@ docker compose -f dev/compose.yaml up -d          # http://localhost:8124
 ```
 
 Open <http://localhost:8124/chauffage-dev> and log in with **`dev` / `dev`**. The *Chauffage*
-dashboard, in the sidebar, shows the card with five thermostats.
+dashboard, in the sidebar, shows the card with ten thermostats.
 
 ### What the development HA holds
 
@@ -35,16 +35,39 @@ schedules.
 The repository is **mounted live**. Your changes to `custom_components/chauffage/` reach the
 development HA without a copy.
 
-`dev/hass/packages/simulation.yaml` creates five simulated rooms. Each room has a heater
+`dev/hass/packages/simulation.yaml` creates ten simulated rooms. Each room has a heater
 (`input_boolean.radiateur_*`) and a temperature sensor (`sensor.temperature_*`). The sensor
-reports the temperature every minute, to 0.1 °C, like a real sensor. The rooms cover **every
-kind of thermostat**:
+reports the temperature every minute, to 0.1 °C, like a real sensor. A room with an air
+conditioner also has a cooler (`input_boolean.clim_*`): the cooler cools the room while the air
+conditioner cools. The rooms cover **every kind of thermostat**:
 
 | Rooms | Thermostat |
 |---|---|
 | salon, bureau, chambre | **Versatile Thermostat**, "over a switch", with presets at 7 / 17 / 20 / 22 °C. A manual setpoint sets the preset to `none`. |
 | cuisine | Home Assistant's **`generic_thermostat`**, without presets, declared in YAML. |
 | chambre d'amis | **Standard presets** (`eco`, `comfort`, `away`, `boost`, no `frost`), from the dev-only platform [`dev/sim_climate/`](dev/sim_climate/climate.py). A manual setpoint clears the preset. |
+| véranda | **Versatile Thermostat**, "over a climate", with **auto start/stop**. The climate under it, `climate.clim_veranda`, comes from `dev/sim_climate/` and is not scheduled. |
+| atelier | A **reversible air conditioner** from `dev/sim_climate/`: standard presets, `heat`, `cool` and `fan_only`, with `fan_modes`, `swing_modes` and `swing_horizontal_modes` (the values of #61). In `cool`, `input_boolean.clim_atelier` cools the room. |
+| mezzanine | **Versatile Thermostat**, "over a climate", in **AC mode**: `heat`, `cool` and `off`. In `cool`, its presets are at 27 / 25 / 23 °C (`eco`, `comfort`, `boost`). The climate under it, `climate.clim_mezzanine`, comes from `dev/sim_climate/` and is not scheduled. |
+| combles | A **cooling-only air conditioner** from `dev/sim_climate/`: `cool`, `fan_only` and `off`, with `fan_modes` and standard presets at cooling setpoints. The room has no heater. |
+| suite parentale | A **reversible Daikin**, simulated from what Home Assistant's `daikin` integration exposes: `heat`, `cool`, `heat_cool`, `dry` and `fan_only`, the presets `none`, `away`, `eco` and `boost`, with `fan_modes` and `swing_modes`. A preset does not change the setpoint. |
+
+The sample weeks of the mezzanine, the combles and the suite parentale show what a slot can
+choose: a slot that cools, a fan-only slot and an off slot. On the suite parentale, *Comfort*
+and *Eco* have a temperature when heating and another one when cooling.
+
+Two Versatile Thermostats also watch a **window**, an `input_boolean` you turn on to open it:
+
+| Window | What the VTherm does while the window is open |
+|---|---|
+| `input_boolean.fenetre_bureau` | It keeps its preset and sets the frost setpoint. |
+| `input_boolean.fenetre_chambre` | It turns off. |
+
+To try auto start/stop, set `input_number.temperature_veranda` to 28 °C: the veranda turns off
+within a minute. Set the slider to 12 °C: the veranda turns back on after about 7 minutes.
+
+These VTherm features change the thermostat by themselves. They only exist on a new
+development HA: an existing one keeps its Versatile Thermostats as they are.
 
 The dev-only integration [`dev/sim_rooms/`](dev/sim_rooms/model.py) gives the rooms a realistic
 thermal model. The radiator, the air, the walls and the sensor each have their own inertia. A

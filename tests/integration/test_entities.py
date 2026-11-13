@@ -110,7 +110,8 @@ async def test_the_override_sensor_is_on_while_the_thermostat_has_an_override(be
     await bench.manual_setpoint("climate.salon", 21.5)
     state = bench.hass.states.get("binary_sensor.salon_override")
     assert state.state == "on"
-    assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)
+    assert state.attributes["target"] == {"temperature": 21.5}
+    assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)  # as before #91
     assert state.attributes["end"] == "2026-10-12T12:00:00+02:00"
     await bench.go_to("12:00")
     assert bench.hass.states.get("binary_sensor.salon_override").state == "off"
@@ -125,7 +126,7 @@ async def test_the_override_sensor_is_on_while_the_thermostat_has_an_override(be
 async def test_the_override_sensor_gives_the_end_in_local_time_whoever_set_it(bench: Bench):
     """The card sends its ends in UTC: automations read the same format from every source."""
     await start(bench)
-    await bench.set_override("climate.salon", {"kind": "temperature", "value": 21, "start": "2026-10-12T08:00:00Z",
+    await bench.set_override("climate.salon", {"target": {"temperature": 21}, "start": "2026-10-12T08:00:00Z",
                                                "end": "2026-10-12T10:00:00.250Z"})
     end = bench.hass.states.get("binary_sensor.salon_override").attributes["end"]
     assert end == "2026-10-12T12:00:00.250000+02:00"

@@ -11,13 +11,14 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
 from . import engine
-from .const import DOMAIN, EVENT_OVERRIDE_ENDED, EVENT_OVERRIDE_STARTED, EVENT_SCHEDULE_ACTIVATED
+from .const import DOMAIN, EVENT_OVERRIDE_END_CHANGED, EVENT_OVERRIDE_ENDED, EVENT_OVERRIDE_STARTED, EVENT_SCHEDULE_ACTIVATED
 
 # Home Assistant does not translate logbook descriptions: in its language, English otherwise
 TEXTS = {
     "en": {
         "started": "override started: {value} until {end} ({source})",
         "ended": "override ended ({reason})",
+        "end_changed": "override until {end} ({source})",
         "activated": "schedule activated: {schedule} ({source})",
         "decimal": ".",
         "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -38,10 +39,19 @@ TEXTS = {
             "no_next_slot": "override ended after a week, no slot ahead",
         },
         "hours": "{h} h", "hours_minutes": "{h} h {mm}", "minutes": "{m} min",
+        # The HVAC mode an override sets (#91), as Home Assistant names them
+        "hvac_modes": {
+            "off": "off", "heat": "heat", "cool": "cool", "heat_cool": "heat/cool", "auto": "auto", "dry": "dry",
+            "fan_only": "fan only",
+        },
+        # A cooling setpoint, the fan and the vanes an override sets (#91, lot 3)
+        "cooling": "{value} when cooling",
+        "settings": {"fan_mode": "fan {value}", "swing_mode": "vanes {value}", "swing_horizontal_mode": "horizontal vanes {value}"},
     },
     "fr": {
         "started": "dérogation : {value} jusqu'à {end} ({source})",
         "ended": "dérogation terminée ({reason})",
+        "end_changed": "dérogation jusqu'à {end} ({source})",
         "activated": "planning activé : {schedule} ({source})",
         "decimal": ",",
         "days": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
@@ -61,6 +71,12 @@ TEXTS = {
             "no_next_slot": "dérogation terminée au bout d'une semaine, aucun créneau prévu",
         },
         "hours": "{h} h", "hours_minutes": "{h} h {mm}", "minutes": "{m} min",
+        "hvac_modes": {
+            "off": "arrêt", "heat": "chauffage", "cool": "climatisation", "heat_cool": "chauffage/climatisation",
+            "auto": "auto", "dry": "déshumidification", "fan_only": "ventilation",
+        },
+        "cooling": "{value} en climatisation",
+        "settings": {"fan_mode": "ventilation {value}", "swing_mode": "volets {value}", "swing_horizontal_mode": "volets horizontaux {value}"},
     },
 }
 
@@ -80,15 +96,34 @@ def async_describe_events(
         state = hass.states.get(entity_id) if entity_id else None
         return state.name if state else default
 
+    def degrees(value: Any) -> str:
+        """21 °C, not 21.0 °C; 21,5 °C in French."""
+        number = f"{round(float(value), 1):g}".replace(".", texts()["decimal"])
+        return f"{number} {hass.config.units.temperature_unit}"
+
     def value(data: dict[str, Any]) -> str:
+        """The override's value: its HVAC mode if it sets one, then the Chauffage preset's name,
+        else what its target holds (a setpoint, a cooling setpoint), then the fan and the vanes.
+        An event recorded before #91 holds a kind and a value instead of a target."""
         preset = (runtime().presets_by_id if runtime() else {}).get(data.get("preset"))
+        target = data.get("target")
+        if not isinstance(target, dict):
+            key = "temperature" if data.get("kind") == "temperature" else "preset_mode"
+            target = {key: data.get("value")}
+        t = texts()
+        parts = []
+        if "hvac_mode" in target:  # off, or the HVAC mode the thermostat was turned on in (#91)
+            parts.append(t["hvac_modes"].get(target["hvac_mode"], str(target["hvac_mode"])))
         if preset:
-            return preset["name"]
-        if data.get("kind") == "temperature":
-            # 21 °C, not 21.0 °C; 21,5 °C in French
-            number = f"{round(float(data.get('value')), 1):g}".replace(".", texts()["decimal"])
-            return f"{number} {hass.config.units.temperature_unit}"
-        return str(data.get("value"))
+            parts.append(preset["name"])
+        elif "temperature" in target:
+            parts.append(degrees(target["temperature"]))
+        elif "preset_mode" in target:
+            parts.append(str(target["preset_mode"]))
+        elif "cool_temperature" in target:
+            parts.append(t["cooling"].format(value=degrees(target["cool_temperature"])))
+        parts.extend(text.format(value=target[key]) for key, text in t["settings"].items() if key in target)
+        return ", ".join(parts)
 
     def until(end: Any) -> str:
         """The end's day and time: the same line whatever the day it is read."""
@@ -130,6 +165,13 @@ def async_describe_events(
         return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
 
     @callback
+    def end_changed(event: Event) -> dict[str, Any]:
+        data, t = event.data, texts()
+        message = t["end_changed"].format(end=until(engine.parse_datetime(data.get("end"))),
+                                          source=t["sources"].get(data.get("source"), data.get("source")))
+        return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
+
+    @callback
     def activated(event: Event) -> dict[str, Any]:
         # On the select, next to its change ("Schedule → Away"); older events have no entity_id
         data, t = event.data, texts()
@@ -143,4 +185,5 @@ def async_describe_events(
 
     async_describe_event(DOMAIN, EVENT_OVERRIDE_STARTED, started)
     async_describe_event(DOMAIN, EVENT_OVERRIDE_ENDED, ended)
+    async_describe_event(DOMAIN, EVENT_OVERRIDE_END_CHANGED, end_changed)
     async_describe_event(DOMAIN, EVENT_SCHEDULE_ACTIVATED, activated)

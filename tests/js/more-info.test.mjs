@@ -12,7 +12,7 @@ function block(hass, entity) {
 }
 const text = (el) => el.shadowRoot.textContent.replace(/\s+/g, ' ');
 const planned = (preset, next, start) => ({ preset, next_preset: next, next_start: start });
-const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+const override = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
 // The next slot a change made now would end at, as the integration publishes it (#83)
 const nextSlot = (end) => ({ planned: { 'climate.salon': { ...planned('eco', 'comfort', '2026-10-12T17:30:00+02:00'), next_slot_end: end } } });
 
@@ -239,24 +239,24 @@ describe('more-info block', () => {
     el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
     const msg = hass.events.at(-1);
     assert.equal(msg.type, 'chauffage/override/set');
-    assert.deepEqual(msg.override, { ...override, kind: 'temperature', value: 20, preset: 'comfort' });
+    assert.deepEqual(msg.override, { ...override, target: { temperature: 20 }, preset: 'comfort' });
   });
 
   test('an override set to a preset shows that preset, on a thermostat without presets', () => {
-    const el = block(withTargets({ 'climate.salon': { ...override, value: 20, preset: 'comfort' } }), 'climate.salon');
+    const el = block(withTargets({ 'climate.salon': { ...override, target: { temperature: 20 }, preset: 'comfort' } }), 'climate.salon');
     assert.equal(el.shadowRoot.querySelector('.override-value').textContent, '⏱ Confort');
     assert.ok(el.shadowRoot.querySelector('.presets [data-preset="comfort"]').classList.contains('on'));
   });
 
   test('an override set to a preset deleted since shows the thermostat\'s own preset', () => {
-    const data = integrationData({ overrides: { 'climate.salon': { ...override, kind: 'preset', value: 'eco', preset: 'nuit' } } });
-    data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { preset: 'eco' } } };
+    const data = integrationData({ overrides: { 'climate.salon': { ...override, target: { preset_mode: 'eco' }, preset: 'nuit' } } });
+    data.targets = { 'climate.salon': { comfort: { temperature: 20 }, eco: { preset_mode: 'eco' } } };
     const el = block(fakeHass({ data }), 'climate.salon');
     assert.ok(el.shadowRoot.querySelector('.presets [data-preset="eco"]').classList.contains('on'));
   });
 
   test('an override at a preset\'s temperature does not show that preset', () => {
-    const el = block(withTargets({ 'climate.salon': { ...override, value: 20 } }), 'climate.salon');
+    const el = block(withTargets({ 'climate.salon': { ...override, target: { temperature: 20 } } }), 'climate.salon');
     assert.equal(el.shadowRoot.querySelector('.override-value').textContent, '⏱ 20 °C');
     assert.equal(el.shadowRoot.querySelector('.presets .on'), null);
   });
@@ -265,10 +265,10 @@ describe('more-info block', () => {
     const hass = withTargets();
     const el = block(hass, 'climate.salon');
     const input = el.shadowRoot.querySelector('input[data-override-temperature]');
-    assert.equal(input.value, '21.5');
+    assert.equal(input.value, '21,5'); // the user's number format
     input.value = '22';
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    assert.deepEqual(hass.events.at(-1).override, { ...override, kind: 'temperature', value: 22 });
+    assert.deepEqual(hass.events.at(-1).override, { ...override, target: { temperature: 22 } });
   });
 
   test('a temperature being typed survives an update of the thermostat', () => {
@@ -297,7 +297,7 @@ describe('more-info block', () => {
     el.shadowRoot.querySelector('.presets [data-preset="comfort"]').click();
     const msg = hass.events.at(-1);
     assert.equal(msg.type, 'chauffage/override/set');
-    assert.deepEqual(msg.override, { kind: 'temperature', value: 20, preset: 'comfort', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+    assert.deepEqual(msg.override, { target: { temperature: 20 }, preset: 'comfort', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
   });
 
   test('without an override, a temperature typed creates one', () => {
@@ -307,7 +307,7 @@ describe('more-info block', () => {
     const input = el.shadowRoot.querySelector('input[data-override-temperature]');
     input.value = '22';
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    assert.deepEqual(hass.events.at(-1).override, { kind: 'temperature', value: 22, start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
+    assert.deepEqual(hass.events.at(-1).override, { target: { temperature: 22 }, start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T10:00:00.000Z' });
   });
 
   test('an override ended elsewhere is no longer shown, even while a field has the focus', () => {
@@ -337,7 +337,7 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
   test('holds Edit its week and Pause only: the device\'s page lists the thermostat\'s entities', () => {
     const el = block(fakeHass(), 'climate.salon');
     assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent),
-      ['Modifier sa semaine', 'Mettre en pause']);
+      ['Modifier sa semaine', 'Suspendre le pilotage']);
     assert.equal(foot(el).querySelector('[data-more-info], [data-device]'), null);
   });
 
@@ -364,55 +364,6 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
     const hass = fakeHass();
     hass.user = { is_admin: false };
     const el = block(hass, 'climate.salon');
-    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent), ['Mettre en pause']);
-  });
-});
-
-describe('an override on a thermostat turned off', () => {
-  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
-  afterEach(() => { mock.timers.reset(); cleanup(); });
-  const off = (hass) => { hass.states['climate.salon'] = { ...hass.states['climate.salon'], state: 'off' }; return hass; };
-  const note = (root) => root.querySelector('.off-note');
-  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
-
-  test('the block warns that Chauffage applies it once the thermostat is on again, with no button', () => {
-    const el = block(off(fakeHass({ overrides: { 'climate.salon': override } })), 'climate.salon');
-    assert.match(note(el.shadowRoot).textContent, /Salon est éteint : Chauffage lui appliquera la dérogation quand il sera rallumé\./);
-    assert.equal(note(el.shadowRoot).getAttribute('role'), 'status');
-    assert.equal(note(el.shadowRoot).querySelector('button'), null);
-  });
-
-  test('the block warns too while an override is being set', () => {
-    const el = block(off(fakeHass()), 'climate.salon');
-    assert.equal(note(el.shadowRoot), null);
-    el.shadowRoot.querySelector('[data-new-override]').click();
-    assert.ok(note(el.shadowRoot));
-  });
-
-  test('the card\'s override editor warns', () => {
-    const card = createCard(off(fakeHass({ overrides: { 'climate.salon': override } })));
-    card._overrideSel = { climate: 'climate.salon' };
-    card._render();
-    assert.match(note(card.shadowRoot).textContent, /Salon est éteint/);
-  });
-
-  test('no warning on a thermostat that heats', () => {
-    const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
-    assert.equal(note(el.shadowRoot), null);
-  });
-
-  test('no warning on a VTherm turned off: Chauffage sends it the override at once, and VTherm keeps it (#74)', () => {
-    const hass = off(fakeHass({ overrides: { 'climate.salon': override } }));
-    hass.entities['climate.salon'] = { ...hass.entities['climate.salon'], platform: 'versatile_thermostat' };
-    const el = block(hass, 'climate.salon');
-    assert.equal(note(el.shadowRoot), null);
-  });
-
-  test('a VTherm is recognized by its integration, not by its attributes', () => {
-    const hass = off(fakeHass({ overrides: { 'climate.salon': override } }));
-    const st = hass.states['climate.salon'];
-    hass.states['climate.salon'] = { ...st, attributes: { ...st.attributes, hvac_off_reason: 'hvac_off_manual' } };
-    const el = block(hass, 'climate.salon');
-    assert.ok(note(el.shadowRoot));
+    assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent), ['Suspendre le pilotage']);
   });
 });

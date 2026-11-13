@@ -284,7 +284,7 @@ describe('choosing the displayed thermostats', () => {
   });
 
   test('a chip only names its thermostat, with a mark when it has a temporary setpoint (#39)', () => {
-    const override = { kind: 'preset', value: 'boost', preset: 'boost', start: new Date(Date.now() - 600000).toISOString(), end: new Date(Date.now() + 3600000).toISOString() };
+    const override = { target: { preset_mode: 'boost' }, preset: 'boost', start: new Date(Date.now() - 600000).toISOString(), end: new Date(Date.now() + 3600000).toISOString() };
     const card = createCard(fakeHass({ overrides: { 'climate.bureau': override } }));
     const text = (id) => chip(card, id).textContent.replace(/\s+/g, ' ').trim();
     assert.equal(text('climate.salon'), 'Salon'); // no temperature nor preset: the "Now" view says it
@@ -352,7 +352,7 @@ describe('overrides from the card', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
 
-  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+  const override = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
 
   test('the override is shown on today’s row, in the active schedule tab', () => {
     const card = createCard(fakeHass({ overrides: { 'climate.salon': override } }));

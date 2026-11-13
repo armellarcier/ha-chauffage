@@ -100,7 +100,7 @@ name: Salon  # facultatif
 
 La carte montre la température mesurée et ce que fait le thermostat, par exemple
 « Normal · Éco jusqu'à 17:30, puis Confort », ainsi que les créneaux du jour. Depuis la carte,
-vous pouvez créer une dérogation et mettre le thermostat en pause. La carte ouvre aussi le
+vous pouvez créer une dérogation et suspendre le pilotage du thermostat. La carte ouvre aussi le
 thermostat et son planning. Les administrateurs ouvrent la page du thermostat dans le panneau
 Chauffage.
 
@@ -123,7 +123,7 @@ barre latérale* (voir [Options](#options)).
 Le panneau a trois onglets :
 
 - **Thermostats.** Tous les thermostats programmés, et les cartes qui les affichent. Le menu ⋮
-  d'un thermostat le met en pause ou l'oublie. Vous pouvez aussi en programmer un autre. Avant
+  d'un thermostat suspend son pilotage ou l'oublie. Vous pouvez aussi en programmer un autre. Avant
   votre premier thermostat, cet onglet vous accueille : cochez les thermostats que Chauffage
   pilote, puis *Programmer*.
 - **Plannings.** La liste des plannings, avec le planning actif signalé. La ligne d'un planning
@@ -193,6 +193,9 @@ Lisez le [journal des modifications](CHANGELOG.md) (en anglais), puis mettez ha-
 depuis HACS. Chauffage migre vos données automatiquement. Le retour à une version antérieure
 n'est pas pris en charge.
 
+Depuis la version 0.10, un thermostat éteint à la main se rallume à la fin de sa dérogation :
+lisez [Éteindre un thermostat à la main](#éteindre-un-thermostat-à-la-main).
+
 ## Mise à jour depuis le package (v0.1)
 
 La version 0.1 d'ha-chauffage était un package YAML. L'intégration importe les données du
@@ -222,6 +225,10 @@ contient une **semaine** pour chaque thermostat. Une semaine se compose de **cr�
 chaque créneau demande un **préréglage**, par exemple *Confort* ou *Éco*. Le
 [glossaire](docs/glossary.md) (en anglais) définit ces mots.
 
+**Qui décide quoi.** Un créneau dit quand, et ce que la pièce reçoit : *Arrêt*, *Ventilation*,
+ou un préréglage. Sur une climatisation, le créneau choisit aussi le mode HVAC, *Chauffage* ou
+*Clim*. Le préréglage dit à quelle température, pour chaque thermostat, en chauffe et en clim.
+
 ### Créer un planning
 
 Une nouvelle installation démarre avec un seul planning, *Normal*. Dans la carte, **+** crée un
@@ -232,6 +239,78 @@ planning, ouvrez son onglet et utilisez **⋮**. Qui peut modifier les plannings
 Chaque planning a un **identifiant stable**, affiché dans *Renommer…*. L'identifiant stable ne
 change jamais, même si vous renommez le planning. Utilisez l'identifiant stable dans vos
 automatisations.
+
+### Éteindre un thermostat depuis un créneau
+
+Un créneau est un préréglage, ou *Arrêt*. Ouvrez le créneau, puis touchez **Arrêt**, la
+première pastille de la ligne des préréglages. Le créneau devient gris, nommé *Arrêt*. Touchez
+un préréglage pour laisser le thermostat fonctionner.
+
+Le thermostat s'éteint au début du créneau. Chauffage ne lui envoie rien d'autre : si vous le
+rallumez à la main, le thermostat repart sur sa dernière consigne. Le prochain créneau qui
+demande un préréglage le rallume.
+
+**Chaque créneau est indépendant.** Une nuit, ce sont deux créneaux : le dernier créneau d'un
+jour, et le premier créneau du lendemain. Pour garder une pièce éteinte toute la nuit, mettez
+les deux à l'arrêt.
+
+**La consigne du créneau.** La fenêtre dit quelle consigne le créneau appliquera sur ce
+thermostat, avec son chiffre : « Consigne : 20 °C (son préréglage *Confort*) ». Un
+administrateur touche la ligne pour ouvrir l'onglet *Préréglages*.
+
+### Chauffer ou climatiser : les climatisations
+
+Sur une climatisation qui chauffe et climatise, chaque créneau sur un préréglage dit
+**Chauffe** ou **Clim**. Ouvrez le créneau : la ligne *Chauffe · Clim* est sous les
+préréglages, et l'un des deux est toujours choisi. La climatisation passe dans ce mode HVAC au
+début du créneau.
+
+- **Un nouveau créneau** prend le mode HVAC du créneau dont il vient. Un créneau ajouté dans un
+  créneau *Arrêt* ou *Ventilation* prend le mode HVAC du créneau d'avant.
+- **Une climatisation qui ne fait que climatiser** n'a pas cette ligne : ses créneaux
+  climatisent toujours.
+- **Un radiateur** n'a pas cette ligne non plus : ses créneaux ne portent pas de mode HVAC.
+- **Toute une semaine.** Ouvrez le menu ⋮ d'un jour du thermostat, puis touchez *Tout en
+  chauffe* ou *Tout en clim*. Tous les créneaux de la semaine du thermostat, dans le planning
+  affiché, prennent ce mode HVAC. *Enregistrer* garde le changement. Dans le panneau Chauffage,
+  le menu ⋮ d'une semaine propose la même chose.
+
+**Vos semaines actuelles chauffent.** Une semaine enregistrée avant cette version ne dit aucun
+mode HVAC. Chauffage lit ses créneaux en *Chauffe* sur une climatisation qui chauffe et
+climatise, et en *Clim* sur une climatisation qui ne fait que climatiser. La semaine les
+montre ainsi.
+
+**Les couleurs.** Chaque préréglage a deux couleurs. Un créneau qui climatise est dessiné dans
+la couleur en clim du préréglage, avec un flocon. Un créneau qui chauffe est dessiné dans sa
+couleur en chauffe, avec une flamme. Chauffage déduit la couleur en clim de la couleur du
+préréglage, et vous pouvez la changer dans l'onglet *Préréglages*. La légende montre les deux
+couleurs, chacune avec son repère, puis les deux valeurs du préréglage sur le thermostat
+affiché : « Confort 20° · ❄ 24° ».
+
+**Quelle température en clim.** Sur une climatisation qui chauffe et climatise, chaque
+préréglage a une valeur *en chauffe* et une température *en clim* (voir
+[Préréglages](#ce-que-fait-un-préréglage-sur-chaque-thermostat)). Le mode HVAC du créneau
+choisit laquelle Chauffage envoie. Sans température en clim, Chauffage envoie le préréglage du
+thermostat quand le préréglage en utilise un. Chauffage n'envoie jamais une température de
+chauffage à une climatisation qui climatise, même à celle qui ne fait que climatiser : le
+créneau dit alors « Consigne inchangée ».
+
+**L'été et l'hiver.** Créez un planning *Été* dont les créneaux disent *Clim*, en copiant votre
+planning *Hiver*. Pour changer de saison, activez l'autre planning : à la main, depuis une
+automatisation, ou avec une [règle d'activation](#règles-dactivation).
+
+### Ventilation
+
+Sur un thermostat qui a un mode HVAC de ventilation seule, la ligne des préréglages commence
+par **Arrêt**, puis **Ventilation**. Un créneau *Ventilation* fait tourner le ventilateur sans
+chauffer ni climatiser. Ce créneau n'a ni préréglage ni consigne. La semaine le montre dans la
+couleur que Home Assistant donne à la ventilation, avec un ventilateur.
+
+**Ventilateur et volets.** Sur une climatisation, *Plus de réglages* contient la vitesse du
+ventilateur et les volets, une liste par réglage que le thermostat connaît. *Ne pas changer*
+laisse le réglage à la valeur du préréglage, ou au thermostat. La ligne repliée montre les
+valeurs que le créneau fixe, et la semaine montre une marque sur les créneaux qui en fixent
+une. Un créneau *Arrêt* n'en a pas.
 
 ### Changer de planning actif
 
@@ -363,7 +442,21 @@ Les créneaux demandent des préréglages. Chauffage est livré avec quatre pré
 
 Si le thermostat a son propre préréglage du même nom, Chauffage utilise ce préréglage. Sinon,
 Chauffage règle la température du préréglage. Vous pouvez changer ce choix pour chaque
-thermostat : prenez un des préréglages du thermostat, ou une température.
+thermostat : la valeur d'un préréglage sur un thermostat est un des préréglages du thermostat,
+ou une température.
+
+**Une climatisation qui chauffe et climatise** a deux valeurs pour chaque préréglage : une *en
+chauffe*, et une température *en clim*. Par exemple, *Confort* vaut 20 °C quand elle chauffe et
+25 °C quand elle climatise. Le mode HVAC du créneau choisit laquelle Chauffage envoie. Sans
+température en clim, Chauffage envoie le préréglage du thermostat, que le thermostat lit selon
+le mode HVAC où il se trouve. Une température *en chauffe* n'est jamais envoyée à une
+climatisation qui climatise.
+
+La valeur d'un préréglage peut aussi fixer le ventilateur et les volets d'une climatisation.
+
+Un préréglage n'éteint jamais un thermostat, et ne choisit jamais entre chauffage et
+climatisation. Pour éteindre tous les thermostats, créez un planning dont les créneaux sont
+*Arrêt*, par exemple *Absent*.
 
 ### Régler les préréglages dans le panneau Chauffage
 
@@ -373,12 +466,22 @@ et une ligne par thermostat. La page d'un thermostat, dans le panneau, montre se
 sans le tableau.
 
 - **Un en-tête de colonne** ouvre le préréglage : son nom, sa couleur et sa température par
-  défaut. Vous pouvez aussi y supprimer le préréglage. Pour ajouter un préréglage, cliquez sur
+  défaut. Avec une climatisation, le préréglage a une *Couleur en chauffe* et une *Couleur en
+  clim*, pour ses créneaux qui climatisent. Chauffage déduit la seconde de la première tant que
+  vous n'en choisissez pas une. Vous pouvez aussi y supprimer le préréglage. Pour ajouter un préréglage, cliquez sur
   *+ Ajouter un préréglage* sous le tableau.
 - **Une case** ouvre ce que fait le préréglage sur ce thermostat. La case indique d'où vient sa
   température, par exemple « son préréglage *Confort* », « réglé ici » ou « par défaut ». La
-  fenêtre de la case donne un lien vers l'appareil du thermostat, où se règlent les préréglages
-  propres au thermostat.
+  fenêtre pose une question, avec trois réponses : *Par défaut*, *Son préréglage* (un des
+  préréglages du thermostat) ou *Température*. Sur une climatisation qui chauffe et climatise,
+  ces réponses sont la valeur *en chauffe*, et un champ de plus contient la température *en
+  clim*. Laissé vide, le champ dit ce que donne le préréglage du thermostat en clim, quand
+  Chauffage le sait : « Par défaut (son préréglage *Confort*, 25°) ». Une climatisation qui ne
+  fait que climatiser n'a que le champ *en clim*. *Plus de réglages* contient le ventilateur et
+  les volets. *Copier depuis le thermostat*
+  remplit les champs avec l'état du thermostat en ce moment : sa consigne, son ventilateur et
+  ses volets, jamais son préréglage. Vous touchez *OK* pour les garder. La fenêtre donne aussi
+  un lien vers l'appareil du thermostat, où se règlent les préréglages propres au thermostat.
 
 ### La température d'un préréglage propre au thermostat
 
@@ -445,7 +548,7 @@ avant un créneau n'est pas défait aussitôt. Avec *Jusqu'au prochain créneau*
 seul préréglage n'a pas de prochain créneau. Votre changement dure alors une semaine, sauf si
 vous l'arrêtez avant.
 
-Le réglage vaut pour tous les thermostats. Le panneau, les [options](#options) et deux
+Le réglage vaut pour tous les thermostats. Le panneau, les [options](#options) et des
 [entités](#sur-lappareil-chauffage) changent le même réglage. Par exemple, une automatisation
 peut choisir *Jusqu'au prochain créneau* pendant les vacances.
 
@@ -463,25 +566,77 @@ par exemple *Jusqu'à 17:30 (prochain créneau)* : il peut aussi raccourcir la d
 
 - **Sur le thermostat.** Changez la consigne ou le préréglage à la main, avec la molette ou dans
   Home Assistant. Chauffage fait de votre changement une dérogation.
-- **Depuis la carte**, ou depuis la fenêtre de détail du thermostat. Choisissez un préréglage ou
-  une température, et une fin. Tous les utilisateurs le peuvent, pas seulement les
+- **Depuis la carte**, ou depuis la fenêtre de détail du thermostat. Choisissez *Arrêt*, un
+  préréglage ou une température, et une fin. Tous les utilisateurs le peuvent, pas seulement les
   administrateurs, comme avec la molette.
-  Une nouvelle dérogation dure le temps réglé dans les options. Vous pouvez ensuite changer sa
-  fin.
+  Une nouvelle dérogation dure le temps réglé dans les options. *Arrêt* dure jusqu'au prochain
+  créneau, ou ce que dit le réglage *Thermostat éteint*. Vous pouvez ensuite changer sa fin.
+  Sur une climatisation qui chauffe et climatise, le bloc a la ligne *Chauffe · Clim* d'un
+  créneau. Une nouvelle dérogation commence dans le mode HVAC du créneau prévu maintenant.
+  Pour éteindre un thermostat jusqu'au matin, touchez *Arrêt*, puis *Jusqu'à demain 06:30*.
+  Sur un thermostat qui a un mode HVAC de ventilation seule, *Ventilation* est la deuxième
+  pastille.
+  Sur une carte de thermostat, la dérogation s'affiche avec sa fin et *Reprendre le planning*.
+  *Modifier* déplie le reste.
 - **Depuis une automatisation**, avec l'action `chauffage.set_override`.
 
-Un changement fait par une automatisation ne crée pas de dérogation. Une commande qu'une vanne à
-pile applique en retard n'en crée pas non plus.
+Un changement fait par une automatisation ne crée pas de dérogation : un script qui éteint tous
+les thermostats le soir les laisse éteints jusqu'au créneau du matin. Une commande qu'une vanne
+à pile applique en retard n'en crée pas non plus.
 
-**Un thermostat éteint.** Chauffage n'envoie rien à un thermostat éteint, pas même une
-dérogation. Certains thermostats, comme Tado, rallumeraient le chauffage en recevant une
-consigne. Une dérogation posée entre-temps attend. Chauffage l'applique quand vous rallumez le
-thermostat, si la dérogation court encore. La carte et la fenêtre de détail vous préviennent.
+### Éteindre un thermostat à la main
 
-**Un Versatile Thermostat éteint.** Le Versatile Thermostat fait exception. Chauffage continue
-de lui envoyer ses créneaux et sa dérogation, qu'il ait été éteint à la main, par une fenêtre ou
-par son démarrage/arrêt automatique (*auto start/stop*). Versatile Thermostat reste éteint et
-les garde : il redémarre ainsi sur le bon préréglage. La carte n'affiche pas d'avertissement.
+Éteindre un thermostat, avec son bouton ou dans Home Assistant, est un changement comme un
+autre : Chauffage en fait une dérogation, affichée *⏱ Arrêt*. Le thermostat reste éteint
+jusqu'au prochain créneau qui le change, même lointain. Chauffage le rallume alors, sur son
+créneau.
+
+**Combien de temps un thermostat reste éteint.** Dans les réglages, sous *Dérogations*,
+*Thermostat éteint* a les trois mêmes choix que la fin des autres dérogations, dans le même
+ordre.
+*Jusqu'au prochain créneau* est le choix par défaut : quand on éteint un radiateur, c'est
+rarement pour deux heures. Le réglage vaut aussi pour *Arrêt* touché sur la carte, et pour une
+automatisation qui éteint un thermostat sans donner de fin.
+
+Pour le laisser éteint jusqu'au matin, touchez *Jusqu'à demain 06:30* sous la dérogation : le
+bouton donne le prochain matin, le premier créneau de la journée qui change l'état du
+thermostat. Quand ce matin n'est pas demain, le bouton nomme le jour, *Jusqu'à lundi 06:30*. La
+nuit, le matin est celui d'aujourd'hui : le bouton *Jusqu'à 08:00 (prochain créneau)* le donne
+déjà, et l'autre bouton n'apparaît pas. Pour le laisser
+éteint plus longtemps, suspendez son pilotage (*Suspendre le pilotage*), ou donnez-lui un
+planning dont les créneaux sont *Arrêt*.
+
+Pour arrêter la dérogation plus tôt, rallumez le thermostat vous-même, ou touchez *Reprendre le
+planning*. Un préréglage touché, ou une température saisie, dans le bloc de la dérogation
+rallume le thermostat, avec cette valeur. *Arrêt* touché sur une dérogation pendant un créneau
+*Arrêt* reprend le planning.
+
+Une dérogation ne se termine jamais parce qu'un créneau commence. Une dérogation *Arrêt* qui
+rencontre un créneau *Arrêt* continue jusqu'à sa propre fin, et le thermostat reste éteint
+ensuite.
+
+**Un créneau qui éteint un thermostat.** Un créneau peut être *Arrêt*. Le thermostat s'éteint au
+début du créneau. Le prochain créneau qui demande un préréglage le rallume. Sur une
+climatisation, le créneau dit dans quel mode HVAC. Une dérogation que vous posez sur un
+thermostat éteint le rallume : dans le mode HVAC que dit la dérogation, sinon dans celui où le
+thermostat a tourné en dernier. Une climatisation qui climatisait en juillet repart en clim.
+
+**Chauffe ou clim choisi à la main.** Passez une climatisation en *Clim* dans Home Assistant
+pendant un créneau qui chauffe : Chauffage en fait une dérogation. La dérogation garde le
+préréglage en cours : celui du créneau, ou celui de la dérogation que le thermostat avait
+déjà. Chauffage envoie sa valeur en clim. La température *en clim* que vous avez réglée pour ce
+préréglage s'applique donc.
+
+**Un Versatile Thermostat qui s'éteint lui-même.** Un Versatile Thermostat s'éteint de lui-même
+pour une fenêtre ouverte, ou avec son démarrage/arrêt automatique (*auto start/stop*). Chauffage
+lit ce que le thermostat a demandé (`requested_state`) : ce n'est pas une dérogation, et Chauffage
+ne le rallume pas. Versatile Thermostat le fait, quand la fenêtre se ferme. La carte du
+thermostat dit pourquoi, « Fenêtre ouverte » ou « Arrêt auto », avec le préréglage sur lequel
+il redémarre. « Fenêtre ouverte » s'affiche aussi quand la fenêtre le laisse chauffer à sa
+consigne hors-gel. Un Versatile
+Thermostat que vous éteignez à la main est une dérogation, comme tout thermostat. Un Versatile
+Thermostat plus ancien que 10.5, sans `requested_state`, garde l'ancien comportement : Chauffage
+lui envoie ses créneaux et sa dérogation pendant qu'il est éteint, et il reste éteint.
 
 ### Arrêter une dérogation
 
@@ -506,20 +661,20 @@ affichent. Pour oublier un thermostat, ouvrez son menu ⋮, dans la liste ou à 
 sa page, puis *Oublier…*. Si vous supprimez l'entité d'un thermostat de Home Assistant,
 Paramètres → Réparations propose d'oublier le thermostat.
 
-### Mettre un thermostat en pause
+### Suspendre le pilotage d'un thermostat
 
-Pour mettre un thermostat en pause, cliquez sur *Mettre en pause* sous la fenêtre de détail du
-thermostat ou dans le panneau Chauffage. Vous pouvez aussi éteindre l'interrupteur **Pilotage** du
-thermostat.
+Pour suspendre le pilotage d'un thermostat, cliquez sur *Suspendre le pilotage* sous la fenêtre
+de détail du thermostat ou dans le panneau Chauffage. Vous pouvez aussi éteindre l'interrupteur
+**Pilotage** du thermostat.
 
 Chauffage garde les semaines du thermostat, mais ne lui envoie plus de commandes et ne crée plus
-de dérogations. La pause est pratique pour une pièce que vous gérez à la main quelques jours, ou
-à la fin de la saison de chauffe.
+de dérogations. Suspendre le pilotage est pratique pour une pièce que vous gérez à la main
+quelques jours, ou pour un radiateur que vous laissez éteint toute la belle saison.
 
-Pour rendre le thermostat à Chauffage, cliquez sur *Piloter* aux mêmes endroits, ou rallumez
-l'interrupteur **Pilotage**.
+Pour rendre le thermostat à Chauffage, cliquez sur *Reprendre le pilotage* aux mêmes endroits,
+ou rallumez l'interrupteur **Pilotage**.
 
-Tout utilisateur qui peut piloter le thermostat peut le mettre en pause et le rendre, pas seulement
+Tout utilisateur qui peut piloter le thermostat peut suspendre son pilotage et le rendre, pas seulement
 les administrateurs.
 
 ## Entités
@@ -539,9 +694,9 @@ ouvre la page du thermostat dans le panneau Chauffage.
 
 | Entité | Ce qu'elle indique |
 |---|---|
-| **Pilotage** (interrupteur) | Éteint quand le thermostat est **en pause**. |
-| **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat). |
-| **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs : `kind` (`temperature` ou `preset`), `value` (une température, ou le préréglage propre au thermostat), `preset` (le préréglage Chauffage demandé, s'il y en a un), `end`. |
+| **Pilotage** (interrupteur) | Éteint quand le pilotage du thermostat est **suspendu**. |
+| **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. Attributs : `preset_name`, `hvac_mode` (le mode HVAC du créneau : `off`, `fan_only`, ou `heat` ou `cool` quand le thermostat le propose, sinon vide ; l'état est inconnu pendant un créneau *Arrêt* ou *Ventilation*, qui n'ont pas de préréglage), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, et `temperatures` (la température de chaque préréglage sur ce thermostat : sa température en clim pendant un créneau qui climatise). |
+| **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. Attributs : `target` (ce que le thermostat reçoit, par exemple `{"temperature": 21.5}` ou `{"preset_mode": "boost"}`), `preset` (le préréglage Chauffage demandé, s'il y en a un), `end`, et `kind` et `value` comme avant 0.10. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours, sous forme d'horodatage, pour une tuile de tableau de bord. |
 
 Les capteurs sont indisponibles pendant la pause du thermostat.
@@ -556,6 +711,7 @@ identifiant, `sensor.<thermostat>_planning` en français. Chauffage active ce ca
 | **Planning actif** (sélecteur, `select.chauffage_schedule`) | Le planning actif. Choisissez une autre option pour activer un autre planning. Attributs : `schedule_id`, et `rules_choice` (le planning que donnent les règles d'activation, vide sans règles). |
 | **Planning &lt;nom&gt;** (un interrupteur par planning, `switch.chauffage_schedule_<id>`) | Allumé pour le planning actif. Allumez un interrupteur pour activer son planning. Vous ne pouvez pas éteindre le planning actif : allumez-en un autre. La carte affiche l'icône de l'interrupteur sur l'onglet du planning. Pour changer l'icône, ouvrez le menu ⋮ du planning, puis *Changer l'icône…*. |
 | **Fin des dérogations** (sélecteur, `select.chauffage_manual_override_end`) | Combien de temps dure une dérogation : `duration`, `next_slot_within_duration` ou `next_slot` (voir [Choisir combien de temps dure une dérogation](#choisir-combien-de-temps-dure-une-dérogation)). Choisissez une autre option pour changer le réglage. |
+| **Thermostat éteint** (sélecteur, `select.chauffage_off_override_end`) | Combien de temps reste éteint un thermostat éteint à la main, depuis la carte ou par une automatisation qui ne donne pas de fin : `next_slot` (par défaut), `duration` ou `next_slot_within_duration` (voir [Éteindre un thermostat à la main](#éteindre-un-thermostat-à-la-main)). Choisissez une autre option pour changer le réglage. |
 | **Durée des dérogations** (nombre, `number.chauffage_override_duration`) | La durée des dérogations, en minutes, de 15 minutes à 24 heures. Par exemple, 120 vaut 2 heures. Réglez une autre valeur pour changer le réglage. |
 
 ### Assistants vocaux
@@ -569,15 +725,17 @@ Assistants vocaux → Exposer.
 
 | Action | Ce qu'elle fait |
 |---|---|
-| `chauffage.set_override` | Crée une dérogation sur un thermostat : une température ou un préréglage, pour une durée ou jusqu'à une heure. Un préréglage a le même sens que dans la carte. |
+| `chauffage.set_override` | Crée une dérogation sur un thermostat : une température ou un préréglage, pour une durée ou jusqu'à une heure. Un préréglage a le même sens que dans la carte. `hvac_mode` : `off` pour éteindre le thermostat, ou un mode HVAC pour l'allumer. `hvac_mode: off` sans durée ni heure dure ce que dit le réglage *Thermostat éteint*. L'action refuse ce qui se contredit, avec un message qui dit pourquoi : `off` ou `fan_only` avec une température ou un préréglage, un mode HVAC que le thermostat ne propose pas, une durée et une heure ensemble. |
 | `chauffage.clear_override` | Arrête la dérogation : le thermostat reprend son planning tout de suite. |
 | `chauffage.activate_schedule` | Active un planning, par son identifiant stable. |
-| `chauffage.get_schedules` | Renvoie les plannings (`id`, `name`, et `entity_id` de leur interrupteur), `active_schedule`, `rules_choice` et `default_schedule`. |
+| `chauffage.get_schedules` | Renvoie les plannings (`id`, `name` et `entity_id` de leur interrupteur), `active_schedule`, `rules_choice` et `default_schedule`. |
 | `chauffage.get_week` | Renvoie les semaines des thermostats dans un planning (le planning actif par défaut). |
 
 `chauffage.get_week` renvoie une entrée par thermostat, au format de `schedule.get_schedule` de
 Home Assistant : `schedule`, puis une liste par jour (`monday`…), et chaque créneau avec son `start`, son `end` et
-son `preset`. Par exemple, pour envoyer l'heure du confort de demain :
+son `preset`. Un créneau a aussi son `hvac_mode`, tel qu'il s'applique sur le thermostat : `heat`
+ou `cool` sur une climatisation, `off` ou `fan_only`, et aucun sur un radiateur. Un créneau *Arrêt* et un créneau *Ventilation* n'ont pas de préréglage : `preset`
+est vide. Par exemple, pour envoyer l'heure du confort de demain :
 
 ```yaml
 - action: chauffage.get_week
@@ -599,7 +757,8 @@ Chauffage émet des événements que vos automatisations peuvent utiliser, avec 
 
 | Événement | Données |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. `ends_at` dit pourquoi la dérogation s'arrête à ce moment, quand Chauffage le sait : `duration`, `next_slot` ou `no_next_slot` pour un changement à la main, et `next_slot` pour une fin mise au prochain créneau sur la carte. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
+| `chauffage_override_started` | `entity_id`, `target` (par exemple `{"temperature": 21.5}`), `preset`, `start`, `end`, `kind` et `value` (comme avant 0.10), et `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou `service`. `ends_at` dit pourquoi la dérogation s'arrête à ce moment, quand Chauffage le sait : `duration`, `next_slot` ou `no_next_slot` pour un changement à la main, et `next_slot` pour une fin mise au prochain créneau sur la carte. Émis pour une nouvelle dérogation ou une nouvelle valeur, pas quand seule la fin change. |
+| `chauffage_override_end_changed` | Les mêmes données, quand seule la fin d'une dérogation change. Le journal de bord le note : « dérogation jusqu'à lundi 12:30 (depuis la carte) ». |
 | `chauffage_override_ended` | `entity_id`, `start`, `end`, et `reason` : `expired`, `thermostat` (remis sur son planning à la main), `card`, `panel`, `service`, `paused` ou `forgotten`. `ends_at` comme ci-dessus, quand Chauffage le sait. |
 | `chauffage_schedule_activated` | `schedule` (l'identifiant stable), `schedule_name`, `previous_schedule`, `entity_id` (le sélecteur *Planning actif*), et `source` : `card`, `panel`, `entity` (le sélecteur ou un interrupteur de planning), `service` ou `rules`. |
 
@@ -632,6 +791,10 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
   choisir *Pendant la durée, ou moins si un créneau commence avant*, ou *Jusqu'au prochain
   créneau* (voir
   [Choisir combien de temps dure une dérogation](#choisir-combien-de-temps-dure-une-dérogation)).
+- **Thermostat éteint.** Combien de temps reste éteint un thermostat éteint : *Jusqu'au
+  prochain créneau* par défaut, avec les mêmes choix. Le réglage vaut aussi pour une
+  automatisation qui éteint un thermostat sans donner de fin (voir
+  [Éteindre un thermostat à la main](#éteindre-un-thermostat-à-la-main)).
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Si vous la désactivez,
   Chauffage pilote tous les thermostats en température, et vous réglez toutes les températures
   dans la carte.
@@ -656,9 +819,15 @@ l'action `chauffage.set_override`) et pourquoi elle s'est arrêtée. Pour un cha
 la ligne dit aussi pourquoi la dérogation s'arrête à ce moment, par exemple « jusqu'au prochain
 créneau », puis « dérogation terminée au prochain créneau ».
 
-Si vous filtrez le journal de bord sur le thermostat, Home Assistant n'affiche pas ces lignes : il
-n'y montre que ce que note l'intégration du thermostat. Le capteur *Dérogation* du thermostat
-montre quand chaque dérogation a commencé et fini.
+Si vous filtrez le journal de bord sur le thermostat seul, Home Assistant n'affiche pas ces
+lignes : il ne cherche que les événements de l'intégration du thermostat. Pour les lire dans un
+journal filtré, filtrez sur le thermostat **et** son capteur *Dérogation*. Le capteur montre
+aussi quand chaque dérogation a commencé et fini.
+
+Une dérogation qui éteint le thermostat, ou qui le rallume, est notée comme les autres : « arrêt
+jusqu'à 06:30 », puis « dérogation terminée ». Un créneau qui éteint ou rallume le thermostat
+n'est pas une dérogation : il n'a pas de ligne dans le journal de bord. Les journaux de Home
+Assistant (point 2) disent la commande et sa raison.
 
 Les changements de planning sont notés dans le journal de bord du sélecteur *Planning actif*.
 
@@ -701,9 +870,9 @@ version, et Chauffage les migre automatiquement.
 **Le programmateur.** Chaque minute, le programmateur applique le préréglage des créneaux qui
 commencent. Il remet aussi sur leur planning les thermostats dont la dérogation se termine. Le
 programmateur remet chaque thermostat sur son planning au démarrage, à l'activation d'un
-planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat en dérogation,
-éteint ou indisponible. Un Versatile Thermostat éteint reçoit quand même ses créneaux. Une
-vanne injoignable ne bloque pas les autres thermostats.
+planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat en dérogation ou
+indisponible. Un thermostat éteint reçoit son créneau, qui le rallume, sauf si le créneau dit
+*arrêt*. Une vanne injoignable ne bloque pas les autres thermostats.
 
 **Les changements manuels.** Une consigne changée à la main, ou un préréglage choisi par un
 utilisateur, devient une dérogation, jusqu'à la fin que donne le réglage *Fin des dérogations*. Revenir à ce que demande le créneau arrête la dérogation.

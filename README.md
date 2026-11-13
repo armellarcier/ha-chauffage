@@ -209,6 +209,10 @@ A **schedule** is a weekly plan, for example *Normal* or *Holidays*. A schedule 
 for each thermostat. A week is made of **slots**, and each slot asks for a **preset**, for
 example *Comfort* or *Eco*. The [glossary](docs/glossary.md) defines these words.
 
+**Who decides what.** A slot says when, and what the room gets: *Off*, *Fan only*, or a preset.
+On an air conditioner, the slot also chooses the HVAC mode, *Heat* or *Cool*. The preset says
+how warm, for each thermostat, when it heats and when it cools.
+
 ### Create a schedule
 
 A new installation starts with one schedule, *Normal*. In the card, **+** creates a schedule:
@@ -217,6 +221,68 @@ and use **⋮**. Who may change the schedules depends on the [access level](#who
 
 Each schedule has a **stable id**, shown in *Rename…*. The stable id never changes, even when
 you rename the schedule. Use the stable id in your automations.
+
+### Turn a thermostat off from a slot
+
+A slot is a preset, or *Off*. Open the slot, then tap **Off**, the first chip of the row of
+presets. The slot turns grey, named *Off*. Tap a preset to let the thermostat run again.
+
+The thermostat turns off when the slot starts. Chauffage sends it nothing else: if you turn the
+thermostat on by hand, it starts again on its own last setpoint. The next slot that asks for a
+preset turns it back on.
+
+**Each slot is independent.** A night is two slots: the last slot of a day, and the first slot
+of the next day. To keep a room off through the night, turn off both.
+
+**The setpoint of the slot.** The popover says what setpoint the slot will apply on this
+thermostat, with its number: "Setpoint: 20 °C (its *Comfort* preset)". An administrator taps
+the line to open the *Presets* tab.
+
+### Heat or cool: the air conditioners
+
+On an air conditioner that heats and cools, every slot on a preset says **Heat** or **Cool**.
+Open the slot: the *Heat · Cool* row is under the presets, and one of the two is always chosen.
+The air conditioner switches to this HVAC mode when the slot starts.
+
+- **A new slot** takes the HVAC mode of the slot it comes from. A slot added in an *Off* slot or
+  in a *Fan only* slot takes the HVAC mode of the slot before it.
+- **An air conditioner that only cools** has no such row: its slots always cool.
+- **A heater** has no such row either: its slots carry no HVAC mode.
+- **A whole week.** Open the ⋮ menu of a day of the thermostat, then tap *All heat* or *All
+  cool*. Every slot of the thermostat's week, in the schedule shown, takes this HVAC mode.
+  *Save* keeps the change. In the Chauffage panel, the ⋮ menu of a week has the same items.
+
+**Your existing weeks heat.** A week saved before this version says no HVAC mode. Chauffage
+reads its slots as *Heat* on an air conditioner that heats and cools, and as *Cool* on one that
+only cools. The week shows them so.
+
+**Colors.** Each preset has two colors. A slot that cools is drawn in the preset's cool color,
+with a snowflake, and a slot that heats in its heat color, with a flame. Chauffage derives the
+cool color from the preset's color, and you can change it in the *Presets* tab. The legend
+shows both colors, each with its mark, then the two values of the preset on the thermostat
+shown: "Comfort 20° · ❄ 24°".
+
+**How warm when cooling.** On an air conditioner that heats and cools, each preset has a value
+*when heating* and a temperature *when cooling* (see
+[Presets](#what-a-preset-does-on-each-thermostat)). The slot's HVAC mode picks which one
+Chauffage sends. Without a temperature when cooling, Chauffage sends the thermostat's own
+preset when the preset uses one. Chauffage never sends a heating temperature to an air
+conditioner that cools, one that only cools included: the slot then says "Setpoint unchanged".
+
+**Summer and winter.** Create a *Summer* schedule whose slots say *Cool*, as a copy of your
+*Winter* schedule. To change season, activate the other schedule: by hand, from an automation,
+or with an [activation rule](#activation-rules).
+
+### Fan only
+
+On a thermostat that has a fan-only HVAC mode, the row of presets starts with **Off**, then
+**Fan only**. A fan-only slot runs the fan without heating or cooling. It has no preset and no
+setpoint. The week shows it in Home Assistant's color of fan only, with a fan.
+
+**Fan and vanes.** On an air conditioner, *More settings* holds the fan speed and the vanes,
+one list per setting the thermostat lists. *Don't change* leaves the setting to the preset's
+value, or to the thermostat. The folded line shows the values the slot sets, and the week shows
+a mark on the slots that set one. An off slot has none.
 
 ### Change the active schedule
 
@@ -342,8 +408,19 @@ Slots ask for presets. Chauffage comes with four presets: *Comfort* 20 °C, *Eco
 ### What a preset does on each thermostat
 
 If the thermostat has its own preset with the same name, Chauffage uses that preset. Otherwise,
-Chauffage sets the preset's temperature. You can change this for each thermostat: choose one of
-the thermostat's own presets, or a temperature.
+Chauffage sets the preset's temperature. You can change this for each thermostat: a preset's
+value on a thermostat is one of the thermostat's own presets, or a temperature.
+
+**An air conditioner that heats and cools** has two values for each preset: one *when heating*,
+and a temperature *when cooling*. For example, *Comfort* is 20 °C when it heats and 25 °C when
+it cools. The slot's HVAC mode picks which one Chauffage sends. Without a temperature when
+cooling, Chauffage sends the thermostat's own preset, which the thermostat reads for the HVAC
+mode it runs in. A temperature *when heating* is never sent to an air conditioner that cools.
+
+A preset's value can also set the fan and the vanes of an air conditioner.
+
+A preset never turns a thermostat off, and never chooses between heat and cool. To turn every
+thermostat off, create a schedule whose slots are *Off*, for example *Away*.
 
 ### Set the presets in the Chauffage panel
 
@@ -352,11 +429,21 @@ Open the Chauffage panel, then the *Presets* tab. Who may change the presets dep
 table has a column for each preset, from the coldest to the warmest, and a row for each
 thermostat. A thermostat's page in the panel shows its presets side by side, without the table.
 
-- **A column header** opens the preset: its name, its color and its default temperature. You can
-  also delete the preset from there. To add a preset, click *+ Add a preset* under the table.
+- **A column header** opens the preset: its name, its color and its default temperature. With
+  an air conditioner, the preset has a *Color when heating* and a *Color when cooling*, for its
+  slots that cool. Chauffage derives the second one from the first until you choose one. You can also delete the
+  preset from there. To add a preset, click *+ Add a preset* under the table.
 - **A cell** opens what the preset does on this thermostat. The cell says where its temperature
-  comes from, for example "its *Comfort* preset", "set here" or "default". The popover also
-  links to the thermostat's device. You set the thermostat's own presets there.
+  comes from, for example "its *Comfort* preset", "set here" or "default". The popover asks one
+  question, with three answers: *Default*, *Its preset* (one of the thermostat's own presets)
+  or *Temperature*. On an air conditioner that heats and cools, these answers are the value
+  *when heating*, and one more field holds the temperature *when cooling*. Left empty, the
+  field says what the thermostat's own preset gives when cooling, when Chauffage knows it:
+  "Default (its *Comfort* preset, 25°)". An air conditioner that only cools has the field *when
+  cooling* alone. *More settings* holds
+  the fan and the vanes. *Copy from the thermostat* fills the fields from the thermostat as it
+  is now: its setpoint, its fan and its vanes, never its preset. You tap *OK* to keep them. The
+  popover also links to the thermostat's device. You set the thermostat's own presets there.
 
 ### The temperature of a thermostat's own preset
 
@@ -419,8 +506,8 @@ than 15 minutes after your change does not count, so a change made just before a
 undone at once. With *Until the next slot*, a week on a single preset has no next slot: your
 change then lasts a week, unless you end it sooner.
 
-The setting applies to every thermostat. The panel, the [options](#options) and two
-[entities](#on-the-chauffage-device) change the same setting. For example, an automation can
+The setting applies to every thermostat. The panel, the [options](#options) and
+[entities](#on-the-chauffage-device) change the same settings. For example, an automation can
 choose *Until the next slot* during the holidays.
 
 ### Keep a change longer
@@ -436,23 +523,68 @@ slot)*: it may also shorten the override.
 
 - **On the thermostat.** Change the setpoint or the preset by hand, with the knob or in Home
   Assistant. Chauffage makes your change an override.
-- **From the card**, or from the thermostat's more-info dialog. Choose a preset or a
+- **From the card**, or from the thermostat's more-info dialog. Choose *Off*, a preset or a
   temperature, and an end. Every user can, not only administrators, as with the knob.
-  A new override lasts the override duration. Then you can change its end.
+  A new override lasts the override duration; *Off* lasts until the next slot, or as the setting
+  *Turned off* says. Then you can change its end.
+  On an air conditioner that heats and cools, the block has the *Heat · Cool* row of a slot. A
+  new override starts in the HVAC mode of the slot planned now.
+  To turn a thermostat off until the morning, tap *Off*, then *Until tomorrow 06:30*.
+  On a thermostat that has a fan-only HVAC mode, *Fan only* is the second chip.
+  On a thermostat card, the override shows with its end and *Resume the schedule*. *Change*
+  unfolds the rest.
 - **From an automation**, with the `chauffage.set_override` action.
 
-A change made by an automation does not start an override. A command that a battery valve
+A change made by an automation does not start an override: a script that turns every thermostat
+off in the evening leaves them off until the morning slot. A command that a battery valve
 applies late does not start one either.
 
-**A thermostat that is turned off.** Chauffage sends nothing to a thermostat that is turned off,
-not even an override. Some thermostats, such as Tado, would turn heating back on when they get a
-setpoint. An override that you set meanwhile waits. Chauffage applies the override when you turn
-the thermostat back on, if the override still runs. The card and the more-info dialog warn you.
+### Turn a thermostat off by hand
 
-**A Versatile Thermostat that is turned off.** A Versatile Thermostat is the exception. Chauffage
-keeps sending it its slots and its override, whether it was turned off by hand, by a window or by
-its auto start/stop. Versatile Thermostat stays off and keeps them, so that it starts again on the
-right preset. The card shows no warning.
+Turning a thermostat off, with its button or in Home Assistant, is a change like any other:
+Chauffage makes it an override, shown as *⏱ Off*. The thermostat stays off until the next slot
+that changes it, however far. Then Chauffage turns it back on, on its slot.
+
+**How long a thermostat stays off.** In the settings, under *Overrides*, *Turned off* has the
+same three choices as the end of the other overrides, in the same order. *Until the next slot*
+is the default: two hours of off is rarely what you mean when you turn a radiator off. The
+setting also applies to *Off* tapped on the card, and to an automation that turns a thermostat
+off without an end.
+
+To keep it off until the morning, tap *Until tomorrow 06:30* under the override: the button
+gives the next morning, the first slot of the day that changes the thermostat's state. When
+that morning is not tomorrow, the button names the day, *Until Monday 06:30*. At night, the
+morning is today's, so the button *Until 08:00 (next slot)* already gives it, and the other
+button is not shown. To keep it off longer, pause
+its control (*Pause control*), or give it a schedule whose slots are *Off*.
+
+To end the override sooner, turn the thermostat back on yourself, or tap *Resume the schedule*.
+A preset tapped, or a temperature typed, in the override block turns the thermostat on, with
+that value. *Off* tapped on an override during an *Off* slot resumes the schedule.
+
+An override never ends because a slot starts. An off override that meets an *Off* slot goes on
+to its own end, and the thermostat stays off after it.
+
+**A slot that turns a thermostat off.** A slot can be *Off*. The thermostat turns off at the
+slot's start. The next slot that asks for a preset turns it back on. On an air conditioner, the
+slot says in which HVAC mode. An override that you set on a thermostat that is off turns it on:
+in the HVAC mode the override says, else in the one the thermostat last ran in. An air
+conditioner that cooled in July restarts in cool.
+
+**Heat or cool chosen by hand.** Switch an air conditioner to *Cool* in Home Assistant during a
+slot that heats, and Chauffage makes it an override. The override keeps the preset in force:
+the preset of the slot, or the one of the override the thermostat already had. Chauffage sends
+its value when cooling, so the temperature *when cooling* that you set for the preset applies.
+
+**A Versatile Thermostat that turns itself off.** A Versatile Thermostat turns itself off for an
+open window, or with its auto start/stop. Chauffage reads what the thermostat was asked
+(`requested_state`), so this is not an override, and Chauffage does not turn it back on:
+Versatile Thermostat does, when the window closes. The thermostat card says why, "Window open"
+or "Auto stop", with the preset it restarts on. "Window open" shows also when the window keeps
+the thermostat heating at its frost setpoint. A Versatile Thermostat that you turn off by
+hand is an override, as any thermostat. A Versatile Thermostat older than 10.5, without
+`requested_state`, keeps the former behavior: Chauffage sends it its slots and its override
+while it is off, and it stays off.
 
 ### End an override
 
@@ -477,12 +609,12 @@ forget the thermostat.
 
 ### Pause a thermostat
 
-To pause a thermostat, click *Pause* under the thermostat's more-info dialog or in the
+To pause a thermostat, click *Pause control* under the thermostat's more-info dialog or in the
 Chauffage panel. You can also turn off the thermostat's **Control** switch.
 
 Chauffage keeps the thermostat's weeks, but stops sending it commands and stops making
-overrides. Pausing is handy for a room you run by hand for a few days, or at the end of the
-heating season.
+overrides. Pausing is handy for a room you run by hand for a few days, or for a heater you leave
+off all summer.
 
 To give the thermostat back to Chauffage, click *Resume control* in the same places, or turn the
 **Control** switch back on.
@@ -507,8 +639,8 @@ thermostat's page in the Chauffage panel.
 | Entity | What it says |
 |---|---|
 | **Control** (switch) | Off while the thermostat is **paused**. |
-| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `target`, `next_preset`, `next_preset_name`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat). |
-| **Override** (binary sensor) | On while the thermostat has an override. Attributes: `kind` (`temperature` or `preset`), `value` (a temperature, or the thermostat's own preset), `preset` (the Chauffage preset asked for, if any), `end`. |
+| **Planned preset** (sensor) | The preset planned now. Attributes: `preset_name`, `hvac_mode` (the slot's HVAC mode: `off`, `fan_only`, or `heat` or `cool` when the thermostat lists it, else empty; the state is unknown during an off slot or a fan-only slot, which have no preset), `target`, `next_preset`, `next_preset_name`, `next_hvac_mode`, `next_start`, and `temperatures` (the temperature of each preset on this thermostat: its temperature when cooling during a slot that cools). |
+| **Override** (binary sensor) | On while the thermostat has an override. Attributes: `target` (what the thermostat is set to, for example `{"temperature": 21.5}` or `{"preset_mode": "boost"}`), `preset` (the Chauffage preset asked for, if any), `end`, and `kind` and `value` as before 0.10. |
 | **Override end** (sensor, disabled by default) | The end of the current override as a timestamp, for a dashboard tile. |
 
 The sensors are unavailable while the thermostat is paused.
@@ -523,6 +655,7 @@ On an installation from before 0.6, the planned preset sensor keeps its former i
 | **Active schedule** (select, `select.chauffage_schedule`) | The active schedule. Choose another option to activate another schedule. Attributes: `schedule_id`, and `rules_choice` (the schedule the activation rules give, empty without rules). |
 | **&lt;Schedule&gt; schedule** (a switch for each schedule, `switch.chauffage_schedule_<id>`) | On for the active schedule. Turn on a switch to activate its schedule. You cannot turn off the active schedule: turn on another one. The card shows the switch's icon on the schedule's tab. To change the icon, open the schedule's ⋮ menu, then *Change the icon…*. |
 | **End of overrides** (select, `select.chauffage_manual_override_end`) | How long an override lasts: `duration`, `next_slot_within_duration` or `next_slot` (see [Choose how long an override lasts](#choose-how-long-an-override-lasts)). Choose another option to change the setting. |
+| **Turned off** (select, `select.chauffage_off_override_end`) | How long a thermostat turned off stays off, by hand, from the card or by an automation that gives no end: `next_slot` (the default), `duration` or `next_slot_within_duration` (see [Turn a thermostat off by hand](#turn-a-thermostat-off-by-hand)). Choose another option to change the setting. |
 | **Override duration** (number, `number.chauffage_override_duration`) | The override duration, in minutes, from 15 minutes to 24 hours. For example, 120 is 2 hours. Set another value to change the setting. |
 
 ### Voice assistants
@@ -535,15 +668,16 @@ not exposed. To expose an entity or not, go to Settings → Voice assistants →
 
 | Action | What it does |
 |---|---|
-| `chauffage.set_override` | Sets an override on a thermostat: a temperature or a preset, for a duration or until a time. A preset means the same as in the card. |
+| `chauffage.set_override` | Sets an override on a thermostat: a temperature or a preset, for a duration or until a time. A preset means the same as in the card. `hvac_mode`: `off` to turn the thermostat off, or an HVAC mode to turn it on in. `hvac_mode: off` without a duration or a time lasts as the setting *Turned off* says. The action refuses what contradicts itself, with a message that says why: `off` or `fan_only` with a temperature or a preset, an HVAC mode the thermostat does not list, a duration and a time together. |
 | `chauffage.clear_override` | Ends the override: the thermostat goes back to its schedule now. |
 | `chauffage.activate_schedule` | Activates a schedule, by its stable id. |
-| `chauffage.get_schedules` | Returns the schedules (`id`, `name`, and `entity_id` of their switch), `active_schedule`, `rules_choice` and `default_schedule`. |
+| `chauffage.get_schedules` | Returns the schedules (`id`, `name` and `entity_id` of their switch), `active_schedule`, `rules_choice` and `default_schedule`. |
 | `chauffage.get_week` | Returns the weeks of the thermostats in a schedule (the active schedule by default). |
 
 `chauffage.get_week` returns one entry for each thermostat, in the format of Home Assistant's
 `schedule.get_schedule`: `schedule`, then a list for each day (`monday`…), and each slot with its `start`, its
-`end` and its `preset`. For example, to send tomorrow's comfort time:
+`end` and its `preset`. A slot also has its `hvac_mode` as it runs on the thermostat: `heat` or
+`cool` on an air conditioner, `off` or `fan_only`, and none on a heater. An off slot and a fan-only slot have no preset: `preset` is empty. For example, to send tomorrow's comfort time:
 
 ```yaml
 - action: chauffage.get_week
@@ -564,7 +698,8 @@ Chauffage fires events that your automations can use, with the *Event* trigger:
 
 | Event | Data |
 |---|---|
-| `chauffage_override_started` | `entity_id`, `kind`, `value`, `preset`, `start`, `end`, and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. `ends_at` says why the override ends then, when Chauffage knows it: `duration`, `next_slot` or `no_next_slot` for a change by hand, and `next_slot` for an end set to the next slot on the card. Fired for a new override or a new value, not when only the end changes. |
+| `chauffage_override_started` | `entity_id`, `target` (for example `{"temperature": 21.5}`), `preset`, `start`, `end`, `kind` and `value` (as before 0.10), and `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`. `ends_at` says why the override ends then, when Chauffage knows it: `duration`, `next_slot` or `no_next_slot` for a change by hand, and `next_slot` for an end set to the next slot on the card. Fired for a new override or a new value, not when only the end changes. |
+| `chauffage_override_end_changed` | The same data, when only the end of an override changes. The logbook tells it: "override until Monday 12:30 (from the card)". |
 | `chauffage_override_ended` | `entity_id`, `start`, `end`, and `reason`: `expired`, `thermostat` (set back to its schedule by hand), `card`, `panel`, `service`, `paused` or `forgotten`. `ends_at` as above, when Chauffage knows it. |
 | `chauffage_schedule_activated` | `schedule` (the stable id), `schedule_name`, `previous_schedule`, `entity_id` (the *Active schedule* select), and `source`: `card`, `panel`, `entity` (the select or a schedule switch), `service` or `rules`. |
 
@@ -595,6 +730,10 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **End of overrides.** *For the override duration* by default. You can also choose *For the
   override duration, or less if a slot starts first*, or *Until the next slot* (see
   [Choose how long an override lasts](#choose-how-long-an-override-lasts)).
+- **Turned off.** How long a thermostat turned off stays off: *Until the next slot* by
+  default, with the same choices. It also applies to an automation that turns a thermostat off
+  without an end (see
+  [Turn a thermostat off by hand](#turn-a-thermostat-off-by-hand)).
 - **Use the thermostats' presets.** On by default. If you turn this option off, Chauffage drives
   every thermostat with temperatures, and you set all of them in the card.
 - **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
@@ -618,9 +757,14 @@ or the `chauffage.set_override` action) and why it ended. For a change by hand, 
 says why the override ends then, for example "until the next slot", and "override ended at the
 next slot".
 
-If you filter the logbook on the thermostat, Home Assistant does not show these lines: it only
-shows there what the thermostat's own integration records. The thermostat's *Override* sensor
-shows when each override started and ended.
+If you filter the logbook on the thermostat alone, Home Assistant does not show these lines: it
+only looks for the events of the thermostat's own integration. To read them in a filtered
+logbook, filter on the thermostat **and** its *Override* sensor. The sensor also shows when each
+override started and ended.
+
+An override that turns the thermostat off, or back on, is recorded like any other: "off until
+06:30", then "override ended". A slot that turns the thermostat off or on is not an override, so
+it has no logbook line. The Home Assistant logs (step 2) say the command and its reason.
 
 Schedule changes are recorded in the logbook of the *Active schedule* select.
 
@@ -661,9 +805,9 @@ Chauffage migrates it automatically.
 **The scheduler.** Every minute, the scheduler applies the preset of the slots that start now.
 The scheduler also sends back to their schedule the thermostats whose override ends. The
 scheduler sets every thermostat to its schedule again at startup, when a schedule is activated,
-and when weeks are saved. The scheduler leaves alone a thermostat that has an override, is off
-or is unavailable. A Versatile Thermostat that is off still gets its slots. An unreachable valve
-does not stop the other thermostats.
+and when weeks are saved. The scheduler leaves alone a thermostat that has an override or is
+unavailable. A thermostat that is off gets its slot, which turns it on, unless the slot says
+*off*. An unreachable valve does not stop the other thermostats.
 
 **Manual changes.** A setpoint changed by hand, or a preset that a user chooses, becomes an
 override, until the end that the setting *End of overrides* gives. Going back to what

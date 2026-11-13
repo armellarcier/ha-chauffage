@@ -150,7 +150,7 @@ describe('the time fields follow the profile\'s time format', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+  const override = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
   const english = (time_format) => ({ language: 'en-US', time_format, number_format: 'language', first_weekday: 'language' });
   const slotEnd = (card) => {
     card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click(); // 06:30 → 08:30
