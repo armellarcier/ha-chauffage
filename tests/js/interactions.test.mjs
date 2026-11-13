@@ -1,7 +1,7 @@
 // Pointer and form interactions of the card and of the more-info block: dragging slots and
 // override ends, row menu, copying a week, time fields, popovers, injection into the dialog,
 // error messages.
-import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, typeTime, pressKey, WEEKDAY } from './helpers.mjs';
+import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, typeTime, pressKey, WEEKDAY, cutSlot } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -784,7 +784,7 @@ describe('error messages', () => {
   test('saving, removing an override, activating a schedule', async () => {
     const hass = failing(fakeHass({ overrides: { 'climate.salon': override } }));
     const card = createCard(hass, { show: ['climate.salon'] });
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     await card._save();
     assert.match($(card, '.msg').textContent, /Erreur : boom/);
     assert.equal(card._dirty, true);
@@ -820,11 +820,12 @@ describe('dashboard editor helpers', () => {
 describe('slot editor buttons', () => {
   const select = (card, idx) => $(card, `.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="${idx}"]`).click();
 
-  test('"Insert a slot" splits the slot in three, the middle one in another preset', () => {
+  test('"Insert a slot" splits the slot in three, the middle one selected', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     select(card, 2); // 08:30 → 17:30 eco
     $(card, '.editor [data-act="insert"]').click();
-    assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '11:30 comfort', '14:30 eco']);
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '11:30 eco', '14:30 eco']);
+    assert.equal(card._sel.idx, 3);
   });
 
   test('"Delete" removes the slot (the previous one takes its time)', () => {
@@ -864,7 +865,8 @@ describe('double click on a slot', () => {
     bar.querySelector('.seg[data-idx="2"]').dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 12 * 60 }));
     const again = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]')).querySelector('.seg[data-idx="2"]');
     again.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 12 * 60 }));
-    assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '12:00 boost', '17:30 comfort']);
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '12:00 eco', '17:30 comfort']);
+    assert.equal(card._sel.idx, 3);
   });
 });
 
@@ -872,7 +874,7 @@ describe('edits in progress', () => {
   test('schedules saved elsewhere do not replace unsaved edits', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass, { show: ['climate.salon'] });
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     const mine = day(card, 'climate.salon', 0);
     hass.push({ schedules: [{ id: 'normal', name: 'Normal' }], active_schedule: 'normal',
       weeks: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
@@ -883,7 +885,7 @@ describe('edits in progress', () => {
   test('"Cancel" then loads what was saved elsewhere', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass, { show: ['climate.salon'] });
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     hass.push({ schedules: [{ id: 'normal', name: 'Normal' }], active_schedule: 'normal',
       weeks: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
     $(card, '[data-act="cancel"]').click();
@@ -894,7 +896,7 @@ describe('edits in progress', () => {
     const card = createCard(fakeIntegrationHass(), { show: ['climate.salon'] });
     assert.equal($(card, '.savebar'), null); // nothing changed: no bar, no disabled buttons
     assert.equal($(card, '[data-act="save"]'), null);
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     const bar = $(card, '.savebar');
     assert.match(bar.textContent, /Modifications non enregistrées/);
     assert.ok(bar.querySelector('[data-act="cancel"]'));

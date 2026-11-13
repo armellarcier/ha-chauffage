@@ -120,34 +120,37 @@ describe('on an air conditioner, every slot says heat or cool', () => {
   });
 });
 
-describe('a new slot takes the HVAC mode of the slot it comes from', () => {
+describe('a new slot is like the slot it comes from', () => {
   const SUMMER = ['00:00 eco', ['12:00', 'comfort', COOL], ['20:00', null, OFF]];
 
   test('a slot inserted in a cooling slot cools', () => {
     const card = cardOf(setup({ atelier: SUMMER }));
     select(card, ATELIER, 1);
     click(card, '.editor [data-act="insert"]');
-    assert.deepEqual(day(card, ATELIER).slice(1, 4), ['12:00 comfort {"hvac_mode":"cool"}', '14:45 eco {"hvac_mode":"cool"}', '17:15 comfort {"hvac_mode":"cool"}']);
+    assert.deepEqual(day(card, ATELIER).slice(1, 4), ['12:00 comfort {"hvac_mode":"cool"}', '14:45 comfort {"hvac_mode":"cool"}', '17:15 comfort {"hvac_mode":"cool"}']);
   });
 
   test('a cut made in a cooling slot gives two cooling slots', () => {
     const card = cardOf(setup({ atelier: SUMMER }));
     card._split(ATELIER, 0, 15 * 60);
-    assert.deepEqual(day(card, ATELIER).slice(1, 3), ['12:00 comfort {"hvac_mode":"cool"}', '15:00 eco {"hvac_mode":"cool"}']);
+    assert.deepEqual(day(card, ATELIER).slice(1, 3), ['12:00 comfort {"hvac_mode":"cool"}', '15:00 comfort {"hvac_mode":"cool"}']);
   });
 
-  test('a slot inserted in an off slot takes the HVAC mode of the slot before it', () => {
+  test('a slot inserted in an off slot is off; given a preset, it takes the HVAC mode of the slot before it', () => {
     const card = cardOf(setup({ atelier: SUMMER }));
     select(card, ATELIER, 2);
     click(card, '.editor [data-act="insert"]');
-    assert.match(day(card, ATELIER)[3], /^21:15 \w+ \{"hvac_mode":"cool"\}$/);
+    assert.equal(day(card, ATELIER)[3], '21:15 - {"hvac_mode":"off"}');
+    card._action('preset', { preset: 'comfort' });
+    assert.equal(day(card, ATELIER)[3], '21:15 comfort {"hvac_mode":"cool"}');
   });
 
-  test('without a slot on a preset before it, the new slot heats', () => {
+  test('without a slot on a preset before it, the new slot given a preset heats', () => {
     const card = cardOf(setup({ atelier: [['00:00', null, OFF], ['12:00', null, FAN]] }));
     select(card, ATELIER, 0);
     click(card, '.editor [data-act="insert"]');
-    assert.match(day(card, ATELIER)[1], /^04:00 \w+ \{"hvac_mode":"heat"\}$/);
+    card._action('preset', { preset: 'eco' });
+    assert.equal(day(card, ATELIER)[1], '04:00 eco {"hvac_mode":"heat"}');
   });
 
   test('Clim tapped on an off slot gives it a preset: not the one of the slot before it, which would take it in', () => {

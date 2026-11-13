@@ -110,6 +110,20 @@ async def test_a_temperature_set_on_the_thermostat_serves_its_heat_cool_slots(be
     assert "cool_temperature" not in bench.runtime.presets_by_id["eco"]
 
 
+# ----- two slots alike stay two slots -----
+
+async def test_two_slots_alike_are_stored_as_two_and_the_second_one_sends_nothing(bench: Bench):
+    """The user set a slot to the preset of the slot before it, and kept the cut. The week is
+    stored as it was sent. The second slot changes nothing on the thermostat."""
+    day = [["00:00", "eco"], ["14:00", "eco"], ["20:00", "comfort"]]
+    await start(bench, day, "13:00")
+    assert bench.runtime.weeks[SALON]["normal"][0] == day
+    await bench.go_to("14:00")
+    assert bench.applied() == {} and bench.powered() == {}
+    # The next slot of the planned preset is the next different one
+    assert bench.runtime.planned_info(SALON)["next_start"] == "2026-10-12T20:00:00+02:00"
+
+
 # ----- the fan and the vanes are given back -----
 
 FAN_DAY = [["00:00", "eco"], ["14:00", "comfort", {"fan_mode": "3"}], ["16:00", "comfort"], ["20:00", "eco"]]

@@ -155,6 +155,20 @@ export function createCard(hass, config = {}) {
   return card;
 }
 
+/**
+ * An edit of a week, as a double tap then a tap on a preset make it: a piece cut at a time of
+ * day, set to `preset` (by default a preset that neither the slot nor the next one has).
+ */
+export function cutSlot(card, climate, day, minute, preset) {
+  card._split(climate, day, minute);
+  const sel = card._sel;
+  if (!sel || sel.climate !== climate) return;
+  const segs = card._week(climate)[sel.day];
+  const taken = [segs[sel.idx].preset, segs[sel.idx + 1] && segs[sel.idx + 1].preset];
+  const other = preset || ['comfort', 'eco', 'boost', 'frost'].find((id) => !taken.includes(id));
+  card._changeSlot(climate, sel.day, sel.idx, (slot) => ({ ...slot, preset: other }));
+}
+
 /** Types a time in one of the cards' time fields, then leaves the field: the time is applied then. */
 export function typeTime(field, value) {
   field.focus();

@@ -133,11 +133,11 @@ async def test_an_off_slot_only_turns_the_thermostat_off(bench: Bench):
     assert bench.powered() == {SALON: "heat", BUREAU: "heat"}
 
 
-async def test_an_off_slot_holds_no_preset_and_two_in_a_row_are_one(bench: Bench):
+async def test_an_off_slot_holds_no_preset_and_nothing_else(bench: Bench):
     await start(bench)
     day = [["00:00", "eco"], ["12:00", "comfort", OFF], ["13:00", None, {"hvac_mode": "off", "fan_mode": "3"}], ["14:00", "eco"]]
     await bench.save_weeks({SALON: {"normal": [day] * 7}})
-    assert bench.runtime.weeks[SALON]["normal"][0] == [["00:00", "eco"], ["12:00", None, OFF], ["14:00", "eco"]]
+    assert bench.runtime.weeks[SALON]["normal"][0] == [["00:00", "eco"], ["12:00", None, OFF], ["13:00", None, OFF], ["14:00", "eco"]]
 
 
 async def test_an_off_night_needs_no_rule(bench: Bench):
@@ -191,12 +191,13 @@ async def test_a_preset_slot_after_a_fan_only_slot_heats_or_cools_again(bench: B
     assert bench.powered() == {SALON: "heat"}
 
 
-async def test_two_fan_only_slots_merge_when_their_settings_are_equal(bench: Bench):
+async def test_a_fan_only_slot_holds_no_preset_and_keeps_its_fan(bench: Bench):
     await start(bench)
     quiet = {"hvac_mode": "fan_only", "fan_mode": "1"}
     day = [["00:00", "eco", FAN], ["08:00", None, FAN], ["12:00", None, quiet], ["13:00", "comfort", quiet], ["14:00", None, FAN]]
     await bench.save_weeks({SALON: {"normal": [day] * 7}})
-    assert bench.runtime.weeks[SALON]["normal"][0] == [["00:00", None, FAN], ["12:00", None, quiet], ["14:00", None, FAN]]
+    assert bench.runtime.weeks[SALON]["normal"][0] == [
+        ["00:00", None, FAN], ["08:00", None, FAN], ["12:00", None, quiet], ["13:00", None, quiet], ["14:00", None, FAN]]
 
 
 async def test_a_thermostat_in_fan_only_is_turned_on_in_the_mode_it_last_heated_or_cooled_in(bench: Bench):

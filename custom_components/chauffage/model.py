@@ -369,11 +369,11 @@ def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str,
 
 
 def normalize_day(slots: Any) -> list[list[Any]]:
-    """Sorted slots, first one at 00:00, duplicates and consecutive identical slots (same
-    preset, same settings) merged (same rules as the card). A slot is [start, preset] or
+    """Sorted slots, first one at 00:00, one slot per start time (same rules as the card). Two
+    slots in a row that are the same stay two slots: the user cut them, and the second one
+    changes nothing on the thermostat (engine.targets). A slot is [start, preset] or
     [start, preset, settings] (#91); empty settings are left out. An off, a fan-only, a dry and
-    an auto slot have no preset (None): two off slots in a row are one, and two of the others
-    too when their HVAC mode, their fan and their vanes are the same. Invalid slots are dropped, invalid settings refused; an
+    an auto slot have no preset (None). Invalid slots are dropped, invalid settings refused; an
     empty day is eco all day."""
     if not isinstance(slots, list):
         return [list(s) for s in DEFAULT_DAY]
@@ -396,12 +396,9 @@ def normalize_day(slots: Any) -> list[list[Any]]:
         if HHMM.match(start):
             by_start[start] = (preset, settings)  # the last one wins
     day: list[list[Any]] = []
-    previous = None
     for start in sorted(by_start):
         preset, settings = by_start[start]
-        if (preset, settings) != previous:
-            day.append([start, preset, settings] if settings else [start, preset])
-        previous = (preset, settings)
+        day.append([start, preset, settings] if settings else [start, preset])
     if not day:
         return [list(s) for s in DEFAULT_DAY]
     day[0][0] = "00:00"

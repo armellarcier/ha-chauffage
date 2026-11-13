@@ -1,5 +1,5 @@
 // Identical days shown on one row, edited as a whole (#11).
-import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay, makeLocale, MORE_INFO_CFG } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -108,7 +108,7 @@ describe('the width of the card', () => {
 describe('editing a row', () => {
   test('editing a row edits each of its days', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     const monday = day(card, 'climate.salon', 0);
     assert.notDeepEqual(monday, WEEKDAY);
     for (const d of [1, 2, 3, 4]) assert.deepEqual(day(card, 'climate.salon', d), monday);
@@ -177,7 +177,7 @@ describe('grouping the days or not', () => {
   test('a day edited on its own keeps its own row once the days are grouped again', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     chip(card).click();
-    card._split('climate.salon', 2, 12 * 60); // Wednesday only
+    cutSlot(card, 'climate.salon', 2, 12 * 60); // Wednesday only
     assert.deepEqual(day(card, 'climate.salon', 1), WEEKDAY);
     chip(card).click();
     assert.deepEqual(labels(card), ['Lun, Mar, Jeu, Ven', 'Mer', 'Sam, Dim']);

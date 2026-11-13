@@ -1,7 +1,7 @@
 // Managing schedules from the card, with the drop-down menus of the schedule tabs: "+" creates
 // a schedule (empty or a copy, then its name), "⋮" on the open tab renames it (showing its stable
 // id), moves it, deletes it (docs/decisions.md, "Schedules").
-import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
+import { fakeHass, integrationData, createCard, cleanup, cutSlot } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -94,7 +94,7 @@ describe('the "+" menu: a new schedule', () => {
   test('unsaved edits of the weeks are saved first, then the schedule is created', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await create(card, 'Guests');
     assert.deepEqual(hass.events.map((m) => m.type), ['chauffage/weeks/save', 'chauffage/schedules/set']);
     assert.equal(schedulesSet(hass)[0].revision, 5); // the revision the save produced
@@ -104,7 +104,7 @@ describe('the "+" menu: a new schedule', () => {
   test('when saving the edits fails, nothing is created', async () => {
     const hass = fakeHass({ reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'stale', message: 'stale' }; } });
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await create(card, 'Guests');
     assert.deepEqual(schedulesSet(hass), []);
     assert.match($(card, '.msg').textContent, /modifiés ailleurs/);

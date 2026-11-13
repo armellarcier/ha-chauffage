@@ -220,8 +220,9 @@ def test_a_slot_of_an_unknown_preset_changes_nothing():
 # ----- data rules -----
 
 def test_days_are_normalized_like_in_the_card():
+    # Two slots in a row that are the same stay two slots: the user cut them
     assert model.normalize_day([["08:00", "eco"], ["06:30", "comfort"], ["07:00", "comfort"]]) == [
-        ["00:00", "comfort"], ["08:00", "eco"]]
+        ["00:00", "comfort"], ["07:00", "comfort"], ["08:00", "eco"]]
     assert model.normalize_day(["00:00 eco", "6:30 comfort"]) == [["00:00", "eco"], ["06:30", "comfort"]]
     assert model.normalize_day([["25:00", "eco"], "nonsense"]) == [["00:00", "eco"]]
     assert model.normalize_day(None) == [["00:00", "eco"]]
@@ -615,10 +616,9 @@ def test_a_preset_picked_while_the_thermostat_is_off_is_not_an_override():
 def test_settings_of_a_slot_are_validated():
     assert model.normalize_day([["00:00", "eco", {"hvac_mode": "off"}], ["07:00", "comfort", {}]]) == [
         ["00:00", None, OFF], ["07:00", "comfort"]]
-    # Consecutive slots merge only when their settings are the same too
     cool = {"hvac_mode": "cool"}
-    assert model.normalize_day([["00:00", "eco"], ["21:00", "eco", cool], ["22:00", "eco", cool], ["23:00", "comfort", cool]]) == [
-        ["00:00", "eco"], ["21:00", "eco", cool], ["23:00", "comfort", cool]]
+    day = [["00:00", "eco"], ["21:00", "eco", cool], ["22:00", "eco", cool], ["23:00", "comfort", cool]]
+    assert model.normalize_day(day) == day
     assert model.used_presets({"climate.salon": {"normal": [[["00:00", None, OFF], ["08:00", "eco", cool]]] * 7}}) == ["eco"]
     # A slot's HVAC mode is one of Home Assistant's
     for bad in (["00:00", "eco", "off"], ["00:00", "eco", {"hvac_mode": ""}], ["00:00", "eco", {"temperature": 19}],
@@ -627,9 +627,9 @@ def test_settings_of_a_slot_are_validated():
             model.normalize_day([bad])
     # Heat and cool need a preset: a slot without one is dropped, as any invalid slot
     assert model.normalize_day([["00:00", "eco"], ["12:00", None, cool], ["13:00", None]]) == [["00:00", "eco"]]
-    # Two off slots in a row are one: an off slot has no preset
+    # An off slot has no preset
     assert model.normalize_day([["00:00", "eco"], ["22:00", "eco", OFF], ["23:00", "comfort", OFF]]) == [
-        ["00:00", "eco"], ["22:00", None, OFF]]
+        ["00:00", "eco"], ["22:00", None, OFF], ["23:00", None, OFF]]
 
 
 def test_the_target_of_an_override_may_set_the_hvac_mode_alone():

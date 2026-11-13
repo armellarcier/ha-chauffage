@@ -160,12 +160,13 @@ def test_heat_cool_is_read_as_heat_on_a_thermostat_that_takes_no_range():
     assert engine.slot_hvac_mode({"hvac_mode": "heat_cool"}, single) == "heat"
 
 
-def test_a_dry_slot_and_an_auto_slot_have_no_preset_and_merge():
+def test_a_dry_slot_and_an_auto_slot_have_no_preset():
     day = model.normalize_day([["00:00", "eco", {"hvac_mode": "dry"}], ["08:00", "comfort", {"hvac_mode": "dry"}],
                                ["12:00", None, {"hvac_mode": "auto", "fan_mode": "low"}],
                                ["14:00", None, {"hvac_mode": "auto", "fan_mode": "high"}],
                                ["18:00", "comfort", {"hvac_mode": "heat_cool"}]])
-    assert day == [["00:00", None, {"hvac_mode": "dry"}], ["12:00", None, {"hvac_mode": "auto", "fan_mode": "low"}],
+    assert day == [["00:00", None, {"hvac_mode": "dry"}], ["08:00", None, {"hvac_mode": "dry"}],
+                   ["12:00", None, {"hvac_mode": "auto", "fan_mode": "low"}],
                    ["14:00", None, {"hvac_mode": "auto", "fan_mode": "high"}],
                    ["18:00", "comfort", {"hvac_mode": "heat_cool"}]]
     with pytest.raises(model.InvalidData):

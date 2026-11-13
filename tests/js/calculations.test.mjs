@@ -58,8 +58,8 @@ describe('parseDay: reading a day of "HH:MM preset" slots', () => {
     assert.deepEqual(serializeDay(parseDay(['08:30 eco', '00:00 eco', '06:30 comfort'])), ['00:00 eco', '06:30 comfort', '08:30 eco']);
   });
 
-  test('two consecutive identical slots are merged', () => {
-    assert.deepEqual(serializeDay(parseDay(['00:00 eco', '06:00 eco', '07:00 comfort'])), ['00:00 eco', '07:00 comfort']);
+  test('two slots in a row that are the same stay two slots', () => {
+    assert.deepEqual(serializeDay(parseDay(['00:00 eco', '06:00 eco', '07:00 comfort'])), ['00:00 eco', '06:00 eco', '07:00 comfort']);
   });
 
   test('the first slot always starts at 00:00', () => {

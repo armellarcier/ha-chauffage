@@ -2,7 +2,7 @@
 // overrides, the pause and the active schedule. Plan: also the weeks and the schedules, from the
 // cards. Set up: also the Chauffage panel. An admin can always do everything
 // (docs/decisions.md, "Who may do what").
-import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -152,7 +152,7 @@ describe('the access level in the schedule card', () => {
   test('a save refused by the integration says the access level does not allow it', async () => {
     const hass = as('plan', { reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'unauthorized', message: 'Unauthorized' }; return null; } });
     const c = card(hass);
-    c._split('climate.salon', 0, 12 * 60);
+    cutSlot(c, 'climate.salon', 0, 12 * 60);
     await c._save();
     assert.equal(text($(c, '.msg')), 'Votre niveau d’accès ne le permet pas.');
   });
@@ -160,7 +160,7 @@ describe('the access level in the schedule card', () => {
   test('in English', async () => {
     const hass = as('plan', { locale: { language: 'en' }, reply: () => { throw { code: 'unauthorized', message: 'Unauthorized' }; } });
     const c = card(hass);
-    c._split('climate.salon', 0, 12 * 60);
+    cutSlot(c, 'climate.salon', 0, 12 * 60);
     await c._save();
     assert.equal(text($(c, '.msg')), 'Your access level doesn’t allow this.');
   });
@@ -179,7 +179,7 @@ describe('the access level in the schedule card', () => {
   test('the access level drops with weeks not saved: the edits stay until Cancel, but cannot be saved', async () => {
     const hass = as('plan');
     const c = card(hass);
-    c._split('climate.salon', 0, 12 * 60);
+    cutSlot(c, 'climate.salon', 0, 12 * 60);
     const edited = c._week('climate.salon')[0].length;
     assert.ok($(c, '[data-act="save"]'));
     changeTo(hass, 'use');

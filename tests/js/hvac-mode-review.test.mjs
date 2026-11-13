@@ -71,7 +71,7 @@ const ascending = (list) => list.every((v, i) => v >= 0 && (i === 0 || v > list[
 beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date(NOW) }));
 afterEach(() => { mock.timers.reset(); cleanup(); });
 
-describe('a slot stays apart from its neighbors while its popover is open', () => {
+describe('a slot stays apart from its neighbors, while its popover is open and after', () => {
   // Thursday: fan only from 17:00, then Cool on Comfort from 20:30
   const THU = ['00:00 eco', ['17:00', null, { hvac_mode: 'fan_only' }], ['20:30', 'comfort', { hvac_mode: 'cool' }]];
   const FAN = '- {"hvac_mode":"fan_only"}';
@@ -87,31 +87,32 @@ describe('a slot stays apart from its neighbors while its popover is open', () =
     assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`, '20:30 comfort {"hvac_mode":"cool"}']);
   });
 
-  test('the two slots become one when the popover closes', () => {
+  test('the two slots stay two when the popover closes', () => {
     const card = cardOf(setup({ suite: THU }));
     select(card, SUITE, 2, 3);
     mode(card, 'fan_only');
     click(card, '.editor [data-act="close"]');
-    assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`]);
+    assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`, `20:30 ${FAN}`]);
   });
 
-  test('the two slots become one when another slot is opened', () => {
+  test('the two slots stay two when another slot is opened, and the slot forgets the preset it had', () => {
     const card = cardOf(setup({ suite: THU }));
     select(card, SUITE, 2, 3);
     mode(card, 'fan_only');
     select(card, SUITE, 0, 3);
-    assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`]);
+    assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`, `20:30 ${FAN}`]);
     assert.deepEqual(card._sel, { climate: SUITE, day: 3, idx: 0 });
+    assert.equal(card._trial, null);
   });
 
-  test('the two slots are saved as one', async () => {
+  test('the two slots are saved as two', async () => {
     const hass = setup({ suite: THU });
     const card = cardOf(hass);
     select(card, SUITE, 2, 3);
     mode(card, 'fan_only');
     await card._save();
-    assert.equal(hass.events.at(-1).weeks[SUITE].normal[3].length, 2);
-    assert.equal(day(card, SUITE, 3).length, 2);
+    assert.equal(hass.events.at(-1).weeks[SUITE].normal[3].length, 3);
+    assert.equal(day(card, SUITE, 3).length, 3);
   });
 
   test('a preset tapped that is the neighbor\'s keeps the slot until the popover closes', () => {
@@ -325,7 +326,7 @@ describe('a short slot', () => {
     tap(handle(card, 1), 14 * 60 + 5); // selects the short slot
     assert.equal(card._sel.idx, 1);
     tap(handle(card, 1), 14 * 60 + 5); // the second tap, on its own handle
-    assert.deepEqual(day(card, SALON), ['00:00 eco', '14:00 boost', '14:15 eco', '14:30 comfort', '22:30 eco']);
+    assert.deepEqual(day(card, SALON), ['00:00 eco', '14:00 boost', '14:15 boost', '14:30 comfort', '22:30 eco']);
   });
 
   test('of one step cannot be cut: the double tap keeps it selected', () => {
@@ -351,7 +352,7 @@ describe('a short slot', () => {
     const insert = $(card, '.editor [data-act="insert"]');
     assert.equal(insert.disabled, false);
     insert.click();
-    assert.deepEqual(day(card, SALON), ['00:00 eco', '14:00 boost', '14:15 eco', '14:30 comfort', '22:30 eco']);
+    assert.deepEqual(day(card, SALON), ['00:00 eco', '14:00 boost', '14:15 boost', '14:30 comfort', '22:30 eco']);
     // One step: nothing to insert
     const one = short(['00:00 eco', '14:00 boost', '14:15 comfort', '22:30 eco']);
     select(one, SALON, 1);

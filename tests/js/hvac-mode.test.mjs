@@ -2,7 +2,7 @@
 // preset says how warm, for each thermostat and for that HVAC mode (#91). In the card: the week
 // view, the slot popover, the override block, the presets tab and the thermostat card.
 import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { parseDay, serializeDay, normalize, planText, overrideLabel, makeLocale, coolColor, derivedCoolColor } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { parseDay, serializeDay, normalize, joined, planText, overrideLabel, makeLocale, coolColor, derivedCoolColor } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -92,9 +92,9 @@ describe('a slot is a preset, off, or fan only', () => {
     assert.deepEqual(parseDay([['00:00', 'eco'], ['12:00', null, COOL]]), [{ start: 0, preset: 'eco' }]);
   });
 
-  test('two off slots in a row are one slot; two fan-only slots too when their settings are equal', () => {
+  test('slots a copy made the same are joined: two off slots in a row, two fan-only slots too when their settings are equal', () => {
     const quiet = { hvac_mode: 'fan_only', fan_mode: '1' };
-    const merged = normalize([{ start: 0, preset: 'eco' }, { start: 600, preset: null, settings: OFF }, { start: 700, preset: null, settings: OFF },
+    const merged = joined([{ start: 0, preset: 'eco' }, { start: 600, preset: null, settings: OFF }, { start: 700, preset: null, settings: OFF },
       { start: 800, preset: null, settings: FAN }, { start: 850, preset: null, settings: FAN }, { start: 900, preset: null, settings: quiet },
       { start: 1000, preset: 'eco' }, { start: 1100, preset: 'eco', settings: COOL }]);
     assert.deepEqual(merged, [{ start: 0, preset: 'eco' }, { start: 600, preset: null, settings: OFF }, { start: 800, preset: null, settings: FAN },
@@ -117,13 +117,18 @@ describe('a slot is a preset, off, or fan only', () => {
     assert.deepEqual(sent.weeks['climate.salon'].normal[0], [['00:00', 'eco'], ['06:30', 'boost'], ['08:30', 'eco'], ['17:30', 'comfort'], ['21:00', null, OFF]]);
   });
 
-  test('a piece cut out of an off slot or of a fan-only slot is on a preset; out of a slot, it keeps its HVAC mode, its fan and its vanes', () => {
+  test('a piece cut out of a slot is like it; given a preset, a piece cut out of an off slot or of a fan-only slot takes the HVAC mode of the slot before it', () => {
     const card = cardOf(setup({ atelier: SUMMER }));
     card._split('climate.salon', 0, 23 * 60); // in 21:00, off
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(4), [`21:00${OFF_SLOT}`, `23:00${OFF_SLOT}`]);
+    card._action('preset', { preset: 'comfort' });
     assert.deepEqual(day(card, 'climate.salon', 0).slice(4), [`21:00${OFF_SLOT}`, '23:00 comfort']);
     card._split('climate.atelier', 0, 16 * 60); // in 14:00 comfort, cool
-    assert.deepEqual(day(card, 'climate.atelier', 0).slice(1, 3), ['14:00 comfort {"hvac_mode":"cool"}', '16:00 eco {"hvac_mode":"cool"}']);
+    assert.deepEqual(day(card, 'climate.atelier', 0).slice(1, 3), ['14:00 comfort {"hvac_mode":"cool"}', '16:00 comfort {"hvac_mode":"cool"}']);
+    card._action('preset', { preset: 'eco' });
     card._split('climate.atelier', 0, 21 * 60); // in 20:00 fan only, fan 3
+    assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 - {"hvac_mode":"fan_only","fan_mode":"3"}']);
+    card._action('preset', { preset: 'comfort' });
     assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 comfort {"hvac_mode":"cool","fan_mode":"3"}'],
       'on a preset, in the HVAC mode of the slot before it');
   });
@@ -474,7 +479,9 @@ describe('the override block: off, fan only, a preset, a temperature and its end
     const card = cardOf(hass, { show: ['climate.salon'] });
     click(card, '.override[data-climate="climate.salon"]');
     click(card, '.override-ed [data-act="override-off"]');
-    assert.deepEqual(lastCall(hass).override, offOverride);
+    // Off from now, a week long without a next slot (the setting Turned off)
+    assert.deepEqual(lastCall(hass).override, { target: OFF, start: new Date(at).toISOString(),
+      end: new Date(new Date(at).getTime() + 7 * 24 * 3600000).toISOString() });
   });
 
   test('Ventilation sets the override to fan only, without setpoint; Chauffe tapped then heats again', () => {
@@ -506,7 +513,9 @@ describe('the override block: off, fan only, a preset, a temperature and its end
     click(card, '.override[data-climate="climate.salon"]');
     assert.deepEqual(chips(card, '.override-ed'), ['Arrêt ✓', 'Hors-gel', 'Éco', 'Confort', 'Boost']);
     click(card, '.override-ed [data-act="override-preset"][data-preset="comfort"]');
-    assert.deepEqual(lastCall(hass).override, { ...offOverride, target: { preset_mode: 'comfort' }, preset: 'comfort' });
+    // On from now, for the override duration
+    assert.deepEqual(lastCall(hass).override, { target: { preset_mode: 'comfort' }, preset: 'comfort',
+      start: new Date(at).toISOString(), end: new Date(new Date(at).getTime() + 2 * 3600000).toISOString() });
     change($(card, '.override-ed [data-override-temperature]'), '21');
     assert.deepEqual(lastCall(hass).override.target, { temperature: 21 });
     // In the more-info block too

@@ -1,6 +1,6 @@
 // The card's exchanges with the Chauffage integration (websocket API): subscription, saves,
 // overrides, schedules, presets; and the card without the integration.
-import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY, cutSlot } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay, compareVersions, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -91,7 +91,7 @@ describe('writing to the integration', () => {
     const hass = fakeIntegrationHass(); // the salon is scheduled, the bureau is not
     const card = createCard(hass);
     assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]'), 'the bureau is shown');
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     await card._save();
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.salon']);
   });
@@ -99,7 +99,7 @@ describe('writing to the integration', () => {
   test('editing the week of a thermostat of the card that Chauffage does not schedule yet schedules it', async () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await card._save();
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
   });
@@ -108,7 +108,7 @@ describe('writing to the integration', () => {
     const both = { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.bureau': { Normal: Array(7).fill(WEEKDAY) } };
     const hass = fakeIntegrationHass({ weeks: both });
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await card._save();
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/weeks/save');
@@ -132,9 +132,9 @@ describe('writing to the integration', () => {
   test('the next save uses the revision the integration gave back', async () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     await card._save();
-    card._split('climate.salon', 0, 13 * 60);
+    cutSlot(card, 'climate.salon', 0, 13 * 60);
     await card._save();
     assert.deepEqual(lastCall(hass).revisions, { 'climate.salon': 8 });
   });
@@ -142,11 +142,11 @@ describe('writing to the integration', () => {
   test('an edit undone before saving sends nothing', async () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60); // the bureau gets its default week, so is changed
+    cutSlot(card, 'climate.bureau', 0, 12 * 60); // the bureau gets its default week, so is changed
     await card._save();
     const sent = hass.events.length;
     const before = structuredClone(card._week('climate.salon'));
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     card._data['climate.salon'][card._schedule] = before;
     await card._save();
     assert.equal(hass.events.length, sent);
@@ -156,7 +156,7 @@ describe('writing to the integration', () => {
   test('a thermostat new to the integration is sent with no revision', async () => {
     const hass = fakeIntegrationHass(); // only the salon is scheduled
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await card._save();
     assert.deepEqual(lastCall(hass).revisions, { 'climate.bureau': null });
   });
@@ -166,7 +166,7 @@ describe('writing to the integration', () => {
     delete data.thermostats;
     const hass = fakeIntegrationHass({ data });
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await card._save();
     const msg = lastCall(hass);
     assert.equal(msg.revision, 4);
@@ -179,7 +179,7 @@ describe('writing to the integration', () => {
       reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'stale', message: 'stale' }; },
     });
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await card._save();
     assert.equal(card._dirty, true);
     assert.match(card.shadowRoot.querySelector('.msg').textContent, /modifiés ailleurs/);
@@ -270,7 +270,7 @@ describe('presets from the integration', () => {
     const data = withPresets();
     data.weeks['climate.salon'].normal[0] = [['00:00', 'nuit']];
     const card = createCard(fakeIntegrationHass({ data }), { show: ['climate.salon'] });
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 nuit', '12:00 comfort']);
   });
 });
@@ -515,7 +515,7 @@ describe('a thermostat renamed in Home Assistant', () => {
   test('nothing is saved under the former id', async () => {
     const hass = hassOf();
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await card._save();
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
   });

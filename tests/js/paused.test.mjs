@@ -1,6 +1,6 @@
 // A paused thermostat in the card and its more-info block: shown as paused, Chauffage does not
 // drive it, its weeks stay editable (docs/decisions.md, "Scheduled thermostats").
-import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -69,7 +69,7 @@ describe('a paused thermostat in the card', () => {
   test('its weeks can still be edited and saved, which does not resume it', async () => {
     const hass = pausedSalon();
     const card = createCard(hass);
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     await card._save();
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/weeks/save');

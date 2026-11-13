@@ -145,11 +145,11 @@ describe('the slot popover says the HVAC mode first, then the presets', () => {
     assert.deepEqual(presetRow(card), ['Éco', 'Confort ✓', 'Boost']);
   });
 
-  test('two slots in a row with the same HVAC mode and the same settings are one slot', () => {
+  test('two slots in a row with the same HVAC mode and the same settings stay two slots', () => {
     const dry = { hvac_mode: 'dry' };
     assert.deepEqual(serializeDay(normalize(parseDay([['00:00', 'eco'], ['10:00', null, dry], ['12:00', null, dry],
       ['14:00', null, { hvac_mode: 'dry', fan_mode: 'low' }], ['16:00', null, { hvac_mode: 'auto' }]]))),
-    ['00:00 eco', '10:00 - {"hvac_mode":"dry"}', '14:00 - {"hvac_mode":"dry","fan_mode":"low"}', '16:00 - {"hvac_mode":"auto"}']);
+    ['00:00 eco', '10:00 - {"hvac_mode":"dry"}', '12:00 - {"hvac_mode":"dry"}', '14:00 - {"hvac_mode":"dry","fan_mode":"low"}', '16:00 - {"hvac_mode":"auto"}']);
   });
 });
 

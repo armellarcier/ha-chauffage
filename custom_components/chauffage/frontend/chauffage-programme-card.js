@@ -933,22 +933,25 @@ const presetColorIn = (preset, mode) => (mode === 'cool' ? coolColor(preset)
 // The color of a slot of a preset
 const slotColor = (preset, seg) => presetColorIn(preset, slotMode(seg));
 
-// Merges consecutive identical slots (same preset, same settings) and removes duplicate start times
+// A day's slots in order, the first one at 00:00, one slot per start time. Two slots in a row
+// that are the same stay two slots: the user cut them (docs/decisions.md, "Card")
 function normalize(segs) {
   const sorted = segs.slice().sort((a, b) => a.start - b.start);
-  const dedup = [];
-  for (const s of sorted) {
-    if (dedup.length && dedup[dedup.length - 1].start === s.start) dedup[dedup.length - 1] = withSettings(s, s.settings);
-    else dedup.push(withSettings(s, s.settings));
-  }
   const out = [];
-  for (const s of dedup) {
-    const last = out[out.length - 1];
-    if (last && sameSlot(last, s)) continue;
-    out.push(s);
+  for (const s of sorted) {
+    if (out.length && out[out.length - 1].start === s.start) out[out.length - 1] = withSettings(s, s.settings);
+    else out.push(withSettings(s, s.settings));
   }
   if (out.length) out[0].start = 0;
   return out.length ? out : [{ start: 0, preset: 'eco' }];
+}
+// The slots the card made the same join: a day copied to a thermostat that cannot follow every
+// slot, a whole week set to heat or to cool
+const joined = (segs) => normalize(segs).filter((s, i, all) => i === 0 || !sameSlot(all[i - 1], s));
+// The slot at `idx` joins the slot before it when they are the same: the user removed what was
+// between them
+function joinAt(segs, idx) {
+  if (idx > 0 && idx < segs.length && sameSlot(segs[idx - 1], segs[idx])) segs.splice(idx, 1);
 }
 
 // A slot from the integration ([start, preset, settings?]) or from its text form
@@ -2732,7 +2735,16 @@ function overrideWithPreset(d, src, climate, preset, hass) {
   const meaning = src.targets(climate)[preset];
   if (!meaning) return null;
   const target = withHvac(meaning, overrideHvacOn(d, hass, src, climate));
-  return { ...(d || newOverride(src, target)), target, preset };
+  return { ...(turnedOn(d, src) || newOverride(src, target)), target, preset };
+}
+// The override `d` as the base of an "on" override. An off override ends as the setting
+// *Turned off* says, often much later: turned on, it starts now and lasts the override
+// duration, as a new override does
+const isOffOverride = (d) => !!d && !!d.target && d.target.hvac_mode === 'off';
+function turnedOn(d, src) {
+  if (!isOffOverride(d)) return d;
+  const { ends_at: _, start: _s, end: _e, ...rest } = d;
+  return { ...rest, ...newOverride(src, {}) };
 }
 
 // The override `d` set to heat, cool or heat/cool (the first row), until the same end. It keeps
@@ -2742,6 +2754,7 @@ function overrideWithPreset(d, src, climate, preset, hass) {
 function overrideWithHvac(d, src, climate, mode) {
   const targets = src.targets(climate);
   const offers = (id) => !!id && !!targets[id] && presetModes(targets[id]).includes(mode);
+  d = turnedOn(d, src);
   const target = (d && d.target) || {};
   if (d && offers(d.preset)) return { ...d, target: withHvac(targets[d.preset], mode) };
   if (d && !d.preset && mode !== 'heat_cool' && ('temperature' in target || 'preset_mode' in target)) return { ...d, target: withHvac(target, mode) };
@@ -2768,13 +2781,12 @@ function newOffOverride(src, climate) {
   return setting === 'next_slot' ? { ...d, end: new Date(parseDate(d.start).getTime() + 7 * DAY_MIN * 60000).toISOString() } : d;
 }
 
-// The override `d` turned off, until the same end: off, and nothing else; a new override without
-// `d` (#91). RESUME when the schedule plans off now
+// The override `d` turned off: off, and nothing else, until the end the setting *Turned off*
+// gives from now, as a new off override (#91). An off override stays as it is. RESUME when the
+// schedule plans off now
 function overrideOff(d, src, climate) {
   if (d && d.target && d.target.hvac_mode !== 'off' && (src.planned(climate) || {}).hvac_mode === 'off') return RESUME;
-  if (!d) return newOffOverride(src, climate);
-  const { preset: _, ...rest } = d;
-  return { ...rest, target: { hvac_mode: 'off' } };
+  return isOffOverride(d) ? d : newOffOverride(src, climate);
 }
 
 // The override `d` set to an HVAC mode without a preset, until the same end: off (see
@@ -2784,6 +2796,7 @@ function overrideNoPreset(d, src, climate, mode) {
   if (mode === 'off') return overrideOff(d, src, climate);
   if (d && (src.planned(climate) || {}).hvac_mode === mode) return RESUME;
   const target = { hvac_mode: mode };
+  d = turnedOn(d, src);
   if (!d) return newOverride(src, target);
   const { preset: _, ...rest } = d;
   return { ...rest, target };
@@ -2800,7 +2813,7 @@ function overrideWithTemperature(d, src, climate, value, hass) {
   const on = overrideHvacOn(d, hass, src, climate);
   const mode = on === 'heat_cool' ? setpointModesOf(hass, climate)[0] : on;
   if (!d) return newOverride(src, withHvac({ temperature: value }, mode));
-  const { preset, ...rest } = d;
+  const { preset, ...rest } = turnedOn(d, src);
   const { preset_mode: _p, temperature: _t, cool_temperature: _c, cool_preset_mode: _cp, target_temp_low: _l, target_temp_high: _h, ...kept } = d.target || {};
   return { ...rest, target: withHvac({ ...kept, temperature: value }, mode) };
 }
@@ -2811,19 +2824,6 @@ function overrideWithSetting(d, attr, value) {
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
-// Another preset for a new slot, unlike `id` and `next` (the preset after it): comfort ↔ eco when
-// they exist, otherwise the next preset in the list; undefined when there is none
-function otherPreset(presets, id, next) {
-  const ids = presets.map((p) => p.id);
-  const free = (c) => c !== id && c !== next;
-  // Comfort or eco first: a piece cut out of a boost slot before a comfort slot is eco, not
-  // frost protection
-  const usual = (id === 'comfort' ? ['eco', 'comfort'] : ['comfort', 'eco']).find((c) => ids.includes(c) && free(c));
-  if (usual) return usual;
-  const i = ids.indexOf(id);
-  return [...ids.slice(i + 1), ...ids.slice(0, i + 1)].find(free);
-}
-
 // The card's options that only the Chauffage panel sets, for its pages: a page shows one view, a
 // thermostat's sheet stacks its weeks without their chips, tabs or foot, and saves them together
 const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'week_only', 'flat', 'preset_definitions', 'history'];
@@ -3176,6 +3176,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   _load() {
     const src = this._source();
     this._data = {};
+    this._trial = null;
+    this._cut = null;
     this._drawn = new Set();
     this._revision = src.revision;
     this._revisions = {};
@@ -3265,22 +3267,49 @@ class ChauffageProgrammeCard extends HTMLElement {
     return Math.round(m / step) * step;
   }
 
-  // A slot changed in its popover may become the same as the slot before or after it (Fan only
-  // tried next to a fan-only slot). The two slots stay apart while the popover is open: merged
-  // at once, the slot would lose its times, and the user could not go back. They become one
-  // slot when the popover closes, when another slot is opened, or when the weeks are saved
-  // (`force`)
+  // A piece the card cut (a double tap, Insert a slot) starts like the slot it is cut from, with
+  // its popover open: the user says what it is. Left as it was cut, the piece joins its slot
+  // again when the popover closes, when another slot is opened, when another schedule is shown
+  // or when the weeks are saved (`force`), on every day of its row. A slot the user set to the
+  // same as its neighbor is not a piece of the card's: it stays (docs/decisions.md, "Card").
+  // The preset a slot had before an HVAC mode without one (`_trial`) is forgotten then too
   _settle(force = false) {
+    const selected = (ref, days) => {
+      const sel = this._sel;
+      if (!sel || this._schedule !== ref.schedule || sel.climate !== ref.climate || !days.includes(sel.day)) return null;
+      return (this._week(sel.climate)[sel.day] || [])[sel.idx] || null;
+    };
     const trial = this._trial;
-    if (!trial) return;
-    const week = this._week(trial.climate, trial.schedule);
-    const sel = this._sel && this._schedule === trial.schedule && this._sel.climate === trial.climate && this._sel.day === trial.day
-      ? week[trial.day][this._sel.idx] : null;
-    if (!force && sel && sel.start === trial.start) return;
-    this._trial = null;
-    week[trial.day] = normalize(week[trial.day]);
-    if (this._schedule === trial.schedule) this._spread(trial.climate, trial.day);
-    if (sel) week[trial.day].forEach((slot, i) => { if (slot.start <= sel.start) this._sel.idx = i; });
+    if (trial) {
+      const sel = selected(trial, [trial.day]);
+      if (force || !sel || sel.start !== trial.start) this._trial = null;
+    }
+    const cut = this._cut;
+    if (!cut) return;
+    const sel = selected(cut, cut.days);
+    if (!force && sel && cut.starts.includes(sel.start)) return;
+    this._cut = null;
+    const week = this._week(cut.climate, cut.schedule);
+    for (const d of cut.days) {
+      // In place: an edit under way holds the day's slots
+      const kept = week[d].filter((slot, i, segs) => !(i > 0 && cut.starts.includes(slot.start) && sameSlot(segs[i - 1], slot)));
+      week[d].splice(0, week[d].length, ...kept);
+    }
+    if (sel) week[this._sel.day].forEach((slot, i) => { if (slot.start <= sel.start) this._sel.idx = i; });
+    // Nothing left to save when the piece was the only edit
+    if (this._dirty && this._loadedWeeks && JSON.stringify(this._serialized()) === JSON.stringify(this._loadedWeeks)) this._dirty = false;
+  }
+
+  // The pieces the card has just cut on a day, at `starts`: on every day of the day's row. A
+  // second cut on the same row is settled with the first one
+  _cutPieces(climate, day, starts) {
+    const cut = this._cut;
+    if (cut && cut.climate === climate && cut.schedule === this._schedule && cut.days.includes(day)) {
+      cut.starts.push(...starts);
+      return;
+    }
+    this._settle(true);
+    this._cut = { climate, schedule: this._schedule, days: this._rowOf(day).slice(), starts };
   }
 
   // A day's slots as they run on a thermostat: each with its HVAC mode there (slotOn)
@@ -3288,15 +3317,11 @@ class ChauffageProgrammeCard extends HTMLElement {
     return dayOn(this._hass, climate, segs);
   }
 
-  // An edit of a day's slots: each with its HVAC mode on this thermostat, merged, spread to the
-  // days of its row, then drawn
-  _commit(climate, day, keepMin, merge = true) {
+  // An edit of a day's slots: each with its HVAC mode on this thermostat, spread to the days of
+  // its row, then drawn. Two slots that are the same stay two slots
+  _commit(climate, day, keepMin) {
     const week = this._week(climate);
-    const on = this._dayOn(climate, week[day]);
-    // `merge` false: a slot tried in its popover stays apart from a neighbor it is the same as
-    // (see _settle)
-    week[day] = merge ? normalize(on) : on.map((slot) => withSettings(slot, slot.settings));
-    if (merge && this._trial && this._trial.climate === climate && this._trial.day === day) this._trial = null;
+    week[day] = normalize(this._dayOn(climate, week[day]));
     this._spread(climate, day);
     if (keepMin != null) {
       let idx = 0;
@@ -4662,6 +4687,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       // A schedule's tab, or the active schedule's name in the bar: shows that schedule's weeks
       const tab = e.target.closest('.tab, [data-show-schedule]');
       if (tab) {
+        this._settle(true); // while the rows of its schedule are still known
         this._schedule = tab.dataset.schedule || tab.dataset.showSchedule;
         this._schedEd = null;
         this._sel = null;
@@ -4982,17 +5008,18 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   // Whether a week uses a preset in an HVAC mode, heat or cool (a heat/cool slot uses both), on
   // a thermostat that has no value of its own for it there: the preset's temperature for that
-  // HVAC mode is what its slot sends
+  // HVAC mode is what its slot sends. In a heat/cool slot, only a temperature of its own counts
   _usedIn(id, mode) {
     const src = this._source();
     for (const [climate, bySchedule] of Object.entries(src.weeks())) {
       const own = src.mapping(climate)[id] || {};
-      if ('preset_mode' in own || (mode === 'cool' ? 'cool_temperature' : 'temperature') in own) continue;
+      const number = (mode === 'cool' ? 'cool_temperature' : 'temperature') in own;
       for (const week of Object.values(bySchedule)) {
         for (const slot of week.flat().map(parseSlot)) {
           if (slot.preset !== id || hasNoPreset(slot)) continue;
           const on = slotModeOn(this._hass, climate, slot) || 'heat';
-          if (on === mode || on === 'heat_cool') return true;
+          // A heat/cool slot sends two numbers: one of the thermostat's own presets gives none
+          if (on === 'heat_cool' ? !number : on === mode && !number && !('preset_mode' in own)) return true;
         }
       }
     }
@@ -5747,7 +5774,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._render();
   }
 
-  // Cuts the slot at a time of day. `fit`: the cut is moved a step away from both ends of the
+  // Cuts the slot at a time of day: the piece from there to the slot's end is selected. `fit`: the cut is moved a step away from both ends of the
   // slot under the pointer, so a tap on a short slot, which a finger cannot aim within, cuts it
   // too. Otherwise a cut less than a step away from a slot's end is refused
   _split(climate, day, m, fit = false) {
@@ -5762,19 +5789,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!Number.isFinite(m) || end - s.start < 2 * step) return;
     if (fit) m = Math.max(s.start + step, Math.min(end - step, this._snap(m)));
     if (m < s.start + step || m > end - step) return;
-    const next = segs[idx + 1]?.preset;
-    const preset = otherPreset(this._presets(), s.preset, next);
-    // Every piece keeps the slot's fan and vanes, and its heat or cool (#91); a piece cut out
-    // of an off slot or of a fan-only slot is on a preset
-    const settings = this._pieceSettings(climate, segs, idx);
-    if (preset) segs.splice(idx + 1, 0, slotOf(m, preset, settings));
-    else {
-      // Only the next slot's preset is left: like "Insert a slot", go back to this slot's preset
-      // halfway, so that the new slot does not merge with the next one
-      const back = this._snap((m + end) / 2);
-      if (!next || back - m < step || end - back < step) return;
-      segs.splice(idx + 1, 0, slotOf(m, next, settings), withSettings({ start: back, preset: s.preset }, s.settings));
-    }
+    // The piece is like the slot it is cut from: its preset, its HVAC mode, its fan and its
+    // vanes. Its popover opens, and the user says what the piece is (see _settle)
+    this._cutPieces(climate, day, [m]);
+    segs.splice(idx + 1, 0, { ...clone(s), start: m });
     this._commit(climate, day, m);
   }
 
@@ -5801,7 +5819,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!slotModesOf(this._hass, climate).includes(mode)) return;
     const week = this._week(climate);
     for (let d = 0; d < 7; d += 1) {
-      week[d] = normalize(week[d].map((slot) => (hasNoPreset(slot) ? slot : slotOf(slot.start, slot.preset, { ...airSettings(slot), hvac_mode: mode }))));
+      week[d] = joined(week[d].map((slot) => (hasNoPreset(slot) ? slot : slotOf(slot.start, slot.preset, { ...airSettings(slot), hvac_mode: mode }))));
     }
     this._sel = null;
     this._focus = climate;
@@ -5820,7 +5838,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The preset the slot had before an HVAC mode without one: given back if the user comes
     // back to heat or cool while the popover is open
     this._trial = { climate, day, schedule: this._schedule, start: s.start, preset: s.preset || this._triedPreset(climate, day, s) };
-    this._commit(climate, day, s.start, false);
+    this._commit(climate, day, s.start);
   }
 
   _triedPreset(climate, day, slot) {
@@ -5897,7 +5915,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       out.push(slot);
     }
     const order = ['slotHeat', 'slotCool', 'hvacHeatCool', 'hvacOff', 'hvacFan', 'hvacDry', 'hvacAuto', ...SETTING_ATTRS.map((attr) => SETTING_LABELS[attr])];
-    return { segs: normalize(out), dropped: order.filter((key) => left.has(key)) };
+    return { segs: joined(out), dropped: order.filter((key) => left.has(key)) };
   }
 
   // A time typed in the slot editor (minutes), for the slot it was typed for (a tap outside the
@@ -5915,13 +5933,17 @@ class ChauffageProgrammeCard extends HTMLElement {
       while (first > 0 && segs[first - 1].start >= v) first -= 1;
       segs.splice(first, idx - first);
       segs[first].start = first === 0 ? 0 : Math.max(segs[first - 1].start + step, v);
-      this._commit(climate, day, segs[first].start);
+      const start = segs[first].start;
+      if (first < idx) joinAt(segs, first);
+      this._commit(climate, day, start);
     } else if (edge === 'end' && idx < segs.length - 1) {
       // 24:00, or 00:00, is the end of the day
       const v = Math.max(segs[idx].start + step, minutes === 0 ? DAY_MIN : this._snap(minutes));
       // An end typed onto the end of a slot after it, or later: that slot is removed
+      const count = segs.length;
       while (idx + 1 < segs.length && endOf(idx + 1) <= v) segs.splice(idx + 1, 1);
       if (idx + 1 < segs.length) segs[idx + 1].start = v;
+      if (segs.length < count) joinAt(segs, idx + 1);
       this._commit(climate, day, segs[idx].start);
     }
   }
@@ -6170,15 +6192,13 @@ class ChauffageProgrammeCard extends HTMLElement {
       const m1 = this._snap(s.start + (end - s.start) / 3);
       const m2 = this._snap(s.start + (2 * (end - s.start)) / 3);
       if (m1 <= s.start || m2 >= end || m2 <= m1 || m1 - s.start < step) return;
-      // Both pieces keep the slot's fan and vanes; the piece inserted in an off slot or in a
-      // fan-only slot is on a preset
-      const other = otherPreset(this._presets(), s.preset) ?? s.preset;
-      if (!other) return;
-      segs.splice(idx + 1, 0, slotOf(m1, other, this._pieceSettings(climate, segs, idx)), withSettings({ start: m2, preset: s.preset }, s.settings));
+      // The piece in the middle is like the slot, selected: the user says what it is
+      this._cutPieces(climate, day, [m1, m2]);
+      segs.splice(idx + 1, 0, { ...clone(s), start: m1 }, { ...clone(s), start: m2 });
       this._commit(climate, day, m1);
     } else if (act === 'delete') {
       if (segs.length === 1) return;
-      if (idx > 0) segs.splice(idx, 1);
+      if (idx > 0) { segs.splice(idx, 1); joinAt(segs, idx); }
       else { segs.splice(0, 1); segs[0].start = 0; }
       this._sel = null;
       this._commit(climate, day, null);
@@ -9056,7 +9076,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
-  VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, parseDay, serializeDay, parseTime,
+  VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, joined, parseDay, serializeDay, parseTime,
   overridePieces, overrideLabel, planText, CHIP_STYLE, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
   ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS, reloadPage,
