@@ -3373,7 +3373,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   _layoutRows() {
     const order = this._loc.dayOrder;
     this._rows = this._grouped()
-      ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(this._dayOn(c, this._week(c)[d])).join(',')).join('|'))
+      ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(dayOn(this._hass, c, this._week(c)[d])).join(',')).join('|'))
       : order.map((d) => [d]);
     for (const ref of [this._sel, this._menu]) if (ref) ref.day = this._rowOf(ref.day)[0];
   }
@@ -3432,11 +3432,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (at) this._week(sel.climate)[sel.day].forEach((slot, i) => { if (slot.start <= at.start) sel.idx = i; });
     // Nothing left to save when the piece was the only edit
     if (this._dirty && this._loadedWeeks && JSON.stringify(this._serialized()) === JSON.stringify(this._loadedWeeks)) this._dirty = false;
-  }
-
-  // A day's slots as they run on a thermostat: each with its HVAC mode there (slotOn)
-  _dayOn(climate, segs) {
-    return dayOn(this._hass, climate, segs);
   }
 
   // An edit of a day's slots: spread to the days of its row, then drawn. Two slots that are the
@@ -3526,7 +3521,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._drag = null;
     const segs = this._week(d.climate)[d.day];
     d.orig.forEach((start, i) => { if (segs[i]) segs[i].start = start; });
-    this._layoutBar(d.bar, segs, d.on);
+    this._layoutBar(d.bar, segs);
     d.bar.querySelectorAll('.handle.drag').forEach((el) => el.classList.remove('drag'));
   }
 
@@ -3840,7 +3835,7 @@ class ChauffageProgrammeCard extends HTMLElement {
 
   _barHtml(climate, stored, days, showNow) {
     const d = days[0];
-    const segs = this._dayOn(climate, stored); // an air conditioner's slots heat or cool
+    const segs = dayOn(this._hass, climate, stored); // an air conditioner's slots heat or cool
     const editable = this._mayEdit(climate); // read-only: no handle, no slot to move
     const segHtml = segs
       .map((s, i) => {
@@ -4544,12 +4539,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
-  // Visual update of a row while dragging (without recreating the captured handle). `on`: the
-  // day's slots as they run on the thermostat (_dayOn), read once when the drag starts. A drag
-  // only moves the starts, so each slot keeps its HVAC mode there
-  _layoutBar(bar, stored, on) {
-    const segs = (on && on.length === stored.length ? on : this._dayOn(bar.dataset.climate, stored))
-      .map((s, i) => (s.start === stored[i].start ? s : { ...s, start: stored[i].start }));
+  // Visual update of a row while dragging (without recreating the captured handle)
+  _layoutBar(bar, stored) {
+    const segs = dayOn(this._hass, bar.dataset.climate, stored); // as they run on the thermostat
     bar.querySelectorAll('.seg').forEach((el, i) => {
       const s = segs[i];
       const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
@@ -4654,7 +4646,6 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._drag = {
           move: true, climate, day, idx, bar, el: seg, x0: e.clientX, y0: e.clientY, selected,
           touch: e.pointerType === 'touch', orig: segs.map((s) => s.start),
-          on: this._dayOn(climate, segs),
           start: segs[idx].start, length: segs[idx + 1].start - segs[idx].start, moved: false,
         };
         return;
@@ -4670,7 +4661,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._drag = {
         climate, day, idx: Number(h.dataset.idx), bar, el: h, moved: false, x0: e.clientX, y0: e.clientY,
         touch: e.pointerType === 'touch', orig: this._week(climate)[day].map((s) => s.start),
-        on: this._dayOn(climate, this._week(climate)[day]),
       };
     });
 
@@ -4720,7 +4710,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         if (m !== segs[d.idx].start) {
           segs[d.idx].start = m;
           segs[d.idx + 1].start = m + d.length;
-          this._layoutBar(d.bar, segs, d.on);
+          this._layoutBar(d.bar, segs);
         }
         return;
       }
@@ -4730,7 +4720,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (m !== segs[d.idx].start) {
         segs[d.idx].start = m;
         d.moved = true;
-        this._layoutBar(d.bar, segs, d.on);
+        this._layoutBar(d.bar, segs);
       }
     });
 
