@@ -119,7 +119,7 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   Comfort 25° until 23:00, then Heat · Eco". On a thermostat card, in the more-info dialog,
   and on the override drawn on the week, with its tooltip. A thermostat card and the more-info
   dialog name the HVAC modes in full, as Home Assistant does. On a week with several
-  thermostats, a short override says its HVAC mode and its end next to it: "⏱ ❄ 02:31". Switch the
+  thermostats, a short override says its HVAC mode and its end next to it: "⏱ ❄ → 02:31". Switch the
   air conditioner to *Cool* or to *Heat/Cool* by hand, and the override keeps the preset in
   force, with its value for that HVAC mode. Switch it to *Dry* or to *Auto* by hand, and the
   override keeps that HVAC mode: Chauffage sends nothing.
@@ -193,7 +193,6 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   `cool` or `heat_cool` on an air conditioner. Its `temperatures` are the cooling ones during a slot that cools.
   `chauffage.get_week` gives each slot's settings, with its HVAC mode as it runs on the
   thermostat. A slot that is off, fan only, dry or auto has no preset.
-
 - **An override reads the same everywhere on the week** (#91): a clock, the icon of its HVAC
   mode, an arrow and its end, for example "⏱ ❄ → 17:00". The label names the day when the
   override ends another day. The label sits in the override's block, or next to a block too
