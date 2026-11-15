@@ -1044,10 +1044,11 @@ class ChauffageRuntime:
             override.pop("ends_at", None)
         new_value = before is None or before["target"] != target
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
-        by_user = not override.get("preset")
-        if (new_value or resend) and not left_alone and self.needs(entity_id, target, current, by_user):
-            if not await self.send(entity_id, self._to_send(entity_id, target, current, by_user), f"override set by {source}"):
-                raise ThermostatFailed(entity_id)
+        to_send = None
+        if (new_value or resend) and not left_alone:
+            to_send = self.needs(entity_id, target, current, by_user=not override.get("preset"))
+        if to_send is not None and not await self.send(entity_id, to_send, f"override set by {source}"):
+            raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
         self._changed()
 
@@ -1227,18 +1228,19 @@ class ChauffageRuntime:
         return [c["target"] for c in self.data["pending"].get(entity_id, [])]
 
     def needs(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None,
-              by_user: bool = False) -> bool:
-        """A target to send: the thermostat does not show it, or would apply another command
-        later. `by_user`: an override without a Chauffage preset (in cool, a temperature the
-        user typed is sent, a preset's heating temperature is not)."""
-        if current is None:
-            return True
+              by_user: bool = False) -> engine.Target | None:
+        """The target to send (_to_send) when the thermostat needs it: the thermostat does not
+        show it, or would apply another command later. None when there is nothing to send.
+        `by_user`: an override without a Chauffage preset (in cool, a temperature the user typed
+        is sent, a preset's heating temperature is not)."""
         sent = self._to_send(entity_id, target, current, by_user)
+        if current is None:
+            return sent
         # A device preset left on at the target's temperature would still fight the setpoint
         if not engine.satisfied(sent, current) or engine.preset_to_leave(sent, current) is not None:
-            return True
+            return sent
         commands = self.pending(entity_id)
-        return bool(commands) and commands[-1] != sent
+        return sent if commands and commands[-1] != sent else None
 
     @callback
     def _applied(self, entity_id: str, before: engine.Thermostat | None,
@@ -1271,12 +1273,13 @@ class ChauffageRuntime:
         if override is None:
             await self.apply(include={entity_id}, reason=reason)
             return
-        target = override["target"]
-        by_user = not override.get("preset")
         async with self._lock:
             current = self.current(self.hass.states.get(entity_id))
-            if current is not None and not engine.ignored(current) and self.needs(entity_id, target, current, by_user):
-                await self.send(entity_id, self._to_send(entity_id, target, current, by_user), f"{reason}, back to the override")
+            if current is None or engine.ignored(current):
+                return
+            to_send = self.needs(entity_id, override["target"], current, by_user=not override.get("preset"))
+            if to_send is not None:
+                await self.send(entity_id, to_send, f"{reason}, back to the override")
 
     # ----- scheduling -----
 
