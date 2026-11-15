@@ -481,3 +481,75 @@ describe('the popover of a slot leaves the save bar free', () => {
     assert.ok(z('\\.savebar') > z('\\.editor'));
   });
 });
+
+describe('the first row on a narrow block', () => {
+  test('three columns only where the block is narrow: a class on the popover, the width of the more-info block', () => {
+    assert.doesNotMatch(CHIP_STYLE, /\n {2}\.mode-row\.cols3 \{[^}]*display:grid/);
+    assert.match(STYLE_TEXT, /\.narrow \.mode-row\.cols3 \{[^}]*display:grid[^}]*column-gap:4px/);
+    assert.match(STYLE_TEXT, /\.narrow \.mode-row\.cols3 \.mode \{[^}]*padding:0 5px[^}]*gap:4px/);
+    assert.match(MORE_INFO_STYLE_TEXT, /\.wrap \{[^}]*container-type:inline-size/);
+    assert.match(MORE_INFO_STYLE_TEXT, /@container \(max-width:419px\) \{\s*\.mode-row\.cols3 \{[^}]*display:grid/);
+  });
+
+  test('the popover of a narrow card is marked narrow', () => {
+    const card = cardOf(setup(), { show: [SUITE] });
+    select(card, SUITE, 1);
+    const rect = (width) => () => ({ left: 0, right: width, width, top: 0, bottom: 38, height: 38 });
+    for (const [width, narrow] of [[360, true], [900, false]]) {
+      $(card, 'ha-card').getBoundingClientRect = rect(width);
+      $(card, '.seg.sel').parentElement.getBoundingClientRect = rect(width);
+      card._placeEditor();
+      assert.equal($(card, '.editor').classList.contains('narrow'), narrow);
+    }
+  });
+
+  test('the chosen HVAC mode is as wide as the others: no bold that moves its column', () => {
+    assert.doesNotMatch(CHIP_STYLE, /\.mode-row \.mode\.on \{[^}]*font-weight/);
+  });
+
+  test('the HVAC mode a new override would take is outlined, not filled', () => {
+    assert.match(CHIP_STYLE, /\.mode-row \.mode\.default \{[^}]*border:1px dashed[^}]*background:none/);
+  });
+});
+
+describe('fields and buttons for a finger', () => {
+  test('the arrows of a time field are a − and a + as high as a chip on a touch screen', () => {
+    assert.match(STYLE_TEXT, /@media \(pointer:coarse\) \{\s*\.time-spin \{[^}]*flex-direction:row-reverse/);
+    assert.match(STYLE_TEXT, /\.time-step \{[^}]*width:var\(--chauffage-chip-h, 34px\); height:var\(--chauffage-chip-h, 34px\)/);
+    assert.match(MORE_INFO_STYLE_TEXT, /@media \(pointer:coarse\)/);
+  });
+
+  test('a field writes at 13 px, as a chip does', () => {
+    assert.match(FIELD_BOX, /font:inherit; font-size:13px/);
+  });
+
+  test('the words before a time field sit on the line of the field', () => {
+    assert.match(CHIP_STYLE, /\.end-block label \{[^}]*height:var\(--chauffage-chip-h\)[^}]*align-items:center/);
+    assert.match(STYLE_TEXT, /\.ed-times label \{[^}]*height:var\(--chauffage-chip-h\)/);
+  });
+});
+
+describe('the presets tab', () => {
+  const presetsTab = (hass) => createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' });
+  const open = (card, preset, climate) => click(card, `[data-act="cell"][data-kind="${climate ? 'thermostat' : 'preset'}"][data-preset="${preset}"]${climate ? `[data-climate="${climate}"]` : ''}`);
+
+  test('an empty cooling field shows the preset\'s cooling temperature as a hint', () => {
+    const targets = { ...TARGETS, [SUITE]: { ...TARGETS[SUITE], comfort: { preset_mode: 'comfort', cool_preset_mode: 'comfort' } } };
+    const hass = setup({ targets });
+    hass.states[SUITE].attributes.preset_modes = ['eco', 'comfort']; // its own Comfort, whose temperature is not known
+    const card = presetsTab(hass);
+    open(card, 'comfort', SUITE);
+    const field = $(card, '.cell-ed [data-cell-cool]');
+    assert.equal(field.value, '');
+    assert.equal(field.getAttribute('placeholder'), '25');
+  });
+
+  test('a list looks like the other fields, and a color is as high as a chip', () => {
+    assert.doesNotMatch(STYLE_TEXT, /\.cell-ed select \{[^}]*secondary-background-color/);
+    assert.match(STYLE_TEXT, /\.cell-ed input\[type=color\] \{[^}]*height:var\(--chauffage-chip-h\)/);
+  });
+
+  test('the icons of the heating and cooling values are 14 px, on the line of their numbers', () => {
+    assert.match(STYLE_TEXT, /\.pv-val \.m ha-icon, \.pv-default \.m ha-icon \{ --mdc-icon-size:14px; width:14px; height:14px; vertical-align:-2px;/);
+  });
+});

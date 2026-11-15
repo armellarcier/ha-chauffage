@@ -343,7 +343,7 @@ describe('the HVAC mode a new override would take', () => {
     assert.equal(preselected.getAttribute('style'), null, 'no HVAC color');
     assert.equal(preselected.getAttribute('aria-pressed'), 'false');
     assert.equal($(card, '.override-ed .mode-row .mode.on'), null);
-    assert.match(CHIP_STYLE, /\.mode-row \.mode\.default \{[^}]*8%/);
+    assert.match(CHIP_STYLE, /\.mode-row \.mode\.default \{[^}]*dashed/);
     assert.doesNotMatch(CHIP_STYLE, /\.mode-row \.mode\.default \{[^}]*--mode-color/);
   });
 });

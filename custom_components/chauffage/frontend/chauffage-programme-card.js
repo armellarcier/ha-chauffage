@@ -1066,25 +1066,30 @@ function fullNames(loc, hass, climate) {
 // as Home Assistant's own control does: a filled chip is a preset
 // One box for every field of the cards: a text, a time, a temperature, a list. As high as a chip,
 // with its radius
-const FIELD_BOX = 'box-sizing:border-box; height:var(--chauffage-chip-h, 34px); font:inherit; padding:0 8px; border-radius:8px;'
+const FIELD_BOX = 'box-sizing:border-box; height:var(--chauffage-chip-h, 34px); font:inherit; font-size:13px; padding:0 8px; border-radius:8px;'
   + ' border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color);';
+// Five or six HVAC modes on a narrow block (a phone, a thermostat card): three columns, each as
+// wide as its widest button, instead of rows of three, two, then one. Tight enough for
+// "Chauffe/Clim" at 360 px. `scope`: what says the block is narrow
+const COLS3_STYLE = (scope) => `
+  ${scope}.mode-row.cols3 { display:grid; grid-template-columns:repeat(3, minmax(0, max-content)); column-gap:4px; }
+  ${scope}.mode-row.cols3 .mode { padding:0 5px; gap:4px; min-width:0; }
+  ${scope}.mode-row.cols3 .mode span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+`;
 const CHIP_STYLE = `
   :host { --chauffage-chip-h:34px; --chauffage-row-gap:10px; }
   .mode-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:0; }
-  /* Five or six HVAC modes: three columns, each as wide as its widest button, on a phone too */
-  .mode-row.cols3 { display:grid; grid-template-columns:repeat(3, minmax(0, max-content)); }
-  .mode-row.cols3 .mode { padding:0 7px; min-width:0; }
-  .mode-row.cols3 .mode span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .mode-row .mode, .presets button { box-sizing:border-box; height:var(--chauffage-chip-h); min-height:0; display:inline-flex;
     align-items:center; justify-content:center; gap:5px; margin:0; padding:0 10px; border-radius:8px; font:inherit; font-size:13px;
     line-height:1; white-space:nowrap; cursor:pointer; }
   .mode-row .mode { border:1px solid var(--divider-color); background:none; color:var(--primary-text-color); }
   .mode-row .mode ha-icon { --mdc-icon-size:16px; width:16px; height:16px; display:flex; flex:none; }
-  .mode-row .mode.on { border-color:var(--mode-color); font-weight:600; background:var(--secondary-background-color);
+  .mode-row .mode.on { border-color:var(--mode-color); -webkit-text-stroke:.4px currentColor; background:var(--secondary-background-color);
     background:color-mix(in srgb, var(--mode-color) 20%, transparent);
     color:color-mix(in srgb, var(--mode-color) 45%, var(--primary-text-color)); }
-  .mode-row .mode.default { border-color:var(--secondary-text-color); background:rgba(127,127,127,.08);
-    background:color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
+  /* The HVAC mode a new override would take: a dashed outline, no fill. A filled button reads
+     as chosen */
+  .mode-row .mode.default { border:1px dashed var(--secondary-text-color); background:none; }
   .mode-row .mode[disabled] { opacity:.45; cursor:default; }
   .presets { display:flex; flex-wrap:wrap; gap:6px; }
   /* Every chip in its full color: a faded chip reads as disabled. The chosen one has a ring */
@@ -1104,9 +1109,11 @@ const CHIP_STYLE = `
   /* The line of a setpoint, the same in every block: its words, then a button to the presets */
   .setpoint-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; font-size:13px; }
   .setpoint-edit { box-sizing:border-box; height:var(--chauffage-chip-h); display:inline-flex; align-items:center; gap:5px;
-    padding:0 10px; border:1px solid var(--divider-color); border-radius:8px; color:var(--primary-color); cursor:pointer; }
+    line-height:1; padding:0 10px; border:1px solid var(--divider-color); border-radius:8px; color:var(--primary-color); cursor:pointer; }
   .setpoint-edit ha-icon { --mdc-icon-size:16px; width:16px; height:16px; display:flex; flex:none; }
   .end-new { font-size:.85em; }
+  /* "until", before the field of an end: on the line of the field */
+  .end-block label { height:var(--chauffage-chip-h); display:inline-flex; align-items:center; gap:6px; line-height:1; }
   .more-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
   .more-row select { ${FIELD_BOX} margin-left:auto; min-width:0; max-width:100%; }
 `;
@@ -4258,10 +4265,13 @@ class ChauffageProgrammeCard extends HTMLElement {
     const row = isCell ? sr : bar;
     // On a narrow card (a phone), the popover takes the card's width: centred, whatever it holds
     ed.style.width = card.width <= 516 ? `${card.width - 16}px` : '';
+    ed.classList.toggle('narrow', card.width <= 516); // its HVAC modes in three columns
     const w = ed.offsetWidth;
     const h = ed.offsetHeight;
+    // The popover is placed from inside the card's border: centred between its two borders
+    const border = root.querySelector('ha-card').clientLeft || 0;
     const cx = (Math.max(sr.left, bar.left) + Math.min(sr.right, bar.right)) / 2 - card.left;
-    const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2));
+    const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2)) - border;
     let top = row.bottom - card.top + 9;
     let above = false;
     // The save bar stays at the bottom of the window: the popover does not go under it
@@ -5606,7 +5616,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (temp == null && heats) unknown = true;
       // A fan or swing setting: one icon whatever their number (the popover details); a cooling
       // setpoint after the heating one, "🔥 20° · ❄ 25°"
-      const tuned = SETTING_ATTRS.some((attr) => attr in target) ? '<span class="m"><ha-icon icon="mdi:tune-variant"></ha-icon></span>' : '';
+      const tuned = SETTING_ATTRS.some((attr) => attr in target) ? '<span class="m tuned"><ha-icon icon="mdi:tune-variant"></ha-icon></span>' : '';
       const cool = coolTemp != null ? `${hvacIconHtml('cool')}${this._loc.number(coolTemp)}°` : '';
       // A heating setpoint known: "20°", with its icon next to a cooling one ("🔥 20° · ❄ 25°");
       // unknown: "?", unless the cooling one is the value. Only cooling, without a cooling
@@ -5705,7 +5715,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       const cool = explicit.cool_temperature;
       // The cooling field opens on what the thermostat gets: its own value, else the default
       const coolDefault = this._coolPresetTemperature(sel.climate, defaults);
-      const coolField = tempInput(cool ?? coolDefault, 'data-cell-cool', t('temperatureCoolAria'));
+      // Empty (its own preset's temperature is not known): the preset's cooling temperature, as a hint
+      const coolHint = preset.cool_temperature != null ? ` placeholder="${esc(this._loc.number(preset.cool_temperature))}"` : '';
+      const coolField = tempInput(cool ?? coolDefault, `data-cell-cool${coolHint}`, t('temperatureCoolAria'));
       // Only cooling: one question, the default, one of its own presets, or a temperature
       const heatChoice = coolOnly && cool != null ? 'cool' : choice;
       const row = radio('cell-choice', heatChoice);
@@ -6404,6 +6416,17 @@ const TIME_FIELD_STYLE = `
   .time-step:last-child { border-radius:0 0 8px 0; }
   .time-step:last-child::after { top:0; bottom:-8px; }
   .time-step svg { width:16px; height:16px; fill:currentColor; }
+  /* A finger: a − and a +, each as large as a chip, as around a temperature */
+  @media (pointer:coarse) {
+    .time-spin { flex-direction:row-reverse; }
+    .time-step { flex:none; width:var(--chauffage-chip-h, 34px); height:var(--chauffage-chip-h, 34px); font-size:16px; line-height:1; }
+    .time-step::after { content:none; }
+    .time-step svg { display:none; }
+    .time-step[data-time-step="1"]::before { content:'+'; }
+    .time-step[data-time-step="-1"]::before { content:'−'; }
+    .time-step:first-child { border-radius:0 8px 8px 0; border-bottom:1px solid var(--divider-color); }
+    .time-step:last-child { border-radius:0; }
+  }
 `;
 
 const STYLE = `
@@ -6615,8 +6638,9 @@ const STYLE = `
   .btn.capture ha-icon { --mdc-icon-size:16px; width:16px; height:16px; display:flex; flex:none; }
   .pv-error { font-size:.9em; color:var(--error-color,#db4437); }
   tr.target th.name, tr.target td { background:rgba(127,127,127,.14); background:color-mix(in srgb, var(--primary-color) 14%, transparent); }
-  .pv-val .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-1px; margin-left:3px; }
-  .pv-default .m ha-icon { --mdc-icon-size:11px; width:11px; height:11px; vertical-align:-1px; }
+  /* "🔥 20° · ❄ 25°": each icon on the line of its number, and the same gap on both sides of "·" */
+  .pv-val .m ha-icon, .pv-default .m ha-icon { --mdc-icon-size:14px; width:14px; height:14px; vertical-align:-2px; margin:0 2px 0 0; }
+  .pv-val .m.tuned ha-icon { margin:0 0 0 4px; }
   .override-label .m ha-icon, .override-value .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; }
   /* Read-only weeks (the access level): a slot opens nothing */
   .bar.ro .seg { cursor:default; }
@@ -6738,8 +6762,8 @@ const STYLE = `
      stay together: on a phone, the slot's name on the first line, its times on the second one */
   .editor > .ed-head:first-child { padding-right:42px; min-height:34px; }
   .editor > .ed-head:first-child > .close { position:absolute; top:10px; right:12px; margin:0; }
-  .ed-times { display:inline-flex; align-items:center; gap:12px; flex:none; white-space:nowrap; }
-  .ed-times label { display:inline-flex; align-items:center; gap:4px; }
+  .ed-times { height:var(--chauffage-chip-h); display:inline-flex; align-items:center; gap:12px; flex:none; white-space:nowrap; }
+  .ed-times label { height:var(--chauffage-chip-h); display:inline-flex; align-items:center; gap:4px; line-height:1; }
   .temp-label { flex:none; }
   .ed-measured { font-size:12px; color:var(--secondary-text-color); }
   .editor input[type=text], .sched-menu input[type=text] { ${FIELD_BOX} }
@@ -6748,6 +6772,7 @@ const STYLE = `
     display:inline-flex; align-items:center; justify-content:center; gap:6px; }
   .editor .btn.icon { min-width:var(--chauffage-chip-h); }
   ${TIME_FIELD_STYLE}
+  ${COLS3_STYLE('.narrow ')}
   .fixed { font-variant-numeric:tabular-nums; padding:0 4px; }
   .ed-actions { display:flex; gap:6px; margin-left:auto; }
   .btn { border:1px solid var(--divider-color); background:var(--card-background-color); padding:6px 12px;
@@ -6839,9 +6864,9 @@ const STYLE = `
   /* Popover of a preset cell: a grid of lines (label, then its field on the right), OK at the foot */
   .cell-ed { gap:12px; width:min(380px, calc(100% - 16px)); }
   .cell-ed .ed-head strong { display:flex; align-items:center; gap:8px; }
-  .cell-ed select { padding:4px 6px; border-radius:6px; border:1px solid var(--divider-color);
-    background:var(--secondary-background-color); color:var(--primary-text-color); max-width:100%; }
-  .cell-ed input[type=color] { width:36px; height:30px; padding:0 2px; flex:none; }
+  /* A list is a field like the others: a grey one reads as disabled */
+  .cell-ed select { ${FIELD_BOX} max-width:100%; }
+  .cell-ed input[type=color] { box-sizing:border-box; width:40px; height:var(--chauffage-chip-h); padding:0 2px; flex:none; }
   .cell-ed input[type=radio], .cell-ed input[type=checkbox] { padding:0; margin:0; }
   .pv-dot { width:12px; height:12px; border-radius:3px; flex:none; }
   /* A choice's label stays on one line; its field takes the rest (a list too long ends in "…") */
@@ -7340,6 +7365,8 @@ const MORE_INFO_STYLE = `
   input[type=number] { width:5em; }
   ${TIME_FIELD_STYLE}
   ${FAN_STYLE}
+  .wrap { container-type:inline-size; }
+  @container (max-width:419px) {${COLS3_STYLE('')}}
   .override-until { font-size:.92em; }
   /* "Change", on a thermostat card: what changes the override is folded under it */
   details.change > summary { margin-bottom:var(--chauffage-row-gap); }
