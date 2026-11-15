@@ -21,22 +21,25 @@ STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
 Migration = Callable[[dict[str, Any], str], dict[str, Any]]
-# The colors of the default presets before #91, where they differ from today's
-FORMER_COLORS = {"frost": "#29b6f6", "boost": "#e53935"}
-# Their temperatures when heating before #91, where they differ from today's
-FORMER_TEMPERATURES = {"boost": 21.0}
+# The default presets of version 2: (id, color, temperature), and their names by language. Later
+# versions changed some colors and temperatures for new installations only (#91)
+V2_PRESETS = (("comfort", "#f57c00", 20.0), ("eco", "#43a047", 17.0), ("boost", "#e53935", 21.0), ("frost", "#29b6f6", 7.0))
+V2_PRESET_NAMES = {
+    "en": {"comfort": "Comfort", "eco": "Eco", "boost": "Boost", "frost": "Frost protection"},
+    "fr": {"comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel"},
+}
+V2_EXTRA_PRESET = {"color": "#9e9e9e", "temperature": 19.0}
 
 
 def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
     """Heating levels (v0.3): slots named a VTherm preset now name a level with the same id, and
-    each thermostat with that preset keeps using it (default mapping), so nothing changes."""
-    levels = model.default_presets(language, model.used_presets(data.get("schedules", {})))
-    # An existing installation keeps the colors it had: frost protection's and boost's changed
-    # for the new ones only (#91)
-    for level in levels:
-        level["color"] = FORMER_COLORS.get(level["id"], level["color"])
-        level["temperature"] = FORMER_TEMPERATURES.get(level["id"], level["temperature"])
-        level.pop("cool_temperature", None)  # added in version 7
+    each thermostat with that preset keeps using it (default mapping), so nothing changes. The
+    four default levels named in `language`, then the other ids found in the weeks."""
+    names = V2_PRESET_NAMES.get((language or "en").split("-")[0], V2_PRESET_NAMES["en"])
+    levels = [{"id": i, "name": names[i], "color": color, "temperature": t} for i, color, t in V2_PRESETS]
+    for preset_id in model.used_presets(data.get("schedules", {})):
+        if not any(level["id"] == preset_id for level in levels):
+            levels.append({"id": preset_id, "name": preset_id, **V2_EXTRA_PRESET})
     return {**data, "levels": levels, "mappings": {}}
 
 
@@ -65,12 +68,14 @@ def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
     preset_ids = [preset["id"] for preset in data["presets"]]
     data["thermostats"] = {}
     for entity_id in [*weeks, *(e for e in mappings if e not in weeks)]:
-        thermostat = model.new_thermostat(
-            model.complete_weeks(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else None,
-            mappings.get(entity_id), temperatures.get(entity_id),
-        )
-        thermostat.pop("hvac_mode")  # added in version 7
-        data["thermostats"][entity_id] = thermostat
+        # A scheduled thermostat of version 5, active
+        data["thermostats"][entity_id] = {
+            "paused": False,
+            "weeks": model.complete_weeks(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else {},
+            "mapping": mappings.get(entity_id) or {},
+            "preset_temperatures": temperatures.get(entity_id) or {},
+            "revision": 0,
+        }
     data["renamed"] = {}
     return data
 
