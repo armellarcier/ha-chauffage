@@ -1442,11 +1442,13 @@ const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
 // in pixels): `tag` (its width), the override's block, the bar, and the labels the slots show.
 // After the block ('') when it covers no label and stays in the bar; else before it; else
 // above the bar, from the block's left edge, or from its right edge when it would leave the bar
-const TAG_AFTER = 12; // past the handle of the override's end
-const TAG_BEFORE = 4;
+// The gaps of the stylesheet (.override-tag), counted from the block's border
+const TAG_AFTER = 10; // past the handle of the override's end
+const TAG_BEFORE = 2;
+const TAG_MARGIN = 3; // between the tag and a label
 function tagSide(tag, block, bar, labels) {
   const free = (left) => left >= bar.left && left + tag.width <= bar.right
-    && !labels.some((l) => l.left < left + tag.width && l.right > left);
+    && !labels.some((l) => l.left < left + tag.width + TAG_MARGIN && l.right > left - TAG_MARGIN);
   if (free(block.right + TAG_AFTER)) return '';
   if (free(block.left - TAG_BEFORE - tag.width)) return 'before';
   return block.left + tag.width <= bar.right ? 'above' : 'above end';
@@ -6738,14 +6740,18 @@ const STYLE = `
     gap:3px; padding:1px 5px; border-radius:4px; border:1px solid #fff; background:#7b1fa2; line-height:1.3; }
   .override-tag.before { left:auto; right:calc(100% + 4px); }
   /* No room on either side without covering a slot's name: a flag above the bar */
-  .override-tag.above { top:auto; bottom:calc(100% + 5px); left:-2px; transform:none; }
+  .override-tag.above { top:auto; bottom:calc(100% - 1px); left:-2px; transform:none; }
   .override-tag.above.end { left:auto; right:-2px; }
   .override-tag ha-icon, .override-label ha-icon { --mdc-icon-size:12px; width:12px; height:12px; display:flex; flex:none; }
-  /* The width of "⏱ ⏻ → 17:00" in a block, and of "⏱ ⏻ → sam. 08:00" */
-  @container (max-width:92px) { .override.last .override-label { display:none; } .override.last .override-tag { display:inline-flex; }
+  /* The width of "⏱ ⏻ → 17:00" in a block, and of "⏱ ⏻ → sam. 08:00"; then on a 12 h clock */
+  @container (max-width:70px) { .override.last .override-label { display:none; } .override.last .override-tag { display:inline-flex; }
     .override:not(.last) .override-label .rest { display:none; } }
-  @container (max-width:124px) { .override.last.dated .override-label { display:none; } .override.last.dated .override-tag { display:inline-flex; }
+  @container (max-width:92px) { .override.last.dated .override-label { display:none; } .override.last.dated .override-tag { display:inline-flex; }
     .override.dated:not(.last) .override-label .rest { display:none; } }
+  @container (max-width:90px) { .h12 .override.last .override-label { display:none; } .h12 .override.last .override-tag { display:inline-flex; }
+    .h12 .override:not(.last) .override-label .rest { display:none; } }
+  @container (max-width:112px) { .h12 .override.last.dated .override-label { display:none; } .h12 .override.last.dated .override-tag { display:inline-flex; }
+    .h12 .override.dated:not(.last) .override-label .rest { display:none; } }
   .override.sel { outline:2px solid var(--primary-text-color); outline-offset:1px; }
   .override-handle { position:absolute; top:-6px; bottom:-6px; right:-10px; width:18px; cursor:ew-resize; touch-action:none; }
   .override-handle::after { content:''; position:absolute; left:6px; top:3px; bottom:3px; width:6px; border-radius:3px;
