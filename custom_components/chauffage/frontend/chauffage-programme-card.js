@@ -2574,12 +2574,28 @@ function slotNameOn(hass, climate, seg, presets, loc) {
   return mode ? `${modeName(loc, mode)} · ${name}` : name;
 }
 
+// Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one the
+// integration computes (published by Versatile Thermostat, else learned), the same it compares
+// a manual setpoint with
+function presetTemperatureOf(src, climate, target) {
+  if ('temperature' in target) return target.temperature;
+  const temperature = 'preset_mode' in target ? src.presetTemperature(climate, target.preset_mode) : null;
+  return typeof temperature === 'number' ? temperature : null;
+}
+// Temperature a preset gives a thermostat when it cools: its cooling temperature, else what its
+// own preset gives when cooling, when the integration knows it; null otherwise
+function coolPresetTemperatureOf(src, climate, target) {
+  if ('cool_temperature' in target) return target.cool_temperature;
+  const temperature = 'cool_preset_mode' in target ? src.coolPresetTemperature(climate, target.cool_preset_mode) : null;
+  return typeof temperature === 'number' ? temperature : null;
+}
+
 // The temperature a target gives in an HVAC mode, as text: "25°", "20–25°", '' when not known
 function targetDegrees(src, climate, target, mode, loc) {
   const degrees = (value) => (typeof value === 'number' ? `${loc.number(value)}°` : '');
   if (mode === 'heat_cool') return 'target_temp_low' in target ? `${loc.number(target.target_temp_low)}–${degrees(target.target_temp_high)}` : '';
-  if (mode === 'cool') return degrees('cool_temperature' in target ? target.cool_temperature : src.coolPresetTemperature(climate, target.cool_preset_mode));
-  return degrees('temperature' in target ? target.temperature : src.presetTemperature(climate, target.preset_mode));
+  if (mode === 'cool') return degrees(coolPresetTemperatureOf(src, climate, target));
+  return degrees(presetTemperatureOf(src, climate, target));
 }
 
 // The HVAC mode an override is named with, on a thermostat that lists more than one "on" HVAC
@@ -5277,21 +5293,14 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (cool && !cool.hasAttribute('data-chosen')) cool.value = derivedCoolColor(root.querySelector('.cell-ed [data-cell-color]').value);
   }
 
-  // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one the
-  // integration computes (published by Versatile Thermostat, else learned), the same it compares
-  // a manual setpoint with
+  // Temperature a preset gives a thermostat (presetTemperatureOf)
   _presetTemperature(climate, target) {
-    if ('temperature' in target) return target.temperature;
-    const temperature = 'preset_mode' in target ? this._source().presetTemperature(climate, target.preset_mode) : null;
-    return typeof temperature === 'number' ? temperature : null;
+    return presetTemperatureOf(this._source(), climate, target);
   }
 
-  // Temperature a preset gives a thermostat when it cools: its cooling temperature, else what its
-  // own preset gives when cooling, when the integration knows it; null otherwise
+  // Temperature a preset gives a thermostat when it cools (coolPresetTemperatureOf)
   _coolPresetTemperature(climate, target) {
-    if ('cool_temperature' in target) return target.cool_temperature;
-    const temperature = 'cool_preset_mode' in target ? this._source().coolPresetTemperature(climate, target.cool_preset_mode) : null;
-    return typeof temperature === 'number' ? temperature : null;
+    return coolPresetTemperatureOf(this._source(), climate, target);
   }
 
   // What a preset means for a thermostat: its mapping (as computed by the integration), else
