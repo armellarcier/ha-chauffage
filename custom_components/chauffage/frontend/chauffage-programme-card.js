@@ -3552,7 +3552,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     this._drag = null;
     const segs = this._week(d.climate)[d.day];
     d.orig.forEach((start, i) => { if (segs[i]) segs[i].start = start; });
-    this._layoutBar(d.bar, segs);
+    this._layoutBar(d.bar, segs, d.on);
     d.bar.querySelectorAll('.handle.drag').forEach((el) => el.classList.remove('drag'));
   }
 
@@ -4228,6 +4228,8 @@ class ChauffageProgrammeCard extends HTMLElement {
   // The tag of each short override, on the side where it covers no slot's label (tagSide). Once
   // ha-card shows its content: before that, nothing has a width
   _placeTags() {
+    // Every tag is measured before any is moved: the browser lays the card out once
+    const sides = [];
     for (const tag of this.shadowRoot.querySelectorAll('.override-tag')) {
       const bar = tag.closest('.bar');
       const width = tag.getBoundingClientRect().width;
@@ -4235,9 +4237,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       const labels = [...bar.querySelectorAll('.seg .t, .seg .l')]
         .filter((el) => el.textContent && getComputedStyle(el).visibility !== 'hidden')
         .map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
-      const side = tagSide({ width }, tag.parentElement.getBoundingClientRect(), bar.getBoundingClientRect(), labels);
-      tag.className = `override-tag${side ? ` ${side}` : ''}`;
+      sides.push([tag, tagSide({ width }, tag.parentElement.getBoundingClientRect(), bar.getBoundingClientRect(), labels)]);
     }
+    for (const [tag, side] of sides) tag.className = `override-tag${side ? ` ${side}` : ''}`;
   }
 
   _schedulePlaceTags() {
@@ -4568,9 +4570,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     }
   }
 
-  // Visual update of a row while dragging (without recreating the captured handle)
-  _layoutBar(bar, stored) {
-    const segs = this._dayOn(bar.dataset.climate, stored);
+  // Visual update of a row while dragging (without recreating the captured handle). `on`: the
+  // day's slots as they run on the thermostat (_dayOn), read once when the drag starts. A drag
+  // only moves the starts, so each slot keeps its HVAC mode there
+  _layoutBar(bar, stored, on) {
+    const segs = (on && on.length === stored.length ? on : this._dayOn(bar.dataset.climate, stored))
+      .map((s, i) => (s.start === stored[i].start ? s : { ...s, start: stored[i].start }));
     bar.querySelectorAll('.seg').forEach((el, i) => {
       const s = segs[i];
       const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
@@ -4675,6 +4680,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._drag = {
           move: true, climate, day, idx, bar, el: seg, x0: e.clientX, y0: e.clientY, selected,
           touch: e.pointerType === 'touch', orig: segs.map((s) => s.start),
+          on: this._dayOn(climate, segs),
           start: segs[idx].start, length: segs[idx + 1].start - segs[idx].start, moved: false,
         };
         return;
@@ -4690,6 +4696,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       this._drag = {
         climate, day, idx: Number(h.dataset.idx), bar, el: h, moved: false, x0: e.clientX, y0: e.clientY,
         touch: e.pointerType === 'touch', orig: this._week(climate)[day].map((s) => s.start),
+        on: this._dayOn(climate, this._week(climate)[day]),
       };
     });
 
@@ -4739,7 +4746,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         if (m !== segs[d.idx].start) {
           segs[d.idx].start = m;
           segs[d.idx + 1].start = m + d.length;
-          this._layoutBar(d.bar, segs);
+          this._layoutBar(d.bar, segs, d.on);
         }
         return;
       }
@@ -4749,7 +4756,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (m !== segs[d.idx].start) {
         segs[d.idx].start = m;
         d.moved = true;
-        this._layoutBar(d.bar, segs);
+        this._layoutBar(d.bar, segs, d.on);
       }
     });
 
