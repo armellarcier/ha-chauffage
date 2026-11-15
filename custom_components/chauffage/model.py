@@ -84,7 +84,19 @@ import re
 import unicodedata
 from typing import Any
 
-from .const import DEFAULT_PRESET_COLOR, DEFAULT_PRESET_TEMPERATURE, DEFAULT_PRESETS, DURATION, NEXT_SLOT, NO_NEXT_SLOT, PRESET_NAMES
+from . import const
+from .const import (
+    DEFAULT_PRESET_COLOR,
+    DEFAULT_PRESET_TEMPERATURE,
+    DEFAULT_PRESETS,
+    DURATION,
+    NEXT_SLOT,
+    NO_NEXT_SLOT,
+    NO_PRESET_MODES,
+    OFF,
+    PRESET_NAMES,
+    SLOT_HVAC_MODES,
+)
 
 OVERRIDE_ENDS = (DURATION, NEXT_SLOT, NO_NEXT_SLOT)  # why a change by hand ends then
 
@@ -281,15 +293,10 @@ def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
 
 
 # The fan and the vanes of an air conditioner (#91)
-AIR_KEYS = {"fan_mode": str, "swing_mode": str, "swing_horizontal_mode": str}
+AIR_KEYS = dict.fromkeys(const.AIR_KEYS, str)
 # The attributes a slot's settings may set: everything but the setpoint, which its preset gives
 # (its HVAC mode, then the fan and the vanes of an air conditioner, #91)
 SETTING_KEYS = {"hvac_mode": str, **AIR_KEYS}
-# The HVAC modes a slot may choose. With a preset: heat, cool or heat/cool. Without one: off, fan
-# only, dry or auto
-OFF = "off"
-NO_PRESET_MODES = (OFF, "fan_only", "dry", "auto")
-SLOT_HVAC_MODES = ("heat", "cool", "heat_cool", *NO_PRESET_MODES)
 # The climate attributes a preset's value on a thermostat may set, and how their values are
 # read. "preset_mode" or "temperature" is its value when the thermostat heats.
 # "cool_temperature" is its setpoint when the thermostat cools: sent as the temperature in cool,

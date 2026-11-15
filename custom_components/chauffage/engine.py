@@ -15,17 +15,10 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, NamedTuple
 
-from .const import MANUAL_PRESETS
+from .const import AIR_KEYS, AUTO, DRY, FAN_ONLY, HEAT_COOL, MANUAL_PRESETS, NO_PRESET_MODES, OFF, SETPOINT_MODES
 
 IGNORED_STATES = frozenset({"unavailable", "unknown"})
 DEFAULT_STEP = 0.5
-OFF = "off"
-FAN_ONLY = "fan_only"
-DRY, AUTO, HEAT_COOL = "dry", "auto", "heat_cool"
-# The HVAC modes of a slot without a preset: Chauffage sends them no setpoint
-NO_PRESET_MODES = (OFF, FAN_ONLY, DRY, AUTO)
-# The HVAC modes of a slot on a preset: the preset says how warm, for each of them
-SETPOINT_MODES = ("heat", "cool", HEAT_COOL)
 # The HVAC modes that take no setpoint: a target that holds one and says no HVAC mode turns the
 # thermostat on from them. Not auto: a valve in auto takes a setpoint, and keeps auto
 IDLE = (OFF, FAN_ONLY, DRY)
@@ -65,7 +58,7 @@ class Thermostat:
 
 
 # The attributes of a target compared as they are, with the thermostat's field of the same name
-EQUAL_KEYS = ("fan_mode", "swing_mode", "swing_horizontal_mode")
+EQUAL_KEYS = AIR_KEYS
 
 
 SETPOINTS = ("temperature", "target_temp_low", "target_temp_high")

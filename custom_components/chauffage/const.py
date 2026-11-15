@@ -41,6 +41,19 @@ DEFAULT_ACCESS_LEVEL = USE
 # preset_mode values meaning "manual setpoint" (Versatile Thermostat: "none")
 MANUAL_PRESETS = frozenset({"", "none", "manual", "manuel"})
 
+# HVAC modes (#91)
+OFF = "off"
+FAN_ONLY = "fan_only"
+DRY, AUTO, HEAT_COOL = "dry", "auto", "heat_cool"
+# The HVAC modes of a slot without a preset: Chauffage sends them no setpoint
+NO_PRESET_MODES = (OFF, FAN_ONLY, DRY, AUTO)
+# The HVAC modes of a slot on a preset: the preset says how warm, for each of them
+SETPOINT_MODES = ("heat", "cool", HEAT_COOL)
+# The HVAC modes a slot may choose
+SLOT_HVAC_MODES = (*SETPOINT_MODES, *NO_PRESET_MODES)
+# The fan and the vanes of an air conditioner (#91)
+AIR_KEYS = ("fan_mode", "swing_mode", "swing_horizontal_mode")
+
 # Default presets: (id, color, default temperature when heating, when cooling). Their ids are
 # Versatile Thermostat's preset names, so a thermostat with those climate presets uses them (see
 # engine.value_on). Frost protection has no temperature when cooling: it never cools (#91).
