@@ -13,7 +13,8 @@ heater (input_boolean) and temperature sensor:
 
 With `cooler`, the climate is a reversible air conditioner (#61, #91): it heats, cools (the
 cooler, another input_boolean, read by dev/sim_rooms), chooses by itself in auto, or runs its
-fan only, and it lists fan and swing modes like a real one:
+fan only, and it lists fan and swing modes like a real one. In cool, its presets give cooling
+setpoints (eco 27 °C, comfort 25 °C), like a real one:
 
       - platform: sim_climate
         name: Atelier
@@ -115,6 +116,7 @@ class SimClimate(ClimateEntity, RestoreEntity):
         self._sensor = config["sensor"]
         self._running: str | None = None  # the heater or the cooler, when one runs
         self._presets = PRESETS
+        self._reversible = False
         self._attr_hvac_mode = HVACMode.HEAT
         self._attr_preset_mode = "eco"
         self._attr_target_temperature = PRESETS["eco"]
@@ -135,6 +137,7 @@ class SimClimate(ClimateEntity, RestoreEntity):
             self._attr_fan_mode = "auto"
             self._attr_supported_features |= ClimateEntityFeature.FAN_MODE
         elif model is None and self._cooler:  # a reversible air conditioner
+            self._reversible = True
             self._attr_hvac_modes = AC_HVAC_MODES
             self._attr_fan_modes = AC_FAN_MODES
             self._attr_swing_modes = AC_SWING_MODES
@@ -232,9 +235,15 @@ class SimClimate(ClimateEntity, RestoreEntity):
             "homeassistant", "turn_on" if on else "turn_off", {"entity_id": entity_id}, context=self._context
         )
 
+    def _preset_temperature(self, preset_mode: str) -> float:
+        """A reversible air conditioner's presets give cooling setpoints while it cools."""
+        if self._reversible and self._attr_hvac_mode == HVACMode.COOL:
+            return COOLING_PRESETS[preset_mode]
+        return self._presets[preset_mode]
+
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         self._attr_preset_mode = preset_mode
-        self._attr_target_temperature = self._presets[preset_mode]
+        self._attr_target_temperature = self._preset_temperature(preset_mode)
         await self._control()
         self.async_write_ha_state()
 
@@ -248,6 +257,8 @@ class SimClimate(ClimateEntity, RestoreEntity):
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         self._attr_hvac_mode = hvac_mode
+        if self._reversible and self._attr_preset_mode in self._presets:
+            self._attr_target_temperature = self._preset_temperature(self._attr_preset_mode)
         await self._control()
         self.async_write_ha_state()
 
