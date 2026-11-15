@@ -1031,7 +1031,7 @@ const FAN_COLOR = HVAC_COLORS.fan_only;
 const hvacColor = (mode) => HVAC_COLORS[mode] || OFF_COLOR;
 // White is not legible on the light ones: dark text
 const HVAC_LIGHT = ['heat_cool', 'dry', 'fan_only'];
-const hvacStyle = (mode) => `background:${hvacColor(mode)};color:${HVAC_LIGHT.includes(mode) ? 'rgba(0,0,0,.87)' : '#fff'}`;
+const hvacStyle = (mode) => `background:${hvacColor(mode)};color:${HVAC_LIGHT.includes(mode) ? DARK_TEXT : '#fff'}`;
 // A dry slot and an auto slot in a week and in a legend: Home Assistant's orange and green are
 // close to the default colors of Comfort and Eco. So the slot is hatched in the color of its HVAC
 // mode on a neutral base, never filled with it: it cannot be taken for a slot on a preset
@@ -1098,7 +1098,7 @@ const CHIP_STYLE = `
   /* Every chip in its full color: a faded chip reads as disabled. The chosen one has a ring */
   .presets button { border:0; color:#fff; }
   .presets button.on { box-shadow:0 0 0 2px var(--card-background-color), 0 0 0 4px var(--primary-text-color); font-weight:600; }
-  .presets .off-chip { background:#616161; }
+  .presets .off-chip { background:${OFF_COLOR}; }
   .presets .off-chip ha-icon, .presets .fan-chip ha-icon { --mdc-icon-size:14px; width:14px; height:14px; display:flex; flex:none; }
   .presets button.unsupported { outline:2px dashed var(--secondary-text-color); outline-offset:1px; }
   .pv-temp { display:inline-flex; align-items:center; gap:4px; }
@@ -1122,7 +1122,7 @@ const CHIP_STYLE = `
 `;
 const FAN_STYLE = `
   .seg.fan, .presets button.fan-chip, .legend i.fan { background:${FAN_COLOR}; }
-  .seg.fan, .presets button.fan-chip { color:rgba(0,0,0,.87); }
+  .seg.fan, .presets button.fan-chip { color:${DARK_TEXT}; }
   ${CHIP_STYLE}
 `;
 const hvacIcon = (mode) => (mode ? `<ha-icon icon="${esc(HVAC_ICONS[mode] || 'mdi:thermostat')}"></ha-icon>` : '');
@@ -7551,8 +7551,8 @@ class ChauffageThermostatCard extends HTMLElement {
     const requested = a.requested_state && a.requested_state.preset;
     const cause = causeText(src, this._config.entity, loc,
       requested ? presetOf(presets, String(requested), loc).name : null);
-    if (cause) return `<span class="tc-state"><i style="background:#616161"></i>${esc(cause.long)}</span>`;
-    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return `<span class="tc-state"><i style="background:#616161"></i>${esc(modeName(loc, 'off'))}</span>`;
+    if (cause) return `<span class="tc-state"><i style="background:${OFF_COLOR}"></i>${esc(cause.long)}</span>`;
+    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return `<span class="tc-state"><i style="background:${OFF_COLOR}"></i>${esc(modeName(loc, 'off'))}</span>`;
     // A fan-only, a dry or an auto slot: its HVAC mode, in Home Assistant's color, without setpoint
     if (plan && NO_PRESET_MODES.includes(plan.hvac_mode)) return `<span class="tc-state"><i style="background:${hvacColor(plan.hvac_mode)}"></i>${esc(modeName(loc, plan.hvac_mode))}</span>`;
     let label;
