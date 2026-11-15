@@ -305,8 +305,8 @@ CARD = {
 
 # What a slot may say besides its preset (#91): its HVAC mode. Off, fan only, dry and auto have
 # no preset
-MODES = {"off": "off", "fan": "fan_only", "dry": "dry", "auto": "auto", "cool": "cool", "heat": "heat",
-         "heatcool": "heat_cool"}
+# The words that differ from the HVAC mode they stand for
+MODES = {"fan": "fan_only", "heatcool": "heat_cool"}
 NO_PRESET = ("off", "fan", "dry", "auto")
 
 
@@ -318,9 +318,9 @@ def day(*slots: str) -> list[list]:
     for slot in slots:
         start, *words = slot.split()
         if words[0] in NO_PRESET:
-            out.append([start, None, {"hvac_mode": MODES[words[0]]}])
+            out.append([start, None, {"hvac_mode": MODES.get(words[0], words[0])}])
         elif len(words) > 1:
-            out.append([start, words[0], {"hvac_mode": MODES[words[1]]}])
+            out.append([start, words[0], {"hvac_mode": MODES.get(words[1], words[1])}])
         else:
             out.append([start, words[0]])
     return out
