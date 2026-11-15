@@ -873,12 +873,15 @@ const withSettings = (seg, settings) => (settings && Object.keys(settings).lengt
 // The HVAC modes a slot may choose, and its settings as the integration accepts them, always in
 // the same order (two slots are compared as text). An off slot sets nothing else
 const SLOT_HVAC_MODES = HVAC_ORDER;
+// The fan and the vanes of an air conditioner (#91, lot 3): the attributes a slot or a preset's
+// value may set
+const SETTING_ATTRS = ['fan_mode', 'swing_mode', 'swing_horizontal_mode'];
 function slotSettings(settings) {
   if (!settings || typeof settings !== 'object') return null;
   if (settings.hvac_mode === 'off') return { hvac_mode: 'off' };
   const out = {};
   if (SLOT_HVAC_MODES.includes(settings.hvac_mode)) out.hvac_mode = settings.hvac_mode;
-  for (const attr of ['fan_mode', 'swing_mode', 'swing_horizontal_mode']) if (settings[attr] != null) out[attr] = settings[attr];
+  for (const attr of SETTING_ATTRS) if (settings[attr] != null) out[attr] = settings[attr];
   return out;
 }
 // The fan and the vanes of a slot, without its HVAC mode
@@ -1217,7 +1220,7 @@ function valueOn(preset, cell, hass, climate, usePresets = true) {
     out.target_temp_low = low;
     out.target_temp_high = high;
   }
-  for (const attr of ['fan_mode', 'swing_mode', 'swing_horizontal_mode']) if (attr in set) out[attr] = set[attr];
+  for (const attr of SETTING_ATTRS) if (attr in set) out[attr] = set[attr];
   return out;
 }
 // The HVAC modes a preset can be used in, from its value on a thermostat (engine.offered_modes):
@@ -1233,9 +1236,8 @@ function presetModes(value) {
 // The HVAC mode whose presets a thermostat is offered when a slot or an override says none: heat
 // on a heater, cool on an air conditioner that only cools
 const defaultSetpointMode = (hass, climate) => setpointModesOf(hass, climate)[0] || 'heat';
-// The fan and the vanes of an air conditioner (#91, lot 3): the attributes a slot or a preset's
-// value may set, and the values the thermostat lists for each
-const SETTING_ATTRS = ['fan_mode', 'swing_mode', 'swing_horizontal_mode'];
+// The names of the fan and the vanes (SETTING_ATTRS), and the values the thermostat lists for
+// each
 const SETTING_LABELS = { fan_mode: 'fanMode', swing_mode: 'swingMode', swing_horizontal_mode: 'swingHorizontalMode' };
 function settingOptionsOf(hass, climate) {
   const st = hass && hass.states && hass.states[climate];
