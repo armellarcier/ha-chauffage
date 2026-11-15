@@ -1246,10 +1246,9 @@ function settingOptionsOf(hass, climate) {
   }
   return out;
 }
-// An attribute's name: the card's own, short ("Fan", "Vanes"); Home Assistant's are too long for
-// a popover. A value's name: Home Assistant's own (since HA 2023.9), else the raw value made
-// readable: "1_up" reads "1 up"
-const attributeName = (hass, climate, attr, loc) => loc.t(SETTING_LABELS[attr]);
+// An attribute's name: the card's own, short ("Fan", "Vanes"). Home Assistant's names are too
+// long for a popover
+const attributeName = (attr, loc) => loc.t(SETTING_LABELS[attr]);
 // The name Home Assistant gives a value of a climate attribute (a preset, a fan or a vane value),
 // as its own dialogs show it: the entity's own translation, else the climate domain's; null
 // without one
@@ -1271,6 +1270,8 @@ function haValueName(hass, climate, attr, value) {
 }
 // One of a thermostat's own presets, named as Home Assistant names it, else in the card's words
 const ownPresetName = (hass, climate, value, loc) => haValueName(hass, climate, 'preset_mode', value) || loc.preset(value);
+// A value's name: Home Assistant's own (since HA 2023.9), else the raw value made readable:
+// "1_up" reads "1 up"
 function attributeValue(hass, climate, attr, value, loc) {
   const known = haValueName(hass, climate, attr, value);
   if (known) return known;
@@ -1298,7 +1299,7 @@ function captureState(hass, climate) {
 // The fan and the vanes a slot or a preset's value sets, in words: "Fan 3 · Vanes Swing"
 function settingsText(hass, climate, loc, settings) {
   return SETTING_ATTRS.filter((attr) => settings && attr in settings)
-    .map((attr) => `${attributeName(hass, climate, attr, loc)} ${attributeValue(hass, climate, attr, settings[attr], loc)}`).join(' · ');
+    .map((attr) => `${attributeName(attr, loc)} ${attributeValue(hass, climate, attr, settings[attr], loc)}`).join(' · ');
 }
 
 // The "More settings" of a slot's popover and of a preset's value (#91, lot 3), on an air
@@ -1328,7 +1329,7 @@ function moreSettingsHtml(hass, climate, loc, settings, defaults, open, field = 
     const items = [`<option value=""${!value ? ' selected' : ''}>${esc(fallback)}</option>`]
       .concat(unsupported ? [`<option value="${esc(value)}" class="unsupported" selected>${esc(t('unsupported', { value: attributeValue(hass, climate, attr, value, loc) }))}</option>`] : [])
       .concat(listed.map((v) => `<option value="${esc(v)}"${value === v ? ' selected' : ''}>${esc(attributeValue(hass, climate, attr, v, loc))}</option>`));
-    return `<label class="more-row"><span>${esc(attributeName(hass, climate, attr, loc))}</span>
+    return `<label class="more-row"><span>${esc(attributeName(attr, loc))}</span>
       <select ${field}="${attr}"${listed.length ? '' : ' disabled'}>${items.join('')}</select></label>`;
   };
   // `direct`: the settings shown at once, not folded (the fan speed of a fan-only or dry slot)
@@ -2509,7 +2510,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
     : '';
   // Fan only and dry: the fan speed, in sight (the only thing to set there)
   const fans = idle && ['fan_only', 'dry'].includes(idle) ? settingOptionsOf(hass, climate).fan_mode || [] : [];
-  const fan = !fans.length ? '' : `<label class="more-row"><span>${esc(attributeName(hass, climate, 'fan_mode', loc))}</span>
+  const fan = !fans.length ? '' : `<label class="more-row"><span>${esc(attributeName('fan_mode', loc))}</span>
     <select data-override-setting="fan_mode"><option value="">${esc(ownSettingText(hass, climate, 'fan_mode', loc))}</option>${fans.map((v) => `<option value="${esc(v)}"${target.fan_mode === v ? ' selected' : ''}>${esc(attributeValue(hass, climate, 'fan_mode', v, loc))}</option>`).join('')}</select></label>`;
   const chips = rows ? '' : `${offChipHtml(hass, climate, loc, 'override-off', off)}${idle ? modeChipHtml(hass, climate, loc, idle, 'override-mode', true) : ''}`;
   // Off, fan only, dry and auto take no temperature
