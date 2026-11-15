@@ -593,25 +593,29 @@ class ChauffageRuntime:
         does not read VTherm's attributes."""
         return _cause(self.hass.states.get(entity_id))
 
-    def planned(self, entity_id: str, now: datetime | None = None) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
+    def planned(self, entity_id: str, now: datetime | None = None, thermostat: engine.Thermostat | None = None
+                ) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
         """(slot now, next different slot, its start) for a thermostat in the active schedule.
         The slots as they run on it: on an air conditioner, a slot that says heat does not
-        differ from one that says nothing."""
+        differ from one that says nothing. `thermostat`: the thermostat as read by the caller,
+        else read here."""
         week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
         if not week:
             return None, None, None
-        thermostat = self.current(self.hass.states.get(entity_id))
+        thermostat = thermostat or self.current(self.hass.states.get(entity_id))
         return engine.current_and_next(engine.week_on(week, thermostat), now or dt_util.now())
 
-    def planned_targets(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None) -> dict[str, Any]:
+    def planned_targets(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None,
+                        thermostat: engine.Thermostat | None = None) -> dict[str, Any]:
         """What a scheduled thermostat follows now (its preset, its HVAC mode, its target on this
         thermostat), and the next different slot (its preset, its HVAC mode, its start): the
         planned-preset sensor's attributes. The HVAC mode is the slot's: off, fan_only, or heat
         or cool when the thermostat lists it, else None. An off slot and a fan-only slot have no
-        preset. `plan`: the one built for a snapshot, else built here."""
+        preset. `plan`: the one built for a snapshot, else built here. `thermostat`: the thermostat
+        as read by the caller, else read here."""
         plan = plan or self.plan()
-        current, following, next_start = self.planned(entity_id, now)
-        thermostat = self.current(self.hass.states.get(entity_id))
+        thermostat = thermostat or self.current(self.hass.states.get(entity_id))
+        current, following, next_start = self.planned(entity_id, now, thermostat)
         target = plan.target_of(entity_id, current, thermostat)
         next_target = plan.target_of(entity_id, following, thermostat)
         return {
@@ -632,7 +636,7 @@ class ChauffageRuntime:
         slot = self.next_slot_end(entity_id, thermostat, plan, now)
         tomorrow = self.next_day_slot_end(entity_id, thermostat, plan, now)
         return {
-            **self.planned_targets(entity_id, plan, now),
+            **self.planned_targets(entity_id, plan, now, thermostat),
             "next_slot_end": slot.isoformat() if slot else None,
             "next_day_slot_end": tomorrow.isoformat() if tomorrow else None,
         }
