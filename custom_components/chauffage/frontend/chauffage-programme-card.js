@@ -288,7 +288,6 @@ const I18N = {
     cellCoolSetHere: 'cool set here',
     presetUsedHeating: 'Used when heating in a schedule: keep a temperature.',
     presetUsedCooling: 'Used when cooling in a schedule: keep a temperature.',
-    nextSlotShort: 'next slot',
     thenNext: 'then {next}',
     cellDefault: 'default',
     addPresetButton: '+ Add a preset',
@@ -608,7 +607,6 @@ const I18N = {
     cellCoolSetHere: 'clim réglée ici',
     presetUsedHeating: 'Utilisé en chauffe dans un planning : gardez une température.',
     presetUsedCooling: 'Utilisé en clim dans un planning : gardez une température.',
-    nextSlotShort: 'prochain créneau',
     thenNext: 'puis {next}',
     cellDefault: 'par défaut',
     addPresetButton: '+ Ajouter un préréglage',
@@ -2663,6 +2661,11 @@ function dayText(at, loc) {
     - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
   return days >= 7 ? loc.date(at) : loc.days[(at.getDay() + 6) % 7].toLowerCase();
 }
+// An instant to come: its time today ("17:30"), else its day too ("monday 06:30")
+function whenText(at, loc) {
+  const time = loc.time(minutesOf(at));
+  return at.toDateString() === new Date().toDateString() ? time : `${dayText(at, loc)} ${time}`;
+}
 
 // The end of an override, in words, under its time field: "today, at the next slot · 45 min left
 // · then Eco". The reason of a change by hand (#83) is part of its end; with Set up it opens the
@@ -2708,9 +2711,7 @@ function nextSlotButton(src, climate, d, loc, attrs) {
   const iso = (src.planned(climate) || {}).next_slot_end;
   const at = iso ? parseDate(iso) : null;
   if (!at || d.ends_at === 'next_slot' || Math.floor(at / 60000) === Math.floor(parseDate(d.end) / 60000)) return '';
-  const time = loc.time(minutesOf(at));
-  const when = at.toDateString() === new Date().toDateString() ? time : `${dayText(at, loc)} ${time}`;
-  return `<button ${attrs} data-at="${esc(iso)}">${esc(loc.t('untilNextSlot', { time: when }))}</button>`;
+  return `<button ${attrs} data-at="${esc(iso)}">${esc(loc.t('untilNextSlot', { time: whenText(at, loc) }))}</button>`;
 }
 
 // The button that sets an off override's end to tomorrow's first slot that changes the
@@ -2799,21 +2800,13 @@ function newOverride(src, target) {
   return { target, start: start.toISOString(), end: new Date(start.getTime() + src.overrideDuration() * 60000).toISOString() };
 }
 
-// The end a new override will have, said before the first tap: "until 12:00 (2 h)". Off ends
-// as the setting *Turned off* says: said too when it is another end, "Off: until 17:30 (next
-// slot)"
-function newOverrideEndText(src, climate, loc, hass) {
-  const text = (d) => {
-    const end = parseDate(d.end);
-    const time = loc.time(minutesOf(end));
-    const when = end.toDateString() === new Date().toDateString() ? time : `${dayText(end, loc)} ${time}`;
-    const minutes = Math.round((end - parseDate(d.start)) / 60000);
-    const why = d.ends_at === 'next_slot' ? loc.t('nextSlotShort') : minutes < DAY_MIN ? roundDurationText(minutes, loc) : remainingText(minutes, loc);
-    return `${loc.t('until')} ${when} (${why})`;
-  };
+// The end a new override will have, said before the first tap: "until 12:00 (2 h)"
+function newOverrideEndText(src, loc) {
   // One end: the one of the HVAC mode the override would take. Off has its own end, said once
   // Off is tapped
-  return text(newOverride(src, {}));
+  const d = newOverride(src, {});
+  const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
+  return `${loc.t('until')} ${whenText(parseDate(d.end), loc)} (${minutes < DAY_MIN ? roundDurationText(minutes, loc) : remainingText(minutes, loc)})`;
 }
 
 // The saved week of a thermostat in the active schedule, as parsed days (null without one)
@@ -4153,7 +4146,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const values = `${value.presets}
       ${value.temperature ? `<div class="ed-head">${value.temperature}</div>` : ''}${value.fan}`;
     // A new override: the end it will have, said before the first tap
-    if (!d) return `<div class="editor override-ed">${head}${values}<div class="end-new muted">${esc(newOverrideEndText(this._source(), climate, this._loc, this._hass))}</div></div>`;
+    if (!d) return `<div class="editor override-ed">${head}${values}<div class="end-new muted">${esc(newOverrideEndText(this._source(), this._loc))}</div></div>`;
     const endsAt = parseDate(d.end);
     const addButton = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
     return `<div class="editor override-ed">
@@ -7119,7 +7112,7 @@ class ChauffageMoreInfo extends HTMLElement {
         <div class="line"><span><span class="muted">${esc(t('followsSchedule'))}</span> ${esc(followText)}</span>
           <button data-new-override>${esc(t('newOverride'))}</button></div>
         ${value ? `${value.presets}<div class="line">${value.temperature}</div>
-          <div class="end-new muted">${esc(newOverrideEndText(dataSource(this._hass), this._entity, this._loc, this._hass))}</div>` : ''}
+          <div class="end-new muted">${esc(newOverrideEndText(dataSource(this._hass), this._loc))}</div>` : ''}
       </div>`;
     }
 
