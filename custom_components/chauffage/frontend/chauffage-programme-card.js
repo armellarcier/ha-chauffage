@@ -862,6 +862,10 @@ const HVAC_ORDER = ['off', 'heat', 'cool', 'heat_cool', 'dry', 'auto', 'fan_only
 const SETPOINT_MODES = ['heat', 'cool', 'heat_cool'];
 // Those of a slot without a preset: no setpoint
 const NO_PRESET_MODES = ['off', 'fan_only', 'dry', 'auto'];
+// The preset_mode values that mean a setpoint set by hand (Versatile Thermostat: "none")
+const MANUAL_PRESETS = ['', 'none', 'manual', 'manuel'];
+// A range of temperatures, as text: "19–24.5 °C"; "19–24.5°" with `unit` "°"
+const rangeText = (low, high, loc, unit = ` ${loc.unit}`) => `${loc.number(low)}–${loc.number(high)}${unit}`;
 const slotMode = (seg) => (seg && seg.settings && seg.settings.hvac_mode) || null;
 const isOff = (seg) => slotMode(seg) === 'off';
 const isFan = (seg) => slotMode(seg) === 'fan_only';
@@ -903,10 +907,14 @@ const pieceSettings = (seg) => (isOff(seg) ? null : hasNoPreset(seg) ? airSettin
 // (200° to 250°, away from the cyan of fan only and from the purple of an override), in the order of the hues from
 // red: the warm hues, where the presets' colors usually are, get the widest share. The shade
 // stays dark enough for white text. The default presets' colors have cool colors of their own
-function hexToHsl(hex) {
+// A hex color as [red, green, blue], each from 0 to 1; a grey for anything else
+function hexToRgb(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
   const n = m ? parseInt(m[1], 16) : 0x9e9e9e;
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+}
+function hexToHsl(hex) {
+  const [r, g, b] = hexToRgb(hex);
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
@@ -946,9 +954,7 @@ const slotColor = (preset, seg) => presetColorIn(preset, slotMode(seg));
 // that reads best on the color it reads worst on
 const DARK_TEXT = 'rgba(0,0,0,.87)';
 function luminance(hex) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
-  const n = m ? parseInt(m[1], 16) : 0x9e9e9e;
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255)
+  return hexToRgb(hex)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
     .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
 }
@@ -1292,7 +1298,7 @@ function captureState(hass, climate) {
   const requested = isVtherm(hass, climate) && a.requested_state && typeof a.requested_state === 'object' ? a.requested_state : null;
   const hvac = requested && requested.hvac_mode ? String(requested.hvac_mode) : st.state;
   const preset = requested && requested.preset != null ? String(requested.preset) : a.preset_mode != null ? String(a.preset_mode) : null;
-  const manual = !preset || ['', 'none', 'manual', 'manuel'].includes(preset.toLowerCase());
+  const manual = !preset || MANUAL_PRESETS.includes(preset.toLowerCase());
   const temperature = requested && manual && requested.target_temperature != null ? Number(requested.target_temperature) : a.temperature;
   const settings = {};
   const options = settingOptionsOf(hass, climate);
@@ -1430,7 +1436,7 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   if (picked) return picked.name;
   // Heat/cool with a range set by hand: "19–24.5 °C"
   if ('target_temp_low' in target && 'target_temp_high' in target && !('temperature' in target) && !('preset_mode' in target)) {
-    return `${locale.number(target.target_temp_low)}–${locale.number(target.target_temp_high)} ${locale.unit}`;
+    return rangeText(target.target_temp_low, target.target_temp_high, locale);
   }
   if ('temperature' in target) return `${locale.number(target.temperature)} ${locale.unit}`;
   if ('preset_mode' in target) return locale.preset(target.preset_mode);
@@ -2508,7 +2514,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   // Heat/cool takes a range: the one of the preset, or the one set by hand
   if (mode === 'heat_cool' && !none) {
     temperature = 'target_temp_low' in target
-      ? setpointLineHtml(loc.t('slotSetpoint', { value: `${loc.number(target.target_temp_low)}–${loc.number(target.target_temp_high)} ${loc.unit}` }), loc) : '';
+      ? setpointLineHtml(loc.t('slotSetpoint', { value: rangeText(target.target_temp_low, target.target_temp_high, loc) }), loc) : '';
   }
   const disabled = SETPOINT_MODES.filter((m) => !Object.values(targets).some((v) => presetModes(v).includes(m)));
   const chosen = off ? 'off' : idle || mode || running;
@@ -2549,7 +2555,7 @@ function slotSetpointText(hass, climate, seg, target, loc, { temperatureOf = () 
   };
   if (slotModeOn(hass, climate, seg) === 'heat_cool') {
     if (!('target_temp_low' in target)) return t('slotSetpointKept');
-    return t('slotSetpoint', { value: `${loc.number(target.target_temp_low)}–${degrees(target.target_temp_high)}` });
+    return t('slotSetpoint', { value: rangeText(target.target_temp_low, target.target_temp_high, loc) });
   }
   if (slotCools(hass, climate, seg)) {
     if ('cool_temperature' in target) return t('slotSetpoint', { value: degrees(target.cool_temperature) });
@@ -2595,7 +2601,7 @@ function coolPresetTemperatureOf(src, climate, target) {
 // The temperature a target gives in an HVAC mode, as text: "25°", "20–25°", '' when not known
 function targetDegrees(src, climate, target, mode, loc) {
   const degrees = (value) => (typeof value === 'number' ? `${loc.number(value)}°` : '');
-  if (mode === 'heat_cool') return 'target_temp_low' in target ? `${loc.number(target.target_temp_low)}–${degrees(target.target_temp_high)}` : '';
+  if (mode === 'heat_cool') return 'target_temp_low' in target ? rangeText(target.target_temp_low, target.target_temp_high, loc, '°') : '';
   if (mode === 'cool') return degrees(coolPresetTemperatureOf(src, climate, target));
   return degrees(presetTemperatureOf(src, climate, target));
 }
@@ -5703,7 +5709,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const st = this._hass.states[sel.climate];
       // The thermostat's presets, the one named like this preset (what "default" uses) first
       const own = ((st && st.attributes.preset_modes) || []).map(String)
-        .filter((p) => !['', 'none', 'manual', 'manuel'].includes(p.toLowerCase()))
+        .filter((p) => !MANUAL_PRESETS.includes(p.toLowerCase()))
         .sort((a, b) => (b === preset.id) - (a === preset.id));
       // What "default" gives: the thermostat's own preset of the same name (when the "use the
       // thermostats' presets" option allows it), else the preset's default temperature
@@ -7576,7 +7582,7 @@ class ChauffageThermostatCard extends HTMLElement {
         color = presetColorIn(presetOf(presets, plan.preset, loc), plan.hvac_mode);
       }
     }
-    else if (['none', 'manual', 'manuel'].includes(String(a.preset_mode).toLowerCase())) label = t('manual');
+    else if (a.preset_mode && MANUAL_PRESETS.includes(String(a.preset_mode).toLowerCase())) label = t('manual');
     else label = a.preset_mode ? loc.preset(a.preset_mode) : '';
     return `<span class="tc-state">${color ? `<i style="background:${color}"></i>` : ''}${text(label)}</span>`;
   }
