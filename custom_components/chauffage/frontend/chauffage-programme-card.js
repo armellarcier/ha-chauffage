@@ -1421,9 +1421,8 @@ const DEFAULT_LOCALE = makeLocale(null, 'en');
 
 // A target is a partial state of the thermostat, as a scene holds it (#91): { preset_mode } or
 // { temperature }, as the integration stores what a preset means on a thermostat and what an
-// override sets. Its kind, "preset" or "temperature", and its value.
+// override sets. Its kind, "preset" or "temperature".
 const targetKind = (target) => (target && 'temperature' in target ? 'temperature' : 'preset');
-const targetValue = (target) => (target ? target[targetKind(target) === 'temperature' ? 'temperature' : 'preset_mode'] : undefined);
 
 // The override's value: Off when it turns the thermostat off (whatever preset it restarts on),
 // else the preset picked (`d.preset`, among `presets`), its temperature or the thermostat's own
@@ -2496,7 +2495,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
     .filter((l) => targets[l.id] && (picked === l.id || presetModes(targets[l.id]).includes(inMode))).map((l) => {
       const value = targets[l.id];
       const on = !!d && !none && (picked ? picked === l.id
-        : targetKind(target) === 'preset' && targetKind(value) === 'preset' && targetValue(target) != null && targetValue(target) === targetValue(value));
+        : targetKind(target) === 'preset' && targetKind(value) === 'preset' && target.preset_mode != null && target.preset_mode === value.preset_mode);
       return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="${chipStyle(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
     }).join('');
   // The temperature the thermostat gets. An override to a preset that cools sends the preset's
