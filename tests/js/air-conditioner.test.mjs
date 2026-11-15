@@ -109,14 +109,16 @@ describe('on an air conditioner, every slot says heat or cool', () => {
     assert.deepEqual(card._rows, [[0, 1, 2, 3, 4, 5, 6]]);
   });
 
-  test('an edit writes the HVAC mode of every slot of the day: heat or cool, and cool on a unit that only cools', () => {
+  test('an edit writes no HVAC mode on a slot that says none: the slot keeps the one it runs in', () => {
     const card = cardOf(setup(), { show: [ATELIER, COMBLES] });
     select(card, ATELIER, 1);
     click(card, '.editor [data-act="preset"][data-preset="boost"]');
-    assert.deepEqual(day(card, ATELIER), ['00:00 eco {"hvac_mode":"heat"}', '14:00 boost {"hvac_mode":"heat"}', '20:00 eco {"hvac_mode":"heat"}']);
+    assert.deepEqual(day(card, ATELIER), ['00:00 eco', '14:00 boost', '20:00 eco']);
+    assert.deepEqual(icons(seg(card, ATELIER, 1)), ['mdi:fire']);
     select(card, COMBLES, 1);
     click(card, '.editor [data-act="preset"][data-preset="boost"]');
-    assert.deepEqual(day(card, COMBLES), ['00:00 eco {"hvac_mode":"cool"}', '14:00 boost {"hvac_mode":"cool"}', '20:00 eco {"hvac_mode":"cool"}']);
+    assert.deepEqual(day(card, COMBLES), ['00:00 eco', '14:00 boost', '20:00 eco']);
+    assert.deepEqual(icons(seg(card, COMBLES, 1)), ['mdi:snowflake']);
   });
 });
 
@@ -150,7 +152,8 @@ describe('a new slot is like the slot it comes from', () => {
     select(card, ATELIER, 0);
     click(card, '.editor [data-act="insert"]');
     card._action('preset', { preset: 'eco' });
-    assert.equal(day(card, ATELIER)[1], '04:00 eco {"hvac_mode":"heat"}');
+    assert.equal(day(card, ATELIER)[1], '04:00 eco');
+    assert.deepEqual(icons(seg(card, ATELIER, 1)), ['mdi:fire']);
   });
 
   test('Clim tapped on an off slot gives it a preset: not the one of the slot before it, which would take it in', () => {

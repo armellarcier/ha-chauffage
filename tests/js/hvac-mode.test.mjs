@@ -369,16 +369,20 @@ describe('the slot popover', () => {
     assert.equal(setpoint(card), 'Consigne : 7 °C');
     select(card, 'climate.salon', 0, 4); // off
     assert.equal(setpoint(card), '');
-    select(card, 'climate.atelier', 0, 1); // its own preset, whose temperature is not known yet
-    assert.equal(setpoint(card), 'Consigne : son préréglage Confort');
+    select(card, 'climate.atelier', 0, 1); // its own preset, whose temperature is not known yet: the chip names it
+    assert.equal(setpoint(card), '');
   });
 
   test('on a slot that cools: the cooling temperature, else its own preset, else "unchanged when cooling"', () => {
-    const setpoint = (card) => text($(card, '.editor .slot-setpoint'));
+    const setpoint = (card) => text($(card, '.editor .slot-setpoint') || { textContent: '' });
     const hass = setup({ atelier: ['00:00 eco', ['14:00', 'comfort', COOL], ['20:00', 'frost', COOL]] });
     const card = cardOf(hass, { show: ['climate.atelier'] });
     select(card, 'climate.atelier', 0, 1); // comfort in cool: its own preset, which the device reads in cool
-    assert.equal(setpoint(card), 'Consigne : son préréglage Confort');
+    assert.equal(setpoint(card), '');
+    hass.data.cool_preset_temperatures = { 'climate.atelier': { comfort: 25 } };
+    hass.push({ ...hass.data });
+    card._render();
+    assert.equal(setpoint(card), 'Consigne : 25 °C (son préréglage Confort)');
     // Frost protection has no value when cooling: a slot stored with it stays, marked, and sends no setpoint
     select(card, 'climate.atelier', 0, 2);
     assert.ok($(card, '.editor [data-act="preset"][data-preset="frost"]').classList.contains('unsupported'));
@@ -398,7 +402,8 @@ describe('the slot popover', () => {
     assert.equal(text($(card, '.editor .slot-setpoint')), 'Consigne : 20 °C');
     // Comfort has no value when cooling on this thermostat: the slot takes a preset that has one
     click(card, '.editor [data-act="slot-mode"][data-mode="cool"]');
-    assert.equal(text($(card, '.editor .slot-setpoint')), 'Consigne : son préréglage Éco');
+    assert.ok($(card, '.editor [data-act="preset"][data-preset="eco"].on'));
+    assert.equal($(card, '.editor .slot-setpoint'), null, 'its own preset, whose temperature is not known');
   });
 });
 
@@ -410,7 +415,7 @@ describe('a schedule has no HVAC mode', () => {
     assert.equal($(card, '.tab .tab-hvac'), null);
     click(card, '.tab-tool[data-act="schedule-menu"]');
     assert.equal($(card, '.sched-menu [data-act="schedule-hvac"]'), null);
-    assert.doesNotMatch(text($(card, '.sched-menu')), /Clims|Ne pas changer/);
+    assert.doesNotMatch(text($(card, '.sched-menu')), /Clims|Celui du thermostat/);
     await card._action('schedule-move', { dir: '1' });
     assert.deepEqual(lastCall(hass).schedules, [{ id: 'away' }, { id: 'normal' }, { id: 'holiday' }]);
   });

@@ -173,11 +173,8 @@ describe('a new override', () => {
 
   test('says the end it will have before the first tap', () => {
     const card = open(setup({ planned: PLANNED }));
-    assert.equal(text($(card, '.override-ed .end-new')), 'jusqu\'à 12:00 (2 h) · Arrêt : jusqu\'à 17:30 (prochain créneau)');
-    // The same end for off: said once
-    const hass = setup({ planned: PLANNED });
-    hass.data.off_override_end = 'duration';
-    assert.equal(text($(open(hass), '.override-ed .end-new')), 'jusqu\'à 12:00 (2 h)');
+    // One end: the one of the HVAC mode it would take. Off says its own once it is tapped
+    assert.equal(text($(card, '.override-ed .end-new')), 'jusqu\'à 12:00 (2 h)');
   });
 
   test('says its end in the more-info block and on a thermostat card too', () => {
@@ -258,10 +255,11 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
   const COOL = override({ ...both(20, 25), hvac_mode: 'cool' }, { preset: 'comfort', end: at('14:00') });
   // At 14:00 the suite's week plans Comfort, in heat
 
-  test('the more-info block: "Climatisation · Confort 25°", until when, and what comes next', () => {
+  test('the more-info block: "Climatisation · Confort 25°"; on a thermostat card, until when and what comes next', () => {
     const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }), SUITE);
     assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Climatisation · Confort 25°');
-    assert.equal(text(el.shadowRoot.querySelector('.override-until')), 'jusqu\'à 14:00, puis Chauffage · Confort');
+    const embedded = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }), SUITE, true);
+    assert.equal(text(embedded.shadowRoot.querySelector('.override-until')), '⏱ jusqu\'à 14:00, puis Chauffage · Confort');
   });
 
   test('the thermostat card\'s header', () => {
@@ -302,7 +300,7 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
     const hass = setup({ planned: PLANNED, overrides: { [SALON]: override({ temperature: 20 }, { preset: 'comfort', end: at('14:00') }) } });
     const el = moreInfo(hass, SALON);
     assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Confort 20°');
-    assert.equal(text(el.shadowRoot.querySelector('.override-until')), 'jusqu\'à 14:00, puis Confort');
+    assert.equal(text(moreInfo(hass, SALON, true).shadowRoot.querySelector('.override-until')), '⏱ jusqu\'à 14:00, puis Confort');
   });
 
   test('off and dry say themselves', () => {

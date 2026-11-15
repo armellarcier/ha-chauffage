@@ -515,7 +515,9 @@ class ChauffageRuntime:
             "active_schedule": self.data["active_schedule"],
             "presets": self.data["presets"],
             # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
-            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e)}
+            # own_settings: the fan and the vanes it gets back from a slot that sets none
+            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e),
+                                "own_settings": self.own_settings(e)}
                             for e, t in self.scheduled.items()},
             "mappings": self.mappings,
             "targets": {e: self.targets_of(e) for e in self.scheduled},

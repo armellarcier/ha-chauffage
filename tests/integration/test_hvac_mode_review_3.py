@@ -36,6 +36,14 @@ async def test_a_thermostat_back_online_still_gets_its_fan_back(bench: Bench):
     assert fan(bench) == {"fan_mode": "auto"}
 
 
+async def test_the_card_is_told_the_fan_a_thermostat_gets_back(bench: Bench):
+    """The card names it in the choice that sets no fan: "Thermostat's own (auto)"."""
+    await start(bench, FAN_DAY, "13:00", **FANS)
+    assert bench.runtime.snapshot()["thermostats"][SALON]["own_settings"] == {}
+    await bench.go_to("14:00")
+    assert bench.runtime.snapshot()["thermostats"][SALON]["own_settings"] == {"fan_mode": "auto"}
+
+
 # ----- a device preset that would fight a setpoint -----
 
 async def daikin_on_eco(bench: Bench, temperature: float | None = None) -> None:
