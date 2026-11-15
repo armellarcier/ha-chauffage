@@ -1044,11 +1044,13 @@ const modeColor = (mode) => (mode === 'off' ? 'var(--secondary-text-color, #7272
 // The name of an HVAC mode, short, for a button: "Heat", "Cool", "Dry"
 const MODE_LABELS = { off: 'hvacOff', heat: 'slotHeat', cool: 'slotCool', heat_cool: 'hvacHeatCool', dry: 'hvacDry', auto: 'hvacAuto', fan_only: 'hvacFan' };
 const modeName = (loc, mode) => (loc.modeName ? loc.modeName(mode) : MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : loc.hvacMode(mode));
+// A thermostat's state in Home Assistant, when Home Assistant has one
+const stateOf = (hass, climate) => hass && hass.states && hass.states[climate];
 // The words of a thermostat's own blocks, the more-info block and a thermostat card: an HVAC
 // mode is named in full, as Home Assistant names it next to them ("Chauffage", "Éteint"), else
 // in the card's own full words. The buttons of the first row keep their short labels
 function fullNames(loc, hass, climate) {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const name = (mode) => {
     if (st && typeof hass.formatEntityState === 'function') {
       try {
@@ -1131,7 +1133,7 @@ const hvacIconHtml = (mode) => (mode ? `<span class="m">${hvacIcon(mode)}</span>
 const parseDecimal = (text) => (String(text).trim() === '' ? NaN : Number(String(text).trim().replace(',', '.')));
 // The HVAC modes a thermostat lists, and the ones that turn it on
 const hvacModesOf = (hass, climate) => {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const modes = st && Array.isArray(st.attributes.hvac_modes) ? st.attributes.hvac_modes.map(String) : null;
   return { modes, on: (modes || []).filter((m) => m !== 'off') };
 };
@@ -1151,7 +1153,7 @@ const listsMode = (hass, climate, mode) => hvacModesOf(hass, climate).on.include
 // Whether a thermostat takes a range of temperatures (Home Assistant's TARGET_TEMPERATURE_RANGE):
 // heat/cool needs it
 const supportsRange = (hass, climate) => {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   return !!st && (Number(st.attributes.supported_features) & 2) !== 0;
 };
 // The HVAC modes a slot on a preset may choose on a thermostat: heat, cool and heat/cool, the
@@ -1201,7 +1203,7 @@ const dayOn = (hass, climate, segs) => segs.map((seg) => slotOn(hass, climate, s
 // range: target_temp_low and target_temp_high. `cell`: the value set by hand on the thermostat
 function valueOn(preset, cell, hass, climate, usePresets = true) {
   const set = cell || {};
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const own = usePresets && st && (st.attributes.preset_modes || []).map(String).includes(preset.id) ? preset.id : null;
   const heat = preset.temperature ?? null;
   const cool = preset.cool_temperature ?? null;
@@ -1240,7 +1242,7 @@ const defaultSetpointMode = (hass, climate) => setpointModesOf(hass, climate)[0]
 // each
 const SETTING_LABELS = { fan_mode: 'fanMode', swing_mode: 'swingMode', swing_horizontal_mode: 'swingHorizontalMode' };
 function settingOptionsOf(hass, climate) {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const out = {};
   for (const attr of SETTING_ATTRS) {
     const list = st && st.attributes[`${attr}s`];
@@ -1255,7 +1257,7 @@ const attributeName = (attr, loc) => loc.t(SETTING_LABELS[attr]);
 // as its own dialogs show it: the entity's own translation, else the climate domain's; null
 // without one
 function haValueName(hass, climate, attr, value) {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   if (st && typeof hass.formatEntityAttributeValue === 'function') {
     try {
       const name = hass.formatEntityAttributeValue(st, attr, value);
@@ -1284,7 +1286,7 @@ function attributeValue(hass, climate, attr, value, loc) {
 // The thermostat's current state, to capture into a preset's value (#91, lot 3): the
 // intent on a Versatile Thermostat (requested_state), not its protection. Null while unavailable.
 function captureState(hass, climate) {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   if (!st || ['unavailable', 'unknown'].includes(st.state)) return null;
   const a = st.attributes;
   const requested = isVtherm(hass, climate) && a.requested_state && typeof a.requested_state === 'object' ? a.requested_state : null;
@@ -1312,7 +1314,7 @@ function settingsText(hass, climate, loc, settings) {
 // value it gets back when it is known: the one Chauffage keeps for it, else the one it shows
 function ownSettingText(hass, climate, attr, loc) {
   const kept = dataSource(hass).ownSettings(climate)[attr];
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const value = kept ?? (st && st.attributes ? st.attributes[attr] : null);
   return value == null || value === '' ? loc.t('keep') : loc.t('keepValue', { value: attributeValue(hass, climate, attr, value, loc) });
 }
@@ -2428,12 +2430,12 @@ function modeRowHtml(hass, climate, loc, chosen, act, disabled = [], asDefault =
 // The step of a thermostat's setpoint (its target_temp_step, else half a degree), and a
 // temperature it accepts: on its step, within its limits (engine.fit_temperature)
 function stepOf(hass, climate) {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const step = st ? Number(st.attributes.target_temp_step) : NaN;
   return Number.isFinite(step) && step > 0 ? step : 0.5;
 }
 function fitTemperature(hass, climate, value) {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const step = stepOf(hass, climate);
   let out = Math.round(Math.round(value / step) * step * 100) / 100;
   const limit = (key) => (st && Number.isFinite(Number(st.attributes[key])) && st.attributes[key] != null ? Number(st.attributes[key]) : null);
@@ -2453,7 +2455,7 @@ function stepperHtml(loc, field, value, act, step, label) {
 // The temperature of an override moved by a step (its − and its +): from the field, else from
 // the thermostat's setpoint
 function steppedTemperature(hass, climate, field, dir) {
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   const typed = field ? parseDecimal(field.value) : NaN;
   const from = Number.isFinite(typed) ? typed : Number((st && st.attributes.temperature) ?? 20);
   return fitTemperature(hass, climate, from + dir * stepOf(hass, climate));
@@ -2477,7 +2479,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   const idle = !off && NO_PRESET_MODES.includes(target.hvac_mode) && !('temperature' in target) && !('preset_mode' in target) ? target.hvac_mode : null;
   const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
   // The presets in their cool color while the override cools (a heater's: while it does)
-  const state = hass && hass.states && hass.states[climate];
+  const state = stateOf(hass, climate);
   const cools = mode ? mode === 'cool' : overrideHvac(d) === 'cool' || (!overrideHvac(d) && !!state && state.state === 'cool');
   const rows = hasModeRow(hass, climate);
   const inMode = mode || defaultSetpointMode(hass, climate);
@@ -2526,7 +2528,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
 function slotCools(hass, climate, seg) {
   const mode = slotModeOn(hass, climate, seg);
   if (mode) return mode === 'cool';
-  const st = hass && hass.states && hass.states[climate];
+  const st = stateOf(hass, climate);
   return !!st && st.state === 'cool';
 }
 
