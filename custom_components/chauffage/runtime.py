@@ -1187,7 +1187,9 @@ class ChauffageRuntime:
         commands = self.data["pending"].get(entity_id, [])
         # Not what the thermostat already shows, unless it may still apply an older command:
         # then everything, or what it shows now could be undone later
-        current = None if commands else self.current(self.hass.states.get(entity_id))
+        state = self.hass.states.get(entity_id)
+        actual = self.current(state)
+        current = None if commands else actual
         hvac_mode = target.get("hvac_mode")
         if current is not None and hvac_mode in (current.state, current.shown):
             hvac_mode = None
@@ -1199,7 +1201,7 @@ class ChauffageRuntime:
             attributes |= {key: target[key] for key in engine.RANGE_KEYS if key in target}
         # A thermostat that keeps its preset when it gets a setpoint leaves the preset first. The
         # setpoint is then sent in full: a thermostat may change it when it leaves a preset
-        leave = engine.preset_to_leave(target, self.current(self.hass.states.get(entity_id)))
+        leave = engine.preset_to_leave(target, actual)
         # Only the preset to leave: the thermostat shows the rest, so nothing will be pending
         shown_but_preset = leave is not None and hvac_mode is None and not attributes
         if leave is not None:
@@ -1216,7 +1218,7 @@ class ChauffageRuntime:
             self.data["pending"][entity_id] = commands
             self._save()
         if leave is not None:
-            kept = engine.preset_value(self.hass.states.get(entity_id).attributes.get("preset_mode"))
+            kept = engine.preset_value(state.attributes.get("preset_mode"))
             if await self.reproduce(entity_id, hvac_mode, {"preset_mode": leave}):
                 hvac_mode = None
             else:
@@ -1289,8 +1291,9 @@ class ChauffageRuntime:
         command, says why (by default: a new slot)."""
         async with self._lock:
             now, retry = dt_util.now(), set(self._retry)
+            plan = self.plan()
             todo = engine.targets(
-                self.plan(),
+                plan,
                 now,
                 {e: t for e in self.active if (t := self.current(self.hass.states.get(e)))},
                 force=force,
@@ -1310,7 +1313,7 @@ class ChauffageRuntime:
                 why = ("retry after a failed command" if entity_id in retry
                        else "override ended (expired)" if entity_id in (ended or ())
                        else reason or "new slot")
-                slot, _ = self.plan().slot_at(entity_id, now)
+                slot, _ = plan.slot_at(entity_id, now)
                 what = slot.preset or slot.settings.get("hvac_mode")  # an off or a fan-only slot has no preset
                 done = await self.send(entity_id, target, f"{why}, {what} of schedule {self.data['active_schedule']}")
                 # Not delivered (unreachable valve…): sent again at the next minutes
