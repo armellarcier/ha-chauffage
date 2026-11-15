@@ -264,8 +264,9 @@ popover is open, and the slot gets its preset back. To make one slot of two, del
 - **An air conditioner that only cools** has *Cool* chosen: its slots always cool.
 - **A heater** has one row: *Off*, then the presets. Its slots carry no HVAC mode.
 - **A whole week.** Open the ⋮ menu of a day of the thermostat, then tap *All heat* or *All
-  cool*. Every slot of the thermostat's week, in the schedule shown, takes this HVAC mode.
-  *Save* keeps the change. In the Chauffage panel, the ⋮ menu of a week has the same items.
+  cool*. Every heating or cooling slot of the thermostat's week, in the schedule shown, takes
+  this HVAC mode. The other slots stay as they are, for example a *Heat/Cool* slot or an *Off*
+  slot. *Save* keeps the change. In the Chauffage panel, the ⋮ menu of a week has the same items.
 
 **Your existing weeks heat.** A week saved before this version says no HVAC mode. Chauffage
 reads its slots as *Heat* on an air conditioner that heats and cools, and as *Cool* on one that
@@ -298,8 +299,9 @@ hatched in that color on a neutral background, so that you can tell them from a 
 or an *Eco* slot.
 
 **Fan and vanes.** On an air conditioner, *More settings* holds the fan speed and the vanes,
-one list per setting the thermostat lists. *Don't change* leaves the setting to the preset's
-value, or to the thermostat. The folded line shows the values the slot sets, and the week shows
+one list per setting the thermostat lists. The first choice sets nothing. It reads *3 (preset)*
+when the preset's value sets the fan, and *Thermostat's own* otherwise: the thermostat then
+gets back the fan it had before a slot chose one. The folded line shows the values the slot sets, and the week shows
 a mark on the slots that set one. An off slot has none. In a fan-only slot and in a dry slot,
 the fan speed shows at once, and *More settings* holds the vanes.
 

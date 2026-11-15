@@ -104,8 +104,9 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   temperature when cooling. The popover says "Setpoint: 20–25 °C". The presets that have both
   temperatures are offered. The week shows the slot in both colors of its preset.
 - **A whole week to heat or to cool** (#91). In the ⋮ menu of a day on the card, and of a week
-  in the panel, *All heat* and *All cool* set every slot of the thermostat's week, in the
-  schedule shown. *Save* keeps the change.
+  in the panel, *All heat* and *All cool* set every heating or cooling slot of the thermostat's
+  week, in the schedule shown. The other slots stay as they are, for example a *Heat/Cool* slot
+  or an *Off* slot. *Save* keeps the change.
 - **An override has the same two rows** (#91), in the card, in the more-info dialog and on a
   thermostat card. A new override starts in the HVAC mode of the slot planned now: this HVAC
   mode is outlined until you tap one. The block says the end the override will have before
@@ -176,7 +177,9 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   the thermostat heating at its frost setpoint.
 - **A slot or a preset's value can set the fan and the vanes of an air conditioner** (#61, #91).
   In the slot popover and in the cell popover, *More settings* holds one list per setting the
-  thermostat lists (*Fan*, *Vanes*, *Horizontal vanes*), with *Don't change*. The week shows a
+  thermostat lists (*Fan*, *Vanes*, *Horizontal vanes*). The first choice sets nothing: it
+  reads *Thermostat's own*, with the value the thermostat gets back when Chauffage knows it,
+  for example *Thermostat's own (Auto)*. The week shows a
   mark on the slots that set one. Chauffage sends them with the slot, as a scene does.
 - **Copy from the thermostat** (#91). A button in the cell popover fills the fields from the
   thermostat as it is now: its setpoint, its fan and its vanes, never its preset. Nothing is
@@ -191,8 +194,19 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   `chauffage.get_week` gives each slot's settings, with its HVAC mode as it runs on the
   thermostat. A slot that is off, fan only, dry or auto has no preset.
 
+- **An override reads the same everywhere on the week** (#91): a clock, the icon of its HVAC
+  mode, an arrow and its end, for example "⏱ ❄ → 17:00". The label names the day when the
+  override ends another day. The label sits in the override's block, or next to a block too
+  narrow for it, where it covers no slot's name.
+- **A time you type in a slot no longer removes the slot next to it by rounding** (#91). Typed
+  as 08:05, the start is rounded to 08:00: when a slot already starts at 08:00, your slot
+  starts at 08:15 and the other slot stays. To replace a slot, type its exact start.
+- **On a touch screen, a time field has a − and a +** as large as the other buttons.
+
 ### Changed
 
+- **New installations get a darker red for *Boost*** (`#d32f2f`): white text reads better on it.
+  Your presets keep their colors.
 - **"Pause" is now "Pause control"**, and "Resume control" stays. What you pause is Chauffage's
   control of the thermostat, not the heating: a paused thermostat keeps doing what you set by
   hand. In French, *Suspendre le pilotage* and *Reprendre le pilotage*.

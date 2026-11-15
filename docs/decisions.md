@@ -321,6 +321,23 @@ future contributor might question.
     must come last. Not on a Versatile Thermostat, which goes to its manual preset by itself.
     The preset `none` is not part of the target: what the slot expects, and what an override
     holds, do not change.
+  - **A thermostat that refuses to leave its preset gets the setpoint anyway** (the third
+    review). The setpoint was not sent, and the slot was sent again every minute: the room
+    never got its temperature. A room at the right temperature on the wrong device preset is
+    better than a room left as it was. The refusal is logged as a warning, once per command.
+  - **A thermostat at the slot's temperature still leaves its device preset** (the third
+    review). A Daikin on `eco` that already showed the slot's 21 °C was left alone, and went
+    on saving energy against the setpoint. Chauffage now sends such a thermostat its slot
+    (`engine.targets`, `Runtime.needs`): the preset is left, then the setpoint is sent again,
+    as a thermostat may change it when it leaves a preset. Nothing is pending then: the
+    thermostat already shows the target.
+  - **The fan to give back survives an offline thermostat** (the third review). An unavailable
+    thermostat shows no fan, and a thermostat that comes back may show another one: neither is
+    a change by hand. `_forget_settings` looks at changes between two known states only.
+  - **A window that sets the frost setpoint teaches no preset temperature** (the third review).
+    A Versatile Thermostat whose window action is *frost* keeps its preset and shows 7 °C:
+    `_learn` took 7 °C for the temperature of *Eco*. It now learns nothing while the
+    thermostat says its window is open (`engine.cause`).
   - **The card cannot set a single temperature in heat/cool** on a thermostat that takes a
     range there: the websocket API refuses it, as `chauffage.set_override` does. The override
     was recorded and did nothing. An override that already has this value keeps it: its end
@@ -1094,6 +1111,13 @@ dashboards, automations, scripts and by voice without the card
     - a slot deleted, or a time typed over a slot, joins the two slots it brings together;
     - a day copied to a thermostat that cannot follow its slots, and *All heat* or *All cool*,
       join the slots they made the same (`joined`).
+  - **An edit changes its slot, and no other slot** (the third review). An edit wrote the HVAC
+    mode of every slot of the day, so that the stored week said what the card drew. A cut
+    left as it was then left changes to save on an air conditioner, and one tap rewrote slots
+    the user never touched. Now `_commit` leaves the other slots as they are stored: a slot
+    without an HVAC mode keeps the one it runs in (`slotOn`), on the card and in the
+    integration. The slot the user changes loses an HVAC mode its thermostat cannot follow,
+    for example *Cool* pasted on a heater.
   - **A piece the card cuts is like the slot it is cut from.** A double tap on *Eco* made a
     *Comfort* piece: a tester who wanted to turn the night off got a heated hour instead. Now
     the piece has the slot's preset, HVAC mode, fan and vanes, and its popover is open: the
@@ -1155,6 +1179,53 @@ dashboards, automations, scripts and by voice without the card
       the chip's color. Otherwise it is dark. A heat/cool chip has two colors: its text is the
       one that reads best on the color it reads worst on (`chipTextColor`).
     - **A popover takes the width of a narrow card**, so that it is centred on a phone.
+  - **The third review** (#91):
+    - **The choice that sets no fan reads "Thermostat's own"**, with the value in brackets
+      when it is known: the one Chauffage keeps to give back (`own_settings`, now published to
+      the card), else the one the thermostat shows. "Don't change" was wrong since the fan is
+      given back: the fan does change.
+    - **An override on the week has one format**: "⏱ icon → end", inside its block and next to
+      it, with the off icon, and the day when the end is not today. The name of the override
+      is in its tooltip, its popover and its chip. Two formats made two things of one.
+    - **The width of the block decides where the label goes**, not its duration: a container
+      query on the block. 120 minutes are 100 px on a desktop and 25 px on a phone.
+    - **The tag never covers a slot's name on purpose.** After each draw, the card measures
+      the names the bar shows (`_placeTags`, `tagSide`): the tag goes after the block, else
+      before it, else on the top edge of the bar. On a phone with several thermostats, the
+      tag on the top edge touches the row above: the names stay readable.
+    - **The handle between two slots alike is faded and dashed.** The two slots stay two (the
+      second review), and the handle says where the cut is, without a word.
+    - **A new override says one end**: the one of the HVAC mode it would take. *Off* has its
+      own end, which the block says once *Off* is tapped. Two ends on one line read as two
+      ends of the same override.
+    - **The setpoint line says nothing when it has no number.** "Setpoint: its Comfort
+      preset" repeated the chip above it. The *Set* button stays, for an administrator.
+    - **An override is said once.** A thermostat card names the override in its header, and
+      its block says until when. The more-info dialog names the override, and says its end in
+      the block of its end.
+    - **Off tapped for a new override during an off slot sets nothing**, when the thermostat
+      is off. The override changed nothing and showed on the week. A thermostat that is on
+      during an off slot is still turned off.
+    - **A typed time is rounded as a drag is, and removes a neighbor only when typed onto
+      it.** A handle cannot be dragged closer than a step to the next one. A time rounded onto
+      a neighbor's start now stops a step away. A time typed exactly onto that start, or past
+      it, still removes the neighbor: the user asked for it.
+    - ***All heat* and *All cool* switch heating and cooling slots only.** A heat/cool slot
+      became a cooling slot. The user chose heat/cool for that slot, as they chose dry or off
+      for another one.
+    - **Three columns of HVAC modes on a narrow block only.** Five modes made rows of three
+      and two in a popover 500 px wide. The popover of a narrow card is marked (`narrow`, as
+      wide as the card), and the more-info block measures itself (a container query).
+    - **The chosen HVAC mode is not bold**: its column changed width. A thin stroke gives the
+      same weight without moving anything.
+    - **The HVAC mode a new override would take has a dashed outline and no fill.** With a
+      fill, it still read as a chosen *Off*.
+    - **On a touch screen, a time field has a − and a +**, each as large as a chip: its
+      arrows were 21 by 17 px, under the 24 px of WCAG 2.5.8.
+    - **The save bar stays over a popover**, and a slot's popover opens above its row when it
+      would cover the bar: *Cancel* was out of reach on a phone.
+    - **New installations get a darker *Boost* red** (`#d32f2f`): white text was at 4.2:1 on
+      `#e53935`, under WCAG AA. The stored presets keep their colors (`FORMER_COLORS`).
   - **A double tap cuts a short slot.** On a slot narrower than its two handles, the first tap
     selects the slot, and the second one lands on a handle of the slot selected, which did
     nothing. Now it cuts the slot, a step away from its ends. On a wider slot, a double tap on

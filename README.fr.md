@@ -289,8 +289,9 @@ qu'un créneau, supprimez l'autre.
 - **Un radiateur** a une seule ligne : *Arrêt*, puis les préréglages. Ses créneaux ne portent
   pas de mode HVAC.
 - **Toute une semaine.** Ouvrez le menu ⋮ d'un jour du thermostat, puis touchez *Tout en
-  chauffe* ou *Tout en clim*. Tous les créneaux de la semaine du thermostat, dans le planning
-  affiché, prennent ce mode HVAC. *Enregistrer* garde le changement. Dans le panneau Chauffage,
+  chauffe* ou *Tout en clim*. Les créneaux qui chauffent ou qui climatisent, dans la semaine du
+  thermostat et le planning affiché, prennent ce mode HVAC. Les autres créneaux ne changent
+  pas, par exemple un créneau *Chauffe/Clim* ou *Arrêt*. *Enregistrer* garde le changement. Dans le panneau Chauffage,
   le menu ⋮ d'une semaine propose la même chose.
 
 **Vos semaines actuelles chauffent.** Une semaine enregistrée avant cette version ne dit aucun
@@ -329,8 +330,10 @@ hachurés dans cette couleur sur un fond neutre : vous les distinguez ainsi d'un
 *Confort* ou *Éco*.
 
 **Ventilateur et volets.** Sur une climatisation, *Plus de réglages* contient la vitesse du
-ventilateur et les volets, une liste par réglage que le thermostat connaît. *Ne pas changer*
-laisse le réglage à la valeur du préréglage, ou au thermostat. La ligne repliée montre les
+ventilateur et les volets, une liste par réglage que le thermostat connaît. Le premier choix
+ne fixe rien. Il indique *3 (préréglage)* quand la valeur du préréglage fixe le ventilateur, et
+*Celui du thermostat* sinon : le thermostat retrouve alors le ventilateur qu'il avait avant
+qu'un créneau en choisisse un. La ligne repliée montre les
 valeurs que le créneau fixe, et la semaine montre une marque sur les créneaux qui en fixent
 une. Un créneau *Arrêt* n'en a pas. Dans un créneau *Ventilation* ou *Déshum.*, la vitesse du
 ventilateur s'affiche tout de suite, et *Plus de réglages* contient les volets.
