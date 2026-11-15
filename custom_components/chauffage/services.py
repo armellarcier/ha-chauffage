@@ -105,16 +105,14 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
     if mode in engine.NO_PRESET_MODES and ("temperature" in data or "preset" in data or has_range):
         refuse("no_setpoint_in_hvac_mode", hvac_mode=mode)
     # Heat/cool takes a range, and nothing else does
-    if has_range and (mode != engine.HEAT_COOL or "temperature" in data or "preset" in data
-                      or data["target_temp_low"] >= data["target_temp_high"]):
+    bad_range = has_range and (mode != engine.HEAT_COOL or "preset" in data
+                               or data["target_temp_low"] >= data["target_temp_high"])
+    if bad_range or (mode == engine.HEAT_COOL and "temperature" in data):
         refuse("range_in_heat_cool")
-    if mode == engine.HEAT_COOL and "temperature" in data:
-        refuse("range_in_heat_cool")
-    state = hass.states.get(entity_id)
-    listed = [str(getattr(m, "value", m)) for m in (state.attributes.get("hvac_modes") or ())] if state else []
+    current = runtime.current(hass.states.get(entity_id))
+    listed = current.hvac_modes if current is not None else ()
     if mode is not None and listed and mode not in listed:
         refuse("hvac_mode_not_listed", hvac_mode=mode, hvac_modes=", ".join(listed))
-    current = runtime.current(state)
     if mode == engine.HEAT_COOL and current is not None and not current.supports_range:
         refuse("no_range")
     # A single temperature, while the thermostat runs heat/cool on a range: it would refuse it
