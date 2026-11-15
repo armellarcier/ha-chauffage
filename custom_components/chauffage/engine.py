@@ -171,7 +171,7 @@ def week_on(week: list[list[list[Any]]], thermostat: Thermostat | None) -> list[
     A slot that says heat and one that says nothing are then the same slot on an air
     conditioner: what compares two slots (the next different slot) reads this week."""
     def on(raw: list[Any]) -> list[Any]:
-        settings = dict(raw[2]) if len(raw) > 2 else {}
+        settings = dict(slot_of(raw).settings)
         mode = slot_hvac_mode(settings, thermostat)
         settings.pop("hvac_mode", None)
         if mode:

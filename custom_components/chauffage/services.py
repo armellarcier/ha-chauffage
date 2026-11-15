@@ -206,7 +206,7 @@ def async_register(hass: HomeAssistant) -> None:
             week = engine.week_on(runtime_for(hass, entity_id).weeks[entity_id][schedule],
                                   runtime.current(hass.states.get(entity_id)))
             response[entity_id] = {"schedule": schedule} | {
-                name: [{"start": slot[0], "end": next_start, "preset": slot[1], **(slot[2] if len(slot) > 2 else {})}
+                name: [{"start": slot[0], "end": next_start, "preset": slot[1], **engine.slot_of(slot).settings}
                        for slot, next_start in zip(day, [s[0] for s in day[1:]] + ["24:00"])]
                 for name, day in zip(DAYS, week)
             }

@@ -855,7 +855,7 @@ class ChauffageRuntime:
             for entity_id, by_schedule in self.weeks.items():
                 cell = self.mappings.get(entity_id, {}).get(preset["id"]) or {}
                 current = self.current(self.hass.states.get(entity_id))
-                modes = {engine.slot_hvac_mode(slot[2] if len(slot) > 2 else {}, current) or "heat"
+                modes = {engine.slot_hvac_mode(engine.slot_of(slot).settings, current) or "heat"
                          for week in by_schedule.values() for day in week for slot in day if slot[1] == preset["id"]}
                 # A heat/cool slot sends two numbers: a device preset set by hand gives none
                 if (mode in modes and not any(k in cell for k in own[mode])) or (engine.HEAT_COOL in modes and key not in cell):
