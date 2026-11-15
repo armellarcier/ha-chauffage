@@ -569,7 +569,7 @@ describe('the override block: off, fan only, a preset, a temperature and its end
     assert.equal(fold.open, false);
     assert.equal(text(fold.querySelector('summary')), 'Modifier');
     assert.ok(fold.querySelector('.presets') && fold.querySelector('[data-override-temperature]') && fold.querySelector('[data-min="30"]'));
-    assert.ok($(block, '.status [data-del]') && !fold.querySelector('[data-del]'), 'Resume stays in sight');
+    assert.ok($(block, '.status [data-act="override-del"]') && !fold.querySelector('[data-act="override-del"]'), 'Resume stays in sight');
     assert.ok($(block, '.status input.time'), 'and the end');
     // Unfolded, it stays so when the block is drawn again
     fold.open = true;

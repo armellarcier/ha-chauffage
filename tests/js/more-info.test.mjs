@@ -74,7 +74,7 @@ describe('more-info block', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
     assert.match(text(el), /21,5 °C/); // French decimal comma
     assert.match(text(el), /encore 1 h 30/);
-    assert.equal(el.shadowRoot.querySelector('input.time[data-end]').value, '11:30');
+    assert.equal(el.shadowRoot.querySelector('input.time[data-override-end]').value, '11:30');
   });
 
   test('an override from a change by hand says why it ends then, as part of its end: the next slot, or the duration', () => {
@@ -131,7 +131,7 @@ describe('more-info block', () => {
   test('the button sets the end of the override to the next slot, and shows its time', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot('2026-10-12T17:30:00+02:00') }); // Monday 10:00
     const el = block(hass, 'climate.salon');
-    const button = el.shadowRoot.querySelector('[data-next-slot]');
+    const button = el.shadowRoot.querySelector('[data-act="override-next-slot"]');
     assert.equal(button.textContent, "Jusqu'à 17:30 (prochain créneau)");
     assert.equal(button.dataset.at, '2026-10-12T17:30:00+02:00');
     button.click();
@@ -144,38 +144,38 @@ describe('more-info block', () => {
     mock.timers.setTime(new Date('2026-10-12T23:00:00+02:00').getTime()); // comfort at 06:30 on Tuesday
     const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-13T01:00:00+02:00' } },
       ...nextSlot('2026-10-13T06:30:00+02:00') }), 'climate.salon');
-    assert.equal(el.shadowRoot.querySelector('[data-next-slot]').textContent, "Jusqu'à mardi 06:30 (prochain créneau)");
+    assert.equal(el.shadowRoot.querySelector('[data-act="override-next-slot"]').textContent, "Jusqu'à mardi 06:30 (prochain créneau)");
   });
 
   test('a next slot a week away names its date', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot('2026-10-19T06:30:00+02:00') }), 'climate.salon');
-    assert.equal(el.shadowRoot.querySelector('[data-next-slot]').textContent, "Jusqu'à 19 octobre 06:30 (prochain créneau)");
+    assert.equal(el.shadowRoot.querySelector('[data-act="override-next-slot"]').textContent, "Jusqu'à 19 octobre 06:30 (prochain créneau)");
   });
 
   test('an override that already ends at the next slot has no button, whatever the way its end is written', () => {
     // The integration's end, in another offset and with seconds, against the card's Date
     for (const end of ['2026-10-12T17:30:00+02:00', '2026-10-12T15:30:00+00:00', '2026-10-12T17:30:20+02:00']) {
       const el = block(fakeHass({ overrides: { 'climate.salon': { ...override, end } }, ...nextSlot('2026-10-12T17:30:00+02:00') }), 'climate.salon');
-      assert.equal(el.shadowRoot.querySelector('[data-next-slot]'), null, end);
+      assert.equal(el.shadowRoot.querySelector('[data-act="override-next-slot"]'), null, end);
       cleanup();
     }
     const said = block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } }, ...nextSlot('2026-10-12T17:30:00+02:00') }), 'climate.salon');
-    assert.equal(said.shadowRoot.querySelector('[data-next-slot]'), null, 'ends_at next_slot');
+    assert.equal(said.shadowRoot.querySelector('[data-act="override-next-slot"]'), null, 'ends_at next_slot');
   });
 
   test('with no slot ahead, there is no button to the next slot', () => {
     const el = block(fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot(null) }), 'climate.salon');
-    assert.equal(el.shadowRoot.querySelector('[data-next-slot]'), null);
+    assert.equal(el.shadowRoot.querySelector('[data-act="override-next-slot"]'), null);
     cleanup();
     // An older integration publishes no next slot: no button rather than a guess
     const older = block(fakeHass({ overrides: { 'climate.salon': override } }), 'climate.salon');
-    assert.equal(older.shadowRoot.querySelector('[data-next-slot]'), null);
+    assert.equal(older.shadowRoot.querySelector('[data-act="override-next-slot"]'), null);
   });
 
   test('the button shows and sends the next slot the integration computed, in its own time zone', () => {
     // 18:15 is no slot of this week: the integration's answer wins over any computation in the browser
     const hass = fakeHass({ overrides: { 'climate.salon': override }, ...nextSlot('2026-10-12T18:15:00+02:00') });
-    const button = block(hass, 'climate.salon').shadowRoot.querySelector('[data-next-slot]');
+    const button = block(hass, 'climate.salon').shadowRoot.querySelector('[data-act="override-next-slot"]');
     assert.equal(button.textContent, "Jusqu'à 18:15 (prochain créneau)");
     mock.timers.setTime(new Date('2026-10-12T10:20:00+02:00').getTime()); // the click sends what the label shows
     button.click();
@@ -213,7 +213,7 @@ describe('more-info block', () => {
     hass.push(integrationData({ overrides: { 'climate.salon': override } }));
     el.shadowRoot.querySelector('button[data-min="30"]').click();
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:00:00.000Z');
-    el.shadowRoot.querySelector('[data-del]').click();
+    el.shadowRoot.querySelector('[data-act="override-del"]').click();
     assert.deepEqual(hass.events.at(-1), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 

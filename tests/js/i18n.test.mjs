@@ -238,7 +238,7 @@ describe('the time fields follow the profile\'s time format', () => {
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = fakeHass({ locale: english('12'), overrides: { 'climate.salon': override } });
-    assert.match(el.shadowRoot.querySelector('input.time[data-end]').value, time12('11:30 AM'));
+    assert.match(el.shadowRoot.querySelector('input.time[data-override-end]').value, time12('11:30 AM'));
   });
 
   test("why an override from a change by hand ends then, in the card's popover", () => {

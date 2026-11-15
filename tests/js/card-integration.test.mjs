@@ -232,7 +232,7 @@ describe('overrides with the integration', () => {
     el.hass = hass;
     const text = el.shadowRoot.textContent.replace(/\s+/g, ' ');
     assert.match(text, /21,5 °C/);
-    el.shadowRoot.querySelector('button[data-del]').click();
+    el.shadowRoot.querySelector('button[data-act="override-del"]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 });

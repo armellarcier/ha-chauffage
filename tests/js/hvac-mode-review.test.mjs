@@ -232,7 +232,7 @@ describe('the override block goes from the HVAC mode to the end', () => {
       const el = moreInfo(setup({ planned: PLANNED, overrides: COOL }), SUITE, embedded);
       assert.ok(ascending(order(el.shadowRoot, PARTS)), `${order(el.shadowRoot, PARTS)}`);
       const end = el.shadowRoot.querySelector('.end-block');
-      assert.ok(end.querySelector('[data-end]') && end.querySelector('[data-min="60"]') && end.querySelector('[data-next-slot]'));
+      assert.ok(end.querySelector('[data-override-end]') && end.querySelector('[data-min="60"]') && end.querySelector('[data-act="override-next-slot"]'));
     }
   });
 

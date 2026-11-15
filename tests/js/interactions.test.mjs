@@ -237,7 +237,7 @@ describe('dragging the end of an override', () => {
     test('clocks back, in the hour played twice: the end time field is not the 02:45 already past', () => {
       at('2026-10-25T02:20:00+01:00');
       const hass = fakeHass({ overrides: sunday('2026-10-25T02:00:00+01:00', '2026-10-25T02:40:00+01:00') });
-      typeTime(moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]'), '02:45');
+      typeTime(moreInfoOf(hass).shadowRoot.querySelector('input.time[data-override-end]'), '02:45');
       assert.equal(sentEnd(hass), '2026-10-25T01:45:00.000Z');
     });
 
@@ -282,7 +282,7 @@ describe('dragging the end of an override', () => {
 
   test('in the more-info block: the end time field', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
-    typeTime(moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]'), '09:00'); // already past today: tomorrow 09:00
+    typeTime(moreInfoOf(hass).shadowRoot.querySelector('input.time[data-override-end]'), '09:00'); // already past today: tomorrow 09:00
     assert.equal(sentEnd(hass), '2026-10-13T07:00:00.000Z');
   });
 
@@ -295,7 +295,7 @@ describe('dragging the end of an override', () => {
   test('in the more-info block: the end being typed keeps its field through the redraws, and is sent on leaving it', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const el = moreInfoOf(hass);
-    const field = el.shadowRoot.querySelector('input.time[data-end]');
+    const field = el.shadowRoot.querySelector('input.time[data-override-end]');
     field.focus();
     field.value = '12:00';
     el.hass = thermostatChanged(hass); // the thermostat reports, the minute changes…
@@ -303,7 +303,7 @@ describe('dragging the end of an override', () => {
     assert.ok(field.isConnected, 'the field is kept');
     field.blur();
     assert.equal(sentEnd(hass), '2026-10-12T10:00:00.000Z');
-    assert.notEqual(el.shadowRoot.querySelector('input.time[data-end]'), field, 'the redraw held back is done');
+    assert.notEqual(el.shadowRoot.querySelector('input.time[data-override-end]'), field, 'the redraw held back is done');
   });
 
   test('in the card\'s popover: the end being typed keeps its field through the redraws, and is sent on leaving it', () => {
@@ -366,7 +366,7 @@ describe('dragging the end of an override', () => {
   test('the arrow keys: an hour on the hours, the step on the minutes; sent on leaving the field', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const el = moreInfoOf(hass);
-    const field = el.shadowRoot.querySelector('input.time[data-end]'); // 11:30
+    const field = el.shadowRoot.querySelector('input.time[data-override-end]'); // 11:30
     field.focus();
     field.setSelectionRange(1, 1);
     pressKey(field, 'ArrowUp');
@@ -383,7 +383,7 @@ describe('dragging the end of an override', () => {
   test('on a 12 h clock, ↑ on AM moves the end 12 hours later', () => {
     const locale = { language: 'en-US', time_format: '12', number_format: 'language', first_weekday: 'language' };
     const hass = fakeHass({ locale, overrides: { 'climate.salon': override } });
-    const field = moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]'); // 11:30 AM
+    const field = moreInfoOf(hass).shadowRoot.querySelector('input.time[data-override-end]'); // 11:30 AM
     field.focus();
     field.setSelectionRange(6, 6);
     pressKey(field, 'ArrowUp');
@@ -413,7 +413,7 @@ describe('dragging the end of an override', () => {
 
   test('an end moved before now by the arrows stays a step after now, not tomorrow', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end: '2026-10-12T10:30:00+02:00' } } });
-    const field = moreInfoOf(hass).shadowRoot.querySelector('input.time[data-end]');
+    const field = moreInfoOf(hass).shadowRoot.querySelector('input.time[data-override-end]');
     field.focus();
     field.setSelectionRange(1, 1);
     pressKey(field, 'ArrowDown'); // 09:30, already past

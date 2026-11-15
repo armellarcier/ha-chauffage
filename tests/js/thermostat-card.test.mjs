@@ -118,7 +118,7 @@ describe('the thermostat card', () => {
     const override = { target: { temperature: 21 }, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
     const hass = setup({ overrides: { 'climate.salon': override } });
     const card = cardFor(hass);
-    const field = block(card).querySelector('input.time[data-end]');
+    const field = block(card).querySelector('input.time[data-override-end]');
     field.focus();
     field.value = '12:00';
     const salon = hass.states['climate.salon'];
