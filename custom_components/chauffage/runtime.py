@@ -848,7 +848,7 @@ class ChauffageRuntime:
         old = self.presets_by_id.get(preset["id"])
         if old is None:
             return
-        own = {"heat": ("preset_mode", "temperature"), "cool": ("preset_mode", "cool_temperature")}
+        own = {"heat": engine.SETPOINT_KEYS, "cool": ("preset_mode", "cool_temperature")}
         for mode, key in (("heat", "temperature"), ("cool", "cool_temperature")):
             if old.get(key) is None or preset.get(key) is not None:
                 continue
