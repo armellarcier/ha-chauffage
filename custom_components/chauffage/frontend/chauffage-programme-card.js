@@ -1130,7 +1130,7 @@ const parseDecimal = (text) => (String(text).trim() === '' ? NaN : Number(String
 const hvacModesOf = (hass, climate) => {
   const st = hass && hass.states && hass.states[climate];
   const modes = st && Array.isArray(st.attributes.hvac_modes) ? st.attributes.hvac_modes.map(String) : null;
-  return { modes, on: (modes || []).filter((m) => m !== 'off'), hasOff: !!modes && modes.includes('off') };
+  return { modes, on: (modes || []).filter((m) => m !== 'off') };
 };
 // A thermostat that heats and cools: a preset's value on it has a cooling setpoint
 const isReversible = (hass, climate) => {
@@ -2440,7 +2440,7 @@ function fitTemperature(hass, climate, value) {
 // the presets tab, the temperature of an override). `field`: the attributes of its input;
 // `act`: what its buttons do; `step`: how far a tap moves it
 function stepperHtml(loc, field, value, act, step, label) {
-  const button = (dir, sign) => `<button type="button" class="btn icon" data-act="${act}" data-dir="${dir}" data-step="${dir}" data-delta="${dir * step}" aria-label="${sign}">${sign}</button>`;
+  const button = (dir, sign) => `<button type="button" class="btn icon" data-act="${act}" data-dir="${dir}" data-delta="${dir * step}" aria-label="${sign}">${sign}</button>`;
   return `<div class="pv-temp">${button(-1, '−')}
         <input type="text" inputmode="decimal" ${field} aria-label="${esc(label)}" value="${value != null ? esc(loc.number(value)) : ''}"> ${esc(loc.unit)}
         ${button(1, '+')}</div>`;
@@ -2792,7 +2792,7 @@ function activeWeek(src, climate) {
   return Array.isArray(week) ? [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i])) : null;
 }
 
-// The preset of the slot running at `date`, in a week of parsed days
+// The slot running at `date`, in a week of parsed days
 function slotAt(week, date) {
   const segs = (week && week[(date.getDay() + 6) % 7]) || [];
   const minute = date.getHours() * 60 + date.getMinutes();
@@ -2800,7 +2800,6 @@ function slotAt(week, date) {
   for (const s of segs) if (s.start <= minute) slot = s;
   return slot;
 }
-const presetAt = (week, date) => (slotAt(week, date) || {}).preset || null;
 
 // The HVAC mode a new override takes (#91): the one of the slot planned now when it takes a
 // setpoint; else the one the thermostat runs in; else the first one it lists. Null on a
@@ -6614,11 +6613,6 @@ const STYLE = `
   .legend i.mk ha-icon { --mdc-icon-size:10px; width:10px; height:10px; display:flex; }
   .legend .cv { display:inline-flex; align-items:center; }
   .legend .cv ha-icon { --mdc-icon-size:12px; width:12px; height:12px; display:flex; }
-  /* The HVAC mode of a slot on a preset, under the presets: Heat, Cool. The chosen one is filled */
-  .hvac-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-  .hvac-row .hvac-choice { display:inline-flex; align-items:center; gap:4px; min-height:32px; }
-  .hvac-row .hvac-choice ha-icon { --mdc-icon-size:14px; width:14px; height:14px; }
-  .hvac-row .hvac-choice.on { background:var(--primary-color); color:var(--text-primary-color, #fff); border-color:var(--primary-color); font-weight:600; }
   .unsupported, .btn.unsupported { border-style:dashed; }
   /* The fan and the vanes of a slot (#91, lot 3), folded behind a summary that looks like a
      button, with a chevron; the summary may wrap; the capture button on its own line */
@@ -6889,7 +6883,6 @@ const STYLE = `
   .pv-when { display:flex; align-items:center; gap:6px; font-weight:600; font-size:.9em; }
   .pv-when ha-icon { --mdc-icon-size:16px; width:16px; height:16px; }
   .pv-cool { cursor:default; }
-  .pv-coolnote { font-size:.85em; margin-top:-6px; text-align:right; }
   .pv-row .pv-field select { max-width:100%; }
   .pv-choice { display:flex; align-items:center; gap:8px; min-height:30px; cursor:pointer; }
   .pv-choice > span:not(.pv-field) { flex:none; white-space:nowrap; }

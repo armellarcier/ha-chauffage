@@ -245,7 +245,7 @@ describe('the override block goes from the HVAC mode to the end', () => {
     click(card, '.override-ed .pv-temp [data-act="override-step"][data-dir="1"]');
     assert.deepEqual(sent(hass).target, { temperature: 22, hvac_mode: 'heat' });
     const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: override({ temperature: 21, hvac_mode: 'heat' }) } }), SUITE);
-    el.shadowRoot.querySelector('.pv-temp [data-step="-1"]').click();
+    el.shadowRoot.querySelector('.pv-temp [data-dir="-1"]').click();
     assert.deepEqual(sent(el._hass).target, { temperature: 20.5, hvac_mode: 'heat' });
   });
 });
