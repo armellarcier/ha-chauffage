@@ -983,6 +983,8 @@ function normalize(segs) {
 // The slots the card made the same join: a day copied to a thermostat that cannot follow every
 // slot, a whole week set to heat or to cool
 const joined = (segs) => normalize(segs).filter((s, i, all) => i === 0 || !sameSlot(all[i - 1], s));
+// A day's slots copied elsewhere: without the mark of a piece the card cut (see _settle)
+const copyOfDay = (segs) => clone(segs).map(({ cut: _, ...slot }) => slot);
 // The slot at `idx` joins the slot before it when they are the same: the user removed what was
 // between them
 function joinAt(segs, idx) {
@@ -3316,7 +3318,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     this._data = {};
     this._trial = null;
-    this._cut = null;
     this._drawn = new Set();
     this._revision = src.revision;
     this._revisions = {};
@@ -3407,57 +3408,30 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // A piece the card cut (a double tap, Insert a slot) starts like the slot it is cut from, with
-  // its popover open: the user says what it is. Left as it was cut, the piece joins its slot
-  // again when the popover closes, when another slot is opened, when another schedule is shown
-  // or when the weeks are saved (`force`), on every day of its row. A slot the user set to the
-  // same as its neighbor is not a piece of the card's: it stays (docs/decisions.md, "Card").
-  // The preset a slot had before an HVAC mode without one (`_trial`) is forgotten then too
+  // its popover open: the user says what it is. The piece is marked (`cut`). Left as it was cut,
+  // the piece joins its slot again when the popover closes, when another slot is opened, when
+  // another schedule is shown or when the weeks are saved (`force`), on every day of its row.
+  // A slot the user set to the same as its neighbor is not a piece of the card's: it stays
+  // (docs/decisions.md, "Card"). The preset a slot had before an HVAC mode without one
+  // (`_trial`) is forgotten then too
   _settle(force = false) {
-    const selected = (ref, days) => {
-      const sel = this._sel;
-      if (!sel || this._schedule !== ref.schedule || sel.climate !== ref.climate || !days.includes(sel.day)) return null;
-      return (this._week(sel.climate)[sel.day] || [])[sel.idx] || null;
-    };
+    const sel = this._sel;
+    const at = sel && (this._week(sel.climate)[sel.day] || [])[sel.idx];
     const trial = this._trial;
-    if (trial) {
-      const sel = selected(trial, [trial.day]);
-      if (force || !sel || sel.start !== trial.start) this._trial = null;
-    }
-    const cut = this._cut;
-    if (!cut) return;
-    const sel = selected(cut, cut.days);
-    if (!force && sel && cut.starts.includes(sel.start)) return;
-    this._cut = null;
-    const week = this._week(cut.climate, cut.schedule);
-    for (const d of cut.days) {
+    if (trial && (force || !at || this._schedule !== trial.schedule || sel.climate !== trial.climate || sel.day !== trial.day || at.start !== trial.start)) this._trial = null;
+    // The pieces of the row whose piece is selected wait
+    const open = !force && at && at.cut ? this._rowOf(sel.day).map((d) => this._week(sel.climate)[d]) : [];
+    const days = Object.values(this._data).flatMap((weeks) => Object.values(weeks).flat())
+      .filter((segs) => !open.includes(segs) && segs.some((slot) => slot.cut));
+    if (!days.length) return;
+    for (const segs of days) {
       // In place: an edit under way holds the day's slots
-      const kept = week[d].filter((slot, i, segs) => !(i > 0 && cut.starts.includes(slot.start) && sameSlot(segs[i - 1], slot)));
-      week[d].splice(0, week[d].length, ...kept);
+      segs.splice(0, segs.length, ...segs.filter((slot, i) => !(i > 0 && slot.cut && sameSlot(segs[i - 1], slot))));
+      segs.forEach((slot) => { delete slot.cut; });
     }
-    if (sel) week[this._sel.day].forEach((slot, i) => { if (slot.start <= sel.start) this._sel.idx = i; });
+    if (at) this._week(sel.climate)[sel.day].forEach((slot, i) => { if (slot.start <= at.start) sel.idx = i; });
     // Nothing left to save when the piece was the only edit
     if (this._dirty && this._loadedWeeks && JSON.stringify(this._serialized()) === JSON.stringify(this._loadedWeeks)) this._dirty = false;
-  }
-
-  // The pieces the card has just cut on a day, at `starts`: on every day of the day's row. A
-  // second cut on the same row is settled with the first one
-  _cutPieces(climate, day, starts) {
-    const cut = this._cut;
-    if (cut && cut.climate === climate && cut.schedule === this._schedule && cut.days.includes(day)) {
-      cut.starts.push(...starts);
-      return;
-    }
-    this._settle(true);
-    this._cut = { climate, schedule: this._schedule, days: this._rowOf(day).slice(), starts };
-  }
-
-  // The starts of a day's slots moved (a drag, a time typed), from `before`: a piece the card
-  // cut there is followed, so that it still joins its slot again when it is left like it
-  _cutMoved(climate, day, before) {
-    const cut = this._cut;
-    const segs = this._week(climate)[day];
-    if (!cut || cut.climate !== climate || cut.schedule !== this._schedule || !cut.days.includes(day) || before.length !== segs.length) return;
-    cut.starts = cut.starts.map((start) => { const i = before.indexOf(start); return i < 0 ? start : segs[i].start; });
   }
 
   // A day's slots as they run on a thermostat: each with its HVAC mode there (slotOn)
@@ -4778,13 +4752,11 @@ class ChauffageProgrammeCard extends HTMLElement {
         this._slotMoved = Date.now();
         // A selected slot stays selected (by touch, it can slide again); otherwise no popover
         if (!d.selected) this._sel = null;
-        this._cutMoved(d.climate, d.day, d.orig);
         this._commit(d.climate, d.day, d.selected ? this._week(d.climate)[d.day][d.idx].start : null);
         return;
       }
       if (d.moved) {
         this._handleMoved = Date.now(); // the click that follows opens no slot
-        this._cutMoved(d.climate, d.day, d.orig);
         this._commit(d.climate, d.day, null);
       } else d.el.classList.remove('drag');
     };
@@ -4884,7 +4856,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       // A schedule's tab, or the active schedule's name in the bar: shows that schedule's weeks
       const tab = e.target.closest('.tab, [data-show-schedule]');
       if (tab) {
-        this._settle(true); // while the rows of its schedule are still known
         this._schedule = tab.dataset.schedule || tab.dataset.showSchedule;
         this._schedEd = null;
         this._sel = null;
@@ -5983,8 +5954,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (m < s.start + step || m > end - step) return;
     // The piece is like the slot it is cut from: its preset, its HVAC mode, its fan and its
     // vanes. Its popover opens, and the user says what the piece is (see _settle)
-    this._cutPieces(climate, day, [m]);
-    segs.splice(idx + 1, 0, { ...clone(s), start: m });
+    segs.splice(idx + 1, 0, { ...clone(s), start: m, cut: true });
     this._commit(climate, day, m);
   }
 
@@ -6031,6 +6001,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const changed = change(s);
     // An HVAC mode the thermostat cannot follow is not kept on the slot the user changes
     segs[idx] = slotMode(changed) ? slotOn(this._hass, climate, changed) : changed;
+    if (s.cut) segs[idx].cut = true; // still the piece the card cut
     // The preset the slot had before an HVAC mode without one: given back if the user comes
     // back to heat or cool while the popover is open
     this._trial = { climate, day, schedule: this._schedule, start: s.start, preset: s.preset || this._triedPreset(climate, day, s) };
@@ -6099,7 +6070,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const options = settingOptionsOf(this._hass, climate);
     const left = new Set();
     const out = [];
-    for (const s of segs) {
+    for (const { cut: _, ...s } of segs) {
       const mode = slotMode(s);
       if (hasNoPreset(s) && modes && !modes.includes(mode)) { left.add(MODE_LABELS[mode]); continue; }
       const settings = { ...(s.settings || {}) };
@@ -6121,7 +6092,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (!segs || !segs[idx]) return;
     const step = this._config.step;
     const endOf = (i) => (i < segs.length - 1 ? segs[i + 1].start : DAY_MIN);
-    const before = segs.map((s) => s.start);
     if (edge === 'start' && idx > 0) {
       const v = Math.min(endOf(idx) - step, this._snap(minutes));
       // A start typed onto the start of a slot before it, or earlier: that slot is removed,
@@ -6134,7 +6104,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       segs[first].start = first === 0 ? 0 : Math.max(segs[first - 1].start + step, v);
       const start = segs[first].start;
       if (first < idx) joinAt(segs, first);
-      this._cutMoved(climate, day, before);
       this._commit(climate, day, start);
     } else if (edge === 'end' && idx < segs.length - 1) {
       // 24:00, or 00:00, is the end of the day
@@ -6146,7 +6115,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       while (idx + 1 < segs.length && endOf(idx + 1) <= typed) segs.splice(idx + 1, 1);
       if (idx + 1 < segs.length) segs[idx + 1].start = Math.min(v, endOf(idx + 1) - step);
       if (segs.length < count) joinAt(segs, idx + 1);
-      this._cutMoved(climate, day, before);
       this._commit(climate, day, segs[idx].start);
     }
   }
@@ -6166,7 +6134,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const targets = { weekdays: [0, 1, 2, 3, 4], weekend: [5, 6], all: [0, 1, 2, 3, 4, 5, 6] }[target];
       if (!targets) return;
       const week = this._week(climate);
-      targets.filter((t) => t !== day).forEach((t) => { week[t] = clone(src); });
+      targets.filter((t) => t !== day).forEach((t) => { week[t] = copyOfDay(src); });
     }
     const destination = this._loc.destination(target);
     this._focus = climate;
@@ -6231,7 +6199,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _copyToClipboard(climate, day) {
-    const segs = clone(this._week(climate)[day]);
+    const segs = copyOfDay(this._week(climate)[day]);
     const label = `${this._name(climate)} · ${this._rowLabel(day, 'long')} (${this._scheduleName(this._schedule)})`;
     // The new copy itself: reading `_clip` back would give the day copied before, still stored
     const clip = { segs, label, src: { climate, schedule: this._schedule, day } };
@@ -6397,8 +6365,7 @@ class ChauffageProgrammeCard extends HTMLElement {
       const m2 = this._snap(s.start + (2 * (end - s.start)) / 3);
       if (m1 <= s.start || m2 >= end || m2 <= m1 || m1 - s.start < step) return;
       // The piece in the middle is like the slot, selected: the user says what it is
-      this._cutPieces(climate, day, [m1, m2]);
-      segs.splice(idx + 1, 0, { ...clone(s), start: m1 }, { ...clone(s), start: m2 });
+      segs.splice(idx + 1, 0, { ...clone(s), start: m1, cut: true }, { ...clone(s), start: m2, cut: true });
       this._commit(climate, day, m1);
     } else if (act === 'delete') {
       if (segs.length === 1) return;
