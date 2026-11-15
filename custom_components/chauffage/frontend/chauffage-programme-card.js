@@ -5833,9 +5833,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       return undefined;
     }
     const src = this._source();
-    const presets = presetsOf(src, this._loc).map((l) => ({ id: l.id, name: l.name, color: l.color, temperature: l.temperature === undefined ? 19 : l.temperature,
-      ...(l.cool_temperature != null ? { cool_temperature: l.cool_temperature } : {}),
-      ...(l.cool_color ? { cool_color: l.cool_color } : {}) }));
+    // `cooling`: its cooling temperature and its cool color, when it has them (presetsOf)
+    const presets = presetsOf(src, this._loc).map(({ id, name, color, temperature, ...cooling }) => (
+      { id, name, color, temperature: temperature === undefined ? 19 : temperature, ...cooling }));
     const value = (sel2) => { const el = root.querySelector(sel2); return el ? el.value : ''; };
     // The cool color is stored only when the user chose one that is not the derived one: a
     // preset without one keeps following its color
