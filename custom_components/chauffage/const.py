@@ -47,7 +47,9 @@ MANUAL_PRESETS = frozenset({"", "none", "manual", "manuel"})
 DEFAULT_PRESETS = (
     ("comfort", "#f57c00", 20.0, 25.0),
     ("eco", "#43a047", 17.0, 27.0),
-    ("boost", "#e53935", 22.0, 23.0),
+    # A darker red than its former #e53935: white text reads on it (5.0:1). Only for a new
+    # installation too
+    ("boost", "#d32f2f", 22.0, 23.0),
     # A blue grey: its former light blue (#29b6f6) looked like Home Assistant's cyan of fan only.
     # Only for a new installation: the stored presets keep their colors
     ("frost", "#78909c", 7.0, None),

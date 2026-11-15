@@ -615,7 +615,9 @@ def targets(
         if target is None or ignored(thermostat):
             continue
         target = complete(target, thermostat)
-        if satisfied(target, thermostat) and pending.get(entity_id, target) == target:
+        # A device preset left on at the slot's temperature would still fight the setpoint
+        if (satisfied(target, thermostat) and preset_to_leave(target, thermostat) is None
+                and pending.get(entity_id, target) == target):
             continue
         out.append((entity_id, target))
     return out

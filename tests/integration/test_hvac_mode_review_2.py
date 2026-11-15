@@ -248,19 +248,3 @@ async def test_a_slot_on_a_temperature_takes_a_daikin_off_its_preset(bench: Benc
     assert bench.overrides() == {}
     await bench.advance(3)
     assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.pending(SALON) == []
-
-
-async def test_a_daikin_that_cannot_leave_its_preset_gets_no_setpoint(bench: Bench):
-    """The call that leaves the preset failed: the slot is sent again at the next minutes."""
-    bench.needs("standard")
-    await bench.go_to("13:00")
-    bench.thermostat(SALON, "eco", preset_modes=DAIKIN_PRESETS)
-    await bench.setup()
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 21}})
-    await bench.save_weeks({SALON: {"normal": [[["00:00", "eco"], ["14:00", "comfort"]]] * 7}})
-    bench.thermostat(SALON, "eco", preset_modes=DAIKIN_PRESETS)
-    await bench.hass.async_block_till_done()
-    clear(bench)
-    bench.unreachable.add(SALON)
-    await bench.go_to("14:00")
-    assert bench.calls == [(SALON, "none")] and SALON in bench.runtime.retrying

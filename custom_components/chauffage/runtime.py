@@ -465,7 +465,11 @@ class ChauffageRuntime:
     @callback
     def _forget_settings(self, entity_id: str, before: engine.Thermostat, after: engine.Thermostat, given_back: bool) -> None:
         """The fan or the vanes changed. Given back by Chauffage (`given_back`): done once the
-        thermostat shows them. Changed by hand: they are the user's choice, kept from now on."""
+        thermostat shows them. Changed by hand: they are the user's choice, kept from now on.
+        A thermostat that goes offline, or comes back, shows no fan or another one: nothing is
+        forgotten then."""
+        if engine.ignored(before) or engine.ignored(after):
+            return
         t = self.thermostats.get(entity_id) or {}
         kept = dict(t.get("own_settings") or {})
         for key in engine.EQUAL_KEYS:
@@ -1169,7 +1173,9 @@ class ChauffageRuntime:
         """Sets a thermostat to a target, as a scene does (#91): Home Assistant's reproduce_state
         sends the HVAC mode, the setpoint, then the preset, with only the attributes the
         thermostat does not show (a VTherm: as it was asked). Before a setpoint, a thermostat that
-        lists the preset "none" leaves the preset it shows (engine.preset_to_leave). Logged with
+        lists the preset "none" leaves the preset it shows (engine.preset_to_leave), even when it
+        already shows the setpoint. A thermostat that refuses to leave its preset gets the
+        setpoint anyway (docs/decisions.md, "Scheduling"). Logged with
         `why`; False if a call failed. The command is pending until the thermostat takes it: a battery valve may apply
         it hours later, even after a failed call (the Zigbee message waits for it). A target the
         thermostat already shows in full sends nothing, and nothing is pending: a change by hand
@@ -1188,22 +1194,30 @@ class ChauffageRuntime:
         if any(key in attributes for key in engine.RANGE_KEYS):
             # climate.set_temperature takes the two ends of a range together, or refuses the call
             attributes |= {key: target[key] for key in engine.RANGE_KEYS if key in target}
+        # A thermostat that keeps its preset when it gets a setpoint leaves the preset first. The
+        # setpoint is then sent in full: a thermostat may change it when it leaves a preset
+        leave = engine.preset_to_leave(target, self.current(self.hass.states.get(entity_id)))
+        # Only the preset to leave: the thermostat shows the rest, so nothing will be pending
+        shown_but_preset = leave is not None and hvac_mode is None and not attributes
+        if leave is not None:
+            attributes |= {key: target[key] for key in engine.SETPOINTS if key in target}
         if hvac_mode is None and not attributes:
             _LOGGER.debug("%s: %s already shown, nothing sent (%s)", entity_id, _describe(target), why)
             return True
         waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)
         _LOGGER.info("%s: %s sent (%s)%s", entity_id, _describe(target), why, waiting)
-        if commands and commands[-1]["target"] == target:
-            commands.pop()  # sent again: waited for from now
-        commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
-        self.data["pending"][entity_id] = commands
-        self._save()
-        # A thermostat that keeps its preset when it gets a setpoint leaves the preset first
-        leave = engine.preset_to_leave(attributes, self.current(self.hass.states.get(entity_id)))
+        if not shown_but_preset:
+            if commands and commands[-1]["target"] == target:
+                commands.pop()  # sent again: waited for from now
+            commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
+            self.data["pending"][entity_id] = commands
+            self._save()
         if leave is not None:
-            if not await self.reproduce(entity_id, hvac_mode, {"preset_mode": leave}):
-                return False
-            hvac_mode = None
+            kept = engine.preset_value(self.hass.states.get(entity_id).attributes.get("preset_mode"))
+            if await self.reproduce(entity_id, hvac_mode, {"preset_mode": leave}):
+                hvac_mode = None
+            else:
+                _LOGGER.warning("%s: could not leave its preset %s, the setpoint is sent anyway", entity_id, kept)
         return await self.reproduce(entity_id, hvac_mode, attributes)
 
     def pending(self, entity_id: str) -> list[engine.Target]:
@@ -1218,7 +1232,8 @@ class ChauffageRuntime:
         if current is None:
             return True
         sent = self._to_send(entity_id, target, current, by_user)
-        if not engine.satisfied(sent, current):
+        # A device preset left on at the target's temperature would still fight the setpoint
+        if not engine.satisfied(sent, current) or engine.preset_to_leave(sent, current) is not None:
             return True
         commands = self.pending(entity_id)
         return bool(commands) and commands[-1] != sent
@@ -1343,8 +1358,10 @@ class ChauffageRuntime:
         temperatures = (data.setdefault("cool_preset_temperatures", {}) if current.state == "cool"
                         else data["preset_temperatures"])
         # A VTherm on another preset than asked, for example its central mode in frost
-        # protection: its setpoint is not the asked preset's temperature (#92)
+        # protection: its setpoint is not the asked preset's temperature (#92). Nor is the frost
+        # setpoint it shows on the asked preset while its window is open
         if (current.temperature is not None and not engine.is_manual_preset(current.preset)
+                and _cause(state) is None
                 and current.state not in (engine.HEAT_COOL, engine.DRY, engine.FAN_ONLY)
                 and current.preset == engine.preset_value(state.attributes.get("preset_mode"))
                 and temperatures.get(current.preset) != current.temperature):
