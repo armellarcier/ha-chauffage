@@ -287,7 +287,9 @@ describe('an override names its HVAC mode on a thermostat that lists more than o
     const card = cardOf(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }));
     const badge = $(card, `.override[data-climate="${SUITE}"]`);
     assert.equal(badge.getAttribute('title'), 'Dérogation : Clim · Confort 25° jusqu\'à 14:00, puis Chauffe · Confort');
-    assert.match(text(badge.querySelector('.override-label')), /^⏱ Clim · Confort → 14:00$/);
+    // On the week: the icon of its HVAC mode and its end. The tooltip and its popover name it
+    assert.match(text(badge.querySelector('.override-label')), /^⏱ → 14:00$/);
+    assert.equal(badge.querySelector('.override-label ha-icon').getAttribute('icon'), 'mdi:snowflake');
   });
 
   test('the schedule followed names the HVAC mode too', () => {

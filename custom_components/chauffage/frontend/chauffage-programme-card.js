@@ -765,6 +765,10 @@ function makeLocale(hass, configured) {
     dayOrder: order,
     // A date in the UI language, without its year: "19 octobre", "October 19"
     date: (d) => new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'long' }).format(d),
+    // The day of a date in a few letters, in a label: "sam.", "Sat"; a week away or more, its
+    // date in figures: "19/10"
+    dayShort: (d) => new Intl.DateTimeFormat(lang, { weekday: 'short' }).format(d),
+    dateShort: (d) => new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'numeric' }).format(d),
     // Days of a row → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", "Mon–Sun" (one day: its name; the
     // whole week in the long style: "Every day")
     daysLabel: (days, style = 'short') => {
@@ -1426,6 +1430,20 @@ const overrideHvac = (d) => (d && d.target && d.target.hvac_mode && d.target.hva
 const setpointHvac = (d) => (SETPOINT_MODES.includes(overrideHvac(d)) ? overrideHvac(d) : null);
 
 const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
+
+// Where the tag of an override goes on its bar, from what was measured (left and right edges,
+// in pixels): `tag` (its width), the override's block, the bar, and the labels the slots show.
+// After the block ('') when it covers no label and stays in the bar; else before it; else
+// above the bar, from the block's left edge, or from its right edge when it would leave the bar
+const TAG_AFTER = 12; // past the handle of the override's end
+const TAG_BEFORE = 4;
+function tagSide(tag, block, bar, labels) {
+  const free = (left) => left >= bar.left && left + tag.width <= bar.right
+    && !labels.some((l) => l.left < left + tag.width && l.right > left);
+  if (free(block.right + TAG_AFTER)) return '';
+  if (free(block.left - TAG_BEFORE - tag.width)) return 'before';
+  return block.left + tag.width <= bar.right ? 'above' : 'above end';
+}
 
 // ---------- stepped fields: a time, a duration ----------
 // One field for a value in minutes, typed or moved by small arrows (#63, #83). A text field, read
@@ -3858,23 +3876,27 @@ class ChauffageProgrammeCard extends HTMLElement {
     const d = this._overrides()[climate];
     const piece = rowPiece(this._overridePieces(climate), days);
     if (!d || !piece) return '';
-    const endHM = this._loc.time(minutesOf(parseDate(d.end)));
+    const end = parseDate(d.end);
+    const endHM = this._loc.time(minutesOf(end));
     const src = this._source();
-    // On a thermostat that lists more than one "on" HVAC mode, the HVAC mode is named:
-    // "Cool · Comfort → 23:00". The tooltip is a sentence: "Cool · Comfort 25° until 23:00,
-    // then Heat · Eco"
-    const named = overrideNamedMode(d, src, climate, this._hass);
-    const label = `${overrideSummary(d, src, climate, this._loc, this._hass, true)} → ${endHM}`;
+    // One format, inside the block or next to it: the icon of its HVAC mode, an arrow, its end
+    // ("⏱ ⏻ → 17:00"), with the day when the end is not today ("→ sat. 08:00"). The tooltip is
+    // a sentence: "Cool · Comfort 25° until 23:00, then Heat · Eco"
+    const now = new Date();
+    const away = Math.round((new Date(end.getFullYear(), end.getMonth(), end.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+    const dated = away !== 0;
+    const day = !dated ? '' : `${away >= 7 || away < 0 ? this._loc.dateShort(end) : this._loc.dayShort(end)} `;
+    const mode = (d.target || {}).hvac_mode || overrideNamedMode(d, src, climate, this._hass);
+    const what = `${hvacIcon(mode)} → ${esc(day)}${endHM}`;
     const sentence = `${overrideSummary(d, src, climate, this._loc, this._hass)} ${overrideUntilText(d, src, climate, this._loc, this._hass)}`;
     const sel = this._overrideSel && this._overrideSel.climate === climate && this._overrideSel.day === piece.day;
-    return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}" data-climate="${esc(climate)}" data-day="${piece.day}"
+    // The label inside the block. A block narrower than its label (the stylesheet measures it)
+    // keeps "⏱" alone; where the override ends, the label goes next to the block instead, as a
+    // tag, on the side with room (_placeTags). A phone has no tooltip
+    return `<div class="override${sel ? ' sel' : ''}${piece.isLast ? ' last' : ''}${dated ? ' dated' : ''}" data-climate="${esc(climate)}" data-day="${piece.day}"
         style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%" title="${esc(this._loc.t('temporarySetpointTitle', { label: sentence }))}">
-      ${piece.end - piece.start >= (this._shown.length > 1 ? 180 : 120)
-    ? `<span class="override-label">⏱ ${named ? '' : hvacIconHtml(overrideHvac(d))}${esc(label)}</span>`
-    // Too short for its label: its HVAC mode and its end next to it, on the side with room.
-    // A phone has no tooltip
-    : piece.isLast ? `<span class="override-tag${piece.end > DAY_MIN * 0.6 ? ' before' : ''}">⏱${hvacIcon(overrideHvac(d))} ${endHM}</span>`
-      : '<span class="override-label">⏱</span>'}
+      <span class="override-label">⏱<span class="rest">${what}</span></span>
+      ${piece.isLast ? `<span class="override-tag${piece.end > DAY_MIN * 0.6 ? ' before' : ''}">⏱${what}</span>` : ''}
       ${piece.isLast ? `<div class="override-handle" title="${esc(this._loc.t('dragToChangeEnd'))}"><span class="tip">${endHM}</span></div>` : ''}
     </div>`;
   }
@@ -4168,6 +4190,28 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
   }
 
+  // The tag of each short override, on the side where it covers no slot's label (tagSide). Once
+  // ha-card shows its content: before that, nothing has a width
+  _placeTags() {
+    for (const tag of this.shadowRoot.querySelectorAll('.override-tag')) {
+      const bar = tag.closest('.bar');
+      const width = tag.getBoundingClientRect().width;
+      if (!bar || !width) continue; // not shown: its label fits in the block
+      const labels = [...bar.querySelectorAll('.seg .t, .seg .l')]
+        .filter((el) => el.textContent && getComputedStyle(el).visibility !== 'hidden')
+        .map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
+      const side = tagSide({ width }, tag.parentElement.getBoundingClientRect(), bar.getBoundingClientRect(), labels);
+      tag.className = `override-tag${side ? ` ${side}` : ''}`;
+    }
+  }
+
+  _schedulePlaceTags() {
+    const card = this.shadowRoot.querySelector('ha-card');
+    if (!card || !this.shadowRoot.querySelector('.override-tag')) return;
+    const ready = card.updateComplete instanceof Promise ? card.updateComplete : Promise.resolve();
+    ready.then(() => requestAnimationFrame(() => this._placeTags()));
+  }
+
   // The presets table scrolled back to where it was before a redraw, and its cues: a fade on the
   // side with more columns to see. Again once ha-card (a Lit component, rendered asynchronously)
   // shows its content: before that, the table has no width to scroll
@@ -4220,7 +4264,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2));
     let top = row.bottom - card.top + 9;
     let above = false;
-    if (row.bottom + 9 + h > window.innerHeight && row.top - 9 - h > 0) {
+    // The save bar stays at the bottom of the window: the popover does not go under it
+    const save = root.querySelector('.savebar');
+    const floor = window.innerHeight - (save ? save.getBoundingClientRect().height : 0);
+    if (row.bottom + 9 + h > floor && row.top - 9 - h > 0) {
       top = row.top - card.top - h - 9;
       above = true;
     }
@@ -4473,6 +4520,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>` : ''}`,
       `${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}`);
     this._schedulePlaceEditor();
+    this._schedulePlaceTags();
     // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
     // sheet hears when it has edits to save
     if (this._config.week_only && this._dirty !== this._dirtyTold) {
@@ -6658,11 +6706,22 @@ const STYLE = `
     display:flex; align-items:center; padding:0 6px; border:2px solid #fff;
     background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px);
     box-shadow:0 1px 4px rgba(0,0,0,.35); text-shadow:0 1px 1px rgba(0,0,0,.4); }
-  .override .override-label { overflow:hidden; text-overflow:ellipsis; }
-  .override-tag { position:absolute; top:50%; left:calc(100% + 12px); transform:translateY(-50%); display:inline-flex; align-items:center;
-    gap:2px; padding:1px 5px; border-radius:4px; border:1px solid #fff; background:#7b1fa2; line-height:1.3; }
+  .override { container-type:inline-size; }
+  .override .override-label { display:inline-flex; align-items:center; gap:3px; overflow:hidden; }
+  .override .override-label .rest { display:inline-flex; align-items:center; gap:3px; }
+  /* The label of an override next to its block, where the block is narrower than the label */
+  .override-tag { position:absolute; top:50%; left:calc(100% + 12px); transform:translateY(-50%); display:none; align-items:center;
+    gap:3px; padding:1px 5px; border-radius:4px; border:1px solid #fff; background:#7b1fa2; line-height:1.3; }
   .override-tag.before { left:auto; right:calc(100% + 4px); }
-  .override-tag ha-icon { --mdc-icon-size:12px; width:12px; height:12px; display:flex; flex:none; }
+  /* No room on either side without covering a slot's name: a flag above the bar */
+  .override-tag.above { top:auto; bottom:calc(100% + 5px); left:-2px; transform:none; }
+  .override-tag.above.end { left:auto; right:-2px; }
+  .override-tag ha-icon, .override-label ha-icon { --mdc-icon-size:12px; width:12px; height:12px; display:flex; flex:none; }
+  /* The width of "⏱ ⏻ → 17:00" in a block, and of "⏱ ⏻ → sam. 08:00" */
+  @container (max-width:92px) { .override.last .override-label { display:none; } .override.last .override-tag { display:inline-flex; }
+    .override:not(.last) .override-label .rest { display:none; } }
+  @container (max-width:124px) { .override.last.dated .override-label { display:none; } .override.last.dated .override-tag { display:inline-flex; }
+    .override.dated:not(.last) .override-label .rest { display:none; } }
   .override.sel { outline:2px solid var(--primary-text-color); outline-offset:1px; }
   .override-handle { position:absolute; top:-6px; bottom:-6px; right:-10px; width:18px; cursor:ew-resize; touch-action:none; }
   .override-handle::after { content:''; position:absolute; left:6px; top:3px; bottom:3px; width:6px; border-radius:3px;
@@ -6709,7 +6768,7 @@ const STYLE = `
   .dirty { color:var(--warning-color,#ff9800); }
   /* Unsaved edits of the weeks: a bar at the foot of the card, kept at the bottom of the window
      while the card scrolls */
-  .savebar { position:sticky; bottom:0; z-index:8; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end;
+  .savebar { position:sticky; bottom:0; z-index:10; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end;
     gap:8px; margin:10px -16px -16px; padding:10px 16px; border-top:1px solid var(--divider-color);
     background:var(--ha-card-background, var(--card-background-color)); box-shadow:0 -4px 12px rgba(0,0,0,.15);
     border-radius:0 0 var(--ha-card-border-radius,12px) var(--ha-card-border-radius,12px); }
@@ -9210,6 +9269,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
+  tagSide,
   VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, joined, parseDay, serializeDay, parseTime,
   overridePieces, overrideLabel, planText, CHIP_STYLE, STYLE, MORE_INFO_STYLE, FIELD_BOX, chipTextColor, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,

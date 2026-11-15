@@ -386,11 +386,11 @@ describe('an override on a week with several thermostats', () => {
     assert.equal(tag.querySelector('ha-icon'), null);
   });
 
-  test('a long override keeps its label inside', () => {
+  test('a long override has its label inside (the stylesheet shows the label or the tag, from the width)', () => {
     const hass = setup({ overrides: { [SUITE]: override({ temperature: 24, hvac_mode: 'cool' }, { end: at('16:30') }) } });
     const card = cardOf(hass, { show: [SALON, SUITE] });
-    assert.equal($(card, `.override[data-climate="${SUITE}"] .override-tag`), null);
     assert.match(text($(card, `.override[data-climate="${SUITE}"] .override-label`)), /16:30/);
+    assert.match(STYLE_TEXT, /\.override-tag \{[^}]*display:none/);
   });
 });
 

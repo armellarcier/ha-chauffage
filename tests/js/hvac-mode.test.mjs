@@ -456,11 +456,12 @@ describe('the override block: off, fan only, a preset, a temperature and its end
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date(at) }));
   afterEach(() => mock.timers.reset());
 
-  test('the week view and the thermostat card show an off override as ⏱ Arrêt, without setpoint', () => {
+  test('the week view shows an off override with the off icon, the thermostat card as ⏱ Arrêt, without setpoint', () => {
     const hass = setup({ overrides: { 'climate.salon': offOverride } });
     hass.states['climate.salon'].attributes.temperature = 20;
     const card = cardOf(hass, { show: ['climate.salon'] });
-    assert.match(text($(card, '.override[data-climate="climate.salon"] .override-label')), /⏱ Arrêt → 11:30/);
+    assert.match(text($(card, '.override[data-climate="climate.salon"] .override-label')), /^⏱ → 11:30$/);
+    assert.equal($(card, '.override[data-climate="climate.salon"] .override-label ha-icon').getAttribute('icon'), 'mdi:power');
     const tc = thermostatCard(hass);
     assert.equal(text($(tc, '.tc-state')), '⏱ Arrêt');
     assert.ok($(tc, '.tc-state').classList.contains('override'));

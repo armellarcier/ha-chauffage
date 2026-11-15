@@ -2,7 +2,7 @@
 // was leaves nothing to save on an air conditioner, the override tag on the week, and the
 // blocks' wording.
 import { fakeHass, createCard, cleanup, integrationData, PRESETS } from './helpers.mjs';
-import { serializeDay, CHIP_STYLE, STYLE as STYLE_TEXT, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, FIELD_BOX, chipTextColor } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { serializeDay, CHIP_STYLE, STYLE as STYLE_TEXT, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, FIELD_BOX, chipTextColor, tagSide } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -376,5 +376,108 @@ describe('two slots alike in a row', () => {
     const handles = $$(card, `.bar[data-climate="${SALON}"][data-day="0"] .handle`);
     assert.deepEqual(handles.map((h) => h.classList.contains('same')), [true, false]);
     assert.match(STYLE_TEXT, /\.handle\.same::after/);
+  });
+});
+
+describe('an override on the week says its HVAC mode and its end in one format', () => {
+  const tagOf = (card, climate) => $(card, `.override[data-climate="${climate}"] .override-tag`);
+  const labelOf = (card, climate) => $(card, `.override[data-climate="${climate}"] .override-label`);
+  const icon = (el) => (el.querySelector('ha-icon') || { getAttribute: () => null }).getAttribute('icon');
+
+  test('an off override: the off icon, an arrow, its end', () => {
+    const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'off' }, { end: at('17:00') }) } });
+    const card = cardOf(hass, { show: [SALON, SUITE] });
+    for (const el of [tagOf(card, SUITE), labelOf(card, SUITE)]) {
+      assert.equal(text(el), '⏱ → 17:00');
+      assert.equal(icon(el), 'mdi:power');
+    }
+  });
+
+  test('a cooling override, short or long: the same words', () => {
+    for (const end of ['11:30', '16:30']) {
+      const hass = setup({ overrides: { [SUITE]: override({ temperature: 24, hvac_mode: 'cool' }, { end: at(end) }) } });
+      const card = cardOf(hass, { show: [SALON, SUITE] });
+      for (const el of [tagOf(card, SUITE), labelOf(card, SUITE)]) {
+        assert.equal(text(el), `⏱ → ${end}`);
+        assert.equal(icon(el), 'mdi:snowflake');
+      }
+    }
+  });
+
+  test('on a heater: no icon', () => {
+    const card = cardOf(setup({ overrides: { [SALON]: override({ temperature: 21 }) } }));
+    assert.equal(text(tagOf(card, SALON)), '⏱ → 11:30');
+    assert.equal(icon(tagOf(card, SALON)), null);
+  });
+
+  test('an end on another day names the day', () => {
+    const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'off' }, { end: '2026-10-13T08:00:00+02:00' }) } });
+    const card = cardOf(hass, { show: [SUITE] });
+    const today = $(card, `.override[data-climate="${SUITE}"][data-day="0"]`);
+    assert.equal(text(today.querySelector('.override-label')), '⏱ → mar. 08:00');
+    assert.ok(today.classList.contains('dated'), 'a longer label: outside sooner');
+    const last = $(card, `.override[data-climate="${SUITE}"][data-day="1"]`);
+    assert.equal(text(last.querySelector('.override-tag')), '⏱ → mar. 08:00');
+  });
+
+  test('an end in a week or more: its date', () => {
+    const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'off' }, { end: '2026-10-19T08:00:00+02:00' }) } });
+    const card = cardOf(hass, { show: [SUITE] });
+    assert.match(text($(card, `.override[data-climate="${SUITE}"][data-day="0"] .override-label`)), /^⏱ → 19\/10 08:00$/);
+  });
+
+  test('the label goes outside a block narrower than it: the width decides, not the duration', () => {
+    assert.match(STYLE_TEXT, /\.override \{[^}]*container-type:inline-size/);
+    assert.match(STYLE_TEXT, /@container \(max-width:\d+px\) \{ \.override\.last \.override-label \{ display:none; \} \.override\.last \.override-tag \{ display:inline-flex; \}/);
+  });
+});
+
+describe('where the tag of a short override goes', () => {
+  const bar = { left: 0, right: 300 };
+  const tag = { width: 70 };
+
+  test('after the override when nothing is there', () => {
+    assert.equal(tagSide(tag, { left: 100, right: 120 }, bar, [{ left: 0, right: 40 }, { left: 220, right: 260 }]), '');
+  });
+
+  test('before it when the next slot\'s label is close', () => {
+    assert.equal(tagSide(tag, { left: 100, right: 120 }, bar, [{ left: 0, right: 20 }, { left: 140, right: 180 }]), 'before');
+  });
+
+  test('before it at the end of the day', () => {
+    assert.equal(tagSide(tag, { left: 240, right: 280 }, bar, []), 'before');
+  });
+
+  test('above the bar when both sides hold a label', () => {
+    assert.equal(tagSide(tag, { left: 100, right: 120 }, bar, [{ left: 40, right: 90 }, { left: 140, right: 180 }]), 'above');
+  });
+
+  test('above, from its right edge, when it would leave the bar', () => {
+    assert.equal(tagSide(tag, { left: 250, right: 270 }, bar, [{ left: 200, right: 240 }]), 'above end');
+  });
+});
+
+describe('the popover of a slot leaves the save bar free', () => {
+  test('it opens above its row when it would cover Cancel and Save', () => {
+    const card = cardOf(setup());
+    select(card, SALON, 1);
+    click(card, '.editor [data-act="preset"][data-preset="boost"]');
+    assert.ok($(card, '.savebar'));
+    const rect = (top, height) => () => ({ left: 0, right: 360, width: 360, top, bottom: top + height, height });
+    $(card, 'ha-card').getBoundingClientRect = rect(0, 900);
+    $(card, '.seg.sel').parentElement.getBoundingClientRect = rect(500, 38);
+    $(card, '.seg.sel').getBoundingClientRect = rect(500, 38);
+    $(card, '.savebar').getBoundingClientRect = rect(708, 60);
+    const editor = $(card, '.editor');
+    Object.defineProperty(editor, 'offsetHeight', { value: 200 });
+    Object.defineProperty(editor, 'offsetWidth', { value: 340 });
+    card._placeEditor();
+    // 500 + 38 + 9 + 200 = 747: inside the window (768), but under the save bar (from 708)
+    assert.ok(editor.classList.contains('above'));
+  });
+
+  test('the save bar stays over a popover that has no room above', () => {
+    const z = (selector) => Number(new RegExp(`\\n  ${selector} \\{[^}]*z-index:(\\d+)`).exec(STYLE_TEXT)[1]);
+    assert.ok(z('\\.savebar') > z('\\.editor'));
   });
 });
