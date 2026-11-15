@@ -1432,6 +1432,8 @@ function overrideLabel(d, locale = DEFAULT_LOCALE, presets = []) {
   if ('preset_mode' in target) return locale.preset(target.preset_mode);
   return target.hvac_mode ? modeName(locale, target.hvac_mode) : '';
 }
+// An override that turns the thermostat off
+const isOffOverride = (d) => !!d && !!d.target && d.target.hvac_mode === 'off';
 // The HVAC mode an override turns the thermostat on in, when it sets one
 const overrideHvac = (d) => (d && d.target && d.target.hvac_mode && d.target.hvac_mode !== 'off' ? d.target.hvac_mode : null);
 // The same, when it takes a setpoint: heat, cool or heat/cool
@@ -2466,7 +2468,7 @@ function steppedTemperature(hass, climate, field, dir) {
 function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   const targets = src.targets(climate);
   const target = (d && d.target) || {};
-  const off = target.hvac_mode === 'off';
+  const off = isOffOverride(d);
   // On an air conditioner, the override heats or cools: its own HVAC mode, else the planned one
   const mode = overrideHvacOn(d, hass, src, climate);
   // Fan only, dry or auto: an override that sets it and no setpoint
@@ -2584,7 +2586,7 @@ function targetDegrees(src, climate, target, mode, loc) {
 function overrideNamedMode(d, src, climate, hass) {
   const target = (d && d.target) || {};
   const sets = !!d.preset || ['temperature', 'preset_mode', 'target_temp_low'].some((key) => key in target);
-  if (!sets || target.hvac_mode === 'off' || !hasModeRow(hass, climate)) return null;
+  if (!sets || isOffOverride(d) || !hasModeRow(hass, climate)) return null;
   return overrideHvacOn(d, hass, src, climate);
 }
 
@@ -2642,7 +2644,7 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const t = loc.t;
   const endsAt = parseDate(d.end);
   const now = new Date();
-  if (d.target && d.target.hvac_mode === 'off') {
+  if (isOffOverride(d)) {
     // Off, in a few words after "Off until 06:30": the day, and what the thermostat comes back
     // on. "tomorrow, then Eco"
     const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -2689,7 +2691,7 @@ function nextSlotButton(src, climate, d, loc, attrs) {
 // (`next_day_slot_end`). None on an "on" override, without such a slot, or when the override
 // already ends then
 function tomorrowButton(src, climate, d, loc, attrs) {
-  if (!d.target || d.target.hvac_mode !== 'off') return '';
+  if (!isOffOverride(d)) return '';
   const planned = src.planned(climate) || {};
   const iso = planned.next_day_slot_end;
   const at = iso ? parseDate(iso) : null;
@@ -2838,7 +2840,6 @@ function overrideWithPreset(d, src, climate, preset, hass) {
 // The override `d` as the base of an "on" override. An off override ends as the setting
 // *Turned off* says, often much later: turned on, it starts now and lasts the override
 // duration, as a new override does
-const isOffOverride = (d) => !!d && !!d.target && d.target.hvac_mode === 'off';
 function turnedOn(d, src) {
   if (!isOffOverride(d)) return d;
   const { ends_at: _, start: _s, end: _e, ...rest } = d;
@@ -2884,7 +2885,7 @@ function newOffOverride(src, climate) {
 // schedule plans off now
 function overrideOff(d, src, climate, hass) {
   const planned = (src.planned(climate) || {}).hvac_mode === 'off';
-  if (d && d.target && d.target.hvac_mode !== 'off' && planned) return RESUME;
+  if (d && !isOffOverride(d) && planned) return RESUME;
   // No override, an off slot and a thermostat that is off: an override would change nothing
   if (!d && planned && hass && (hass.states[climate] || {}).state === 'off') return null;
   return isOffOverride(d) ? d : newOffOverride(src, climate);
@@ -4462,6 +4463,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     const showsCool = this._showsCool();
     const showsHeat = this._shown.some((c) => !coolsOnly(this._hass, c));
     const single = !multi && !!st;
+    const legendOff = this._legendOffHtml();
     const legend = this._presets()
       .map((l) => {
         // Only what the thermostats shown can use: a preset with no value on any of them is
@@ -4479,7 +4481,7 @@ class ChauffageProgrammeCard extends HTMLElement {
           .filter(Boolean).join(' · ');
         return `<span>${heat}${cool}${esc(l.name)}${values ? ` ${values}` : esc(hint)}</span>`;
       })
-      .join('') + this._legendHeatCoolHtml() + this._legendOffHtml() + this._settingsLinkHtml();
+      .join('') + this._legendHeatCoolHtml() + legendOff + this._settingsLinkHtml();
     // Copying the week of the thermostat shown to another thermostat or schedule: a menu, as the
     // day's ⋮, opening upwards from the foot of the card
     // Weeks edited, then the access level dropped (U31): kept until Cancel, but not saved
@@ -4517,7 +4519,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         </div>
         ${this._menuHtml()}
         ${this._editorHtml()}
-        ${weekOnly ? (this._legendOffHtml() ? `<div class="foot"><div class="legend">${this._legendOffHtml()}</div></div>` : '') : `<div class="foot">
+        ${weekOnly ? (legendOff ? `<div class="foot"><div class="legend">${legendOff}</div></div>` : '') : `<div class="foot">
           <div class="legend">${legend}</div>
           <div class="actions">
             ${plannable ? `<button class="btn copyweek${cw ? ' on' : ''}" data-act="copyweek-menu">${esc(tr('copyWeekTo', { name: this._name(focus) }))}</button>` : ''}
@@ -7532,7 +7534,7 @@ class ChauffageThermostatCard extends HTMLElement {
     const paused = src.paused(this._config.entity);
     const d = !paused && filterActive(src.overrides())[this._config.entity];
     // An off override: "⏱ Off", no setpoint (#91)
-    if (d && d.target && d.target.hvac_mode === 'off') return `<span class="tc-state override">⏱ ${esc(modeName(loc, 'off'))}</span>`;
+    if (isOffOverride(d)) return `<span class="tc-state override">⏱ ${esc(modeName(loc, 'off'))}</span>`;
     // On a thermostat that lists more than one "on" HVAC mode: "⏱ Cool · Comfort 25°"
     if (d && hasModeRow(this._hass, this._config.entity)) return `<span class="tc-state override">⏱ ${esc(overrideSummary(d, src, this._config.entity, loc, this._hass))}</span>`;
     // An override at a temperature (not a preset) is that temperature: said once, not "17,5 °C · 17,5°"
