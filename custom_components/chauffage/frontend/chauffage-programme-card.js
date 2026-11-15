@@ -2922,7 +2922,7 @@ function overrideWithTemperature(d, src, climate, value, hass) {
   const mode = on === 'heat_cool' ? setpointModesOf(hass, climate)[0] : on;
   if (!d) return newOverride(src, withHvac({ temperature: value }, mode));
   const { preset, ...rest } = turnedOn(d, src);
-  const { preset_mode: _p, temperature: _t, cool_temperature: _c, cool_preset_mode: _cp, target_temp_low: _l, target_temp_high: _h, ...kept } = d.target || {};
+  const kept = Object.fromEntries(Object.entries(d.target || {}).filter(([key]) => !SETPOINT_KEYS.includes(key)));
   return { ...rest, target: withHvac({ ...kept, temperature: value }, mode) };
 }
 // The override `d` with a fan or swing setting, or without it ('': the thermostat keeps its own)
