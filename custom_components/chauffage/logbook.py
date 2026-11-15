@@ -96,10 +96,13 @@ def async_describe_events(
         state = hass.states.get(entity_id) if entity_id else None
         return state.name if state else default
 
+    def number(value: Any) -> str:
+        """21, not 21.0; 21,5 in French."""
+        return f"{round(float(value), 1):g}".replace(".", texts()["decimal"])
+
     def degrees(value: Any) -> str:
-        """21 °C, not 21.0 °C; 21,5 °C in French."""
-        number = f"{round(float(value), 1):g}".replace(".", texts()["decimal"])
-        return f"{number} {hass.config.units.temperature_unit}"
+        """21 °C; 21,5 °C in French."""
+        return f"{number(value)} {hass.config.units.temperature_unit}"
 
     def value(data: dict[str, Any]) -> str:
         """The override's value: its HVAC mode if it sets one, then the Chauffage preset's name,
@@ -121,7 +124,7 @@ def async_describe_events(
         elif "preset_mode" in target:
             parts.append(str(target["preset_mode"]))
         elif "target_temp_low" in target and "target_temp_high" in target:  # heat/cool: "20–25 °C"
-            parts.append(f"{degrees(target['target_temp_low']).split(' ')[0]}–{degrees(target['target_temp_high'])}")
+            parts.append(f"{number(target['target_temp_low'])}–{degrees(target['target_temp_high'])}")
         elif "cool_temperature" in target:
             parts.append(t["cooling"].format(value=degrees(target["cool_temperature"])))
         parts.extend(text.format(value=target[key]) for key, text in t["settings"].items() if key in target)
