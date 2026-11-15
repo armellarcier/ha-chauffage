@@ -1109,6 +1109,7 @@ const CHIP_STYLE = `
   .presets .off-chip { background:${OFF_COLOR}; }
   .presets .off-chip ha-icon, .presets .fan-chip ha-icon { --mdc-icon-size:14px; width:14px; height:14px; display:flex; flex:none; }
   .presets button.unsupported { outline:2px dashed var(--secondary-text-color); outline-offset:1px; }
+  .unsupported, .btn.unsupported { border-style:dashed; }
   .pv-temp { display:inline-flex; align-items:center; gap:4px; }
   .pv-temp button[data-dir] { box-sizing:border-box; width:var(--chauffage-chip-h); height:var(--chauffage-chip-h); padding:0;
     display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:16px; line-height:1;
@@ -6598,7 +6599,6 @@ const STYLE = `
   .legend i.mk ha-icon { --mdc-icon-size:10px; width:10px; height:10px; display:flex; }
   .legend .cv { display:inline-flex; align-items:center; }
   .legend .cv ha-icon { --mdc-icon-size:12px; width:12px; height:12px; display:flex; }
-  .unsupported, .btn.unsupported { border-style:dashed; }
   /* The fan and the vanes of a slot (#91, lot 3), folded behind a summary that looks like a
      button, with a chevron; the summary may wrap; the capture button on its own line */
   details.more summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px; min-height:36px;
@@ -6610,19 +6610,15 @@ const STYLE = `
   .more-rows { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); margin-top:var(--chauffage-row-gap); }
   .more-rows.direct { margin-top:0; }
   .more-row > span { flex:none; }
-  .more-row select, .pv-row select { text-overflow:ellipsis; }
-  .pv-row select { ${FIELD_BOX} min-width:0; max-width:100%; }
+  .more-row select, .pv-row select { min-width:0; text-overflow:ellipsis; }
   .capture-row { display:flex; }
-  /* One height for the buttons of a popover of the presets tab; the icon of "Copy from the
-     thermostat" on the line of its text */
-  .cell-ed .btn { box-sizing:border-box; min-height:var(--chauffage-chip-h); display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  /* The icon of "Copy from the thermostat" on the line of its text */
   .btn.capture ha-icon { --mdc-icon-size:16px; width:16px; height:16px; display:flex; flex:none; }
   .pv-error { font-size:.9em; color:var(--error-color,#db4437); }
   tr.target th.name, tr.target td { background:rgba(127,127,127,.14); background:color-mix(in srgb, var(--primary-color) 14%, transparent); }
   /* "🔥 20° · ❄ 25°": each icon on the line of its number, and the same gap on both sides of "·" */
   .pv-val .m ha-icon, .pv-default .m ha-icon { --mdc-icon-size:14px; width:14px; height:14px; vertical-align:-2px; margin:0 2px 0 0; }
   .pv-val .m.tuned ha-icon { margin:0 0 0 4px; }
-  .override-label .m ha-icon, .override-value .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; }
   /* Read-only weeks (the access level): a slot opens nothing */
   .bar.ro .seg { cursor:default; }
   .seg.movable { cursor:grab; }
@@ -6868,12 +6864,7 @@ const STYLE = `
   .pv-when { display:flex; align-items:center; gap:6px; font-weight:600; font-size:.9em; }
   .pv-when ha-icon { --mdc-icon-size:16px; width:16px; height:16px; }
   .pv-cool { cursor:default; }
-  .pv-row .pv-field select { max-width:100%; }
-  .pv-choice { display:flex; align-items:center; gap:8px; min-height:30px; cursor:pointer; }
-  .pv-choice > span:not(.pv-field) { flex:none; white-space:nowrap; }
   .pv-field { margin-left:auto; min-width:0; display:flex; justify-content:flex-end; }
-  .pv-field select { min-width:0; text-overflow:ellipsis; }
-  .pv-choice:not(:has(input:checked)) .pv-field { opacity:.5; }
   .pv-fields { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:10px 12px; }
   .pv-fields > .pv-temp { justify-self:end; }
   .pv-name { display:flex; align-items:center; gap:6px; }
@@ -7297,8 +7288,6 @@ const MORE_INFO_STYLE = `
   @container (max-width:38px) { .seg span { visibility:hidden; font-size:0; } }
   .seg span ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; visibility:visible; }
   .seg span:not(:empty) ha-icon { margin-left:3px; }
-  .override-value .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; vertical-align:-2px; }
-  .unsupported { border-style:dashed; }
   .bar.big .seg:first-child { border-radius:6px 0 0 6px; }
   .bar.big .seg:nth-last-child(1 of .seg) { border-radius:0 6px 6px 0; }
   .override { position:absolute; top:2px; bottom:2px; border:2px solid #fff; border-radius:3px; box-sizing:border-box;
