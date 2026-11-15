@@ -406,20 +406,22 @@ class ChauffageRuntime:
         last = self.thermostats.get(state.entity_id, {}).get("hvac_mode") if state is not None else None
         return thermostat(state, entry is not None and entry.platform == VTHERM, last)
 
+    def _learned(self, entity_id: str, cool: bool = False) -> dict[str, float]:
+        """{own preset: temperature} learned from a thermostat. `cool`: while it cooled."""
+        key = "cool_preset_temperatures" if cool else "preset_temperatures"
+        return self.thermostats.get(entity_id, {}).get(key, {})
+
     def preset_temperature(self, state: State, preset: str, cool: bool = False) -> float | None:
         """Temperature a thermostat's own preset gives (published, else learned): the one the
         card shows, and the one a manual setpoint is compared with. `cool`: when it cools."""
-        key = "cool_preset_temperatures" if cool else "preset_temperatures"
-        learned = self.thermostats.get(state.entity_id, {}).get(key, {})
-        return engine.preset_temperature(dict(state.attributes), preset, learned, cool)
+        return engine.preset_temperature(dict(state.attributes), preset, self._learned(state.entity_id, cool), cool)
 
     def temperatures_of(self, state: State | None, cool: bool = False) -> dict[str, float]:
         """{own preset: temperature} of a thermostat, for its presets and the learned ones.
         `cool`: what they give when it cools."""
         if state is None:
             return {}
-        key = "cool_preset_temperatures" if cool else "preset_temperatures"
-        learned = self.thermostats.get(state.entity_id, {}).get(key, {})
+        learned = self._learned(state.entity_id, cool)
         temperatures = {p: self.preset_temperature(state, p, cool) for p in {*thermostat(state).presets, *learned}}
         return {p: t for p, t in temperatures.items() if t is not None}
 
