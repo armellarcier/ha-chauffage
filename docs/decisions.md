@@ -1195,11 +1195,17 @@ A review of every surface, before the merge into `main`, settled these choices.
 - **A change to the stored data or the installation goes through a beta** installed on a real
   installation before the release.
 - **`scripts/deploy.sh` tries the working tree on a real installation without a release.** A
-  pre-release for each try is slow and fills the release list. The script saves the release and
-  its data before the first deploy, because a dev version may migrate the stored data, and an
-  older version cannot read newer data. The data is only put back with Home Assistant stopped:
-  Home Assistant writes its stores when it stops, and would overwrite it. The dev suffix of the
-  version changes the card's URL, so the browsers load the new card.
+  pre-release for each try is slow and fills the release list.
+  - The script saves the release and its data before the first deploy. A dev version may migrate
+    the stored data, and an older version cannot read newer data.
+  - The backup exists until a full rollback. The script does not guess from the installed
+    version whether to save: a rollback without a container, a deploy cut short or a HACS update
+    would otherwise replace the release in the backup.
+  - The script puts the data back only while Home Assistant is stopped, because Home Assistant
+    writes its stores when it stops. Without a container, the script cannot stop Home Assistant,
+    so it does not restart it either. A restart would start the release on newer data.
+  - The dev version sorts after the release, for example `0.9.1-dev.…` for `0.9.0`. An open
+    card then asks for a reload, not for a restart, and the card's URL changes.
 - **The minimum Home Assistant stays as low as possible** and only rises when a Home Assistant
   API requires it (CONTRIBUTING.md, "Supported Home Assistant versions"): a heating schedule is
   set up once and its HA is often not updated every month; dropping it for a version number

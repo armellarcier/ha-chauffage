@@ -257,11 +257,19 @@ réglage à remettre.
 
 ### Sans publier de version
 
-`scripts/deploy.sh` installe votre copie de travail sur votre propre Home Assistant, puis la
-retire. Le script atteint le dossier de configuration de Home Assistant en SSH, ou comme un
-dossier local.
+`scripts/deploy.sh` installe votre copie de travail sur votre propre Home Assistant.
+`scripts/deploy.sh --rollback` remet la version publiée.
 
-#### 1. Remplir `.env`
+#### 1. Vérifier les prérequis
+
+- `ssh <hôte>` fonctionne sans rien demander, par exemple avec un alias dans `~/.ssh/config`.
+- L'utilisateur SSH peut écrire dans le dossier de configuration de Home Assistant, et peut
+  lancer `docker` si Home Assistant tourne dans Docker.
+- L'hôte cible a `bash` et `tar`.
+
+Le dossier de configuration peut aussi être un dossier local, par exemple un partage monté.
+
+#### 2. Remplir `.env`
 
 Indiquez le dossier de configuration, et le conteneur Docker si Home Assistant tourne dans
 Docker :
@@ -272,9 +280,10 @@ PROD_HA_CONTAINER=homeassistant
 ```
 
 Sans conteneur, par exemple sur Home Assistant OS, renseignez plutôt `PROD_HA_URL` et
-`PROD_HA_TOKEN`. Le script redémarre alors Home Assistant par son API.
+`PROD_HA_TOKEN`. Le script redémarre alors Home Assistant par son API. Sans ces réglages,
+redémarrez Home Assistant vous-même.
 
-#### 2. Déployer
+#### 3. Déployer
 
 ```bash
 scripts/deploy.sh
@@ -282,25 +291,44 @@ scripts/deploy.sh
 
 Au premier déploiement, le script met de côté la version installée et ses données, dans
 `<config>/.chauffage-backup`. Il installe ensuite votre copie de travail et redémarre Home
-Assistant. La version installée porte un suffixe de développement, par exemple
-`0.9.0-beta.4.dev.20261118153000.g5b20a33`. Les navigateurs chargent donc la nouvelle carte.
+Assistant.
 
-Redéployez après chaque modification. La sauvegarde garde la version publiée.
+Le script installe les fichiers de `custom_components/chauffage` que git n'ignore pas, y compris
+les nouveaux fichiers pas encore ajoutés. La version installée porte un suffixe de
+développement, par exemple `0.9.0-beta.4.dev.20261118153000.g5b20a33`. Les navigateurs chargent
+donc la nouvelle carte.
 
-#### 3. Revenir à la version publiée
+Redéployez après chaque modification. La sauvegarde conserve la version mise de côté au premier
+déploiement.
+
+#### 4. Revenir à la version publiée
 
 ```bash
 scripts/deploy.sh --rollback
 ```
 
-Le retour arrière remet la version publiée et ses données, puis redémarre Home Assistant. Ce que
-vous avez modifié dans Chauffage pendant l'essai est perdu.
+Le retour en arrière arrête Home Assistant, remet la version publiée et ses données, puis
+relance Home Assistant. Il supprime aussi la sauvegarde.
 
-Sans conteneur, le script ne peut pas arrêter Home Assistant. Il ne remet donc pas les données.
-Le script vous indique quel fichier copier, une fois Home Assistant arrêté.
+Tout ce que vous avez modifié dans Chauffage depuis le premier déploiement est perdu, par
+exemple une semaine retouchée.
 
-Une mise à jour HACS remplace aussi la version de développement. HACS affiche toujours la
-version que vous aviez installée.
+Sans conteneur, le script ne peut pas arrêter Home Assistant. Il remet donc seulement le code,
+et ne redémarre pas Home Assistant. Suivez ensuite les étapes que le script affiche :
+
+1. Arrêtez Home Assistant.
+2. Copiez `<config>/.chauffage-backup/storage` vers `<config>/.storage/chauffage`.
+3. Démarrez Home Assistant.
+4. Supprimez `<config>/.chauffage-backup`.
+
+#### Ce que la sauvegarde ne couvre pas
+
+- **HACS.** HACS affiche toujours la version que vous aviez installée. Revenez à la version
+  publiée avant de mettre à jour Chauffage depuis HACS.
+- **La configuration de l'intégration.** La sauvegarde contient `.storage/chauffage`, mais pas
+  l'entrée de l'intégration dans `.storage/core.config_entries`. Si votre version augmente la
+  version majeure de cette entrée, la version publiée refuse l'entrée après le retour en
+  arrière.
 
 ### Avec une préversion
 

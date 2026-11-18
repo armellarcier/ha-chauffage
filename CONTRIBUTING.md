@@ -240,10 +240,19 @@ the weeks. If a run stops half-way, its log gives the setting to set back.
 
 ### Without a release
 
-`scripts/deploy.sh` installs your working tree on your own Home Assistant, and takes it back.
-The script reaches the Home Assistant configuration folder over SSH, or as a local folder.
+`scripts/deploy.sh` installs your working tree on your own Home Assistant.
+`scripts/deploy.sh --rollback` puts the release back.
 
-#### 1. Set up `.env`
+#### 1. Check the prerequisites
+
+- `ssh <host>` works without a prompt, for example with a host alias in `~/.ssh/config`.
+- The SSH user can write to the Home Assistant configuration folder, and can run `docker` if
+  Home Assistant runs in Docker.
+- The target host has `bash` and `tar`.
+
+The configuration folder can also be a local folder, for example a mounted share.
+
+#### 2. Set up `.env`
 
 Give the configuration folder, and the Docker container if Home Assistant runs in Docker:
 
@@ -253,34 +262,50 @@ PROD_HA_CONTAINER=homeassistant
 ```
 
 Without a container, for example on Home Assistant OS, set `PROD_HA_URL` and `PROD_HA_TOKEN`
-instead. The script then restarts Home Assistant through its API.
+instead. The script then restarts Home Assistant through its API. Without these settings,
+restart Home Assistant yourself.
 
-#### 2. Deploy
+#### 3. Deploy
 
 ```bash
 scripts/deploy.sh
 ```
 
 The first deploy saves the installed release and its data in `<config>/.chauffage-backup`.
-Then the script installs your working tree and restarts Home Assistant. The installed version
-gets a dev suffix, for example `0.9.0-beta.4.dev.20261118153000.g5b20a33`, so the browsers load
-the new card.
+Then the script installs your working tree and restarts Home Assistant.
 
-Deploy again after each change. The backup keeps the release.
+The script installs the files of `custom_components/chauffage` that git does not ignore,
+including new files you have not added yet. The installed version gets a dev suffix, for
+example `0.9.0-beta.4.dev.20261118153000.g5b20a33`, so the browsers load the new card.
 
-#### 3. Roll back
+Deploy again after each change. The backup keeps the release saved by the first deploy.
+
+#### 4. Roll back
 
 ```bash
 scripts/deploy.sh --rollback
 ```
 
-The rollback puts back the release and its data, then restarts Home Assistant. The changes you
-made in Chauffage during the test are lost.
+The rollback stops Home Assistant, puts back the release and its data, then starts Home
+Assistant. The rollback also deletes the backup.
 
-Without a container, the script cannot stop Home Assistant, so it does not put the data back.
-The script tells you which file to copy once Home Assistant is stopped.
+Every change made in Chauffage since the first deploy is lost, for example a week you edited.
 
-A HACS update also replaces the dev version. HACS keeps showing the release you installed.
+Without a container, the script cannot stop Home Assistant. So the script puts back the code
+only, and does not restart Home Assistant. Then follow the steps the script prints:
+
+1. Stop Home Assistant.
+2. Copy `<config>/.chauffage-backup/storage` to `<config>/.storage/chauffage`.
+3. Start Home Assistant.
+4. Delete `<config>/.chauffage-backup`.
+
+#### What the backup does not cover
+
+- **HACS.** HACS still shows the release you installed. Roll back before you update Chauffage
+  from HACS.
+- **The integration's configuration.** The backup holds `.storage/chauffage`, not the
+  integration's entry in `.storage/core.config_entries`. If your version raises the major
+  version of the entry, the release refuses the entry after the rollback.
 
 ### With a pre-release
 
