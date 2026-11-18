@@ -16,7 +16,10 @@ try {
   console.log('the popover said:', promised);
   console.log('the thermostat:  ', await stateLine(climate));
 } finally {
-  const { changed, left } = await restore(page, saved);
-  console.log('put back:', changed.join(', ') || 'nothing', '| still different:', left.join(', ') || 'nothing');
-  await close();
+  try {
+    const { changed, left } = await restore(page, saved);
+    console.log('put back:', changed.join(', ') || 'nothing', '| still different:', left.join(', ') || 'nothing');
+  } finally {
+    await close(); // an open browser would keep the script running
+  }
 }

@@ -27,7 +27,7 @@ export async function launch(options = {}) {
   const phone = size.width < 500;
   const context = await browser.newContext({
     viewport: size, deviceScaleFactor: o.deviceScaleFactor, isMobile: phone, hasTouch: phone,
-    colorScheme: o.theme, locale: o.lang === 'fr' ? 'fr-FR' : 'en-US', timezoneId: 'Europe/Paris',
+    colorScheme: o.theme, locale: o.lang === 'fr' ? 'fr-FR' : 'en-US', timezoneId: await timeZone(),
     ...(existsSync(AUTH) ? { storageState: AUTH } : {}),
   });
   const page = await context.newPage();
@@ -43,14 +43,39 @@ export async function launch(options = {}) {
     });
   });
   // The theme is this browser's: Home Assistant reads it from the browser's storage when a page
-  // loads, so one reviewer's theme never changes another's on the shared development HA
-  await page.addInitScript((dark) => {
-    try { localStorage.setItem('selectedTheme', JSON.stringify({ theme: 'default', dark })); } catch (e) { /* no storage */ }
+  // loads, so one reviewer's theme never changes another's on the shared development HA.
+  // setTheme() keeps its choice in the tab's session: the next page loads keep it, not the
+  // launch theme
+  await page.addInitScript((launchDark) => {
+    try {
+      const kept = sessionStorage.getItem('reviewDark');
+      const dark = kept === null ? launchDark : kept === '1';
+      localStorage.setItem('selectedTheme', JSON.stringify({ theme: 'default', dark }));
+    } catch (e) { /* no storage */ }
   }, o.theme === 'dark');
   OPTIONS.set(page, { ...o, phone });
   await login(page);
   await setTheme(page, o.theme);
   return page;
+}
+
+// The development HA's long-lived token, written by the setup (run.sh mounts it)
+const token = () => readFileSync(process.env.HA_TOKEN_FILE || '/token', 'utf8').trim();
+
+// The development HA's time zone: the browser shows the card at the HA's time, and 'today' and
+// 'now' are the HA's (a second development HA may run in another zone, for the demo)
+let zone = null;
+async function timeZone() {
+  if (!zone) {
+    try {
+      const response = await fetch(`${HA}/api/config`, { headers: { Authorization: `Bearer ${token()}` } });
+      zone = (await response.json()).time_zone;
+    } catch (e) {
+      console.warn(`launch: the development HA's time zone is unknown (${e.message}): Europe/Paris`);
+    }
+    zone = zone || 'Europe/Paris';
+  }
+  return zone;
 }
 
 /** Closes the browser: call it at the end of a script. */
@@ -117,7 +142,10 @@ export async function setTheme(page, theme) {
   const dark = theme === 'dark';
   await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' });
   await page.evaluate((d) => {
-    try { localStorage.setItem('selectedTheme', JSON.stringify({ theme: 'default', dark: d })); } catch (e) { /* no storage */ }
+    try {
+      sessionStorage.setItem('reviewDark', d ? '1' : '0');
+      localStorage.setItem('selectedTheme', JSON.stringify({ theme: 'default', dark: d }));
+    } catch (e) { /* no storage */ }
     const ha = document.querySelector('home-assistant');
     if (ha) ha.dispatchEvent(new CustomEvent('settheme', { detail: { theme: 'default', dark: d }, bubbles: true, composed: true }));
   }, dark);
@@ -218,14 +246,14 @@ export async function openSlot(page, climate, day = 'today', time = 'now') {
 export async function openOverride(page, climate, where = 'card') {
   if (where === 'card') {
     if (!page.url().includes('/chauffage-dev') || page.url().includes('/pieces')) await openDashboard(page, 0);
-    const d = await today(page);
     const c = card(page);
-    await c.evaluate((el, [climate, d]) => {
-      el._groupPref = false; el._shown = [climate]; el._sel = null; el._cell = null;
+    // As the "New override…" entry of the row's menu does: the days stay grouped as the user has them
+    await c.evaluate((el, climate) => {
+      el._shown = [climate]; el._sel = null; el._cell = null;
       el._schedule = el._activeSchedule();
-      el._overrideSel = { climate, day: d, create: true };
+      el._overrideSel = { climate, create: true };
       el._render();
-    }, [climate, d]);
+    }, climate);
     const editor = c.locator('.override-ed');
     await editor.waitFor({ timeout: 5000 });
     await page.waitForTimeout(300);
@@ -495,7 +523,9 @@ export async function contrastPerGradient(locator) {
 // ---------- the data ----------
 
 /** A websocket command, as the logged-in user. */
-export const ws = (page, message) => page.evaluate((m) => document.querySelector('home-assistant').hass.callWS(m), message);
+// Home Assistant rejects a command with an object: turned into an Error that keeps its code and message
+export const ws = (page, message) => page.evaluate((m) => document.querySelector('home-assistant').hass.callWS(m)
+  .catch((e) => { throw new Error(`${m.type}: ${(e && e.code) || 'error'}: ${(e && e.message) || JSON.stringify(e)}`); }), message);
 
 /** What the integration publishes now (chauffage/subscribe). */
 export function data(page) {
@@ -530,20 +560,14 @@ const PER_THERMOSTAT = ['mappings', 'weeks', 'overrides'];
  */
 export async function backup(page, { thermostats = [], presets = false, settings = false, schedule = false } = {}) {
   if (!Array.isArray(thermostats)) throw new Error('backup: name the thermostats the review touches, for example { thermostats: [\'climate.salon\'] }');
-  const d = await data(page);
-  const kept = (byThermostat) => Object.fromEntries(Object.entries(byThermostat || {}).filter(([climate]) => !thermostats || thermostats.includes(climate)));
-  const out = { scope: { thermostats, presets, settings, schedule } };
-  for (const key of PER_THERMOSTAT) out[key] = kept(d[key]);
-  if (presets) out.presets = d.presets;
-  if (settings) for (const key of SETTINGS) out[key] = d[key];
-  if (schedule) out.active_schedule = d.active_schedule;
-  return out;
+  const scope = { thermostats, presets, settings, schedule };
+  return { scope, ...covered({ scope }, await data(page)) };
 }
 
-// What restore() compares: the part of the data the backup covers
+// The part of the data a backup's scope covers: what backup() keeps and restore() compares
 function covered(saved, d) {
   const { thermostats, presets, settings, schedule } = saved.scope;
-  const kept = (byThermostat) => Object.fromEntries(Object.entries(byThermostat || {}).filter(([climate]) => !thermostats || thermostats.includes(climate)));
+  const kept = (byThermostat) => Object.fromEntries(Object.entries(byThermostat || {}).filter(([climate]) => thermostats.includes(climate)));
   const out = {};
   for (const key of PER_THERMOSTAT) out[key] = kept(d[key]);
   if (presets) out.presets = d.presets;
@@ -578,26 +602,28 @@ export async function restore(page, saved) {
   const changed = differences(wanted, covered(saved, now));
   const has = (key) => key in wanted;
   const same = (key) => JSON.stringify(wanted[key]) === JSON.stringify(now[key]);
+  // A command refused does not stop the others: what it could not put back is in `left`
+  const send = (what, message) => ws(page, message).catch((e) => console.log('restore', what, e.message || e.code || e));
   const settings = Object.fromEntries(SETTINGS.filter((k) => has(k) && !same(k)).map((k) => [k, wanted[k]]));
-  if (Object.keys(settings).length) await ws(page, { type: 'chauffage/settings/set', ...settings });
-  if (has('presets') && !same('presets')) await ws(page, { type: 'chauffage/presets/set', presets: wanted.presets, replacements: {} });
+  if (Object.keys(settings).length) await send('settings', { type: 'chauffage/settings/set', ...settings });
+  if (has('presets') && !same('presets')) await send('presets', { type: 'chauffage/presets/set', presets: wanted.presets, replacements: {} });
   const mine = covered(saved, now);
   for (const climate of new Set([...Object.keys(wanted.mappings), ...Object.keys(mine.mappings)])) {
     const mapping = wanted.mappings[climate] || {};
-    if (JSON.stringify(mapping) !== JSON.stringify(mine.mappings[climate] || {})) await ws(page, { type: 'chauffage/mapping/set', entity_id: climate, mapping });
+    if (JSON.stringify(mapping) !== JSON.stringify(mine.mappings[climate] || {})) await send(`mapping ${climate}`, { type: 'chauffage/mapping/set', entity_id: climate, mapping });
   }
   const weeks = Object.fromEntries(Object.entries(wanted.weeks).filter(([climate, w]) => JSON.stringify(w) !== JSON.stringify(now.weeks[climate])));
   if (Object.keys(weeks).length) {
     const revisions = Object.fromEntries(Object.keys(weeks).map((climate) => [climate, (now.thermostats[climate] || {}).revision ?? null]));
-    await ws(page, { type: 'chauffage/weeks/save', weeks, revisions });
+    await send('weeks', { type: 'chauffage/weeks/save', weeks, revisions });
   }
-  if (has('active_schedule') && !same('active_schedule')) await ws(page, { type: 'chauffage/schedule/activate', schedule: wanted.active_schedule });
+  if (has('active_schedule') && !same('active_schedule')) await send('schedule', { type: 'chauffage/schedule/activate', schedule: wanted.active_schedule });
   for (const climate of new Set([...Object.keys(wanted.overrides), ...Object.keys(mine.overrides)])) {
     const override = wanted.overrides[climate] || null;
     // An override of the backup that has ended since is not set again
     const over = override && new Date(override.end) <= new Date();
     if (JSON.stringify(override) !== JSON.stringify(mine.overrides[climate] || null)) {
-      await ws(page, { type: 'chauffage/override/set', entity_id: climate, override: over ? null : override }).catch((e) => console.log('restore override', climate, e.message || e.code));
+      await send(`override ${climate}`, { type: 'chauffage/override/set', entity_id: climate, override: over ? null : override });
     }
   }
   await page.waitForTimeout(500);
@@ -610,11 +636,10 @@ export async function restore(page, saved) {
  *   swing_mode, hvac_action } }. Compare them with what the card promised.
  */
 export async function states(entityIds) {
-  const token = readFileSync(process.env.HA_TOKEN_FILE || '/token', 'utf8').trim();
   const keys = ['temperature', 'target_temp_low', 'target_temp_high', 'preset_mode', 'fan_mode', 'swing_mode', 'hvac_action'];
   const out = {};
   for (const id of [].concat(entityIds)) {
-    const response = await fetch(`${HA}/api/states/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(`${HA}/api/states/${id}`, { headers: { Authorization: `Bearer ${token()}` } });
     const s = await response.json();
     out[id] = { state: s.state, ...Object.fromEntries(keys.filter((k) => s.attributes && s.attributes[k] != null).map((k) => [k, s.attributes[k]])) };
   }

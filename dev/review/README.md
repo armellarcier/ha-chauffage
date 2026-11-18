@@ -42,8 +42,13 @@ import { launch, close, openSlot, tap, measureRow, contrast, states, shot } from
 After a reset of the development HA, the session kept in `.auth/` no longer works. The library
 sees the login page and logs in again. To drop the kept session yourself, delete the `.auth`
 folder next to `run.sh`: `rm -r dev/review/.auth`. Git ignores `.auth/` and `out/`.
-`docker run --rm` in `run.sh` only removes the
-container: the screenshots, the session and the `ha-audit-pw-modules` volume stay.
+`docker run --rm` in `run.sh` only removes the container: the screenshots, the session and the
+`ha-review-playwright-<version>` volume stay. The volume holds the npm package of Playwright,
+named after its version, so that the package always matches the browsers of the image.
+
+The browser runs in the time zone of the development HA, read with the token of
+`dev/hass/.dev-token`. So `'today'` and `'now'` are the development HA's, even in another time
+zone.
 
 Several reviewers can share the development HA. Each script has its own browser, and its theme
 lives in that browser: one reviewer's dark theme does not change another's. Take a `backup` of
