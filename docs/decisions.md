@@ -35,13 +35,12 @@ future contributor might question.
   temperature, any other setpoint is an override; the thermostat reaching the expected
   temperature is not.
 - **A change by hand** (the owner, #91). A slot controls an HVAC mode and, in an HVAC mode that
-  heats or cools, a setpoint. Three rules, with no exception:
-  1. A change by hand of what the slot controls is an override on that point, added to the
-     override in force. The override takes what the thermostat shows: when the HVAC mode and
-     the setpoint change in one state, the override takes both. Each change computes the end
-     again.
-  2. Chauffage sends nothing after a change by hand.
-  3. When the thermostat is back to what the slot asks, for the HVAC mode and the setpoint, the
+  heats or cools, a setpoint. Two rules, with no exception:
+  1. A change by hand of what the slot controls changes the override on that point, and keeps
+     the rest of the override in force. The override takes what the thermostat shows: when the
+     HVAC mode and the setpoint change in one state, the override takes both. So Chauffage has
+     nothing to send to the thermostat. Each change computes the end again.
+  2. When the thermostat is back to what the slot asks, for the HVAC mode and the setpoint, the
      schedule resumes.
 
   This replaces a set of deductions (the value of the slot sent in the new HVAC mode, the
