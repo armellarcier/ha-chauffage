@@ -3,8 +3,8 @@
 If the package (v0.1) is installed, the form says what will be imported (schedules, overrides,
 active schedule); the import itself happens when the entry is set up (see importer.py).
 Options: default settings (override duration, when a change by hand ends, use of the
-thermostats' climate presets) and the Chauffage panel's entry in the sidebar. Presets and what
-they mean per thermostat are set in the panel.
+thermostats' climate presets) and the Chauffage panel's entry in the sidebar, with its name.
+Presets and what they mean per thermostat are set in the panel.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from .const import (
     CONF_MANUAL_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_SHOW_IN_SIDEBAR,
+    CONF_SIDEBAR_TITLE,
     CONF_USE_PRESETS,
     DEFAULT_ACCESS_LEVEL,
     DEFAULT_MANUAL_OVERRIDE_END,
@@ -37,6 +38,7 @@ from .const import (
     OVERRIDE_DURATION_STEP,
     TITLE,
 )
+from .frontend import sidebar_title
 
 
 class ChauffageConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -105,6 +107,9 @@ class ChauffageOptionsFlow(OptionsFlow):
             vol.Required(
                 CONF_SHOW_IN_SIDEBAR, default=options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR),
             ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_SIDEBAR_TITLE, default=sidebar_title(options),
+            ): selector.TextSelector(),
             vol.Required(
                 CONF_ACCESS_LEVEL, default=options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL),
             ): selector.SelectSelector(

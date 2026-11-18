@@ -600,6 +600,9 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **Show Chauffage in the sidebar.** On by default. If you turn this option off, the sidebar no
   longer shows *Chauffage*. You still open the Chauffage panel from the cards, or from the
   *Visit* button of a scheduled thermostat's device.
+- **Name in the sidebar.** *Chauffage* by default. Give the panel another name, for example
+  *Planning* if you already have a dashboard called *Thermostats*. The panel and the cards' links
+  use the same name.
 - **Access level of users who are not administrators.** *Use* by default. See
   [Who may change what](#who-may-change-what).
 

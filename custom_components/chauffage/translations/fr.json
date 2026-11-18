@@ -25,6 +25,7 @@
           "manual_override_end": "Fin des dérogations",
           "use_presets": "Utiliser les préréglages des thermostats",
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale",
+          "sidebar_title": "Nom dans la barre latérale",
           "access_level": "Niveau d'accès des utilisateurs non administrateurs"
         },
         "data_description": {

@@ -27,6 +27,7 @@ CONF_USE_PRESETS = "use_presets"  # a preset uses the thermostat's climate prese
 DEFAULT_USE_PRESETS = True
 CONF_SHOW_IN_SIDEBAR = "show_in_sidebar"  # the Chauffage panel's entry in the sidebar
 DEFAULT_SHOW_IN_SIDEBAR = True
+CONF_SIDEBAR_TITLE = "sidebar_title"  # the panel's name in the sidebar (#104), TITLE when blank
 # What users who are not admins may change (#99): one access level for all of them, each including
 # the one before. An admin can always do everything (docs/decisions.md, "Who may do what")
 CONF_ACCESS_LEVEL = "access_level"

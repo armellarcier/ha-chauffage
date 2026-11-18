@@ -58,6 +58,27 @@ async def test_an_admin_can_take_the_panel_out_of_the_sidebar(bench: Bench):
     assert panel.config["_panel_custom"]["name"] == "chauffage-panel"
 
 
+async def test_an_admin_can_rename_the_panel_in_the_sidebar(bench: Bench):
+    """A user who already has a dashboard called Thermostats wants another name than Chauffage
+    next to it (#104). The panel's header and the cards' links follow the same name."""
+    await setup_with_the_panel(bench, {"sidebar_title": "  Planning "})
+    assert sidebar_entry(bench) == ("Planning", "chauffage:logo")
+
+
+async def test_a_blank_sidebar_title_gives_chauffage_back(bench: Bench):
+    await setup_with_the_panel(bench, {"sidebar_title": "  "})
+    assert sidebar_entry(bench) == ("Chauffage", "chauffage:logo")
+
+
+async def test_the_sidebar_title_follows_the_option_without_a_restart(bench: Bench):
+    await setup_with_the_panel(bench)
+    options = bench.hass.config_entries.options
+    flow = await options.async_init(bench.entry.entry_id)
+    await options.async_configure(flow["flow_id"], {"sidebar_title": "Planning"})
+    await bench.hass.async_block_till_done()
+    assert sidebar_entry(bench) == ("Planning", "chauffage:logo")
+
+
 async def test_the_sidebar_follows_the_option_without_a_restart(bench: Bench):
     await setup_with_the_panel(bench)
     options = bench.hass.config_entries.options
