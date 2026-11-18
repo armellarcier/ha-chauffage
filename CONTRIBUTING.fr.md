@@ -283,12 +283,106 @@ réglage à remettre.
 
 ## Essayer une version sur un vrai Home Assistant
 
-Pour essayer une version de développement sur votre propre Home Assistant, publiez une
-préversion (voir [Publier une version](#publier-une-version)). Installez ensuite la préversion
-depuis HACS, avec les versions bêta activées.
+### Avec une préversion
 
-Sans HACS, copiez `custom_components/chauffage/` dans `<config>/custom_components/chauffage/`,
-puis redémarrez Home Assistant.
+Pour essayer une version sur un vrai Home Assistant, publiez une préversion (voir
+[Publier une version](#publier-une-version)). Installez ensuite la préversion depuis HACS, avec
+les versions bêta activées. HACS installe et met à jour une préversion comme n'importe quelle
+version.
+
+### Notre raccourci : scripts/deploy.sh
+
+**`scripts/deploy.sh` est un bricolage, à vos risques et périls.** Nous le gardons pour nos
+propres essais rapides entre deux préversions. Nous ne le prenons pas en charge : merci de ne pas
+ouvrir d'issue à son sujet.
+
+Le script copie un commit directement dans le dossier de configuration de votre Home Assistant.
+HACS n'en sait rien, et votre Home Assistant fait tourner une version que personne n'a publiée.
+Revenez en arrière, ou publiez la version, dès que vous l'avez essayée.
+
+#### 1. Vérifier les prérequis
+
+- Home Assistant tourne dans un conteneur Docker.
+- Votre machine a `bash` et `git`.
+- `ssh <hôte>` fonctionne sans demander de mot de passe, par exemple avec un alias dans
+  `~/.ssh/config`.
+- L'utilisateur SSH peut écrire dans le dossier de configuration de Home Assistant et peut
+  lancer `docker`.
+- L'hôte a `bash` et `tar`.
+
+#### 2. Remplir `.env`
+
+```bash
+PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # hôte:/dossier, ou un dossier local
+PROD_HA_CONTAINER=homeassistant
+```
+
+#### 3. Déployer
+
+Committez vos modifications, puis lancez :
+
+```bash
+scripts/deploy.sh
+```
+
+Le script installe le dernier commit de votre branche courante. Les modifications non
+committées ne partent pas. Avant de changer quoi que ce soit, le script affiche le sha du commit.
+
+Le script arrête Home Assistant, installe le commit, puis relance Home Assistant. Au premier
+déploiement, il met aussi de côté ce qui est installé et ses données, dans
+`<config>/.chauffage-backup`. Les déploiements suivants gardent cette sauvegarde, et indiquent
+quelle version elle contient.
+
+#### 4. Déployer une autre branche
+
+Pour déployer une autre branche sans changer de branche, lancez
+`scripts/deploy.sh --branch <branche>`. Pour déployer exactement le commit que vous avez relu,
+donnez son sha complet à la place.
+
+Pour une branche qui n'est que sur GitHub, par exemple celle d'un contributeur, récupérez-la
+d'abord :
+
+```bash
+git fetch origin <branche>
+scripts/deploy.sh --branch origin/<branche>
+```
+
+Lancez le script depuis votre propre copie de `main`.
+
+#### 5. Revenir à la version d'avant
+
+```bash
+scripts/deploy.sh --rollback
+```
+
+Le retour en arrière arrête Home Assistant, remet la version publiée et ses données, relance
+Home Assistant et supprime la sauvegarde.
+
+Tout ce que vous avez modifié dans Chauffage depuis le premier déploiement est perdu, par
+exemple une semaine retouchée. Le retour en arrière garde les données de la version de
+développement dans `<config>/.chauffage-dev-data-<heure>`. Ce fichier est au format de la
+version de développement, et la version publiée ne sait peut-être pas le lire.
+
+Si Chauffage n'était pas installé avant le premier déploiement, le retour en arrière le retire.
+
+#### 6. Ou garder la version
+
+Si la version marche, ne revenez pas en arrière :
+
+1. Publiez le commit essayé (voir [Publier une version](#publier-une-version)).
+2. Mettez à jour Chauffage depuis HACS vers cette version.
+
+Home Assistant garde les données modifiées pendant l'essai. La sauvegarde est alors périmée : le
+déploiement suivant en refait une, et un retour en arrière se contente de la supprimer.
+
+#### Ce que la sauvegarde ne couvre pas
+
+- **HACS.** Jusqu'à votre mise à jour depuis HACS, HACS affiche la version installée avant le
+  premier déploiement.
+- **La configuration de l'intégration.** La sauvegarde contient `.storage/chauffage`, mais pas
+  l'entrée de l'intégration dans `.storage/core.config_entries`. Si votre version augmente la
+  version majeure de cette entrée, la version publiée ne peut plus charger l'intégration après
+  le retour en arrière.
 
 ## Versions des données et migrations
 

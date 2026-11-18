@@ -264,11 +264,97 @@ the weeks. If a run stops half-way, its log gives the setting to set back.
 
 ## Trying a version on a real Home Assistant
 
-To try a development version on your own Home Assistant, publish a pre-release (see
-[Releasing](#releasing)). Then install the pre-release from HACS, with beta versions enabled.
+### With a pre-release
 
-Without HACS, copy `custom_components/chauffage/` into `<config>/custom_components/chauffage/`,
-then restart Home Assistant.
+To try a version on a real Home Assistant, publish a pre-release (see [Releasing](#releasing)).
+Then install the pre-release from HACS, with beta versions enabled. HACS installs and updates a
+pre-release like any release.
+
+### Our shortcut: scripts/deploy.sh
+
+**`scripts/deploy.sh` is a hack, at your own risk.** We keep it for our own quick tries between
+two pre-releases. We don't support it: please don't open issues about it.
+
+The script copies a commit straight into the configuration folder of your Home Assistant. HACS
+doesn't know about it, and your Home Assistant runs a version that nobody released. Roll back, or
+release the version, as soon as you have tried it.
+
+#### 1. Check the prerequisites
+
+- Home Assistant runs in a Docker container.
+- Your machine has `bash` and `git`.
+- `ssh <host>` works without a password, for example with a host alias in `~/.ssh/config`.
+- The SSH user can write to the Home Assistant configuration folder and can run `docker`.
+- The host has `bash` and `tar`.
+
+#### 2. Set up `.env`
+
+```bash
+PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # host:/folder, or a local folder
+PROD_HA_CONTAINER=homeassistant
+```
+
+#### 3. Deploy
+
+Commit your changes, then run:
+
+```bash
+scripts/deploy.sh
+```
+
+The script installs the last commit of your current branch. Changes that are not committed are
+not deployed. Before it changes anything, the script prints the commit's sha.
+
+The script stops Home Assistant, installs the commit, and starts Home Assistant again. The first
+deploy also saves what is installed and its data in `<config>/.chauffage-backup`. Later deploys
+keep this backup, and say which release it holds.
+
+#### 4. Deploy another branch
+
+To deploy another branch without checking it out, run `scripts/deploy.sh --branch <branch>`. To
+pin the commit you reviewed, give its full sha instead.
+
+For a branch that is only on GitHub, for example a contributor's, fetch it first:
+
+```bash
+git fetch origin <branch>
+scripts/deploy.sh --branch origin/<branch>
+```
+
+Run the script from your own checkout of `main`.
+
+#### 5. Roll back
+
+```bash
+scripts/deploy.sh --rollback
+```
+
+The rollback stops Home Assistant, puts back the release and its data, starts Home Assistant,
+and deletes the backup.
+
+Every change made in Chauffage since the first deploy is lost, for example a week you edited.
+The rollback keeps the data of the dev version in `<config>/.chauffage-dev-data-<time>`. This
+file has the format of the dev version, so the release may not read it.
+
+If Chauffage was not installed before the first deploy, the rollback removes it.
+
+#### 6. Or keep the version
+
+If the version works, don't roll back:
+
+1. Release the commit you tried (see [Releasing](#releasing)).
+2. Update Chauffage from HACS to that release.
+
+Home Assistant keeps the data you changed during the test. The backup is then out of date: the
+next deploy makes a new one, and a rollback only deletes it.
+
+#### What the backup does not cover
+
+- **HACS.** HACS still shows the release you installed before the first deploy, until you
+  update from HACS.
+- **The integration's configuration.** The backup holds `.storage/chauffage`, not the
+  integration's entry in `.storage/core.config_entries`. If your version raises the major
+  version of the entry, the release can no longer load the integration after the rollback.
 
 ## Data versions and migrations
 
