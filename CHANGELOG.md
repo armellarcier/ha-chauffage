@@ -9,224 +9,58 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+**A slot says what the device does, not only how warm.** A slot can turn a thermostat off, and
+on an air conditioner it chooses *Heat*, *Cool*, *Heat/Cool*, *Dry*, *Auto* or *Fan only*. The
+stored data is migrated (version 7).
+
 ### Upgrading
 
-**Do I need to do anything?** Only if you turn a thermostat off for long periods, for example
-for the summer, or if you have an air conditioner that heats and cools.
+Your weeks don't change, and neither do the heating temperatures of your presets. Check these
+points if they concern you:
 
-**An air conditioner that heats and cools now heats unless a slot says *Cool*.** Your weeks say
-no HVAC mode. Chauffage reads their slots as *Heat* on such an air conditioner: one that cools
-is switched to heat at its next slot, and at the restart that follows this update. To make it
-cool, open the ⋮ menu of a day of its week and tap *All cool*, then *Save*. Heaters, and air
-conditioners that only cool, don't change.
-
-**A thermostat turned off by hand now turns back on.** Before, Chauffage left a thermostat that
-was turned off alone. Now, turning a thermostat off by hand is an override: the thermostat turns
-back on at the end of its override, at the next slot by default, and at the restart that
-follows this update. To keep a thermostat off, pause its control (*Pause control*, under its
-more-info dialog or in the panel), or give it a schedule whose slots are *Off*. A thermostat
-that a script turns off stays off until its next slot, as before. The panel says this once, on
-its *Thermostats* page.
-
-**Your presets get a temperature when cooling.** *Eco*, *Comfort* and *Boost* get 27 °C, 25 °C
-and 23 °C when cooling. Their temperatures when heating don't change. *Frost protection* and
-the presets you created get none: an air conditioner does not offer them in *Cool*, and a
-cooling slot on one of them sends no setpoint. If you have an air conditioner, open the
-*Presets* tab and check the temperatures when cooling.
-
-**Your weeks don't change.** The stored data is migrated by itself (version 7).
-
-**If you have automations.** The events `chauffage_override_started`, the *Override* binary
-sensor and the *Override end* sensor gain a `target` attribute, for example
-`{"temperature": 21.5}`, `{"preset_mode": "boost"}` or `{"hvac_mode": "off"}`. They keep `kind`
-and `value`, so your automations keep working. The `chauffage.set_override` action gets an
-`hvac_mode` field, and `target_temp_low` and `target_temp_high` for `heat_cool`. The action
-now refuses a call that contradicts itself, for example `off` or `dry` with a temperature, a
-preset that has no value in that HVAC mode, an HVAC mode the thermostat does not list, or a
-duration with an end. It refuses `hvac_mode: heat_cool` on a thermostat that takes no range of
-temperatures (Home Assistant's `TARGET_TEMPERATURE_RANGE`), for example a Daikin: use `heat` or
-`cool` there. It also refuses a single `temperature` while the thermostat runs `heat_cool` on a
-range: send `target_temp_low` and `target_temp_high` with `hvac_mode: heat_cool`, or the
-temperature with another HVAC mode. A new event, `chauffage_override_end_changed`, says when only the end of an override
-changes.
-
-**Reading the logbook.** Filtered on a thermostat alone, Home Assistant's logbook does not show
-Chauffage's lines: filter on the thermostat and its *Override* sensor together, or read the
-logbook without a filter. See the README, *Troubleshooting*.
+- **An air conditioner that heats and cools now heats unless a slot says *Cool*.** It switches
+  to heat at the restart that follows this update. To make it cool, open the ⋮ menu of a day of
+  its week, tap *All cool*, then *Save*.
+- **A thermostat turned off by hand turns back on** at the restart that follows this update.
+  From now on, turning a thermostat off by hand is an override, which ends at its next slot. To
+  keep a thermostat off, pause its control or give it a schedule whose slots are *Off*. A
+  thermostat that a script turns off stays off until its next slot, as before.
+- ***Eco*, *Comfort* and *Boost* get a temperature when cooling**: 27, 25 and 23 °C. *Frost
+  protection* and your own presets get none, so an air conditioner doesn't offer them in *Cool*.
+  Check them in the *Presets* tab.
+- **Your automations keep working.** The override events and sensors gain a `target` attribute
+  and keep `kind` and `value`. `chauffage.set_override` now refuses a call that contradicts
+  itself, for example `off` with a temperature (see [Services](README.md#services)).
 
 ### Added
 
-A slot says when, and what the device does: *Off*, *Heat*, *Cool*, *Heat/Cool*, *Dry*, *Auto*
-or *Fan only*. The preset says how warm, for each thermostat, when it heats and when it cools.
-
-- **A slot can be *Off*** (#91, #96). Open a slot and tap *Off*: the slot turns grey. On a
-  heater, *Off* is the first chip of the row of presets. On an air conditioner, *Off* is the
-  first HVAC mode. The thermostat turns off when the
-  slot starts, and Chauffage sends it nothing else: turned on by hand, it starts again on its
-  own last setpoint. The next slot that asks for a preset turns it back on. Each slot is
-  independent: to keep a room off through the night, turn off the evening's slot and the next
-  morning's first slot. The popover says the setpoint the slot will apply, with its number:
-  "Setpoint: 20 °C (its *Comfort* preset)". An administrator taps it to open the *Presets* tab
-  on the thermostat's row.
-- **The HVAC mode first, then the presets** (#91). On a thermostat that lists more than one
-  HVAC mode besides off, the slot popover has two rows. The first row says what the device
-  does: *Off · Heat · Cool · Heat/Cool · Dry · Auto · Fan only*, the HVAC modes the thermostat
-  lists, with Home Assistant's icons and colors. The second row says how warm: the presets that
-  have a value for the HVAC mode chosen. The thermostat switches to the HVAC mode when the slot
-  starts. A new slot takes the HVAC mode of the slot it comes from. An air conditioner that
-  only cools has *Cool* chosen. A heater keeps one row: *Off*, then the presets. A *Summer*
-  schedule whose slots say *Cool* and a *Winter* schedule change the season, by hand or with an
-  activation rule.
-- **Try an HVAC mode without losing the slot** (#91). A slot keeps its times, even when it
-  becomes the same as the slot before or after it: the two slots stay two slots, in the card
-  and once saved. Come back to *Heat* or *Cool* while the popover is open, and the slot gets
-  its preset back. To make one slot of two, delete one.
-- **A double tap cuts a piece like its slot** (#91). The piece has the slot's preset and HVAC
-  mode, and its popover opens: choose what the piece is. *Insert a slot* does the same in the
-  middle of the slot. Before, the piece took another preset. A piece you leave as it was cut
-  joins its slot again when you close the popover.
-- **The fan and the vanes go back to what the thermostat had** (#91). A slot that chooses no
-  fan gives back the fan the air conditioner had before a slot chose one. A fan you set by hand
-  is kept. An override sets no fan and no vanes: they stay as the air conditioner has them.
-- **A thermostat leaves its preset before a setpoint** (#91). A thermostat that lists the
-  preset `none`, for example a Daikin, kept its `eco` preset when a slot sent it a temperature.
-  Chauffage now sets the preset `none` first. Versatile Thermostat is not concerned.
-- **A preset has a temperature when heating and a temperature when cooling** (#91). On a new
-  installation: *Frost protection* 7 °C and none, *Eco* 17 °C and 27 °C, *Comfort* 20 °C and
-  25 °C, *Boost* 22 °C and 23 °C. In the *Presets* tab, a preset's popover sets both, and an
-  empty field removes one. A preset is only offered in the HVAC modes it has a value for:
-  *Frost protection* is never offered in *Cool*. A thermostat's cell can still set each value
-  for that thermostat. A preset keeps a temperature that a week uses: Chauffage refuses to
-  empty it, and says so. A heating temperature never reaches an air conditioner that cools, one
-  that only cools included.
-- **A slot can be *Heat/Cool*** (#91). On a thermostat that takes a range of temperatures, a
-  *Heat/Cool* slot sends two temperatures: the preset's temperature when heating and its
-  temperature when cooling. The popover says "Setpoint: 20–25 °C". The presets that have both
-  temperatures are offered. The week shows the slot in both colors of its preset.
-- **A whole week to heat or to cool** (#91). In the ⋮ menu of a day on the card, and of a week
-  in the panel, *All heat* and *All cool* set every heating or cooling slot of the thermostat's
-  week, in the schedule shown. The other slots stay as they are, for example a *Heat/Cool* slot
-  or an *Off* slot. *Save* keeps the change.
-- **An override has the same two rows** (#91), in the card, in the more-info dialog and on a
-  thermostat card. A new override starts in the HVAC mode of the slot planned now: this HVAC
-  mode is outlined until you tap one. The block says the end the override will have before
-  your first tap: "until 12:00 (2 h)". Then the end has one block: its time, the buttons that
-  move it, and *Until 17:30 (next slot)*. The temperature has a − and a +, on the thermostat's
-  step. An off override that you turn on starts now and lasts the override duration. An
-  override that you turn off ends as the setting *Turned off* says. On a valve that lists *Heat* and *Auto*, an override says no HVAC mode unless you tap
-  one: a valve in *Auto* keeps *Auto*.
-- **The cards name the HVAC mode** (#91), on a thermostat that lists more than one: "Cool ·
-  Comfort 25° until 23:00, then Heat · Eco". On a thermostat card, in the more-info dialog,
-  and on the override drawn on the week, with its tooltip. Labels say the short name of the
-  HVAC mode, and sentences the full one, as Home Assistant does. On a week with several
-  thermostats, a short override says its HVAC mode and its end next to it: "⏱ ❄ → 02:31".
-- **A change by hand is an override on what you changed** (#91). A slot controls an HVAC mode
-  and, when the thermostat heats or cools, a setpoint. If you change one of them on the
-  thermostat, the override takes it and keeps the rest of the override in force. Chauffage
-  sends nothing to the thermostat. For example, switch the air conditioner to *Cool* by hand,
-  and the override says *Cool*, with the setpoint the air conditioner shows. When you put the
-  thermostat back on its slot's HVAC mode and setpoint, the schedule resumes.
-- **A slot can be *Fan only*, *Dry* or *Auto*** (#91), on a thermostat that lists the HVAC
-  mode. The slot has no preset and no setpoint, and can set the fan speed and the vanes. The
-  week shows it in Home Assistant's color of the HVAC mode, with its icon. A dry slot and an
-  auto slot are hatched in that color on a neutral background: their colors are close to the
-  colors of *Comfort* and *Eco*. In a fan-only slot and a dry slot, the fan speed shows at
-  once.
-- **Each preset has a color when cooling** (#91). A slot that cools is drawn in its preset's
-  cool color, with a snowflake, in the week, the legend and the chips. Chauffage derives the
-  cool color from the preset's color. You can change it in the preset's popover, in the
-  *Presets* tab. The legend marks the heat color with a flame and the cool color with a
-  snowflake, and gives both values: "Comfort 20° · ❄ 24°". The legend lists only the presets
-  and the colors that the thermostats shown can use. It names *Heat/Cool* when a week shown has
-  such a slot, and a heat/cool slot says its preset. On a new installation, *Frost protection*
-  is a blue grey: its light blue looked like fan only. Your presets keep their colors.
-- **Turning a thermostat off by hand is an override** (#91). Turn a thermostat off with its
-  button or in Home Assistant, and Chauffage keeps it off until the next slot, then turns it
-  back on, on its slot. The card shows it as *⏱ Off*, and the override block says when *Off*
-  would end, before you tap it. Turn it back on yourself, or tap a
-  preset in the override block, and the thermostat turns on. In the card, the thermostat card
-  and the more-info dialog, the row of presets of an override starts with *Off*: *Off*, then
-  *Until tomorrow 06:30*, turns a thermostat off until the next morning, the first slot of the
-  day that changes its state (*Until Monday 06:30* when that morning is not tomorrow). A
-  thermostat that an automation or a script turns off is not an override: it stays off until
-  the next slot (#77). The `chauffage.set_override` action gets an `hvac_mode` field: `off` to
-  turn a thermostat off until a time, or an HVAC mode to turn it on in. `dry`, `auto` and
-  `fan_only` go alone. `heat_cool` takes a preset, or `target_temp_low` and `target_temp_high`.
-- **A setting for how long a thermostat turned off stays off** (#91): *Turned off*, next to
-  *End of overrides*, in the settings, in the options and as a select entity
-  (`select.chauffage_off_override_end`). *Until the next slot* by default; you can also choose
-  the override duration, or the duration or less if a slot starts first. The setting also
-  applies to an automation that turns a thermostat off without an end.
-- **A preset's value on a thermostat is one of its own presets, or a temperature** (#91). In
-  the *Presets* tab, a cell's popover asks one question, with three answers: *Default*, *Its
-  preset* or *Temperature*.
-- **A preset's value on a thermostat can hold a temperature when cooling** (#91). On an air
-  conditioner, the cell popover has a value *when heating* and a temperature *when cooling*.
-  The slot's HVAC mode picks which one is sent. *When cooling* has the same rows as *when
-  heating*: *Default*, which says what the thermostat then gets ("Default (25°)", "Default (its
-  *Comfort* preset, 25°)" or "Not used when cooling"), or *Temperature*. The − and the + start
-  from the temperature shown, on the thermostat's step. The cell says which value is set here:
-  "heat set here" or "cool set here".
-- **Short slots stay within reach** (#91). A tap that lands on a handle opens the slot under
-  it: a slot of two hours can be opened on a phone. A double tap cuts it, and *Insert a slot*
-  cuts a slot of two steps in two. An end typed as 24:00 is the end of the
-  day. A time typed onto the edge of the next slot removes the slot between, instead of leaving
-  it a quarter of an hour long.
-- **The presets table on a phone** (#91). The table says when there is more to the side, and
-  stays where it was scrolled when you tap a cell.
-- **A paste says what it left out** (#91). A day pasted to a thermostat that cannot follow
-  every slot says so: "left out: Cool, Fan only".
+- **A slot can turn a thermostat off** (#91, #96). See
+  [Turn a thermostat off from a slot](README.md#turn-a-thermostat-off-from-a-slot).
+- **A slot chooses the HVAC mode of an air conditioner**, and its fan and vanes (#61, #91). See
+  [The HVAC mode first](README.md#the-hvac-mode-first-the-air-conditioners) and
+  [Fan only, dry and auto](README.md#fan-only-dry-and-auto).
+- **A preset has a temperature and a color when heating, and when cooling** (#91). See
+  [What a preset does on each thermostat](README.md#what-a-preset-does-on-each-thermostat).
+- **Turning a thermostat off by hand is an override** (#91). The new setting *Turned off* says
+  how long it lasts. See [Turn a thermostat off by hand](README.md#turn-a-thermostat-off-by-hand).
+- **A change by hand is an override on what you changed** (#91): the HVAC mode, the setpoint,
+  or both.
 - **The thermostat card says why a Versatile Thermostat protects itself**: "Window open" or
-  "Auto stop", with the preset it restarts on. "Window open" shows also when the window keeps
-  the thermostat heating at its frost setpoint.
-- **A slot or a preset's value can set the fan and the vanes of an air conditioner** (#61, #91).
-  In the slot popover and in the cell popover, *More settings* holds one list per setting the
-  thermostat lists (*Fan*, *Vanes*, *Horizontal vanes*). The first choice sets nothing: it
-  reads *Thermostat's own*, with the value the thermostat gets back when Chauffage knows it,
-  for example *Thermostat's own (Auto)*. The week shows a
-  mark on the slots that set one. Chauffage sends them with the slot, as a scene does.
-- **Copy from the thermostat** (#91). A button in the cell popover fills the fields from the
-  thermostat as it is now: its setpoint, its fan and its vanes, never its preset. Nothing is
-  saved until *OK*.
-- **The fan and vane values speak your language**: "1 haut", "Oscillation", after Home
-  Assistant's own names when it has them.
-- **Temperatures in your number format**: the temperature fields of the popovers show "20,5"
-  for a French user, and read both "20,5" and "20.5".
-- **The planned preset sensor says the HVAC mode of the current and next slot**, in its
-  `hvac_mode` and `next_hvac_mode` attributes: `off`, `fan_only`, `dry` or `auto`, or `heat`,
-  `cool` or `heat_cool` on an air conditioner. Its `temperatures` are the cooling ones during a slot that cools.
-  `chauffage.get_week` gives each slot's settings, with its HVAC mode as it runs on the
-  thermostat. A slot that is off, fan only, dry or auto has no preset.
-- **An override reads the same everywhere on the week** (#91): a clock, the icon of its HVAC
-  mode, an arrow and its end, for example "⏱ ❄ → 17:00". The label names the day when the
-  override ends another day. The label sits in the override's block, or next to a block too
-  narrow for it, where it covers no slot's name.
-- **A time you type in a slot no longer removes the slot next to it by rounding** (#91). Typed
-  as 08:05, the start is rounded to 08:00: when a slot already starts at 08:00, your slot
-  starts at 08:15 and the other slot stays. To replace a slot, type its exact start.
-- **On a touch screen, a time field has a − and a +** as large as the other buttons.
+  "Auto stop".
+- **`chauffage.set_override` takes an HVAC mode**, and a range for *Heat/Cool*. The new event
+  `chauffage_override_end_changed` says when only the end of an override changes. See
+  [Services](README.md#services) and [Events](README.md#events).
+- **Short slots are easier to open and to cut on a phone.**
 
 ### Changed
 
-- **New installations get a darker red for *Boost*** (`#d32f2f`): white text reads better on it.
-  Your presets keep their colors.
-- **"Pause" is now "Pause control"**, and "Resume control" stays. What you pause is Chauffage's
-  control of the thermostat, not the heating: a paused thermostat keeps doing what you set by
-  hand. In French, *Suspendre le pilotage* and *Reprendre le pilotage*.
-- **On a thermostat card, an override is folded**: the card shows the override, its end and
-  *Resume the schedule*. *Change* unfolds the presets, the temperature and the durations.
-- **The chips of the presets keep their full color**, in the slot popover and in the override
-  block. A ring marks the chosen one.
-- **A preset's value on a thermostat, an override and a command are partial states** (#91), as a
-  scene holds them: `{"preset_mode": "comfort"}` or `{"temperature": 19}`. The websocket API
-  and the card use this format. The card still works as before.
-- **Chauffage applies a slot like a scene** (#91), with Home Assistant's own order: the HVAC
-  mode, then the setpoint, then the preset.
-- **A Versatile Thermostat is read as it was asked** (#91, #92). A Versatile Thermostat turned
-  off by its window or its auto start/stop is not an override, and Chauffage does not turn it
-  back on: Versatile Thermostat does, when the window closes. A Versatile Thermostat older than
-  10.5, without `requested_state`, keeps the former behavior: it gets its slots and its override
-  while off, and stays off.
+- **Chauffage applies a slot like a scene**, in Home Assistant's order: the HVAC mode, then the
+  setpoint, then the preset. A thermostat that lists the preset `none`, for example a Daikin,
+  leaves its preset before it gets a setpoint.
+- **A Versatile Thermostat turned off by its window or its auto start/stop is left alone**
+  (#92). Versatile Thermostat turns it back on.
+- **"Pause" is now "Pause control".**
+- **On a thermostat card, an override is folded.** *Change* unfolds it.
 
 ## [0.9.0] - 2026-11-18
 
