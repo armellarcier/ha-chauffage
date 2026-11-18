@@ -26,6 +26,7 @@
           "off_override_end": "Thermostat éteint",
           "use_presets": "Utiliser les préréglages des thermostats",
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale",
+          "sidebar_title": "Nom dans la barre latérale",
           "access_level": "Niveau d'accès des utilisateurs non administrateurs"
         },
         "data_description": {
@@ -39,7 +40,8 @@
       }
     },
     "error": {
-      "invalid_override_duration": "Choisissez un nombre entier de minutes."
+      "invalid_override_duration": "Choisissez un nombre entier de minutes.",
+      "sidebar_title_too_long": "Choisissez un nom de 40 caractères au plus."
     }
   },
   "entity": {

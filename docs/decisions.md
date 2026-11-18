@@ -1349,6 +1349,14 @@ older one, the older one says so.
   - **Not `show_in_sidebar`**: Home Assistant 2025.1 does not have it.
   - **Not only the user's own setting**: each user can hide an entry from the sidebar, but on
     each browser, one by one.
+- **The panel's name is an option too** (#104), *Chauffage* by default. Some users already have a
+  dashboard called *Thermostats*, and two heating entries side by side read oddly.
+  - **The name is also in the panel's config.** Out of the sidebar, the panel has no title. The
+    cards and the panel's header read the name from `config.title`, so they keep it. A card
+    facing an older integration, without `config.title`, falls back to the panel's title.
+  - **An empty field gives *Chauffage* back.** The field is optional, so the admin clears it
+    instead of typing the default name.
+  - **40 characters at most**, so the name fits in the sidebar and in the cards' links.
 - **Dashboard cards are for everyday use. The panel is for configuration.** The schedule card no
   longer has the *Presets*, *Rules* and *Thermostats* views. Admins find *Set the presets* in the card's
   legend, and a button with Chauffage's icon that opens the panel.

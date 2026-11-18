@@ -878,6 +878,20 @@ describe('the dashboard card and the panel', () => {
     assert.equal(window.location.pathname, '/chauffage');
   });
 
+  test('the panel renamed and taken out of the sidebar keeps its name in the card\'s link (#104)', () => {
+    const hass = setup();
+    hass.panels.chauffage = { url_path: 'chauffage', title: null, config: { title: 'Planning' } };
+    const open = createCard(hass).shadowRoot.querySelector('.chips .panel-open');
+    assert.equal(open.getAttribute('aria-label'), 'Ouvrir dans Planning');
+  });
+
+  test('the panel renamed and taken out of the sidebar keeps its name in its header (#104)', () => {
+    const hass = setup();
+    hass.panels.chauffage = { url_path: 'chauffage', title: null, config: { title: 'Planning' } };
+    const el = panel(hass, '/thermostats');
+    assert.equal(text(el.shadowRoot.querySelector('.toolbar .title')), 'Planning');
+  });
+
   test('a user with the access level Use sees no link to the panel (it needs Set up, #99)', () => {
     const hass = setup();
     hass.user = { is_admin: false };

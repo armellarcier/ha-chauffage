@@ -2330,10 +2330,14 @@ function openPanel(page) {
   navigate(panelPath(page));
 }
 
-// The Chauffage panel's title, as Home Assistant shows it in the sidebar
+// The Chauffage panel's name: from its config, which keeps it out of the sidebar too (#104),
+// else its title in the sidebar (an older integration)
 function panelTitle(hass) {
   const panel = hass && hass.panels && hass.panels.chauffage;
-  return (panel && panel.title) || 'Chauffage';
+  return panelName(panel);
+}
+function panelName(panel) {
+  return (panel && ((panel.config && panel.config.title) || panel.title)) || 'Chauffage';
 }
 // Where the dashboards show each thermostat, in a Chauffage card:
 // { climate: [{ dashboard, view, path, programme }] }, `programme` when a schedule card of the view
@@ -8533,7 +8537,7 @@ class ChauffagePanel extends HTMLElement {
 
   _build(route, src, notice) {
     const t = this._t;
-    const title = (this._panel && this._panel.title) || 'Chauffage';
+    const title = panelName(this._panel);
     let head;
     if (route.sheet) {
       const list = PANEL_TABS.find(([page]) => page === route.list);

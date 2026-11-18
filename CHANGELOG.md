@@ -201,6 +201,9 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   as 08:05, the start is rounded to 08:00: when a slot already starts at 08:00, your slot
   starts at 08:15 and the other slot stays. To replace a slot, type its exact start.
 - **On a touch screen, a time field has a − and a +** as large as the other buttons.
+- **You can rename the Chauffage panel in the sidebar** (#104). Set the option *Name in the
+  sidebar*, for example to *Planning* if you already have a dashboard called *Thermostats*. The
+  panel and the cards' links use the same name.
 
 ### Changed
 
