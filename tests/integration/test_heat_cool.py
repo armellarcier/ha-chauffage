@@ -108,17 +108,6 @@ async def test_a_temperature_a_heat_cool_slot_uses_cannot_be_cleared_with_a_devi
     assert bench.runtime.presets_by_id["eco"][key] is not None
 
 
-async def test_a_preset_used_in_heat_cool_keeps_its_heating_temperature_under_its_cooling_one(bench: Bench):
-    """A heat/cool slot sends the range from the heating to the cooling temperature. Eco edited
-    to heat at 24 °C and cool at 23 °C would leave the slot without a range: refused."""
-    await start_ac_alone(bench, [["00:00", "eco", {"hvac_mode": "heat_cool"}]])
-    presets = [{**p, "temperature": 24.0, "cool_temperature": 23.0} if p["id"] == "eco" else dict(p)
-               for p in PRESETS.values()]
-    with pytest.raises(model.InvalidData, match="eco"):
-        await bench.runtime.set_presets(presets)
-    assert bench.runtime.presets_by_id["eco"]["temperature"] == PRESETS["eco"]["temperature"]
-
-
 async def test_a_temperature_set_on_the_thermostat_serves_its_heat_cool_slots(bench: Bench):
     """The salon has its own cooling temperature for Eco: Eco's default when cooling is not
     used by its heat/cool slots."""

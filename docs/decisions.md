@@ -674,12 +674,9 @@ future contributor might question.
   the popover, and the integration checks again. A thermostat with a value of its own for
   that HVAC mode does not count. Data stored before the refusal is read without harm: a target
   without a setpoint turns nothing on, so a heater that is off stays off.
-- **A preset used in heat/cool keeps its heating temperature under its cooling one.**
-  *Proposal from Claude, to confirm.* A heat/cool slot sends the range from the heating to the
-  cooling temperature. A heating temperature edited up to the cooling one left the slot with no
-  range, and the slot then sent only its HVAC mode, without a word. Chauffage now refuses that
-  edit in the integration, as it refuses to empty a temperature that the weeks use. The card
-  does not check it yet, so the user sees the integration's error.
+- **Known limit: a heat/cool slot on a preset that heats as warm as it cools sends no range.**
+  The slot then sends only its HVAC mode. Nobody has met this case, so Chauffage adds no rule
+  for it. Decide with a real example if one comes.
 - **No *Off* preset.** Off is what a slot says, not how warm a preset is (#91, "Scheduling").
   A first version let a preset turn the thermostats off, so "off" existed in four forms. A home
   turned off is a schedule whose slots are off.
