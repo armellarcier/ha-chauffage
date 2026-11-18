@@ -47,15 +47,17 @@ function repository(version = '0.9.0-beta.4') {
   return { dir, git, write, setVersion, commit, integration };
 }
 
-// A Home Assistant configuration folder with release 0.8.0 of Chauffage and its data.
+// A Home Assistant configuration folder with release 0.8.0 of Chauffage and its data. The folder
+// is PROD_HA_CONFIG.
 // container: whether the script may stop and start Home Assistant (PROD_HA_CONTAINER).
 // docker: how the fake docker behaves. running: whether the container runs. missing: no such
-// container. fails: the docker command that fails, for example 'start'.
+// container. fails: the docker command that fails, for example 'start'. onStop: a shell line run
+// when the container stops, as Home Assistant writes its pending changes.
 // umask: the developer's umask, for example '077'.
 function home({
   repo = repository(), container = true, release = true, env = {}, docker = {}, umask = '022',
 } = {}) {
-  const { running = true, missing = false, fails = '' } = docker;
+  const { running = true, missing = false, fails = '', onStop = '' } = docker;
   const dir = mkdtempSync(join(tmpdir(), 'chauffage-deploy-'));
   const config = join(dir, 'config');
   mkdirSync(join(config, 'custom_components'), { recursive: true });
@@ -75,10 +77,11 @@ function home({
     'fi',
     `echo "$*" >> "${posix(join(dir, 'docker.log'))}"`,
     fails ? `[ "$1" = ${fails} ] && exit 1` : '',
+    onStop ? `if [ "$1" = stop ]; then ${onStop}; fi` : '',
     'exit 0',
   ].join('\n'));
   chmodSync(join(bin, 'docker'), 0o755);
-  writeFileSync(join(dir, '.env'), container ? 'PROD_HA_CONTAINER=homeassistant\n' : '');
+  writeFileSync(join(dir, '.env'), `PROD_HA_CONFIG='${config}'\n${container ? 'PROD_HA_CONTAINER=homeassistant\n' : ''}`);
   // Never the developer's own PROD_* settings: a test must not restart a real Home Assistant
   const clean = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PROD_')));
   const options = (cwd = repo.dir) => ({
@@ -111,15 +114,19 @@ function home({
   const write = (p, text) => writeFileSync(path(p), text);
   const installed = () => JSON.parse(read('custom_components/chauffage/manifest.json')).version;
   const calls = () => (existsSync(join(dir, 'docker.log')) ? readFileSync(join(dir, 'docker.log'), 'utf8').trim().split('\n') : []);
-  // A mv that fails to put anything in place of the integration, as when a file inside belongs to
-  // another user
-  const failingSwap = () => {
-    writeFileSync(join(bin, 'mv'), '#!/usr/bin/env bash\n'
-      + '[ "${@: -1}" = custom_components/chauffage ] && [[ "$1" != *old* ]] && { echo "mv: permission denied" >&2; exit 1; }\n'
-      + 'exec /bin/mv "$@"\n');
-    chmodSync(join(bin, 'mv'), 0o755);
+  // A command that fails when `when` is true, as when a file belongs to another user. heal: the
+  // command works again.
+  const breakCommand = (name, when) => {
+    writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${when} && { echo "${name}: permission denied" >&2; exit 1; }\n`
+      + `exec /bin/${name} "$@"\n`);
+    chmodSync(join(bin, name), 0o755);
   };
-  return { dir, config, repo, run, attempt, attemptFrom, fakeSsh, failingSwap, path, read, write, installed, docker: calls };
+  const heal = (name) => rmSync(join(bin, name));
+  // A mv that fails to put anything in place of the integration
+  const failingSwap = () => breakCommand('mv', '[ "${@: -1}" = custom_components/chauffage ] && [[ "$1" != *old* ]]');
+  return {
+    dir, config, repo, run, attempt, attemptFrom, fakeSsh, breakCommand, heal, failingSwap, path, read, write, installed, docker: calls,
+  };
 }
 
 // What gets deployed
@@ -259,15 +266,35 @@ test('a Home Assistant without custom_components gets one', () => {
   assert.match(ha.installed(), /dev\./);
 });
 
-test('a rollback that cannot put the release in place leaves the dev version whole', () => {
+test('a rollback that cannot put the release code in place keeps the dev code, says so, and can be run again', () => {
   const ha = home();
   ha.run();
   const deployed = ha.installed();
+  ha.write('.storage/chauffage', 'data migrated by the dev version');
   ha.failingSwap();
-  assert.notEqual(ha.attempt('--rollback').status, 0);
+  const { status, said } = ha.attempt('--rollback');
+  assert.notEqual(status, 0);
   assert.equal(ha.installed(), deployed);
+  assert.equal(ha.read('.storage/chauffage'), 'data of 0.8.0'); // the dev code reads the release data
+  assert.match(said, /run the rollback again/);
   assert.deepEqual(readdirSync(ha.path('custom_components')), ['chauffage']);
   assert.equal(ha.docker().at(-1), 'start homeassistant');
+  ha.heal('mv');
+  ha.run('--rollback');
+  assert.equal(ha.installed(), '0.8.0');
+});
+
+test('a rollback cut short after the release is back can be run again, and keeps the release', () => {
+  const ha = home();
+  ha.run();
+  ha.breakCommand('rm', '[[ " $* " == *" .chauffage-backup "* ]]'); // the backup cannot be deleted
+  assert.notEqual(ha.attempt('--rollback').status, 0);
+  assert.equal(ha.installed(), '0.8.0');
+  ha.heal('rm');
+  ha.run('--rollback');
+  assert.equal(ha.installed(), '0.8.0');
+  assert.equal(ha.read('.storage/chauffage'), 'data of 0.8.0');
+  assert.equal(existsSync(ha.path('.chauffage-backup')), false);
 });
 
 test('a transfer cut short changes nothing', () => {
@@ -280,12 +307,11 @@ test('a transfer cut short changes nothing', () => {
 
 // The backup and the rollback
 
-test('the first deploy saves the release with Home Assistant stopped', () => {
-  // Home Assistant writes its pending changes when it stops: the backup must come after
-  const ha = home();
+test('the first deploy saves the data once Home Assistant has stopped and written its last changes', () => {
+  const ha = home({ docker: { onStop: 'echo "written when stopping" > .storage/chauffage' } });
   ha.run();
-  assert.deepEqual(ha.docker(), ['stop homeassistant', 'start homeassistant']);
-  assert.equal(ha.read('.chauffage-backup/storage'), 'data of 0.8.0');
+  assert.deepEqual(ha.docker(), ['stop -t 120 homeassistant', 'start homeassistant']);
+  assert.equal(ha.read('.chauffage-backup/storage'), 'written when stopping\n');
 });
 
 test('a Home Assistant that was stopped stays stopped', () => {
@@ -313,7 +339,7 @@ test('the release installed before the first deploy comes back with its data', (
   assert.equal(ha.installed(), '0.8.0');
   assert.equal(ha.read('.storage/chauffage'), 'data of 0.8.0');
   assert.equal(existsSync(ha.path('.chauffage-backup')), false);
-  assert.deepEqual(ha.docker().slice(-2), ['stop homeassistant', 'start homeassistant']);
+  assert.deepEqual(ha.docker().slice(-2), ['stop -t 120 homeassistant', 'start homeassistant']);
 });
 
 test('the rollback keeps the data of the dev version aside, and says where', () => {
@@ -417,11 +443,63 @@ test('the rollback command it prints can be pasted as is, from the repository', 
   renameSync(ha.config, join(ha.dir, 'my config'));
   // A relative target, from another folder than the repository
   const { said } = ha.attemptFrom(ha.dir, 'my config');
-  const [, command] = said.match(/Roll back with: (.*)/);
-  const pasted = spawnSync('bash', ['-c', `set -- ${command.replace(/^scripts\/deploy\.sh /, '')}; printf '%s\\n' "$@"`], { encoding: 'utf8' });
-  const [option, target] = pasted.stdout.trim().split('\n');
-  assert.equal(option, '--rollback');
-  assert.equal(posix(target), posix(join(ha.dir, 'my config')));
+  const [, command] = said.match(/(?:Roll back with|then run): scripts\/deploy\.sh (.*)/);
+  const pasted = spawnSync('bash', ['-c', `set -- ${command}; printf '%s\\n' "$@"`], { encoding: 'utf8' });
+  const words = pasted.stdout.trim().split('\n');
+  assert.equal(words[0], '--rollback');
+  assert.equal(posix(words.at(-1)), posix(join(ha.dir, 'my config')));
+});
+
+test('another folder than PROD_HA_CONFIG never stops nor restarts the production Home Assistant', () => {
+  const ha = home({ env: { PROD_HA_URL: 'http://127.0.0.1:9', PROD_HA_TOKEN: 'token' } });
+  const other = join(ha.dir, 'other');
+  mkdirSync(join(other, '.storage'), { recursive: true });
+  writeFileSync(join(other, 'configuration.yaml'), '');
+  const deployed = ha.attemptFrom(ha.repo.dir, other);
+  assert.equal(deployed.status, 0, deployed.said);
+  assert.doesNotMatch(deployed.said, /restarting|by hand/); // no call to the production API
+  assert.match(deployed.said, /Restart Home Assistant/);
+  assert.notEqual(ha.attemptFrom(ha.repo.dir, '--rollback', other).status, 0); // needs --stopped
+  assert.deepEqual(ha.docker(), []);
+});
+
+test('a deployed branch is named with its full sha and subject before anything changes', () => {
+  const repo = repository();
+  repo.git('switch', '-q', '-c', 'feature');
+  repo.write(`${repo.integration}/__init__.py`, '"""Feature."""\n');
+  repo.commit('Add the feature');
+  repo.git('switch', '-q', 'main');
+  const ha = home({ repo });
+  const said = ha.run('--branch', 'feature');
+  assert.ok(said.includes(repo.git('rev-parse', 'feature').trim()), said);
+  assert.match(said, /Add the feature/);
+});
+
+test('a commit sha can be deployed, to pin the commit that was reviewed', () => {
+  const repo = repository();
+  const reviewed = repo.git('rev-parse', 'HEAD').trim();
+  repo.write(`${repo.integration}/__init__.py`, '"""Pushed after the review."""\n');
+  repo.commit('Later');
+  const ha = home({ repo });
+  ha.run('--branch', reviewed);
+  assert.equal(ha.read('custom_components/chauffage/__init__.py'), '"""Chauffage."""\n');
+});
+
+test('an SSH target without an absolute folder is refused', () => {
+  const ha = home();
+  ha.fakeSsh();
+  for (const target of ['home-assistant:', 'home-assistant:config']) {
+    assert.notEqual(ha.attemptFrom(ha.repo.dir, '--no-restart', target).status, 0, target);
+  }
+  assert.equal(ha.installed(), '0.8.0');
+});
+
+test('a rollback with --no-restart says why Home Assistant must be stopped first', () => {
+  const ha = home();
+  ha.run();
+  const { status, said } = ha.attempt('--rollback', '--no-restart');
+  assert.notEqual(status, 0);
+  assert.match(said, /--no-restart/);
 });
 
 test('without a container, the end of a deploy says how to roll back', () => {
@@ -461,6 +539,8 @@ test('a failed restart through the API says to restart by hand, and the deploy s
 });
 
 test('a token about to go unencrypted to another host is warned about', () => {
-  const ha = home({ container: false, env: { PROD_HA_URL: 'http://ha.invalid:9', PROD_HA_TOKEN: 'token' } });
-  assert.match(ha.attempt().said, /unencrypted/);
+  for (const url of ['http://ha.invalid:9', 'HTTP://ha.invalid:9']) {
+    const ha = home({ container: false, env: { PROD_HA_URL: url, PROD_HA_TOKEN: 'token' } });
+    assert.match(ha.attempt().said, /unencrypted/, url);
+  }
 });

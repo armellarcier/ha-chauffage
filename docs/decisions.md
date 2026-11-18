@@ -1246,8 +1246,14 @@ commit on a real Home Assistant instead, and takes it back.
 - **A branch name, not a pull request number.** The script only needs git. It fetches a branch
   of origin when the branch is not local. You run your own copy of the script on a
   contributor's branch, never theirs, because only the integration comes from the branch.
+- **The commit is printed in full before anything changes, and a sha can replace the branch.**
+  A contributor can push to a branch between your review and your deploy. The sha pins what you
+  reviewed.
 - **No check of the CI.** You choose what to try. Requiring a green CI would make the script
   depend on GitHub.
+- **Home Assistant is controlled on `PROD_HA_CONFIG` only.** The container and the token of
+  `.env` belong to that Home Assistant. Used with another folder, they would restart the
+  production Home Assistant, or put data back while the Home Assistant of that folder runs.
 - **No symbolic link in the integration.** A link would deploy a file of the developer's
   machine, for example an SSH key, where the integration's code can read it.
 - **The version is checked before any use.** Bash arithmetic would run a command hidden in it.
@@ -1273,12 +1279,17 @@ commit on a real Home Assistant instead, and takes it back.
 - **Without a container, the rollback changes nothing until you stop Home Assistant.** The dev
   code with the dev data is a working pair, and so is the release with its data. The release
   with the dev data is not: a restart would start it on data it cannot read.
+- **`docker stop -t 120`.** The default 10 seconds can kill a slow Home Assistant before it
+  writes its pending changes, which the backup must hold.
+- **A rollback can be run again after a failure.** It moves the release out of the backup, so
+  the version file of the backup, not the release folder, says whether Chauffage was installed
+  before. A failure says what is already back.
 - **The rollback keeps the data of the dev version.** Weeks of real use may be in it. Only the
   developer knows whether they matter.
 - **The script counts the files it receives.** tar sees no error when a stream is cut between
   two files.
-- **`PROD_CURL_OPTS`, not `CURL_OPTS`.** `CURL_OPTS=-k` serves the development HA. It must never
-  send the production token unchecked.
+- **`PROD_CURL_OPTS`, not `CURL_OPTS`, and `curl -q`.** `CURL_OPTS=-k` serves the development
+  HA, and `~/.curlrc` may serve other work. Neither may send the production token unchecked.
 - **A warning, not a refusal, for a token over `http://` to another host.** Many Home
   Assistants run over http on the local network.
 - **The backup does not hold `.storage/core.config_entries`.** That file belongs to every

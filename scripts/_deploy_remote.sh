@@ -19,10 +19,18 @@ old=.chauffage-old-$(date -u +%Y%m%d%H%M%S)
 # stopped. At the end, on success or failure, a container stopped here starts again.
 was_running=false
 stopped_by_us=false
+# What a failure leaves: unchanged, the release data put back, or the whole release put back
+done_so_far=unchanged
 finish() {
   local status=$?
   rm -rf "$new"
-  if [ "$status" != 0 ]; then echo "  Failed: the integration in $folder/$code is unchanged" >&2; fi
+  if [ "$status" != 0 ]; then
+    case "$done_so_far" in
+      unchanged) echo "  Failed: the integration in $folder/$code is unchanged" >&2 ;;
+      data) echo "  Failed: the release data is back, but the dev code is still installed: run the rollback again" >&2 ;;
+      release) echo "  Failed after the release was put back: run the rollback again to finish" >&2 ;;
+    esac
+  fi
   if [ "$stopped_by_us" = true ]; then
     docker start "$container" >/dev/null || { echo "  Could not start $container" >&2; exit 1; }
     echo "  $container started"
@@ -37,7 +45,8 @@ check_container() {
 }
 stop_ha() {
   [ "$was_running" = true ] || return 0
-  docker stop "$container" >/dev/null
+  # 120 s: time for Home Assistant to write its pending changes before a kill
+  docker stop -t 120 "$container" >/dev/null
   stopped_by_us=true
 }
 
@@ -71,7 +80,7 @@ case "$mode" in
       echo "  backup kept: $(saved)"
     else
       rm -rf "$backup" && mkdir -p "$backup"
-      # The code while Home Assistant runs: it never writes there
+      # The code while Home Assistant runs: it only writes __pycache__ there, which is not needed
       if [ -d "$code" ]; then cp -a "$code" "$backup/chauffage"; fi
       version_saved=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$code/manifest.json" 2>/dev/null || true)
       echo "${version_saved:-no Chauffage}" > "$backup/version"
@@ -98,12 +107,18 @@ case "$mode" in
     else
       rm -f .storage/chauffage
     fi
+    done_so_far=data
+    # The release is moved out of the backup. The version file says what the backup held, so a
+    # rollback run again after a failure knows the release is already in place.
     if [ -d "$backup/chauffage" ]; then
       swap_in "$backup/chauffage"
       echo "  $(cat "$backup/version") put back, with its data"
-    else
+    elif [ "$(cat "$backup/version")" = "no Chauffage" ]; then
       swap_in
       echo "  Chauffage removed: it was not installed before the first deploy"
+    else
+      echo "  $(cat "$backup/version") already in place, with its data"
     fi
+    done_so_far=release
     rm -rf "$backup" ;;
 esac

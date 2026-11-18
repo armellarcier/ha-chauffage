@@ -274,7 +274,7 @@ Indiquez le dossier qui contient `configuration.yaml`, et le conteneur Docker si
 tourne dans Docker :
 
 ```bash
-PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # hôte:dossier en SSH, ou un dossier local
+PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # hôte:/dossier en SSH, ou un dossier local
 PROD_HA_CONTAINER=homeassistant
 ```
 
@@ -292,9 +292,16 @@ scripts/deploy.sh
 ```
 
 Le script installe le dernier commit de votre branche courante. Les modifications non
-committées ne partent pas, et le script le signale. Pour déployer une autre branche sans la
-récupérer dans votre copie de travail, lancez `scripts/deploy.sh --branch <branche>`. Si la
-branche n'est pas dans votre clone, le script la récupère sur `origin`.
+committées ne partent pas, et le script le signale. Avant de changer quoi que ce soit, le script
+affiche le sha et le titre du commit.
+
+Pour déployer une autre branche sans la récupérer dans votre copie de travail, lancez
+`scripts/deploy.sh --branch <branche>`. Si la branche n'est pas dans votre clone, le script la
+récupère sur `origin`. Pour déployer exactement le commit que vous avez relu, donnez son sha au
+lieu de la branche.
+
+Pour essayer la branche d'un contributeur, lancez `--branch` depuis votre propre copie de
+`main`. Seule l'intégration vient de la branche : les scripts qui tournent sont les vôtres.
 
 Au premier déploiement, le script met de côté ce qui est installé et ses données, dans
 `<config>/.chauffage-backup`. Les déploiements suivants gardent cette sauvegarde, et indiquent
@@ -304,8 +311,9 @@ La version installée porte un suffixe tiré de la date et du sha du commit, par
 `0.9.0-beta.4.dev.20261118153000.g5b20a33`. Les navigateurs chargent donc la nouvelle carte.
 
 Pour déployer dans un autre dossier que `PROD_HA_CONFIG`, donnez-le en dernier argument, par
-exemple `scripts/deploy.sh /config`. Pour installer sans redémarrer, lancez
-`scripts/deploy.sh --no-restart`.
+exemple `scripts/deploy.sh /config`. Le script laisse alors Home Assistant tranquille : le
+conteneur et le jeton de `.env` appartiennent à `PROD_HA_CONFIG`. Pour installer sans
+redémarrer, lancez `scripts/deploy.sh --no-restart`.
 
 #### 4. Revenir à la version d'avant
 
@@ -318,7 +326,8 @@ scripts/deploy.sh --rollback
 Le retour en arrière arrête Home Assistant, remet la version publiée et ses données, relance
 Home Assistant et supprime la sauvegarde.
 
-**Sans conteneur**, ou avec `--no-restart`, le script ne peut pas arrêter Home Assistant :
+**Sans conteneur**, avec `--no-restart`, ou dans un autre dossier que `PROD_HA_CONFIG`, le
+script ne peut pas arrêter Home Assistant :
 
 1. Arrêtez Home Assistant.
 2. Lancez `scripts/deploy.sh --rollback --stopped`.

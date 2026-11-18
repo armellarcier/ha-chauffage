@@ -3,12 +3,12 @@
 #
 #   scripts/deploy.sh [--branch <branch>] [<target>]    → installs the commit, then restarts HA
 #   scripts/deploy.sh --rollback [--stopped] [<target>] → puts back what was installed before
-#   --branch <branch>  a local branch, or a branch of origin. Default: HEAD of the current branch.
+#   --branch <branch>  a local branch, a branch of origin, or a commit sha. Default: HEAD.
 #   --no-restart       never stops nor starts HA
 #   --stopped          you stopped HA yourself (needed to roll back without a container)
 #
 #   <target> = HA configuration folder, local     e.g. /config
-#            = or host:folder, over SSH           e.g. home-assistant:/docker/homeassistant/config
+#            = or host:/folder, over SSH          e.g. home-assistant:/docker/homeassistant/config
 #   Without <target>: PROD_HA_CONFIG from .env.
 #
 # The script deploys a commit, with `git archive`, never the working tree. The installed version
@@ -18,9 +18,10 @@
 # The first deploy saves what is installed and its data (.storage/chauffage) in
 # <target>/.chauffage-backup. The backup stays until a rollback has put everything back.
 #
-# With PROD_HA_CONTAINER, the script stops and starts the container on the target host. Otherwise
-# it calls the homeassistant.restart service through PROD_HA_URL and PROD_HA_TOKEN, with
-# PROD_CURL_OPTS. The steps on the target are in scripts/_deploy_remote.sh.
+# On PROD_HA_CONFIG only, the script controls Home Assistant: with PROD_HA_CONTAINER, it stops and
+# starts the container on the target host. Otherwise it calls the homeassistant.restart service
+# through PROD_HA_URL and PROD_HA_TOKEN, with PROD_CURL_OPTS. The steps on the target are in
+# scripts/_deploy_remote.sh.
 set -euo pipefail
 caller_dir=$PWD
 cd "$(dirname "$0")/.."
@@ -49,11 +50,35 @@ target="${1:-${PROD_HA_CONFIG:-}}"
 [ -n "$target" ] || { echo "Usage: $usage, or set PROD_HA_CONFIG in .env" >&2; exit 2; }
 [ "$mode" = install ] || [ -z "$branch" ] || { echo "--branch only applies to a deploy" >&2; exit 2; }
 
-# How the script controls Home Assistant: its Docker container, its API, or not at all
-if [ "$restart" = no ]; then ha_control=none
+# A target as host and absolute folder: split_host (empty when local) and split_folder.
+# C:/… is a drive letter on Windows only: elsewhere, h:/config is the host h.
+case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) windows=yes ;; *) windows=no ;; esac
+drive='^[A-Za-z]:[\/]' # in a variable: written in [[ =~ ]], bash drops the backslash
+split_target() {
+  split_host=""; split_folder=$1
+  if [[ "$1" == *:* ]] && ! { [ "$windows" = yes ] && [[ "$1" =~ $drive ]]; }; then
+    split_host=${1%%:*}; split_folder=${1#*:}
+  fi
+  if [[ "$split_folder" != /* ]] && ! { [ "$windows" = yes ] && [[ "$split_folder" =~ $drive ]]; }; then
+    if [ -n "$split_host" ]; then return 1; fi
+    split_folder="$caller_dir/$split_folder"
+  fi
+}
+split_target "$target" || { echo "Over SSH, give an absolute folder: host:/folder" >&2; exit 2; }
+host=$split_host; folder=$split_folder
+shown="${host:+$host:}$folder"
+on_prod=no
+if [ -n "${PROD_HA_CONFIG:-}" ] && split_target "$PROD_HA_CONFIG" && [ "$split_host" = "$host" ] && [ "$split_folder" = "$folder" ]; then
+  on_prod=yes
+fi
+
+# How the script controls Home Assistant: its Docker container, its API, or not at all. The
+# container and the token belong to PROD_HA_CONFIG: never to another folder.
+if [ "$restart" = no ]; then ha_control=none; why="--no-restart"
+elif [ "$on_prod" = no ]; then ha_control=none; why="not PROD_HA_CONFIG"
 elif [ -n "${PROD_HA_CONTAINER:-}" ]; then ha_control=container
-elif ha_configured; then ha_control=api
-else ha_control=none
+elif ha_configured; then ha_control=api; why="no PROD_HA_CONTAINER"
+else ha_control=none; why="no PROD_HA_CONTAINER"
 fi
 container=""
 if [ "$ha_control" = container ]; then container=$PROD_HA_CONTAINER; fi
@@ -61,30 +86,27 @@ if [ "$ha_control" = container ]; then container=$PROD_HA_CONTAINER; fi
 # 'text' for a shell: the remote login shell may be sh, without bash's $'…'
 quote() { local s=${1//\'/\'\\\'\'}; printf "'%s'" "$s"; }
 remote=$(cat scripts/_deploy_remote.sh)
-
-# host:folder (SSH), but not a Windows drive letter (C:/…)
-if [[ "$target" == *:* && ! "$target" =~ ^[A-Za-z]:[\\/] ]]; then
-  host="${target%%:*}"; folder="${target#*:}"
+if [ -n "$host" ]; then
   on_target() {
     local args="" arg
     for arg in "$@"; do args+=" $(quote "$arg")"; done
     ssh -- "$host" "bash -c $(quote "$remote") _$args"
   }
 else
-  host=""; folder="$target"
-  case "$folder" in /* | [A-Za-z]:[\\/]*) ;; *) folder="$caller_dir/$folder" ;; esac
   on_target() { bash -c "$remote" _ "$@"; }
 fi
-shown="${host:+$host:}$folder"
 
 restart_through_api() {
-  case "$HA_URL" in
+  case "$(printf '%s' "$HA_URL" | tr 'A-Z' 'a-z')" in
     http://localhost[:/]* | http://localhost | http://127.* | "http://[::1]"*) ;;
     http://*) echo "  Warning: the token goes unencrypted to $HA_URL. Prefer https://." ;;
   esac
-  # The token goes through stdin, not the command line (ps)
+  # PROD_CURL_OPTS split into words, without glob expansion
+  local opts; set -f; opts=(${PROD_CURL_OPTS:-}); set +f
+  # -q: not ~/.curlrc, which could turn off the certificate check. The token goes through stdin,
+  # not the command line (ps).
   if printf 'header = "Authorization: Bearer %s"\n' "$HA_TOKEN" |
-    curl -fsS --max-time 30 ${PROD_CURL_OPTS:-} --config - -o /dev/null -X POST "${HA_URL}/api/services/homeassistant/restart"; then
+    curl -q -fsS --max-time 30 ${opts[@]+"${opts[@]}"} --config - -o /dev/null -X POST "${HA_URL}/api/services/homeassistant/restart"; then
     echo "  Home Assistant restarting"
   else
     echo "  The restart request failed: restart Home Assistant by hand."
@@ -95,7 +117,7 @@ if [ "$mode" = rollback ]; then
   # Without its container, Home Assistant must be stopped: the release must not start on the data
   # of the dev version
   if [ "$ha_control" != container ] && [ "$stopped" = no ]; then
-    echo "Nothing changed. Without a container, roll back with Home Assistant stopped:" >&2
+    echo "Nothing changed. This rollback cannot stop Home Assistant ($why), so:" >&2
     echo "  1. Stop Home Assistant." >&2
     echo "  2. Run: scripts/deploy.sh --rollback --stopped $(quote "$shown")" >&2
     echo "  3. Start Home Assistant." >&2
@@ -107,10 +129,11 @@ if [ "$mode" = rollback ]; then
   exit 0
 fi
 
-# The commit to deploy
+# The commit to deploy: a local branch, a commit, or a branch of origin
 integration=custom_components/chauffage
 if [ -n "$branch" ]; then
-  if ! commit=$(git rev-parse --verify --quiet "refs/heads/$branch^{commit}"); then
+  if ! commit=$(git rev-parse --verify --quiet "refs/heads/$branch^{commit}") &&
+    ! commit=$(git rev-parse --verify --quiet "$branch^{commit}"); then
     echo "Fetching $branch from origin"
     git fetch --quiet origin "refs/heads/$branch" || { echo "No branch $branch, here or on origin" >&2; exit 1; }
     commit=$(git rev-parse --verify FETCH_HEAD^{commit})
@@ -121,6 +144,8 @@ else
     echo "  Changes not committed in $integration: not deployed. Commit them first."
   fi
 fi
+# The commit in full, before anything changes: the one you reviewed?
+echo "Commit $(git show -s --format='%H %s' "$commit")"
 
 # A symbolic link would deploy a file of this machine, for example an SSH key
 if git ls-tree -r "$commit" -- "$integration" | grep -q '^120000 '; then
@@ -158,9 +183,9 @@ case "$ha_control" in
   api) restart_through_api ;;
   none) echo "  Restart Home Assistant to load $version." ;;
 esac
-# The rollback command, with an absolute target. A later rollback controls Home Assistant only
-# through its container.
-if [ -n "${PROD_HA_CONTAINER:-}" ]; then
+# The rollback command, with an absolute target. A rollback stops Home Assistant only through the
+# container of PROD_HA_CONFIG.
+if [ "$on_prod" = yes ] && [ -n "${PROD_HA_CONTAINER:-}" ]; then
   echo "Done. Roll back with: scripts/deploy.sh --rollback $(quote "$shown")"
 else
   echo "Done. To roll back, stop Home Assistant, then run: scripts/deploy.sh --rollback --stopped $(quote "$shown")"
