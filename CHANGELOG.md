@@ -9,11 +9,36 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-18
+
+**You choose when an override ends, and what other users may change.** This release gathers
+0.9.0-beta.1 to 0.9.0-beta.4, below, with one addition since 0.9.0-beta.4: the panel's name in
+the sidebar. No stored data is migrated. Home Assistant 2025.1 or later.
+
+### Highlights
+
+- **Choose how long an override lasts** (#83): for the override duration, until the next slot,
+  or the first of the two. A new settings dialog holds this setting.
+- **An access level for users who are not administrators** (#99): *Use*, *Plan* or *Set up*.
+- **The *Frost protection* window of a Versatile Thermostat no longer makes an override** (#92).
+- **You can rename the Chauffage panel in the sidebar** (#104).
+
+### Upgrading
+
+Update from HACS, restart Home Assistant, then reload the browser page. You can upgrade from 0.8
+or from any 0.9.0 beta directly.
+
+- **Overrides keep lasting the override duration, 2 hours by default.** The new setting *End of
+  overrides* changes nothing until you choose another end.
+- **Users who are not administrators keep the rights they had.** The access level starts on
+  *Use*: overrides, pause and active schedule.
+
 ### Added
 
 - **You can rename the Chauffage panel in the sidebar** (#104). Set the option *Name in the
   sidebar*, for example to *Planning* if you already have a dashboard called *Thermostats*. The
-  panel and the cards' links use the same name.
+  panel and the cards' links use the same name, even when the panel is out of the sidebar. To
+  get *Chauffage* back, empty the field.
 
 ## [0.9.0-beta.4] - 2026-11-13
 
