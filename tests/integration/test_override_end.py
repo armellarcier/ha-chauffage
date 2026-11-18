@@ -10,7 +10,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from conftest import CTX_USER, KINDS, MANUAL_PRESET, MONDAY, PARIS, Bench, every_day
+from conftest import CTX_USER, KINDS, MANUAL_PRESET, MONDAY, PARIS, WEEKDAY, WEEKEND, Bench, every_day
+from hvac_helpers import start_salon
 from homeassistant.util import dt as dt_util
 
 
@@ -529,3 +530,36 @@ async def test_an_end_moved_from_the_next_slot_no_longer_says_next_slot(bench: B
     o = bench.overrides()["climate.salon"]
     await bench.set_override("climate.salon", {**o, "end": (end_of(o) + timedelta(minutes=30)).isoformat()})
     assert "ends_at" not in bench.overrides()["climate.salon"]
+
+
+# ----- the end "until tomorrow" is the next morning -----
+
+async def test_until_tomorrow_is_the_first_change_of_today_when_it_is_still_to_come(bench: Bench):
+    """At 01:30 on Sunday, the morning is today's first change (08:00), the same instant as the
+    next slot: the card then shows one button."""
+    await start_salon(bench, "10:00", day=None)
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 5 + [WEEKEND] * 2}})
+    await bench.go_to("01:30", day=6)
+    info = bench.runtime.planned_info("climate.salon")
+    assert info["next_day_slot_end"] == "2026-10-18T08:00:00+02:00"
+    assert info["next_day_slot_end"] == info["next_slot_end"]
+
+
+async def test_until_tomorrow_on_a_weekday_evening_is_tomorrow_s_first_change(bench: Bench):
+    await start_salon(bench, "22:00")
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-13T06:30:00+02:00"
+
+
+async def test_until_tomorrow_on_sunday_evening_is_monday_s_first_change(bench: Bench):
+    await start_salon(bench, "10:00")
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 5 + [WEEKEND] * 2}})
+    await bench.go_to("22:00", day=6)
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-19T06:30:00+02:00"
+
+
+async def test_until_tomorrow_skips_a_flat_day(bench: Bench):
+    """Sunday on one preset all day: the morning is Monday's."""
+    await start_salon(bench, "10:00")
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 6 + [[["00:00", "eco"]]]}})
+    await bench.go_to("22:00", day=5)  # Saturday evening
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-19T06:30:00+02:00"

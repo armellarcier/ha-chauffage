@@ -6,10 +6,12 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant.components.recorder import history as recorder_history
+from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.components.recorder.common import async_wait_recording_done
 
 from conftest import KINDS, MONDAY, Bench
+from hvac_helpers import start_salon
 
 
 @pytest.fixture
@@ -166,3 +168,30 @@ async def test_without_the_recorder_the_card_is_told(bench: Bench, ws_client):
                                     "start_time": dt_util.utc_from_timestamp(ts("06:00")).isoformat()})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "no_recorder"
+
+
+# ----- Chauffage's lines in the thermostat's logbook -----
+
+async def test_the_thermostat_s_logbook_with_its_override_sensor_shows_chauffage_s_lines(recorder_mock, bench: Bench, ws_client):
+    """Home Assistant only queries the events of the integrations of the entities filtered on:
+    filtered on the thermostat alone, it never asks for Chauffage's events; with the
+    thermostat's Override sensor added, it does, and the lines carry the thermostat."""
+    await start_salon(bench, "10:00")
+    bench.hass.config.components.add("frontend")  # the logbook needs it; the tests have none
+    assert await async_setup_component(bench.hass, "logbook", {})
+    await bench.manual_setpoint("climate.salon", 21.5)
+    await async_wait_recording_done(bench.hass)
+    client = await ws_client(bench.hass)
+
+    async def lines(entity_ids: list[str] | None) -> list[str]:
+        # An end after the change: the logbook stops strictly before its end
+        await client.send_json_auto_id({"type": "logbook/get_events", "start_time": "2026-10-12T00:00:00+02:00",
+                                        "end_time": "2026-10-12T23:00:00+02:00", **({"entity_ids": entity_ids} if entity_ids else {})})
+        reply = await client.receive_json()
+        assert reply["success"], reply
+        return [e["message"] for e in reply["result"] if e.get("domain") == "chauffage"]
+
+    assert await lines(None), "the line, unfiltered"
+    both = await lines(["climate.salon", "binary_sensor.salon_override"])
+    assert both and "21.5" in both[0]
+    assert await lines(["climate.salon"]) == []  # Home Assistant's own gate, see the README
