@@ -117,8 +117,8 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   one: a valve in *Auto* keeps *Auto*.
 - **The cards name the HVAC mode** (#91), on a thermostat that lists more than one: "Cool ·
   Comfort 25° until 23:00, then Heat · Eco". On a thermostat card, in the more-info dialog,
-  and on the override drawn on the week, with its tooltip. A thermostat card and the more-info
-  dialog name the HVAC modes in full, as Home Assistant does. On a week with several
+  and on the override drawn on the week, with its tooltip. Labels say the short name of the
+  HVAC mode, and sentences the full one, as Home Assistant does. On a week with several
   thermostats, a short override says its HVAC mode and its end next to it: "⏱ ❄ → 02:31". Switch the
   air conditioner to *Cool* or to *Heat/Cool* by hand, and the override keeps the preset in
   force, with its value for that HVAC mode. Switch it to *Dry* or to *Auto* by hand, and the
@@ -140,7 +140,8 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
 - **Turning a thermostat off by hand is an override** (#91). Turn a thermostat off with its
   button or in Home Assistant, and Chauffage keeps it off until the next slot, then turns it
   back on, on its slot. Turned off and on again during an override, the thermostat gets its
-  override back. The card shows it as *⏱ Off*. Turn it back on yourself, or tap a
+  override back. The card shows it as *⏱ Off*, and the override block says when *Off* would
+  end, before you tap it. Turn it back on yourself, or tap a
   preset in the override block, and the thermostat turns on. In the card, the thermostat card
   and the more-info dialog, the row of presets of an override starts with *Off*: *Off*, then
   *Until tomorrow 06:30*, turns a thermostat off until the next morning, the first slot of the

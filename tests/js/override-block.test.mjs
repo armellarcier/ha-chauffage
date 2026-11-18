@@ -490,8 +490,8 @@ afterEach(() => cleanup());
 
     test('says the end it will have before the first tap', () => {
       const card = open(setup({ planned: PLANNED }));
-      // One end: the one of the HVAC mode it would take. Off says its own once it is tapped
-      assert.equal(text($(card, '.override-ed .end-new')), 'jusqu\'à 12:00 (2 h)');
+      // The end of the HVAC mode it would take, then the end of Off, which differs
+      assert.equal(text($(card, '.override-ed .end-new')), "jusqu'à 12:00 (2 h) · Arrêt : jusqu'à 17:30");
     });
 
     test('says its end in the more-info block and on a thermostat card too', () => {
@@ -574,9 +574,9 @@ afterEach(() => cleanup());
     const COOL = override({ ...both(20, 25), hvac_mode: 'cool' }, { preset: 'comfort', end: at('14:00') });
     // At 14:00 the suite's week plans Comfort, in heat
 
-    test('the more-info block: "Climatisation · Confort 25°"; on a thermostat card, until when and what comes next', () => {
+    test('the more-info block: "Clim · Confort 25°"; on a thermostat card, until when and what comes next', () => {
       const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }), SUITE);
-      assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Climatisation · Confort 25°');
+      assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Clim · Confort 25°');
       const embedded = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: COOL } }), SUITE, true);
       assert.equal(text(embedded.shadowRoot.querySelector('.override-until')), '⏱ jusqu\'à 14:00, puis Chauffage · Confort');
     });
@@ -586,7 +586,7 @@ afterEach(() => cleanup());
       card.setConfig({ type: 'custom:chauffage-thermostat-card', entity: SUITE });
       document.body.appendChild(card);
       card.hass = setup({ planned: PLANNED, overrides: { [SUITE]: COOL } });
-      assert.equal(text($(card, '.tc-state')), '⏱ Climatisation · Confort 25°');
+      assert.equal(text($(card, '.tc-state')), '⏱ Clim · Confort 25°');
     });
 
     test('the thermostat card\'s header names the HVAC mode of an override to a temperature too', () => {
@@ -594,7 +594,7 @@ afterEach(() => cleanup());
       card.setConfig({ type: 'custom:chauffage-thermostat-card', entity: SUITE });
       document.body.appendChild(card);
       card.hass = setup({ planned: PLANNED, overrides: { [SUITE]: override({ temperature: 26, hvac_mode: 'cool' }, { end: at('14:00') }) } });
-      assert.equal(text($(card, '.tc-state')), '⏱ Climatisation · 26 °C');
+      assert.equal(text($(card, '.tc-state')), '⏱ Clim · 26 °C');
     });
 
     test('the end of an override names the HVAC mode of the slot that follows', () => {
@@ -626,7 +626,7 @@ afterEach(() => cleanup());
 
     test('off and dry say themselves', () => {
       const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: override({ hvac_mode: 'dry' }, { end: at('14:00') }) } }), SUITE);
-      assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Déshumidification');
+      assert.equal(text(el.shadowRoot.querySelector('.override-value')), '⏱ Déshum.');
     });
   });
 }
@@ -706,36 +706,38 @@ afterEach(() => cleanup());
     });
   });
 
-  describe('the more-info block and a thermostat card name the HVAC modes in full', () => {
+  describe('the HVAC modes: short names in labels, full names in sentences', () => {
     onMondayAtTen();
     const cooling = { [SUITE]: override({ temperature: 24, hvac_mode: 'cool' }) };
     const planned = { [SUITE]: { preset: 'eco', hvac_mode: 'heat', next_preset: 'comfort', next_hvac_mode: 'cool', next_start: at('14:00') } };
 
-    test('an override reads "Climatisation", its first row keeps the short "Clim"', () => {
+    test('an override reads "Clim" in the more-info block, as its first row', () => {
       const el = moreInfo(setup({ overrides: cooling, planned }), SUITE);
-      assert.match(text(el.shadowRoot.querySelector('.override-value')), /Climatisation · 24/);
+      assert.match(text(el.shadowRoot.querySelector('.override-value')), /Clim · 24/);
+      assert.doesNotMatch(text(el.shadowRoot.querySelector('.override-value')), /Climatisation/);
       assert.equal(text(el.shadowRoot.querySelector('.mode-row [data-mode="cool"]')), 'Clim');
     });
 
-    test('what the schedule plans too', () => {
+    test('what the schedule plans is a sentence: the names in full', () => {
       const el = moreInfo(setup({ planned }), SUITE);
       assert.match(text(el.shadowRoot.querySelector('.status')), /Chauffage · Éco jusqu'à 14:00, puis Climatisation · Confort/);
     });
 
-    test('in the words of Home Assistant when it gives them', () => {
-      const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'off' }) }, planned });
+    test('a sentence says them in the words of Home Assistant when it gives them', () => {
+      const hass = setup({ planned });
       hass.formatEntityState = (st, state) => ({ off: 'Éteint', heat: 'Chauffage', cool: 'Refroidissement' })[state] || state;
       const el = moreInfo(hass, SUITE);
-      assert.match(text(el.shadowRoot.querySelector('.override-value')), /Éteint/);
+      assert.match(text(el.shadowRoot.querySelector('.status')), /puis Refroidissement · Confort/);
     });
 
-    test('on a thermostat card', () => {
+    test('a thermostat card names the override with the short name', () => {
       const hass = setup({ overrides: cooling, planned });
       const card = document.createElement('chauffage-thermostat-card');
       card.setConfig({ entity: SUITE });
       document.body.appendChild(card);
       card.hass = hass;
-      assert.match(text(card.shadowRoot.querySelector('.tc-state')), /Climatisation/);
+      assert.match(text(card.shadowRoot.querySelector('.tc-state')), /Clim · 24/);
+      assert.doesNotMatch(text(card.shadowRoot.querySelector('.tc-state')), /Climatisation/);
     });
 
     test('the schedule card keeps the short names', () => {
@@ -853,10 +855,34 @@ afterEach(() => cleanup());
 
   describe('the end a new override will have', () => {
     onMondayAtTen();
-    test('is one end: the one of the HVAC mode it would take', () => {
-      const hass = setup({ planned: { [SUITE]: { preset: 'eco', hvac_mode: 'heat', next_slot_end: at('14:00') } } });
+    const planned = { [SUITE]: { preset: 'eco', hvac_mode: 'heat', next_slot_end: at('14:00') } };
+
+    test('says the end of Off too, when Off ends at another time', () => {
+      const card = openOverride(setup({ planned }), SUITE);
+      assert.equal(text($(card, '.override-ed .end-new')), "jusqu'à 12:00 (2 h) · Arrêt : jusqu'à 14:00");
+    });
+
+    test('is one end when Off ends at the same time', () => {
+      const hass = setup({ planned });
+      hass.data.off_override_end = 'duration';
       const card = openOverride(hass, SUITE);
-      assert.equal(text($(card, '.override-ed .end-new')), 'jusqu\'à 12:00 (2 h)');
+      assert.equal(text($(card, '.override-ed .end-new')), "jusqu'à 12:00 (2 h)");
+    });
+
+    test('an override that is on says the end Off would give it', () => {
+      const card = openOverride(setup({ planned, overrides: { [SUITE]: override({ temperature: 21, hvac_mode: 'heat' }) } }), SUITE);
+      assert.equal(text($(card, '.override-ed .off-end')), "Arrêt : jusqu'à 14:00");
+    });
+
+    test('an off override says nothing more', () => {
+      const card = openOverride(setup({ planned, overrides: { [SUITE]: override({ hvac_mode: 'off' }) } }), SUITE);
+      assert.equal($(card, '.override-ed .off-end'), null);
+    });
+
+    test('the more-info block says it too', () => {
+      const el = moreInfo(setup({ planned }), SUITE);
+      el.shadowRoot.querySelector('[data-new-override]').click();
+      assert.match(text(el.shadowRoot.querySelector('.end-new')), /· Arrêt : jusqu'à 14:00$/);
     });
   });
 
@@ -888,13 +914,13 @@ afterEach(() => cleanup());
 
     test('the more-info dialog says its end in the block of its end', () => {
       const el = moreInfo(setup({ overrides: dry }), SUITE);
-      assert.match(text(el.shadowRoot.querySelector('.status .override-value')), /Déshumidification/);
+      assert.match(text(el.shadowRoot.querySelector('.status .override-value')), /Déshum\./);
       assert.equal(el.shadowRoot.querySelector('.status .override-until'), null);
     });
 
     test('a thermostat card names it in its header, and says until when under it', () => {
       const card = thermostatCard(setup({ overrides: dry }), SUITE);
-      assert.match(text(card.shadowRoot.querySelector('.tc-state')), /Déshumidification/);
+      assert.match(text(card.shadowRoot.querySelector('.tc-state')), /Déshum\./);
       const line = block(card).querySelector('.status .line');
       assert.equal(line.querySelector('.override-value'), null);
       assert.match(text(line), /^⏱ jusqu'à 11:30/);

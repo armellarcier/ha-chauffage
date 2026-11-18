@@ -481,6 +481,12 @@ utilise ce préréglage. Sinon, Chauffage règle la température du préréglage
 ce choix pour chaque thermostat : la valeur en chauffe est un des préréglages du thermostat, ou
 une température, et la valeur en clim est une température.
 
+**Le préréglage propre d'un thermostat ne règle pas toujours une température.** Sur une Daikin,
+par exemple, *eco* et *boost* sont des fonctions de l'appareil : l'appareil garde la consigne
+qu'il avait. Le *Boost* de Chauffage donne alors l'ancienne consigne, pas 22 °C. Pour avoir la
+température de Chauffage, ouvrez l'onglet *Préréglages* et saisissez une température dans la
+case de ce thermostat.
+
 **Un préréglage est proposé là où il a une valeur.** Un thermostat peut utiliser un préréglage
 en *Chauffe* quand le préréglage a une valeur en chauffe, et en *Clim* quand il a une valeur en
 clim. *Chauffe/Clim* demande les deux températures. *Hors-gel* n'a pas de température en clim :

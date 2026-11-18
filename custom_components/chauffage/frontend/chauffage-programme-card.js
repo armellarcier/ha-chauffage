@@ -65,6 +65,7 @@ const I18N = {
     thenSchedule: 'then {preset} (schedule)',
     endsChoose: 'Choose how long overrides last',
     untilNextSlot: 'Until {time} (next slot)',
+    offUntil: '{off}: until {when}',
     newOffNotice: 'New: a thermostat turned off by hand turns back on at the end of its override. To keep it off, pause its control.',
     newOverride: 'New override…',
     resume: 'Resume the schedule',
@@ -387,6 +388,7 @@ const I18N = {
     thenSchedule: 'puis {preset} (planning)',
     endsChoose: 'Choisir la durée des dérogations',
     untilNextSlot: "Jusqu'à {time} (prochain créneau)",
+    offUntil: "{off} : jusqu'à {when}",
     newOffNotice: 'Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation. Pour le laisser éteint, suspendez son pilotage.',
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
@@ -1052,9 +1054,9 @@ const MODE_LABELS = { off: 'hvacOff', heat: 'slotHeat', cool: 'slotCool', heat_c
 const modeName = (loc, mode) => (loc.modeName ? loc.modeName(mode) : MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : loc.hvacMode(mode));
 // A thermostat's state in Home Assistant, when Home Assistant has one
 const stateOf = (hass, climate) => hass && hass.states && hass.states[climate];
-// The words of a thermostat's own blocks, the more-info block and a thermostat card: an HVAC
-// mode is named in full, as Home Assistant names it next to them ("Chauffage", "Éteint"), else
-// in the card's own full words. The buttons of the first row keep their short labels
+// The words of the sentences of a thermostat's own blocks, the more-info block and a thermostat
+// card: an HVAC mode is named in full, as Home Assistant names it next to them ("Chauffage",
+// "Éteint"), else in the card's own full words. Labels keep the short names, as the buttons
 function fullNames(loc, hass, climate) {
   const st = stateOf(hass, climate);
   const name = (mode) => {
@@ -1123,7 +1125,7 @@ const CHIP_STYLE = `
   .setpoint-edit { box-sizing:border-box; height:var(--chauffage-chip-h); display:inline-flex; align-items:center; gap:5px;
     line-height:1; padding:0 10px; border:1px solid var(--divider-color); border-radius:8px; color:var(--primary-color); cursor:pointer; }
   .setpoint-edit ha-icon { --mdc-icon-size:16px; width:16px; height:16px; display:flex; flex:none; }
-  .end-new { font-size:.85em; }
+  .end-new, .off-end { font-size:.85em; }
   /* "until", before the field of an end: on the line of the field */
   .end-block label { height:var(--chauffage-chip-h); display:inline-flex; align-items:center; gap:6px; line-height:1; }
   .more-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
@@ -2790,12 +2792,24 @@ function newOverride(src, target) {
 }
 
 // The end a new override will have, said before the first tap: "until 12:00 (2 h)"
-function newOverrideEndText(src, loc) {
-  // One end: the one of the HVAC mode the override would take. Off has its own end, said once
-  // Off is tapped
+function newOverrideEndText(src, climate, hass, loc) {
+  // The end of the HVAC mode the override would take, and the end of Off when it differs: the
+  // setting *Turned off* ends it at the next slot by default
   const d = newOverride(src, {});
   const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
-  return `${loc.t('until')} ${whenText(parseDate(d.end), loc)} (${minutes < DAY_MIN ? roundDurationText(minutes, loc) : remainingText(minutes, loc)})`;
+  const end = `${loc.t('until')} ${whenText(parseDate(d.end), loc)} (${minutes < DAY_MIN ? roundDurationText(minutes, loc) : remainingText(minutes, loc)})`;
+  const off = offEndText(null, src, climate, hass, loc, d.end);
+  return off ? `${end} · ${off}` : end;
+}
+// What Off tapped would end at, "Off: until 17:30", when Off would end at another time than
+// `end`; '' when the thermostat cannot be turned off, when it is off already, or when Off
+// would resume the schedule (an off slot)
+function offEndText(d, src, climate, hass, loc, end) {
+  const { modes } = hvacModesOf(hass, climate);
+  if ((modes && !modes.includes('off')) || isOffOverride(d)) return '';
+  const off = overrideOff(d, src, climate, hass);
+  if (!off || off === RESUME || parseDate(off.end).getTime() === parseDate(end).getTime()) return '';
+  return loc.t('offUntil', { off: modeName(loc, 'off'), when: whenText(parseDate(off.end), loc) });
 }
 
 // What changes an override, in the card's popover and in the more-info block (#91), in this
@@ -2806,7 +2820,8 @@ function newOverrideEndText(src, loc) {
 function overrideBodyHtml(d, src, climate, hass, loc, { step, line, actions, endLoc = loc }) {
   const value = overrideValueHtml(d, src, climate, (stateOf(hass, climate) || {}).attributes || {}, loc, hass);
   const values = `${value.presets}${value.temperature ? `<div class="${line}">${value.temperature}</div>` : ''}`;
-  if (!d) return `${values}<div class="end-new muted">${esc(newOverrideEndText(src, loc))}</div>`;
+  if (!d) return `${values}<div class="end-new muted">${esc(newOverrideEndText(src, climate, hass, loc))}</div>`;
+  const offEnd = offEndText(d, src, climate, hass, loc, d.end);
   const add = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
   return `${values}
     <div class="end-block">
@@ -2819,6 +2834,7 @@ function overrideBodyHtml(d, src, climate, hass, loc, { step, line, actions, end
         ${nextSlotButton(src, climate, d, loc)}
         ${tomorrowButton(src, climate, d, loc)}
       </div>
+      ${offEnd ? `<div class="off-end muted">${esc(offEnd)}</div>` : ''}
     </div>`;
 }
 
@@ -7068,7 +7084,7 @@ class ChauffageMoreInfo extends HTMLElement {
     // A thermostat card names the override in its header: here, until when. The more-info
     // dialog says the end in the block of its end
     ? `<span class="override-until">⏱ ${esc(overrideUntilText(d, src, this._entity, names, this._hass))}</span>`
-    : `<span class="override-value">⏱ ${esc(overrideSummary(d, src, this._entity, names, this._hass))}</span>`}
+    : `<span class="override-value">⏱ ${esc(overrideSummary(d, src, this._entity, this._loc, this._hass))}</span>`}
         </div>
         ${this.hasAttribute('embedded')
     ? `<div class="btns">${resume}</div><details class="change"${this._changeOpen ? ' open' : ''}><summary>${esc(t('change'))}</summary><div class="change-body">${change}</div></details>`
@@ -7457,7 +7473,6 @@ class ChauffageThermostatCard extends HTMLElement {
   // What it does now: its temporary setpoint, or the preset of its schedule (the thermostat's
   // own when paused), with its setpoint
   _stateHtml(loc, src, st) {
-    loc = fullNames(loc, this._hass, this._config.entity); // as Home Assistant names the HVAC modes
     const t = loc.t;
     const a = st.attributes;
     const setpoint = a.temperature != null ? `${loc.number(a.temperature)}°` : '';

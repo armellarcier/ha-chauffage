@@ -443,6 +443,11 @@ uses that preset. Otherwise, Chauffage sets the preset's temperature. You can ch
 each thermostat: the value when heating is one of the thermostat's own presets, or a
 temperature, and the value when cooling is a temperature.
 
+**A thermostat's own preset may not set a temperature.** On a Daikin, for example, *eco* and
+*boost* are functions of the unit: they keep the setpoint the unit had. Chauffage's *Boost*
+then gives the old setpoint, not 22 °C. To get Chauffage's temperature, open the *Presets* tab
+and set a temperature in that thermostat's cell.
+
 **A preset is offered where it has a value.** A thermostat can use a preset in *Heat* when the
 preset has a value when heating, and in *Cool* when it has a value when cooling. *Heat/Cool*
 needs both temperatures. *Frost protection* has no temperature when cooling: an air

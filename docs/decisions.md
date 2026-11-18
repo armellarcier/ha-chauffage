@@ -1187,11 +1187,14 @@ dashboards, automations, scripts and by voice without the card
     - **A short override says its HVAC mode and its end next to it**, on the week:
       "⏱ ❄ 02:31". With several thermostats, the override was a clock in a small box, and its
       tooltip said the rest: a phone has no tooltip. The tag goes on the side with room.
-    - **The more-info block and a thermostat card name the HVAC modes in full**, as Home
-      Assistant names them (`hass.formatEntityState`), else in the card's own full words:
-      "Climatisation · Confort 25°", "Éteint". They sit next to Home Assistant's own dialog,
-      which says *Chauffage* and *Éteint*. The buttons of the first row keep their short
-      labels, and so does the schedule card, where room is short.
+    - **Short names in labels, full names in sentences** (the owner, after the exploratory
+      tests of #97; it replaces "the more-info block and a thermostat card name the HVAC modes
+      in full"). The same override read "Clim" on the card and "Climatisation" in *Pièces*
+      and in the more-info dialog. Now every label says the short name, as the buttons do:
+      the override on the card, the header of a thermostat card, the override in the
+      more-info dialog. The sentences say the full name, as Home Assistant names it
+      (`hass.formatEntityState`), else in the card's own full words: "then Chauffage ·
+      Confort (schedule)".
     - **On a row shared by several thermostats, the name of a slot without a preset wins over
       its time**: "⏻ Off", not "00:00 ⏻ O…". The color of such a slot is no preset's color.
     - **The setpoint line is words, then a button.** "Setpoint: 20 °C", then *Set*, a button
@@ -1219,9 +1222,13 @@ dashboards, automations, scripts and by voice without the card
       tag on the top edge touches the row above: the names stay readable.
     - **The handle between two slots alike is faded and dashed.** The two slots stay two (the
       second review), and the handle says where the cut is, without a word.
-    - **A new override says one end**: the one of the HVAC mode it would take. *Off* has its
-      own end, which the block says once *Off* is tapped. Two ends on one line read as two
-      ends of the same override.
+    - **The block says the end of Off before Off is tapped** (the owner, after the
+      exploratory tests of #97; it replaces "a new override says one end"). *Off* ends as the
+      setting *Turned off* says, by default at the next slot. The block said "until 12:25
+      (2 h)", and *Off* then lasted until 17:30. Now the line of a new override says both ends
+      when they differ: "until 12:25 (2 h) · Off: until 17:30". An override that is on says
+      the end *Off* would give it under its end. The card announces what will happen; Off is
+      not capped.
     - **The setpoint line says nothing when it has no number.** "Setpoint: its Comfort
       preset" repeated the chip above it. The *Set* button stays, for an administrator.
     - **An override is said once.** A thermostat card names the override in its header, and
