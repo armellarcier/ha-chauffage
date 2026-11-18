@@ -367,6 +367,21 @@ def test_an_override_already_at_what_the_slot_gives_is_kept():
     assert engine.manual_change(*back, by_user=False, expected=seventeen, override={"temperature": 22.0}) == engine.RESUME
 
 
+def test_an_override_already_at_what_a_slot_with_a_fan_gives_is_kept():
+    """An override sets no fan and may say no HVAC mode. Held past the next slots, it still holds
+    the slot's value when the slot also sets the HVAC mode and the fan: the air conditioner coming
+    back to it ends nothing."""
+    def cooling(temperature: float) -> Thermostat:
+        return Thermostat("cool", None, temperature, (), 16.0, 30.0, 0.5, hvac_modes=("off", "heat", "cool"),
+                          fan_mode="high")
+
+    slot = {"hvac_mode": "cool", "temperature": 24.0, "fan_mode": "high"}
+    back = (cooling(22.0), cooling(24.0))
+    for held in ({"temperature": 24.0}, {"hvac_mode": "cool", "temperature": 24.0}):
+        assert engine.manual_change(*back, by_user=True, expected=slot, override=held) is None
+    assert engine.manual_change(*back, by_user=True, expected=slot, override={"temperature": 26.0}) == engine.RESUME
+
+
 def test_the_temperature_of_a_thermostat_s_own_preset():
     """Versatile Thermostat publishes them (preset_temperatures since its version 10, eco_temp…
     before); otherwise the one last read while the thermostat was on that preset."""

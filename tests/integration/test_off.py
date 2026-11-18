@@ -162,6 +162,17 @@ async def test_a_thermostat_turned_off_by_a_script_stays_off_through_midnight(be
     assert bench.powered() == {"climate.salon": "heat"}
 
 
+async def test_an_air_conditioner_turned_off_by_a_script_stays_off_when_a_slot_only_adds_heat(bench: Bench):
+    """A week stored before #91 says no HVAC mode, and a slot edited since says heat. On an air
+    conditioner, both heat: eco that says heat after eco that says nothing changes nothing, and
+    does not turn the air conditioner back on (#77)."""
+    await start_ac(bench, "23:00", [["00:00", "eco", HEAT], ["06:30", "comfort"], ["22:30", "eco"]])
+    bench.thermostat(SALON, "eco", state="off", context=CTX_AUTOMATION, hvac_modes=AC_MODES)
+    await bench.hass.async_block_till_done()
+    await bench.advance(60)  # 00:00: eco that says heat
+    assert bench.powered() == {}
+
+
 async def test_a_thermostat_turned_off_is_turned_on_when_the_weeks_are_saved(bench: Bench):
     """Upgrading: a thermostat turned off by hand in the past comes back on (CHANGELOG)."""
     await bench.go_to("10:00")

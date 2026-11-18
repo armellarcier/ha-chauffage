@@ -171,14 +171,19 @@ def week_on(week: list[list[list[Any]]], thermostat: Thermostat | None) -> list[
     A slot that says heat and one that says nothing are then the same slot on an air
     conditioner: what compares two slots (the next different slot) reads this week."""
     def on(raw: list[Any]) -> list[Any]:
-        settings = dict(slot_of(raw).settings)
-        mode = slot_hvac_mode(settings, thermostat)
-        settings.pop("hvac_mode", None)
-        if mode:
-            settings = {"hvac_mode": mode, **settings}
+        settings = slot_on(slot_of(raw), thermostat).settings
         return [raw[0], raw[1], settings] if settings else [raw[0], raw[1]]
 
     return [[on(raw) for raw in day] for day in week]
+
+
+def slot_on(slot: Slot | None, thermostat: Thermostat | None) -> Slot | None:
+    """A slot as it runs on a thermostat: with its HVAC mode there (`slot_hvac_mode`)."""
+    if slot is None:
+        return None
+    settings = {key: value for key, value in slot.settings.items() if key != "hvac_mode"}
+    mode = slot_hvac_mode(slot.settings, thermostat)
+    return Slot(slot.preset, {"hvac_mode": mode, **settings} if mode else settings)
 
 
 def on_mode(thermostat: Thermostat) -> str | None:
@@ -197,18 +202,18 @@ def on_mode(thermostat: Thermostat) -> str | None:
     return FAN_ONLY if FAN_ONLY in thermostat.hvac_modes else None
 
 
-def needs_turning_on(target: Target, thermostat: Thermostat) -> bool:
+def needs_turning_on(target: Target, thermostat: Thermostat | None) -> bool:
     """A target without an HVAC mode, on a thermostat that cannot follow it as it is: off, or in
     fan only or dry, while the target holds a setpoint (fan only and dry take none). A target
     without a setpoint turns nothing on: the slot of a preset that has no value on this
     thermostat has nothing to send. Not when the thermostat has no HVAC mode to be turned on
-    in."""
-    if not any(key in target for key in (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)):
+    in, nor when its state is not known yet."""
+    if thermostat is None or not any(key in target for key in (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)):
         return False
     return thermostat.state in IDLE and on_mode(thermostat) not in (None, thermostat.state)
 
 
-def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> Target:
+def complete(target: Target, thermostat: Thermostat | None, by_user: bool = False) -> Target:
     """The target to send. An off target is sent alone: no setpoint, so a thermostat turned on
     by hand keeps its own. A target without an HVAC mode gets the one to turn the thermostat on
     in when it is off, in fan only or in dry (see on_mode). A thermostat that heats or cools
@@ -228,7 +233,8 @@ def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> T
     out = {key: value for key, value in target.items() if key not in (*COOL_KEYS, *RANGE_KEYS)}
     if "hvac_mode" not in out and needs_turning_on(target, thermostat):
         out["hvac_mode"] = on_mode(thermostat)
-    mode = out.get("hvac_mode") or thermostat.state
+    # A thermostat with no state yet, at a restart: the target is sent in the HVAC mode it says
+    mode = out.get("hvac_mode") or (thermostat.state if thermostat is not None else None)
     value = None
     if mode == "cool":
         if "cool_temperature" in target:
@@ -237,7 +243,7 @@ def complete(target: Target, thermostat: Thermostat, by_user: bool = False) -> T
             value = {"preset_mode": target["cool_preset_mode"]}
     elif mode == HEAT_COOL and all(key in target for key in RANGE_KEYS):
         value = {key: target[key] for key in RANGE_KEYS}
-    ranged = mode == HEAT_COOL and thermostat.supports_range
+    ranged = mode == HEAT_COOL and thermostat is not None and thermostat.supports_range
     if mode in ("cool", HEAT_COOL) and (value is not None or not by_user or ranged):
         out = {key: v for key, v in out.items() if key not in SETPOINT_KEYS}
     return {**out, **(value or {})}
@@ -600,8 +606,11 @@ def targets(
         if slot is None or thermostat is None:
             continue
         # A slot that repeats the one before it (a day's first slot, eco after eco) changes
-        # nothing: a thermostat turned off by a script at bedtime stays off (#77)
-        changed = plan.slot_at(entity_id, since)[0] != slot if since is not None else starts_now
+        # nothing: a thermostat turned off by a script at bedtime stays off (#77). Compared as
+        # they run on the thermostat: on an air conditioner, a slot that says heat repeats one that
+        # says nothing
+        changed = (slot_on(plan.slot_at(entity_id, since)[0], thermostat) != slot_on(slot, thermostat)
+                   if since is not None else starts_now)
         if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
             continue
         target = plan.sent_target_of(entity_id, slot, thermostat)
@@ -739,6 +748,9 @@ def manual_change(
     back = hvac_satisfied(expected, after) and (
         not any(key in target for key in SETPOINT_TARGET_KEYS) or back_to(expected, after, preset_temperature))
     if back:
-        held = override is not None and same_target(override, expected, after)
+        # An override sets no fan and no vanes, and may say no HVAC mode: compared on what it holds
+        held = override is not None and same_target(override, {
+            key: value for key, value in expected.items()
+            if key not in AIR_KEYS and (key != "hvac_mode" or "hvac_mode" in override)}, after)
         return None if held else RESUME
     return target

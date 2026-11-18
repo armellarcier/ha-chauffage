@@ -238,3 +238,15 @@ def test_invalid_data_is_refused(function, value):
 
 def test_a_preset_named_like_an_existing_one_gets_another_id():
     assert model.normalize_preset({"name": "Eco"}, {"eco"})["id"] == "eco_2"
+
+
+async def test_an_override_set_before_the_thermostat_has_a_state_is_recorded(bench: Bench):
+    """At a restart, the card or an automation may set an override before the thermostat's
+    integration has written its state: the override is recorded, and nothing fails."""
+    await bench.go_to("10:00")
+    bench.thermostat("climate.salon", "eco")
+    await bench.setup()
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 7}})
+    bench.hass.states.async_remove("climate.salon")
+    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 21.0}))
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 21.0}

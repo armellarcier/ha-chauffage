@@ -850,7 +850,8 @@ class ChauffageRuntime:
         week uses the preset in that HVAC mode: the slot would have nothing to send. As for a
         preset removed while the weeks use it. A thermostat with a value of its own for the
         preset, in that HVAC mode, does not need the preset's temperature. A heat/cool slot
-        uses both temperatures: there, only a temperature of its own replaces the preset's."""
+        uses both temperatures: there, only a temperature of its own replaces the preset's. A preset
+        used in heat/cool also keeps its heating temperature under its cooling one."""
         old = self.presets_by_id.get(preset["id"])
         if old is None:
             return
@@ -868,6 +869,21 @@ class ChauffageRuntime:
                     raise model.InvalidData(
                         f"{preset['id']} is used in the weeks when {'heating' if mode == 'heat' else 'cooling'}: "
                         "it needs a temperature there")
+        # A heat/cool slot sends the range from the heating to the cooling temperature: a heating
+        # temperature edited up to the cooling one would leave the slot without a range
+        for entity_id, by_schedule in self.weeks.items():
+            current = self.current(self.hass.states.get(entity_id))
+            if current is None or not any(
+                    engine.slot_hvac_mode(engine.slot_of(slot).settings, current) == engine.HEAT_COOL
+                    for week in by_schedule.values() for day in week for slot in day if slot[1] == preset["id"]):
+                continue
+            cell = self.mappings.get(entity_id, {}).get(preset["id"])
+            ranged = [all(key in engine.value_on(p, cell, current, self.use_presets) for key in engine.RANGE_KEYS)
+                      for p in (old, preset)]
+            if ranged == [True, False]:
+                raise model.InvalidData(
+                    f"{preset['id']} is used in heat/cool: its temperature when heating must be under its "
+                    "temperature when cooling")
 
     async def set_mapping(self, entity_id: str, mapping: Any) -> None:
         """Mapping set by hand for one thermostat ({} = defaults only)."""
