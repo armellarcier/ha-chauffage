@@ -47,9 +47,16 @@ usage="scripts/deploy.sh [--rollback [--stopped]] [--branch <branch>] [--no-rest
 [ $# -le 1 ] || { echo "Options go before the target: $usage" >&2; exit 2; }
 target="${1:-${PROD_HA_CONFIG:-}}"
 [ -n "$target" ] || { echo "Usage: $usage, or set PROD_HA_CONFIG in .env" >&2; exit 2; }
-container="${PROD_HA_CONTAINER:-}"
-[ "$restart" = yes ] || container=""
 [ "$mode" = install ] || [ -z "$branch" ] || { echo "--branch only applies to a deploy" >&2; exit 2; }
+
+# How the script controls Home Assistant: its Docker container, its API, or not at all
+if [ "$restart" = no ]; then ha_control=none
+elif [ -n "${PROD_HA_CONTAINER:-}" ]; then ha_control=container
+elif ha_configured; then ha_control=api
+else ha_control=none
+fi
+container=""
+if [ "$ha_control" = container ]; then container=$PROD_HA_CONTAINER; fi
 
 # 'text' for a shell: the remote login shell may be sh, without bash's $'…'
 quote() { local s=${1//\'/\'\\\'\'}; printf "'%s'" "$s"; }
@@ -71,15 +78,6 @@ fi
 shown="${host:+$host:}$folder"
 
 restart_through_api() {
-  [ -z "$container" ] || return 0
-  if [ "$restart" = no ]; then
-    echo "  Restart Home Assistant to load $version."
-    return 0
-  fi
-  if ! ha_configured; then
-    echo "  Restart Home Assistant by hand (or set PROD_HA_CONTAINER, or PROD_HA_URL and PROD_HA_TOKEN)."
-    return 0
-  fi
   case "$HA_URL" in
     http://localhost[:/]* | http://localhost | http://127.* | "http://[::1]"*) ;;
     http://*) echo "  Warning: the token goes unencrypted to $HA_URL. Prefer https://." ;;
@@ -94,8 +92,18 @@ restart_through_api() {
 }
 
 if [ "$mode" = rollback ]; then
+  # Without its container, Home Assistant must be stopped: the release must not start on the data
+  # of the dev version
+  if [ "$ha_control" != container ] && [ "$stopped" = no ]; then
+    echo "Nothing changed. Without a container, roll back with Home Assistant stopped:" >&2
+    echo "  1. Stop Home Assistant." >&2
+    echo "  2. Run: scripts/deploy.sh --rollback --stopped $(quote "$shown")" >&2
+    echo "  3. Start Home Assistant." >&2
+    exit 1
+  fi
   echo "Rolling back $shown"
-  on_target rollback "$folder" "$container" "$stopped" </dev/null
+  on_target rollback "$folder" "$container" </dev/null
+  if [ "$ha_control" != container ]; then echo "  Start Home Assistant."; fi
   exit 0
 fi
 
@@ -141,16 +149,19 @@ git archive --format=tar "$commit:$integration" | tar -C "$stage" -xf -
 sed -i.orig "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$stage/manifest.json"
 sed -i.orig "s/^const VERSION = '[^']*';/const VERSION = '$version';/" "$stage/frontend/chauffage-programme-card.js"
 rm "$stage/manifest.json.orig" "$stage/frontend/chauffage-programme-card.js.orig"
-# Readable by every user on the target, whatever the local umask
-chmod -R u=rwX,go=rX "$stage"
 files=$(find "$stage" -type f | wc -l | tr -d ' ')
 
 echo "Deploying $version to $shown"
 # COPYFILE_DISABLE: no ._* files from macOS tar
 COPYFILE_DISABLE=1 tar -C "$stage" -cf - . | on_target install "$folder" "$container" "$files" "$version"
-restart_through_api
-# The rollback command, with an absolute target. Without a container, HA must be stopped first.
-rollback="scripts/deploy.sh --rollback"
-[ -n "${PROD_HA_CONTAINER:-}" ] || rollback+=" --stopped"
-echo "Done. Roll back with: $rollback $(quote "$shown")"
-[ -n "${PROD_HA_CONTAINER:-}" ] || echo "  (stop Home Assistant first)"
+case "$ha_control" in
+  api) restart_through_api ;;
+  none) echo "  Restart Home Assistant to load $version." ;;
+esac
+# The rollback command, with an absolute target. A later rollback controls Home Assistant only
+# through its container.
+if [ -n "${PROD_HA_CONTAINER:-}" ]; then
+  echo "Done. Roll back with: scripts/deploy.sh --rollback $(quote "$shown")"
+else
+  echo "Done. To roll back, stop Home Assistant, then run: scripts/deploy.sh --rollback --stopped $(quote "$shown")"
+fi

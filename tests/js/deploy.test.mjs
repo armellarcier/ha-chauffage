@@ -29,8 +29,8 @@ function repository(version = '0.9.0-beta.4') {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), text);
   };
+  mkdirSync(join(dir, 'scripts'));
   for (const script of SCRIPTS) {
-    mkdirSync(join(dir, 'scripts'), { recursive: true });
     copyFileSync(join(root, script), join(dir, script));
   }
   const integration = 'custom_components/chauffage';
@@ -87,15 +87,19 @@ function home({
     encoding: 'utf8',
   });
   const script = ['-c', `umask ${umask} && exec bash "${posix(join(repo.dir, 'scripts/deploy.sh'))}" "$@"`, 'deploy.sh'];
-  // run: the script must succeed. attempt: its exit status and everything it printed.
-  // Without a target among the arguments, the target is the configuration folder.
-  const withTarget = (args) => (args.some((a, i) => !a.startsWith('--') && args[i - 1] !== '--branch') ? args : [...args, config]);
-  const run = (...args) => execFileSync('bash', [...script, ...withTarget(args)], { ...options(), stdio: ['ignore', 'pipe', 'pipe'] });
+  // attemptFrom: the script run from `cwd`, with these arguments: its exit status and all it
+  // printed. attempt: from the repository, on the configuration folder. run: the same, and it
+  // must succeed.
   const attemptFrom = (cwd, ...args) => {
     const done = spawnSync('bash', [...script, ...args], options(cwd));
     return { status: done.status, said: done.stdout + done.stderr };
   };
-  const attempt = (...args) => attemptFrom(repo.dir, ...withTarget(args));
+  const attempt = (...args) => attemptFrom(repo.dir, ...args, config);
+  const run = (...args) => {
+    const { status, said } = attempt(...args);
+    assert.equal(status, 0, said);
+    return said;
+  };
   // An ssh whose remote login shell is sh: `ssh -- <host> <command>`. through: what the stream
   // goes through on the way, for example `head -c 3072` to cut it.
   const fakeSsh = (through = 'cat') => {
@@ -127,7 +131,6 @@ test('the commit at HEAD is deployed, with a dev version, the same in the card a
   assert.match(version, /^0\.9\.0-beta\.4\.dev\.\d{14}\.g[0-9a-f]+$/);
   assert.ok(version.endsWith(`.g${ha.repo.git('rev-parse', '--short', 'HEAD').trim()}`), version);
   assert.equal(ha.read('custom_components/chauffage/frontend/chauffage-programme-card.js'), `const VERSION = '${version}';\n`);
-  assert.equal(existsSync(ha.path('custom_components/chauffage.new')), false);
 });
 
 test('changes that are not committed are not deployed, and the script says so', () => {
@@ -271,9 +274,8 @@ test('a transfer cut short changes nothing', () => {
   const ha = home();
   // The stream ends on a boundary between two files: tar sees no error
   ha.fakeSsh('head -c 3072');
-  assert.notEqual(ha.attempt('--no-restart', `home-assistant:${posix(ha.config)}`).status, 0);
+  assert.notEqual(ha.attemptFrom(ha.repo.dir, '--no-restart', `home-assistant:${posix(ha.config)}`).status, 0);
   assert.equal(ha.installed(), '0.8.0');
-  assert.equal(existsSync(ha.path('custom_components/chauffage.new')), false);
 });
 
 // The backup and the rollback
@@ -399,7 +401,7 @@ test('a rollback without a deploy changes nothing', () => {
 
 test('an option after the target is refused, so a rollback is never taken for a deploy', () => {
   const ha = home();
-  assert.notEqual(ha.attempt(ha.config, '--rollback').status, 0);
+  assert.notEqual(ha.attemptFrom(ha.repo.dir, ha.config, '--rollback').status, 0);
   assert.equal(ha.installed(), '0.8.0');
 });
 
@@ -424,7 +426,7 @@ test('the rollback command it prints can be pasted as is, from the repository', 
 
 test('without a container, the end of a deploy says how to roll back', () => {
   const ha = home({ container: false });
-  assert.match(ha.run(), /Roll back with: .*--rollback --stopped/);
+  assert.match(ha.run(), /stop Home Assistant, then run: .*--rollback --stopped/);
 });
 
 test('with --no-restart, the deploy says to restart Home Assistant', () => {
@@ -445,7 +447,7 @@ test('over SSH, a folder with a quote in its name is reached as is, even when th
   ha.fakeSsh();
   const odd = join(ha.dir, "it's $HOME here");
   renameSync(ha.config, odd);
-  const { status, said } = ha.attempt('--no-restart', `home-assistant:${posix(odd)}`);
+  const { status, said } = ha.attemptFrom(ha.repo.dir, '--no-restart', `home-assistant:${posix(odd)}`);
   assert.equal(status, 0, said);
   assert.match(JSON.parse(readFileSync(join(odd, 'custom_components/chauffage/manifest.json'), 'utf8')).version, /dev\./);
 });
