@@ -7,7 +7,8 @@ French.
 ## Rules
 
 1. **Start from what the reader wants to do**, not from what the system does.
-2. **Address the reader**: "you" in English, "vous" in French.
+2. **Address the reader**: "you" in English, "vous" in French. **Speak of the project as "we"**
+   in English and "nous" in French, never "the maintainer" or "on".
 3. **Write one idea per sentence**, with a simple structure: a subject, a verb, a complement.
 4. **Name the subject, even if you repeat it.** Avoid "y", "en", "ce qui l'a…", "it" or "which"
    when the reader has to go back a sentence to understand them. Avoid them, but don't forbid
