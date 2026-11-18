@@ -11,10 +11,21 @@ cd -- "$folder"
 test -f configuration.yaml || { echo "No configuration.yaml in $folder" >&2; exit 1; }
 code=custom_components/chauffage
 backup=.chauffage-backup
+# Outside custom_components: Home Assistant would try to load any folder there
+new=.chauffage-new
+old=.chauffage-old-$(date -u +%Y%m%d%H%M%S)
 
 # Home Assistant, around the steps that change the files. A container that was stopped stays
-# stopped. If a step fails half-way, the container starts again.
+# stopped. If a step fails, the container starts again on the integration as it was.
 was_running=false
+stopped_by_us=false
+finish() {
+  local status=$?
+  rm -rf "$new"
+  if [ "$status" != 0 ]; then echo "  Failed: the integration in $folder/$code is unchanged" >&2; fi
+  if [ "$stopped_by_us" = true ]; then docker start "$container" >/dev/null; fi
+}
+trap finish EXIT
 check_container() {
   [ -n "$container" ] || return 0
   was_running=$(docker inspect -f '{{.State.Running}}' "$container") || { echo "No container $container" >&2; exit 1; }
@@ -22,11 +33,11 @@ check_container() {
 stop_ha() {
   [ "$was_running" = true ] || return 0
   docker stop "$container" >/dev/null
-  trap 'docker start "$container" >/dev/null' EXIT
+  stopped_by_us=true
 }
 start_ha() {
-  trap - EXIT
-  if [ "$was_running" = true ]; then
+  if [ "$stopped_by_us" = true ]; then
+    stopped_by_us=false
     docker start "$container" >/dev/null
     echo "  $container started"
   elif [ -n "$container" ]; then
@@ -36,10 +47,16 @@ start_ha() {
   fi
 }
 
-# Puts the folder $1 in place of the integration, or removes the integration without $1
+# Puts the folder $1 in place of the integration, or removes the integration without $1. By
+# renames only: if one fails, the integration as it was goes back in place.
 swap_in() {
-  rm -rf "$code"
-  if [ -n "${1:-}" ]; then mv "$1" "$code"; fi
+  mkdir -p "$(dirname "$code")"
+  if [ -d "$code" ]; then mv "$code" "$old"; fi
+  if [ -n "${1:-}" ] && ! mv "$1" "$code"; then
+    if [ -d "$old" ]; then mv "$old" "$code"; fi
+    return 1
+  fi
+  if [ -d "$old" ]; then rm -rf "$old" || echo "  Warning: remove $folder/$old by hand" >&2; fi
 }
 
 saved() { echo "$(cat "$backup/version"), saved on $(cat "$backup/complete")"; }
@@ -48,10 +65,9 @@ case "$mode" in
   install)
     files=$4; version=$5
     check_container
-    rm -rf "$code.new" && mkdir -p "$code.new"
-    if ! tar -C "$code.new" -xof - || [ "$(find "$code.new" -type f | wc -l | tr -d ' ')" != "$files" ]; then
-      rm -rf "$code.new"
-      echo "Transfer incomplete: nothing changed" >&2
+    rm -rf "$new" && mkdir -p "$new"
+    if ! tar -C "$new" -xof - || [ "$(find "$new" -type f | wc -l | tr -d ' ')" != "$files" ]; then
+      echo "Transfer incomplete" >&2
       exit 1
     fi
     # Stopped first: Home Assistant writes its pending changes when it stops
@@ -67,7 +83,7 @@ case "$mode" in
       date -u '+%Y-%m-%d %H:%M UTC' > "$backup/complete"
       echo "  backup made: $(saved), in $folder/$backup"
     fi
-    swap_in "$code.new"
+    swap_in "$new"
     echo "  $version installed"
     if [ -n "$container" ]; then start_ha; fi ;;
   rollback)
@@ -78,6 +94,7 @@ case "$mode" in
       echo "  1. Stop Home Assistant." >&2
       echo "  2. Run: scripts/deploy.sh --rollback --stopped, with the same target." >&2
       echo "  3. Start Home Assistant." >&2
+      trap - EXIT
       exit 1
     fi
     check_container
@@ -94,8 +111,8 @@ case "$mode" in
       rm -f .storage/chauffage
     fi
     if [ -d "$backup/chauffage" ]; then
-      rm -rf "$code.new" && cp -a "$backup/chauffage" "$code.new"
-      swap_in "$code.new"
+      rm -rf "$new" && cp -a "$backup/chauffage" "$new"
+      swap_in "$new"
       echo "  $(cat "$backup/version") put back, with its data"
     else
       swap_in

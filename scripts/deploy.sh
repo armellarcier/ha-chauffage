@@ -71,7 +71,11 @@ fi
 shown="${host:+$host:}$folder"
 
 restart_through_api() {
-  [ "$restart" = yes ] && [ -z "$container" ] || return 0
+  [ -z "$container" ] || return 0
+  if [ "$restart" = no ]; then
+    echo "  Restart Home Assistant to load $version."
+    return 0
+  fi
   if ! ha_configured; then
     echo "  Restart Home Assistant by hand (or set PROD_HA_CONTAINER, or PROD_HA_URL and PROD_HA_TOKEN)."
     return 0
@@ -145,4 +149,8 @@ echo "Deploying $version to $shown"
 # COPYFILE_DISABLE: no ._* files from macOS tar
 COPYFILE_DISABLE=1 tar -C "$stage" -cf - . | on_target install "$folder" "$container" "$files" "$version"
 restart_through_api
-echo "Done. Roll back with: scripts/deploy.sh --rollback $(quote "$target")"
+# The rollback command, with an absolute target. Without a container, HA must be stopped first.
+rollback="scripts/deploy.sh --rollback"
+[ -n "${PROD_HA_CONTAINER:-}" ] || rollback+=" --stopped"
+echo "Done. Roll back with: $rollback $(quote "$shown")"
+[ -n "${PROD_HA_CONTAINER:-}" ] || echo "  (stop Home Assistant first)"

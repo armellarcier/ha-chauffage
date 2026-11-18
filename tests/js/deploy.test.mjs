@@ -107,7 +107,15 @@ function home({
   const write = (p, text) => writeFileSync(path(p), text);
   const installed = () => JSON.parse(read('custom_components/chauffage/manifest.json')).version;
   const calls = () => (existsSync(join(dir, 'docker.log')) ? readFileSync(join(dir, 'docker.log'), 'utf8').trim().split('\n') : []);
-  return { dir, config, repo, run, attempt, attemptFrom, fakeSsh, path, read, write, installed, docker: calls };
+  // A mv that fails to put anything in place of the integration, as when a file inside belongs to
+  // another user
+  const failingSwap = () => {
+    writeFileSync(join(bin, 'mv'), '#!/usr/bin/env bash\n'
+      + '[ "${@: -1}" = custom_components/chauffage ] && [[ "$1" != *old* ]] && { echo "mv: permission denied" >&2; exit 1; }\n'
+      + 'exec /bin/mv "$@"\n');
+    chmodSync(join(bin, 'mv'), 0o755);
+  };
+  return { dir, config, repo, run, attempt, attemptFrom, fakeSsh, failingSwap, path, read, write, installed, docker: calls };
 }
 
 // What gets deployed
@@ -227,6 +235,36 @@ test('the deployed files can be read by every user, whatever the umask', { skip:
   assert.equal(statSync(ha.path('custom_components/chauffage')).mode & 0o777, 0o755);
   assert.equal(statSync(ha.path('custom_components/chauffage/frontend')).mode & 0o777, 0o755);
   assert.equal(statSync(ha.path('custom_components/chauffage/manifest.json')).mode & 0o777, 0o644);
+});
+
+test('a deploy that cannot put the new code in place leaves the release whole, and Home Assistant running', () => {
+  const ha = home();
+  ha.failingSwap();
+  const { status, said } = ha.attempt();
+  assert.notEqual(status, 0);
+  assert.equal(ha.installed(), '0.8.0');
+  assert.deepEqual(readdirSync(ha.path('custom_components')), ['chauffage']);
+  assert.deepEqual(readdirSync(ha.config).filter((name) => /new|old/.test(name)), []);
+  assert.equal(ha.docker().at(-1), 'start homeassistant');
+  assert.match(said, /unchanged/);
+});
+
+test('a Home Assistant without custom_components gets one', () => {
+  const ha = home({ release: false });
+  rmSync(ha.path('custom_components'), { recursive: true });
+  ha.run();
+  assert.match(ha.installed(), /dev\./);
+});
+
+test('a rollback that cannot put the release in place leaves the dev version whole', () => {
+  const ha = home();
+  ha.run();
+  const deployed = ha.installed();
+  ha.failingSwap();
+  assert.notEqual(ha.attempt('--rollback').status, 0);
+  assert.equal(ha.installed(), deployed);
+  assert.deepEqual(readdirSync(ha.path('custom_components')), ['chauffage']);
+  assert.equal(ha.docker().at(-1), 'start homeassistant');
 });
 
 test('a transfer cut short changes nothing', () => {
@@ -372,14 +410,27 @@ test('a relative target is read from where the script is run', () => {
   assert.match(ha.installed(), /dev\./);
 });
 
-test('the rollback command it prints can be pasted as is', () => {
+test('the rollback command it prints can be pasted as is, from the repository', () => {
   const ha = home();
-  const odd = join(ha.dir, 'my config');
-  renameSync(ha.config, odd);
-  const { said } = ha.attempt('--no-restart', odd);
+  renameSync(ha.config, join(ha.dir, 'my config'));
+  // A relative target, from another folder than the repository
+  const { said } = ha.attemptFrom(ha.dir, 'my config');
   const [, command] = said.match(/Roll back with: (.*)/);
-  const pasted = spawnSync('bash', ['-c', `set -- ${command.replace(/^scripts\/deploy\.sh /, '')}; echo $#`], { encoding: 'utf8' });
-  assert.equal(pasted.stdout.trim(), '2'); // --rollback and the folder
+  const pasted = spawnSync('bash', ['-c', `set -- ${command.replace(/^scripts\/deploy\.sh /, '')}; printf '%s\\n' "$@"`], { encoding: 'utf8' });
+  const [option, target] = pasted.stdout.trim().split('\n');
+  assert.equal(option, '--rollback');
+  assert.equal(posix(target), posix(join(ha.dir, 'my config')));
+});
+
+test('without a container, the end of a deploy says how to roll back', () => {
+  const ha = home({ container: false });
+  assert.match(ha.run(), /Roll back with: .*--rollback --stopped/);
+});
+
+test('with --no-restart, the deploy says to restart Home Assistant', () => {
+  const ha = home();
+  assert.match(ha.run('--no-restart'), /Restart Home Assistant/);
+  assert.deepEqual(ha.docker(), []);
 });
 
 test('a folder without configuration.yaml is refused', () => {

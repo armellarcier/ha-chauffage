@@ -1261,9 +1261,15 @@ commit on a real Home Assistant instead, and takes it back.
   container, a deploy cut short or a HACS update can leave something other than a dev version
   installed. A new backup would then replace the release. Each deploy says which release the
   backup holds and from when, so an old backup does not come back by surprise.
-- **Home Assistant is stopped around the backup and the rollback.** Home Assistant writes its
-  pending changes when it stops. A copy taken while it runs can miss them, and data put back
-  while it runs is overwritten.
+- **With a container, Home Assistant is stopped around the backup and the rollback.** Home
+  Assistant writes its pending changes when it stops. A copy taken while it runs can miss them,
+  and data put back while it runs is overwritten. Without a container, the first backup is taken
+  while Home Assistant runs. Chauffage saves its data a second after a change, so the risk is
+  small.
+- **The code is swapped by renames, outside `custom_components`.** A file the SSH user cannot
+  delete, for example a `__pycache__` written by Home Assistant as root, would otherwise leave a
+  half-removed integration. If a rename fails, the integration as it was goes back in place. A
+  folder left in `custom_components` would be loaded by Home Assistant as an integration.
 - **Without a container, the rollback changes nothing until you stop Home Assistant.** The dev
   code with the dev data is a working pair, and so is the release with its data. The release
   with the dev data is not: a restart would start it on data it cannot read.
