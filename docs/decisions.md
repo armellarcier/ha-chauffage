@@ -1234,3 +1234,31 @@ A review of every surface, before the merge into `main`, settled these choices.
   semicolons, every case in parentheses, and French translated word by word. The writing guide
   gives the rules and examples, mainly for AI edits, where this style came from. CONTRIBUTING
   says what to do, and this file says why.
+
+### Trying a commit on a real installation (scripts/deploy.sh)
+
+A pre-release is the way to try a version on a real installation. HACS installs and updates a
+pre-release. A pre-release for each quick try is slow, so `scripts/deploy.sh` copies a commit
+behind the back of HACS. The docs present the script as a hack, to undo or release soon after.
+
+- **Few concepts.** Earlier versions also had an API restart, a manual mode, a target argument,
+  a fetch of origin and a Home Assistant left stopped. Each one brought its own bugs, so they
+  are gone. What remains:
+  - **Docker only.** Without a container, the script cannot stop Home Assistant to put the data
+    back. Home Assistant OS users try a pre-release.
+  - **`PROD_HA_CONFIG` only.** The container belongs to that Home Assistant.
+  - **`--branch` reads your clone only, and takes a full sha.** You fetch a branch of origin
+    yourself. A short sha could be the name of a tag fetched from a fork.
+- **A commit, never the working tree.** A working tree carries files nobody reviewed. Only the
+  integration comes from the commit, so the scripts that run are always ours.
+- **No check of the CI.** It would make the script depend on GitHub.
+- **The backup is out of date as soon as something else than a dev version is installed.** For
+  example the release of the commit you tried, or the saved release installed again. The next
+  deploy then makes a new backup, and a rollback only deletes it. Otherwise a rollback would
+  bring back old data.
+- **The dev version sorts after the release**, for example `0.9.1-dev.…` for `0.9.0`. An open
+  card then asks for a reload, not for a restart.
+- **The rollback keeps the data of the dev version in a file aside.** Weeks of real use may be
+  in it.
+- **The backup does not hold `.storage/core.config_entries`.** That file belongs to every
+  integration.
