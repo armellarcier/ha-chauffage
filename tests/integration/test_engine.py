@@ -452,7 +452,7 @@ def test_the_next_slot_may_differ_by_its_settings_only():
 
 def test_the_preset_says_how_warm_and_the_slot_says_the_hvac_mode_the_fan_and_the_vanes():
     """The preset's default, then its value on the thermostat, then the slot's settings
-    (docs/decisions.md, "Presets"). The slot's HVAC mode: test_slot_hvac_mode.py."""
+    (docs/decisions.md, "Presets"). The slot's HVAC mode: test_hvac_mode.py and test_air_conditioners.py."""
     presets = {**PRESETS, "away": {"id": "away", "name": "Away", "color": "#000000", "temperature": 15.0}}
     mapping = {"comfort": {"cool_temperature": 25.0, "fan_mode": "1"}, "eco": {"temperature": 18.0}}
     # The preset's own default
@@ -463,7 +463,7 @@ def test_the_preset_says_how_warm_and_the_slot_says_the_hvac_mode_the_fan_and_th
     assert engine.resolve("comfort", presets, mapping, ac()) == {"preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "1"}
     assert engine.resolve("eco", presets, mapping, ac()) == {"temperature": 18.0, "cool_preset_mode": "eco"}
     # The slot has the last word: the fan and the vanes. Off is off, and nothing else
-    # (and heat, on an air conditioner: test_air_conditioner_slots.py)
+    # (and heat, on an air conditioner: test_air_conditioners.py)
     assert engine.resolve("comfort", presets, mapping, ac(), settings={"fan_mode": "3"}) == {
         "preset_mode": "comfort", "cool_temperature": 25.0, "fan_mode": "3", "hvac_mode": "heat"}
     assert engine.resolve("away", presets, {}, ac(), settings=OFF) == OFF
