@@ -1248,8 +1248,10 @@ commit instead.
   - **`--branch` reads your clone only.** You fetch a branch of origin yourself.
 - **A commit, never the working tree.** A working tree carries files nobody reviewed.
 - **No check of the CI.** It would make the script depend on GitHub.
-- **The backup is made once and kept until a rollback.** Later deploys, a deploy cut short or a
-  HACS update must not replace the release in it.
+- **The backup is kept until a rollback, or until an update replaces the dev version.** Later
+  deploys must not replace the release in it. After an update, for example to the release of
+  the commit you tried, the backup is out of date, so the next deploy makes a new one. You keep
+  a version without a manual step.
 - **The dev version sorts after the release**, for example `0.9.1-dev.…` for `0.9.0`. An open
   card then asks for a reload, not for a restart.
 - **The rollback keeps the data of the dev version.** Weeks of real use may be in it.

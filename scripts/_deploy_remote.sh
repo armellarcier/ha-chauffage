@@ -61,6 +61,14 @@ swap_in() {
 }
 
 saved() { echo "$(cat "$backup/version"), saved on $(cat "$backup/complete")"; }
+installed() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$code/manifest.json" 2>/dev/null || true; }
+# An update replaced the dev version, for example with the release of the commit you tried: the
+# installed version is neither a dev version nor the saved one. The backup is then out of date.
+outdated() {
+  local version; version=$(installed)
+  [ -f "$backup/complete" ] && [ -n "$version" ] && [[ "$version" != *[.-]dev.* ]] &&
+    [ "$version" != "$(cat "$backup/version")" ]
+}
 
 case "$mode" in
   install)
@@ -73,14 +81,15 @@ case "$mode" in
     fi
     # Readable by every user, whatever the umask here
     chmod -R u=rwX,go=rX "$new"
-    if [ -f "$backup/complete" ]; then
+    if [ -f "$backup/complete" ] && ! outdated; then
       stop_ha
       echo "  backup kept: $(saved)"
     else
+      if outdated; then echo "  backup of $(saved) dropped: $(installed) replaced the dev version"; fi
       rm -rf "$backup" && mkdir -p "$backup"
       # The code while Home Assistant runs: it only writes __pycache__ there, which is not needed
       if [ -d "$code" ]; then cp -a "$code" "$backup/chauffage"; fi
-      version_saved=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$code/manifest.json" 2>/dev/null || true)
+      version_saved=$(installed)
       echo "${version_saved:-no Chauffage}" > "$backup/version"
       # The data once Home Assistant is stopped: it writes its pending changes when it stops
       stop_ha
@@ -92,6 +101,10 @@ case "$mode" in
     echo "  $version installed" ;;
   rollback)
     test -f "$backup/complete" || { echo "No backup in $folder/$backup: nothing to roll back" >&2; exit 1; }
+    if outdated; then
+      echo "Nothing to roll back: $(installed) is installed, not a dev version. The backup of $(saved) is out of date." >&2
+      exit 1
+    fi
     check_container
     stop_ha
     # The data first: the dev code can read the release data, not the other way round

@@ -329,10 +329,21 @@ version de développement, et la version publiée ne sait peut-être pas le lire
 
 Si Chauffage n'était pas installé avant le premier déploiement, le retour en arrière le retire.
 
+#### 6. Ou garder la version
+
+Si la version marche, ne revenez pas en arrière :
+
+1. Publiez le commit essayé (voir [Publier une version](#publier-une-version)).
+2. Mettez à jour Chauffage depuis HACS vers cette version.
+
+Home Assistant garde les données modifiées pendant l'essai. Au déploiement suivant, le script
+voit qu'une mise à jour a remplacé la version de développement, et refait une sauvegarde de la
+version publiée.
+
 #### Ce que la sauvegarde ne couvre pas
 
-- **HACS.** HACS affiche toujours la version que vous aviez installée. Faites le retour en
-  arrière avant de mettre à jour Chauffage depuis HACS.
+- **HACS.** Jusqu'à votre mise à jour depuis HACS, HACS affiche la version installée avant le
+  premier déploiement.
 - **La configuration de l'intégration.** La sauvegarde contient `.storage/chauffage`, mais pas
   l'entrée de l'intégration dans `.storage/core.config_entries`. Si votre version augmente la
   version majeure de cette entrée, la version publiée ne peut plus charger l'intégration après

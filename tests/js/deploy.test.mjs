@@ -340,14 +340,43 @@ test('the rollback keeps the data of the dev version aside, and says where', () 
 test('a later deploy keeps the backup, and says which release and from when', () => {
   const ha = home();
   ha.run();
-  ha.write('custom_components/chauffage/manifest.json', '{"version": "0.8.1"}\n'); // HACS update
   ha.write('.storage/chauffage', 'data migrated by the dev version');
   const said = ha.run();
-  assert.match(said, /0\.8\.0/);
-  assert.match(said, /\d{4}-\d{2}-\d{2}/);
+  assert.match(said, /backup kept: 0\.8\.0, saved on \d{4}-\d{2}-\d{2}/);
   ha.run('--rollback');
   assert.equal(ha.installed(), '0.8.0');
   assert.equal(ha.read('.storage/chauffage'), 'data of 0.8.0');
+});
+
+// The version is kept: it is released, and Home Assistant updates to it
+function keptAndUpdated() {
+  const ha = home();
+  ha.run();
+  ha.write('.storage/chauffage', 'data changed during the test');
+  // The HACS update to the release: a new folder, the data as it is
+  rmSync(ha.path('custom_components/chauffage'), { recursive: true });
+  mkdirSync(ha.path('custom_components/chauffage'));
+  ha.write('custom_components/chauffage/manifest.json', '{"version": "0.9.1"}\n');
+  return ha;
+}
+
+test('after an update to a release, the next deploy saves that release, not the one before the test', () => {
+  const ha = keptAndUpdated();
+  assert.match(ha.run(), /backup made: 0\.9\.1/);
+  ha.write('.storage/chauffage', 'data of the next test');
+  ha.run('--rollback');
+  assert.equal(ha.installed(), '0.9.1');
+  assert.equal(ha.read('.storage/chauffage'), 'data changed during the test');
+});
+
+test('after an update to a release, a rollback changes nothing', () => {
+  const ha = keptAndUpdated();
+  const { status, said } = ha.attempt('--rollback');
+  assert.notEqual(status, 0);
+  assert.match(said, /0\.9\.1/);
+  assert.equal(ha.installed(), '0.9.1');
+  assert.equal(ha.read('.storage/chauffage'), 'data changed during the test');
+  assert.deepEqual(ha.docker(), ['stop -t 120 homeassistant', 'start homeassistant']); // the deploy's
 });
 
 test('a deploy cut short keeps the saved release', () => {

@@ -307,10 +307,20 @@ file has the format of the dev version, so the release may not read it.
 
 If Chauffage was not installed before the first deploy, the rollback removes it.
 
+#### 6. Or keep the version
+
+If the version works, don't roll back:
+
+1. Release the commit you tried (see [Releasing](#releasing)).
+2. Update Chauffage from HACS to that release.
+
+Home Assistant keeps the data you changed during the test. The next deploy sees that an update
+replaced the dev version, and makes a new backup of the release.
+
 #### What the backup does not cover
 
-- **HACS.** HACS still shows the release you installed. Roll back before you update Chauffage
-  from HACS.
+- **HACS.** HACS still shows the release you installed before the first deploy, until you
+  update from HACS.
 - **The integration's configuration.** The backup holds `.storage/chauffage`, not the
   integration's entry in `.storage/core.config_entries`. If your version raises the major
   version of the entry, the release can no longer load the integration after the rollback.
