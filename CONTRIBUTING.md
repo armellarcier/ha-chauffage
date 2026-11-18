@@ -238,33 +238,25 @@ the weeks. If a run stops half-way, its log gives the setting to set back.
 
 ## Trying a version on a real Home Assistant
 
-### Without a release
+### Without a release, on Home Assistant in Docker
 
 `scripts/deploy.sh` installs a commit of the repository on your own Home Assistant.
-`scripts/deploy.sh --rollback` puts back what was installed before.
+`scripts/deploy.sh --rollback` puts back what was installed before. The script needs Home
+Assistant in a Docker container. On Home Assistant OS, use a pre-release.
 
 #### 1. Check the prerequisites
 
 - Your machine has `bash` and `git`.
-- Over SSH, `ssh <host>` works without a prompt, for example with a host alias in
-  `~/.ssh/config`. The target host has `bash` and `tar`.
-- The user who runs the script on the target can write to the Home Assistant configuration
-  folder, and can run `docker` if Home Assistant runs in Docker.
+- `ssh <host>` works without a prompt, for example with a host alias in `~/.ssh/config`.
+- The SSH user can write to the Home Assistant configuration folder and can run `docker`.
+- The host has `bash` and `tar`.
 
 #### 2. Set up `.env`
 
-Give the folder that holds `configuration.yaml`, and the Docker container if Home Assistant
-runs in Docker:
-
 ```bash
-PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # host:/folder over SSH, or a local folder
+PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # host:/folder, or a local folder
 PROD_HA_CONTAINER=homeassistant
 ```
-
-Without a container, for example on Home Assistant OS, set `PROD_HA_URL` and `PROD_HA_TOKEN`
-instead. The script then restarts Home Assistant through its API. If Home Assistant uses its own
-certificate, give curl options in `PROD_CURL_OPTS`, for example `--cacert ca.pem`. Without these
-settings, restart Home Assistant yourself.
 
 #### 3. Deploy
 
@@ -278,27 +270,29 @@ The script installs the last commit of your current branch. Changes that are not
 not deployed, and the script says so. Before it changes anything, the script prints the commit's
 sha and subject.
 
-To deploy another branch without checking it out, run `scripts/deploy.sh --branch <branch>`. If
-the branch is not in your clone, the script fetches it from `origin`. To pin the commit you
-reviewed, give its sha instead of the branch.
-
-To try a contributor's branch, run `--branch` from your own checkout of `main`. Only the
-integration comes from the branch: the scripts that run are yours.
-
-The first deploy saves what is installed and its data in `<config>/.chauffage-backup`. Later
-deploys keep this backup, and say which release it holds and from when.
+The script stops Home Assistant, installs the commit, and starts Home Assistant again. The first
+deploy also saves what is installed and its data in `<config>/.chauffage-backup`. Later deploys
+keep this backup, and say which release it holds and from when.
 
 The installed version gets a suffix made of the commit's date and sha, for example
 `0.9.0-beta.4.dev.20261118153000.g5b20a33`. So the browsers load the new card.
 
-To deploy to another folder than `PROD_HA_CONFIG`, give it as the last argument, for example
-`scripts/deploy.sh /config`. The script then leaves Home Assistant alone: the container and the
-token of `.env` belong to `PROD_HA_CONFIG`. To install without a restart, run
-`scripts/deploy.sh --no-restart`.
+#### 4. Deploy another branch
 
-#### 4. Roll back
+To deploy another branch without checking it out, run `scripts/deploy.sh --branch <branch>`. To
+pin the commit you reviewed, give its sha instead.
 
-**With `PROD_HA_CONTAINER`.** Run:
+For a branch that is only on GitHub, for example a contributor's, fetch it first:
+
+```bash
+git fetch origin <branch>
+scripts/deploy.sh --branch origin/<branch>
+```
+
+Run the script from your own checkout of `main`. Only the integration comes from the branch: the
+scripts that run are yours.
+
+#### 5. Roll back
 
 ```bash
 scripts/deploy.sh --rollback
@@ -306,13 +300,6 @@ scripts/deploy.sh --rollback
 
 The rollback stops Home Assistant, puts back the release and its data, starts Home Assistant,
 and deletes the backup.
-
-**Without a container**, with `--no-restart`, or on another folder than `PROD_HA_CONFIG`, the
-script cannot stop Home Assistant:
-
-1. Stop Home Assistant.
-2. Run `scripts/deploy.sh --rollback --stopped`.
-3. Start Home Assistant.
 
 Every change made in Chauffage since the first deploy is lost, for example a week you edited.
 The rollback keeps the data of the dev version in `<config>/.chauffage-dev-data-<time>`. This

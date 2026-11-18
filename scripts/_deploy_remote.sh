@@ -1,9 +1,8 @@
 # Run by scripts/deploy.sh on the host of the Home Assistant configuration, with bash.
 #   _deploy_remote.sh install  <folder> <container> <files> <version>   (the tar archive on stdin)
 #   _deploy_remote.sh rollback <folder> <container>
-# <container>: the Docker container to stop and start, or empty to leave Home Assistant alone.
+# <container>: the Docker container of Home Assistant, stopped and started around the changes.
 # <files>: the number of files in the archive, to detect a transfer cut short.
-# This script only says what it did. scripts/deploy.sh says what to do next.
 # Kept in its own file: bash 3.2 (macOS) misreads a heredoc with `case` inside $( ).
 set -euo pipefail
 mode=$1; folder=$2; container=$3
@@ -34,13 +33,12 @@ finish() {
   if [ "$stopped_by_us" = true ]; then
     docker start "$container" >/dev/null || { echo "  Could not start $container" >&2; exit 1; }
     echo "  $container started"
-  elif [ -n "$container" ] && [ "$status" = 0 ]; then
+  elif [ "$status" = 0 ]; then
     echo "  $container was stopped: left stopped"
   fi
 }
 trap finish EXIT
 check_container() {
-  [ -n "$container" ] || return 0
   was_running=$(docker inspect -f '{{.State.Running}}' "$container") || { echo "No container $container" >&2; exit 1; }
 }
 stop_ha() {

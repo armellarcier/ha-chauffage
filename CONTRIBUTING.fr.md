@@ -255,33 +255,26 @@ réglage à remettre.
 
 ## Essayer une version sur un vrai Home Assistant
 
-### Sans publier de version
+### Sans publier de version, sur un Home Assistant dans Docker
 
 `scripts/deploy.sh` installe un commit du dépôt sur votre propre Home Assistant.
-`scripts/deploy.sh --rollback` remet ce qui était installé avant.
+`scripts/deploy.sh --rollback` remet ce qui était installé avant. Le script a besoin d'un Home
+Assistant dans un conteneur Docker. Sur Home Assistant OS, passez par une préversion.
 
 #### 1. Vérifier les prérequis
 
 - Votre machine a `bash` et `git`.
-- En SSH, `ssh <hôte>` fonctionne sans rien demander, par exemple avec un alias dans
-  `~/.ssh/config`. La machine cible a `bash` et `tar`.
-- L'utilisateur qui lance le script sur la cible peut écrire dans le dossier de configuration de
-  Home Assistant, et peut lancer `docker` si Home Assistant tourne dans Docker.
+- `ssh <hôte>` fonctionne sans rien demander, par exemple avec un alias dans `~/.ssh/config`.
+- L'utilisateur SSH peut écrire dans le dossier de configuration de Home Assistant et peut
+  lancer `docker`.
+- L'hôte a `bash` et `tar`.
 
 #### 2. Remplir `.env`
 
-Indiquez le dossier qui contient `configuration.yaml`, et le conteneur Docker si Home Assistant
-tourne dans Docker :
-
 ```bash
-PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # hôte:/dossier en SSH, ou un dossier local
+PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # hôte:/dossier, ou un dossier local
 PROD_HA_CONTAINER=homeassistant
 ```
-
-Sans conteneur, par exemple sur Home Assistant OS, renseignez plutôt `PROD_HA_URL` et
-`PROD_HA_TOKEN`. Le script redémarre alors Home Assistant par son API. Si Home Assistant a son
-propre certificat, donnez les options de curl dans `PROD_CURL_OPTS`, par exemple
-`--cacert ca.pem`. Sans ces réglages, redémarrez Home Assistant vous-même.
 
 #### 3. Déployer
 
@@ -295,29 +288,32 @@ Le script installe le dernier commit de votre branche courante. Les modification
 committées ne partent pas, et le script le signale. Avant de changer quoi que ce soit, le script
 affiche le sha et le titre du commit.
 
-Pour déployer une autre branche sans la récupérer dans votre copie de travail, lancez
-`scripts/deploy.sh --branch <branche>`. Si la branche n'est pas dans votre clone, le script la
-récupère sur `origin`. Pour déployer exactement le commit que vous avez relu, donnez son sha au
-lieu de la branche.
-
-Pour essayer la branche d'un contributeur, lancez `--branch` depuis votre propre copie de
-`main`. Seule l'intégration vient de la branche : les scripts qui tournent sont les vôtres.
-
-Au premier déploiement, le script met de côté ce qui est installé et ses données, dans
+Le script arrête Home Assistant, installe le commit, puis relance Home Assistant. Au premier
+déploiement, il met aussi de côté ce qui est installé et ses données, dans
 `<config>/.chauffage-backup`. Les déploiements suivants gardent cette sauvegarde, et indiquent
 quelle version elle contient et de quand elle date.
 
 La version installée porte un suffixe tiré de la date et du sha du commit, par exemple
 `0.9.0-beta.4.dev.20261118153000.g5b20a33`. Les navigateurs chargent donc la nouvelle carte.
 
-Pour déployer dans un autre dossier que `PROD_HA_CONFIG`, donnez-le en dernier argument, par
-exemple `scripts/deploy.sh /config`. Le script laisse alors Home Assistant tranquille : le
-conteneur et le jeton de `.env` appartiennent à `PROD_HA_CONFIG`. Pour installer sans
-redémarrer, lancez `scripts/deploy.sh --no-restart`.
+#### 4. Déployer une autre branche
 
-#### 4. Revenir à la version d'avant
+Pour déployer une autre branche sans la récupérer dans votre copie de travail, lancez
+`scripts/deploy.sh --branch <branche>`. Pour déployer exactement le commit que vous avez relu,
+donnez son sha à la place.
 
-**Avec `PROD_HA_CONTAINER`.** Lancez :
+Pour une branche qui n'est que sur GitHub, par exemple celle d'un contributeur, récupérez-la
+d'abord :
+
+```bash
+git fetch origin <branche>
+scripts/deploy.sh --branch origin/<branche>
+```
+
+Lancez le script depuis votre propre copie de `main`. Seule l'intégration vient de la branche :
+les scripts qui tournent sont les vôtres.
+
+#### 5. Revenir à la version d'avant
 
 ```bash
 scripts/deploy.sh --rollback
@@ -325,13 +321,6 @@ scripts/deploy.sh --rollback
 
 Le retour en arrière arrête Home Assistant, remet la version publiée et ses données, relance
 Home Assistant et supprime la sauvegarde.
-
-**Sans conteneur**, avec `--no-restart`, ou dans un autre dossier que `PROD_HA_CONFIG`, le
-script ne peut pas arrêter Home Assistant :
-
-1. Arrêtez Home Assistant.
-2. Lancez `scripts/deploy.sh --rollback --stopped`.
-3. Démarrez Home Assistant.
 
 Tout ce que vous avez modifié dans Chauffage depuis le premier déploiement est perdu, par
 exemple une semaine retouchée. Le retour en arrière garde les données de la version de
