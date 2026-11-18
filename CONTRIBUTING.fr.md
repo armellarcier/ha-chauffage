@@ -262,13 +262,15 @@ Pour essayer une version sur un vrai Home Assistant, publiez une préversion (vo
 les versions bêta activées. HACS installe et met à jour une préversion comme n'importe quelle
 version.
 
-### Un raccourci pour un essai rapide : scripts/deploy.sh
+### Le raccourci du mainteneur : scripts/deploy.sh
 
-**`scripts/deploy.sh` est un bricolage, pas une façon d'installer Chauffage.** Le script copie
-un commit directement dans le dossier de configuration de votre Home Assistant, dans le dos de
-HACS. HACS n'en sait rien, et votre Home Assistant fait tourner une version que personne n'a
-publiée. Servez-vous du script pour un essai rapide entre deux préversions. Revenez ensuite en
-arrière, ou publiez la version, dès que vous l'avez essayée.
+**`scripts/deploy.sh` est un bricolage, à vos risques et périls.** Le mainteneur le garde pour
+ses propres essais rapides entre deux préversions. Il n'est pas pris en charge : merci de ne pas
+ouvrir d'issue à son sujet.
+
+Le script copie un commit directement dans le dossier de configuration de votre Home Assistant,
+dans le dos de HACS. HACS n'en sait rien, et votre Home Assistant fait tourner une version que
+personne n'a publiée. Revenez en arrière, ou publiez la version, dès que vous l'avez essayée.
 
 `scripts/deploy.sh --rollback` remet ce qui était installé avant. Le script a besoin d'un Home
 Assistant dans un conteneur Docker.

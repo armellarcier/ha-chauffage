@@ -244,13 +244,14 @@ To try a version on a real Home Assistant, publish a pre-release (see [Releasing
 Then install the pre-release from HACS, with beta versions enabled. HACS installs and updates a
 pre-release like any release.
 
-### A shortcut for a quick try: scripts/deploy.sh
+### The maintainer's shortcut: scripts/deploy.sh
 
-**`scripts/deploy.sh` is a hack, not a way to install Chauffage.** The script copies a commit
-straight into the configuration folder of your Home Assistant, behind the back of HACS. HACS
-doesn't know about it, and your Home Assistant runs a version that nobody released. Use the
-script for a quick try between two pre-releases. Then roll back, or release the version, as soon
-as you have tried it.
+**`scripts/deploy.sh` is a hack, at your own risk.** The maintainer keeps it for quick tries
+between two pre-releases. It is not supported: please don't open issues about it.
+
+The script copies a commit straight into the configuration folder of your Home Assistant, behind
+the back of HACS. HACS doesn't know about it, and your Home Assistant runs a version that nobody
+released. Roll back, or release the version, as soon as you have tried it.
 
 `scripts/deploy.sh --rollback` puts back what was installed before. The script needs Home
 Assistant in a Docker container.
