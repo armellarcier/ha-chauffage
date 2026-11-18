@@ -5,7 +5,7 @@ off by its window or by its auto start/stop is not."""
 import pytest
 from homeassistant.core import Context, Event, callback
 
-from conftest import CTX_AUTOMATION, CTX_USER, KINDS, WEEKDAY, Bench
+from conftest import CTX_AUTOMATION, CTX_USER, KINDS, MANUAL_PRESET, WEEKDAY, Bench
 from hvac_helpers import (
     AC_MODES, BUREAU, HEAT, NIGHT_OFF, OFF, PRESETS, SALON, ac, clear, salon, start_ac, start_salon, state,
 )
@@ -527,3 +527,34 @@ async def test_an_override_that_ended_while_the_thermostat_was_off_is_not_given_
     await bench.hass.async_block_till_done(wait_background_tasks=True)
     assert bench.overrides() == {}
     assert bench.applied() == {"climate.salon": "eco"}
+
+
+async def test_an_override_set_after_an_off_by_hand_does_not_bring_the_old_one_back(bench: Bench):
+    """Comfort, then off by hand, then 21 °C from the card (the card builds on the off
+    override). A setpoint then changed by hand is that setpoint: comfort, kept for the off, is
+    not given back."""
+    await start_salon(bench)
+    await bench.hass.services.async_call("chauffage", "set_override", {
+        "entity_id": "climate.salon", "preset": "comfort", "duration": 90}, blocking=True)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "comfort", state="off", context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    off = dict(bench.overrides()["climate.salon"])
+    await bench.set_override("climate.salon", {**off, "target": {"temperature": 21.0}})  # as the card sends it
+    assert "before_off" not in bench.overrides()["climate.salon"]
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 23.0, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 23.0}
+
+
+def test_only_an_off_override_keeps_the_override_it_replaced():
+    """Stored and read again: an off override keeps the override it replaced, one level deep;
+    any other override drops it."""
+    from custom_components.chauffage import model
+    kept = {"target": {"preset_mode": "comfort"}, "start": "2026-10-12T10:00:00+02:00", "end": "2026-10-12T11:30:00+02:00",
+            "preset": "comfort"}
+    off = {"target": {"hvac_mode": "off"}, "start": "2026-10-12T10:05:00+02:00", "end": "2026-10-12T17:30:00+02:00",
+           "before_off": kept}
+    assert model.normalize_override(off)["before_off"] == kept
+    assert "before_off" not in model.normalize_override({**off, "target": {"temperature": 21.0}})
+    assert "before_off" not in model.normalize_override({**off, "before_off": {**kept, "before_off": kept}})

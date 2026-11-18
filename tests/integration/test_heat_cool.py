@@ -282,3 +282,18 @@ async def test_leaving_heat_cool_by_hand_keeps_the_preset_in_force(bench: Bench)
     assert 20.0 not in sent_to(bench)
     if bench.kind == "plain":  # no climate preset: the cooling temperature of comfort
         assert sent_to(bench) == [25.0]
+
+
+async def test_back_to_heat_cool_by_hand_without_a_range_to_carry_resumes_the_slot(bench: Bench):
+    """An override to the thermostat's own boost, in cool, during a heat/cool slot. Switched
+    back to heat/cool by hand: boost has no range to carry there, so the schedule resumes,
+    never an override that holds heat/cool alone."""
+    bench.needs("vtherm", "standard")
+    await start_ac_with_range(bench, [["00:00", "comfort", {"hvac_mode": "heat_cool"}]], state="heat_cool",
+                              target_temp_low=20.0, target_temp_high=25.0)
+    await bench.set_override(SALON, bench.runtime.new_override({"preset_mode": "boost", "hvac_mode": "cool"}))
+    bench.thermostat(SALON, "boost", state="cool", hvac_modes=REVERSIBLE, supported_features=RANGE, context=Context())
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    by_hand(bench, "heat_cool", preset="boost", target_temp_low=20.0, target_temp_high=25.0)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    assert bench.overrides() == {}

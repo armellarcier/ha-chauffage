@@ -1446,8 +1446,10 @@ class ChauffageRuntime:
         if change == engine.RESUME and preset_override and after.state != before.state \
                 and after.state in engine.SETPOINT_MODES:
             # Back to the slot's HVAC mode by hand, with an override to a preset (Chauffage's or
-            # the thermostat's own): the preset goes on in that HVAC mode, until its end
-            change = {"hvac_mode": after.state}
+            # the thermostat's own): the preset goes on in that HVAC mode, until its end. Without
+            # a value to carry there (a range in heat/cool), the schedule resumes
+            if self._switched_override(new.entity_id, {"hvac_mode": after.state}, current, slot, after) is not None:
+                change = {"hvac_mode": after.state}
         if change == engine.RESUME:
             if new.entity_id in self.data["overrides"]:
                 resume = self.set_override(new.entity_id, None, source="thermostat", context=context)
@@ -1476,7 +1478,7 @@ class ChauffageRuntime:
         gets that override back, until its end, unless it ended meanwhile or the thermostat came
         back in another HVAC mode. True when given back."""
         before_off = (current or {}).get("before_off")
-        if not before_off or after.state == engine.OFF:
+        if not before_off or current["target"].get("hvac_mode") != engine.OFF or after.state == engine.OFF:
             return False
         mode = before_off["target"].get("hvac_mode")
         if engine.parse_datetime(before_off["end"]) <= dt_util.now() or (mode is not None and mode != after.state):

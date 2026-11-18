@@ -275,7 +275,8 @@ future contributor might question.
     end: before, it ended, and a boost was lost. A temperature typed by the person is not
     carried into another HVAC mode (above), so that override still ends. A thermostat turned
     off by hand during an override, then on again before the override's end, gets the
-    override back, as with a switch: the off override keeps it (`before_off`). After the end,
+    override back, as with a switch: the off override keeps it (`before_off`), and only an
+    off override does; the card never sends it back. After the end,
     or back in another HVAC mode, the thermostat follows its slot.
   - **An off slot has no preset, and Chauffage sends only off.** A first version sent a preset
     with off, as a scene does, and chose the coldest preset so that a thermostat that heats
