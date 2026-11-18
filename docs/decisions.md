@@ -1194,6 +1194,12 @@ A review of every surface, before the merge into `main`, settled these choices.
   behavior test runs on the three kinds of thermostats.
 - **A change to the stored data or the installation goes through a beta** installed on a real
   installation before the release.
+- **`scripts/deploy.sh` tries the working tree on a real installation without a release.** A
+  pre-release for each try is slow and fills the release list. The script saves the release and
+  its data before the first deploy, because a dev version may migrate the stored data, and an
+  older version cannot read newer data. The data is only put back with Home Assistant stopped:
+  Home Assistant writes its stores when it stops, and would overwrite it. The dev suffix of the
+  version changes the card's URL, so the browsers load the new card.
 - **The minimum Home Assistant stays as low as possible** and only rises when a Home Assistant
   API requires it (CONTRIBUTING.md, "Supported Home Assistant versions"): a heating schedule is
   set up once and its HA is often not updated every month; dropping it for a version number

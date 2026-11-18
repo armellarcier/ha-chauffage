@@ -255,9 +255,58 @@ réglage à remettre.
 
 ## Essayer une version sur un vrai Home Assistant
 
-Pour essayer une version de développement sur votre propre Home Assistant, publiez une
-préversion (voir [Publier une version](#publier-une-version)). Installez ensuite la préversion
-depuis HACS, avec les versions bêta activées.
+### Sans publier de version
+
+`scripts/deploy.sh` installe votre copie de travail sur votre propre Home Assistant, puis la
+retire. Le script atteint le dossier de configuration de Home Assistant en SSH, ou comme un
+dossier local.
+
+#### 1. Remplir `.env`
+
+Indiquez le dossier de configuration, et le conteneur Docker si Home Assistant tourne dans
+Docker :
+
+```bash
+PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # hôte:dossier en SSH, ou un dossier local
+PROD_HA_CONTAINER=homeassistant
+```
+
+Sans conteneur, par exemple sur Home Assistant OS, renseignez plutôt `PROD_HA_URL` et
+`PROD_HA_TOKEN`. Le script redémarre alors Home Assistant par son API.
+
+#### 2. Déployer
+
+```bash
+scripts/deploy.sh
+```
+
+Au premier déploiement, le script met de côté la version installée et ses données, dans
+`<config>/.chauffage-backup`. Il installe ensuite votre copie de travail et redémarre Home
+Assistant. La version installée porte un suffixe de développement, par exemple
+`0.9.0-beta.4.dev.20261118153000.g5b20a33`. Les navigateurs chargent donc la nouvelle carte.
+
+Redéployez après chaque modification. La sauvegarde garde la version publiée.
+
+#### 3. Revenir à la version publiée
+
+```bash
+scripts/deploy.sh --rollback
+```
+
+Le retour arrière remet la version publiée et ses données, puis redémarre Home Assistant. Ce que
+vous avez modifié dans Chauffage pendant l'essai est perdu.
+
+Sans conteneur, le script ne peut pas arrêter Home Assistant. Il ne remet donc pas les données.
+Le script vous indique quel fichier copier, une fois Home Assistant arrêté.
+
+Une mise à jour HACS remplace aussi la version de développement. HACS affiche toujours la
+version que vous aviez installée.
+
+### Avec une préversion
+
+Pour essayer une version avec HACS, publiez une préversion (voir
+[Publier une version](#publier-une-version)). Installez ensuite la préversion depuis HACS, avec
+les versions bêta activées.
 
 Sans HACS, copiez `custom_components/chauffage/` dans `<config>/custom_components/chauffage/`,
 puis redémarrez Home Assistant.

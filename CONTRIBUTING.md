@@ -238,8 +238,54 @@ the weeks. If a run stops half-way, its log gives the setting to set back.
 
 ## Trying a version on a real Home Assistant
 
-To try a development version on your own Home Assistant, publish a pre-release (see
-[Releasing](#releasing)). Then install the pre-release from HACS, with beta versions enabled.
+### Without a release
+
+`scripts/deploy.sh` installs your working tree on your own Home Assistant, and takes it back.
+The script reaches the Home Assistant configuration folder over SSH, or as a local folder.
+
+#### 1. Set up `.env`
+
+Give the configuration folder, and the Docker container if Home Assistant runs in Docker:
+
+```bash
+PROD_HA_CONFIG=home-assistant:/docker/homeassistant/config   # host:folder over SSH, or a local folder
+PROD_HA_CONTAINER=homeassistant
+```
+
+Without a container, for example on Home Assistant OS, set `PROD_HA_URL` and `PROD_HA_TOKEN`
+instead. The script then restarts Home Assistant through its API.
+
+#### 2. Deploy
+
+```bash
+scripts/deploy.sh
+```
+
+The first deploy saves the installed release and its data in `<config>/.chauffage-backup`.
+Then the script installs your working tree and restarts Home Assistant. The installed version
+gets a dev suffix, for example `0.9.0-beta.4.dev.20261118153000.g5b20a33`, so the browsers load
+the new card.
+
+Deploy again after each change. The backup keeps the release.
+
+#### 3. Roll back
+
+```bash
+scripts/deploy.sh --rollback
+```
+
+The rollback puts back the release and its data, then restarts Home Assistant. The changes you
+made in Chauffage during the test are lost.
+
+Without a container, the script cannot stop Home Assistant, so it does not put the data back.
+The script tells you which file to copy once Home Assistant is stopped.
+
+A HACS update also replaces the dev version. HACS keeps showing the release you installed.
+
+### With a pre-release
+
+To try a version with HACS, publish a pre-release (see [Releasing](#releasing)). Then install
+the pre-release from HACS, with beta versions enabled.
 
 Without HACS, copy `custom_components/chauffage/` into `<config>/custom_components/chauffage/`,
 then restart Home Assistant.

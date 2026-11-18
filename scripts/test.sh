@@ -11,6 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 what="${1:-all}"; shift || true
 
+# node:22-alpine has no bash: tests/js/deploy.test.mjs runs scripts/deploy.sh with it.
 # Repository path for Docker (Git Bash on Windows: Windows path, no MSYS conversion)
 root="$(pwd -W 2>/dev/null || pwd)"
 export MSYS_NO_PATHCONV=1
@@ -21,7 +22,7 @@ coverage() {
     npm install --no-audit --no-fund --silent && npm run coverage
   else
     docker run --rm -v "$root:/app" -v ha-chauffage-node-modules:/app/node_modules -w /app node:22-alpine \
-      sh -c 'npm install --no-audit --no-fund --silent && npm run coverage'
+      sh -c 'apk add -q --no-cache bash >/dev/null && npm install --no-audit --no-fund --silent && npm run coverage'
   fi
   rm -f lcov.info
   echo "=== Integration coverage (Python, minimum 97 % of the lines) ==="
@@ -34,7 +35,7 @@ js_tests() {
     npm install --no-audit --no-fund --silent && npm test
   else
     docker run --rm -v "$root:/app" -v ha-chauffage-node-modules:/app/node_modules -w /app node:22-alpine \
-      sh -c 'npm install --no-audit --no-fund --silent && npm test'
+      sh -c 'apk add -q --no-cache bash >/dev/null && npm install --no-audit --no-fund --silent && npm test'
   fi
 }
 
