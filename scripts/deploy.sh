@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Puts a commit of this repository on the Home Assistant of PROD_HA_CONFIG, without a release, and
 # takes it back. Home Assistant runs in the Docker container PROD_HA_CONTAINER.
-# The maintainer's tool, unsupported, at your own risk: see CONTRIBUTING.md.
+# Our own tool, unsupported, at your own risk: see CONTRIBUTING.md.
 #
 #   scripts/deploy.sh [--branch <branch>]   → installs the commit, with Home Assistant stopped
 #   scripts/deploy.sh --rollback            → puts back what was installed before, and its data

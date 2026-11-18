@@ -262,10 +262,10 @@ Pour essayer une version sur un vrai Home Assistant, publiez une préversion (vo
 les versions bêta activées. HACS installe et met à jour une préversion comme n'importe quelle
 version.
 
-### Le raccourci du mainteneur : scripts/deploy.sh
+### Notre raccourci : scripts/deploy.sh
 
-**`scripts/deploy.sh` est un bricolage, à vos risques et périls.** Le mainteneur le garde pour
-ses propres essais rapides entre deux préversions. Il n'est pas pris en charge : merci de ne pas
+**`scripts/deploy.sh` est un bricolage, à vos risques et périls.** Nous le gardons pour nos
+propres essais rapides entre deux préversions. Nous ne le prenons pas en charge : merci de ne pas
 ouvrir d'issue à son sujet.
 
 Le script copie un commit directement dans le dossier de configuration de votre Home Assistant,
