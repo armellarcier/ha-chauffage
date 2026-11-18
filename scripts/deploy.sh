@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 # Puts the working tree on a real Home Assistant, without a release, and takes it back.
 #
-#   scripts/deploy.sh [--no-restart] [<target>]   → installs the working tree, then restarts HA
-#   scripts/deploy.sh --rollback [<target>]       → puts back the release and its data
+#   scripts/deploy.sh [<target>]              → installs the working tree, then restarts HA
+#   scripts/deploy.sh --rollback [<target>]   → puts back what was installed before, and its data
+#   --no-restart                              → never stops nor restarts HA
 #
 #   <target> = HA configuration folder, local     e.g. /config
 #            = or host:folder, over SSH           e.g. home-assistant:/docker/homeassistant/config
 #   Without <target>: PROD_HA_CONFIG from .env.
 #
 # The installed version is the repository version with a dev suffix, for example
-# 0.9.0-beta.4.dev.20261118153000.g5b20a33, or 0.9.1-dev.… for release 0.9.0. It sorts after
-# the release, and changes the card's URL, so browsers load the new card.
+# 0.9.0-beta.4.dev.20261118153000.g5b20a33, or 0.9.1-dev.… for release 0.9.0. The dev version
+# sorts after the release, and changes the card's URL, so browsers load the new card.
 #
 # The first deploy saves the installed release and its data (.storage/chauffage) in
-# <target>/.chauffage-backup. The backup stays until a rollback has put everything back, so later
-# deploys, a deploy cut short or a HACS update never replace it.
+# <target>/.chauffage-backup. The backup stays until a full rollback. Later deploys, a deploy cut
+# short or a HACS update never replace it.
 #
-# Restart: with PROD_HA_CONTAINER (.env), `docker` on the target host. Otherwise, with
-# PROD_HA_URL / PROD_HA_TOKEN, the homeassistant.restart service (PROD_CURL_OPTS: extra curl
-# options). Without a container, the rollback cannot stop Home Assistant to put the data back:
-# it puts back the code, keeps the backup, and says what to do.
+# The script restarts HA with `docker restart` when PROD_HA_CONTAINER is set. Otherwise it calls
+# the homeassistant.restart service through PROD_HA_URL and PROD_HA_TOKEN, with PROD_CURL_OPTS.
+# Without a container, the rollback cannot stop HA to put the data back. So it puts back the
+# code only, keeps the backup, and prints the steps.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/_ha.sh
@@ -68,7 +69,7 @@ case "$mode" in
     test -f "$backup/complete" || { echo "No backup in $folder/$backup: nothing to roll back" >&2; exit 1; }
     if [ -n "$container" ]; then
       docker stop "$container" >/dev/null
-      trap 'docker start "$container" >/dev/null' EXIT
+      trap 'docker start "$container" >/dev/null' EXIT # if a step fails half-way
     fi
     rm -rf "$code.new"
     if [ -d "$backup/chauffage" ]; then cp -a "$backup/chauffage" "$code.new"; fi
@@ -85,9 +86,18 @@ case "$mode" in
       echo "  then delete $folder/$backup."
       exit 0
     fi
+    # The data of the dev version: kept aside, never deleted
+    dev_data=""
+    if [ -f .storage/chauffage ]; then
+      dev_data=".chauffage-dev-data-$(date -u +%Y%m%d%H%M%S)"
+      cp -a .storage/chauffage "$dev_data"
+    fi
     if [ -f "$backup/storage" ]; then cp -a "$backup/storage" .storage/chauffage; else rm -f .storage/chauffage; fi
     echo "  data of the release put back"
+    if [ -n "$dev_data" ]; then echo "  data of the dev version kept in $folder/$dev_data"; fi
     rm -rf "$backup"
+    trap - EXIT
+    docker start "$container" >/dev/null
     echo "  $container started" ;;
 esac
 EOF
@@ -108,10 +118,17 @@ fi
 restart_through_api() {
   [ "$restart" = yes ] && [ -z "$container" ] || return 0
   if ha_configured; then
+    case "$HA_URL" in
+      http://localhost[:/]* | http://localhost | http://127.* | "http://[::1]"*) ;;
+      http://*) echo "  Warning: the token goes unencrypted to $HA_URL. Prefer https://." ;;
+    esac
     # The token goes through stdin, not the command line (ps)
-    printf 'header = "Authorization: Bearer %s"\n' "$HA_TOKEN" |
-      curl -fsS ${PROD_CURL_OPTS:-} --config - -o /dev/null -X POST "${HA_URL}/api/services/homeassistant/restart"
-    echo "  Home Assistant restarting"
+    if printf 'header = "Authorization: Bearer %s"\n' "$HA_TOKEN" |
+      curl -fsS --max-time 30 ${PROD_CURL_OPTS:-} --config - -o /dev/null -X POST "${HA_URL}/api/services/homeassistant/restart"; then
+      echo "  Home Assistant restarting"
+    else
+      echo "  The restart request failed: restart Home Assistant by hand."
+    fi
   else
     echo "  Restart Home Assistant by hand (or set PROD_HA_CONTAINER, or PROD_HA_URL and PROD_HA_TOKEN)."
   fi
@@ -125,29 +142,38 @@ fi
 
 # The version: after the release, so that an open card asks for a reload, not a restart
 release=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$source_dir/manifest.json")
+# Checked before any use: bash arithmetic would run a command hidden in the version
+if [[ ! "$release" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "Not a version in $source_dir/manifest.json: $release" >&2
+  exit 1
+fi
 sha=g$(git rev-parse --short HEAD 2>/dev/null || echo local) # g: a sha of digits only may start with 0
 stamp="dev.$(date -u +%Y%m%d%H%M%S).${sha}"
-if [[ "$release" == *-* ]]; then
+if [ -n "${BASH_REMATCH[4]}" ]; then
   version="${release}.${stamp}"
 else
-  IFS=. read -r major minor patch <<<"$release"
-  version="${major}.${minor}.$((patch + 1))-${stamp}"
+  version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((10#${BASH_REMATCH[3]} + 1))-${stamp}"
 fi
 
 # The files git does not ignore, as in the working tree: no __pycache__, but new files too
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
-chmod 755 "$stage"
-if files=$(git ls-files --cached --others --exclude-standard -- "$source_dir" 2>/dev/null) && [ -n "$files" ]; then
-  while IFS= read -r file; do
-    [ -f "$file" ] || continue # deleted in the working tree
-    mkdir -p "$stage/$(dirname "${file#"$source_dir"/}")"
-    cp "$file" "$stage/${file#"$source_dir"/}"
-  done <<<"$files"
+if git -C "$source_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  # -z: names as they are, even with accents. cp follows symlinks: their target is deployed.
+  while IFS= read -r -d '' file; do
+    [ -f "$source_dir/$file" ] || continue # deleted in the working tree
+    mkdir -p "$stage/$(dirname "$file")"
+    cp "$source_dir/$file" "$stage/$file"
+  done < <(git -C "$source_dir" ls-files -z --cached --others --exclude-standard)
+  while IFS= read -r -d '' file; do
+    echo "  not in git yet, deployed: $file"
+  done < <(git -C "$source_dir" ls-files -z --others --exclude-standard)
 else
-  cp -R "$source_dir/." "$stage/"
+  cp -RL "$source_dir/." "$stage/"
   find "$stage" -name __pycache__ -type d -prune -exec rm -rf {} +
 fi
+# Readable by every user on the target, whatever the local umask
+chmod -R u=rwX,go=rX "$stage"
 # -i.orig: the same on GNU and BSD (macOS) sed
 sed -i.orig "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$stage/manifest.json"
 sed -i.orig "s/^const VERSION = '[^']*';/const VERSION = '$version';/" "$stage/frontend/chauffage-programme-card.js"

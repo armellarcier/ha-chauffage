@@ -1198,14 +1198,26 @@ A review of every surface, before the merge into `main`, settled these choices.
   pre-release for each try is slow and fills the release list.
   - The script saves the release and its data before the first deploy. A dev version may migrate
     the stored data, and an older version cannot read newer data.
-  - The backup exists until a full rollback. The script does not guess from the installed
-    version whether to save: a rollback without a container, a deploy cut short or a HACS update
-    would otherwise replace the release in the backup.
+  - The backup exists until a full rollback. The script never decides from the installed
+    version whether to save it. A rollback without a container, a deploy cut short or a HACS
+    update can leave something other than a dev version installed. A new backup would then
+    save it in place of the release.
+  - After a HACS update between two deploys, the rollback puts back the release of the first
+    deploy, not the HACS one. This keeps the data that release can read.
   - The script puts the data back only while Home Assistant is stopped, because Home Assistant
     writes its stores when it stops. Without a container, the script cannot stop Home Assistant,
     so it does not restart it either. A restart would start the release on newer data.
+  - The rollback keeps the data of the dev version in a file next to the configuration. Weeks
+    of real use may be in it, and only the developer knows whether they matter.
   - The dev version sorts after the release, for example `0.9.1-dev.…` for `0.9.0`. An open
     card then asks for a reload, not for a restart, and the card's URL changes.
+  - The script checks the version of `manifest.json` before using it. Bash arithmetic would
+    run a command hidden in the version, for example in a contributor's branch you try.
+  - The script deploys the files that git does not ignore, untracked ones included, and lists
+    the untracked ones. A new file must work before you add it to git.
+  - `deploy.sh` reads `PROD_CURL_OPTS`, not `CURL_OPTS`, so that `-k` for the development HA
+    never sends the production token unchecked. A token over plain `http://` to another host
+    gets a warning, not a refusal: many Home Assistants run over http on the local network.
 - **The minimum Home Assistant stays as low as possible** and only rises when a Home Assistant
   API requires it (CONTRIBUTING.md, "Supported Home Assistant versions"): a heating schedule is
   set up once and its HA is often not updated every month; dropping it for a version number
