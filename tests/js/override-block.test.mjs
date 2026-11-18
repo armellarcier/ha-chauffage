@@ -491,13 +491,13 @@ afterEach(() => cleanup());
     test('says the end it will have before the first tap', () => {
       const card = open(setup({ planned: PLANNED }));
       // The end of the HVAC mode it would take, then the end of Off, which differs
-      assert.equal(text($(card, '.override-ed .end-new')), "jusqu'à 12:00 (2 h) · Arrêt : jusqu'à 17:30");
+      assert.equal(text($(card, '.override-ed .end-new')), "2 h (jusqu'à 12:00) · Arrêt : jusqu'à 17:30");
     });
 
     test('says its end in the more-info block and on a thermostat card too', () => {
       const el = moreInfo(setup({ planned: PLANNED }), SUITE);
       el.shadowRoot.querySelector('[data-new-override]').click();
-      assert.match(text(el.shadowRoot.querySelector('.end-new')), /^jusqu'à 12:00 \(2 h\)/);
+      assert.match(text(el.shadowRoot.querySelector('.end-new')), /^2 h \(jusqu'à 12:00\)/);
       assert.ok(el.shadowRoot.querySelector('.mode-row .default') && !el.shadowRoot.querySelector('.mode-row .on'));
     });
 
@@ -859,19 +859,34 @@ afterEach(() => cleanup());
 
     test('says the end of Off too, when Off ends at another time', () => {
       const card = openOverride(setup({ planned }), SUITE);
-      assert.equal(text($(card, '.override-ed .end-new')), "jusqu'à 12:00 (2 h) · Arrêt : jusqu'à 14:00");
+      assert.equal(text($(card, '.override-ed .end-new')), "2 h (jusqu'à 12:00) · Arrêt : jusqu'à 14:00");
     });
 
     test('is one end when Off ends at the same time', () => {
       const hass = setup({ planned });
       hass.data.off_override_end = 'duration';
       const card = openOverride(hass, SUITE);
-      assert.equal(text($(card, '.override-ed .end-new')), "jusqu'à 12:00 (2 h)");
+      assert.equal(text($(card, '.override-ed .end-new')), "2 h (jusqu'à 12:00)");
     });
 
-    test('an override that is on says the end Off would give it', () => {
+    test('an override that is on says the end Off would give it, under the HVAC modes', () => {
       const card = openOverride(setup({ planned, overrides: { [SUITE]: override({ temperature: 21, hvac_mode: 'heat' }) } }), SUITE);
-      assert.equal(text($(card, '.override-ed .off-end')), "Arrêt : jusqu'à 14:00");
+      // The next slot: said in words, the button of the end below says its time
+      assert.equal(text($(card, '.override-ed .mode-row + .off-end')), "Arrêt : jusqu'au prochain créneau");
+    });
+
+    test('on a heater, under the row that starts with Off', () => {
+      const hass = setup({ planned: { [SALON]: { preset: 'eco', next_slot_end: at('14:00') } },
+        overrides: { [SALON]: override({ temperature: 21 }) } });
+      const card = openOverride(hass, SALON);
+      assert.equal(text($(card, '.override-ed .presets + .off-end')), "Arrêt : jusqu'au prochain créneau");
+    });
+
+    test('says its time when Off does not end at the next slot', () => {
+      const hass = setup({ planned: { [SUITE]: { preset: 'eco', hvac_mode: 'heat' } },
+        overrides: { [SUITE]: override({ temperature: 21, hvac_mode: 'heat' }) } });
+      const card = openOverride(hass, SUITE);
+      assert.match(text($(card, '.override-ed .off-end')), /^Arrêt : jusqu'à .+ 10:00$/);
     });
 
     test('an off override says nothing more', () => {

@@ -1226,9 +1226,12 @@ dashboards, automations, scripts and by voice without the card
       exploratory tests of #97; it replaces "a new override says one end"). *Off* ends as the
       setting *Turned off* says, by default at the next slot. The block said "until 12:25
       (2 h)", and *Off* then lasted until 17:30. Now the line of a new override says both ends
-      when they differ: "until 12:25 (2 h) · Off: until 17:30". An override that is on says
-      the end *Off* would give it under its end. The card announces what will happen; Off is
-      not capped.
+      when they differ, the duration first so that the line has a subject: "2 h (until
+      12:25) · Off: until 17:30". An override that is on says the end *Off* would give it,
+      right under the button *Off* (the row of HVAC modes, or the row of presets that starts
+      with *Off*): under the end, it read as the end of the override. At the next slot, it says
+      "Off: until the next slot", since the button of the end says that time. The card
+      announces what will happen; Off is not capped.
     - **The setpoint line says nothing when it has no number.** "Setpoint: its Comfort
       preset" repeated the chip above it. The *Set* button stays, for an administrator.
     - **An override is said once.** A thermostat card names the override in its header, and

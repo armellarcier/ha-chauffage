@@ -66,6 +66,7 @@ const I18N = {
     endsChoose: 'Choose how long overrides last',
     untilNextSlot: 'Until {time} (next slot)',
     offUntil: '{off}: until {when}',
+    offUntilNextSlot: '{off}: until the next slot',
     newOffNotice: 'New: a thermostat turned off by hand turns back on at the end of its override. To keep it off, pause its control.',
     newOverride: 'New override…',
     resume: 'Resume the schedule',
@@ -389,6 +390,7 @@ const I18N = {
     endsChoose: 'Choisir la durée des dérogations',
     untilNextSlot: "Jusqu'à {time} (prochain créneau)",
     offUntil: "{off} : jusqu'à {when}",
+    offUntilNextSlot: "{off} : jusqu'au prochain créneau",
     newOffNotice: 'Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation. Pour le laisser éteint, suspendez son pilotage.',
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
@@ -2519,7 +2521,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
     : '';
   const chips = rows ? '' : `${offChipHtml(hass, climate, loc, 'override-off', off)}${idle ? modeChipHtml(hass, climate, loc, idle, 'override-mode', true) : ''}`;
   // Off, fan only, dry and auto take no temperature
-  return { presets: `${first}${rows && !presets ? '' : `<div class="presets">${chips}${presets}</div>`}`, temperature: none ? '' : temperature };
+  return { modes: first, presets: rows && !presets ? '' : `<div class="presets">${chips}${presets}</div>`, temperature: none ? '' : temperature };
 }
 
 // Whether a slot will run in cool on a thermostat (#91): the slot says cool and the thermostat
@@ -2797,7 +2799,7 @@ function newOverrideEndText(src, climate, hass, loc) {
   // setting *Turned off* ends it at the next slot by default
   const d = newOverride(src, {});
   const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
-  const end = `${loc.t('until')} ${whenText(parseDate(d.end), loc)} (${minutes < DAY_MIN ? roundDurationText(minutes, loc) : remainingText(minutes, loc)})`;
+  const end = `${minutes < DAY_MIN ? roundDurationText(minutes, loc) : remainingText(minutes, loc)} (${loc.t('until')} ${whenText(parseDate(d.end), loc)})`;
   const off = offEndText(null, src, climate, hass, loc, d.end);
   return off ? `${end} · ${off}` : end;
 }
@@ -2809,6 +2811,8 @@ function offEndText(d, src, climate, hass, loc, end) {
   if ((modes && !modes.includes('off')) || isOffOverride(d)) return '';
   const off = overrideOff(d, src, climate, hass);
   if (!off || off === RESUME || parseDate(off.end).getTime() === parseDate(end).getTime()) return '';
+  // On an override, the button of the next slot says its time just below: said in words
+  if (d && off.ends_at === 'next_slot') return loc.t('offUntilNextSlot', { off: modeName(loc, 'off') });
   return loc.t('offUntil', { off: modeName(loc, 'off'), when: whenText(parseDate(off.end), loc) });
 }
 
@@ -2819,9 +2823,13 @@ function offEndText(d, src, climate, hass, loc, end) {
 // is said with
 function overrideBodyHtml(d, src, climate, hass, loc, { step, line, actions, endLoc = loc }) {
   const value = overrideValueHtml(d, src, climate, (stateOf(hass, climate) || {}).attributes || {}, loc, hass);
-  const values = `${value.presets}${value.temperature ? `<div class="${line}">${value.temperature}</div>` : ''}`;
-  if (!d) return `${values}<div class="end-new muted">${esc(newOverrideEndText(src, climate, hass, loc))}</div>`;
-  const offEnd = offEndText(d, src, climate, hass, loc, d.end);
+  const temperature = value.temperature ? `<div class="${line}">${value.temperature}</div>` : '';
+  if (!d) return `${value.modes}${value.presets}${temperature}<div class="end-new muted">${esc(newOverrideEndText(src, climate, hass, loc))}</div>`;
+  // The end Off would give it, under the button Off: the row of HVAC modes, else the row of
+  // presets that starts with Off
+  const offText = offEndText(d, src, climate, hass, loc, d.end);
+  const offEnd = offText ? `<div class="off-end muted">${esc(offText)}</div>` : '';
+  const values = value.modes ? `${value.modes}${offEnd}${value.presets}${temperature}` : `${value.presets}${offEnd}${temperature}`;
   const add = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
   return `${values}
     <div class="end-block">
@@ -2834,7 +2842,6 @@ function overrideBodyHtml(d, src, climate, hass, loc, { step, line, actions, end
         ${nextSlotButton(src, climate, d, loc)}
         ${tomorrowButton(src, climate, d, loc)}
       </div>
-      ${offEnd ? `<div class="off-end muted">${esc(offEnd)}</div>` : ''}
     </div>`;
 }
 
