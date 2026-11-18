@@ -11,7 +11,7 @@ import {
   renameSync, rmSync, statSync, symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, delimiter, dirname, relative } from 'node:path';
+import { join, delimiter, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareVersions } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
@@ -91,20 +91,23 @@ function home({
   // Without a target among the arguments, the target is the configuration folder.
   const withTarget = (args) => (args.some((a, i) => !a.startsWith('--') && args[i - 1] !== '--branch') ? args : [...args, config]);
   const run = (...args) => execFileSync('bash', [...script, ...withTarget(args)], { ...options(), stdio: ['ignore', 'pipe', 'pipe'] });
-  const attempt = (...args) => {
-    const done = spawnSync('bash', [...script, ...withTarget(args)], options());
-    return { status: done.status, said: done.stdout + done.stderr };
-  };
   const attemptFrom = (cwd, ...args) => {
     const done = spawnSync('bash', [...script, ...args], options(cwd));
     return { status: done.status, said: done.stdout + done.stderr };
+  };
+  const attempt = (...args) => attemptFrom(repo.dir, ...withTarget(args));
+  // An ssh whose remote login shell is sh: `ssh -- <host> <command>`. through: what the stream
+  // goes through on the way, for example `head -c 3072` to cut it.
+  const fakeSsh = (through = 'cat') => {
+    writeFileSync(join(bin, 'ssh'), `#!/usr/bin/env bash\n[ "$1" = -- ] && shift\nshift\n${through} | sh -c "$1"\n`);
+    chmodSync(join(bin, 'ssh'), 0o755);
   };
   const path = (p) => join(config, p);
   const read = (p) => readFileSync(path(p), 'utf8');
   const write = (p, text) => writeFileSync(path(p), text);
   const installed = () => JSON.parse(read('custom_components/chauffage/manifest.json')).version;
   const calls = () => (existsSync(join(dir, 'docker.log')) ? readFileSync(join(dir, 'docker.log'), 'utf8').trim().split('\n') : []);
-  return { dir, config, bin, clean, repo, run, attempt, attemptFrom, path, read, write, installed, docker: calls };
+  return { dir, config, repo, run, attempt, attemptFrom, fakeSsh, path, read, write, installed, docker: calls };
 }
 
 // What gets deployed
@@ -228,9 +231,8 @@ test('the deployed files can be read by every user, whatever the umask', { skip:
 
 test('a transfer cut short changes nothing', () => {
   const ha = home();
-  // An ssh that loses the end of the stream, on a boundary between two files: tar sees no error
-  writeFileSync(join(ha.bin, 'ssh'), '#!/usr/bin/env bash\n[ "$1" = -- ] && shift\nshift\nhead -c 3072 | sh -c "$1"\n');
-  chmodSync(join(ha.bin, 'ssh'), 0o755);
+  // The stream ends on a boundary between two files: tar sees no error
+  ha.fakeSsh('head -c 3072');
   assert.notEqual(ha.attempt('--no-restart', `home-assistant:${posix(ha.config)}`).status, 0);
   assert.equal(ha.installed(), '0.8.0');
   assert.equal(existsSync(ha.path('custom_components/chauffage.new')), false);
@@ -368,7 +370,6 @@ test('a relative target is read from where the script is run', () => {
   const { status, said } = ha.attemptFrom(ha.dir, '--no-restart', 'config');
   assert.equal(status, 0, said);
   assert.match(ha.installed(), /dev\./);
-  assert.ok(relative(ha.dir, ha.config) === 'config');
 });
 
 test('the rollback command it prints can be pasted as is', () => {
@@ -390,9 +391,7 @@ test('a folder without configuration.yaml is refused', () => {
 
 test('over SSH, a folder with a quote in its name is reached as is, even when the login shell is sh', () => {
   const ha = home();
-  // ssh -- <host> <command>: the remote login shell runs the command
-  writeFileSync(join(ha.bin, 'ssh'), '#!/usr/bin/env bash\n[ "$1" = -- ] && shift\nshift\nexec sh -c "$1"\n');
-  chmodSync(join(ha.bin, 'ssh'), 0o755);
+  ha.fakeSsh();
   const odd = join(ha.dir, "it's $HOME here");
   renameSync(ha.config, odd);
   const { status, said } = ha.attempt('--no-restart', `home-assistant:${posix(odd)}`);

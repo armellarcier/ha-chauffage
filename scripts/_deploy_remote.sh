@@ -12,15 +12,42 @@ test -f configuration.yaml || { echo "No configuration.yaml in $folder" >&2; exi
 code=custom_components/chauffage
 backup=.chauffage-backup
 
-# Whether the container runs, or an error when there is no such container
-running() { docker inspect -f '{{.State.Running}}' "$container"; }
+# Home Assistant, around the steps that change the files. A container that was stopped stays
+# stopped. If a step fails half-way, the container starts again.
+was_running=false
+check_container() {
+  [ -n "$container" ] || return 0
+  was_running=$(docker inspect -f '{{.State.Running}}' "$container") || { echo "No container $container" >&2; exit 1; }
+}
+stop_ha() {
+  [ "$was_running" = true ] || return 0
+  docker stop "$container" >/dev/null
+  trap 'docker start "$container" >/dev/null' EXIT
+}
+start_ha() {
+  trap - EXIT
+  if [ "$was_running" = true ]; then
+    docker start "$container" >/dev/null
+    echo "  $container started"
+  elif [ -n "$container" ]; then
+    echo "  $container was stopped: left stopped"
+  else
+    echo "  Start Home Assistant."
+  fi
+}
+
+# Puts the folder $1 in place of the integration, or removes the integration without $1
+swap_in() {
+  rm -rf "$code"
+  if [ -n "${1:-}" ]; then mv "$1" "$code"; fi
+}
+
+saved() { echo "$(cat "$backup/version"), saved on $(cat "$backup/complete")"; }
 
 case "$mode" in
   install)
     files=$4; version=$5
-    if [ -n "$container" ]; then
-      was_running=$(running) || { echo "No container $container" >&2; exit 1; }
-    fi
+    check_container
     rm -rf "$code.new" && mkdir -p "$code.new"
     if ! tar -C "$code.new" -xof - || [ "$(find "$code.new" -type f | wc -l | tr -d ' ')" != "$files" ]; then
       rm -rf "$code.new"
@@ -28,24 +55,21 @@ case "$mode" in
       exit 1
     fi
     # Stopped first: Home Assistant writes its pending changes when it stops
-    if [ -n "$container" ] && [ "$was_running" = true ]; then docker stop "$container" >/dev/null; fi
+    stop_ha
     if [ -f "$backup/complete" ]; then
-      echo "  backup kept: $(cat "$backup/complete")"
+      echo "  backup kept: $(saved)"
     else
       rm -rf "$backup" && mkdir -p "$backup"
       if [ -d "$code" ]; then cp -a "$code" "$backup/chauffage"; fi
       if [ -f .storage/chauffage ]; then cp -a .storage/chauffage "$backup/storage"; fi
-      saved=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$code/manifest.json" 2>/dev/null || true)
-      echo "${saved:-no Chauffage}, saved on $(date -u '+%Y-%m-%d %H:%M') UTC" > "$backup/complete"
-      echo "  backup made: $(cat "$backup/complete"), in $folder/$backup"
+      version_saved=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$code/manifest.json" 2>/dev/null || true)
+      echo "${version_saved:-no Chauffage}" > "$backup/version"
+      date -u '+%Y-%m-%d %H:%M UTC' > "$backup/complete"
+      echo "  backup made: $(saved), in $folder/$backup"
     fi
-    rm -rf "$code" && mv "$code.new" "$code"
+    swap_in "$code.new"
     echo "  $version installed"
-    if [ -n "$container" ] && [ "$was_running" = true ]; then
-      docker start "$container" >/dev/null && echo "  $container started"
-    elif [ -n "$container" ]; then
-      echo "  $container was stopped: left stopped"
-    fi ;;
+    if [ -n "$container" ]; then start_ha; fi ;;
   rollback)
     stopped=$4
     test -f "$backup/complete" || { echo "No backup in $folder/$backup: nothing to roll back" >&2; exit 1; }
@@ -56,14 +80,8 @@ case "$mode" in
       echo "  3. Start Home Assistant." >&2
       exit 1
     fi
-    was_running=false
-    if [ -n "$container" ]; then
-      was_running=$(running) || { echo "No container $container" >&2; exit 1; }
-      if [ "$was_running" = true ]; then
-        docker stop "$container" >/dev/null
-        trap 'docker start "$container" >/dev/null' EXIT # if a step fails half-way
-      fi
-    fi
+    check_container
+    stop_ha
     # The data first: the dev code can read the release data, not the other way round
     if [ -f .storage/chauffage ]; then
       dev_data=".chauffage-dev-data-$(date -u +%Y%m%d%H%M%S)"
@@ -75,21 +93,14 @@ case "$mode" in
     else
       rm -f .storage/chauffage
     fi
-    rm -rf "$code.new"
-    if [ -d "$backup/chauffage" ]; then cp -a "$backup/chauffage" "$code.new"; fi
-    rm -rf "$code"
-    if [ -d "$code.new" ]; then mv "$code.new" "$code"; fi
     if [ -d "$backup/chauffage" ]; then
-      echo "  $(sed 's/, saved on.*//' "$backup/complete") put back, with its data"
+      rm -rf "$code.new" && cp -a "$backup/chauffage" "$code.new"
+      swap_in "$code.new"
+      echo "  $(cat "$backup/version") put back, with its data"
     else
+      swap_in
       echo "  Chauffage removed: it was not installed before the first deploy"
     fi
     rm -rf "$backup"
-    trap - EXIT
-    if [ "$was_running" = true ]; then
-      docker start "$container" >/dev/null
-      echo "  $container started"
-    elif [ -z "$container" ]; then
-      echo "  Start Home Assistant."
-    fi ;;
+    start_ha ;;
 esac

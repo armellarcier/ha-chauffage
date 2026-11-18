@@ -123,7 +123,7 @@ if [[ ! "$release" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
   echo "Not a version in $integration/manifest.json: $release" >&2
   exit 1
 fi
-stamp="dev.$(TZ=UTC git show -s --format=%cd --date=format-local:%Y%m%d%H%M%S "$commit").g$(git rev-parse --short "$commit")"
+stamp="dev.$(TZ=UTC git show -s --format=%cd.g%h --date=format-local:%Y%m%d%H%M%S "$commit")"
 if [ -n "${BASH_REMATCH[4]}" ]; then
   version="${release}.${stamp}"
 else

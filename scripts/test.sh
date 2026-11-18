@@ -11,19 +11,24 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 what="${1:-all}"; shift || true
 
-# node:22-alpine has no bash nor git: tests/js/deploy.test.mjs runs scripts/deploy.sh with them.
 # Repository path for Docker (Git Bash on Windows: Windows path, no MSYS conversion)
 root="$(pwd -W 2>/dev/null || pwd)"
 export MSYS_NO_PATHCONV=1
 
+# The card tests; $1 = npm script (test or coverage)
+node_suite() {
+  if command -v node >/dev/null && command -v npm >/dev/null; then
+    npm install --no-audit --no-fund --silent && npm run "$1"
+  else
+    docker build -q -t ha-chauffage-js-tests -f tests/js/Dockerfile tests/js >/dev/null
+    docker run --rm -v "$root:/app" -v ha-chauffage-node-modules:/app/node_modules -w /app ha-chauffage-js-tests \
+      sh -c 'npm install --no-audit --no-fund --silent && npm run "$1"' sh "$1"
+  fi
+}
+
 coverage() {
   echo "=== Card coverage (JavaScript, minimum 95 % of the lines) ==="
-  if command -v node >/dev/null && command -v npm >/dev/null; then
-    npm install --no-audit --no-fund --silent && npm run coverage
-  else
-    docker run --rm -v "$root:/app" -v ha-chauffage-node-modules:/app/node_modules -w /app node:22-alpine \
-      sh -c 'apk add -q --no-cache bash git >/dev/null && npm install --no-audit --no-fund --silent && npm run coverage'
-  fi
+  node_suite coverage
   rm -f lcov.info
   echo "=== Integration coverage (Python, minimum 97 % of the lines) ==="
   pytest_suite tests/integration --cov=custom_components/chauffage --cov-report=term-missing --cov-fail-under=97 "$@"
@@ -31,12 +36,7 @@ coverage() {
 
 js_tests() {
   echo "=== Card tests (JavaScript) ==="
-  if command -v node >/dev/null && command -v npm >/dev/null; then
-    npm install --no-audit --no-fund --silent && npm test
-  else
-    docker run --rm -v "$root:/app" -v ha-chauffage-node-modules:/app/node_modules -w /app node:22-alpine \
-      sh -c 'apk add -q --no-cache bash git >/dev/null && npm install --no-audit --no-fund --silent && npm test'
-  fi
+  node_suite test
 }
 
 # pytest in an in-memory Home Assistant; $1 = suite directory
