@@ -62,10 +62,9 @@ async def test_a_heat_cool_slot_heats_on_a_thermostat_that_takes_no_range(bench:
     assert bench.runtime.planned_targets(SALON)["next_hvac_mode"] == "heat"
 
 
-async def test_heat_cool_is_never_the_hvac_mode_to_turn_on_in(bench: Bench):
+async def test_no_preset_temperature_is_learned_in_heat_cool(bench: Bench):
     await start_ac_with_range(bench, [["00:00", "comfort", {"hvac_mode": "heat_cool"}]], state="heat_cool",
                 target_temp_low=20.0, target_temp_high=25.0)
-    assert bench.runtime.thermostats[SALON]["hvac_mode"] is None
     assert bench.runtime.thermostats[SALON]["preset_temperatures"] == {}
 
 
@@ -90,9 +89,12 @@ def test_a_range_is_checked_once_fitted_to_the_thermostat():
     assert (value["target_temp_low"], value["target_temp_high"]) == (20.0, 25.0)
 
 
-def test_a_temperature_is_never_sent_in_heat_cool_to_a_thermostat_that_takes_a_range():
+def test_a_temperature_the_user_chose_is_sent_in_heat_cool():
+    """The card and chauffage.set_override refuse a single temperature on a thermostat that takes
+    a range in heat/cool. An override stored before that refusal is sent as it is: the
+    thermostat may refuse it."""
     ranged = engine.Thermostat("heat_cool", None, None, hvac_modes=tuple(REVERSIBLE), supports_range=True)
-    assert engine.complete({"temperature": 22.0}, ranged, by_user=True) == {}
+    assert engine.complete({"temperature": 22.0}, ranged, by_user=True) == {"temperature": 22.0}
     single = engine.Thermostat("heat_cool", None, 21.0, hvac_modes=tuple(REVERSIBLE))
     assert engine.complete({"temperature": 22.0}, single, by_user=True) == {"temperature": 22.0}
 
@@ -170,7 +172,7 @@ async def test_a_temperature_set_from_the_card_in_heat_cool_is_not_sent_again_ev
                 target_temp_low=17.0, target_temp_high=27.0)
     await bench.set_override(SALON, bench.runtime.new_override({"temperature": 22.0}))
     await bench.advance(3)
-    assert bench.temperature_calls == [] and bench.runtime.pending(SALON) == []
+    assert sent_to(bench) == [22.0]  # once
 
 
 async def test_the_card_cannot_set_a_single_temperature_in_heat_cool(bench: Bench, ws_client):

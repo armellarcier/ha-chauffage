@@ -145,16 +145,9 @@ async def test_an_off_air_conditioner_never_seen_on_is_turned_on_in_its_first_mo
     assert bench.powered() == {"climate.salon": "cool"}
 
 
-async def test_the_last_hvac_mode_a_thermostat_was_on_in_survives_a_restart(bench: Bench):
-    await start_salon(bench, "17:00", COOL_WEEKDAY, state="cool", hvac_modes=AC_MODES)
-    assert bench.runtime.thermostats["climate.salon"]["hvac_mode"] == "cool"
-    await bench.advance(1)  # the delayed save
-    assert bench.storage["chauffage"]["data"]["thermostats"]["climate.salon"]["hvac_mode"] == "cool"
-
-
-async def test_a_preset_override_turns_on_an_air_conditioner_in_the_hvac_mode_it_last_ran_in(bench: Bench):
-    """In July the unit cooled, then a script turned it off. An override to a preset says no
-    HVAC mode: the unit restarts in cool, not in heat."""
+async def test_a_preset_override_turns_on_an_air_conditioner_in_the_hvac_mode_of_its_slot(bench: Bench):
+    """In summer, a script turned the unit off during a cooling slot. An override to a preset
+    says no HVAC mode: the unit restarts in cool, the HVAC mode of its slot, as the card does."""
     await start_ac(bench, "10:00", [["00:00", "eco", COOL]], state="cool")
     bench.thermostat(SALON, "eco", state="off", hvac_modes=AC_MODES, context=CTX_AUTOMATION)
     await bench.hass.async_block_till_done()
@@ -163,19 +156,21 @@ async def test_a_preset_override_turns_on_an_air_conditioner_in_the_hvac_mode_it
     assert bench.powered() == {SALON: "cool"}
 
 
-def test_a_thermostat_is_turned_on_in_its_last_hvac_mode_before_heat():
-    unit = engine.Thermostat("off", None, 20.0, hvac_modes=tuple(AC_MODES), last_hvac_mode="cool")
-    assert engine.on_mode(unit) == "cool"
-    assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=tuple(AC_MODES))) == "heat"
-    gone = engine.Thermostat("off", None, 20.0, hvac_modes=("off", "heat"), last_hvac_mode="cool")
-    assert engine.on_mode(gone) == "heat"
+def test_a_thermostat_is_turned_on_in_the_hvac_mode_of_its_slot_else_heat():
+    """As the card chooses the HVAC mode of an override: the one of the slot planned now, among
+    those that take a setpoint, else heat. Chauffage learns no HVAC mode."""
+    unit = engine.Thermostat("off", None, 20.0, hvac_modes=tuple(AC_MODES))
+    assert engine.on_mode(unit, "cool") == "cool"
+    assert engine.on_mode(unit) == "heat"
+    assert engine.on_mode(unit, "fan_only") == "heat"  # fan only takes no setpoint
+    heater = engine.Thermostat("off", None, 20.0, hvac_modes=("off", "heat"))
+    assert engine.on_mode(heater, "cool") == "heat"
 
 
-async def test_a_heater_last_seen_in_auto_is_turned_on_in_heat(bench: Bench):
-    """A valve that lists auto ran in auto once: turned off, it restarts in heat, as before."""
+async def test_a_valve_that_ran_in_auto_is_turned_on_in_heat(bench: Bench):
+    """A valve that lists auto ran in auto: turned off, it restarts in heat, as before."""
     modes = ["off", "heat", "auto"]
     await start_ac(bench, "10:00", state="auto", modes=modes)
-    assert bench.runtime.thermostats[SALON]["hvac_mode"] is None  # auto is not learned
     bench.thermostat(SALON, "eco", state="off", hvac_modes=modes, context=CTX_AUTOMATION)
     await bench.hass.async_block_till_done()
     clear(bench)
@@ -183,12 +178,11 @@ async def test_a_heater_last_seen_in_auto_is_turned_on_in_heat(bench: Bench):
     assert bench.powered() == {SALON: "heat"}
 
 
-async def test_an_air_conditioner_last_seen_in_dry_is_not_turned_on_in_dry(bench: Bench):
+async def test_an_air_conditioner_seen_in_dry_is_not_turned_on_in_dry(bench: Bench):
     modes = ["off", "heat", "cool", "dry", "fan_only"]
     await start_ac(bench, "10:00", [["00:00", "eco", COOL]], state="cool", modes=modes)
     bench.thermostat(SALON, "eco", state="dry", hvac_modes=modes, context=CTX_AUTOMATION)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.thermostats[SALON]["hvac_mode"] == "cool"  # dry is not learned
     bench.thermostat(SALON, "eco", state="off", hvac_modes=modes, context=CTX_AUTOMATION)
     await bench.hass.async_block_till_done()
     clear(bench)
@@ -196,11 +190,11 @@ async def test_an_air_conditioner_last_seen_in_dry_is_not_turned_on_in_dry(bench
     assert bench.powered() == {SALON: "cool"}
 
 
-def test_only_heat_or_cool_is_the_hvac_mode_to_turn_on_in():
+def test_dry_and_auto_are_not_hvac_modes_to_turn_on_in_before_heat():
     modes = ("off", "heat", "cool", "dry", "auto")
-    for last in ("dry", "auto", "heat_cool", None):
-        assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=modes, last_hvac_mode=last)) == "heat"
-    assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=("off", "dry", "auto"), last_hvac_mode="dry")) == "auto"
+    for planned in ("dry", "auto", None):
+        assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=modes), planned) == "heat"
+    assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=("off", "dry", "auto"))) == "auto"
 
 
 def test_a_thermostat_off_or_in_fan_only_is_turned_on_for_a_preset():
@@ -208,7 +202,8 @@ def test_a_thermostat_off_or_in_fan_only_is_turned_on_for_a_preset():
     assert engine.complete(target, ac("fan_only")) == {"preset_mode": "comfort", "hvac_mode": "heat"}
     cooler = ("off", "fan_only", "cool")
     assert engine.complete(target, ac("fan_only", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "cool"}
-    assert engine.complete(target, ac("off", modes=("off", "fan_only"))) == {"preset_mode": "comfort", "hvac_mode": "fan_only"}
+    # Off and fan only alone: fan only takes no setpoint, so nothing turns it on
+    assert engine.complete(target, ac("off", modes=("off", "fan_only"))) == {"preset_mode": "comfort"}
     assert not engine.satisfied(target, ac("fan_only"))
     assert engine.satisfied(FAN, ac("fan_only"))
 
@@ -379,12 +374,12 @@ async def test_a_fan_only_slot_holds_no_preset_and_keeps_its_fan(bench: Bench):
         ["00:00", None, FAN], ["08:00", None, FAN], ["12:00", None, quiet], ["13:00", None, quiet], ["14:00", None, FAN]]
 
 
-async def test_a_thermostat_in_fan_only_is_turned_on_in_the_mode_it_last_heated_or_cooled_in(bench: Bench):
-    """A cooling-only air conditioner: fan only is not a mode to come back to."""
+async def test_a_cooling_only_air_conditioner_in_fan_only_is_turned_on_in_cool(bench: Bench):
+    """A slot on a preset after a fan-only slot: fan only takes no setpoint, and the unit only
+    cools."""
     cooler = ["off", "cool", "fan_only"]
     await start_ac(bench, "13:00", [["00:00", "eco"], ["14:00", None, FAN], ["16:00", "comfort"]], state="cool", hvac_modes=cooler)
     await bench.go_to("14:00")
-    assert bench.runtime.thermostats[SALON]["hvac_mode"] == "cool"
     clear(bench)
     await bench.go_to("16:00")
     assert bench.powered() == {SALON: "cool"}

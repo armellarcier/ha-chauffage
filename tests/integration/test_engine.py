@@ -445,9 +445,9 @@ OFF = {"hvac_mode": "off"}
 AC_MODES = ("off", "heat", "cool", "fan_only")
 
 
-def ac(state="cool", preset="comfort", temperature=20.0, modes=AC_MODES, last=None) -> Thermostat:
+def ac(state="cool", preset="comfort", temperature=20.0, modes=AC_MODES) -> Thermostat:
     """A reversible air conditioner."""
-    return Thermostat(state, preset, temperature, VTHERM, 5.0, 30.0, 0.5, hvac_modes=modes, last_hvac_mode=last)
+    return Thermostat(state, preset, temperature, VTHERM, 5.0, 30.0, 0.5, hvac_modes=modes)
 
 
 def test_a_slot_holds_a_preset_and_optional_settings():
@@ -493,14 +493,14 @@ def test_a_target_without_hvac_mode_means_on():
     assert not engine.satisfied({"preset_mode": "comfort", "hvac_mode": "cool"}, ac("heat"))
 
 
-def test_an_off_thermostat_is_turned_on_in_heat_else_the_mode_it_last_heated_or_cooled_in_else_its_first_mode():
+def test_an_off_thermostat_is_turned_on_in_the_hvac_mode_of_its_slot_else_heat_else_its_first_mode():
     """Never a cooling AC switched to heat: a thermostat that is on keeps its HVAC mode."""
     target = {"preset_mode": "comfort", "cool_preset_mode": "comfort"}
     sent = {"preset_mode": "comfort"}
     assert engine.complete(target, ac("cool")) == sent
     assert engine.complete(target, ac("off")) == {"preset_mode": "comfort", "hvac_mode": "heat"}
     cooler = ("off", "fan_only", "dry", "cool")
-    assert engine.complete(target, ac("off", modes=cooler, last="cool")) == {"preset_mode": "comfort", "hvac_mode": "cool"}
+    assert engine.complete(target, ac("off"), planned="cool") == {"preset_mode": "comfort", "hvac_mode": "cool"}
     assert engine.complete(target, ac("off", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "cool"}  # never dry
     assert engine.complete(target, ac("off", modes=())) == sent  # no HVAC mode known: nothing to turn on with
     assert engine.complete({**target, "hvac_mode": "cool"}, ac("off")) == {"preset_mode": "comfort", "hvac_mode": "cool"}

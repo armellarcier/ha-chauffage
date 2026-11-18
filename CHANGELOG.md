@@ -62,6 +62,12 @@ points if they concern you:
 - **"Pause" is now "Pause control".**
 - **On a thermostat card, an override is folded.** *Change* unfolds it.
 
+### Fixed
+
+- **An override you set for a while keeps its end.** A thermostat that left the override by
+  itself and came back to it, for example a Versatile Thermostat leaving its safety mode, cut
+  the override short: a 72-hour override ended 2 hours later.
+
 ## [0.9.0] - 2026-11-18
 
 **You choose when an override ends, and what other users may change.** This release gathers

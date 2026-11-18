@@ -202,7 +202,7 @@ def new_thermostat(weeks: dict[str, Any] | None = None, mapping: dict[str, Any] 
                    preset_temperatures: dict[str, float] | None = None) -> dict[str, Any]:
     """A scheduled thermostat, active."""
     return {"paused": False, "weeks": weeks or {}, "mapping": mapping or {},
-            "preset_temperatures": preset_temperatures or {}, "hvac_mode": None, "revision": 0}
+            "preset_temperatures": preset_temperatures or {}, "revision": 0}
 
 
 def empty_week(preset_ids: list[str]) -> list[list[list[str]]]:

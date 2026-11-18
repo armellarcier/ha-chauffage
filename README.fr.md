@@ -667,8 +667,9 @@ ensuite.
 **Un créneau qui éteint un thermostat.** Un créneau peut être *Arrêt*. Le thermostat s'éteint au
 début du créneau. Le prochain créneau qui demande un préréglage le rallume. Sur une
 climatisation, le créneau dit dans quel mode HVAC. Une dérogation que vous posez sur un
-thermostat éteint le rallume : dans le mode HVAC que dit la dérogation, sinon dans celui où le
-thermostat a tourné en dernier. Une climatisation qui climatisait en juillet repart en clim.
+thermostat éteint le rallume : dans le mode HVAC que dit la dérogation, sinon dans celui du
+créneau en cours, sinon en chauffe. En été, pendant un créneau en clim, une climatisation
+repart en clim.
 
 **Chauffe ou clim choisi à la main.** Passez une climatisation en *Clim* dans Home Assistant
 pendant un créneau qui chauffe : Chauffage en fait une dérogation. La dérogation garde le

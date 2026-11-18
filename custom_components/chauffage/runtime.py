@@ -102,10 +102,9 @@ class ThermostatPaused(model.InvalidData):
 VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
 
 
-def thermostat(state: State | None, vtherm: bool = False, last_hvac_mode: str | None = None) -> engine.Thermostat | None:
-    """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current); `last_hvac_mode`:
-    the HVAC mode it was last on in (stored). A VTherm is read as it was asked (requested_state,
-    #92): off by its window or its auto start/stop, it is still "on" for Chauffage. A VTherm
+def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat | None:
+    """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current). A VTherm is read as
+    it was asked (requested_state, #92): off by its window or its auto start/stop, it is still "on" for Chauffage. A VTherm
     without requested_state (before VTherm 10.5) that is off is read as on too: it keeps the
     preset asked while off and starts again on it (#74), so Chauffage neither turns it on nor
     takes it for turned off by hand, as before #91."""
@@ -125,8 +124,9 @@ def thermostat(state: State | None, vtherm: bool = False, last_hvac_mode: str | 
         vtherm,
         engine.ready(attributes, vtherm),
         tuple(m for m in (engine.preset_value(m) for m in attributes.get("hvac_modes") or ()) if m),
-        last_hvac_mode,
-        *(engine.preset_value(attributes.get(key)) for key in engine.EQUAL_KEYS),
+        fan_mode=engine.preset_value(attributes.get("fan_mode")),
+        swing_mode=engine.preset_value(attributes.get("swing_mode")),
+        swing_horizontal_mode=engine.preset_value(attributes.get("swing_horizontal_mode")),
         supports_range=bool(int(attributes.get("supported_features") or 0) & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE),
         **{key: engine.temperature_value(attributes.get(key)) for key in engine.RANGE_KEYS},
     )
@@ -403,8 +403,7 @@ class ChauffageRuntime:
         """What the scheduler needs to know about a thermostat. A Versatile Thermostat is
         recognized by its integration, not by its attributes: VTherm moved some of them (#74)."""
         entry = er.async_get(self.hass).async_get(state.entity_id) if state is not None else None
-        last = self.thermostats.get(state.entity_id, {}).get("hvac_mode") if state is not None else None
-        return thermostat(state, entry is not None and entry.platform == VTHERM, last)
+        return thermostat(state, entry is not None and entry.platform == VTHERM)
 
     def _learned(self, entity_id: str, cool: bool = False) -> dict[str, float]:
         """{own preset: temperature} learned from a thermostat. `cool`: while it cooled."""
@@ -447,9 +446,12 @@ class ChauffageRuntime:
                 if value in [engine.preset_value(v) for v in attributes.get(f"{key}s") or [value]]}
 
     def _to_send(self, entity_id: str, target: engine.Target, current: engine.Thermostat, by_user: bool = False) -> engine.Target:
-        """An override's target as it is sent (engine.complete). An override sets no fan and
-        no vanes, and gives none back: they stay as the thermostat has them."""
-        return engine.complete(target, current, by_user)
+        """An override's target as it is sent (engine.complete). Without an HVAC mode, a thermostat
+        that is off is turned on in the HVAC mode of the slot planned now, as the card does."""
+        plan = self.plan()
+        slot, _ = plan.slot_at(entity_id, dt_util.now())
+        planned = plan.target_of(entity_id, slot, current) or {}
+        return engine.complete(target, current, by_user, planned.get("hvac_mode"))
 
     @callback
     def _remember_settings(self, entity_id: str, target: engine.Target) -> None:
@@ -1357,18 +1359,13 @@ class ChauffageRuntime:
     @callback
     def _learn(self, state: State | None) -> bool:
         """While a thermostat is on a preset, its setpoint is that preset's temperature: its
-        cooling temperature while it cools, kept apart. While it heats or cools, its HVAC mode
-        is the one to turn it on in later (#91): heat or cool only, not fan only, which takes no
-        setpoint, nor auto, heat/cool or dry. In heat/cool, in dry and in fan only, the setpoint
-        shown is not a preset's temperature: nothing is learned."""
+        cooling temperature while it cools, kept apart. In heat/cool, in dry and in fan only, the
+        setpoint shown is not a preset's temperature: nothing is learned."""
         current = self.current(state)
         if current is None or engine.ignored(current) or state.entity_id not in self.thermostats:
             return False
         data = self.thermostats[state.entity_id]
         learned = False
-        if current.state in engine.HEAT_OR_COOL and state.state != engine.OFF and data["hvac_mode"] != current.state:
-            data["hvac_mode"] = current.state
-            learned = True
         temperatures = (data.setdefault("cool_preset_temperatures", {}) if current.state == "cool"
                         else data["preset_temperatures"])
         # A VTherm on another preset than asked, for example its central mode in frost

@@ -111,8 +111,8 @@ def sent_to(bench: Bench, entity_id: str = SALON) -> list[float]:
     return [temperature for entity, temperature in bench.temperature_calls if entity == entity_id]
 
 
-def ac(state: str = "cool", last: str | None = None, modes: tuple = tuple(AC_MODES)) -> engine.Thermostat:
-    return engine.Thermostat(state, "comfort", 20.0, ("eco", "comfort"), 16.0, 30.0, 0.5, hvac_modes=modes, last_hvac_mode=last)
+def ac(state: str = "cool", modes: tuple = tuple(AC_MODES)) -> engine.Thermostat:
+    return engine.Thermostat(state, "comfort", 20.0, ("eco", "comfort"), 16.0, 30.0, 0.5, hvac_modes=modes)
 
 
 def unit(state: str = "heat", modes: list[str] | None = None, presets: tuple[str, ...] = (), **more) -> engine.Thermostat:

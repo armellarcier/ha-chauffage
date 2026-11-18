@@ -612,8 +612,8 @@ to its own end, and the thermostat stays off after it.
 **A slot that turns a thermostat off.** A slot can be *Off*. The thermostat turns off at the
 slot's start. The next slot that asks for a preset turns it back on. On an air conditioner, the
 slot says in which HVAC mode. An override that you set on a thermostat that is off turns it on:
-in the HVAC mode the override says, else in the one the thermostat last ran in. An air
-conditioner that cooled in July restarts in cool.
+in the HVAC mode the override says, else in the one of the slot planned now, else in heat. In
+summer, during a cooling slot, an air conditioner restarts in cool.
 
 **Heat or cool chosen by hand.** Switch an air conditioner to *Cool* in Home Assistant during a
 slot that heats, and Chauffage makes it an override. The override keeps the preset in force:

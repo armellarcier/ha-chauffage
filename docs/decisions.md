@@ -223,17 +223,16 @@ future contributor might question.
     summer day would be a surprise.
   - **Each slot is independent**: a slot does not inherit the HVAC mode of the slot before it
     when it runs. It says its own.
-  - **A target without an HVAC mode turns on a thermostat that is off or in fan only**: in the
-    HVAC mode it last heated or cooled in (learned and stored, as the temperatures of its own
-    presets are), else in `heat`, else in its first HVAC mode but off and fan only. Such a
-    target is a heater's slot, or an override to a preset set by an automation. Heat came first
-    before: an air conditioner that cooled in July restarted in heat on an override to
-    *Comfort*. Fan only takes no setpoint, so a preset slot that follows a fan-only slot must
-    leave it, as it leaves off. A thermostat that lists no HVAC mode gets its setpoint only.
-  - **Chauffage only learns and restarts in heat and cool.** They are the only HVAC modes
-    Chauffage learns from a thermostat and turns one back on in. A version learned any HVAC
-    mode: a valve seen once in `auto` restarted in `auto`, an air conditioner last in `dry` in
-    `dry`. A slot or an override can still say `dry`, `auto` or `heat_cool`: the user chose it.
+  - **A target without an HVAC mode turns on a thermostat that is off or in fan only, as the
+    card chooses the HVAC mode of an override** (the owner, on a proposal from Claude). Among the
+    HVAC modes that take a setpoint, Chauffage takes the one of the slot planned now, else
+    heat, else the first. Such a target is a heater's slot, or an override to a preset set by
+    an automation. Example: in summer, a script turns the air conditioner off during a cooling
+    slot, then an automation sets an override to *Comfort*. The air conditioner restarts in
+    cool. Chauffage learns no HVAC mode: an earlier version stored the HVAC mode a thermostat
+    last heated or cooled in, for a case nobody had reported. Without an HVAC mode that takes
+    a setpoint, Chauffage takes the first one but off, fan only and dry, for example auto. A
+    thermostat that lists only off and fan only, or no HVAC mode, gets its setpoint only.
   - **Dry and auto take no setpoint from Chauffage.** A dry slot and an auto slot have no
     preset, as a fan-only slot: Chauffage sends the HVAC mode, the fan and the vanes. Dry
     takes no setpoint on a device. Auto often takes one, but the device decides what to do
@@ -254,9 +253,9 @@ future contributor might question.
     takes `target_temp_low` and `target_temp_high` together. Chauffage sends only what a
     thermostat does not show: a range whose low was already shown went out as its high alone,
     Home Assistant refused it, and the command was sent again every minute. Now the two ends
-    go together. A single temperature is never sent in heat/cool to a thermostat that takes a
-    range, even one the user typed: `complete` drops it, and `chauffage.set_override` refuses
-    it with a message. A thermostat that takes one setpoint in heat/cool (a Daikin) is read as
+    go together. The card and `chauffage.set_override` refuse a single temperature in
+    heat/cool on a thermostat that takes a range. An override stored before that refusal is
+    sent as it is, once: the thermostat may refuse it. A thermostat that takes one setpoint in heat/cool (a Daikin) is read as
     in heat there: its setpoint changed by hand is an override. A range is checked once fitted
     to the thermostat: two temperatures above its maximum are not a range.
   - **Scripts and the sensor read the slots as they run.** `chauffage.get_week` and the
@@ -310,14 +309,15 @@ future contributor might question.
     not a choice of the user. A preset or a setpoint changed on the thermostat itself while it
     is off is not an override: the thermostat stays off, and keeps what the user set for when it
     is turned on. A preset tapped in the card's override block turns it on (see below).
-  - **The fan and the vanes go back to what the thermostat had** (#91, the second review). A
-    target is a partial state: a slot that chooses no fan left the fan of the slot before it.
+  - **The fan and the vanes go back to what the thermostat had** (#91, the second review). This
+    follows from "each slot is independent", applied to the fan and the vanes. A target is a
+    partial state: a slot that chooses no fan left the fan of the slot before it.
     A tester set the fan to *High* for a dry night slot, and the air conditioner blew hard all
     day. Now Chauffage keeps what the thermostat showed before a slot or an override changed
     its fan or its vanes (`own_settings`, stored with the thermostat). The next slot that
     chooses none gives it back. A fan changed by hand is the user's choice: it
-    is kept from then on. An off slot still sends off alone. *A choice to validate with the
-    owner*: the other way was to leave the fan as it is, and to say so in the popover.
+    is kept from then on. An off slot still sends off alone. The owner confirmed the rule: the
+    other way, leaving the fan as it is, made what the room gets depend on the slot before.
   - **An override sets no fan and no vanes** (the owner, after the third review). A fan
     changed by hand that differed from the slot's should be an override, as a setpoint is.
     But an override replaces the whole slot: a fan touched 30 minutes before a boost slot
