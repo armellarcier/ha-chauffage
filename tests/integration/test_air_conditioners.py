@@ -251,13 +251,14 @@ async def test_a_setpoint_changed_with_the_hvac_mode_by_hand_is_in_the_override(
 
 
 async def test_switching_the_air_conditioner_to_heat_by_hand_in_a_cooling_slot_is_an_override(bench: Bench):
-    """The override keeps the slot's preset, in the HVAC mode chosen by hand."""
+    """Only the HVAC mode changed: the override holds the HVAC mode, and Chauffage sends nothing."""
     await start_ac(bench, "10:00", [["00:00", "eco", COOL]], state="cool")
     setpoint = bench.hass.states.get(SALON).attributes["temperature"]  # only the HVAC mode changes
+    clear(bench)
     bench.thermostat(SALON, "eco", setpoint, state="heat", hvac_modes=AC_MODES, context=CTX_USER)
     await bench.hass.async_block_till_done(wait_background_tasks=True)
-    override = bench.overrides()[SALON]
-    assert override["target"]["hvac_mode"] == "heat" and override["preset"] == "eco"
+    assert bench.overrides()[SALON]["target"] == {"hvac_mode": "heat"}
+    assert sent_to(bench) == [] and bench.applied() == {}
 
 
 async def test_switching_to_fan_only_by_hand_is_an_override(bench: Bench):
@@ -267,25 +268,24 @@ async def test_switching_to_fan_only_by_hand_is_an_override(bench: Bench):
     assert bench.overrides()[SALON]["target"] == FAN
 
 
-async def test_switching_to_cool_by_hand_applies_the_slot_s_preset_in_cool(bench: Bench):
-    """The slot heats on comfort. Switched to cool in Home Assistant's dialog, the unit gets
-    the cooling value of comfort, and the override says comfort, in cool."""
+async def test_switching_to_cool_by_hand_sends_nothing(bench: Bench):
+    """The slot heats on comfort. Switched to cool in Home Assistant's dialog, the unit keeps
+    what it shows: Chauffage sends nothing, not even comfort's cooling value."""
     await start_ac(bench, "10:00", [["00:00", "comfort", HEAT]], preset="comfort")
     await bench.runtime.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
     clear(bench)
     bench.thermostat(SALON, "comfort", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
     await bench.hass.async_block_till_done(wait_background_tasks=True)
     override_ = bench.overrides()[SALON]
-    assert override_["preset"] == "comfort"
-    assert override_["target"]["hvac_mode"] == "cool" and override_["target"]["cool_temperature"] == 24.0
+    assert override_["target"] == {"hvac_mode": "cool"}
     assert override_["ends_at"] == "duration"
-    assert sent_to(bench) == [24.0]
+    assert sent_to(bench) == [] and bench.applied() == {}
 
 
-async def test_an_override_to_a_preset_keeps_its_value_when_the_hvac_mode_is_switched_by_hand(bench: Bench):
-    """Regression: an override to comfort, then cool chosen in Home Assistant's dialog. A
-    Versatile Thermostat went to its own comfort in cool (25 °C), not to the 24 °C set in
-    Chauffage."""
+async def test_an_override_to_a_preset_keeps_its_preset_when_the_hvac_mode_is_switched_by_hand(bench: Bench):
+    """An override to boost, then cool chosen in Home Assistant's dialog: the override adds the
+    HVAC mode to boost, and its end is computed again. Chauffage sends nothing: a Versatile
+    Thermostat goes to its own boost in cool (25 °C), the others keep their setpoint."""
     await start_ac(bench, "10:00", [["00:00", "eco", HEAT]])
     await bench.runtime.set_mapping(SALON, {"boost": {"cool_temperature": 24}})
     await override(bench, preset="boost", duration=180)
@@ -298,8 +298,8 @@ async def test_an_override_to_a_preset_keeps_its_value_when_the_hvac_mode_is_swi
     await bench.hass.async_block_till_done(wait_background_tasks=True)
     override_ = bench.overrides()[SALON]
     assert override_["preset"] == "boost" and override_["target"]["hvac_mode"] == "cool"
-    assert override_["end"] == "2026-10-12T13:00:00+02:00"  # its end does not move
-    assert sent_to(bench) == [24.0]
+    assert override_["end"] == "2026-10-12T12:00:00+02:00"  # computed again from the change
+    assert sent_to(bench) == []
 
 
 async def test_switching_the_hvac_mode_by_hand_in_an_off_slot_keeps_the_thermostat_s_own_setpoint(bench: Bench):
@@ -324,17 +324,17 @@ async def test_switching_to_dry_by_hand_is_recorded_and_sends_nothing(bench: Ben
         assert sent_to(bench) == [] and bench.applied() == {} and bench.powered() == {}
 
 
-async def test_a_temperature_typed_for_heating_is_not_carried_into_cool(bench: Bench):
-    """An override to 22 °C while heating, then cool chosen by hand: 22 °C was a heating
-    temperature. It is not sent in cool, and the override no longer holds it."""
+async def test_a_temperature_kept_by_the_unit_in_cool_stays_in_the_override(bench: Bench):
+    """An override to 22 °C while heating, then cool chosen by hand: the unit cools to 22 °C, so
+    the override says so. Chauffage sends nothing, and the end is computed again."""
     await start_ac(bench, "10:00", [["00:00", "eco", HEAT]])
     await override(bench, temperature=22, duration=180)
     clear(bench)
     bench.thermostat(SALON, None if bench.kind != "vtherm" else "none", 22.0, state="cool", hvac_modes=AC_MODES, context=CTX_USER)
     await bench.hass.async_block_till_done(wait_background_tasks=True)
     override_ = bench.overrides()[SALON]
-    assert override_["target"] == COOL
-    assert override_["end"] == "2026-10-12T13:00:00+02:00"
+    assert override_["target"] == {"hvac_mode": "cool", "temperature": 22.0}
+    assert override_["end"] == "2026-10-12T12:00:00+02:00"
     assert sent_to(bench) == []
 
 

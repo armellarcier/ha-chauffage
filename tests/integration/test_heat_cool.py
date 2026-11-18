@@ -213,15 +213,13 @@ async def test_a_single_temperature_is_taken_in_heat_cool_without_a_range(bench:
 
 # ----- heat/cool by hand -----
 
-async def test_switching_to_heat_cool_by_hand_keeps_the_preset_in_force(bench: Bench):
-    """The person chose an HVAC mode, not a setpoint: the slot's preset goes on, with its two
-    temperatures."""
+async def test_switching_to_heat_cool_by_hand_sends_nothing(bench: Bench):
+    """The person chose an HVAC mode: the override holds it, and Chauffage sends no range."""
     await start_ac_with_range(bench, [["00:00", "eco", {"hvac_mode": "heat"}]])
     by_hand(bench, "heat_cool")
     await bench.hass.async_block_till_done(wait_background_tasks=True)
-    kept = bench.overrides()[SALON]
-    assert kept["preset"] == "eco" and kept["target"]["hvac_mode"] == "heat_cool"
-    assert bench.range_calls == [(SALON, 17.0, 27.0)]
+    assert bench.overrides()[SALON]["target"] == {"hvac_mode": "heat_cool"}
+    assert bench.range_calls == [] and bench.applied() == {}
 
 
 async def test_a_range_changed_by_hand_in_heat_cool_is_an_override(bench: Bench):

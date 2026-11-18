@@ -119,10 +119,13 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   Comfort 25° until 23:00, then Heat · Eco". On a thermostat card, in the more-info dialog,
   and on the override drawn on the week, with its tooltip. Labels say the short name of the
   HVAC mode, and sentences the full one, as Home Assistant does. On a week with several
-  thermostats, a short override says its HVAC mode and its end next to it: "⏱ ❄ → 02:31". Switch the
-  air conditioner to *Cool* or to *Heat/Cool* by hand, and the override keeps the preset in
-  force, with its value for that HVAC mode. Switch it to *Dry* or to *Auto* by hand, and the
-  override keeps that HVAC mode: Chauffage sends nothing.
+  thermostats, a short override says its HVAC mode and its end next to it: "⏱ ❄ → 02:31".
+- **A change by hand is an override on what you changed** (#91). A slot controls an HVAC mode
+  and, when the thermostat heats or cools, a setpoint. If you change one of them on the
+  thermostat, the override takes it and keeps the rest of the override in force. Chauffage
+  sends nothing to the thermostat. For example, switch the air conditioner to *Cool* by hand,
+  and the override says *Cool*, with the setpoint the air conditioner shows. When you put the
+  thermostat back on its slot's HVAC mode and setpoint, the schedule resumes.
 - **A slot can be *Fan only*, *Dry* or *Auto*** (#91), on a thermostat that lists the HVAC
   mode. The slot has no preset and no setpoint, and can set the fan speed and the vanes. The
   week shows it in Home Assistant's color of the HVAC mode, with its icon. A dry slot and an

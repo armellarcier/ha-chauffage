@@ -675,64 +675,70 @@ def same_target(a: Target, b: Target, thermostat: Thermostat | None = None) -> b
     return all(same_temperature(a[key], b[key], thermostat) if key in TEMPERATURE_KEYS else a[key] == b[key] for key in a)
 
 
+# The keys of a target that hold its setpoint: a preset, a temperature or a range
+SETPOINT_TARGET_KEYS = (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)
+
+
+def setpoint_changed(before: Thermostat, after: Thermostat, by_user: bool) -> Target | None:
+    """The setpoint a person changed on a thermostat that stays in one HVAC mode, or None: a
+    preset picked by a user (not one the thermostat sets by itself, such as VTherm's safety
+    mode), a temperature set on the thermostat's manual preset (VTherm "none", none for the
+    others), or a range in heat/cool on a thermostat that takes one. A preset's own temperature
+    changed (VTherm preset temperatures) is not a change."""
+    if after.preset != before.preset and not is_manual_preset(after.preset) and by_user:
+        return {"preset_mode": after.preset}
+    if after.state == HEAT_COOL and after.supports_range:
+        if after.target_temp_low is None or after.target_temp_high is None or all(
+                same_temperature(getattr(after, key), getattr(before, key), after) for key in RANGE_KEYS):
+            return None
+        return {key: getattr(after, key) for key in RANGE_KEYS}
+    if is_manual_preset(after.preset) and after.temperature is not None and (
+            after.preset != before.preset or not same_temperature(after.temperature, before.temperature, after)):
+        return {"temperature": after.temperature}
+    return None
+
+
 def manual_change(
     before: Thermostat, after: Thermostat, *, by_user: bool, expected: Target | None = None,
     preset_temperature: float | None = None, override: Target | None = None,
 ) -> Target | str | None:
     """What a change that is neither the integration's nor an automation's (the caller excludes
-    those) means: the target of an override, RESUME, or None. docs/decisions.md, "Scheduling".
+    those) means: the target of the override, RESUME, or None. docs/decisions.md, "A change by
+    hand".
 
-    Two gestures count: a preset picked by a user (not one the thermostat sets by itself, such
-    as VTherm's safety mode), and a setpoint changed by a user or on the device (the thermostat
-    on its manual preset: VTherm "none", none for the others). A setpoint change that keeps the
-    preset is that preset's own temperature (VTherm preset temperatures): nothing.
-    - Back to what the slot gives (`back_to`; `preset_temperature`: what the expected preset
-      gives on this thermostat): RESUME, the override, if any, ends. Not when the override
-      (`override`) already has that value: the thermostat comes back to it (an override holding
-      the slot's value past the next slots).
-    - Otherwise: an override to that preset, or to that setpoint. Not while the thermostat is
-      off: it stays off, and keeps what the user set for when it is turned on.
-
-    A third gesture: the HVAC mode changed, by a user or on the device (#91). Turned off during
-    an "on" slot, or on during an off slot, or switched to another HVAC mode than the slot's: an
-    override to that HVAC mode, with the preset or the setpoint changed in the same state if
-    one was (climate.set_temperature with an HVAC mode writes both at once). Turned off: an
-    override to off, alone. Back to an HVAC mode the slot accepts: RESUME, whatever the
-    thermostat restarted on (the slot is applied). Heat to cool when the slot gives no HVAC
-    mode is not a change: both are "on".
-
-    In heat/cool, on a thermostat that takes a range there, the setpoint is a range: a range
-    changed is an override to that range, and back to the slot's range is RESUME. A preset or a
-    single temperature means nothing there. A thermostat that takes a single setpoint in
-    heat/cool is read as in heat.
+    A slot sets an HVAC mode and, in an HVAC mode that heats or cools, a setpoint (`expected`:
+    what it sends this thermostat now). A change by hand of what the slot sets is an override
+    on that point, added to the override in force (`override`):
+    - the HVAC mode changed: the override takes it. Off, fan only, dry and auto take no
+      setpoint, so the override then holds none;
+    - the setpoint changed (`setpoint_changed`), in an HVAC mode that takes one and when the
+      slot sets one: the override takes it, in place of the setpoint it held.
+    One change may hold both: the override takes what the thermostat shows.
+    A point back to what the slot asks leaves the override; with no point left, or the
+    thermostat doing what the slot asks (`back_to`; `preset_temperature`: what the expected
+    preset gives on this thermostat), the schedule resumes (RESUME). Not when the override
+    already held the slot's value past the next slots: the thermostat comes back to it (None).
+    Chauffage sends nothing for a change by hand.
     """
     if ignored(after) or before.state in IGNORED_STATES:
         return None
-    accepted = expected is not None and hvac_satisfied(expected, after)
-    if after.state != before.state and accepted and not hvac_satisfied(expected, before):
-        return RESUME
-    switched = after.state != before.state and not accepted
-    if after.state == OFF:
-        return {"hvac_mode": OFF} if switched else None
-    if after.state == HEAT_COOL and after.supports_range and not switched:
-        if after.target_temp_low is None or after.target_temp_high is None or all(
-                same_temperature(getattr(after, key), getattr(before, key), after) for key in RANGE_KEYS):
-            return None
-        if expected is not None and satisfied(expected, after):
-            return None if override is not None and same_target(override, expected, after) else RESUME
-        return {key: getattr(after, key) for key in RANGE_KEYS}
-    manual = is_manual_preset(after.preset)
-    picked = after.preset != before.preset and not manual and by_user
-    setpoint = manual and (
-        after.preset != before.preset or not same_temperature(after.temperature, before.temperature, after)
-    )
-    changed = picked or (setpoint and after.temperature is not None)
-    if not changed:
-        return {"hvac_mode": after.state} if switched else None
-    change = {"preset_mode": after.preset} if picked else {"temperature": after.temperature}
-    if switched:
-        return {"hvac_mode": after.state, **change}
-    if expected is not None and back_to(expected, after, preset_temperature):
+    mode_changed = after.state != before.state
+    slot_sets_one = expected is None or any(key in expected for key in SETPOINT_TARGET_KEYS)
+    change = setpoint_changed(before, after, by_user) if after.state in SETPOINT_MODES and slot_sets_one else None
+    if not mode_changed and change is None:
+        return None
+    target = dict(override or {})
+    if mode_changed:
+        target["hvac_mode"] = after.state
+    if after.state not in SETPOINT_MODES or change is not None:
+        target = {key: value for key, value in target.items() if key not in SETPOINT_TARGET_KEYS} | (change or {})
+    if expected is None:
+        return target
+    if target.get("hvac_mode") is not None and hvac_satisfied(expected, after):
+        target.pop("hvac_mode")
+    back = hvac_satisfied(expected, after) and (
+        not any(key in target for key in SETPOINT_TARGET_KEYS) or back_to(expected, after, preset_temperature))
+    if back:
         held = override is not None and same_target(override, expected, after)
         return None if held else RESUME
-    return change
+    return target

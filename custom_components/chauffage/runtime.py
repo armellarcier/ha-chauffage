@@ -1447,40 +1447,9 @@ class ChauffageRuntime:
                 resume = self.apply(include={new.entity_id}, reason=f"back from {old.state}")
             self.entry.async_create_task(self.hass, resume, "chauffage resume")
             return
-        switched = self._switched_override(new.entity_id, change, current, slot, after)
-        if switched is not None:
-            # Heat or cool chosen by hand, alone: the value planned goes on in that HVAC mode, so
-            # it is sent (the cooling value of a preset, not what the device restarted on)
-            self.record_override(new.entity_id, switched, context)
-            carry = self._realign(new.entity_id, "HVAC mode changed by hand")
-            self.entry.async_create_task(self.hass, carry, "chauffage carry the value")
-            return
-        self.record_override(new.entity_id, self.manual_override(new.entity_id, change, after), context)
+        recorded = self.manual_override(new.entity_id, change, after)
+        if current and current.get("preset") and all(
+                change.get(key) == current["target"].get(key) for key in engine.SETPOINT_TARGET_KEYS):
+            recorded["preset"] = current["preset"]  # its setpoint is still the preset's
+        self.record_override(new.entity_id, recorded, context)
 
-    def _switched_override(self, entity_id: str, change: engine.Target, current: dict[str, Any] | None,
-                           slot: engine.Slot | None, after: engine.Thermostat) -> dict[str, Any] | None:
-        """The override of an air conditioner switched to heat, cool or heat/cool by hand, and
-        nothing else changed. The person chose an HVAC mode, not a setpoint: the override keeps the value in
-        force, in that HVAC mode. Its override's value and end if it has one with a setpoint,
-        else the preset of its slot. None when the change is something else, or when there is no
-        value to keep (an off or a fan-only slot: the thermostat keeps its own last setpoint).
-        Dry or auto chosen by hand is recorded as it is, and nothing is sent. So is heat/cool
-        when the value in force has no range. A temperature the user set (an override without a preset) was meant
-        for the HVAC mode it was set in: it is not carried into the other one, never 22 °C of
-        heating sent in cool."""
-        mode = change.get("hvac_mode")
-        if set(change) != {"hvac_mode"} or mode not in engine.SETPOINT_MODES:
-            return None
-
-        def carried(target: engine.Target) -> bool:
-            return mode != engine.HEAT_COOL or all(key in target for key in engine.RANGE_KEYS)
-
-        if current and any(key in current["target"] for key in (*engine.SETPOINT_KEYS, *engine.COOL_KEYS)):
-            target = {**current["target"], "hvac_mode": mode}
-            if not current.get("preset"):
-                target.pop("temperature", None)
-            return {**current, "target": target} if carried(target) else None
-        meaning = self.targets_of(entity_id).get(slot.preset) if slot and slot.preset else None
-        if meaning is None or not carried(meaning):
-            return None
-        return self.manual_override(entity_id, {**meaning, "hvac_mode": mode}, after) | {"preset": slot.preset}

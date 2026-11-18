@@ -592,8 +592,9 @@ def test_switching_the_hvac_mode_by_hand_is_an_override_when_the_slot_sets_one()
     expected = {"preset_mode": "comfort", "hvac_mode": "cool"}
     assert engine.manual_change(ac("cool"), ac("heat"), by_user=True, expected=expected) == {"hvac_mode": "heat"}
     assert engine.manual_change(ac("heat"), ac("cool"), by_user=True, expected=expected, override={"hvac_mode": "heat"}) == engine.RESUME
-    # Without an HVAC mode on the slot, switching heat to cool is not a change: both are "on"
-    assert engine.manual_change(ac("heat"), ac("cool"), by_user=True, expected={"preset_mode": "comfort"}) is None
+    # Without an HVAC mode on the slot, heat and cool are both "on": the thermostat does what
+    # its slot asks, so the slot is applied again
+    assert engine.manual_change(ac("heat"), ac("cool"), by_user=True, expected={"preset_mode": "comfort"}) == engine.RESUME
 
 
 def test_a_setpoint_or_a_preset_changed_with_the_hvac_mode_is_part_of_the_override():
@@ -608,9 +609,45 @@ def test_a_setpoint_or_a_preset_changed_with_the_hvac_mode_is_part_of_the_overri
     # Heat to cool during an "on" slot is no change of HVAC mode, and the setpoint still counts
     assert engine.manual_change(ac("heat"), ac("cool", "none", 24.0), by_user=True, expected={"preset_mode": "comfort"}) \
         == {"temperature": 24.0}
-    # Back to an HVAC mode the slot accepts: the slot is applied, whatever came with it
+    # Back on, on a setpoint other than the slot's: the override takes that setpoint
     assert engine.manual_change(ac("off", "eco"), ac("heat", "none", 24.0), by_user=True, expected={"preset_mode": "comfort"},
-                                override=OFF) == engine.RESUME
+                                override=OFF) == {"temperature": 24.0}
+
+
+def test_a_change_by_hand_is_added_to_the_override_in_force():
+    """Each change by hand changes one point of the override, and keeps the others."""
+    heating = {"preset_mode": "eco", "hvac_mode": "heat"}
+    after_mode = engine.manual_change(ac("heat", "eco"), ac("cool", "eco"), by_user=True, expected=heating)
+    assert after_mode == {"hvac_mode": "cool"}
+    assert engine.manual_change(ac("cool", "eco"), ac("cool", "none", 23.0), by_user=True, expected=heating,
+                                override=after_mode) == {"hvac_mode": "cool", "temperature": 23.0}
+    # A new setpoint replaces the one the override held
+    assert engine.manual_change(ac("cool", "none", 23.0), ac("cool", "boost"), by_user=True, expected=heating,
+                                override={"hvac_mode": "cool", "temperature": 23.0}) == {"hvac_mode": "cool", "preset_mode": "boost"}
+    # Off holds no setpoint
+    assert engine.manual_change(ac("cool", "none", 23.0), ac("off", "none", 23.0), by_user=True, expected=heating,
+                                override={"hvac_mode": "cool", "temperature": 23.0}) == OFF
+
+
+def test_the_schedule_resumes_when_the_thermostat_does_what_its_slot_asks():
+    """Back to the slot's HVAC mode and to its setpoint: the schedule resumes. A setpoint that
+    is not the slot's keeps the override."""
+    comfort = {"preset_mode": "comfort", "hvac_mode": "heat"}
+    assert engine.manual_change(ac("cool", "comfort"), ac("heat", "comfort"), by_user=True, expected=comfort,
+                                override={"hvac_mode": "cool"}) == engine.RESUME
+    assert engine.manual_change(ac("cool", "none", 23.0), ac("heat", "none", 23.0), by_user=True, expected=comfort,
+                                override={"hvac_mode": "cool", "temperature": 23.0}, preset_temperature=20.0) \
+        == {"temperature": 23.0}
+    assert engine.manual_change(ac("heat", "none", 23.0), ac("heat", "none", 20.0), by_user=True, expected=comfort,
+                                override={"temperature": 23.0}, preset_temperature=20.0) == engine.RESUME
+
+
+def test_a_setpoint_changed_during_a_slot_without_a_setpoint_is_not_an_override():
+    """Off, fan only, dry and auto slots control the HVAC mode only."""
+    for mode in ("off", "fan_only", "dry", "auto"):
+        assert engine.manual_change(ac(mode, "eco"), ac(mode, "boost"), by_user=True, expected={"hvac_mode": mode}) is None
+        assert engine.manual_change(ac(mode, "none", 20.0), ac(mode, "none", 23.0), by_user=True,
+                                    expected={"hvac_mode": mode}) is None
 
 
 def test_a_preset_picked_while_the_thermostat_is_off_is_not_an_override():

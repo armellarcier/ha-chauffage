@@ -197,14 +197,25 @@ async def test_turning_the_thermostat_off_with_its_button_is_an_override_too(ben
 
 
 async def test_turning_the_thermostat_back_on_by_hand_ends_its_off_override(bench: Bench):
-    """Back on, the thermostat is set to its slot: what it restarted on is not a change."""
+    """Back on, on the setpoint it showed while off: the thermostat does what its slot asks."""
+    await start_salon(bench)
+    bench.thermostat("climate.salon", "eco", state="off", context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "eco", context=CTX_USER)  # back on
+    await bench.hass.async_block_till_done()
+    assert bench.overrides() == {}
+
+
+async def test_a_thermostat_back_on_on_another_setpoint_keeps_an_override(bench: Bench):
+    """Back on, on comfort while its slot asks eco: the thermostat does not do what its slot
+    asks, so the override goes on, on comfort. Chauffage sends nothing."""
     await start_salon(bench)
     bench.thermostat("climate.salon", "eco", state="off", context=CTX_USER)
     await bench.hass.async_block_till_done()
     bench.thermostat("climate.salon", "comfort", context=CTX_USER)  # back on, on comfort
     await bench.hass.async_block_till_done()
-    assert bench.overrides() == {}
-    assert bench.applied() == {"climate.salon": "eco"}
+    assert "hvac_mode" not in bench.overrides()["climate.salon"]["target"]
+    assert bench.applied() == {}
 
 
 async def test_turning_the_thermostat_on_by_hand_during_an_off_slot_is_an_override(bench: Bench):

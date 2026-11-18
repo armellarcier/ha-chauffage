@@ -34,6 +34,20 @@ future contributor might question.
 - **A manual change is judged against what the schedule expects**: on a thermostat driven by
   temperature, any other setpoint is an override; the thermostat reaching the expected
   temperature is not.
+- **A change by hand** (the owner, #91). A slot controls an HVAC mode and, in an HVAC mode that
+  heats or cools, a setpoint. Three rules, with no exception:
+  1. A change by hand of what the slot controls is an override on that point, added to the
+     override in force. The override takes what the thermostat shows: when the HVAC mode and
+     the setpoint change in one state, the override takes both. Each change computes the end
+     again.
+  2. Chauffage sends nothing after a change by hand.
+  3. When the thermostat is back to what the slot asks, for the HVAC mode and the setpoint, the
+     schedule resumes.
+
+  This replaces a set of deductions (the value of the slot sent in the new HVAC mode, the
+  setpoint kept from before off, a setpoint shown with a new HVAC mode ignored…). Each fixed one
+  case, and two broke at the next review. A thermostat that restarts on another setpoint than
+  the one it showed while off keeps an override: no device is known to do so.
 - **An override departs from the schedule, now: it is never planned.** Its first source is a
   change made by hand on the thermostat: someone in the room wants something else than the
   schedule, at that moment. The card, the more-info dialog and `set_override` called at that
@@ -42,8 +56,8 @@ future contributor might question.
   18:00, the children's bedrooms on frost protection") is part of the plan, so it belongs to the
   schedules (activation rules, the coming calendar of schedules, issue #13), not to overrides.
   Hence **one override per thermostat at most**: a change by hand on a thermostat that already
-  has an override means the user changed their mind, so it replaces the override (going back to
-  what the slot expects ends it, see below). There is no stack of overrides and no override
+  has an override changes that override (going back to what the slot expects ends it, see
+  below). There is no stack of overrides and no override
   waiting to start. An automation calling `set_override` at 8:00 is consistent with this: it
   departs from the schedule at 8:00.
 - **An override only ends at its end, when it is removed, or when a change on the thermostat
@@ -230,8 +244,8 @@ future contributor might question.
     setpoints. Chauffage offers heat/cool only on a thermostat that takes a range (Home
     Assistant's `TARGET_TEMPERATURE_RANGE`): one that takes a single setpoint there would get
     a range it refuses. A preset whose low is not under its high has no range. Heat/cool
-    chosen by hand is read like heat or cool chosen by hand: the override keeps the preset in
-    force and sends its range. A range changed by hand is an override to that range.
+    chosen by hand is an override to that HVAC mode, and nothing is sent (see "A change by
+    hand"). A range changed by hand is an override to that range.
   - **A range is sent whole, and only to a thermostat that takes one.** `climate.set_temperature`
     takes `target_temp_low` and `target_temp_high` together. Chauffage sends only what a
     thermostat does not show: a range whose low was already shown went out as its high alone,
@@ -241,10 +255,6 @@ future contributor might question.
     it with a message. A thermostat that takes one setpoint in heat/cool (a Daikin) is read as
     in heat there: its setpoint changed by hand is an override. A range is checked once fitted
     to the thermostat: two temperatures above its maximum are not a range.
-  - **A temperature belongs to the HVAC mode it was set in.** An override to 22 °C set while
-    heating, then cool chosen by hand: the override keeps cool and its end, and drops the
-    temperature. 22 °C was never meant as a cooling setpoint. An override to a preset keeps the
-    preset: its value when cooling applies.
   - **Scripts and the sensor read the slots as they run.** `chauffage.get_week` and the
     planned-preset sensor give each slot's HVAC mode on the thermostat (`engine.week_on`), not
     the stored one: a script must not have to know the rule. The sensor's `temperatures` are
@@ -254,15 +264,6 @@ future contributor might question.
     only happens to a week copied by an automation.
   - **Switching an air conditioner by hand to another HVAC mode than the slot's is an
     override**, as turning it off is, and as switching it to fan only is.
-  - **Heat or cool chosen by hand keeps the value in force.** The person chose an HVAC mode,
-    not a setpoint. So the override keeps its preset and its end when the thermostat had one,
-    else it takes the preset of the slot, and Chauffage sends that value in the new HVAC mode.
-    Before, the override held the HVAC mode alone, and an existing override to *Comfort* was
-    left as it was: a Versatile Thermostat then went to its own *Comfort* for cooling (25 °C),
-    and the temperature when cooling set in Chauffage (24 °C) was never sent. This is the one
-    case where a change by hand makes Chauffage send something: the value is the one planned,
-    in the HVAC mode the person asked for. In an off slot or a fan-only slot there is no value
-    to keep: the thermostat keeps its own last setpoint.
   - **An off slot has no preset, and Chauffage sends only off.** A first version sent a preset
     with off, as a scene does, and chose the coldest preset so that a thermostat that heats
     anyway heats as little as possible. The preset was hidden: the user could not see it, and
