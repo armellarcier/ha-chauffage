@@ -1194,30 +1194,6 @@ A review of every surface, before the merge into `main`, settled these choices.
   behavior test runs on the three kinds of thermostats.
 - **A change to the stored data or the installation goes through a beta** installed on a real
   installation before the release.
-- **`scripts/deploy.sh` tries the working tree on a real installation without a release.** A
-  pre-release for each try is slow and fills the release list.
-  - The script saves the release and its data before the first deploy. A dev version may migrate
-    the stored data, and an older version cannot read newer data.
-  - The backup exists until a full rollback. The script never decides from the installed
-    version whether to save it. A rollback without a container, a deploy cut short or a HACS
-    update can leave something other than a dev version installed. A new backup would then
-    save it in place of the release.
-  - After a HACS update between two deploys, the rollback puts back the release of the first
-    deploy, not the HACS one. This keeps the data that release can read.
-  - The script puts the data back only while Home Assistant is stopped, because Home Assistant
-    writes its stores when it stops. Without a container, the script cannot stop Home Assistant,
-    so it does not restart it either. A restart would start the release on newer data.
-  - The rollback keeps the data of the dev version in a file next to the configuration. Weeks
-    of real use may be in it, and only the developer knows whether they matter.
-  - The dev version sorts after the release, for example `0.9.1-dev.…` for `0.9.0`. An open
-    card then asks for a reload, not for a restart, and the card's URL changes.
-  - The script checks the version of `manifest.json` before using it. Bash arithmetic would
-    run a command hidden in the version, for example in a contributor's branch you try.
-  - The script deploys the files that git does not ignore, untracked ones included, and lists
-    the untracked ones. A new file must work before you add it to git.
-  - `deploy.sh` reads `PROD_CURL_OPTS`, not `CURL_OPTS`, so that `-k` for the development HA
-    never sends the production token unchecked. A token over plain `http://` to another host
-    gets a warning, not a refusal: many Home Assistants run over http on the local network.
 - **The minimum Home Assistant stays as low as possible** and only rises when a Home Assistant
   API requires it (CONTRIBUTING.md, "Supported Home Assistant versions"): a heating schedule is
   set up once and its HA is often not updated every month; dropping it for a version number
@@ -1258,3 +1234,46 @@ A review of every surface, before the merge into `main`, settled these choices.
   semicolons, every case in parentheses, and French translated word by word. The writing guide
   gives the rules and examples, mainly for AI edits, where this style came from. CONTRIBUTING
   says what to do, and this file says why.
+
+### Trying a commit on a real installation (scripts/deploy.sh)
+
+A pre-release for each try is slow and fills the release list. `scripts/deploy.sh` installs a
+commit on a real Home Assistant instead, and takes it back.
+
+- **A commit, never the working tree.** The commit is the version you mean to try, and the one
+  a pull request shows. A working tree carried files nobody reviewed: untracked files, files
+  behind symbolic links, modes from the local umask.
+- **A branch name, not a pull request number.** The script only needs git. It fetches a branch
+  of origin when the branch is not local. You run your own copy of the script on a
+  contributor's branch, never theirs, because only the integration comes from the branch.
+- **No check of the CI.** You choose what to try. Requiring a green CI would make the script
+  depend on GitHub.
+- **No symbolic link in the integration.** A link would deploy a file of the developer's
+  machine, for example an SSH key, where the integration's code can read it.
+- **The version is checked before any use.** Bash arithmetic would run a command hidden in it.
+- **The dev version sorts after the release**, for example `0.9.1-dev.…` for `0.9.0`, for the
+  card's `compareVersions`. An open card then asks for a reload, not for a restart. The suffix
+  comes from the commit, so the card's URL changes with the commit, and browsers drop the
+  cached card. AwesomeVersion orders these versions differently, but Home Assistant only checks
+  that they are valid.
+- **The backup is made once**, before the first deploy, and stays until a full rollback. The
+  script never decides from the installed version whether to make it. A rollback without a
+  container, a deploy cut short or a HACS update can leave something other than a dev version
+  installed. A new backup would then replace the release. Each deploy says which release the
+  backup holds and from when, so an old backup does not come back by surprise.
+- **Home Assistant is stopped around the backup and the rollback.** Home Assistant writes its
+  pending changes when it stops. A copy taken while it runs can miss them, and data put back
+  while it runs is overwritten.
+- **Without a container, the rollback changes nothing until you stop Home Assistant.** The dev
+  code with the dev data is a working pair, and so is the release with its data. The release
+  with the dev data is not: a restart would start it on data it cannot read.
+- **The rollback keeps the data of the dev version.** Weeks of real use may be in it. Only the
+  developer knows whether they matter.
+- **The script counts the files it receives.** tar sees no error when a stream is cut between
+  two files.
+- **`PROD_CURL_OPTS`, not `CURL_OPTS`.** `CURL_OPTS=-k` serves the development HA. It must never
+  send the production token unchecked.
+- **A warning, not a refusal, for a token over `http://` to another host.** Many Home
+  Assistants run over http on the local network.
+- **The backup does not hold `.storage/core.config_entries`.** That file belongs to every
+  integration. Putting it back would undo the other integrations' changes.
