@@ -309,10 +309,20 @@ future contributor might question.
     target is a partial state: a slot that chooses no fan left the fan of the slot before it.
     A tester set the fan to *High* for a dry night slot, and the air conditioner blew hard all
     day. Now Chauffage keeps what the thermostat showed before a slot or an override changed
-    its fan or its vanes (`own_settings`, stored with the thermostat). The next slot or
-    override that chooses none gives it back. A fan changed by hand is the user's choice: it
+    its fan or its vanes (`own_settings`, stored with the thermostat). The next slot that
+    chooses none gives it back. A fan changed by hand is the user's choice: it
     is kept from then on. An off slot still sends off alone. *A choice to validate with the
     owner*: the other way was to leave the fan as it is, and to say so in the popover.
+  - **An override sets no fan and no vanes** (the owner, after the third review). A fan
+    changed by hand that differed from the slot's should be an override, as a setpoint is.
+    But an override replaces the whole slot: a fan touched 30 minutes before a boost slot
+    would hold the boost back for the override duration. The right model is an override that
+    holds only what was changed, the rest following the schedule. It is a change of what an
+    override is, so it comes after #91. Until then, overrides keep what Chauffage handled
+    before #91, plus the HVAC mode: a preset, a setpoint, a range. The fan and the vanes are
+    dropped from every override target (`model.normalize_override`, the card's
+    `withoutAir`), an override gives no fan back, and a fan changed by hand during an
+    override changes nothing.
   - **A thermostat leaves its preset before it gets a setpoint**, when it lists the preset
     `none` and shows another one (`engine.preset_to_leave`). A Daikin keeps its preset when it
     gets a temperature: left on `eco`, it saved energy against the setpoint the slot asked
@@ -1142,7 +1152,7 @@ dashboards, automations, scripts and by voice without the card
     no HVAC mode unless the user taps one. The first row then shows the HVAC mode the valve
     runs in.
   - **The fan speed in sight in fan only and in dry.** It is the one thing to set there. The
-    vanes stay under *More settings*.
+    vanes stay under *More settings*. This holds for slots: an override sets no fan (below).
   - **An override that changes kind gets the end of its new kind** (the second review). An off
     override ends as the setting *Turned off* says, by default at the next slot, maybe days
     later. Set to *Cool* from the card, it kept that end: an override to 24 °C for a week. Now

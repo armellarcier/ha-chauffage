@@ -2515,13 +2515,9 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   const chosen = off ? 'off' : idle || mode || running;
   const first = rows ? modeRowHtml(hass, climate, loc, chosen, 'override-mode', disabled, !d)
     : '';
-  // Fan only and dry: the fan speed, in sight (the only thing to set there)
-  const fans = idle && ['fan_only', 'dry'].includes(idle) ? settingOptionsOf(hass, climate).fan_mode || [] : [];
-  const fan = !fans.length ? '' : `<label class="more-row"><span>${esc(attributeName('fan_mode', loc))}</span>
-    <select data-override-setting="fan_mode"><option value="">${esc(ownSettingText(hass, climate, 'fan_mode', loc))}</option>${fans.map((v) => `<option value="${esc(v)}"${target.fan_mode === v ? ' selected' : ''}>${esc(attributeValue(hass, climate, 'fan_mode', v, loc))}</option>`).join('')}</select></label>`;
   const chips = rows ? '' : `${offChipHtml(hass, climate, loc, 'override-off', off)}${idle ? modeChipHtml(hass, climate, loc, idle, 'override-mode', true) : ''}`;
   // Off, fan only, dry and auto take no temperature
-  return { presets: `${first}${rows && !presets ? '' : `<div class="presets">${chips}${presets}</div>`}`, temperature: none ? '' : temperature, fan };
+  return { presets: `${first}${rows && !presets ? '' : `<div class="presets">${chips}${presets}</div>`}`, temperature: none ? '' : temperature };
 }
 
 // Whether a slot will run in cool on a thermostat (#91): the slot says cool and the thermostat
@@ -2622,10 +2618,7 @@ function overrideSummary(d, src, climate, loc, hass, short = false) {
   const picked = d.preset && presets.some((p) => p.id === d.preset);
   const cools = mode ? mode : (hass.states[climate] || {}).state === 'cool' && !('temperature' in target) ? 'cool' : 'heat';
   const degrees = picked && !short && target.hvac_mode !== 'off' ? targetDegrees(src, climate, target, cools, loc) : '';
-  // Fan only and dry: the fan the override sets, "Fan only · 1"
-  const fan = ['fan_only', 'dry'].includes(target.hvac_mode) && target.fan_mode && !picked && !SETPOINT_KEYS.some((key) => key in target)
-    ? ` · ${attributeValue(hass, climate, 'fan_mode', target.fan_mode, loc)}` : '';
-  return `${mode ? `${modeName(loc, mode)} · ` : ''}${label}${degrees ? ` ${degrees}` : ''}${fan}`;
+  return `${mode ? `${modeName(loc, mode)} · ` : ''}${label}${degrees ? ` ${degrees}` : ''}`;
 }
 
 // Until when an override lasts, and what the schedule plans then: "until 23:00, then Heat · Eco"
@@ -2806,13 +2799,13 @@ function newOverrideEndText(src, loc) {
 }
 
 // What changes an override, in the card's popover and in the more-info block (#91), in this
-// order: the HVAC mode, a preset or a temperature, the fan, then one block for its end. For a
+// order: the HVAC mode, a preset or a temperature, then one block for its end. For a
 // new override (no `d`): the end it will have, said before the first tap. `line` and
 // `actions`: the classes of a line and of a row of buttons there; `endLoc`: the names the end
 // is said with
 function overrideBodyHtml(d, src, climate, hass, loc, { step, line, actions, endLoc = loc }) {
   const value = overrideValueHtml(d, src, climate, (stateOf(hass, climate) || {}).attributes || {}, loc, hass);
-  const values = `${value.presets}${value.temperature ? `<div class="${line}">${value.temperature}</div>` : ''}${value.fan}`;
+  const values = `${value.presets}${value.temperature ? `<div class="${line}">${value.temperature}</div>` : ''}`;
   if (!d) return `${values}<div class="end-new muted">${esc(newOverrideEndText(src, loc))}</div>`;
   const add = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
   return `${values}
@@ -2960,7 +2953,7 @@ function overrideOff(d, src, climate, hass) {
 // The override `d` set to an HVAC mode without a preset, until the same end: off (see
 // overrideOff), or fan only, dry or auto and no setpoint; a new override without `d`. RESUME
 // when the schedule plans that HVAC mode now. The HVAC mode the override already has changes
-// nothing: it keeps its fan. Null: nothing to set
+// nothing. Null: nothing to set
 function overrideNoPreset(d, src, climate, mode, hass) {
   if (mode === 'off') return overrideOff(d, src, climate, hass);
   if (d && (src.planned(climate) || {}).hvac_mode === mode) return RESUME;
@@ -2978,7 +2971,7 @@ const overrideWithMode = (d, src, climate, mode, hass) => (NO_PRESET_MODES.inclu
 const SETPOINT_KEYS = ['temperature', 'preset_mode', 'cool_temperature', 'cool_preset_mode', 'target_temp_low', 'target_temp_high'];
 
 // The override `d` set to a temperature (no longer a preset), until the same end; a new override
-// without `d`. The fan and the vanes stay. On an air conditioner it carries its HVAC mode: a
+// without `d`. On an air conditioner it carries its HVAC mode: a
 // cooling override cools. An off override becomes "on", as with a preset
 function overrideWithTemperature(d, src, climate, value, hass) {
   // Heat/cool takes a range: a single temperature heats, or cools on a thermostat that does not heat
@@ -2989,10 +2982,11 @@ function overrideWithTemperature(d, src, climate, value, hass) {
   const kept = Object.fromEntries(Object.entries(d.target || {}).filter(([key]) => !SETPOINT_KEYS.includes(key)));
   return { ...rest, target: withHvac({ ...kept, temperature: value }, mode) };
 }
-// The override `d` with a fan or swing setting, or without it ('': the thermostat keeps its own)
-function overrideWithSetting(d, attr, value) {
-  const { [attr]: _, ...rest } = d.target || {};
-  return { ...d, target: value ? { ...rest, [attr]: value } : rest };
+// An override as it is sent: without the fan and the vanes (#91). They stay as the thermostat
+// has them; a preset's value that sets them only does so in a slot
+function withoutAir(override) {
+  if (!override || !override.target) return override;
+  return { ...override, target: Object.fromEntries(Object.entries(override.target).filter(([key]) => !SETTING_ATTRS.includes(key))) };
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
@@ -3516,6 +3510,7 @@ class ChauffageProgrammeCard extends HTMLElement {
   }
 
   async _sendOverride(climate, override) {
+    override = withoutAir(override);
     this._overridePending[climate] = override;
     if (!override) this._overrideSel = null;
     this._render();
@@ -4976,10 +4971,6 @@ class ChauffageProgrammeCard extends HTMLElement {
       } else if (el.hasAttribute('data-override-temperature') && Number.isFinite(parseDecimal(el.value)) && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), c, parseDecimal(el.value), this._hass));
-      } else if (el.hasAttribute('data-override-setting') && this._overrideSel) {
-        const c = this._overrideSel.climate;
-        const d = this._overrides()[c];
-        if (d) this._sendOverride(c, overrideWithSetting(d, el.dataset.overrideSetting, el.value));
       } else if (el.hasAttribute('data-slot-setting') && this._sel) {
         const { climate, day, idx } = this._sel;
         this._moreOpen = true;
@@ -6984,6 +6975,7 @@ class ChauffageMoreInfo extends HTMLElement {
   }
 
   _send(override) {
+    override = withoutAir(override);
     // Set from this block: the block stays unfolded on a thermostat card, for the next tap
     if (override && this._creating) this._changeOpen = true;
     this._pending = override;
@@ -7213,9 +7205,6 @@ class ChauffageMoreInfo extends HTMLElement {
     const el = e.target;
     if (el.hasAttribute('data-override-temperature') && Number.isFinite(parseDecimal(el.value))) {
       this._send(overrideWithTemperature(this._currentOverride(), dataSource(this._hass), this._entity, parseDecimal(el.value), this._hass));
-    }
-    if (el.hasAttribute('data-override-setting') && this._currentOverride()) {
-      this._send(overrideWithSetting(this._currentOverride(), el.dataset.overrideSetting, el.value));
     }
   }
 

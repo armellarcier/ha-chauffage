@@ -802,14 +802,14 @@ afterEach(() => cleanup());
 
   describe('the HVAC mode an override already has, tapped again', () => {
     onMondayAtTen();
-    const fan = override({ hvac_mode: 'fan_only', fan_mode: 'high' });
+    const fan = override({ hvac_mode: 'fan_only' });
 
-    test('keeps its fan', () => {
+    test('changes nothing', () => {
       const hass = setup({ overrides: { [SUITE]: fan } });
       const card = openOverride(hass, SUITE);
       const before = hass.events.length;
       click(card, '.override-ed .mode-row [data-mode="fan_only"]');
-      assert.ok(hass.events.slice(before).every((e) => e.override && e.override.target.fan_mode === 'high'));
+      for (const e of hass.events.slice(before)) assert.deepEqual(e.override.target, { hvac_mode: 'fan_only' });
     });
 
     test('in the more-info block too', () => {
@@ -817,7 +817,7 @@ afterEach(() => cleanup());
       const el = moreInfo(hass, SUITE);
       const before = hass.events.length;
       el.shadowRoot.querySelector('.mode-row [data-mode="fan_only"]').click();
-      assert.ok(hass.events.slice(before).every((e) => e.override && e.override.target.fan_mode === 'high'));
+      for (const e of hass.events.slice(before)) assert.deepEqual(e.override.target, { hvac_mode: 'fan_only' });
     });
   });
 
@@ -900,10 +900,31 @@ afterEach(() => cleanup());
       assert.match(text(line), /^⏱ jusqu'à 11:30/);
     });
 
-    test('a fan-only override names its fan', () => {
+    test('a fan-only override names its HVAC mode alone, even with a fan stored by an older version', () => {
       const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'fan_only', fan_mode: 'high' }) } });
       const card = thermostatCard(hass, SUITE);
-      assert.match(text(card.shadowRoot.querySelector('.tc-state')), /Ventilation · High$/);
+      assert.match(text(card.shadowRoot.querySelector('.tc-state')), /Ventilation$/);
+    });
+  });
+
+  describe('an override sets no fan and no vanes', () => {
+    onMondayAtTen();
+    // The comfort preset's value on the suite sets the fan: a slot sends it, an override does not
+    const targets = { ...TARGETS, [SUITE]: { ...TARGETS[SUITE], comfort: { ...TARGETS[SUITE].comfort, fan_mode: 'low', swing_mode: 'vertical' } } };
+
+    test('a preset tapped for a new override sends no fan and no vanes', () => {
+      const hass = setup({ targets });
+      const card = openOverride(hass, SUITE);
+      click(card, '.override-ed [data-act="override-preset"][data-preset="comfort"]');
+      assert.equal(sent(hass).preset, 'comfort');
+      assert.ok(!('fan_mode' in sent(hass).target) && !('swing_mode' in sent(hass).target));
+    });
+
+    test('an HVAC mode tapped for a new override sends no fan either', () => {
+      const hass = setup({ targets, planned: { [SUITE]: { preset: 'comfort' } } });
+      const card = openOverride(hass, SUITE);
+      click(card, '.override-ed .mode-row [data-mode="cool"]');
+      assert.ok(!('fan_mode' in sent(hass).target) && !('swing_mode' in sent(hass).target));
     });
   });
 }

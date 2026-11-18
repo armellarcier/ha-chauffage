@@ -85,9 +85,9 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   mode, and its popover opens: choose what the piece is. *Insert a slot* does the same in the
   middle of the slot. Before, the piece took another preset. A piece you leave as it was cut
   joins its slot again when you close the popover.
-- **The fan and the vanes go back to what the thermostat had** (#91). A slot or an override
-  that chooses no fan gives back the fan the air conditioner had before a slot chose one. A
-  fan you set by hand is kept.
+- **The fan and the vanes go back to what the thermostat had** (#91). A slot that chooses no
+  fan gives back the fan the air conditioner had before a slot chose one. A fan you set by hand
+  is kept. An override sets no fan and no vanes: they stay as the air conditioner has them.
 - **A thermostat leaves its preset before a setpoint** (#91). A thermostat that lists the
   preset `none`, for example a Daikin, kept its `eco` preset when a slot sent it a temperature.
   Chauffage now sets the preset `none` first. Versatile Thermostat is not concerned.
@@ -127,8 +127,8 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   mode. The slot has no preset and no setpoint, and can set the fan speed and the vanes. The
   week shows it in Home Assistant's color of the HVAC mode, with its icon. A dry slot and an
   auto slot are hatched in that color on a neutral background: their colors are close to the
-  colors of *Comfort* and *Eco*. In a fan-only slot, a dry slot and their overrides, the fan
-  speed shows at once.
+  colors of *Comfort* and *Eco*. In a fan-only slot and a dry slot, the fan speed shows at
+  once.
 - **Each preset has a color when cooling** (#91). A slot that cools is drawn in its preset's
   cool color, with a snowflake, in the week, the legend and the chips. Chauffage derives the
   cool color from the preset's color. You can change it in the preset's popover, in the

@@ -446,7 +446,9 @@ def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | N
 def normalize_override(override: Any) -> dict[str, Any]:
     if not isinstance(override, dict):
         raise InvalidData("an override must be a dictionary")
-    target = normalize_target(override.get("target"))
+    # An override sets no fan and no vanes: they stay as the thermostat has them (an override
+    # that holds only what was changed would carry them, docs/decisions.md)
+    target = {key: value for key, value in normalize_target(override.get("target")).items() if key not in AIR_KEYS}
     if target.get("hvac_mode") == OFF:
         target = {"hvac_mode": OFF}  # an off override sets nothing else: no setpoint is sent
     start, end = override.get("start"), override.get("end")

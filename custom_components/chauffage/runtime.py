@@ -447,9 +447,9 @@ class ChauffageRuntime:
                 if value in [engine.preset_value(v) for v in attributes.get(f"{key}s") or [value]]}
 
     def _to_send(self, entity_id: str, target: engine.Target, current: engine.Thermostat, by_user: bool = False) -> engine.Target:
-        """An override's target as it is sent (engine.complete), with the fan and the vanes to
-        give back when the override chooses none."""
-        return engine.restored(engine.complete(target, current, by_user), self.own_settings(entity_id))
+        """An override's target as it is sent (engine.complete). An override sets no fan and
+        no vanes, and gives none back: they stay as the thermostat has them."""
+        return engine.complete(target, current, by_user)
 
     @callback
     def _remember_settings(self, entity_id: str, target: engine.Target) -> None:

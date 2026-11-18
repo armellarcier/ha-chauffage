@@ -334,21 +334,14 @@ afterEach(() => cleanup());
       assert.ok($(card, '.editor details.more [data-slot-setting="fan_mode"]'));
     });
 
-    test('a fan-only override sets the fan speed', () => {
-      const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'fan_only' }) } });
-      const card = cardOf(hass);
-      card._overrideSel = { climate: SUITE };
-      card._render();
-      const fan = $(card, '.override-ed [data-override-setting="fan_mode"]');
-      assert.ok(fan);
-      fan.value = 'high';
-      fan.dispatchEvent(new window.Event('change', { bubbles: true }));
-      assert.deepEqual(sent(hass).target, { hvac_mode: 'fan_only', fan_mode: 'high' });
-      // Not on an override that heats
-      const heats = cardOf(setup({ overrides: { [SUITE]: override({ ...both(20, 25), hvac_mode: 'heat' }, { preset: 'comfort' }) } }));
-      heats._overrideSel = { climate: SUITE };
-      heats._render();
-      assert.equal($(heats, '.override-ed [data-override-setting]'), null);
+    test('a fan-only or a dry override has no fan setting: an override leaves the fan as it is', () => {
+      for (const mode of ['fan_only', 'dry']) {
+        const card = cardOf(setup({ overrides: { [SUITE]: override({ hvac_mode: mode }) } }));
+        card._overrideSel = { climate: SUITE };
+        card._render();
+        assert.ok($(card, '.override-ed'));
+        assert.equal($(card, '.override-ed [data-override-setting]'), null);
+      }
     });
   });
 }
@@ -418,13 +411,6 @@ afterEach(() => cleanup());
       const card = cardOf(hass, { show: [SUITE] });
       select(card, SUITE, 1);
       assert.equal(first(card), 'Celui du thermostat (High)');
-    });
-
-    test('in an override too', () => {
-      const hass = setup({ overrides: { [SUITE]: override({ hvac_mode: 'fan_only' }) } });
-      hass.states[SUITE].attributes.fan_mode = 'low';
-      const card = openOverride(hass, SUITE);
-      assert.equal($(card, '.override-ed [data-override-setting="fan_mode"] option').textContent, 'Celui du thermostat (Low)');
     });
   });
 
