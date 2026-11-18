@@ -5,8 +5,8 @@
 #
 #   scripts/deploy.sh [--branch <branch>]   → installs the commit, with Home Assistant stopped
 #   scripts/deploy.sh --rollback            → puts back what was installed before, and its data
-#   --branch <branch>  a branch or a commit of your clone. Default: HEAD. Fetch first what is only
-#                      on origin, for example `git fetch origin x`, then `--branch origin/x`.
+#   --branch <branch>  a branch of your clone, origin/<branch> once fetched, or a full commit sha.
+#                      Default: HEAD.
 #
 # .env: PROD_HA_CONFIG = the configuration folder, local (/config) or over SSH
 # (home-assistant:/docker/homeassistant/config). PROD_HA_CONTAINER = the container, on that host.
@@ -16,8 +16,9 @@
 # 0.9.0-beta.4.dev.20261118153000.g5b20a33, or 0.9.1-dev.… for release 0.9.0.
 #
 # The first deploy saves what is installed and its data (.storage/chauffage) in
-# <config>/.chauffage-backup. The backup stays until a rollback has put everything back. The steps
-# on the target are in scripts/_deploy_remote.sh.
+# <config>/.chauffage-backup. The backup stays until a rollback, or until something else than a dev
+# version is installed: the next deploy then makes a new one. The steps on the target are in
+# scripts/_deploy_remote.sh.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/_ha.sh
@@ -62,18 +63,19 @@ if [ "$mode" = rollback ]; then
   exit 0
 fi
 
-# The commit to deploy, printed in full before anything changes: the one you reviewed?
+# The commit to deploy: a branch, or a full sha. A short sha could be the name of a tag fetched
+# from a fork. The full sha is printed, not the subject, which belongs to the branch.
 integration=custom_components/chauffage
-if [ -n "$branch" ]; then
-  commit=$(git rev-parse --verify --quiet "$branch^{commit}") ||
-    { echo "No branch or commit $branch here. For a branch of origin: git fetch origin $branch" >&2; exit 1; }
-else
+if [ -z "$branch" ]; then
   commit=$(git rev-parse --verify HEAD^{commit})
-  if [ -n "$(git status --porcelain -- "$integration")" ]; then
-    echo "  Changes not committed in $integration: not deployed. Commit them first."
-  fi
+elif [[ "$branch" =~ ^[0-9a-f]{40}$ ]]; then
+  commit=$(git rev-parse --verify --quiet "$branch^{commit}") || { echo "No commit $branch here" >&2; exit 1; }
+else
+  commit=$(git rev-parse --verify --quiet "refs/heads/$branch^{commit}") ||
+    commit=$(git rev-parse --verify --quiet "refs/remotes/$branch^{commit}") ||
+    { echo "No branch $branch here. For a branch of origin: git fetch origin <branch>, then --branch origin/<branch>" >&2; exit 1; }
 fi
-echo "Commit $(git show -s --format='%H %s' "$commit")"
+echo "Commit $commit"
 
 # A symbolic link would deploy a file of this machine, for example an SSH key
 if git ls-tree -r "$commit" -- "$integration" | grep -q '^120000 '; then

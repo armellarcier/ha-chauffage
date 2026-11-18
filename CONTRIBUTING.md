@@ -249,17 +249,15 @@ pre-release like any release.
 **`scripts/deploy.sh` is a hack, at your own risk.** We keep it for our own quick tries between
 two pre-releases. We don't support it: please don't open issues about it.
 
-The script copies a commit straight into the configuration folder of your Home Assistant, behind
-the back of HACS. HACS doesn't know about it, and your Home Assistant runs a version that nobody
-released. Roll back, or release the version, as soon as you have tried it.
-
-`scripts/deploy.sh --rollback` puts back what was installed before. The script needs Home
-Assistant in a Docker container.
+The script copies a commit straight into the configuration folder of your Home Assistant. HACS
+doesn't know about it, and your Home Assistant runs a version that nobody released. Roll back, or
+release the version, as soon as you have tried it.
 
 #### 1. Check the prerequisites
 
+- Home Assistant runs in a Docker container.
 - Your machine has `bash` and `git`.
-- `ssh <host>` works without a prompt, for example with a host alias in `~/.ssh/config`.
+- `ssh <host>` works without a password, for example with a host alias in `~/.ssh/config`.
 - The SSH user can write to the Home Assistant configuration folder and can run `docker`.
 - The host has `bash` and `tar`.
 
@@ -279,20 +277,16 @@ scripts/deploy.sh
 ```
 
 The script installs the last commit of your current branch. Changes that are not committed are
-not deployed, and the script says so. Before it changes anything, the script prints the commit's
-sha and subject.
+not deployed. Before it changes anything, the script prints the commit's sha.
 
 The script stops Home Assistant, installs the commit, and starts Home Assistant again. The first
 deploy also saves what is installed and its data in `<config>/.chauffage-backup`. Later deploys
-keep this backup, and say which release it holds and from when.
-
-The installed version gets a suffix made of the commit's date and sha, for example
-`0.9.0-beta.4.dev.20261118153000.g5b20a33`. So the browsers load the new card.
+keep this backup, and say which release it holds.
 
 #### 4. Deploy another branch
 
 To deploy another branch without checking it out, run `scripts/deploy.sh --branch <branch>`. To
-pin the commit you reviewed, give its sha instead.
+pin the commit you reviewed, give its full sha instead.
 
 For a branch that is only on GitHub, for example a contributor's, fetch it first:
 
@@ -301,8 +295,7 @@ git fetch origin <branch>
 scripts/deploy.sh --branch origin/<branch>
 ```
 
-Run the script from your own checkout of `main`. Only the integration comes from the branch: the
-scripts that run are yours.
+Run the script from your own checkout of `main`.
 
 #### 5. Roll back
 
@@ -326,8 +319,8 @@ If the version works, don't roll back:
 1. Release the commit you tried (see [Releasing](#releasing)).
 2. Update Chauffage from HACS to that release.
 
-Home Assistant keeps the data you changed during the test. The next deploy sees that an update
-replaced the dev version, and makes a new backup of the release.
+Home Assistant keeps the data you changed during the test. The backup is then out of date: the
+next deploy makes a new one, and a rollback only deletes it.
 
 #### What the backup does not cover
 

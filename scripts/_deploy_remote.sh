@@ -14,38 +14,30 @@ backup=.chauffage-backup
 new=.chauffage-new
 old=.chauffage-old-$(date -u +%Y%m%d%H%M%S)
 
-# Home Assistant, around the steps that change the files. A container that was stopped stays
-# stopped. At the end, on success or failure, a container stopped here starts again.
-was_running=false
-stopped_by_us=false
-# What a failure leaves: unchanged, the release data put back, or the whole release put back
-done_so_far=unchanged
+# Home Assistant is stopped around the changes. At the end, on success or failure, it starts again.
+stopped=false
 finish() {
   local status=$?
   rm -rf "$new"
   if [ "$status" != 0 ]; then
-    case "$done_so_far" in
-      unchanged) echo "  Failed: the integration in $folder/$code is unchanged" >&2 ;;
-      data) echo "  Failed: the release data is back, but the dev code is still installed: run the rollback again" >&2 ;;
-      release) echo "  Failed after the release was put back: run the rollback again to finish" >&2 ;;
-    esac
+    if [ "$mode" = install ]; then
+      echo "  Failed: the integration in $folder/$code is unchanged" >&2
+    else
+      echo "  Failed: run the rollback again" >&2
+    fi
   fi
-  if [ "$stopped_by_us" = true ]; then
+  if [ "$stopped" = true ]; then
     docker start "$container" >/dev/null || { echo "  Could not start $container" >&2; exit 1; }
     echo "  $container started"
-  elif [ "$status" = 0 ]; then
-    echo "  $container was stopped: left stopped"
   fi
 }
 trap finish EXIT
-check_container() {
-  was_running=$(docker inspect -f '{{.State.Running}}' "$container") || { echo "No container $container" >&2; exit 1; }
-}
+check_container() { docker inspect "$container" >/dev/null || { echo "No container $container" >&2; exit 1; }; }
 stop_ha() {
-  [ "$was_running" = true ] || return 0
+  # Set first: docker stop can fail after the stop signal, for example on Ctrl-C
+  stopped=true
   # 120 s: time for Home Assistant to write its pending changes before a kill
   docker stop -t 120 "$container" >/dev/null
-  stopped_by_us=true
 }
 
 # Puts the folder $1 in place of the integration, or removes the integration without $1. By
@@ -60,14 +52,12 @@ swap_in() {
   if [ -d "$old" ]; then rm -rf "$old" || echo "  Warning: remove $folder/$old by hand" >&2; fi
 }
 
-saved() { echo "$(cat "$backup/version"), saved on $(cat "$backup/complete")"; }
 installed() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$code/manifest.json" 2>/dev/null || true; }
-# An update replaced the dev version, for example with the release of the commit you tried: the
-# installed version is neither a dev version nor the saved one. The backup is then out of date.
+# The backup is out of date as soon as something else than a dev version is installed, for
+# example the release of the commit you tried, or the saved release installed again.
 outdated() {
   local version; version=$(installed)
-  [ -f "$backup/complete" ] && [ -n "$version" ] && [[ "$version" != *[.-]dev.* ]] &&
-    [ "$version" != "$(cat "$backup/version")" ]
+  [ -f "$backup/complete" ] && [ -n "$version" ] && [[ "$version" != *[.-]dev.* ]]
 }
 
 case "$mode" in
@@ -83,9 +73,8 @@ case "$mode" in
     chmod -R u=rwX,go=rX "$new"
     if [ -f "$backup/complete" ] && ! outdated; then
       stop_ha
-      echo "  backup kept: $(saved)"
+      echo "  backup kept: $(cat "$backup/version")"
     else
-      if outdated; then echo "  backup of $(saved) dropped: $(installed) replaced the dev version"; fi
       rm -rf "$backup" && mkdir -p "$backup"
       # The code while Home Assistant runs: it only writes __pycache__ there, which is not needed
       if [ -d "$code" ]; then cp -a "$code" "$backup/chauffage"; fi
@@ -94,16 +83,17 @@ case "$mode" in
       # The data once Home Assistant is stopped: it writes its pending changes when it stops
       stop_ha
       if [ -f .storage/chauffage ]; then cp -a .storage/chauffage "$backup/storage"; fi
-      date -u '+%Y-%m-%d %H:%M UTC' > "$backup/complete"
-      echo "  backup made: $(saved), in $folder/$backup"
+      touch "$backup/complete"
+      echo "  backup made: $(cat "$backup/version"), in $folder/$backup"
     fi
     swap_in "$new"
     echo "  $version installed" ;;
   rollback)
     test -f "$backup/complete" || { echo "No backup in $folder/$backup: nothing to roll back" >&2; exit 1; }
     if outdated; then
-      echo "Nothing to roll back: $(installed) is installed, not a dev version. The backup of $(saved) is out of date." >&2
-      exit 1
+      rm -rf "$backup"
+      echo "Nothing to roll back: $(installed) is installed, not a dev version. Out of date backup deleted."
+      exit 0
     fi
     check_container
     stop_ha
@@ -118,18 +108,12 @@ case "$mode" in
     else
       rm -f .storage/chauffage
     fi
-    done_so_far=data
-    # The release is moved out of the backup. The version file says what the backup held, so a
-    # rollback run again after a failure knows the release is already in place.
     if [ -d "$backup/chauffage" ]; then
       swap_in "$backup/chauffage"
       echo "  $(cat "$backup/version") put back, with its data"
-    elif [ "$(cat "$backup/version")" = "no Chauffage" ]; then
+    else
       swap_in
       echo "  Chauffage removed: it was not installed before the first deploy"
-    else
-      echo "  $(cat "$backup/version") already in place, with its data"
     fi
-    done_so_far=release
     rm -rf "$backup" ;;
 esac

@@ -268,17 +268,16 @@ version.
 propres essais rapides entre deux préversions. Nous ne le prenons pas en charge : merci de ne pas
 ouvrir d'issue à son sujet.
 
-Le script copie un commit directement dans le dossier de configuration de votre Home Assistant,
-dans le dos de HACS. HACS n'en sait rien, et votre Home Assistant fait tourner une version que
-personne n'a publiée. Revenez en arrière, ou publiez la version, dès que vous l'avez essayée.
-
-`scripts/deploy.sh --rollback` remet ce qui était installé avant. Le script a besoin d'un Home
-Assistant dans un conteneur Docker.
+Le script copie un commit directement dans le dossier de configuration de votre Home Assistant.
+HACS n'en sait rien, et votre Home Assistant fait tourner une version que personne n'a publiée.
+Revenez en arrière, ou publiez la version, dès que vous l'avez essayée.
 
 #### 1. Vérifier les prérequis
 
+- Home Assistant tourne dans un conteneur Docker.
 - Votre machine a `bash` et `git`.
-- `ssh <hôte>` fonctionne sans rien demander, par exemple avec un alias dans `~/.ssh/config`.
+- `ssh <hôte>` fonctionne sans demander de mot de passe, par exemple avec un alias dans
+  `~/.ssh/config`.
 - L'utilisateur SSH peut écrire dans le dossier de configuration de Home Assistant et peut
   lancer `docker`.
 - L'hôte a `bash` et `tar`.
@@ -299,22 +298,18 @@ scripts/deploy.sh
 ```
 
 Le script installe le dernier commit de votre branche courante. Les modifications non
-committées ne partent pas, et le script le signale. Avant de changer quoi que ce soit, le script
-affiche le sha et le titre du commit.
+committées ne partent pas. Avant de changer quoi que ce soit, le script affiche le sha du commit.
 
 Le script arrête Home Assistant, installe le commit, puis relance Home Assistant. Au premier
 déploiement, il met aussi de côté ce qui est installé et ses données, dans
 `<config>/.chauffage-backup`. Les déploiements suivants gardent cette sauvegarde, et indiquent
-quelle version elle contient et de quand elle date.
-
-La version installée porte un suffixe tiré de la date et du sha du commit, par exemple
-`0.9.0-beta.4.dev.20261118153000.g5b20a33`. Les navigateurs chargent donc la nouvelle carte.
+quelle version elle contient.
 
 #### 4. Déployer une autre branche
 
-Pour déployer une autre branche sans la récupérer dans votre copie de travail, lancez
+Pour déployer une autre branche sans changer de branche, lancez
 `scripts/deploy.sh --branch <branche>`. Pour déployer exactement le commit que vous avez relu,
-donnez son sha à la place.
+donnez son sha complet à la place.
 
 Pour une branche qui n'est que sur GitHub, par exemple celle d'un contributeur, récupérez-la
 d'abord :
@@ -324,8 +319,7 @@ git fetch origin <branche>
 scripts/deploy.sh --branch origin/<branche>
 ```
 
-Lancez le script depuis votre propre copie de `main`. Seule l'intégration vient de la branche :
-les scripts qui tournent sont les vôtres.
+Lancez le script depuis votre propre copie de `main`.
 
 #### 5. Revenir à la version d'avant
 
@@ -350,9 +344,8 @@ Si la version marche, ne revenez pas en arrière :
 1. Publiez le commit essayé (voir [Publier une version](#publier-une-version)).
 2. Mettez à jour Chauffage depuis HACS vers cette version.
 
-Home Assistant garde les données modifiées pendant l'essai. Au déploiement suivant, le script
-voit qu'une mise à jour a remplacé la version de développement, et refait une sauvegarde de la
-version publiée.
+Home Assistant garde les données modifiées pendant l'essai. La sauvegarde est alors périmée : le
+déploiement suivant en refait une, et un retour en arrière se contente de la supprimer.
 
 #### Ce que la sauvegarde ne couvre pas
 

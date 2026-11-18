@@ -56,12 +56,12 @@ function repository(version = '0.9.0-beta.4') {
 
 // A Home Assistant configuration folder with release 0.8.0 of Chauffage and its data, in the
 // container `homeassistant`. The folder is PROD_HA_CONFIG.
-// docker: how the fake docker behaves. running: whether the container runs. missing: no such
+// docker: how the fake docker behaves. missing: no such
 // container. fails: the docker command that fails, for example 'start'. onStop: a shell line run
 // when the container stops, as Home Assistant writes its pending changes.
 // umask: the developer's umask, for example '077'.
 function home({ repo = repository(), release = true, docker = {}, umask = '022' } = {}) {
-  const { running = true, missing = false, fails = '', onStop = '' } = docker;
+  const { missing = false, fails = '', onStop = '' } = docker;
   const dir = mkdtempSync(join(tmpdir(), 'chauffage-deploy-'));
   const config = join(dir, 'config');
   mkdirSync(join(config, 'custom_components'), { recursive: true });
@@ -77,7 +77,7 @@ function home({ repo = repository(), release = true, docker = {}, umask = '022' 
   writeFileSync(join(bin, 'docker'), [
     '#!/usr/bin/env bash',
     'if [ "$1" = inspect ]; then',
-    `  ${missing ? 'echo "No such object" >&2; exit 1' : `echo ${running}; exit 0`}`,
+    `  ${missing ? 'echo "No such object" >&2; exit 1' : 'exit 0'}`,
     'fi',
     `echo "$*" >> "${posix(join(dir, 'docker.log'))}"`,
     fails ? `[ "$1" = ${fails} ] && exit 1` : '',
@@ -144,24 +144,23 @@ test('the commit at HEAD is deployed, with a dev version, the same in the card a
   assert.equal(ha.read('custom_components/chauffage/frontend/chauffage-programme-card.js'), `const VERSION = '${version}';\n`);
 });
 
-test('changes that are not committed are not deployed, and the script says so', () => {
+test('changes that are not committed are not deployed', () => {
   const ha = home();
   ha.repo.write(`${ha.repo.integration}/__init__.py`, '"""Not committed."""\n');
   ha.repo.write(`${ha.repo.integration}/notes.txt`, 'not added to git');
-  const said = ha.run();
+  ha.run();
   assert.equal(ha.read('custom_components/chauffage/__init__.py'), '"""Chauffage."""\n');
   assert.equal(existsSync(ha.path('custom_components/chauffage/notes.txt')), false);
-  assert.match(said, /not committed/);
 });
 
-test('the commit is named with its full sha and subject before anything changes', () => {
+test('the commit is named by its full sha, and only by it, before anything changes', () => {
+  // The subject belongs to the branch: it could hide characters that rewrite the line
   const repo = repository();
-  repo.branch('feature', 'Add the feature');
+  repo.branch('feature', 'Fix\u001b[2K\rCommit 0000000000000000000000000000000000000000');
   const ha = home({ repo });
   const said = ha.run('--branch', 'feature');
-  assert.ok(said.includes(repo.git('rev-parse', 'feature').trim()), said);
-  assert.match(said, /Add the feature/);
-  assert.equal(ha.read('custom_components/chauffage/__init__.py'), '"""Add the feature."""\n');
+  assert.ok(said.includes(`Commit ${repo.git('rev-parse', 'feature').trim()}`), said);
+  assert.doesNotMatch(said, /\u001b/);
 });
 
 test('a branch of origin is deployed once you have fetched it', () => {
@@ -178,7 +177,7 @@ test('a branch of origin is deployed once you have fetched it', () => {
   assert.equal(ha.read('custom_components/chauffage/__init__.py'), '"""Contributor."""\n');
 });
 
-test('a commit sha can be deployed, to pin the commit that was reviewed', () => {
+test('a full commit sha can be deployed, to pin the commit that was reviewed', () => {
   const repo = repository();
   const reviewed = repo.git('rev-parse', 'HEAD').trim();
   repo.write(`${repo.integration}/__init__.py`, '"""Pushed after the review."""\n');
@@ -186,6 +185,16 @@ test('a commit sha can be deployed, to pin the commit that was reviewed', () => 
   const ha = home({ repo });
   ha.run('--branch', reviewed);
   assert.equal(ha.read('custom_components/chauffage/__init__.py'), '"""Chauffage."""\n');
+});
+
+test('a short sha is refused: a tag fetched from a fork could carry that name', () => {
+  const repo = repository();
+  const reviewed = repo.git('rev-parse', '--short', 'HEAD').trim();
+  repo.branch('other', 'Other');
+  repo.git('tag', reviewed, 'other');
+  const ha = home({ repo });
+  assert.notEqual(ha.attempt('--branch', reviewed).status, 0);
+  assert.equal(ha.installed(), '0.8.0');
 });
 
 test('an unknown branch is refused, and nothing changes', () => {
@@ -217,7 +226,7 @@ test('for the card, a dev version of a release sorts after it, so an open card a
   assert.ok(compareVersions(ha.installed(), '0.9.0') > 0);
 });
 
-test('a version that is not a version is refused, and runs nothing', () => {
+test('a manifest version that is not a semantic version is refused, and nothing runs', () => {
   // bash arithmetic would run the command: $(( PATH[$(…)] + 1 ))
   const marker = join(mkdtempSync(join(tmpdir(), 'chauffagemarker') /* no '-': not read as a pre-release */), 'ran');
   const repo = repository();
@@ -307,11 +316,12 @@ test('the first deploy saves the data once Home Assistant has stopped and writte
   assert.equal(ha.read('.chauffage-backup/storage'), 'written when stopping\n');
 });
 
-test('a Home Assistant that was stopped stays stopped', () => {
-  const ha = home({ docker: { running: false } });
-  ha.run();
-  ha.run('--rollback');
-  assert.deepEqual(ha.docker().filter((call) => call.startsWith('start')), []);
+test('Home Assistant starts again when its stop fails half-way', () => {
+  // docker stop can fail after the stop signal, for example on Ctrl-C
+  const ha = home({ docker: { fails: 'stop' } });
+  assert.notEqual(ha.attempt().status, 0);
+  assert.equal(ha.docker().at(-1), 'start homeassistant');
+  assert.equal(ha.installed(), '0.8.0');
 });
 
 test('the release installed before the first deploy comes back with its data', () => {
@@ -337,12 +347,12 @@ test('the rollback keeps the data of the dev version aside, and says where', () 
   assert.ok(said.includes(kept), said);
 });
 
-test('a later deploy keeps the backup, and says which release and from when', () => {
+test('a later deploy keeps the backup, and says which release it holds', () => {
   const ha = home();
   ha.run();
   ha.write('.storage/chauffage', 'data migrated by the dev version');
   const said = ha.run();
-  assert.match(said, /backup kept: 0\.8\.0, saved on \d{4}-\d{2}-\d{2}/);
+  assert.match(said, /backup kept: 0\.8\.0$/m);
   ha.run('--rollback');
   assert.equal(ha.installed(), '0.8.0');
   assert.equal(ha.read('.storage/chauffage'), 'data of 0.8.0');
@@ -369,20 +379,33 @@ test('after an update to a release, the next deploy saves that release, not the 
   assert.equal(ha.read('.storage/chauffage'), 'data changed during the test');
 });
 
-test('after an update to a release, a rollback changes nothing', () => {
+test('after an update to a release, a rollback has nothing to undo, and drops the backup', () => {
   const ha = keptAndUpdated();
-  const { status, said } = ha.attempt('--rollback');
-  assert.notEqual(status, 0);
-  assert.match(said, /0\.9\.1/);
+  assert.match(ha.run('--rollback'), /Nothing to roll back: 0\.9\.1 is installed/);
   assert.equal(ha.installed(), '0.9.1');
   assert.equal(ha.read('.storage/chauffage'), 'data changed during the test');
+  assert.equal(existsSync(ha.path('.chauffage-backup')), false);
   assert.deepEqual(ha.docker(), ['stop -t 120 homeassistant', 'start homeassistant']); // the deploy's
 });
 
-test('a deploy cut short keeps the saved release', () => {
+test('after the release was installed again, a rollback keeps the data of the weeks since', () => {
+  // You undo a deploy by installing the same release again from HACS, and use it for weeks
   const ha = home();
   ha.run();
-  rmSync(ha.path('custom_components/chauffage'), { recursive: true }); // the code went missing
+  ha.write('custom_components/chauffage/manifest.json', '{"version": "0.8.0"}\n');
+  ha.write('.storage/chauffage', 'data of the weeks since');
+  ha.run('--rollback');
+  assert.equal(ha.read('.storage/chauffage'), 'data of the weeks since');
+  ha.run();
+  ha.run('--rollback');
+  assert.equal(ha.installed(), '0.8.0');
+  assert.equal(ha.read('.storage/chauffage'), 'data of the weeks since');
+});
+
+test('with the integration folder gone, a deploy keeps the saved release', () => {
+  const ha = home();
+  ha.run();
+  rmSync(ha.path('custom_components/chauffage'), { recursive: true }); // deleted by hand
   ha.run();
   ha.run('--rollback');
   assert.equal(ha.installed(), '0.8.0');
