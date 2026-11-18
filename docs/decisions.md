@@ -1237,8 +1237,9 @@ A review of every surface, before the merge into `main`, settled these choices.
 
 ### Trying a commit on a real installation (scripts/deploy.sh)
 
-A pre-release for each try is slow and fills the release list, so `scripts/deploy.sh` installs a
-commit instead.
+A pre-release is the way to try a version on a real installation: HACS installs and updates it.
+A pre-release for each quick try is slow, so `scripts/deploy.sh` copies a commit behind the back
+of HACS. The docs present the script as a hack, to undo or release soon after.
 
 - **Few concepts.** Earlier versions also had an API restart, a manual mode, a target argument
   and a fetch of origin. Each one brought its own bugs, so they are gone:

@@ -3,8 +3,8 @@
 **English** · [Français](CONTRIBUTING.fr.md)
 
 **Don't develop on your production Home Assistant.** Work with the automated tests and a
-disposable development HA. Then try your commit on a real Home Assistant with `scripts/deploy.sh`,
-or with a pre-release.
+disposable development HA, then publish a pre-release to try your version on a real Home
+Assistant.
 
 ## Prerequisites
 
@@ -238,11 +238,22 @@ the weeks. If a run stops half-way, its log gives the setting to set back.
 
 ## Trying a version on a real Home Assistant
 
-### Without a release, on Home Assistant in Docker
+### With a pre-release
 
-`scripts/deploy.sh` installs a commit of the repository on your own Home Assistant.
+To try a version on a real Home Assistant, publish a pre-release (see [Releasing](#releasing)).
+Then install the pre-release from HACS, with beta versions enabled. HACS installs and updates a
+pre-release like any release.
+
+### A shortcut for a quick try: scripts/deploy.sh
+
+**`scripts/deploy.sh` is a hack, not a way to install Chauffage.** The script copies a commit
+straight into the configuration folder of your Home Assistant, behind the back of HACS. HACS
+doesn't know about it, and your Home Assistant runs a version that nobody released. Use the
+script for a quick try between two pre-releases. Then roll back, or release the version, as soon
+as you have tried it.
+
 `scripts/deploy.sh --rollback` puts back what was installed before. The script needs Home
-Assistant in a Docker container. On Home Assistant OS, use a pre-release.
+Assistant in a Docker container.
 
 #### 1. Check the prerequisites
 
@@ -324,11 +335,6 @@ replaced the dev version, and makes a new backup of the release.
 - **The integration's configuration.** The backup holds `.storage/chauffage`, not the
   integration's entry in `.storage/core.config_entries`. If your version raises the major
   version of the entry, the release can no longer load the integration after the rollback.
-
-### With a pre-release
-
-To try a version with HACS, publish a pre-release (see [Releasing](#releasing)). Then install
-the pre-release from HACS, with beta versions enabled.
 
 ## Data versions and migrations
 

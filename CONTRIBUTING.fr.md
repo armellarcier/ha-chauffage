@@ -3,8 +3,8 @@
 [English](CONTRIBUTING.md) · **Français**
 
 **Ne développez pas sur votre Home Assistant de production.** Travaillez avec les tests
-automatisés et un HA de développement jetable. Essayez ensuite votre commit sur un vrai Home
-Assistant avec `scripts/deploy.sh`, ou avec une préversion.
+automatisés et un HA de développement jetable, puis publiez une préversion pour essayer votre
+version sur un vrai Home Assistant.
 
 ## Prérequis
 
@@ -255,11 +255,23 @@ réglage à remettre.
 
 ## Essayer une version sur un vrai Home Assistant
 
-### Sans publier de version, sur un Home Assistant dans Docker
+### Avec une préversion
 
-`scripts/deploy.sh` installe un commit du dépôt sur votre propre Home Assistant.
+Pour essayer une version sur un vrai Home Assistant, publiez une préversion (voir
+[Publier une version](#publier-une-version)). Installez ensuite la préversion depuis HACS, avec
+les versions bêta activées. HACS installe et met à jour une préversion comme n'importe quelle
+version.
+
+### Un raccourci pour un essai rapide : scripts/deploy.sh
+
+**`scripts/deploy.sh` est un bricolage, pas une façon d'installer Chauffage.** Le script copie
+un commit directement dans le dossier de configuration de votre Home Assistant, dans le dos de
+HACS. HACS n'en sait rien, et votre Home Assistant fait tourner une version que personne n'a
+publiée. Servez-vous du script pour un essai rapide entre deux préversions. Revenez ensuite en
+arrière, ou publiez la version, dès que vous l'avez essayée.
+
 `scripts/deploy.sh --rollback` remet ce qui était installé avant. Le script a besoin d'un Home
-Assistant dans un conteneur Docker. Sur Home Assistant OS, passez par une préversion.
+Assistant dans un conteneur Docker.
 
 #### 1. Vérifier les prérequis
 
@@ -348,12 +360,6 @@ version publiée.
   l'entrée de l'intégration dans `.storage/core.config_entries`. Si votre version augmente la
   version majeure de cette entrée, la version publiée ne peut plus charger l'intégration après
   le retour en arrière.
-
-### Avec une préversion
-
-Pour essayer une version avec HACS, publiez une préversion (voir
-[Publier une version](#publier-une-version)). Installez ensuite la préversion depuis HACS, avec
-les versions bêta activées.
 
 ## Versions des données et migrations
 
