@@ -79,6 +79,43 @@ async def test_the_sidebar_title_follows_the_option_without_a_restart(bench: Ben
     assert sidebar_entry(bench) == ("Planning", "chauffage:logo")
 
 
+async def test_the_panel_keeps_its_name_out_of_the_sidebar(bench: Bench):
+    """Out of the sidebar, the panel has no title: the cards and the panel's header read its name
+    from its config."""
+    await setup_with_the_panel(bench, {"sidebar_title": "Planning", "show_in_sidebar": False})
+    assert sidebar_entry(bench) == (None, None)
+    assert bench.hass.data["frontend_panels"]["chauffage"].config["title"] == "Planning"
+
+
+async def test_an_admin_clears_the_sidebar_title_to_get_chauffage_back(bench: Bench):
+    """The options dialog leaves out an empty optional field."""
+    await setup_with_the_panel(bench, {"sidebar_title": "Planning"})
+    options = bench.hass.config_entries.options
+    flow = await options.async_init(bench.entry.entry_id)
+    await options.async_configure(flow["flow_id"], {"override_duration": 120, "show_in_sidebar": True})
+    await bench.hass.async_block_till_done()
+    assert "sidebar_title" not in bench.entry.options
+    assert sidebar_entry(bench) == ("Chauffage", "chauffage:logo")
+
+
+async def test_the_sidebar_title_is_saved_without_its_spaces(bench: Bench):
+    await setup_with_the_panel(bench)
+    options = bench.hass.config_entries.options
+    flow = await options.async_init(bench.entry.entry_id)
+    await options.async_configure(flow["flow_id"], {"sidebar_title": "  Planning "})
+    assert bench.entry.options["sidebar_title"] == "Planning"
+
+
+async def test_the_options_form_refuses_a_sidebar_title_too_long(bench: Bench):
+    await setup_with_the_panel(bench)
+    options = bench.hass.config_entries.options
+    flow = await options.async_init(bench.entry.entry_id)
+    result = await options.async_configure(flow["flow_id"], {"sidebar_title": "x" * 41})
+    assert result["type"] == "form"
+    assert result["errors"] == {"sidebar_title": "sidebar_title_too_long"}
+    assert sidebar_entry(bench) == ("Chauffage", "chauffage:logo")
+
+
 async def test_the_sidebar_follows_the_option_without_a_restart(bench: Bench):
     await setup_with_the_panel(bench)
     options = bench.hass.config_entries.options
@@ -104,6 +141,17 @@ async def test_a_change_of_another_setting_leaves_the_panel_as_it_is(bench: Benc
                                                         "show_in_sidebar": False})
         await bench.hass.async_block_till_done()
         assert register.call_count == 1
+
+
+async def test_a_change_of_another_setting_keeps_a_renamed_panel_as_it_is(bench: Bench):
+    await setup_with_the_panel(bench, {"sidebar_title": "Planning"})
+    with patch("custom_components.chauffage.frontend.async_register_built_in_panel") as register:
+        options = bench.hass.config_entries.options
+        flow = await options.async_init(bench.entry.entry_id)
+        await options.async_configure(flow["flow_id"], {"override_duration": 60, "sidebar_title": "Planning "})
+        await bench.hass.async_block_till_done()
+        assert register.call_count == 0
+    assert sidebar_entry(bench) == ("Planning", "chauffage:logo")
 
 
 async def test_the_panel_leaves_the_sidebar_when_the_integration_is_disabled_or_deleted(bench: Bench):

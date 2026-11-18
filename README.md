@@ -602,7 +602,7 @@ To change the options, go to Settings → Devices & services → Chauffage → *
   *Visit* button of a scheduled thermostat's device.
 - **Name in the sidebar.** *Chauffage* by default. Give the panel another name, for example
   *Planning* if you already have a dashboard called *Thermostats*. The panel and the cards' links
-  use the same name.
+  use the same name, even out of the sidebar. To get *Chauffage* back, empty the field.
 - **Access level of users who are not administrators.** *Use* by default. See
   [Who may change what](#who-may-change-what).
 

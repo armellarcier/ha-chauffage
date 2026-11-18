@@ -9,9 +9,8 @@ The card lives in `frontend/` (the package release, until v0.2.0, copies it next
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
 
 from homeassistant.components.frontend import (
     add_extra_js_url,
@@ -26,12 +25,11 @@ from homeassistant.loader import async_get_integration
 from .const import (
     CONF_ACCESS_LEVEL,
     CONF_SHOW_IN_SIDEBAR,
-    CONF_SIDEBAR_TITLE,
     DEFAULT_ACCESS_LEVEL,
     DEFAULT_SHOW_IN_SIDEBAR,
     DOMAIN,
     SET_UP,
-    TITLE,
+    sidebar_title,
 )
 
 URL_BASE = "/chauffage_frontend"
@@ -61,7 +59,8 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     or for every user, so then every user may open it, read only without Set up.
 
     Out of the sidebar (an option), the panel has no title: Home Assistant shows no entry for it,
-    on every version, and its addresses still work."""
+    on every version, and its addresses still work. Its config keeps its name (#104), for the
+    cards and the panel's header."""
     if "frontend" not in hass.config.components:
         return
     in_sidebar = _in_sidebar(entry)
@@ -73,7 +72,8 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
         sidebar_title=sidebar_title(entry.options) if in_sidebar else None,
         sidebar_icon="chauffage:logo" if in_sidebar else None,  # defined by the card (window.customIcons)
         frontend_url_path=DOMAIN,
-        config={"_panel_custom": {"name": "chauffage-panel", "module_url": await _card_url(hass),
+        config={"title": sidebar_title(entry.options),
+                "_panel_custom": {"name": "chauffage-panel", "module_url": await _card_url(hass),
                                   "embed_iframe": False, "trust_external": False}},
         require_admin=not for_every_user,
     )
@@ -81,11 +81,6 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 def _in_sidebar(entry: ConfigEntry) -> bool:
     return entry.options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR)
-
-
-def sidebar_title(options: Mapping[str, Any]) -> str:
-    """The panel's name in the sidebar (#104): Chauffage, unless the admin chose another one."""
-    return (options.get(CONF_SIDEBAR_TITLE) or "").strip() or TITLE
 
 
 def _panel_options(entry: ConfigEntry) -> tuple[bool, str, bool]:

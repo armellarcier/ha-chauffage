@@ -38,7 +38,8 @@
       }
     },
     "error": {
-      "invalid_override_duration": "Choisissez un nombre entier de minutes."
+      "invalid_override_duration": "Choisissez un nombre entier de minutes.",
+      "sidebar_title_too_long": "Choisissez un nom de 40 caractères au plus."
     }
   },
   "entity": {

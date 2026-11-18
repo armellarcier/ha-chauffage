@@ -36,9 +36,10 @@ from .const import (
     OVERRIDE_DURATION_MAX,
     OVERRIDE_DURATION_MIN,
     OVERRIDE_DURATION_STEP,
+    SIDEBAR_TITLE_MAX,
     TITLE,
+    sidebar_title,
 )
-from .frontend import sidebar_title
 
 
 class ChauffageConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -81,10 +82,18 @@ class ChauffageOptionsFlow(OptionsFlow):
             duration = user_input.get(CONF_OVERRIDE_DURATION)
             if duration is not None and duration % OVERRIDE_DURATION_STEP:
                 errors[CONF_OVERRIDE_DURATION] = "invalid_override_duration"
-            else:
+            # The dialog leaves out an empty name: the panel is then called Chauffage again.
+            title = (user_input.get(CONF_SIDEBAR_TITLE) or "").strip()
+            if len(title) > SIDEBAR_TITLE_MAX:
+                errors[CONF_SIDEBAR_TITLE] = "sidebar_title_too_long"
+            if not errors:
+                data = {**self.config_entry.options, **user_input}
                 if duration is not None:
-                    user_input = {**user_input, CONF_OVERRIDE_DURATION: int(duration)}
-                return self.async_create_entry(data={**self.config_entry.options, **user_input})
+                    data[CONF_OVERRIDE_DURATION] = int(duration)
+                data.pop(CONF_SIDEBAR_TITLE, None)
+                if title:
+                    data[CONF_SIDEBAR_TITLE] = title
+                return self.async_create_entry(data=data)
         options = {**self.config_entry.options, **(user_input or {})}
         schema = vol.Schema({
             vol.Required(
@@ -107,8 +116,8 @@ class ChauffageOptionsFlow(OptionsFlow):
             vol.Required(
                 CONF_SHOW_IN_SIDEBAR, default=options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR),
             ): selector.BooleanSelector(),
-            vol.Required(
-                CONF_SIDEBAR_TITLE, default=sidebar_title(options),
+            vol.Optional(
+                CONF_SIDEBAR_TITLE, description={"suggested_value": sidebar_title(options)},
             ): selector.TextSelector(),
             vol.Required(
                 CONF_ACCESS_LEVEL, default=options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL),

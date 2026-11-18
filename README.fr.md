@@ -640,7 +640,8 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
   cartes, ou avec le bouton *Visiter* de l'appareil d'un thermostat programmé.
 - **Nom dans la barre latérale.** *Chauffage* par défaut. Donnez un autre nom au panneau, par
   exemple *Planning* si vous avez déjà un tableau de bord *Thermostats*. Le panneau et les liens
-  des cartes prennent ce nom.
+  des cartes prennent ce nom, même hors de la barre latérale. Pour revenir à *Chauffage*, videz
+  le champ.
 - **Niveau d'accès des utilisateurs non administrateurs.** *Utiliser* par défaut. Voir
   [Qui peut modifier quoi](#qui-peut-modifier-quoi).
 
