@@ -948,18 +948,6 @@ afterEach(() => cleanup());
     });
   });
 
-  describe('only the integration gives back the override an off override by hand replaced', () => {
-    onMondayAtTen();
-    test('an HVAC mode tapped on an off override by hand sends no before_off', () => {
-      const off = { ...override({ hvac_mode: 'off' }), before_off: override({ temperature: 21 }) };
-      const hass = setup({ overrides: { [SUITE]: off } });
-      const card = openOverride(hass, SUITE);
-      click(card, '.override-ed .mode-row [data-mode="cool"]');
-      assert.equal(sent(hass).target.hvac_mode, 'cool');
-      assert.ok(!('before_off' in sent(hass)));
-    });
-  });
-
   describe('an override sets no fan and no vanes', () => {
     onMondayAtTen();
     // The comfort preset's value on the suite sets the fan: a slot sends it, an override does not

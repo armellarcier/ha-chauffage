@@ -460,9 +460,4 @@ def normalize_override(override: Any) -> dict[str, Any]:
         out["preset"] = preset
     if override.get("ends_at") in OVERRIDE_ENDS:
         out["ends_at"] = override["ends_at"]
-    # An off override made by hand during another override keeps it, to give it back when the
-    # thermostat is turned back on (runtime._given_back); one level only
-    before_off = override.get("before_off")
-    if target.get("hvac_mode") == OFF and isinstance(before_off, dict) and "before_off" not in before_off:
-        out["before_off"] = normalize_override(before_off)
     return out

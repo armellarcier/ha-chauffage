@@ -1440,16 +1440,6 @@ class ChauffageRuntime:
                      "by a user" if context.user_id else "on the device", _change(before, after),
                      _describe(expected) if expected else "nothing",
                      "back to its slot" if change == engine.RESUME else "an override")
-        if self._given_back(new.entity_id, current, after, context):
-            return
-        preset_override = current is not None and (current.get("preset") or "preset_mode" in current["target"])
-        if change == engine.RESUME and preset_override and after.state != before.state \
-                and after.state in engine.SETPOINT_MODES:
-            # Back to the slot's HVAC mode by hand, with an override to a preset (Chauffage's or
-            # the thermostat's own): the preset goes on in that HVAC mode, until its end. Without
-            # a value to carry there (a range in heat/cool), the schedule resumes
-            if self._switched_override(new.entity_id, {"hvac_mode": after.state}, current, slot, after) is not None:
-                change = {"hvac_mode": after.state}
         if change == engine.RESUME:
             if new.entity_id in self.data["overrides"]:
                 resume = self.set_override(new.entity_id, None, source="thermostat", context=context)
@@ -1465,28 +1455,7 @@ class ChauffageRuntime:
             carry = self._realign(new.entity_id, "HVAC mode changed by hand")
             self.entry.async_create_task(self.hass, carry, "chauffage carry the value")
             return
-        recorded = self.manual_override(new.entity_id, change, after)
-        if change.get("hvac_mode") == engine.OFF and current and current["target"].get("hvac_mode") != engine.OFF:
-            # Turned off by hand during an override: kept, to give it back if the thermostat is
-            # turned back on before its end, as with a switch
-            recorded["before_off"] = current
-        self.record_override(new.entity_id, recorded, context)
-
-    def _given_back(self, entity_id: str, current: dict[str, Any] | None, after: engine.Thermostat,
-                    context: Context) -> bool:
-        """Turned back on by hand, a thermostat that was turned off by hand during an override
-        gets that override back, until its end, unless it ended meanwhile or the thermostat came
-        back in another HVAC mode. True when given back."""
-        before_off = (current or {}).get("before_off")
-        if not before_off or current["target"].get("hvac_mode") != engine.OFF or after.state == engine.OFF:
-            return False
-        mode = before_off["target"].get("hvac_mode")
-        if engine.parse_datetime(before_off["end"]) <= dt_util.now() or (mode is not None and mode != after.state):
-            return False
-        self.record_override(entity_id, before_off, context)
-        back = self._realign(entity_id, "turned back on by hand, back to its override")
-        self.entry.async_create_task(self.hass, back, "chauffage override given back")
-        return True
+        self.record_override(new.entity_id, self.manual_override(new.entity_id, change, after), context)
 
     def _switched_override(self, entity_id: str, change: engine.Target, current: dict[str, Any] | None,
                            slot: engine.Slot | None, after: engine.Thermostat) -> dict[str, Any] | None:

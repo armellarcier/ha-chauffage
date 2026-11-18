@@ -139,9 +139,8 @@ or *Fan only*. The preset says how warm, for each thermostat, when it heats and 
   is a blue grey: its light blue looked like fan only. Your presets keep their colors.
 - **Turning a thermostat off by hand is an override** (#91). Turn a thermostat off with its
   button or in Home Assistant, and Chauffage keeps it off until the next slot, then turns it
-  back on, on its slot. Turned off and on again during an override, the thermostat gets its
-  override back. The card shows it as *⏱ Off*, and the override block says when *Off* would
-  end, before you tap it. Turn it back on yourself, or tap a
+  back on, on its slot. The card shows it as *⏱ Off*, and the override block says when *Off*
+  would end, before you tap it. Turn it back on yourself, or tap a
   preset in the override block, and the thermostat turns on. In the card, the thermostat card
   and the more-info dialog, the row of presets of an override starts with *Off*: *Off*, then
   *Until tomorrow 06:30*, turns a thermostat off until the next morning, the first slot of the

@@ -3007,12 +3007,10 @@ function overrideWithTemperature(d, src, climate, value, hass) {
   return { ...rest, target: withHvac({ ...kept, temperature: value }, mode) };
 }
 // An override as it is sent: without the fan and the vanes (#91). They stay as the thermostat
-// has them; a preset's value that sets them only does so in a slot. Without the override an
-// off override by hand keeps (`before_off`): only the integration gives it back
+// has them; a preset's value that sets them only does so in a slot
 function withoutAir(override) {
   if (!override || !override.target) return override;
-  const { before_off: _, ...rest } = override;
-  return { ...rest, target: Object.fromEntries(Object.entries(override.target).filter(([key]) => !SETTING_ATTRS.includes(key))) };
+  return { ...override, target: Object.fromEntries(Object.entries(override.target).filter(([key]) => !SETTING_ATTRS.includes(key))) };
 }
 // What Home Assistant reads as true or false in a template's text (any other text is false)
 const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];

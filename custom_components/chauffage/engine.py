@@ -698,12 +698,8 @@ def manual_change(
     override to that HVAC mode, with the preset or the setpoint changed in the same state if
     one was (climate.set_temperature with an HVAC mode writes both at once). Turned off: an
     override to off, alone. Back to an HVAC mode the slot accepts: RESUME, whatever the
-    thermostat restarted on (the slot is applied; the runtime keeps an override to a preset,
-    and gives back an override the thermostat was turned off during). Heat to cool when the
-    slot gives no HVAC mode is not a change: both are "on". A setpoint or a preset changed
-    while the thermostat runs in another HVAC mode than the slot's is meant for that HVAC
-    mode. Leaving heat/cool on a range, the single setpoint the thermostat shows again is not
-    a change.
+    thermostat restarted on (the slot is applied). Heat to cool when the slot gives no HVAC
+    mode is not a change: both are "on".
 
     In heat/cool, on a thermostat that takes a range there, the setpoint is a range: a range
     changed is an override to that range, and back to the slot's range is RESUME. A preset or a
@@ -727,10 +723,7 @@ def manual_change(
         return {key: getattr(after, key) for key in RANGE_KEYS}
     manual = is_manual_preset(after.preset)
     picked = after.preset != before.preset and not manual and by_user
-    # Leaving heat/cool on a range, the thermostat shows a single setpoint again: the person
-    # chose an HVAC mode, not that setpoint
-    left_range = before.state == HEAT_COOL and before.supports_range and after.state != HEAT_COOL
-    setpoint = manual and not left_range and (
+    setpoint = manual and (
         after.preset != before.preset or not same_temperature(after.temperature, before.temperature, after)
     )
     changed = picked or (setpoint and after.temperature is not None)
@@ -742,8 +735,4 @@ def manual_change(
     if expected is not None and back_to(expected, after, preset_temperature):
         held = override is not None and same_target(override, expected, after)
         return None if held else RESUME
-    # The thermostat runs in another HVAC mode than the slot's (switched by hand earlier): the
-    # setpoint or the preset is meant for that HVAC mode, never 23 °C of cooling read as heating
-    if expected is not None and after.state in SETPOINT_MODES and not hvac_satisfied(expected, after):
-        return {"hvac_mode": after.state, **change}
     return change
