@@ -3,8 +3,8 @@
 If the package (v0.1) is installed, the form says what will be imported (schedules, overrides,
 active schedule); the import itself happens when the entry is set up (see importer.py).
 Options: default settings (override duration, when a change by hand ends, use of the
-thermostats' climate presets) and the Chauffage panel's entry in the sidebar. Presets and what
-they mean per thermostat are set in the panel.
+thermostats' climate presets) and the Chauffage panel's entry in the sidebar, with its name.
+Presets and what they mean per thermostat are set in the panel.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from .const import (
     CONF_MANUAL_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_SHOW_IN_SIDEBAR,
+    CONF_SIDEBAR_TITLE,
     CONF_USE_PRESETS,
     DEFAULT_ACCESS_LEVEL,
     DEFAULT_MANUAL_OVERRIDE_END,
@@ -35,7 +36,9 @@ from .const import (
     OVERRIDE_DURATION_MAX,
     OVERRIDE_DURATION_MIN,
     OVERRIDE_DURATION_STEP,
+    SIDEBAR_TITLE_MAX,
     TITLE,
+    sidebar_title,
 )
 
 
@@ -79,10 +82,18 @@ class ChauffageOptionsFlow(OptionsFlow):
             duration = user_input.get(CONF_OVERRIDE_DURATION)
             if duration is not None and duration % OVERRIDE_DURATION_STEP:
                 errors[CONF_OVERRIDE_DURATION] = "invalid_override_duration"
-            else:
+            # The dialog leaves out an empty name: the panel is then called Chauffage again.
+            title = (user_input.get(CONF_SIDEBAR_TITLE) or "").strip()
+            if len(title) > SIDEBAR_TITLE_MAX:
+                errors[CONF_SIDEBAR_TITLE] = "sidebar_title_too_long"
+            if not errors:
+                data = {**self.config_entry.options, **user_input}
                 if duration is not None:
-                    user_input = {**user_input, CONF_OVERRIDE_DURATION: int(duration)}
-                return self.async_create_entry(data={**self.config_entry.options, **user_input})
+                    data[CONF_OVERRIDE_DURATION] = int(duration)
+                data.pop(CONF_SIDEBAR_TITLE, None)
+                if title:
+                    data[CONF_SIDEBAR_TITLE] = title
+                return self.async_create_entry(data=data)
         options = {**self.config_entry.options, **(user_input or {})}
         schema = vol.Schema({
             vol.Required(
@@ -105,6 +116,9 @@ class ChauffageOptionsFlow(OptionsFlow):
             vol.Required(
                 CONF_SHOW_IN_SIDEBAR, default=options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR),
             ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_SIDEBAR_TITLE, description={"suggested_value": sidebar_title(options)},
+            ): selector.TextSelector(),
             vol.Required(
                 CONF_ACCESS_LEVEL, default=options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL),
             ): selector.SelectSelector(

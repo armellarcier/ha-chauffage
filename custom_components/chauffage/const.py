@@ -1,5 +1,8 @@
 """Constants of the Chauffage integration (vocabulary: docs/glossary.md)."""
 
+from collections.abc import Mapping
+from typing import Any
+
 DOMAIN = "chauffage"
 TITLE = "Chauffage"
 
@@ -27,6 +30,14 @@ CONF_USE_PRESETS = "use_presets"  # a preset uses the thermostat's climate prese
 DEFAULT_USE_PRESETS = True
 CONF_SHOW_IN_SIDEBAR = "show_in_sidebar"  # the Chauffage panel's entry in the sidebar
 DEFAULT_SHOW_IN_SIDEBAR = True
+CONF_SIDEBAR_TITLE = "sidebar_title"  # the panel's name in the sidebar (#104), TITLE when blank
+SIDEBAR_TITLE_MAX = 40  # characters
+
+
+def sidebar_title(options: Mapping[str, Any]) -> str:
+    """The panel's name (#104): Chauffage, unless the admin chose another one."""
+    return (options.get(CONF_SIDEBAR_TITLE) or "").strip() or TITLE
+
 # What users who are not admins may change (#99): one access level for all of them, each including
 # the one before. An admin can always do everything (docs/decisions.md, "Who may do what")
 CONF_ACCESS_LEVEL = "access_level"

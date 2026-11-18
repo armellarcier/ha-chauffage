@@ -9,6 +9,12 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- **You can rename the Chauffage panel in the sidebar** (#104). Set the option *Name in the
+  sidebar*, for example to *Planning* if you already have a dashboard called *Thermostats*. The
+  panel and the cards' links use the same name.
+
 ## [0.9.0-beta.4] - 2026-11-13
 
 The fourth beta of 0.9.0, with **a fix for the open windows of Versatile Thermostat** (#92).

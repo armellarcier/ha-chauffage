@@ -29,7 +29,7 @@ from .const import (
     DEFAULT_SHOW_IN_SIDEBAR,
     DOMAIN,
     SET_UP,
-    TITLE,
+    sidebar_title,
 )
 
 URL_BASE = "/chauffage_frontend"
@@ -59,7 +59,8 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     or for every user, so then every user may open it, read only without Set up.
 
     Out of the sidebar (an option), the panel has no title: Home Assistant shows no entry for it,
-    on every version, and its addresses still work."""
+    on every version, and its addresses still work. Its config keeps its name (#104), for the
+    cards and the panel's header."""
     if "frontend" not in hass.config.components:
         return
     in_sidebar = _in_sidebar(entry)
@@ -68,10 +69,11 @@ async def async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     async_register_built_in_panel(
         hass,
         component_name="custom",
-        sidebar_title=TITLE if in_sidebar else None,
+        sidebar_title=sidebar_title(entry.options) if in_sidebar else None,
         sidebar_icon="chauffage:logo" if in_sidebar else None,  # defined by the card (window.customIcons)
         frontend_url_path=DOMAIN,
-        config={"_panel_custom": {"name": "chauffage-panel", "module_url": await _card_url(hass),
+        config={"title": sidebar_title(entry.options),
+                "_panel_custom": {"name": "chauffage-panel", "module_url": await _card_url(hass),
                                   "embed_iframe": False, "trust_external": False}},
         require_admin=not for_every_user,
     )
@@ -81,14 +83,16 @@ def _in_sidebar(entry: ConfigEntry) -> bool:
     return entry.options.get(CONF_SHOW_IN_SIDEBAR, DEFAULT_SHOW_IN_SIDEBAR)
 
 
-def _panel_options(entry: ConfigEntry) -> tuple[bool, bool]:
-    """The options the panel's registration depends on: the sidebar entry, and who may open it."""
-    return _in_sidebar(entry), entry.options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL) == SET_UP
+def _panel_options(entry: ConfigEntry) -> tuple[bool, str, bool]:
+    """The options the panel's registration depends on: the sidebar entry and its name, and who
+    may open the panel."""
+    return (_in_sidebar(entry), sidebar_title(entry.options),
+            entry.options.get(CONF_ACCESS_LEVEL, DEFAULT_ACCESS_LEVEL) == SET_UP)
 
 
 def sidebar_listener(entry: ConfigEntry) -> Callable[[HomeAssistant, ConfigEntry], Awaitable[None]]:
     """The update listener of the panel's options. Every setting saved updates the entry: the
-    panel is registered again only when the sidebar option, or whether every user may open the
+    panel is registered again only when the sidebar options, or whether every user may open the
     panel, changed since it was last registered."""
     registered = _panel_options(entry)
 

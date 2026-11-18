@@ -25,6 +25,7 @@
           "manual_override_end": "End of overrides",
           "use_presets": "Use the thermostats' presets",
           "show_in_sidebar": "Show Chauffage in the sidebar",
+          "sidebar_title": "Name in the sidebar",
           "access_level": "Access level of users who are not administrators"
         },
         "data_description": {
@@ -37,7 +38,8 @@
       }
     },
     "error": {
-      "invalid_override_duration": "Choose a whole number of minutes."
+      "invalid_override_duration": "Choose a whole number of minutes.",
+      "sidebar_title_too_long": "Choose a name of 40 characters at most."
     }
   },
   "entity": {
