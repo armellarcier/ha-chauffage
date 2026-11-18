@@ -263,6 +263,20 @@ future contributor might question.
     case where a change by hand makes Chauffage send something: the value is the one planned,
     in the HVAC mode the person asked for. In an off slot or a fan-only slot there is no value
     to keep: the thermostat keeps its own last setpoint.
+  - **What a change by hand means depends on the HVAC mode the thermostat runs in** (the
+    exploratory tests of #97). A setpoint or a preset changed while the thermostat runs in
+    another HVAC mode than the slot's is meant for that HVAC mode: the override says it. An
+    air conditioner switched to cool in a heating slot, then set to 23 °C, kept 23 °C with no
+    HVAC mode, and the card's + then sent heat. Leaving heat/cool on a range, the thermostat
+    shows a single setpoint again: the person chose an HVAC mode, not that setpoint, so the
+    slot's preset goes on.
+  - **An override survives a switch back by hand** (the exploratory tests of #97). Back to the
+    slot's HVAC mode by hand, an override to a preset goes on in that HVAC mode, until its
+    end: before, it ended, and a boost was lost. A temperature typed by the person is not
+    carried into another HVAC mode (above), so that override still ends. A thermostat turned
+    off by hand during an override, then on again before the override's end, gets the
+    override back, as with a switch: the off override keeps it (`before_off`). After the end,
+    or back in another HVAC mode, the thermostat follows its slot.
   - **An off slot has no preset, and Chauffage sends only off.** A first version sent a preset
     with off, as a scene does, and chose the coldest preset so that a thermostat that heats
     anyway heats as little as possible. The preset was hidden: the user could not see it, and
@@ -318,7 +332,7 @@ future contributor might question.
     But an override replaces the whole slot: a fan touched 30 minutes before a boost slot
     would hold the boost back for the override duration. The right model is an override that
     holds only what was changed, the rest following the schedule. It is a change of what an
-    override is, so it comes after #91. Until then, overrides keep what Chauffage handled
+    override is, so it comes after #91 (#110). Until then, overrides keep what Chauffage handled
     before #91, plus the HVAC mode: a preset, a setpoint, a range. The fan and the vanes are
     dropped from every override target (`model.normalize_override`, the card's
     `withoutAir`), an override gives no fan back, and a fan changed by hand during an

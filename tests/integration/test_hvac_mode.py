@@ -205,3 +205,30 @@ async def test_the_logbook_tells_an_override_whose_end_changed(bench: Bench):
     await bench.hass.config.async_set_time_zone("Europe/Paris")
     bench.hass.config.language = "fr"
     assert described["chauffage_override_end_changed"](event)["message"] == "dérogation jusqu'à lundi 12:30 (depuis la carte)"
+
+
+@pytest.mark.parametrize(("data", "key"), [
+    ({"hvac_mode": "heat_cool", "target_temp_low": 19}, "range_incomplete"),
+    ({"hvac_mode": "heat_cool", "target_temp_high": 24}, "range_incomplete"),
+    ({"hvac_mode": "heat_cool", "target_temp_low": 25, "target_temp_high": 20}, "range_inverted"),
+    ({"hvac_mode": "heat_cool", "temperature": 21}, "heat_cool_takes_a_range"),
+    ({"hvac_mode": "heat", "target_temp_low": 19, "target_temp_high": 24}, "range_in_heat_cool"),
+    ({"temperature": 21, "end": "2026-10-12 09:00:00"}, "end_in_the_past"),
+])
+async def test_set_override_says_what_is_wrong_with_a_range_or_an_end(bench: Bench, data: dict, key: str):
+    """Each refusal names its own reason, in the user's language: not a raw message of the
+    schema, and not one message for several mistakes."""
+    await start_ac_with_range(bench, [["00:00", "eco"]])
+    with pytest.raises(ServiceValidationError) as error:
+        await override(bench, **data)
+    assert error.value.translation_key == key
+    assert bench.overrides() == {} and bench.powered() == {}
+
+
+def test_every_refusal_of_set_override_has_a_text_in_every_language():
+    import json
+    from pathlib import Path
+    component = Path(engine.__file__).parent
+    keys = {"range_incomplete", "range_inverted", "heat_cool_takes_a_range", "range_in_heat_cool", "end_in_the_past"}
+    for file in ("strings.json", "translations/en.json", "translations/fr.json"):
+        assert keys <= set(json.loads((component / file).read_text(encoding="utf-8"))["exceptions"])

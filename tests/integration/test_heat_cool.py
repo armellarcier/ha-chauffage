@@ -3,7 +3,7 @@ sends the preset's heating and cooling temperatures; on a thermostat that takes 
 setpoint, heat/cool is read as heat."""
 
 import pytest
-from homeassistant.core import Event, callback
+from homeassistant.core import Context, Event, callback
 from homeassistant.exceptions import ServiceValidationError
 
 from conftest import CTX_USER, KINDS, Bench
@@ -261,3 +261,24 @@ def test_a_single_setpoint_in_heat_cool_is_read_only_without_a_range():
     ranged = {"supports_range": True, "target_temp_low": 18.0, "target_temp_high": 25.0}
     before, after = (engine.Thermostat("heat_cool", None, t, hvac_modes=tuple(REVERSIBLE), **ranged) for t in (21.0, 23.0))
     assert engine.manual_change(before, after, by_user=True) is None
+
+
+async def test_leaving_heat_cool_by_hand_keeps_the_preset_in_force(bench: Bench):
+    """In heat/cool the thermostat shows a range and no single setpoint. Switched to cool by
+    hand, it shows one again: that setpoint was not chosen by the person, who chose an HVAC
+    mode. The slot's preset goes on, with its value when cooling, never the 20 °C shown."""
+    await start_ac_with_range(bench, [["00:00", "comfort", {"hvac_mode": "heat_cool"}]], state="heat_cool",
+                              target_temp_low=20.0, target_temp_high=25.0)
+    await bench.go_to("10:01")
+    clear(bench)
+    bench.thermostat(SALON, None, None, state="heat_cool", hvac_modes=REVERSIBLE, supported_features=RANGE,
+                     target_temp_low=20.0, target_temp_high=25.0, context=Context())
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    clear(bench)
+    by_hand(bench, "cool", 20.0)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    kept = bench.overrides()[SALON]
+    assert kept["preset"] == "comfort" and kept["target"]["hvac_mode"] == "cool"
+    assert 20.0 not in sent_to(bench)
+    if bench.kind == "plain":  # no climate preset: the cooling temperature of comfort
+        assert sent_to(bench) == [25.0]

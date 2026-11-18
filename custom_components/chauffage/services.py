@@ -47,16 +47,16 @@ SET_OVERRIDE_SCHEMA = vol.All(
         vol.Required(ATTR_ENTITY_ID): cv.entity_id,
         vol.Exclusive("temperature", "value"): vol.Coerce(float),
         vol.Exclusive("preset", "value"): cv.string,
-        # Heat/cool: the range of temperatures, both together
-        vol.Inclusive("target_temp_low", "range"): vol.Coerce(float),
-        vol.Inclusive("target_temp_high", "range"): vol.Coerce(float),
+        # Heat/cool: the range of temperatures, both together (refused with a message otherwise)
+        vol.Optional("target_temp_low"): vol.Coerce(float),
+        vol.Optional("target_temp_high"): vol.Coerce(float),
         # One of Home Assistant's HVAC modes: reproduce_state ignores any other value silently
         vol.Optional("hvac_mode"): vol.In([mode.value for mode in HVACMode]),
         # Not both: refused by the service, with a message in the user's language
         vol.Optional("duration"): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional("end"): cv.datetime,
     }),
-    cv.has_at_least_one_key("temperature", "preset", "hvac_mode", "target_temp_low"),
+    cv.has_at_least_one_key("temperature", "preset", "hvac_mode", "target_temp_low", "target_temp_high"),
 )
 CLEAR_OVERRIDE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
 ACTIVATE_SCHEDULE_SCHEMA = vol.Schema({vol.Required("schedule"): cv.string})
@@ -93,7 +93,7 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
     """What chauffage.set_override refuses, with a message that says why: an override that
     contradicts itself would be recorded and do something else than what was asked."""
     entity_id, mode = data[ATTR_ENTITY_ID], data.get("hvac_mode")
-    has_range = "target_temp_low" in data
+    has_range = "target_temp_low" in data or "target_temp_high" in data
 
     def refuse(key: str, **placeholders: str) -> None:
         raise ServiceValidationError(translation_domain=DOMAIN, translation_key=key,
@@ -101,14 +101,20 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
 
     if "duration" in data and "end" in data:
         refuse("duration_and_end")
+    if "end" in data and _aware(data["end"]) <= dt_util.now():
+        refuse("end_in_the_past")
     # Off, fan only, dry and auto take no setpoint
     if mode in engine.NO_PRESET_MODES and ("temperature" in data or "preset" in data or has_range):
         refuse("no_setpoint_in_hvac_mode", hvac_mode=mode)
-    # Heat/cool takes a range, and nothing else does
-    bad_range = has_range and (mode != engine.HEAT_COOL or "preset" in data
-                               or data["target_temp_low"] >= data["target_temp_high"])
-    if bad_range or (mode == engine.HEAT_COOL and "temperature" in data):
+    # Heat/cool takes a range or a preset, and nothing else takes a range
+    if has_range and not all(key in data for key in engine.RANGE_KEYS):
+        refuse("range_incomplete")
+    if has_range and (mode != engine.HEAT_COOL or "preset" in data):
         refuse("range_in_heat_cool")
+    if has_range and data["target_temp_low"] >= data["target_temp_high"]:
+        refuse("range_inverted")
+    if mode == engine.HEAT_COOL and "temperature" in data:
+        refuse("heat_cool_takes_a_range")
     current = runtime.current(hass.states.get(entity_id))
     listed = current.hvac_modes if current is not None else ()
     if mode is not None and listed and mode not in listed:
@@ -123,6 +129,12 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
     meaning = runtime.targets_of(entity_id).get(data.get("preset"))
     if meaning is not None and mode in engine.SETPOINT_MODES and mode not in engine.offered_modes(meaning):
         refuse("preset_not_in_hvac_mode", hvac_mode=mode, preset=data["preset"])
+
+
+def _aware(end: datetime) -> datetime:
+    """An end given by the action, in local time: one without a time zone is in Home
+    Assistant's."""
+    return dt_util.as_local(end if end.tzinfo else end.replace(tzinfo=dt_util.get_default_time_zone()))
 
 
 async def may_control(hass: HomeAssistant, call: ServiceCall, entity_id: str) -> None:
@@ -144,7 +156,7 @@ def async_register(hass: HomeAssistant) -> None:
         refuse_contradictions(hass, runtime, call.data)
         end: datetime | None = call.data.get("end")
         if end is not None:
-            end = dt_util.as_local(end if end.tzinfo else end.replace(tzinfo=dt_util.get_default_time_zone()))
+            end = _aware(end)
         minutes = call.data.get("duration")
         target: dict = {}
         preset_id = None

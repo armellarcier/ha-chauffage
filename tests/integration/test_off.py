@@ -491,3 +491,39 @@ async def test_a_vtherm_heating_at_the_frost_setpoint_for_its_window_says_so(ben
     await bench.hass.async_block_till_done()
     assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["cause"] == "window"
     assert bench.overrides() == {}
+
+
+# ----- an override that a thermostat turned off and back on by hand keeps -----
+
+async def test_a_thermostat_turned_off_and_on_by_hand_during_an_override_gets_its_override_back(bench: Bench):
+    """Comfort until 11:30 from the card. Turned off, then back on, by hand, as with a switch:
+    the thermostat gets its comfort back, until 11:30, not its slot."""
+    await start_salon(bench)
+    await bench.hass.services.async_call("chauffage", "set_override", {
+        "entity_id": "climate.salon", "preset": "comfort", "duration": 90}, blocking=True)
+    await bench.hass.async_block_till_done()
+    before = dict(bench.overrides()["climate.salon"])
+    bench.thermostat("climate.salon", "comfort", state="off", context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    assert bench.overrides()["climate.salon"]["target"] == OFF
+    bench.applied()
+    bench.thermostat("climate.salon", "eco", context=CTX_USER)  # back on, on what it restarted on
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    kept = bench.overrides()["climate.salon"]
+    assert (kept["target"], kept.get("preset"), kept["end"]) == (before["target"], "comfort", before["end"])
+    assert bench.applied() == {"climate.salon": "comfort"}
+
+
+async def test_an_override_that_ended_while_the_thermostat_was_off_is_not_given_back(bench: Bench):
+    await start_salon(bench)
+    await bench.hass.services.async_call("chauffage", "set_override", {
+        "entity_id": "climate.salon", "preset": "comfort", "duration": 30}, blocking=True)
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", "comfort", state="off", context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    await bench.go_to("10:45")  # the comfort override would have ended at 10:30
+    bench.applied()
+    bench.thermostat("climate.salon", "comfort", context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    assert bench.overrides() == {}
+    assert bench.applied() == {"climate.salon": "eco"}

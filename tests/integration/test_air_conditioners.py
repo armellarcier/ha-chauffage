@@ -443,3 +443,45 @@ async def test_an_override_without_an_hvac_mode_keeps_a_valve_in_auto(bench: Ben
     await bench.advance(31)
     assert bench.overrides() == {} and bench.powered() == {}
     assert bench.hass.states.get(SALON).state == "auto"
+
+
+# ----- a setpoint or a preset changed by hand in another HVAC mode than the slot's -----
+
+async def test_a_setpoint_changed_by_hand_while_cooling_in_a_heating_slot_keeps_cool(bench: Bench):
+    """The slot heats. The unit was switched to cool by hand, then its setpoint set to 23 °C
+    in Home Assistant: the override is 23 °C in cool, never 23 °C of heating."""
+    await start_ac(bench, "10:00", [["00:00", "comfort", HEAT]], preset="comfort")
+    bench.thermostat(SALON, "comfort", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    bench.thermostat(SALON, MANUAL_PRESET[bench.kind], 23.0, state="cool", hvac_modes=AC_MODES, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    assert bench.overrides()[SALON]["target"] == {"hvac_mode": "cool", "temperature": 23.0}
+
+
+async def test_a_preset_picked_by_hand_while_cooling_in_a_heating_slot_keeps_cool(bench: Bench):
+    """The same with a preset picked in Home Assistant: eco in cool, not eco in heat."""
+    bench.needs("vtherm", "standard")
+    await start_ac(bench, "10:00", [["00:00", "comfort", HEAT]], preset="comfort")
+    bench.thermostat(SALON, "comfort", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    bench.thermostat(SALON, "eco", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    assert bench.overrides()[SALON]["target"]["hvac_mode"] == "cool"
+
+
+async def test_back_to_the_slot_s_hvac_mode_by_hand_keeps_an_override_to_a_preset(bench: Bench):
+    """Boost in cool from the card, switched to heat by hand (boost in heat), then back to cool
+    by hand, the slot's HVAC mode: the boost goes on, in cool, until its end."""
+    bench.needs("vtherm", "standard")  # without presets, boost shows as a setpoint: switching shows another one
+    await start_ac(bench, "10:00", [["00:00", "comfort", COOL]], state="cool", preset="comfort")
+    await bench.hass.services.async_call("chauffage", "set_override", {
+        "entity_id": SALON, "preset": "boost", "hvac_mode": "cool", "duration": 120}, blocking=True)
+    await bench.hass.async_block_till_done()
+    end = bench.overrides()[SALON]["end"]
+    bench.thermostat(SALON, "boost", state="heat", hvac_modes=AC_MODES, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    assert bench.overrides()[SALON]["target"]["hvac_mode"] == "heat"
+    bench.thermostat(SALON, "boost", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
+    await bench.hass.async_block_till_done(wait_background_tasks=True)
+    kept = bench.overrides()[SALON]
+    assert (kept["target"]["preset_mode"], kept["target"]["hvac_mode"], kept["end"]) == ("boost", "cool", end)
