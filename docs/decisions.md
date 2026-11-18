@@ -1237,61 +1237,21 @@ A review of every surface, before the merge into `main`, settled these choices.
 
 ### Trying a commit on a real installation (scripts/deploy.sh)
 
-A pre-release for each try is slow and fills the release list. `scripts/deploy.sh` installs a
-commit on a real Home Assistant instead, and takes it back.
+A pre-release for each try is slow and fills the release list, so `scripts/deploy.sh` installs a
+commit instead.
 
-**Few concepts.** Three review rounds grew the script by adding a guard to each case: an API
-restart, a manual mode, `--no-restart`, `--stopped`, a target given as an argument, a fetch of
-origin. Each case brought its own bugs, for example a test folder that restarted the production
-Home Assistant. These cases are gone:
-
-- **Docker only.** The script stops and starts the container of Home Assistant. Without a
-  container, the script could not stop Home Assistant to put the data back, so it needed a
-  manual mode and its own rules. Home Assistant OS users try a version with a pre-release.
-- **`PROD_HA_CONFIG` only.** The container belongs to that Home Assistant. A target given as an
-  argument would need its own way to stop Home Assistant.
-- **`--branch` reads your clone only.** You fetch a branch of origin yourself. Fetching in the
-  script added a lookup order between local branches, commits and origin.
-
-**What stays, and why:**
-
-- **A commit, never the working tree.** The commit is the version you mean to try, and the one
-  a pull request shows. A working tree carried files nobody reviewed: untracked files, files
-  behind symbolic links, modes from the local umask.
-- **Your scripts, not the branch's.** Only the integration comes from the branch. On a
-  contributor's branch, the scripts that run are yours.
-- **The commit is printed in full before anything changes, and a sha can replace the branch.**
-  A contributor can push to a branch between your review and your deploy. The sha pins what you
-  reviewed.
-- **No check of the CI.** You choose what to try. Requiring a green CI would make the script
-  depend on GitHub.
-- **No symbolic link in the integration.** A link would deploy a file of the developer's
-  machine, for example an SSH key, where the integration's code can read it.
-- **The version is checked before any use.** Bash arithmetic would run a command hidden in it.
-- **The dev version sorts after the release**, for example `0.9.1-dev.…` for `0.9.0`, for the
-  card's `compareVersions`. An open card then asks for a reload, not for a restart. The suffix
-  comes from the commit, so the card's URL changes with the commit, and browsers drop the
-  cached card. AwesomeVersion orders these versions differently, but Home Assistant only checks
-  that they are valid.
-- **The backup is made once**, before the first deploy, and stays until a full rollback. The
-  script never decides from the installed version whether to make it. A deploy cut short or a
-  HACS update can leave something other than a dev version installed. A new backup would then
-  replace the release. Each deploy says which release the backup holds and from when, so an old
-  backup does not come back by surprise.
-- **Home Assistant is stopped around the backup and the rollback.** Home Assistant writes its
-  pending changes when it stops. A copy taken while it runs can miss them, and data put back
-  while it runs is overwritten. `docker stop -t 120` leaves a slow Home Assistant time to write
-  them.
-- **The code is swapped by renames, outside `custom_components`.** A file the SSH user cannot
-  delete, for example a `__pycache__` written by Home Assistant as root, would otherwise leave a
-  half-removed integration. If a rename fails, the integration as it was goes back in place. A
-  folder left in `custom_components` would be loaded by Home Assistant as an integration.
-- **A rollback can be run again after a failure.** It moves the release out of the backup, so
-  the version file of the backup, not the release folder, says whether Chauffage was installed
-  before. A failure says what is already back.
-- **The rollback keeps the data of the dev version.** Weeks of real use may be in it. Only the
-  developer knows whether they matter.
-- **The script counts the files it receives.** tar sees no error when a stream is cut between
-  two files.
+- **Few concepts.** Earlier versions also had an API restart, a manual mode, a target argument
+  and a fetch of origin. Each one brought its own bugs, so they are gone:
+  - **Docker only.** Without a container, the script cannot stop Home Assistant to put the data
+    back. Home Assistant OS users try a pre-release.
+  - **`PROD_HA_CONFIG` only.** The container belongs to that Home Assistant.
+  - **`--branch` reads your clone only.** You fetch a branch of origin yourself.
+- **A commit, never the working tree.** A working tree carries files nobody reviewed.
+- **No check of the CI.** It would make the script depend on GitHub.
+- **The backup is made once and kept until a rollback.** Later deploys, a deploy cut short or a
+  HACS update must not replace the release in it.
+- **The dev version sorts after the release**, for example `0.9.1-dev.…` for `0.9.0`. An open
+  card then asks for a reload, not for a restart.
+- **The rollback keeps the data of the dev version.** Weeks of real use may be in it.
 - **The backup does not hold `.storage/core.config_entries`.** That file belongs to every
-  integration. Putting it back would undo the other integrations' changes.
+  integration.
