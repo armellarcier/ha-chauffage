@@ -43,6 +43,11 @@ future contributor might question.
   2. When the thermostat is back to what the slot asks, for the HVAC mode and the setpoint, the
      schedule resumes.
 
+  Before both: **back to what the override asks changes nothing** (the owner). The override
+  keeps its value and its end, even when the slot asks the same. Example: you keep the
+  children's room at 17 °C for 72 hours. The thermostat leaves 17 °C by itself (VTherm's safety
+  mode), then comes back to it: the override still ends in 72 hours.
+
   This replaces a set of deductions (the value of the slot sent in the new HVAC mode, the
   setpoint kept from before off, a setpoint shown with a new HVAC mode ignored…). Each fixed one
   case, and two broke at the next review. A thermostat that restarts on another setpoint than
@@ -67,8 +72,8 @@ future contributor might question.
   measured on the thermostat: its preset, or a manual setpoint at the temperature of that
   preset on this thermostat (published by VTherm, otherwise the last one read while on that
   preset), not the default temperature of the ha-chauffage preset. Not when the override
-  already has that value: the thermostat coming back to it by itself does not end an override
-  held past the next slots. A slot change never ends an override, even to a slot with the
+  already has that value: back to what the override asks changes nothing (see "A change by
+  hand"). A slot change never ends an override, even to a slot with the
   override's value: an override set for a day during the first comfort slot must still hold
   when the next eco slot starts. **Amended by #83**: the end of a change by hand is computed
   from the next slot when the override starts (see below). Once computed, the end is an end like

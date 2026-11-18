@@ -723,10 +723,11 @@ def manual_change(
     - the setpoint changed (`setpoint_changed`), in an HVAC mode that takes one and when the
       slot sets one: the override takes it, in place of the setpoint it held.
     One change may hold both: the override takes what the thermostat shows.
+    Back to what the override asks changes nothing (None): the override keeps its value and
+    its end, even when the slot asks the same.
     A point back to what the slot asks leaves the override; with no point left, or the
     thermostat doing what the slot asks (`back_to`; `preset_temperature`: what the expected
-    preset gives on this thermostat), the schedule resumes (RESUME). Not when the override
-    already held the slot's value past the next slots: the thermostat comes back to it (None).
+    preset gives on this thermostat), the schedule resumes (RESUME).
     Chauffage sends nothing for a change by hand.
     """
     if ignored(after) or before.state in IGNORED_STATES:
@@ -741,6 +742,8 @@ def manual_change(
         target["hvac_mode"] = after.state
     if after.state not in SETPOINT_MODES or change is not None:
         target = {key: value for key, value in target.items() if key not in SETPOINT_TARGET_KEYS} | (change or {})
+    if override is not None and same_target(target, override, after):
+        return None
     if expected is None:
         return target
     if target.get("hvac_mode") is not None and hvac_satisfied(expected, after):
@@ -748,9 +751,5 @@ def manual_change(
     back = hvac_satisfied(expected, after) and (
         not any(key in target for key in SETPOINT_TARGET_KEYS) or back_to(expected, after, preset_temperature))
     if back:
-        # An override sets no fan and no vanes, and may say no HVAC mode: compared on what it holds
-        held = override is not None and same_target(override, {
-            key: value for key, value in expected.items()
-            if key not in AIR_KEYS and (key != "hvac_mode" or "hvac_mode" in override)}, after)
-        return None if held else RESUME
+        return RESUME
     return target

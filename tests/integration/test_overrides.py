@@ -176,6 +176,21 @@ async def test_a_thermostat_coming_back_by_itself_to_a_held_slot_value_keeps_the
     assert bench.overrides()["climate.salon"] == hold
 
 
+async def test_a_thermostat_coming_back_by_itself_to_the_override_keeps_its_end(bench: Bench):
+    """Kept 72 hours at 21 °C from the card: the thermostat leaves it by itself (VTherm's safety
+    mode), then comes back to 21 °C. Back to what the override asks changes nothing: the
+    override keeps its value and its end."""
+    bench.needs("vtherm", "standard")
+    await start(bench)
+    hold = bench.runtime.new_override({"temperature": 21.0}, minutes=72 * 60)
+    await bench.set_override("climate.salon", hold)
+    bench.thermostat("climate.salon", "safety", 7)  # no temperature received
+    await bench.hass.async_block_till_done()
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 21)  # back
+    await bench.hass.async_block_till_done()
+    assert bench.overrides()["climate.salon"] == hold
+
+
 async def test_a_slot_with_the_override_s_preset_does_not_end_it(bench: Bench):
     """Comfort, eco, comfort, eco: an override to comfort set for the whole day during the first
     comfort slot still holds when the second eco slot starts, and when the thermostat reports
