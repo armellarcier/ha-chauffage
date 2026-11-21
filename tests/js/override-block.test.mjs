@@ -598,6 +598,13 @@ afterEach(() => cleanup());
       assert.equal(sent(tapped._hass).target.hvac_mode, 'heat');
     });
 
+    test('on a valve running in auto on its schedule, Chauffe tapped takes the preset planned now, not the setpoint shown (#112)', () => {
+      const card = open(setup({ planned: { [VANNE]: { preset: 'eco' } } }), VANNE);
+      mode(card, 'heat', '.override-ed');
+      assert.deepEqual(sent(card._hass).target, { temperature: 17, hvac_mode: 'heat' });
+      assert.equal(sent(card._hass).preset, 'eco');
+    });
+
     test('an override without an HVAC mode on the valve shows the HVAC mode it runs in', () => {
       const hass = setup({ planned: { [VANNE]: { preset: 'eco' } }, overrides: { [VANNE]: override({ temperature: 20 }, { preset: 'comfort' }) } });
       const card = cardOf(hass, { show: [VANNE] });

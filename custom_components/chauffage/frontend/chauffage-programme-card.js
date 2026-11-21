@@ -2940,7 +2940,9 @@ function overrideWithHvac(d, src, climate, mode, hass) {
   const st = (hass && stateOf(hass, climate)) || { attributes: {} };
   const shown = typeof st.attributes.temperature === 'number' ? fitTemperature(hass, climate, st.attributes.temperature) : null;
   const idle = (m) => m !== 'off' && NO_PRESET_MODES.includes(m);
-  if (shown != null && mode !== 'heat_cool' && (d ? idle(target.hvac_mode) : idle(st.state))) {
+  // Without an override, the slot planned now says it, not the state: a valve runs in auto on its
+  // schedule
+  if (shown != null && mode !== 'heat_cool' && idle(d ? target.hvac_mode : (src.planned(climate) || {}).hvac_mode)) {
     const next = withHvac({ temperature: shown }, mode);
     if (!d) return newOverride(src, next);
     const { preset: _p, ...rest } = d;
