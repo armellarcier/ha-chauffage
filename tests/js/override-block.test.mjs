@@ -128,7 +128,7 @@ afterEach(() => cleanup());
       assert.match(text(heating.shadowRoot), /puis Arrêt \(planning\)/);
       cleanup();
       const off = moreInfo(setup({ overrides: { 'climate.salon': { ...offOverride, ...evening } } }));
-      assert.match(text($(off, '.status')), /aujourd'hui, puis Arrêt/);
+      assert.match(text($(off, '.status')), /aujourd'hui · encore 30 min · puis Arrêt \(planning\)/);
     });
 
     test('on a thermostat card the block is folded: the override, its end and Resume; Change unfolds the rest', () => {
@@ -421,13 +421,13 @@ afterEach(() => cleanup());
       assert.deepEqual(sent(hass).target, { ...OWN('comfort'), hvac_mode: 'heat' });
     });
 
-    test('an off override says its end in a few words', () => {
+    test('an off override says its end as the others do: its reason, which leads to the setting, the time left, what comes then', () => {
       const end = '2026-10-13T06:30:00+02:00';
       const hass = setup({ planned: planned('heat'), overrides: { [ATELIER]: { target: OFF, start: span.start, end, ends_at: 'next_slot' } } });
       const card = cardOf(hass);
       click(card, `.override[data-climate="${ATELIER}"]`);
-      assert.equal(text($(card, '.override-ed .ed-head .muted')), 'demain, puis Éco');
-      assert.match(text($(card, '.override-ed')), /Arrêt.*jusqu'à.*demain, puis Éco/);
+      assert.match(text($(card, '.override-ed .ed-head .muted')), /^demain, .+ ⚙ · encore .+ · puis .*Éco \(planning\)$/);
+      assert.ok($(card, '.override-ed .ed-head .muted [data-open-settings]'));
     });
 
     test('an override to a preset that sends no setpoint in cool says so, and does not show its heating temperature', () => {

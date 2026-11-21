@@ -99,7 +99,6 @@ const I18N = {
     slotSetpointOwn: '{temperature} (its {preset} preset)',
     slotSetpointUnchanged: 'Setpoint unchanged when cooling',
     slotSetpointKept: 'Setpoint unchanged',
-    offEndThen: '{day}, then {preset}',
     presetCoolColor: 'Color when cooling',
     presetHeatColor: 'Color when heating',
     whenHeating: 'When heating',
@@ -422,7 +421,6 @@ const I18N = {
     slotSetpointOwn: '{temperature} (son préréglage {preset})',
     slotSetpointUnchanged: 'Consigne inchangée en clim',
     slotSetpointKept: 'Consigne inchangée',
-    offEndThen: '{day}, puis {preset}',
     whenHeating: 'En chauffe',
     whenCooling: 'En clim',
     change: 'Modifier',
@@ -2667,16 +2665,9 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const t = loc.t;
   const endsAt = parseDate(d.end);
   const now = new Date();
-  if (isOffOverride(d)) {
-    // Off, in a few words after "Off until 06:30": the day, and what the thermostat comes back
-    // on. "tomorrow, then Eco"
-    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const day = endsAt.toDateString() === now.toDateString() ? t('today')
-      : endsAt.toDateString() === tomorrow.toDateString() ? t('tomorrow') : dayText(endsAt, loc);
-    const slot = slotAt(activeWeek(src, climate), endsAt);
-    return esc(slot ? t('offEndThen', { day, preset: slotName(slot, presetsOf(src, loc), loc) }) : day);
-  }
-  const day = endsAt.toDateString() === now.toDateString() ? t('today') : dayText(endsAt, loc);
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const day = endsAt.toDateString() === now.toDateString() ? t('today')
+    : endsAt.toDateString() === tomorrow.toDateString() ? t('tomorrow') : dayText(endsAt, loc);
   const remaining = Math.max(0, Math.round((endsAt - now) / 60000));
   const reason = endReasonText(d, loc);
   const why = reason && src.editable
