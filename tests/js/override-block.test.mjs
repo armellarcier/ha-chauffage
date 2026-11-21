@@ -60,7 +60,7 @@ afterEach(() => cleanup());
         end: new Date(new Date(at).getTime() + 7 * 24 * 3600000).toISOString() });
     });
 
-    test('Ventilation sets the override to fan only, without setpoint; Chauffe tapped then heats again', () => {
+    test('Ventilation sets the override to fan only, without setpoint; Chauffe tapped then heats again, at the setpoint shown', () => {
       const hass = setup({ overrides: { 'climate.atelier': boost } });
       const card = cardOf(hass, { show: ['climate.atelier'] });
       click(card, '.override[data-climate="climate.atelier"]');
@@ -71,8 +71,47 @@ afterEach(() => cleanup());
       assert.equal($(card, '.override-ed .presets'), null);
       assert.equal($(card, '.override-ed [data-override-temperature]'), null);
       click(card, '.override-ed [data-act="override-mode"][data-mode="heat"]');
-      assert.deepEqual(lastCall(hass).override.target, { ...OWN('comfort'), hvac_mode: 'heat' });
-      assert.equal(lastCall(hass).override.preset, 'comfort');
+      assert.deepEqual(lastCall(hass).override.target, { temperature: 20, hvac_mode: 'heat' });
+      assert.equal(lastCall(hass).override.preset, undefined);
+    });
+
+    test('an override to Boost shows the temperature of Boost, not the frost setpoint of an open window (#112)', () => {
+      const hass = setup({ overrides: { 'climate.salon': boost } });
+      hass.states['climate.salon'].attributes.temperature = 7; // the window keeps it at its frost setpoint
+      const card = cardOf(hass, { show: ['climate.salon'] });
+      click(card, '.override[data-climate="climate.salon"]');
+      assert.equal($(card, '.override-ed [data-override-temperature]').value, '21');
+      assert.equal($(moreInfo(hass), '[data-override-temperature]').value, '21');
+    });
+
+    test('Clim, 22 °C typed, then Ventilation, then Clim: the override cools at the 22 °C the thermostat shows (#112)', () => {
+      const hass = setup({ overrides: { 'climate.atelier': boost } });
+      const card = cardOf(hass, { show: ['climate.atelier'] });
+      click(card, '.override[data-climate="climate.atelier"]');
+      const follow = () => hass.push({ ...hass.data, overrides: { 'climate.atelier': { ...lastCall(hass).override } } });
+      click(card, '.override-ed [data-act="override-mode"][data-mode="cool"]');
+      follow();
+      change($(card, '.override-ed [data-override-temperature]'), '22');
+      follow();
+      click(card, '.override-ed [data-act="override-mode"][data-mode="fan_only"]');
+      follow();
+      // In fan only, the air conditioner keeps showing the setpoint it had
+      hass.states['climate.atelier'] = { ...hass.states['climate.atelier'], state: 'fan_only',
+        attributes: { ...hass.states['climate.atelier'].attributes, temperature: 22 } };
+      card.hass = hass;
+      click(card, '.override-ed [data-act="override-mode"][data-mode="cool"]');
+      assert.deepEqual(lastCall(hass).override.target, { temperature: 22, hvac_mode: 'cool' });
+      assert.equal(lastCall(hass).override.preset, undefined);
+    });
+
+    test('Clim after Ventilation, on a thermostat that shows no setpoint: the preset planned now', () => {
+      const hass = setup({ overrides: { 'climate.atelier': { target: FAN, start: span.start, end: span.end } } });
+      delete hass.states['climate.atelier'].attributes.temperature;
+      const card = cardOf(hass, { show: ['climate.atelier'] });
+      click(card, '.override[data-climate="climate.atelier"]');
+      click(card, '.override-ed [data-act="override-mode"][data-mode="cool"]');
+      assert.ok(lastCall(hass).override.preset);
+      assert.equal('temperature' in lastCall(hass).override.target, false);
     });
 
     test('Ventilation during a fan-only slot resumes the schedule', () => {

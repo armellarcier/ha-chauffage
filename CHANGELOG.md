@@ -11,6 +11,15 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Fixed
 
+- **The override block shows the temperature of the preset you tap** (#112). With a Versatile
+  Thermostat whose window is open, *Boost* showed the window's frost setpoint, for example 7 °C.
+  A tap on + then made an override at 8 °C.
+- **Back from *Fan only*, an override keeps the setpoint the air conditioner shows** (#112).
+  For example, set *Cool* at 22 °C, then *Fan only*, then *Cool*: the override cools at 22 °C.
+  Before, it went back to the preset planned now. *Dry* and *Auto* work the same way.
+
+### Fixed
+
 - **In French, the full names of the HVAC modes are Home Assistant's** (#91). A sentence of the
   card, the logbook and the `chauffage.set_override` action say *Ventilation uniquement* and
   *Automatique*, as the more-info dialog of Home Assistant does. The logbook said

@@ -2496,13 +2496,16 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
         : targetKind(target) === 'preset' && targetKind(value) === 'preset' && target.preset_mode != null && target.preset_mode === value.preset_mode);
       return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="${chipStyle(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
     }).join('');
-  // The temperature the thermostat gets. An override to a preset that cools sends the preset's
-  // value when cooling, never its heating temperature. The field then shows the thermostat's
-  // setpoint, and a note says it is left alone
-  let value = d && targetKind(target) === 'temperature' ? target.temperature : attrs.temperature;
+  // The temperature the thermostat gets: the preset's, when it is known, not the setpoint the
+  // thermostat shows (an open window's frost setpoint, #112). An override to a preset that cools
+  // sends the preset's value when cooling, never its heating temperature. Without one, the field
+  // shows the thermostat's setpoint, and a note says it is left alone
+  const known = (temperature) => (temperature != null ? temperature : attrs.temperature);
+  let value = d && targetKind(target) === 'temperature' ? target.temperature
+    : known(picked && !cools ? presetTemperatureOf(src, climate, target) : null);
   let note = '';
   if (picked && cools && !none) {
-    value = 'cool_temperature' in target ? target.cool_temperature : attrs.temperature;
+    value = known(coolPresetTemperatureOf(src, climate, target));
     if (!('cool_temperature' in target) && !('cool_preset_mode' in target)) note = loc.t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept');
   }
   // A text field with its − and its +, in the user's number format, read with either decimal
@@ -2924,13 +2927,20 @@ function turnedOn(d, src) {
 // its preset when the preset has a value for that HVAC mode, or the temperature typed by the
 // user. Otherwise (no override yet, off, fan only, a preset without a value there): the preset
 // planned now if it has one for that HVAC mode, else the first preset that has
-function overrideWithHvac(d, src, climate, mode) {
+function overrideWithHvac(d, src, climate, mode, hass) {
   const targets = src.targets(climate);
   const offers = (id) => !!id && !!targets[id] && presetModes(targets[id]).includes(mode);
   d = turnedOn(d, src);
   const target = (d && d.target) || {};
   if (d && offers(d.preset)) return { ...d, target: withHvac(targets[d.preset], mode) };
   if (d && !d.preset && mode !== 'heat_cool' && ('temperature' in target || 'preset_mode' in target)) return { ...d, target: withHvac(target, mode) };
+  // Back from fan only, dry or auto: the setpoint the thermostat shows, as a thermostat turned
+  // back on keeps it (#112). These HVAC modes send none, so it is the one it had before
+  const shown = Number((((hass && hass.states[climate]) || {}).attributes || {}).temperature);
+  if (d && NO_PRESET_MODES.includes(target.hvac_mode) && mode !== 'heat_cool' && Number.isFinite(shown)) {
+    const { preset: _p, ...rest } = d;
+    return { ...rest, target: withHvac({ temperature: shown }, mode) };
+  }
   const planned = (src.planned(climate) || {}).preset;
   const preset = offers(planned) ? planned : src.presets().map((l) => l.id).find(offers);
   const next = withHvac(preset ? targets[preset] : {}, mode);
@@ -2981,7 +2991,7 @@ function overrideNoPreset(d, src, climate, mode, hass) {
 }
 // The override `d` set to an HVAC mode of the first row
 const overrideWithMode = (d, src, climate, mode, hass) => (NO_PRESET_MODES.includes(mode)
-  ? overrideNoPreset(d, src, climate, mode, hass) : overrideWithHvac(d, src, climate, mode));
+  ? overrideNoPreset(d, src, climate, mode, hass) : overrideWithHvac(d, src, climate, mode, hass));
 // The keys of a target that hold a setpoint
 const SETPOINT_KEYS = ['temperature', 'preset_mode', 'cool_temperature', 'cool_preset_mode', 'target_temp_low', 'target_temp_high'];
 
