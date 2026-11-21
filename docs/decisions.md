@@ -1210,8 +1210,10 @@ dashboards, automations, scripts and by voice without the card
     - **Back from fan only, dry or auto, an override takes the setpoint the thermostat shows**
       (the owner, #112). These HVAC modes send no setpoint, so the thermostat still shows the
       one it had: the temperature typed before, in the case of #112. It is the rule of a
-      thermostat turned back on (fc83ea0). The card stores nothing. Known limit: a setpoint
-      shown from an older heating override is taken by *Cool* too.
+      thermostat turned back on (fc83ea0). The card stores nothing. The same goes for a new
+      override during a fan-only, dry or auto slot. The setpoint is fitted to the thermostat's
+      limits and step. A thermostat that shows none (`null`) gets the preset planned now. Known
+      limit: a setpoint shown from an older heating override is taken by *Cool* too.
     - **On a row shared by several thermostats, the name of a slot without a preset wins over
       its time**: "⏻ Off", not "00:00 ⏻ O…". The color of such a slot is no preset's color.
     - **The setpoint line is words, then a button.** "Setpoint: 20 °C", then *Set*, a button

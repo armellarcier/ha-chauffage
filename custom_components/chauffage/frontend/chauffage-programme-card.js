@@ -2934,12 +2934,17 @@ function overrideWithHvac(d, src, climate, mode, hass) {
   const target = (d && d.target) || {};
   if (d && offers(d.preset)) return { ...d, target: withHvac(targets[d.preset], mode) };
   if (d && !d.preset && mode !== 'heat_cool' && ('temperature' in target || 'preset_mode' in target)) return { ...d, target: withHvac(target, mode) };
-  // Back from fan only, dry or auto: the setpoint the thermostat shows, as a thermostat turned
-  // back on keeps it (#112). These HVAC modes send none, so it is the one it had before
-  const shown = Number((((hass && hass.states[climate]) || {}).attributes || {}).temperature);
-  if (d && NO_PRESET_MODES.includes(target.hvac_mode) && mode !== 'heat_cool' && Number.isFinite(shown)) {
+  // Back from fan only, dry or auto (an override, or the slot running now): the setpoint the
+  // thermostat shows, within its limits, as a thermostat turned back on keeps it (#112). These
+  // HVAC modes send none, so it is the one it had before
+  const st = (hass && stateOf(hass, climate)) || { attributes: {} };
+  const shown = typeof st.attributes.temperature === 'number' ? fitTemperature(hass, climate, st.attributes.temperature) : null;
+  const idle = (m) => m !== 'off' && NO_PRESET_MODES.includes(m);
+  if (shown != null && mode !== 'heat_cool' && (d ? idle(target.hvac_mode) : idle(st.state))) {
+    const next = withHvac({ temperature: shown }, mode);
+    if (!d) return newOverride(src, next);
     const { preset: _p, ...rest } = d;
-    return { ...rest, target: withHvac({ temperature: shown }, mode) };
+    return { ...rest, target: next };
   }
   const planned = (src.planned(climate) || {}).preset;
   const preset = offers(planned) ? planned : src.presets().map((l) => l.id).find(offers);

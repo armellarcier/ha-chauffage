@@ -16,7 +16,9 @@ Each entry says whether the release **migrates stored data** and what to do when
   A tap on + then made an override at 8 °C.
 - **Back from *Fan only*, an override keeps the setpoint the air conditioner shows** (#112).
   For example, set *Cool* at 22 °C, then *Fan only*, then *Cool*: the override cools at 22 °C.
-  Before, it went back to the preset planned now. *Dry* and *Auto* work the same way.
+  Before, it went back to the preset planned now. *Dry* and *Auto* work the same way, and so
+  does a new override during a *Fan only* slot. An air conditioner that shows no setpoint still
+  gets the preset planned now.
 
 ### Fixed
 

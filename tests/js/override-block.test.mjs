@@ -104,6 +104,46 @@ afterEach(() => cleanup());
       assert.equal(lastCall(hass).override.preset, undefined);
     });
 
+    test('an override to Boost in cool shows the temperature of Boost when cooling, not the setpoint shown (#112)', () => {
+      const cooling = { target: { ...OWN('boost'), hvac_mode: 'cool' }, preset: 'boost', ...span };
+      const hass = setup({ overrides: { 'climate.atelier': cooling } });
+      hass.data.cool_preset_temperatures = { 'climate.atelier': { boost: 23 } };
+      hass.states['climate.atelier'] = { ...hass.states['climate.atelier'], state: 'cool',
+        attributes: { ...hass.states['climate.atelier'].attributes, temperature: 7 } };
+      const card = cardOf(hass, { show: ['climate.atelier'] });
+      click(card, '.override[data-climate="climate.atelier"]');
+      assert.equal($(card, '.override-ed [data-override-temperature]').value, '23');
+    });
+
+    test('Clim after Ventilation, on a thermostat that says its setpoint is null: the preset planned now, never 0 °C', () => {
+      const hass = setup({ overrides: { 'climate.atelier': { target: FAN, start: span.start, end: span.end } } });
+      hass.states['climate.atelier'].attributes.temperature = null;
+      const card = cardOf(hass, { show: ['climate.atelier'] });
+      click(card, '.override[data-climate="climate.atelier"]');
+      click(card, '.override-ed [data-act="override-mode"][data-mode="cool"]');
+      assert.ok(lastCall(hass).override.preset);
+      assert.equal('temperature' in lastCall(hass).override.target, false);
+    });
+
+    test('Clim after Ventilation takes the setpoint shown within the thermostat\'s limits', () => {
+      const hass = setup({ overrides: { 'climate.atelier': { target: FAN, start: span.start, end: span.end } } });
+      Object.assign(hass.states['climate.atelier'].attributes, { temperature: 7, min_temp: 16 });
+      const card = cardOf(hass, { show: ['climate.atelier'] });
+      click(card, '.override[data-climate="climate.atelier"]');
+      click(card, '.override-ed [data-act="override-mode"][data-mode="cool"]');
+      assert.deepEqual(lastCall(hass).override.target, { temperature: 16, hvac_mode: 'cool' });
+    });
+
+    test('during a fan-only slot, a new override in Clim takes the setpoint shown too', () => {
+      const hass = setup({ planned: { 'climate.atelier': { preset: null, hvac_mode: 'fan_only' } } });
+      hass.states['climate.atelier'] = { ...hass.states['climate.atelier'], state: 'fan_only',
+        attributes: { ...hass.states['climate.atelier'].attributes, temperature: 22 } };
+      const el = moreInfo(hass, 'climate.atelier');
+      $(el, '[data-new-override]').click();
+      $(el, '.mode-row [data-mode="cool"]').click();
+      assert.deepEqual(lastCall(hass).override.target, { temperature: 22, hvac_mode: 'cool' });
+    });
+
     test('Clim after Ventilation, on a thermostat that shows no setpoint: the preset planned now', () => {
       const hass = setup({ overrides: { 'climate.atelier': { target: FAN, start: span.start, end: span.end } } });
       delete hass.states['climate.atelier'].attributes.temperature;
