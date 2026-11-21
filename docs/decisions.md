@@ -351,6 +351,14 @@ future contributor might question.
     (`engine.targets`, `Runtime.needs`): the preset is left, then the setpoint is sent again,
     as a thermostat may change it when it leaves a preset. Nothing is pending then: the
     thermostat already shows the target.
+  - **All or nothing, as a scene** (the owner, #112). A thermostat that shows the whole target
+    gets nothing. Otherwise it gets the whole target, as a Home Assistant scene sends it: the
+    HVAC mode when it changes, the setpoint, the preset, the vanes and the fan. Chauffage no
+    longer drops what the thermostat seems to show: a setpoint read in fan only, while off or
+    on a preset says nothing of the one it will have in the new state, and the case came back
+    with each device (an air conditioner that keeps a setpoint per HVAC mode). The cost: a
+    command already in place is sent again with the others. It replaces the exception above,
+    "the setpoint is sent again after a preset is left", which the rule covers.
   - **The fan to give back survives an offline thermostat** (the third review). An unavailable
     thermostat shows no fan, and a thermostat that comes back may show another one: neither is
     a change by hand. `_forget_settings` looks at changes between two known states only.

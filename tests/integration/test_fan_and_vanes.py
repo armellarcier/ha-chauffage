@@ -48,11 +48,13 @@ async def test_a_preset_s_value_on_a_thermostat_can_set_the_fan(bench: Bench):
     assert bench.settings() == {("climate.salon", "fan_mode"): "2"}
 
 
-async def test_a_fan_already_set_is_not_sent_again(bench: Bench):
+async def test_a_slot_sends_its_fan_with_the_rest_as_a_scene_does(bench: Bench):
+    """The whole target goes when something changes, even a fan the thermostat already has
+    (#112)."""
     day = [["00:00", "eco"], ["14:00", "comfort", {"fan_mode": "auto"}]]
     await start_salon(bench, "13:00", day, **AC_ATTRS)
     await bench.go_to("14:00")
-    assert bench.settings() == {}
+    assert bench.settings() == {("climate.salon", "fan_mode"): "auto"}
     assert bench.applied() == {"climate.salon": "comfort"}
 
 
