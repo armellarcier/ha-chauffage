@@ -9,11 +9,25 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.10.0-alpha.1] - 2026-11-21
+
+**An alpha: install it only to try it, on a Home Assistant you can restore.** This version
+changes a lot: how Chauffage reads and sends the HVAC mode, and how a change by hand becomes an
+override. The automated tests and a test Home Assistant pass, but no real installation has run
+it yet.
+
 **A slot says what the device does, not only how warm.** A slot can turn a thermostat off, and
 on an air conditioner it chooses *Heat*, *Cool*, *Heat/Cool*, *Dry*, *Auto* or *Fan only*. The
 stored data is migrated (version 7).
 
 ### Upgrading
+
+1. **Make a full backup of Home Assistant first.** Version 0.9.0 does not know version 7 of the
+   stored data. To go back to 0.9.0, restore that backup.
+2. Update from HACS, with beta versions enabled, then restart Home Assistant and reload the
+   page.
+3. Watch your thermostats for a day. If one does something you don't expect, its logbook says
+   what Chauffage sent and why. Please report it in an issue.
 
 Your weeks don't change, and neither do the heating temperatures of your presets. Check these
 points if they concern you:
