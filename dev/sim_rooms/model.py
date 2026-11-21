@@ -39,11 +39,13 @@ GAIN_LAG = 0.1  # hours: a door opened or people coming in change the air gradua
 @dataclass(frozen=True)
 class Room:
     power: float  # °C per hour the radiator brings to the air at full output
+    cool: float = 0.0  # °C per hour the air conditioner takes from the air when it cools (#91)
     exchange: float = 0.4  # per hour, air ↔ walls
     inertia: float = 0.35  # how much the walls follow the air (ratio of the air's mass to theirs)
     leak: float = 0.03  # per hour, air → outdoor (draughts)
     loss: float = 0.015  # per hour, walls → outdoor
     sun: float = 0.0  # °C per hour at the sunniest time of a sunny day
+    warmth: float = 0.0  # °C per hour the rest of the house brings, all day long
     cooking: bool = False
     seed: int = 0
 
@@ -67,6 +69,12 @@ ROOMS = {
     "chambre": Room(power=3.6, seed=3),
     "cuisine": Room(power=3.8, leak=0.045, cooking=True, seed=4),
     "amis": Room(power=3.3, loss=0.02, seed=5),  # north facing, seldom used
+    "veranda": Room(power=4.0, leak=0.05, loss=0.03, sun=1.5, seed=6),  # glass: sunny, leaky
+    "atelier": Room(power=3.2, cool=2.4, leak=0.04, sun=0.9, seed=7),  # a reversible air conditioner
+    "mezzanine": Room(power=3.4, cool=2.6, sun=0.5, seed=8),  # open on the living room
+    # Under the roof, above the heated rooms: no heater, a cooling-only air conditioner
+    "combles": Room(power=0.0, cool=2.8, warmth=1.0, sun=1.2, seed=9),
+    "suite_parentale": Room(power=3.6, cool=2.5, sun=0.4, seed=10),  # a reversible Daikin
 }
 
 
@@ -115,7 +123,7 @@ def gains(room: Room, t: datetime, sunshine: float, day: Day) -> float:
     """Free gains (and losses) in °C per hour: sun through the clouds, cooking, people, doors."""
     hour = t.hour + t.minute / 60
     minute = t.hour * 60 + t.minute
-    gain = sum(rate for start, end, rate in day.events if start <= minute < end)
+    gain = room.warmth + sum(rate for start, end, rate in day.events if start <= minute < end)
     if room.sun and 10.5 <= hour <= 17:
         gain += room.sun * sunshine * day.clouds[minute // 15] * math.sin((hour - 10.5) / 6.5 * math.pi)
     if room.cooking and (12 <= hour < 12.75 or 19 <= hour < 20):
@@ -124,12 +132,14 @@ def gains(room: Room, t: datetime, sunshine: float, day: Day) -> float:
 
 
 def step(room: Room, state: State, heater_on: bool, t: datetime, hours: float,
-         mildness: float, sunshine: float, day: Day) -> State:
-    """The room's state after `hours` (a minute or less)."""
+         mildness: float, sunshine: float, day: Day, cooler_on: bool = False) -> State:
+    """The room's state after `hours` (a minute or less). `cooler_on`: the room's air
+    conditioner cools (the "radiator" then takes heat from the air)."""
     air, walls, radiator, felt, gain = state
     ext = outdoor(t, mildness)
     flow = room.exchange * (air - walls)
-    radiator += ((room.power if heater_on else 0.0) - radiator) / RADIATOR_LAG * hours
+    output = room.power if heater_on else -room.cool if cooler_on else 0.0
+    radiator += (output - radiator) / RADIATOR_LAG * hours
     gain += (gains(room, t, sunshine, day) - gain) / GAIN_LAG * hours
     air += (radiator + gain - flow - room.leak * (air - ext)) * hours
     walls += (room.inertia * flow - room.loss * (walls - ext)) * hours

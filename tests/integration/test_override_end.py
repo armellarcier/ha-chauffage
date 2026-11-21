@@ -10,7 +10,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from conftest import CTX_USER, KINDS, MANUAL_PRESET, MONDAY, PARIS, Bench, every_day
+from conftest import CTX_USER, KINDS, MANUAL_PRESET, MONDAY, PARIS, WEEKDAY, WEEKEND, Bench, every_day
+from hvac_helpers import start_salon
 from homeassistant.util import dt as dt_util
 
 
@@ -113,7 +114,7 @@ async def test_a_preset_picked_on_the_thermostat_ends_at_the_next_slot(bench: Be
     bench.thermostat("climate.salon", "boost", context=CTX_USER)
     await bench.hass.async_block_till_done()
     o = bench.overrides()["climate.salon"]
-    assert (o["kind"], o["value"]) == ("preset", "boost")
+    assert o["target"] == {"preset_mode": "boost"}
     assert end_of(o) == at("20:00")
 
 
@@ -357,7 +358,7 @@ async def test_a_setting_changed_during_the_override_does_not_move_its_end(bench
 
 async def test_an_override_set_from_the_card_keeps_its_end(bench: Bench):
     await start(bench, NEXT_SLOT, hhmm="21:30")
-    override = bench.runtime.new_override("temperature", 22, minutes=24 * 60)
+    override = bench.runtime.new_override({"temperature": 22}, minutes=24 * 60)
     await bench.set_override("climate.salon", override)
     o = bench.overrides()["climate.salon"]
     assert end_of(o) == at("21:30", day=1)
@@ -391,7 +392,7 @@ async def test_a_value_changed_from_the_card_keeps_why_the_override_ends(bench: 
     await start(bench, WITHIN, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
-    await bench.set_override("climate.salon", {**o, "value": 23})
+    await bench.set_override("climate.salon", {**o, "target": {"temperature": 23}})
     assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
 
 
@@ -508,7 +509,7 @@ async def test_an_end_set_to_the_next_slot_on_the_card_says_next_slot(bench: Ben
 
 async def test_a_new_override_from_the_card_until_the_next_slot_says_next_slot(bench: Bench):
     await start(bench, hhmm="21:30")
-    override = bench.runtime.new_override("temperature", 22, end=at("22:30"))
+    override = bench.runtime.new_override({"temperature": 22}, end=at("22:30"))
     await bench.set_override("climate.salon", override | {"ends_at": "next_slot"})
     assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
 
@@ -529,3 +530,36 @@ async def test_an_end_moved_from_the_next_slot_no_longer_says_next_slot(bench: B
     o = bench.overrides()["climate.salon"]
     await bench.set_override("climate.salon", {**o, "end": (end_of(o) + timedelta(minutes=30)).isoformat()})
     assert "ends_at" not in bench.overrides()["climate.salon"]
+
+
+# ----- the end "until tomorrow" is the next morning -----
+
+async def test_until_tomorrow_is_the_first_change_of_today_when_it_is_still_to_come(bench: Bench):
+    """At 01:30 on Sunday, the morning is today's first change (08:00), the same instant as the
+    next slot: the card then shows one button."""
+    await start_salon(bench, "10:00", day=None)
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 5 + [WEEKEND] * 2}})
+    await bench.go_to("01:30", day=6)
+    info = bench.runtime.planned_info("climate.salon")
+    assert info["next_day_slot_end"] == "2026-10-18T08:00:00+02:00"
+    assert info["next_day_slot_end"] == info["next_slot_end"]
+
+
+async def test_until_tomorrow_on_a_weekday_evening_is_tomorrow_s_first_change(bench: Bench):
+    await start_salon(bench, "22:00")
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-13T06:30:00+02:00"
+
+
+async def test_until_tomorrow_on_sunday_evening_is_monday_s_first_change(bench: Bench):
+    await start_salon(bench, "10:00")
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 5 + [WEEKEND] * 2}})
+    await bench.go_to("22:00", day=6)
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-19T06:30:00+02:00"
+
+
+async def test_until_tomorrow_skips_a_flat_day(bench: Bench):
+    """Sunday on one preset all day: the morning is Monday's."""
+    await start_salon(bench, "10:00")
+    await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 6 + [[["00:00", "eco"]]]}})
+    await bench.go_to("22:00", day=5)  # Saturday evening
+    assert bench.runtime.planned_info("climate.salon")["next_day_slot_end"] == "2026-10-19T06:30:00+02:00"

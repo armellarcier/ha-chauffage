@@ -31,7 +31,7 @@ def presets(bench: Bench) -> list[dict]:
 async def test_a_new_installation_has_the_four_default_presets(bench: Bench):
     await bench.setup()
     assert [(p["id"], p["temperature"]) for p in bench.runtime.data["presets"]] == [
-        ("comfort", 20.0), ("eco", 17.0), ("boost", 21.0), ("frost", 7.0)]
+        ("comfort", 20.0), ("eco", 17.0), ("boost", 22.0), ("frost", 7.0)]
 
 
 async def test_storage_from_v0_2_is_migrated_without_changing_anything(bench: Bench, hass_storage):
@@ -44,7 +44,7 @@ async def test_storage_from_v0_2_is_migrated_without_changing_anything(bench: Be
     assert [p["id"] for p in data["presets"]] == ["comfort", "eco", "boost", "frost"]
     assert bench.runtime.mappings == {}
     assert bench.runtime.weeks["climate.salon"]["normal"][0] == WEEKDAY
-    assert bench.runtime.targets_of("climate.salon")["comfort"] == {"preset": "comfort"}
+    assert bench.runtime.targets_of("climate.salon")["comfort"] == {"preset_mode": "comfort"}
 
 
 async def test_a_mapping_set_by_hand_is_applied(bench: Bench):
@@ -112,4 +112,4 @@ async def test_the_card_gets_presets_and_what_they_mean_per_thermostat(bench: Be
     await start(bench)
     snapshot = bench.runtime.snapshot()
     assert [p["id"] for p in snapshot["presets"]] == ["comfort", "eco", "boost", "frost"]
-    assert snapshot["targets"]["climate.salon"]["eco"] == {"preset": "eco"}
+    assert snapshot["targets"]["climate.salon"]["eco"] == {"preset_mode": "eco"}

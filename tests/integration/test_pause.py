@@ -53,14 +53,14 @@ async def test_a_thermostat_paused_during_a_realignment_is_sent_nothing_more(ben
     is skipped, and not retried if its command would have failed."""
     await start(bench)
     bench.unreachable.add("climate.bureau")
-    send = bench.runtime.call_climate
+    send = bench.runtime.reproduce
 
-    async def pause_bureau_first(service, entity_id, data):
+    async def pause_bureau_first(entity_id, hvac_mode, attributes):
         if entity_id == "climate.salon":
             await bench.runtime.set_paused("climate.bureau", True)
-        return await send(service, entity_id, data)
+        return await send(entity_id, hvac_mode, attributes)
 
-    bench.runtime.call_climate = pause_bureau_first
+    bench.runtime.reproduce = pause_bureau_first
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.salon": "comfort"}
     await bench.advance(1)
@@ -139,7 +139,7 @@ async def test_no_override_can_be_set_on_a_paused_thermostat(bench: Bench):
     await start(bench)
     await pause(bench, "climate.salon")
     with pytest.raises(model.InvalidData):
-        await bench.set_override("climate.salon", bench.runtime.new_override("temperature", 22))
+        await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
     with pytest.raises(ServiceValidationError) as err:
         await bench.hass.services.async_call(
             "chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22}, blocking=True

@@ -59,12 +59,17 @@ describe('the panel\'s "Thermostats" page', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
+  test('says what a paused control is', () => {
+    assert.equal(text(open(setup()).shadowRoot.querySelector('.th-hint')),
+      'Chauffage pilote les thermostats programmés. Un thermostat au pilotage suspendu reste programmé : il garde ses semaines, mais Chauffage n\'y touche plus.');
+  });
+
   test('lists every scheduled thermostat by name; only a paused one has a badge, the exception', () => {
     const card = open(setup());
     const rows = [...card.shadowRoot.querySelectorAll('.th-row')].map((r) => r.dataset.climate);
     assert.deepEqual(rows, ['climate.bureau', 'climate.cuisine', 'climate.salon']);
     assert.equal(row(card, 'climate.salon').querySelector('.badge'), null);
-    assert.match(text(row(card, 'climate.cuisine').querySelector('.badge')), /^En pause$/);
+    assert.match(text(row(card, 'climate.cuisine').querySelector('.badge')), /^Pilotage suspendu$/);
   });
 
   test('its rows fill a card of their own, edge to edge; the texts, the link and the form to add one sit outside it', () => {
@@ -113,7 +118,7 @@ describe('the panel\'s "Thermostats" page', () => {
       assert.equal(row(card, 'climate.salon').querySelector('[data-act="pause"]'), null); // not on the row
       click(card, 'climate.salon', 'thermostat-more');
       assert.ok(menuOf(card).classList.contains('menu'));
-      assert.match(text(menuOf(card)), /Mettre en pause.*Ouvrir le thermostat.*Vanne salon \(TRV\).*Salon \(Thermostat programmé\).*Oublier/);
+      assert.match(text(menuOf(card)), /Suspendre le pilotage.*Ouvrir le thermostat.*Vanne salon \(TRV\).*Salon \(Thermostat programmé\).*Oublier/);
       menuOf(card).querySelector('[data-more-info="climate.salon"]').click();
       assert.deepEqual(opened, ['climate.salon']);
       click(card, 'climate.salon', 'thermostat-more');
@@ -145,7 +150,7 @@ describe('the panel\'s "Thermostats" page', () => {
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
     assert.equal(menuOf(card), null);
     click(card, 'climate.cuisine', 'thermostat-more');
-    assert.equal(text(menuOf(card).querySelector('[data-act="resume"]')), 'Piloter');
+    assert.equal(text(menuOf(card).querySelector('[data-act="resume"]')), 'Reprendre le pilotage');
     menuOf(card).querySelector('[data-act="resume"]').click();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.cuisine', paused: false });
   });
@@ -222,7 +227,7 @@ describe('the panel\'s "Thermostats" page', () => {
 
   test('in English', () => {
     const card = open(setup({ locale: { language: 'en' } }));
-    assert.match(text(row(card, 'climate.cuisine')), /Cuisine Paused/);
+    assert.match(text(row(card, 'climate.cuisine')), /Cuisine Control paused/);
     assert.equal(text(row(card, 'climate.salon').querySelector('.th-title')), 'Salon');
     assert.match(text(card.shadowRoot.querySelector('.th-add')), /Schedule another thermostat/);
   });

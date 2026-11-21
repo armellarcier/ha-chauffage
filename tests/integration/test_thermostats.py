@@ -135,14 +135,14 @@ async def test_a_thermostat_without_weeks_turns_no_change_by_hand_into_an_overri
 
 async def test_a_thermostat_forgotten_during_a_realignment_is_sent_nothing_more(bench: Bench):
     await start(bench)
-    send = bench.runtime.call_climate
+    send = bench.runtime.reproduce
 
-    async def forget_bureau_first(service, entity_id, data):
+    async def forget_bureau_first(entity_id, hvac_mode, attributes):
         if entity_id == "climate.salon" and "climate.bureau" in bench.runtime.thermostats:
             await bench.runtime.forget("climate.bureau")
-        return await send(service, entity_id, data)
+        return await send(entity_id, hvac_mode, attributes)
 
-    bench.runtime.call_climate = forget_bureau_first
+    bench.runtime.reproduce = forget_bureau_first
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.salon": "comfort"}
 

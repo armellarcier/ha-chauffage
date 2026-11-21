@@ -14,13 +14,16 @@ const PRESET_NAMES = {
   en: { comfort: 'Comfort', eco: 'Eco', boost: 'Boost', frost: 'Frost protection' },
   fr: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
 };
+// Each with its temperature when heating, and when cooling: frost protection has none (#91)
 export const PRESETS = (language = 'fr') => [
-  ['comfort', '#f57c00', 20], ['eco', '#43a047', 17], ['boost', '#e53935', 21], ['frost', '#29b6f6', 7],
-].map(([id, color, temperature]) => ({ id, name: PRESET_NAMES[language.startsWith('fr') ? 'fr' : 'en'][id], color, temperature }));
+  ['comfort', '#f57c00', 20, 25], ['eco', '#43a047', 17, 27], ['boost', '#e53935', 21, 23], ['frost', '#29b6f6', 7],
+].map(([id, color, temperature, cool]) => ({ id, name: PRESET_NAMES[language.startsWith('fr') ? 'fr' : 'en'][id], color, temperature,
+  ...(cool ? { cool_temperature: cool } : {}) }));
 
 const slug = (name) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-const PAIRS = (list) => list.map((s) => s.split(' '));
+// A slot as the integration sends it: [start, preset] or [start, preset, settings]
+const PAIRS = (list) => list.map((s) => (Array.isArray(s) ? s : s.split(' ')));
 const SALON = { 'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] } };
 
 /**
@@ -48,6 +51,7 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
     revision: 4,
     override_duration: 120,
     manual_override_end: 'duration',
+    off_override_end: 'next_slot',
     use_presets: true,
     // What each thermostat follows now and the next different preset (computed by the integration)
     planned,
@@ -149,6 +153,20 @@ export function createCard(hass, config = {}) {
   document.body.appendChild(card);
   card.hass = hass;
   return card;
+}
+
+/**
+ * An edit of a week, as a double tap then a tap on a preset make it: a piece cut at a time of
+ * day, set to `preset` (by default a preset that neither the slot nor the next one has).
+ */
+export function cutSlot(card, climate, day, minute, preset) {
+  card._split(climate, day, minute);
+  const sel = card._sel;
+  if (!sel || sel.climate !== climate) return;
+  const segs = card._week(climate)[sel.day];
+  const taken = [segs[sel.idx].preset, segs[sel.idx + 1] && segs[sel.idx + 1].preset];
+  const other = preset || ['comfort', 'eco', 'boost', 'frost'].find((id) => !taken.includes(id));
+  card._changeSlot(climate, sel.day, sel.idx, (slot) => ({ ...slot, preset: other }));
 }
 
 /** Types a time in one of the cards' time fields, then leaves the field: the time is applied then. */

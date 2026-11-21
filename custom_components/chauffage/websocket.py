@@ -4,20 +4,36 @@ An admin makes every change. A user who is not an admin makes the changes their 
 allows (require_access, #99), and overrides and pauses on the thermostats they may control.
 
 chauffage/subscribe          everything the card needs, then again after every change, when a
-                             planned preset changes, and after the integration is reloaded
-chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent, against
+                             planned slot changes, and after the integration is reloaded. A week's
+                             slot is [start, preset] or [start, preset, settings] (#91: its
+                             HVAC mode, heat, cool or heat_cool with a preset, off, fan_only, dry
+                             or auto without one (preset null), and the fan and the vanes);
+                             `targets` gives what each preset means on each thermostat, for each
+                             HVAC mode (engine.value_on); `planned` gives each thermostat's
+                             preset, hvac_mode (the slot's on this thermostat, null on a
+                             heater), target, next_preset,
+                             next_hvac_mode, next_start, next_slot_end and next_day_slot_end;
+                             `thermostats` says why a VTherm protects itself (cause: window, auto_start_stop);
+                             `cool_preset_temperatures`, what a thermostat's own presets give when it cools
+chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent (slots with
+                             optional settings, see above), against
                              the revision of each ({climate: revision | null}), or the global one
                              (older cards); refused ("stale") if edited elsewhere meanwhile
-chauffage/override/set       {entity_id, override | null, source?}: change (value, end) or remove an override;
-                             a new value is sent to the thermostat. Any user who may control the
-                             thermostat, not only an admin
+chauffage/override/set       {entity_id, override | null, source?}: change (target, end) or remove an override;
+                             a new value is sent to the thermostat; a single temperature in
+                             heat_cool is refused on a thermostat that takes a range there. Any
+                             user who may control the thermostat, not only an admin
 chauffage/schedule/activate  {schedule, source?}: activate a schedule (same as the select entity)
 chauffage/schedules/set      {schedules, revision}: the ordered list of schedules: create (empty
                              or a copy), rename, move, delete (see model.plan_schedules)
-chauffage/presets/set        {presets, replacements}: the presets (a removed preset used in the
+chauffage/presets/set        {presets, replacements}: the presets, each with its temperature when
+                             heating ("temperature", null: none), an optional "cool_temperature"
+                             and an optional cool_color, the color of its cooling slots (a
+                             removed preset used in the
                              weeks is replaced by the preset given in replacements)
 chauffage/mapping/set        {entity_id, mapping}: what the presets mean for one thermostat
-                             ({preset id: {"preset": climate preset} | {"temperature": …}}; {} = defaults)
+                             ({preset id: {"preset_mode": climate preset} | {"temperature": …},
+                             with an optional "cool_temperature", fan and vanes}; {} = defaults)
 chauffage/rules/set          {rules, default_schedule}: the activation rules ([{"template", "schedule"}],
                              the first that applies wins; schedule null: the template gives it) and
                              the schedule when none applies (or null)
@@ -26,7 +42,7 @@ chauffage/rules/preview      {rules}: tries rules being typed, as the integratio
 chauffage/thermostat/set     {entity_id, paused}: pause (kept, not controlled) or resume a scheduled
                              thermostat. Any user who may control the thermostat
 chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
-chauffage/settings/set       {manual_override_end?, override_duration?, access_level?}: the settings
+chauffage/settings/set       {manual_override_end?, off_override_end?, override_duration?, access_level?}: the settings
                              of overrides, in the integration's options (as the options flow and
                              the entities), and the access level (admins only)
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
@@ -250,8 +266,11 @@ async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveCon
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if not _may_control(connection, msg):
         return
-    await _run(hass, connection, msg, lambda runtime: runtime.set_override(
-        msg["entity_id"], msg["override"], source=msg["source"], context=connection.context(msg)))
+    async def set_override(runtime: ChauffageRuntime) -> None:
+        runtime.refuse_lone_temperature(msg["entity_id"], msg["override"])
+        await runtime.set_override(msg["entity_id"], msg["override"], source=msg["source"], context=connection.context(msg))
+
+    await _run(hass, connection, msg, set_override)
 
 
 @websocket_api.websocket_command({
@@ -384,6 +403,7 @@ async def ws_history(hass: HomeAssistant, connection: websocket_api.ActiveConnec
 @websocket_api.websocket_command({
     vol.Required("type"): "chauffage/settings/set",
     vol.Optional("manual_override_end"): str,
+    vol.Optional("off_override_end"): str,
     vol.Optional("override_duration"): int,
     vol.Optional(CONF_ACCESS_LEVEL): str,
 })
@@ -396,7 +416,8 @@ async def ws_set_settings(hass: HomeAssistant, connection: websocket_api.ActiveC
         # Checked before anything changes: a refused message changes nothing
         if CONF_ACCESS_LEVEL in msg and msg[CONF_ACCESS_LEVEL] not in ACCESS_LEVELS:
             raise model.InvalidData(f"unknown access level: {msg[CONF_ACCESS_LEVEL]}")
-        runtime.set_override_settings(msg.get("manual_override_end"), msg.get("override_duration"))
+        runtime.set_override_settings(msg.get("manual_override_end"), msg.get("override_duration"),
+                                      msg.get("off_override_end"))
         if CONF_ACCESS_LEVEL in msg:
             runtime.set_access_level(msg[CONF_ACCESS_LEVEL])
 

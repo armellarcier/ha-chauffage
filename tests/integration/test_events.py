@@ -46,7 +46,8 @@ async def test_a_manual_change_turned_into_an_override_is_told(bench: Bench, eve
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
     assert events["chauffage_override_started"] == [{
-        "entity_id": "climate.salon", "kind": "temperature", "value": 21.5, "preset": None,
+        "entity_id": "climate.salon", "target": {"temperature": 21.5}, "preset": None,
+        "kind": "temperature", "value": 21.5,  # as before #91, for existing automations
         "end": "2026-10-12T12:00:00+02:00", "source": "thermostat",
         # When it started, and why it ends then (#83)
         "start": "2026-10-12T10:00:00+02:00", "ends_at": "duration",
@@ -56,7 +57,7 @@ async def test_a_manual_change_turned_into_an_override_is_told(bench: Bench, eve
 async def test_an_override_set_by_a_service_or_the_card_is_told(bench: Bench, events):
     await start(bench)
     await service(bench, "set_override", entity_id="climate.salon", preset="boost")
-    await bench.set_override("climate.salon", bench.runtime.new_override("temperature", 19))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 19}))
     started = events["chauffage_override_started"]
     assert [(e["preset"], e["source"]) for e in started] == [("boost", "service"), (None, "card")]
 
@@ -76,12 +77,12 @@ async def test_an_override_ending_says_why(bench: Bench, events):
     await bench.go_to("12:00")  # its end
     await service(bench, "set_override", entity_id="climate.salon", temperature=22)
     await service(bench, "clear_override", entity_id="climate.salon")
-    await bench.set_override("climate.salon", bench.runtime.new_override("temperature", 22))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
     await bench.set_override("climate.salon", None)
-    await bench.set_override("climate.salon", bench.runtime.new_override("temperature", 22))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
     await bench.runtime.set_paused("climate.salon", True)
     await bench.runtime.set_paused("climate.salon", False)
-    await bench.set_override("climate.salon", bench.runtime.new_override("temperature", 22))
+    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
     await bench.runtime.forget("climate.salon")
     await bench.hass.async_block_till_done()
     assert [(e["entity_id"], e["reason"]) for e in events["chauffage_override_ended"]] == [

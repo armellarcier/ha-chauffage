@@ -60,7 +60,7 @@ describe('the settings dialog', () => {
       radio.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
-    test('short and plain, as Home Assistant\'s settings: a heading, one line, the duration, the choices, one note', () => {
+    test('short and plain, as Home Assistant\'s settings: a heading, one line, the duration, the choices, a line for off, one note', () => {
       const el = settings(withSettings({}));
       assert.equal(text($(el, '.override-settings h3')), 'Dérogations');
       assert.equal(text($(el, '.override-settings .intro')),
@@ -68,13 +68,29 @@ describe('the settings dialog', () => {
       assert.equal(text($(el, '.override-settings .duration-row label')), 'Durée');
       assert.equal($(el, '.override-settings [role="radiogroup"]').getAttribute('aria-label'), 'Fin des dérogations');
       // Labels only: the explanations and the examples are in the README
-      assert.deepEqual($$(el, '.override-settings .choice').map((c) => text(c)),
+      assert.deepEqual($$(el, '.override-settings .end-choices .choice').map((c) => text(c)),
         ['Pendant 2 h (par défaut)', 'Pendant 2 h, ou moins si un créneau commence avant', "Jusqu'au prochain créneau"]);
+      // Then the same choices, in the same order, for a thermostat turned off (#91): one name
+      // for this setting everywhere, and a line that says it applies to automations too
+      assert.equal(text($(el, '.override-settings .off-end-title')), 'Thermostat éteint');
+      assert.deepEqual($$(el, '.override-settings .off-end-choices .choice').map((c) => text(c)),
+        ['Pendant 2 h', 'Pendant 2 h, ou moins si un créneau commence avant', "Jusqu'au prochain créneau (par défaut)"]);
       assert.deepEqual($$(el, '.override-settings p').map((p) => text(p)), [
         'Une consigne changée à la main devient une dérogation. Choisissez combien de temps elle dure.',
+        "À la main, depuis la carte, ou par une automatisation qui l'éteint sans donner de fin.",
         'Un créneau qui commence dans moins de 15 min ne compte pas.',
       ]);
-      assert.doesNotMatch(text(section(el)), /Par exemple|Salon|carte/);
+      assert.doesNotMatch(text(section(el)), /Par exemple|Salon/);
+    });
+
+    test('the end of off overrides: until the next slot by default, sent at once when changed', async () => {
+      const el = settings(withSettings({}));
+      const off = () => $$(el, '.override-settings [data-off-override-end]');
+      assert.deepEqual(off().map((c) => `${c.value}${c.checked ? ' ✓' : ''}`), ['duration', 'next_slot_within_duration', 'next_slot ✓']);
+      change(off()[0]);
+      await el._settingsSent;
+      assert.deepEqual(el._hass.events.at(-1), { type: 'chauffage/settings/set', off_override_end: 'duration' });
+      assert.equal(off()[0].checked, true);
     });
 
     test('the choices carry the user\'s duration and mark the default; the current one is checked', () => {
@@ -376,7 +392,7 @@ describe('the settings dialog', () => {
 
   describe('opened on top of the view, without leaving it', () => {
     // A change by hand that ends at the next slot: its end gives the reason, a link for an admin
-    const OVERRIDE = { kind: 'temperature', value: 21.5, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
+    const OVERRIDE = { target: { temperature: 21.5 }, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
     const withOverride = (more = {}) => setup({ overrides: { 'climate.salon': OVERRIDE }, ...more });
     const moreInfo = (hass) => {
       const el = document.createElement('chauffage-moreinfo');
@@ -643,7 +659,7 @@ describe('the settings dialog', () => {
 
     test('the Material ha-dialog (Home Assistant 2025.1): Escape closes the settings dialog only, not the more-info dialog nor the popover under it', async () => {
       delete FakeHaDialog.prototype.headerTitle;
-      const OVERRIDE = { kind: 'temperature', value: 21.5, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
+      const OVERRIDE = { target: { temperature: 21.5 }, start: '2026-10-14T09:30:00+02:00', end: '2026-10-14T11:30:00+02:00', ends_at: 'next_slot' };
       const hass = setup({ overrides: { 'climate.salon': OVERRIDE } });
       const manager = fakeDialogManager(hass);
       // The more-info dialog, a Material dialog open under ours

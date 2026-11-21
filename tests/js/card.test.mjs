@@ -1,5 +1,5 @@
 // Behavior of the custom:chauffage-programme-card card.
-import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, PRESETS, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, PRESETS, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
@@ -162,31 +162,25 @@ describe('activating a schedule', () => {
 });
 
 describe('editing a day', () => {
-  test('adding a cut creates a slot with the other preset', () => {
+  test('a cut makes a piece like its slot, selected', () => {
     const card = createCard(fakeHass());
     card._split('climate.bureau', 0, 12 * 60);
-    assert.deepEqual(day(card, 'climate.bureau', 0), ['00:00 eco', '12:00 comfort']);
+    assert.deepEqual(day(card, 'climate.bureau', 0), ['00:00 eco', '12:00 eco']);
+    assert.deepEqual(card._sel, { climate: 'climate.bureau', day: 0, idx: 1 });
     assert.equal(card._dirty, true);
   });
 
-  test('a cut never moves the next slot: its preset differs from both neighbors', () => {
+  test('a cut never moves the next slot', () => {
     const card = createCard(fakeHass());
     card._split('climate.salon', 0, 12 * 60); // in 08:30 eco, before 17:30 comfort
     assert.deepEqual(day(card, 'climate.salon', 0),
-      ['00:00 eco', '06:30 comfort', '08:30 eco', '12:00 boost', '17:30 comfort', '22:30 eco']);
+      ['00:00 eco', '06:30 comfort', '08:30 eco', '12:00 eco', '17:30 comfort', '22:30 eco']);
   });
 
-  test('with two presets, a cut adds a slot of the other one, then goes back to the slot\'s preset', () => {
-    const card = createCard(fakeHass({ data: { ...integrationData(), presets: PRESETS().slice(0, 2) } }));
-    card._split('climate.salon', 0, 12 * 60); // 08:30 eco until 17:30 comfort
-    assert.deepEqual(day(card, 'climate.salon', 0),
-      ['00:00 eco', '06:30 comfort', '08:30 eco', '12:00 comfort', '14:45 eco', '17:30 comfort', '22:30 eco']);
-  });
-
-  test('with two presets, a cut without room to go back to the slot\'s preset is refused', () => {
-    const card = createCard(fakeHass({ data: { ...integrationData(), presets: PRESETS().slice(0, 2) } }));
+  test('a cut a step before the next slot is made', () => {
+    const card = createCard(fakeHass());
     card._split('climate.salon', 0, 17 * 60 + 15); // 15 min before 17:30 comfort
-    assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '17:15 eco', '17:30 comfort']);
   });
 
   test('a cut too close to an existing slot is refused', () => {
@@ -201,18 +195,20 @@ describe('editing a day', () => {
     assert.deepEqual(day(card, 'climate.salon', 0).slice(0, 3), ['00:00 eco', '08:15 comfort', '08:30 eco']);
   });
 
-  test('changing a slot preset merges it with identical neighbors', () => {
+  test('a slot set to the preset of its neighbors stays a slot, once its popover is closed too', () => {
     const card = createCard(fakeHass());
     card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
     card._action('preset', { preset: 'eco' });
-    assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '17:30 comfort', '22:30 eco']);
+    assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '06:30 eco', '08:30 eco', '17:30 comfort', '22:30 eco']);
+    card._action('close', {});
+    assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '06:30 eco', '08:30 eco', '17:30 comfort', '22:30 eco']);
   });
 });
 
 describe('copy / paste', () => {
   test('copying to Mon–Fri leaves the weekend untouched', () => {
     const card = createCard(fakeHass());
-    card._split('climate.salon', 0, 12 * 60); // modified Monday: 12:00 comfort
+    cutSlot(card, 'climate.salon', 0, 12 * 60); // modified Monday: 12:00 comfort
     const monday = day(card, 'climate.salon', 0);
     card._copyDay('climate.salon', 0, 'weekdays');
     for (let d = 1; d < 5; d++) assert.deepEqual(day(card, 'climate.salon', d), monday);
@@ -249,7 +245,7 @@ describe('saving', () => {
   test('Save sends every schedule to HA and clears the "modified" state', async () => {
     const hass = fakeHass();
     const card = createCard(hass);
-    card._split('climate.bureau', 0, 12 * 60);
+    cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await card._save();
 
     const [msg] = hass.events;
@@ -261,7 +257,7 @@ describe('saving', () => {
 
   test('Cancel goes back to the saved schedules', () => {
     const card = createCard(fakeHass());
-    card._split('climate.salon', 0, 12 * 60);
+    cutSlot(card, 'climate.salon', 0, 12 * 60);
     card._action('cancel', {});
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
@@ -284,7 +280,7 @@ describe('choosing the displayed thermostats', () => {
   });
 
   test('a chip only names its thermostat, with a mark when it has a temporary setpoint (#39)', () => {
-    const override = { kind: 'preset', value: 'boost', preset: 'boost', start: new Date(Date.now() - 600000).toISOString(), end: new Date(Date.now() + 3600000).toISOString() };
+    const override = { target: { preset_mode: 'boost' }, preset: 'boost', start: new Date(Date.now() - 600000).toISOString(), end: new Date(Date.now() + 3600000).toISOString() };
     const card = createCard(fakeHass({ overrides: { 'climate.bureau': override } }));
     const text = (id) => chip(card, id).textContent.replace(/\s+/g, ' ').trim();
     assert.equal(text('climate.salon'), 'Salon'); // no temperature nor preset: the "Now" view says it
@@ -352,7 +348,7 @@ describe('overrides from the card', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
 
-  const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+  const override = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
 
   test('the override is shown on today’s row, in the active schedule tab', () => {
     const card = createCard(fakeHass({ overrides: { 'climate.salon': override } }));

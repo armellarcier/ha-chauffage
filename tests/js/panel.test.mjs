@@ -338,6 +338,41 @@ describe('the Chauffage panel', () => {
     });
   });
 
+  describe('telling existing users about the new off behavior (#91)', () => {
+    test('the Thermostats tab says once: a thermostat turned off by hand turns back on; its link opens the README, in the user\'s language', () => {
+      const el = panel(setup(), '/thermostats');
+      assert.match(text($(el, '.notice.new-off')), /Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation\. Pour le laisser éteint, suspendez son pilotage\./);
+      const link = $(el, '.new-off a');
+      assert.equal(text(link), 'En savoir plus');
+      assert.match(link.href, /README\.fr\.md#/);
+      assert.equal(link.target, '_blank');
+      el.remove();
+      const en = panel(setup({ locale: { language: 'en' } }), '/thermostats');
+      assert.match(text($(en, '.notice.new-off')), /^New: a thermostat turned off by hand turns back on/);
+      assert.match($(en, '.new-off a').href, /README\.md#turn-a-thermostat-off-by-hand/);
+    });
+
+    test('closed, it stays closed on this browser', () => {
+      const el = panel(setup(), '/thermostats');
+      $(el, '.new-off [data-close-notice]').click();
+      assert.equal($(el, '.new-off'), null);
+      el.remove(); // the panel opened again, in the same browser
+      assert.equal($(panel(setup(), '/thermostats'), '.new-off'), null);
+    });
+
+    test('a new user gets the next steps instead', () => {
+      const hass = setup({ weeks: {} });
+      const el = panel(hass, '/thermostats');
+      const box = $(el, '.welcome input[data-pick="climate.salon"]');
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      $(el, '[data-start]').click();
+      hass.push(integrationData({ weeks: { 'climate.salon': { Normal: WEEK } } }));
+      assert.ok($(el, '.next-steps'));
+      assert.equal($(el, '.new-off'), null);
+    });
+  });
+
   describe('telling existing users about the new setting (#83)', () => {
     test('the Thermostats tab says once: new, choose how long a setpoint changed by hand lasts; its link opens the settings', async () => {
       // A user with Set up, who is not an admin: an admin is told of the access level instead (#99)
@@ -481,13 +516,13 @@ describe('the Chauffage panel', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       await tick();
       assert.deepEqual($(el, '.tile .tile-card').config, { type: 'tile', entity: 'climate.salon', state_content: ['current_temperature', 'hvac_action'] });
-      assert.equal(text($(el, '.control')), 'Mettre en pause'); // a badge only for the exception, Paused
+      assert.equal(text($(el, '.control')), 'Suspendre le pilotage'); // a badge only for the exception, Paused
       assert.match(text($(el, '.about')), /Appareils : Vanne salon \(TRV\), Salon \(Thermostat programmé\)/);
     });
 
     test('a paused thermostat: Resume, a Paused badge that stands out, said once and not under each week', () => {
       const el = panel(setup({ paused: ['climate.salon'] }), '/thermostats/climate.salon');
-      assert.equal(text($(el, '.control')), 'Piloter En pause');
+      assert.equal(text($(el, '.control')), 'Reprendre le pilotage Pilotage suspendu');
       assert.ok($(el, '.control .badge.paused'));
       for (const card of weeks(el)) assert.equal($(card, '.paused-note'), null);
     });
@@ -623,6 +658,25 @@ describe('the Chauffage panel', () => {
       assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
       assert.equal(text($(away, '.msg')), 'Semaine Normal copiée ici');
       assert.deepEqual(away._week('climate.salon'), normal._week('climate.salon'));
+    });
+
+    test('the ⋮ of a week sets every slot of an air conditioner\'s week to heat or to cool, unsaved', () => {
+      const hass = setup();
+      hass.states['climate.salon'].attributes.hvac_modes = ['off', 'heat', 'cool'];
+      const el = panel(hass, '/thermostats/climate.salon');
+      $(el, '[data-copy-menu="away"]').click();
+      assert.deepEqual($$(el, '.copy-menu [data-week-hvac]').map(text), ['Tout en chauffe', 'Tout en clim']);
+      $(el, '.copy-menu [data-week-hvac="cool"]').click();
+      assert.equal($(el, '.copy-menu'), null);
+      const [normal, away] = weeks(el);
+      assert.ok(away._dirty && !normal._dirty);
+      assert.deepEqual(away._week('climate.salon')[0], [{ start: 0, preset: 'frost', settings: { hvac_mode: 'cool' } }]);
+      assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
+      // A heater's weeks have no such item
+      cleanup();
+      const heater = panel(setup(), '/thermostats/climate.bureau');
+      $(heater, '[data-copy-menu="away"]').click();
+      assert.equal($$(heater, '.copy-menu [data-week-hvac]').length, 0);
     });
 
     test('switching Group days or History keeps the weeks not saved yet', () => {

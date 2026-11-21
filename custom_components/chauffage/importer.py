@@ -27,7 +27,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 ISSUE_PACKAGE = "package_installed"
-OVERRIDE_KINDS = {"temp": "temperature", "preset": "preset"}
+OVERRIDE_KINDS = {"temp": "temperature", "preset": "preset_mode"}  # the package's type: the target's attribute
 
 
 class PackageTooNew(Exception):
@@ -84,12 +84,11 @@ def from_package(hass: HomeAssistant) -> dict[str, Any]:
     for entity_id, o in (raw if isinstance(raw, dict) else {}).items():
         try:
             overrides[entity_id] = model.normalize_override({
-                "kind": OVERRIDE_KINDS.get(o.get("type")),
-                "value": o.get("valeur"),
+                "target": {OVERRIDE_KINDS[o.get("type")]: o.get("valeur")},
                 "start": o.get("debut"),
                 "end": o.get("fin"),
             })
-        except (AttributeError, model.InvalidData):
+        except (AttributeError, KeyError, model.InvalidData):
             _LOGGER.warning("Override of %s not imported (unreadable): %s", entity_id, o)
 
     active = mode_state.state if mode_state else None
