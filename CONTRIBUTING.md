@@ -211,6 +211,25 @@ beta. You can also run this workflow by hand from the *Actions* tab. A failure n
 push or a release. The failure warns of a coming change in Home Assistant: fix it before the
 Home Assistant release if possible, without raising the minimum version.
 
+## Reviewing the card in the development HA
+
+To check a card change the way a user sees it, drive the development HA with Playwright. The
+review library in [`dev/review/`](dev/review/README.md) opens a slot, an override or a cell of
+the *Presets* tab, measures what it shows, and compares the thermostats' states with what the
+card said.
+
+Run a script from the root of the repository, with the development HA running:
+
+```bash
+dev/review/run.sh dev/review/examples/slot.mjs
+```
+
+The script runs in the Playwright Docker image, so you install nothing. The screenshots go to
+`dev/review/out/`. Open them: a row can measure right and still look wrong.
+
+Before a script changes slots or overrides, take a `backup` of the thermostats it touches, and
+`restore` it at the end. [`dev/review/README.md`](dev/review/README.md) lists every helper.
+
 ## Demo animation
 
 The README shows `docs/demo.gif`. To record the demo again, start a second, new development HA

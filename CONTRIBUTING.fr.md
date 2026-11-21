@@ -224,6 +224,28 @@ Home Assistant. Vous pouvez aussi lancer ce workflow à la main depuis l'onglet 
 Assistant : corrigez-le si possible avant la sortie de la version de Home Assistant, sans relever la version
 minimale.
 
+## Relire la carte dans le HA de développement
+
+Pour vérifier une modification de la carte comme un utilisateur la voit, pilotez le HA de
+développement avec Playwright. La bibliothèque de relecture de
+[`dev/review/`](dev/review/README.md) ouvre un créneau, une dérogation ou une case de l'onglet
+*Préréglages*, mesure ce qu'elle affiche, et compare l'état des thermostats avec ce que la carte
+annonçait.
+
+Lancez un script depuis la racine du dépôt, avec le HA de développement démarré :
+
+```bash
+dev/review/run.sh dev/review/examples/slot.mjs
+```
+
+Le script tourne dans l'image Docker de Playwright : vous n'installez rien. Les captures d'écran
+vont dans `dev/review/out/`. Ouvrez-les : une rangée peut avoir les bonnes mesures et pourtant
+mal s'afficher.
+
+Avant qu'un script modifie des créneaux ou des dérogations, faites un `backup` des thermostats
+qu'il touche, puis un `restore` à la fin. [`dev/review/README.md`](dev/review/README.md), en
+anglais, décrit chaque fonction de la bibliothèque.
+
 ## Animation de démo
 
 Le README affiche `docs/demo.gif`. Pour réenregistrer la démo, démarrez un second HA de
