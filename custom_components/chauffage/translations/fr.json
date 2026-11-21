@@ -143,7 +143,7 @@
       "options": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" }
     },
     "hvac_mode": {
-      "options": { "off": "Éteint", "heat": "Chauffage", "cool": "Climatisation", "heat_cool": "Chauffage/Climatisation", "auto": "Auto", "dry": "Déshumidification", "fan_only": "Ventilation" }
+      "options": { "off": "Éteint", "heat": "Chauffage", "cool": "Climatisation", "heat_cool": "Chauffage/Climatisation", "auto": "Automatique", "dry": "Déshumidification", "fan_only": "Ventilation uniquement" }
     }
   },
   "services": {

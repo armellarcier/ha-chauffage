@@ -9,6 +9,14 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **In French, the full names of the HVAC modes are Home Assistant's** (#91). A sentence of the
+  card, the logbook and the `chauffage.set_override` action say *Ventilation uniquement* and
+  *Automatique*, as the more-info dialog of Home Assistant does. The logbook said
+  "ventilation", which read like the fan speed in "ventilation 3". The buttons keep their short
+  names, for example *Clim* and *Ventilation*.
+
 ## [0.10.0-alpha.1] - 2026-11-21
 
 **An alpha: install it only to try it, on a Home Assistant you can restore.** This version

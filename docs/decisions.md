@@ -1202,6 +1202,11 @@ dashboards, automations, scripts and by voice without the card
       end of something: "dérogation Arrêt · jusqu'à 22:00" could mean that the override stops
       at 22:00. *Arrêter* keeps that meaning, the end of an override, and "Arrêt auto" stays
       Versatile Thermostat's name for its auto start/stop.
+    - **The full French names are Home Assistant's, short names stay in the buttons** (the
+      owner, after the audit of 0.10.0-alpha.1). The card's own full words, the logbook and the
+      service selector say *Ventilation uniquement* and *Automatique*, as Home Assistant does.
+      The buttons keep *Chauffe*, *Clim*, *Ventilation*: they fit three columns at 360 px, and
+      *Chauffage* would also read as the product's name.
     - **On a row shared by several thermostats, the name of a slot without a preset wins over
       its time**: "⏻ Off", not "00:00 ⏻ O…". The color of such a slot is no preset's color.
     - **The setpoint line is words, then a button.** "Setpoint: 20 °C", then *Set*, a button

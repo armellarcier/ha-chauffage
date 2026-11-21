@@ -268,6 +268,17 @@ async def test_the_logbook_tells_an_override_that_sets_the_fan_the_vanes_or_the_
         == "dérogation : 24,5 °C en climatisation, ventilation 3 jusqu'à lundi 12:00 (depuis la carte)"
 
 
+async def test_the_french_logbook_names_fan_only_and_auto_as_home_assistant_does(bench: Bench):
+    """"Ventilation" alone reads as the fan speed ("ventilation 3"): fan only is "ventilation uniquement"."""
+    await start(bench, "10:00")
+    bench.hass.config.language = "fr"
+    base = {"entity_id": "climate.salon", "preset": None, "end": "2026-10-12T12:00:00+02:00", "source": "card"}
+    assert described(bench, "chauffage_override_started", **base, target={"hvac_mode": "fan_only"})["message"] \
+        == "dérogation : ventilation uniquement jusqu'à lundi 12:00 (depuis la carte)"
+    assert described(bench, "chauffage_override_started", **base, target={"hvac_mode": "auto"})["message"] \
+        == "dérogation : automatique jusqu'à lundi 12:00 (depuis la carte)"
+
+
 async def test_the_logbook_still_describes_an_override_recorded_before_0_10(bench: Bench):
     """Before #91, the events carried kind and value; the logbook reads the recorded ones."""
     await start(bench, "10:00")
