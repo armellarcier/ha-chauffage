@@ -19,9 +19,11 @@ Each entry says whether the release **migrates stored data** and what to do when
   Before, it went back to the preset planned now. *Dry* and *Auto* work the same way, and so
   does a new override during a *Fan only* slot. An air conditioner that shows no setpoint still
   gets the preset planned now.
-
-### Fixed
-
+- **A thermostat gets its whole setpoint when its HVAC mode changes** (#112). Chauffage now
+  sends a thermostat its target as a Home Assistant scene does. If the thermostat shows the
+  whole target, Chauffage sends nothing. Otherwise, it sends everything: the HVAC mode, the
+  setpoint, the preset and the fan. Before, an air conditioner that already showed 20 °C in
+  *Fan only* only got *Cool*, and could then cool at another setpoint.
 - **In French, the full names of the HVAC modes are Home Assistant's** (#91). A sentence of the
   card, the logbook and the `chauffage.set_override` action say *Ventilation uniquement* and
   *Automatique*, as the more-info dialog of Home Assistant does. The logbook said

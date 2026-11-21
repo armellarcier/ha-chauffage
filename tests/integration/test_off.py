@@ -180,7 +180,8 @@ async def test_a_thermostat_turned_off_is_turned_on_when_the_weeks_are_saved(ben
     await bench.setup()
     await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 7}})
     assert bench.powered() == {"climate.salon": "heat"}
-    assert bench.applied() == {}  # already on eco
+    # Eco goes with the HVAC mode, as a scene does: what an off thermostat shows proves nothing (#112)
+    assert bench.applied() == {"climate.salon": "eco"}
     assert salon(bench) == "heat"
 
 

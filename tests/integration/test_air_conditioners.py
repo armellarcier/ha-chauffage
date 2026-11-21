@@ -387,6 +387,16 @@ async def test_a_cooling_only_air_conditioner_in_fan_only_is_turned_on_in_cool(b
     assert bench.powered() == {SALON: "cool"}
 
 
+async def test_a_new_hvac_mode_gets_its_setpoint_even_when_the_thermostat_already_shows_it(bench: Bench):
+    """Chauffage sends the whole target, as a scene does: a setpoint read in fan only says
+    nothing of the setpoint in cool, which some units keep per HVAC mode (#112)."""
+    await start_ac(bench, "10:00", [["00:00", None, FAN]], state="fan_only", preset="comfort")
+    shown = bench.hass.states.get(SALON).attributes["temperature"]
+    await override(bench, hvac_mode="cool", temperature=shown)
+    assert bench.powered() == {SALON: "cool"}
+    assert sent_to(bench) == [shown]
+
+
 # ----- dry and auto -----
 
 def test_a_dry_slot_and_an_auto_slot_have_no_preset():

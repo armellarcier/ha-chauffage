@@ -1182,8 +1182,9 @@ class ChauffageRuntime:
 
     async def send(self, entity_id: str, target: engine.Target, why: str) -> bool:
         """Sets a thermostat to a target, as a scene does (#91): Home Assistant's reproduce_state
-        sends the HVAC mode, the setpoint, then the preset, with only the attributes the
-        thermostat does not show (a VTherm: as it was asked). Before a setpoint, a thermostat that
+        sends the HVAC mode when it changes, the setpoint, then the preset, the vanes and the fan.
+        A thermostat that shows the whole target (a VTherm: as it was asked) gets nothing;
+        otherwise it gets the whole target (#112). Before a setpoint, a thermostat that
         lists the preset "none" leaves the preset it shows (engine.preset_to_leave), even when it
         already shows the setpoint. A thermostat that refuses to leave its preset gets the
         setpoint anyway (docs/decisions.md, "Scheduling"). Logged with
@@ -1198,28 +1199,23 @@ class ChauffageRuntime:
         state = self.hass.states.get(entity_id)
         actual = self.current(state)
         current = None if commands else actual
+        shown = current is not None and engine.satisfied(target, current)
+        # A thermostat that keeps its preset when it gets a setpoint leaves the preset first
+        leave = engine.preset_to_leave(target, actual)
+        if shown and leave is None:
+            _LOGGER.debug("%s: %s already shown, nothing sent (%s)", entity_id, _describe(target), why)
+            return True
+        # Otherwise the whole target, as a scene: a setpoint read in another HVAC mode, or on a
+        # preset, says nothing of the one the thermostat will have (#112). The HVAC mode only
+        # when it changes
         hvac_mode = target.get("hvac_mode")
         if current is not None and hvac_mode in (current.state, current.shown):
             hvac_mode = None
-        shown = dataclasses.replace(current, state=hvac_mode or current.state) if current else None
-        attributes = {key: value for key, value in target.items()
-                      if key != "hvac_mode" and (shown is None or not engine.satisfied({key: value}, shown))}
-        if any(key in attributes for key in engine.RANGE_KEYS):
-            # climate.set_temperature takes the two ends of a range together, or refuses the call
-            attributes |= {key: target[key] for key in engine.RANGE_KEYS if key in target}
-        # A thermostat that keeps its preset when it gets a setpoint leaves the preset first. The
-        # setpoint is then sent in full: a thermostat may change it when it leaves a preset
-        leave = engine.preset_to_leave(target, actual)
-        # Only the preset to leave: the thermostat shows the rest, so nothing will be pending
-        shown_but_preset = leave is not None and hvac_mode is None and not attributes
-        if leave is not None:
-            attributes |= {key: target[key] for key in engine.SETPOINTS if key in target}
-        if hvac_mode is None and not attributes:
-            _LOGGER.debug("%s: %s already shown, nothing sent (%s)", entity_id, _describe(target), why)
-            return True
+        attributes = {key: value for key, value in target.items() if key != "hvac_mode"}
         waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)
         _LOGGER.info("%s: %s sent (%s)%s", entity_id, _describe(target), why, waiting)
-        if not shown_but_preset:
+        # Only the preset to leave: the thermostat shows the rest, so nothing will be pending
+        if not shown:
             if commands and commands[-1]["target"] == target:
                 commands.pop()  # sent again: waited for from now
             commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
