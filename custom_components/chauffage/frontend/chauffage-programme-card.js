@@ -2500,7 +2500,9 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   // thermostat shows (an open window's frost setpoint, #112). An override to a preset that cools
   // sends the preset's value when cooling, never its heating temperature. Without one, the field
   // shows the thermostat's setpoint, and a note says it is left alone
-  const known = (temperature) => (temperature != null ? temperature : attrs.temperature);
+  // `shown`: the field shows the thermostat's setpoint, and follows it as it changes (_updateLive)
+  let shown = false;
+  const known = (temperature) => { shown = temperature == null; return shown ? attrs.temperature : temperature; };
   let value = d && targetKind(target) === 'temperature' ? target.temperature
     : known(picked && !cools ? presetTemperatureOf(src, climate, target) : null);
   let note = '';
@@ -2510,7 +2512,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   }
   // A text field with its − and its +, in the user's number format, read with either decimal
   // separator: the same field as in the presets tab
-  let temperature = `<span class="temp-label">${esc(loc.t('presetTemperature'))}</span>${stepperHtml(loc, 'data-override-temperature', value, 'override-step', stepOf(hass, climate), loc.t('presetTemperature'))}${note ? ` <span class="muted override-note">${esc(note)}</span>` : ''}`;
+  let temperature = `<span class="temp-label">${esc(loc.t('presetTemperature'))}</span>${stepperHtml(loc, `data-override-temperature${shown ? ' data-live' : ''}`, value, 'override-step', stepOf(hass, climate), loc.t('presetTemperature'))}${note ? ` <span class="muted override-note">${esc(note)}</span>` : ''}`;
   // Heat/cool takes a range: the one of the preset, or the one set by hand
   if (mode === 'heat_cool' && !none) {
     temperature = 'target_temp_low' in target
@@ -3644,8 +3646,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       el.textContent = this._chipMark(el.parentElement.dataset.climate);
     });
     root.querySelectorAll('.now').forEach((el) => { el.style.left = `${pct(nowMin())}%`; });
-    // Override to a preset: the temperature field shows the thermostat's setpoint (not while typed in)
-    const input = root.querySelector('.override-ed input[data-override-temperature]');
+    // Override to a preset whose temperature is not known: the field follows the thermostat's
+    // setpoint (not while typed in). A preset's own temperature stays (#112)
+    const input = root.querySelector('.override-ed input[data-override-temperature][data-live]');
     const sel = this._overrideSel && this._overrides()[this._overrideSel.climate];
     if (input && sel && targetKind(sel.target) !== 'temperature' && root.activeElement !== input) {
       const st = this._hass.states[this._overrideSel.climate];

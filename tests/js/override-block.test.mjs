@@ -82,6 +82,20 @@ afterEach(() => cleanup());
       click(card, '.override[data-climate="climate.salon"]');
       assert.equal($(card, '.override-ed [data-override-temperature]').value, '21');
       assert.equal($(moreInfo(hass), '[data-override-temperature]').value, '21');
+      // A new state of the thermostat, a moment later, leaves the field on Boost's temperature
+      hass.states['climate.salon'] = { ...hass.states['climate.salon'], last_updated: '2' };
+      card.hass = { ...hass };
+      assert.equal($(card, '.override-ed [data-override-temperature]').value, '21');
+    });
+
+    test('an override to a preset whose temperature is not known follows the setpoint the thermostat shows', () => {
+      const hass = setup({ overrides: { 'climate.salon': boost } });
+      hass.data.preset_temperatures = {};
+      const card = cardOf(hass, { show: ['climate.salon'] });
+      click(card, '.override[data-climate="climate.salon"]');
+      hass.states['climate.salon'] = { ...hass.states['climate.salon'], attributes: { ...hass.states['climate.salon'].attributes, temperature: 22 }, last_updated: '2' };
+      card.hass = { ...hass };
+      assert.equal($(card, '.override-ed [data-override-temperature]').value, '22');
     });
 
     test('Clim, 22 °C typed, then Ventilation, then Clim: the override cools at the 22 °C the thermostat shows (#112)', () => {
