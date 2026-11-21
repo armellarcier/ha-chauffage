@@ -2496,23 +2496,19 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
         : targetKind(target) === 'preset' && targetKind(value) === 'preset' && target.preset_mode != null && target.preset_mode === value.preset_mode);
       return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="${chipStyle(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
     }).join('');
-  // The temperature the thermostat gets: the preset's, when it is known, not the setpoint the
-  // thermostat shows (an open window's frost setpoint, #112). An override to a preset that cools
-  // sends the preset's value when cooling, never its heating temperature. Without one, the field
-  // shows the thermostat's setpoint, and a note says it is left alone
-  // `shown`: the field shows the thermostat's setpoint, and follows it as it changes (_updateLive)
-  let shown = false;
-  const known = (temperature) => { shown = temperature == null; return shown ? attrs.temperature : temperature; };
-  let value = d && targetKind(target) === 'temperature' ? target.temperature
-    : known(picked && !cools ? presetTemperatureOf(src, climate, target) : null);
-  let note = '';
-  if (picked && cools && !none) {
-    value = known(coolPresetTemperatureOf(src, climate, target));
-    if (!('cool_temperature' in target) && !('cool_preset_mode' in target)) note = loc.t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept');
-  }
+  // The override's own temperature: the preset's, heating or cooling, when it is known (not an open
+  // window's frost setpoint, #112), or the temperature typed. A preset that cools without a value
+  // when cooling leaves the setpoint alone: a note says so
+  const own = picked ? (cools ? coolPresetTemperatureOf(src, climate, target) : presetTemperatureOf(src, climate, target))
+    : d && targetKind(target) === 'temperature' ? target.temperature : null;
+  // Without one, the field shows the setpoint of the thermostat, and follows it (_updateLive)
+  const live = own == null;
+  const value = live ? attrs.temperature : own;
+  const note = picked && cools && !none && !('cool_temperature' in target) && !('cool_preset_mode' in target)
+    ? loc.t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept') : '';
   // A text field with its − and its +, in the user's number format, read with either decimal
   // separator: the same field as in the presets tab
-  let temperature = `<span class="temp-label">${esc(loc.t('presetTemperature'))}</span>${stepperHtml(loc, `data-override-temperature${shown ? ' data-live' : ''}`, value, 'override-step', stepOf(hass, climate), loc.t('presetTemperature'))}${note ? ` <span class="muted override-note">${esc(note)}</span>` : ''}`;
+  let temperature = `<span class="temp-label">${esc(loc.t('presetTemperature'))}</span>${stepperHtml(loc, `data-override-temperature${live ? ' data-live' : ''}`, value, 'override-step', stepOf(hass, climate), loc.t('presetTemperature'))}${note ? ` <span class="muted override-note">${esc(note)}</span>` : ''}`;
   // Heat/cool takes a range: the one of the preset, or the one set by hand
   if (mode === 'heat_cool' && !none) {
     temperature = 'target_temp_low' in target
@@ -2939,13 +2935,12 @@ function overrideWithHvac(d, src, climate, mode, hass) {
   // Back from fan only, dry or auto (an override, or the slot running now): the setpoint the
   // thermostat shows, within its limits, as a thermostat turned back on keeps it (#112). These
   // HVAC modes send none, so it is the one it had before
-  const st = (hass && stateOf(hass, climate)) || { attributes: {} };
-  const shown = typeof st.attributes.temperature === 'number' ? fitTemperature(hass, climate, st.attributes.temperature) : null;
+  const setpoint = ((hass && stateOf(hass, climate)) || { attributes: {} }).attributes.temperature;
   const idle = (m) => m !== 'off' && NO_PRESET_MODES.includes(m);
   // Without an override, the slot planned now says it, not the state: a valve runs in auto on its
   // schedule
-  if (shown != null && mode !== 'heat_cool' && idle(d ? target.hvac_mode : (src.planned(climate) || {}).hvac_mode)) {
-    const next = withHvac({ temperature: shown }, mode);
+  if (typeof setpoint === 'number' && mode !== 'heat_cool' && idle(d ? target.hvac_mode : (src.planned(climate) || {}).hvac_mode)) {
+    const next = withHvac({ temperature: fitTemperature(hass, climate, setpoint) }, mode);
     if (!d) return newOverride(src, next);
     const { preset: _p, ...rest } = d;
     return { ...rest, target: next };
@@ -3646,11 +3641,9 @@ class ChauffageProgrammeCard extends HTMLElement {
       el.textContent = this._chipMark(el.parentElement.dataset.climate);
     });
     root.querySelectorAll('.now').forEach((el) => { el.style.left = `${pct(nowMin())}%`; });
-    // Override to a preset whose temperature is not known: the field follows the thermostat's
-    // setpoint (not while typed in). A preset's own temperature stays (#112)
-    const input = root.querySelector('.override-ed input[data-override-temperature][data-live]');
-    const sel = this._overrideSel && this._overrides()[this._overrideSel.climate];
-    if (input && sel && targetKind(sel.target) !== 'temperature' && root.activeElement !== input) {
+    // The override field that shows the thermostat's setpoint follows it (not while typed in)
+    const input = root.querySelector('.override-ed input[data-live]');
+    if (input && root.activeElement !== input) {
       const st = this._hass.states[this._overrideSel.climate];
       const temperature = st && st.attributes.temperature;
       input.value = temperature != null ? this._loc.number(temperature) : '';
