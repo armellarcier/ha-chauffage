@@ -396,7 +396,7 @@ const I18N = {
     paused: 'Pilotage suspendu',
     pausedNote: '{name} : pilotage suspendu. Chauffage n\'y touche plus.',
     hvacOff: 'Éteint',
-    hvacModes: { heat: 'Chauffage', cool: 'Climatisation', heat_cool: 'Chauffage/Climatisation', auto: 'Automatique', dry: 'Déshumidification', fan_only: 'Ventilation', off: 'Éteint' },
+    hvacModes: { heat: 'Chauffage', cool: 'Climatisation', heat_cool: 'Chauffage/Climatisation', auto: 'Automatique', dry: 'Déshumidification', fan_only: 'Ventilation uniquement', off: 'Éteint' },
     hvacFan: 'Ventilation',
     slotHeat: 'Chauffe',
     slotCool: 'Clim',

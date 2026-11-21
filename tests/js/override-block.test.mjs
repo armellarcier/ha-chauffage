@@ -723,6 +723,12 @@ afterEach(() => cleanup());
       assert.match(text(el.shadowRoot.querySelector('.status')), /Chauffage · Éco jusqu'à 14:00, puis Climatisation · Confort/);
     });
 
+    test('without the words of Home Assistant, a sentence still says them as Home Assistant does: "Ventilation uniquement"', () => {
+      const toFan = { [SUITE]: { preset: 'eco', hvac_mode: 'heat', next_preset: null, next_hvac_mode: 'fan_only', next_start: at('14:00') } };
+      const el = moreInfo(setup({ planned: toFan }), SUITE);
+      assert.match(text(el.shadowRoot.querySelector('.status')), /puis Ventilation uniquement/);
+    });
+
     test('a sentence says them in the words of Home Assistant when it gives them', () => {
       const hass = setup({ planned });
       hass.formatEntityState = (st, state) => ({ off: 'Éteint', heat: 'Chauffage', cool: 'Refroidissement' })[state] || state;
