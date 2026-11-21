@@ -9,6 +9,20 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.10.0-alpha.2] - 2026-11-21
+
+**A second alpha: install it only to try it, on a Home Assistant you can restore.** It fixes what
+the exploratory tests of 0.10.0-alpha.1 found in the override block, and how Chauffage sends a
+new HVAC mode.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+You can upgrade from 0.10.0-alpha.1 directly. No stored data is migrated.
+
+From 0.9.0, follow the upgrade steps of 0.10.0-alpha.1 below. Make a full backup of Home
+Assistant first.
+
 ### Fixed
 
 - **The override block shows the temperature of the preset you tap** (#112). With a Versatile
