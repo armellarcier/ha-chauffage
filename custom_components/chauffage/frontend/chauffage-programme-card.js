@@ -1056,8 +1056,8 @@ const MODE_LABELS = { off: 'hvacOff', heat: 'slotHeat', cool: 'slotCool', heat_c
 const modeName = (loc, mode) => (loc.modeName ? loc.modeName(mode) : MODE_LABELS[mode] ? loc.t(MODE_LABELS[mode]) : loc.hvacMode(mode));
 // A thermostat's state in Home Assistant, when Home Assistant has one
 const stateOf = (hass, climate) => hass && hass.states && hass.states[climate];
-// The words of the sentences of a thermostat's own blocks, the more-info block and a thermostat
-// card: an HVAC mode is named in full, as Home Assistant names it next to them ("Chauffage",
+// The words of the sentences of a thermostat's own blocks, the more-info block, a thermostat
+// card and the end of an override on the schedule card: an HVAC mode is named in full, as Home Assistant names it next to them ("Chauffage",
 // "Éteint"), else in the card's own full words. Labels keep the short names, as the buttons
 function fullNames(loc, hass, climate) {
   const st = stateOf(hass, climate);
@@ -4207,7 +4207,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${d ? `<span class="override-value">${esc(overrideSummary(d, this._source(), climate, this._loc, this._hass))}</span>` : ''}
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>
-      ${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start' })}
+      ${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}
       ${d ? `<div class="ed-actions"><button class="btn danger" data-act="override-del">${esc(t('resume'))}</button></div>` : ''}
     </div>`;
   }

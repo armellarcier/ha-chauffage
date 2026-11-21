@@ -1193,7 +1193,9 @@ dashboards, automations, scripts and by voice without the card
       the override on the card, the header of a thermostat card, the override in the
       more-info dialog. The sentences say the full name, as Home Assistant names it
       (`hass.formatEntityState`), else in the card's own full words: "then Chauffage ·
-      Confort (schedule)".
+      Confort (schedule)". The end of an override on the schedule card is a sentence too, so it
+      reads as in the more-info dialog (an audit found "then Clim" on one, "then Climatisation"
+      on the other).
     - **On a row shared by several thermostats, the name of a slot without a preset wins over
       its time**: "⏻ Off", not "00:00 ⏻ O…". The color of such a slot is no preset's color.
     - **The setpoint line is words, then a button.** "Setpoint: 20 °C", then *Set*, a button

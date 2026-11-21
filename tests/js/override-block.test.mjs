@@ -746,6 +746,17 @@ afterEach(() => cleanup());
       card._render();
       assert.match(text($(card, '.override-ed .override-value')), /^Clim · 24/);
     });
+
+    test('the end of an override on the schedule card is a sentence: the names in full, as in the more-info block', () => {
+      const hass = setup({ overrides: cooling, planned });
+      hass.formatEntityState = (st, state) => ({ off: 'Éteint', heat: 'Chaleur', cool: 'Refroidissement' })[state] || state;
+      const card = cardOf(hass, { show: [SUITE] });
+      card._overrideSel = { climate: SUITE };
+      card._render();
+      assert.match(text($(card, '.override-ed')), /puis Chaleur · Éco \(planning\)/);
+      assert.doesNotMatch(text($(card, '.override-ed')), /puis Chauffe ·/);
+      assert.match(text(moreInfo(hass, SUITE).shadowRoot), /puis Chaleur · Éco \(planning\)/);
+    });
   });
 
   describe('the line of the setpoint', () => {
