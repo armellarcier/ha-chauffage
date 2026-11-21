@@ -50,8 +50,13 @@ future contributor might question.
 
   This replaces a set of deductions (the value of the slot sent in the new HVAC mode, the
   setpoint kept from before off, a setpoint shown with a new HVAC mode ignored…). Each fixed one
-  case, and two broke at the next review. A thermostat that restarts on another setpoint than
-  the one it showed while off keeps an override: no device is known to do so.
+  case, and two broke at the next review.
+
+  A thermostat turned on shows a setpoint, so the override takes it (the owner, after an audit
+  on the development HA). Example: the kitchen's slot asks 17 °C. You set 19.5 °C, turn the
+  kitchen off, then on again at 19.5 °C. The override holds 19.5 °C, and Chauffage sends nothing.
+  Back on at 17 °C, the schedule resumes. Before, Chauffage only saw the HVAC mode come back,
+  resumed the schedule and sent 17 °C.
 - **An override departs from the schedule, now: it is never planned.** Its first source is a
   change made by hand on the thermostat: someone in the room wants something else than the
   schedule, at that moment. The card, the more-info dialog and `set_override` called at that

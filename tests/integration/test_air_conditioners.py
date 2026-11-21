@@ -307,16 +307,18 @@ async def test_switching_the_hvac_mode_by_hand_in_an_off_slot_keeps_the_thermost
 
 async def test_switching_to_dry_by_hand_is_recorded_and_sends_nothing(bench: Bench):
     """Regression: dry, auto or heat/cool chosen by hand made Chauffage send the slot's heating
-    value. Only heat and cool carry a value: the others are recorded as they were chosen."""
+    value. The override takes what the thermostat shows, and Chauffage sends nothing."""
     modes = ["off", "heat", "cool", "dry", "heat_cool"]
     await start_ac(bench, "10:00", [["00:00", "comfort", HEAT]], preset="comfort", modes=modes)
     for mode in ("dry", "heat_cool"):
         clear(bench)
         bench.thermostat(SALON, "comfort", state=mode, hvac_modes=modes, context=CTX_USER)
         await bench.hass.async_block_till_done(wait_background_tasks=True)
-        assert bench.overrides()[SALON]["target"] == {"hvac_mode": mode}
+        assert bench.overrides()[SALON]["target"]["hvac_mode"] == mode
         assert "preset" not in bench.overrides()[SALON]
         assert sent_to(bench) == [] and bench.applied() == {} and bench.powered() == {}
+    # From dry, which takes no setpoint, heat/cool shows one: the override takes it
+    assert len(bench.overrides()[SALON]["target"]) == 2
 
 
 async def test_a_temperature_kept_by_the_unit_in_cool_stays_in_the_override(bench: Bench):

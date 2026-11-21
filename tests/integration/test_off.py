@@ -5,7 +5,7 @@ off by its window or by its auto start/stop is not."""
 import pytest
 from homeassistant.core import Context, Event, callback
 
-from conftest import CTX_AUTOMATION, CTX_USER, KINDS, WEEKDAY, Bench
+from conftest import CTX_AUTOMATION, CTX_USER, KINDS, MANUAL_PRESET, WEEKDAY, Bench
 from hvac_helpers import (
     AC_MODES, BUREAU, HEAT, NIGHT_OFF, OFF, PRESETS, SALON, ac, clear, salon, start_ac, start_salon, state,
 )
@@ -227,6 +227,21 @@ async def test_a_thermostat_back_on_on_another_setpoint_keeps_an_override(bench:
     await bench.hass.async_block_till_done()
     assert "hvac_mode" not in bench.overrides()["climate.salon"]["target"]
     assert bench.applied() == {}
+
+
+async def test_a_thermostat_back_on_on_the_setpoint_it_had_before_off_keeps_that_override(bench: Bench):
+    """19.5 °C by hand, off by hand, back on at 19.5 °C while its slot asks eco: the thermostat
+    does not do what its slot asks, so the override takes the 19.5 °C it shows. Chauffage sends
+    nothing (docs/decisions.md, "A change by hand")."""
+    await start_salon(bench)
+    await bench.manual_setpoint("climate.salon", 19.5)
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 19.5, state="off", context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    bench.applied(), bench.powered(), bench.temperature_calls.clear()
+    bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 19.5, context=CTX_USER)  # back on
+    await bench.hass.async_block_till_done()
+    assert bench.overrides()["climate.salon"]["target"] == {"temperature": 19.5}
+    assert bench.applied() == {} and bench.powered() == {} and bench.temperature_calls == []
 
 
 async def test_turning_the_thermostat_on_by_hand_during_an_off_slot_is_an_override(bench: Bench):

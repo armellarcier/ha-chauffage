@@ -593,12 +593,13 @@ def test_turning_a_thermostat_on_by_hand_during_an_off_slot_is_an_override():
     assert engine.manual_change(ac("off", "eco"), ac("cool", "eco"), by_user=False, expected=expected) == {"hvac_mode": "cool"}
 
 
-def test_turning_a_thermostat_back_on_ends_its_off_override():
-    """Back on in any HVAC mode the slot accepts: the override ends, and the thermostat is set
-    to its slot (what it restarted on does not count as a change)."""
+def test_turning_a_thermostat_back_on_on_its_slot_ends_its_off_override():
+    """Back on in any HVAC mode the slot accepts, on the slot's setpoint: the schedule resumes.
+    Back on another setpoint: the override takes the setpoint the thermostat shows."""
     expected = {"preset_mode": "comfort"}
-    assert engine.manual_change(ac("off", "eco"), ac("heat", "eco"), by_user=True, expected=expected, override=OFF) == engine.RESUME
-    assert engine.manual_change(ac("off", "eco"), ac("cool", "eco"), by_user=False, expected=expected, override=OFF) == engine.RESUME
+    assert engine.manual_change(ac("off", "comfort"), ac("heat", "comfort"), by_user=True, expected=expected, override=OFF) == engine.RESUME
+    assert engine.manual_change(ac("off", "comfort"), ac("cool", "comfort"), by_user=False, expected=expected, override=OFF) == engine.RESUME
+    assert engine.manual_change(ac("off", "eco"), ac("heat", "eco"), by_user=True, expected=expected, override=OFF) == {"preset_mode": "eco"}
     # Turned off again while the slot says off: back to the slot too
     assert engine.manual_change(ac("heat"), ac("off"), by_user=True, expected=OFF, override={"hvac_mode": "heat"}) == engine.RESUME
 

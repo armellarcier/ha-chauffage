@@ -35,14 +35,14 @@ async def start(bench: Bench, hhmm: str = "10:00", day: int = 0) -> None:
 # ----- thermostats coming back -----
 
 async def test_a_thermostat_turned_back_on_is_set_to_its_schedule(bench: Bench):
-    """Turned off by its button (an off override since #91), then back on: it gets its preset
-    right away, and the override ends."""
+    """Turned off by its button (an off override since #91), then back on, on its slot's
+    setpoint: the override ends. Back on another setpoint, it would keep an override
+    (test_off.py)."""
     await start(bench)
-    bench.thermostat("climate.salon", "comfort", state="off")
+    bench.thermostat("climate.salon", "eco", state="off")
     await bench.hass.async_block_till_done()
-    bench.thermostat("climate.salon", "comfort", context=Context(user_id="someone"))  # back on, still comfort
+    bench.thermostat("climate.salon", "eco", context=Context(user_id="someone"))  # back on, still eco
     await bench.hass.async_block_till_done()
-    assert bench.applied() == {"climate.salon": "eco"}
     assert bench.overrides() == {}
 
 

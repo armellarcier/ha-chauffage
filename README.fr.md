@@ -655,10 +655,11 @@ déjà, et l'autre bouton n'apparaît pas. Pour le laisser
 éteint plus longtemps, suspendez son pilotage (*Suspendre le pilotage*), ou donnez-lui un
 planning dont les créneaux sont *Arrêt*.
 
-Pour arrêter la dérogation plus tôt, rallumez le thermostat vous-même, ou touchez *Reprendre le
-planning*. Un préréglage touché, ou une température saisie, dans le bloc de la dérogation
-rallume le thermostat, avec cette valeur. *Arrêt* touché sur une dérogation pendant un créneau
-*Arrêt* reprend le planning.
+Pour arrêter la dérogation plus tôt, touchez *Reprendre le planning*, ou rallumez le thermostat
+vous-même sur la consigne de son créneau. Rallumé sur une autre consigne, le thermostat garde
+une dérogation, sur cette consigne. Un préréglage touché, ou une température saisie, dans le
+bloc de la dérogation rallume le thermostat, avec cette valeur. *Arrêt* touché sur une
+dérogation pendant un créneau *Arrêt* reprend le planning.
 
 Une dérogation ne se termine jamais parce qu'un créneau commence. Une dérogation *Arrêt* qui
 rencontre un créneau *Arrêt* continue jusqu'à sa propre fin, et le thermostat reste éteint

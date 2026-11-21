@@ -602,9 +602,11 @@ morning is today's, so the button *Until 08:00 (next slot)* already gives it, an
 button is not shown. To keep it off longer, pause
 its control (*Pause control*), or give it a schedule whose slots are *Off*.
 
-To end the override sooner, turn the thermostat back on yourself, or tap *Resume the schedule*.
-A preset tapped, or a temperature typed, in the override block turns the thermostat on, with
-that value. *Off* tapped on an override during an *Off* slot resumes the schedule.
+To end the override sooner, tap *Resume the schedule*, or turn the thermostat back on yourself
+at the setpoint of its slot. Turned back on at another setpoint, the thermostat keeps an
+override, at that setpoint. A preset tapped, or a temperature typed, in the override block turns
+the thermostat on, with that value. *Off* tapped on an override during an *Off* slot resumes
+the schedule.
 
 An override never ends because a slot starts. An off override that meets an *Off* slot goes on
 to its own end, and the thermostat stays off after it.

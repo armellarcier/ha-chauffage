@@ -702,6 +702,18 @@ def setpoint_changed(before: Thermostat, after: Thermostat, by_user: bool) -> Ta
     return None
 
 
+def shown_setpoint(thermostat: Thermostat) -> Target | None:
+    """The setpoint a thermostat shows, as an override holds it: its preset, its range in
+    heat/cool, or its temperature on its manual preset."""
+    if not is_manual_preset(thermostat.preset):
+        return {"preset_mode": thermostat.preset}
+    if thermostat.state == HEAT_COOL and thermostat.supports_range:
+        if thermostat.target_temp_low is None or thermostat.target_temp_high is None:
+            return None
+        return {key: getattr(thermostat, key) for key in RANGE_KEYS}
+    return None if thermostat.temperature is None else {"temperature": thermostat.temperature}
+
+
 def manual_change(
     before: Thermostat, after: Thermostat, *, by_user: bool, expected: Target | None = None,
     preset_temperature: float | None = None, override: Target | None = None,
@@ -716,7 +728,9 @@ def manual_change(
     - the HVAC mode changed: the override takes it. Off, fan only, dry and auto take no
       setpoint, so the override then holds none;
     - the setpoint changed (`setpoint_changed`), in an HVAC mode that takes one and when the
-      slot sets one: the override takes it, in place of the setpoint it held.
+      slot sets one: the override takes it, in place of the setpoint it held. A thermostat
+      turned from an HVAC mode without a setpoint (off…) to one with a setpoint shows one: the
+      override takes it (`shown_setpoint`).
     One change may hold both: the override takes what the thermostat shows.
     Back to what the override asks changes nothing (None): the override keeps its value and
     its end, even when the slot asks the same.
@@ -729,7 +743,9 @@ def manual_change(
         return None
     mode_changed = after.state != before.state
     slot_sets_one = expected is None or any(key in expected for key in SETPOINT_TARGET_KEYS)
-    change = setpoint_changed(before, after, by_user) if after.state in SETPOINT_MODES and slot_sets_one else None
+    change = None
+    if after.state in SETPOINT_MODES and slot_sets_one:
+        change = setpoint_changed(before, after, by_user) if before.state in SETPOINT_MODES else shown_setpoint(after)
     if not mode_changed and change is None:
         return None
     target = dict(override or {})
