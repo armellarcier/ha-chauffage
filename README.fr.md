@@ -412,6 +412,10 @@ Chauffage ne prend pas encore en charge ces appareils :
 Certains appareils gardent leur préréglage quand vous changez leur consigne à la main. Pour un tel
 appareil, réglez chaque préréglage sur une température, dans le panneau Chauffage, sur l'onglet *Préréglages*.
 
+Certains appareils arrondissent la consigne, par exemple au degré près. Chauffage peut alors
+prendre la consigne arrondie pour un changement à la main : voyez le
+[Dépannage](#une-dérogation-démarre-alors-que-personne-na-touché-au-thermostat).
+
 La [feuille de route](ROADMAP.fr.md) présente la suite, par exemple les groupes de thermostats.
 
 ## Dérogations
@@ -682,6 +686,31 @@ logger:
 Téléchargez les diagnostics : Paramètres → Appareils et services → Chauffage → ⋮ →
 *Télécharger les diagnostics*. Joignez ce fichier à votre issue. Le fichier contient vos plannings
 et l'état actuel des thermostats.
+
+### Une dérogation démarre alors que personne n'a touché au thermostat
+
+Certains thermostats arrondissent la consigne qu'ils reçoivent, par exemple au degré près.
+Chauffage envoie 18,5 °C, et le thermostat répond 18 °C. Chauffage voit une consigne différente de
+celle du créneau, et la prend pour un changement à la main. Le journal de bord montre alors une
+dérogation venue du thermostat.
+
+Pour le vérifier, lisez les journaux de Home Assistant au niveau `info`. Juste après la
+température envoyée par Chauffage, une ligne montre la consigne arrondie, par exemple « setpoint
+16.0 → 18.0; the slot asks for temperature 18.5: an override ».
+
+Pour ne plus avoir ces dérogations, choisissez l'une de ces solutions :
+
+- Dans le panneau Chauffage, sur l'onglet *Préréglages*, donnez à ce thermostat des températures
+  qu'il accepte, par exemple 18 °C au lieu de 18,5 °C.
+- Ou indiquez à Home Assistant le pas du thermostat, dans `configuration.yaml`. Chauffage arrondit
+  alors chaque température à ce pas avant de l'envoyer.
+
+```yaml
+homeassistant:
+  customize:
+    climate.vanne_chambre:
+      target_temp_step: 1
+```
 
 ### La carte affiche « Erreur de configuration » après un redémarrage
 

@@ -389,6 +389,10 @@ Chauffage doesn't support these devices yet:
 Some devices keep their preset when you change their setpoint by hand. For such a device, set
 every preset to a temperature in the Chauffage panel, on the *Presets* tab.
 
+Some devices round the setpoint, for example to the whole degree. Chauffage can take the rounded
+setpoint for a change by hand: see
+[Troubleshooting](#an-override-starts-when-nobody-touched-the-thermostat).
+
 The [roadmap](ROADMAP.md) says what comes next, for example groups of thermostats.
 
 ## Overrides
@@ -642,6 +646,31 @@ logger:
 Download the diagnostics: Settings → Devices & services → Chauffage → ⋮ → *Download diagnostics*.
 Attach this file to your issue. The file holds your schedules and the current state of the
 thermostats.
+
+### An override starts when nobody touched the thermostat
+
+Some thermostats round the setpoint they receive, for example to the whole degree. Chauffage
+sends 18.5 °C, and the thermostat reports 18 °C. Chauffage sees a setpoint that differs from the
+slot, and takes it for a change by hand. The logbook then shows an override that came from the
+thermostat.
+
+To confirm it, read the Home Assistant logs at the `info` level. Right after the temperature that
+Chauffage sent, a line shows the rounded setpoint, for example "setpoint 16.0 → 18.0; the slot
+asks for temperature 18.5: an override".
+
+To stop these overrides, choose one of these fixes:
+
+- In the Chauffage panel, on the *Presets* tab, give this thermostat temperatures that it
+  accepts, for example 18 °C instead of 18.5 °C.
+- Or tell Home Assistant the thermostat's step, in `configuration.yaml`. Chauffage then rounds
+  every temperature to this step before it sends it.
+
+```yaml
+homeassistant:
+  customize:
+    climate.bedroom_valve:
+      target_temp_step: 1
+```
 
 ### The card shows "Configuration error" after a restart
 
