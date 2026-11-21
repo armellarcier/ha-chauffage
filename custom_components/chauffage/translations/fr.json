@@ -143,7 +143,7 @@
       "options": { "comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel" }
     },
     "hvac_mode": {
-      "options": { "off": "Arrêt", "heat": "Chauffage", "cool": "Climatisation", "heat_cool": "Chauffage/Climatisation", "auto": "Auto", "dry": "Déshumidification", "fan_only": "Ventilation" }
+      "options": { "off": "Éteint", "heat": "Chauffage", "cool": "Climatisation", "heat_cool": "Chauffage/Climatisation", "auto": "Auto", "dry": "Déshumidification", "fan_only": "Ventilation" }
     }
   },
   "services": {
@@ -154,7 +154,7 @@
         "entity_id": { "name": "Thermostat", "description": "Un thermostat programmé par Chauffage." },
         "temperature": { "name": "Température", "description": "Température de consigne (ou indiquer un préréglage)." },
         "preset": { "name": "Préréglage", "description": "Un préréglage de Chauffage, réglé sur ce qu'il signifie pour ce thermostat (ou un préréglage du thermostat lui-même) ; ou indiquer une température." },
-        "hvac_mode": { "name": "Mode HVAC", "description": "Arrêt pour éteindre le thermostat, ou un mode HVAC pour l'allumer. Sans lui, le thermostat est allumé. Arrêt seul, sans durée ni fin, dure ce que dit le réglage Thermostat éteint. Arrêt, ventilation, déshumidification et auto ne prennent ni température ni préréglage. Chauffe/clim prend un préréglage, ou une température basse et une haute." },
+        "hvac_mode": { "name": "Mode HVAC", "description": "Avec Éteint, le thermostat s'éteint. Avec un autre mode HVAC, il s'allume dans ce mode. Sans mode HVAC, le thermostat est allumé. Éteint seul, sans durée ni fin, dure ce que dit le réglage Thermostat éteint. Éteint, ventilation, déshumidification et auto ne prennent ni température ni préréglage. Chauffe/clim prend un préréglage, ou une température basse et une haute." },
         "target_temp_low": { "name": "Température basse", "description": "Avec le mode HVAC chauffe/clim : la température sous laquelle le thermostat chauffe." },
         "target_temp_high": { "name": "Température haute", "description": "Avec le mode HVAC chauffe/clim : la température au-dessus de laquelle le thermostat refroidit." },
         "duration": { "name": "Durée", "description": "Combien de temps, en minutes (par défaut : l'option de l'intégration)." },

@@ -31,7 +31,7 @@ afterEach(() => cleanup());
       assert.equal(text($(card, '[data-kind="preset"][data-preset="eco"] .pv-default')), '17° par défaut · 27°');
       click(card, '[data-kind="preset"][data-preset="eco"]');
       assert.equal($(card, '.cell-ed .power'), null);
-      assert.doesNotMatch(text($(card, '.cell-ed')), /Marche|Arrêt|Fonctionnement/);
+      assert.doesNotMatch(text($(card, '.cell-ed')), /Marche|Éteint|Fonctionnement/);
       await card._action('cell-apply', {});
       assert.deepEqual(lastCall(hass).presets.find((p) => p.id === 'eco'), { id: 'eco', name: 'Éco', color: '#43a047', temperature: 17, cool_temperature: 27 });
     });

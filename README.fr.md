@@ -226,7 +226,7 @@ chaque créneau demande un **préréglage**, par exemple *Confort* ou *Éco*. Le
 [glossaire](docs/glossary.md) (en anglais) définit ces mots.
 
 **Qui décide quoi.** Un créneau dit quand, et ce que fait l'appareil : son mode HVAC. Sur un
-radiateur, c'est *Arrêt* ou un préréglage. Sur une climatisation, c'est *Arrêt*, *Chauffe*,
+radiateur, c'est *Éteint* ou un préréglage. Sur une climatisation, c'est *Éteint*, *Chauffe*,
 *Clim*, *Chauffe/Clim*, *Déshum.*, *Auto* ou *Ventilation*. Le préréglage dit à quelle
 température, pour chaque thermostat, en chauffe et en clim.
 
@@ -243,9 +243,9 @@ automatisations.
 
 ### Éteindre un thermostat depuis un créneau
 
-Ouvrez le créneau, puis touchez **Arrêt**. Sur un radiateur, *Arrêt* est la première pastille
-de la ligne des préréglages. Sur une climatisation, *Arrêt* est le premier mode HVAC. Le
-créneau devient gris, nommé *Arrêt*. Touchez un préréglage, ou un autre mode HVAC, pour laisser
+Ouvrez le créneau, puis touchez **Éteint**. Sur un radiateur, *Éteint* est la première pastille
+de la ligne des préréglages. Sur une climatisation, *Éteint* est le premier mode HVAC. Le
+créneau devient gris, nommé *Éteint*. Touchez un préréglage, ou un autre mode HVAC, pour laisser
 le thermostat fonctionner.
 
 Le thermostat s'éteint au début du créneau. Chauffage ne lui envoie rien d'autre : si vous le
@@ -254,7 +254,7 @@ demande un préréglage le rallume.
 
 **Chaque créneau est indépendant.** Une nuit, ce sont deux créneaux : le dernier créneau d'un
 jour, et le premier créneau du lendemain. Pour garder une pièce éteinte toute la nuit, mettez
-les deux à l'arrêt.
+les deux sur *Éteint*.
 
 **La consigne du créneau.** La fenêtre dit quelle consigne le créneau appliquera sur ce
 thermostat, avec son chiffre : « Consigne : 20 °C (son préréglage *Confort*) ». Un
@@ -263,17 +263,17 @@ thermostat.
 
 ### Le mode HVAC d'abord : les climatisations
 
-Sur un thermostat qui propose plusieurs modes HVAC en plus de l'arrêt, la fenêtre d'un créneau
+Sur un thermostat qui propose plusieurs modes HVAC en plus d'*Éteint*, la fenêtre d'un créneau
 a deux lignes.
 
 **1. Ce que fait l'appareil.** La première ligne donne les modes HVAC du thermostat, parmi
-*Arrêt · Chauffe · Clim · Chauffe/Clim · Déshum. · Auto · Ventilation*. Chacun a l'icône de
+*Éteint · Chauffe · Clim · Chauffe/Clim · Déshum. · Auto · Ventilation*. Chacun a l'icône de
 Home Assistant, et celui qui est choisi est teinté dans la couleur de Home Assistant. Le
 thermostat passe dans ce mode HVAC au début du créneau.
 
 **2. À quelle température.** La seconde ligne donne les préréglages qui ont une valeur pour le
 mode HVAC choisi. Par exemple, *Hors-gel* n'a pas de température en clim : *Clim* ne le propose
-pas. *Arrêt*, *Déshum.*, *Auto* et *Ventilation* n'ont ni préréglage ni consigne.
+pas. *Éteint*, *Déshum.*, *Auto* et *Ventilation* n'ont ni préréglage ni consigne.
 
 **Essayer un mode HVAC.** Le créneau garde ses horaires, même s'il devient identique au
 créneau d'avant ou d'après : les deux créneaux restent deux créneaux. Revenez à *Chauffe* ou à
@@ -286,12 +286,12 @@ qu'un créneau, supprimez l'autre.
 - **Un nouveau créneau** prend le mode HVAC du créneau dont il vient.
 - **Une climatisation qui ne fait que climatiser** a *Clim* choisi : ses créneaux climatisent
   toujours.
-- **Un radiateur** a une seule ligne : *Arrêt*, puis les préréglages. Ses créneaux ne portent
+- **Un radiateur** a une seule ligne : *Éteint*, puis les préréglages. Ses créneaux ne portent
   pas de mode HVAC.
 - **Toute une semaine.** Ouvrez le menu ⋮ d'un jour du thermostat, puis touchez *Tout en
   chauffe* ou *Tout en clim*. Les créneaux qui chauffent ou qui climatisent, dans la semaine du
   thermostat et le planning affiché, prennent ce mode HVAC. Les autres créneaux ne changent
-  pas, par exemple un créneau *Chauffe/Clim* ou *Arrêt*. *Enregistrer* garde le changement. Dans le panneau Chauffage,
+  pas, par exemple un créneau *Chauffe/Clim* ou *Éteint*. *Enregistrer* garde le changement. Dans le panneau Chauffage,
   le menu ⋮ d'une semaine propose la même chose.
 
 **Vos semaines actuelles chauffent.** Une semaine enregistrée avant cette version ne dit aucun
@@ -335,7 +335,7 @@ ne fixe rien. Il indique *3 (préréglage)* quand la valeur du préréglage fixe
 *Celui du thermostat* sinon : le thermostat retrouve alors le ventilateur qu'il avait avant
 qu'un créneau en choisisse un. La ligne repliée montre les
 valeurs que le créneau fixe, et la semaine montre une marque sur les créneaux qui en fixent
-une. Un créneau *Arrêt* n'en a pas. Dans un créneau *Ventilation* ou *Déshum.*, la vitesse du
+une. Un créneau *Éteint* n'en a pas. Dans un créneau *Ventilation* ou *Déshum.*, la vitesse du
 ventilateur s'affiche tout de suite, et *Plus de réglages* contient les volets.
 
 ### Changer de planning actif
@@ -497,7 +497,7 @@ La valeur d'un préréglage peut aussi fixer le ventilateur et les volets d'une 
 
 Un préréglage n'éteint jamais un thermostat, et ne choisit jamais entre chauffage et
 climatisation. Pour éteindre tous les thermostats, créez un planning dont les créneaux sont
-*Arrêt*, par exemple *Absent*.
+*Éteint*, par exemple *Absent*.
 
 ### Régler les préréglages dans le panneau Chauffage
 
@@ -611,10 +611,10 @@ par exemple *Jusqu'à 17:30 (prochain créneau)* : il peut aussi raccourcir la d
 
 - **Sur le thermostat.** Changez la consigne ou le préréglage à la main, avec la molette ou dans
   Home Assistant. Chauffage fait de votre changement une dérogation.
-- **Depuis la carte**, ou depuis la fenêtre de détail du thermostat. Choisissez *Arrêt*, un
+- **Depuis la carte**, ou depuis la fenêtre de détail du thermostat. Choisissez *Éteint*, un
   préréglage ou une température. Tous les utilisateurs le peuvent, pas seulement les
   administrateurs, comme avec la molette.
-  Une nouvelle dérogation dure le temps réglé dans les options. *Arrêt* dure jusqu'au prochain
+  Une nouvelle dérogation dure le temps réglé dans les options. *Éteint* dure jusqu'au prochain
   créneau, ou ce que dit le réglage *Thermostat éteint*. Le bloc dit cette fin avant votre
   premier appui : « jusqu'à 12:00 (2 h) ». Vous pouvez ensuite changer la fin, dans un seul
   bloc : son heure, les boutons qui la déplacent, et *Jusqu'à 17:30 (prochain créneau)*.
@@ -624,7 +624,7 @@ par exemple *Jusqu'à 17:30 (prochain créneau)* : il peut aussi raccourcir la d
   *Déshum.*, le bloc montre la vitesse du ventilateur.
   Sur un thermostat qui propose plusieurs modes HVAC, les cartes nomment le mode HVAC d'une
   dérogation : « Clim · Confort 25° jusqu'à 23:00, puis Chauffe · Éco ».
-  Pour éteindre un thermostat jusqu'au matin, touchez *Arrêt*, puis *Jusqu'à demain 06:30*.
+  Pour éteindre un thermostat jusqu'au matin, touchez *Éteint*, puis *Jusqu'à demain 06:30*.
   Sur une carte de thermostat, la dérogation s'affiche avec sa fin et *Reprendre le planning*.
   *Modifier* déplie le reste.
 - **Depuis une automatisation**, avec l'action `chauffage.set_override`.
@@ -636,7 +636,7 @@ les thermostats le soir les laisse éteints jusqu'au créneau du matin. Une comm
 ### Éteindre un thermostat à la main
 
 Éteindre un thermostat, avec son bouton ou dans Home Assistant, est un changement comme un
-autre : Chauffage en fait une dérogation, affichée *⏱ Arrêt*. Le thermostat reste éteint
+autre : Chauffage en fait une dérogation, affichée *⏱ Éteint*. Le thermostat reste éteint
 jusqu'au prochain créneau qui le change, même lointain. Chauffage le rallume alors, sur son
 créneau.
 
@@ -644,7 +644,7 @@ créneau.
 *Thermostat éteint* a les trois mêmes choix que la fin des autres dérogations, dans le même
 ordre.
 *Jusqu'au prochain créneau* est le choix par défaut : quand on éteint un radiateur, c'est
-rarement pour deux heures. Le réglage vaut aussi pour *Arrêt* touché sur la carte, et pour une
+rarement pour deux heures. Le réglage vaut aussi pour *Éteint* touché sur la carte, et pour une
 automatisation qui éteint un thermostat sans donner de fin.
 
 Pour le laisser éteint jusqu'au matin, touchez *Jusqu'à demain 06:30* sous la dérogation : le
@@ -653,19 +653,19 @@ thermostat. Quand ce matin n'est pas demain, le bouton nomme le jour, *Jusqu'à 
 nuit, le matin est celui d'aujourd'hui : le bouton *Jusqu'à 08:00 (prochain créneau)* le donne
 déjà, et l'autre bouton n'apparaît pas. Pour le laisser
 éteint plus longtemps, suspendez son pilotage (*Suspendre le pilotage*), ou donnez-lui un
-planning dont les créneaux sont *Arrêt*.
+planning dont les créneaux sont *Éteint*.
 
 Pour arrêter la dérogation plus tôt, touchez *Reprendre le planning*, ou rallumez le thermostat
 vous-même sur la consigne de son créneau. Rallumé sur une autre consigne, le thermostat garde
 une dérogation, sur cette consigne. Un préréglage touché, ou une température saisie, dans le
-bloc de la dérogation rallume le thermostat, avec cette valeur. *Arrêt* touché sur une
-dérogation pendant un créneau *Arrêt* reprend le planning.
+bloc de la dérogation rallume le thermostat, avec cette valeur. *Éteint* touché sur une
+dérogation pendant un créneau *Éteint* reprend le planning.
 
-Une dérogation ne se termine jamais parce qu'un créneau commence. Une dérogation *Arrêt* qui
-rencontre un créneau *Arrêt* continue jusqu'à sa propre fin, et le thermostat reste éteint
+Une dérogation ne se termine jamais parce qu'un créneau commence. Une dérogation *Éteint* qui
+rencontre un créneau *Éteint* continue jusqu'à sa propre fin, et le thermostat reste éteint
 ensuite.
 
-**Un créneau qui éteint un thermostat.** Un créneau peut être *Arrêt*. Le thermostat s'éteint au
+**Un créneau qui éteint un thermostat.** Un créneau peut être *Éteint*. Le thermostat s'éteint au
 début du créneau. Le prochain créneau qui demande un préréglage le rallume. Sur une
 climatisation, le créneau dit dans quel mode HVAC. Une dérogation que vous posez sur un
 thermostat éteint le rallume : dans le mode HVAC que dit la dérogation, sinon dans celui du
@@ -787,7 +787,7 @@ Assistants vocaux → Exposer.
 `chauffage.get_week` renvoie une entrée par thermostat, au format de `schedule.get_schedule` de
 Home Assistant : `schedule`, puis une liste par jour (`monday`…), et chaque créneau avec son `start`, son `end` et
 son `preset`. Un créneau a aussi son `hvac_mode`, tel qu'il s'applique sur le thermostat : `heat`,
-`cool` ou `heat_cool` sur une climatisation, `off`, `fan_only`, `dry` ou `auto`, et aucun sur un radiateur. Un créneau *Arrêt*, *Ventilation*, *Déshum.* ou *Auto* n'a pas de préréglage : `preset`
+`cool` ou `heat_cool` sur une climatisation, `off`, `fan_only`, `dry` ou `auto`, et aucun sur un radiateur. Un créneau *Éteint*, *Ventilation*, *Déshum.* ou *Auto* n'a pas de préréglage : `preset`
 est vide. Par exemple, pour envoyer l'heure du confort de demain :
 
 ```yaml
@@ -881,7 +881,7 @@ lignes : il ne cherche que les événements de l'intégration du thermostat. Pou
 journal filtré, filtrez sur le thermostat **et** son capteur *Dérogation*. Le capteur montre
 aussi quand chaque dérogation a commencé et fini.
 
-Une dérogation qui éteint le thermostat, ou qui le rallume, est notée comme les autres : « arrêt
+Une dérogation qui éteint le thermostat, ou qui le rallume, est notée comme les autres : « éteint
 jusqu'à 06:30 », puis « dérogation terminée ». Un créneau qui éteint ou rallume le thermostat
 n'est pas une dérogation : il n'a pas de ligne dans le journal de bord. Les journaux de Home
 Assistant (point 2) disent la commande et sa raison.
@@ -929,7 +929,7 @@ commencent. Il remet aussi sur leur planning les thermostats dont la dérogation
 programmateur remet chaque thermostat sur son planning au démarrage, à l'activation d'un
 planning et à l'enregistrement des semaines. Il ne touche pas à un thermostat en dérogation ou
 indisponible. Un thermostat éteint reçoit son créneau, qui le rallume, sauf si le créneau dit
-*arrêt*. Une vanne injoignable ne bloque pas les autres thermostats.
+*Éteint*. Une vanne injoignable ne bloque pas les autres thermostats.
 
 **Les changements manuels.** Une consigne changée à la main, ou un préréglage choisi par un
 utilisateur, devient une dérogation, jusqu'à la fin que donne le réglage *Fin des dérogations*. Revenir à ce que demande le créneau arrête la dérogation.

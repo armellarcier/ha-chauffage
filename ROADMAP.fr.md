@@ -77,7 +77,7 @@ ajustements (règles par thermostat ou par intégration).
 
 - Les thermostats chaud / froid à plage de températures (`heat_cool` : `target_temp_low` /
   `target_temp_high`).
-- Un préréglage *Arrêt* (`hvac_mode: off`).
+- Un préréglage *Éteint* (`hvac_mode: off`).
 - Des créneaux portant directement une température (« 21 °C à partir de 06:30 »), sans
   préréglage nommé.
 

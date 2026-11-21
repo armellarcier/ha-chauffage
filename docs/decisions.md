@@ -1196,6 +1196,12 @@ dashboards, automations, scripts and by voice without the card
       Confort (schedule)". The end of an override on the schedule card is a sentence too, so it
       reads as in the more-info dialog (an audit found "then Clim" on one, "then Climatisation"
       on the other).
+    - **In French, the HVAC mode *off* is *Éteint*, never *Arrêt*** (the owner, after a
+      validation of #97). *Éteint* is Home Assistant's word, so the more-info dialog no longer
+      shows "Éteint" in its tile and "Arrêt" in the Chauffage block. *Arrêt* also reads as the
+      end of something: "dérogation Arrêt · jusqu'à 22:00" could mean that the override stops
+      at 22:00. *Arrêter* keeps that meaning, the end of an override, and "Arrêt auto" stays
+      Versatile Thermostat's name for its auto start/stop.
     - **On a row shared by several thermostats, the name of a slot without a preset wins over
       its time**: "⏻ Off", not "00:00 ⏻ O…". The color of such a slot is no preset's color.
     - **The setpoint line is words, then a button.** "Setpoint: 20 °C", then *Set*, a button

@@ -301,7 +301,7 @@ async def test_a_preset_picked_on_an_off_air_conditioner_turns_it_on(bench: Benc
 # ----- an off override from the card or a script -----
 
 async def test_an_off_override_from_the_card_turns_the_thermostat_off_until_its_end(bench: Bench):
-    """#77 without a script: "Arrêt" until the next slot, from the card."""
+    """#77 without a script: "Éteint" until the next slot, from the card."""
     await start_salon(bench, "21:00")  # comfort
     await bench.set_override("climate.salon", bench.runtime.new_override(OFF, minutes=90))
     assert bench.powered() == {"climate.salon": "off"}

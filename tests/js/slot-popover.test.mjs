@@ -22,20 +22,20 @@ afterEach(() => cleanup());
   describe('the slot popover', () => {
     const hvac = (card) => $$(card, '.editor .mode-row [data-mode="heat"], .editor .mode-row [data-mode="cool"]').map(pressed);
 
-    test('a heater: one row of chips, Arrêt first; no Ventilation, no HVAC mode', () => {
+    test('a heater: one row of chips, Éteint first; no Ventilation, no HVAC mode', () => {
       const card = cardOf(setup(), { show: ['climate.salon'] });
       select(card, 'climate.salon', 0, 1); // 06:30 comfort
-      assert.deepEqual(chips(card, '.editor'), ['Arrêt', 'Hors-gel', 'Éco', 'Confort ✓', 'Boost']);
+      assert.deepEqual(chips(card, '.editor'), ['Éteint', 'Hors-gel', 'Éco', 'Confort ✓', 'Boost']);
       assert.equal($(card, '.editor .mode-row'), null);
       assert.equal($(card, '.editor select'), null, 'no fan on a heater');
       assert.equal($(card, '.editor [data-act="capture"]'), null);
       assert.doesNotMatch(text($(card, '.editor')), /Marche|Fonctionnement|Au rallumage|Copier depuis|Clim|Ventilation/);
     });
 
-    test('an air conditioner: its HVAC modes first, Arrêt, Chauffe, Clim, Ventilation; then the presets', () => {
+    test('an air conditioner: its HVAC modes first, Éteint, Chauffe, Clim, Ventilation; then the presets', () => {
       const card = cardOf(setup(), { show: ['climate.atelier'] });
       select(card, 'climate.atelier', 0, 1); // 14:00 comfort
-      assert.deepEqual(modes(card), ['Arrêt', 'Chauffe ✓', 'Clim', 'Ventilation'], 'one is always chosen');
+      assert.deepEqual(modes(card), ['Éteint', 'Chauffe ✓', 'Clim', 'Ventilation'], 'one is always chosen');
       assert.deepEqual(chips(card, '.editor'), ['Hors-gel', 'Éco', 'Confort ✓', 'Boost']);
       assert.equal($(card, '.editor .mode-row').getAttribute('aria-label'), 'Mode HVAC');
       assert.deepEqual($$(card, '.editor .mode-row ha-icon').map((i) => i.getAttribute('icon')), ['mdi:power', 'mdi:fire', 'mdi:snowflake', 'mdi:fan']);
@@ -63,7 +63,7 @@ afterEach(() => cleanup());
       select(card, 'climate.atelier', 0, 1);
       click(card, '.editor [data-act="slot-mode"][data-mode="fan_only"]');
       assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 - {"hvac_mode":"fan_only","fan_mode":"3","swing_mode":"swing"}');
-      assert.deepEqual(modes(card), ['Arrêt', 'Chauffe', 'Clim', 'Ventilation ✓']);
+      assert.deepEqual(modes(card), ['Éteint', 'Chauffe', 'Clim', 'Ventilation ✓']);
       assert.equal($(card, '.editor .presets'), null);
       assert.equal($(card, '.editor .slot-setpoint'), null);
       assert.equal(text($(card, '.editor details.more summary')), 'Volets Oscillation');
@@ -75,12 +75,12 @@ afterEach(() => cleanup());
       assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 comfort {"hvac_mode":"heat","fan_mode":"1","swing_mode":"swing"}');
     });
 
-    test('Arrêt turns the slot off: no preset, no fan, no vanes; a preset turns it back on', () => {
+    test('Éteint turns the slot off: no preset, no fan, no vanes; a preset turns it back on', () => {
       const card = cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
       select(card, 'climate.salon', 0, 1);
       click(card, '.editor [data-act="slot-off"]');
       assert.equal(day(card, 'climate.salon', 0)[1], `06:30${OFF_SLOT}`);
-      assert.deepEqual(chips(card, '.editor'), ['Arrêt ✓', 'Hors-gel', 'Éco', 'Confort', 'Boost']);
+      assert.deepEqual(chips(card, '.editor'), ['Éteint ✓', 'Hors-gel', 'Éco', 'Confort', 'Boost']);
       assert.equal($(card, '.editor [data-act="slot-off"]').getAttribute('aria-pressed'), 'true');
       click(card, '.editor [data-act="preset"][data-preset="frost"]');
       assert.equal(day(card, 'climate.salon', 0)[1], '06:30 frost');
@@ -89,7 +89,7 @@ afterEach(() => cleanup());
       assert.equal(day(card, 'climate.atelier', 0)[1], `14:00${OFF_SLOT}`);
       assert.equal($(card, '.editor details.more'), null);
       assert.equal($(card, '.editor .presets'), null);
-      assert.deepEqual(modes(card), ['Arrêt ✓', 'Chauffe', 'Clim', 'Ventilation']);
+      assert.deepEqual(modes(card), ['Éteint ✓', 'Chauffe', 'Clim', 'Ventilation']);
     });
 
     test('each slot is independent: an evening turned off changes no other day, and says nothing', () => {
@@ -107,14 +107,14 @@ afterEach(() => cleanup());
       hass.states['climate.atelier'].attributes.hvac_modes = ['off', 'cool', 'fan_only'];
       const card = cardOf(hass, { show: ['climate.atelier'] });
       select(card, 'climate.atelier', 0, 1);
-      assert.deepEqual(modes(card), ['Arrêt', 'Clim ✓', 'Ventilation']);
+      assert.deepEqual(modes(card), ['Éteint', 'Clim ✓', 'Ventilation']);
       hass.states['climate.atelier'].attributes.hvac_modes = ['off', 'cool'];
       select(card, 'climate.atelier', 0, 1);
       assert.equal($(card, '.editor .mode-row'), null);
-      assert.deepEqual(chips(card, '.editor'), ['Arrêt', 'Éco', 'Confort ✓', 'Boost']);
+      assert.deepEqual(chips(card, '.editor'), ['Éteint', 'Éco', 'Confort ✓', 'Boost']);
     });
 
-    test('a thermostat that lists no off has no Arrêt; an off slot or a fan-only slot it has stays, marked; a cool slot heats', () => {
+    test('a thermostat that lists no off has no Éteint; an off slot or a fan-only slot it has stays, marked; a cool slot heats', () => {
       const hass = setup({ weeks: { 'climate.salon': { Normal: Array(7).fill(SUMMER) }, 'climate.atelier': { Normal: Array(7).fill(FAN_DAY) } } });
       hass.states['climate.salon'].attributes.hvac_modes = ['auto', 'heat'];
       const card = cardOf(hass, { show: ['climate.salon'] });
@@ -126,7 +126,7 @@ afterEach(() => cleanup());
       select(card, 'climate.salon', 0, 2);
       assert.equal(text($(card, '.editor [data-act="slot-mode"][data-mode="fan_only"]')), 'Ventilation (indisponible)');
       select(card, 'climate.salon', 0, 3);
-      assert.equal(text($(card, '.editor [data-act="slot-off"]')), 'Arrêt (indisponible)');
+      assert.equal(text($(card, '.editor [data-act="slot-off"]')), 'Éteint (indisponible)');
       assert.ok($(card, '.editor [data-act="slot-off"]').classList.contains('unsupported'));
     });
 
@@ -188,7 +188,7 @@ afterEach(() => cleanup());
     test('the first row lists the HVAC modes of the thermostat, in a fixed order', () => {
       const card = cardOf(setup());
       select(card, SUITE, 1);
-      assert.deepEqual(modeRow(card), ['Arrêt', 'Chauffe ✓', 'Clim', 'Chauffe/Clim', 'Déshum.', 'Auto', 'Ventilation']);
+      assert.deepEqual(modeRow(card), ['Éteint', 'Chauffe ✓', 'Clim', 'Chauffe/Clim', 'Déshum.', 'Auto', 'Ventilation']);
       assert.equal($(card, '.editor .mode-row').getAttribute('aria-label'), 'Mode HVAC');
     });
 
@@ -262,13 +262,13 @@ afterEach(() => cleanup());
       const card = cardOf(setup(), { show: [SALON] });
       select(card, SALON, 1);
       assert.equal($(card, '.editor .mode-row'), null);
-      assert.deepEqual(presetRow(card), ['Arrêt', 'Hors-gel', 'Éco', 'Confort ✓', 'Boost']);
+      assert.deepEqual(presetRow(card), ['Éteint', 'Hors-gel', 'Éco', 'Confort ✓', 'Boost']);
     });
 
     test('an air conditioner that only cools has Cool chosen, and no frost protection', () => {
       const card = cardOf(setup(), { show: [COMBLES] });
       select(card, COMBLES, 1);
-      assert.deepEqual(modeRow(card), ['Arrêt', 'Clim ✓', 'Ventilation']);
+      assert.deepEqual(modeRow(card), ['Éteint', 'Clim ✓', 'Ventilation']);
       assert.deepEqual(presetRow(card), ['Éco', 'Confort ✓', 'Boost']);
     });
 

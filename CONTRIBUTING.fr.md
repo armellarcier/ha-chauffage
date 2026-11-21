@@ -55,7 +55,7 @@ pièce quand la climatisation refroidit. Les pièces couvrent **tous les types d
 
 Les semaines d'exemple des climatisations montrent ce qu'un créneau peut choisir. La suite
 parentale a un créneau *Clim*, un créneau *Chauffe/Clim*, un créneau *Déshum.*, un créneau
-*Ventilation* et un créneau *Arrêt*. L'atelier a un créneau *Auto* le week-end.
+*Ventilation* et un créneau *Éteint*. L'atelier a un créneau *Auto* le week-end.
 
 La Daikin simulée diffère de la vraie sur un point. En `heat_cool`, elle prend une plage de
 températures : le HA de développement a ainsi un thermostat pour les créneaux *Chauffe/Clim*.

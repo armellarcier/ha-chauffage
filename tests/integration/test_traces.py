@@ -247,7 +247,7 @@ async def test_the_logbook_tells_an_override_that_turns_the_thermostat_off_or_on
         == "override started: heat until Monday 12:00 (changed by hand)"
     bench.hass.config.language = "fr"
     assert described(bench, "chauffage_override_started", **{**base, "preset": "eco"}, target={"hvac_mode": "off", "preset_mode": "eco"})["message"] \
-        == "dérogation : arrêt, Eco jusqu'à lundi 12:00 (changée à la main)"
+        == "dérogation : éteint, Eco jusqu'à lundi 12:00 (changée à la main)"
 
 
 async def test_the_logbook_tells_an_override_that_sets_the_fan_the_vanes_or_the_cooling_setpoint(bench: Bench):

@@ -72,7 +72,7 @@ TEXTS = {
         },
         "hours": "{h} h", "hours_minutes": "{h} h {mm}", "minutes": "{m} min",
         "hvac_modes": {
-            "off": "arrêt", "heat": "chauffage", "cool": "climatisation", "heat_cool": "chauffage/climatisation",
+            "off": "éteint", "heat": "chauffage", "cool": "climatisation", "heat_cool": "chauffage/climatisation",
             "auto": "auto", "dry": "déshumidification", "fan_only": "ventilation",
         },
         "cooling": "{value} en climatisation",

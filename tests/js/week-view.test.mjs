@@ -19,14 +19,14 @@ afterEach(() => cleanup());
   const { FAN, OFF, PRESET_COLORS, SUMMER, cardOf, setup, thermostatCard } = heaterAndAtelier;
 
   describe('the week view', () => {
-    test('an off slot is grey, named Arrêt, with the power icon', () => {
+    test('an off slot is grey, named Éteint, with the power icon', () => {
       const card = cardOf(setup(), { show: ['climate.salon'] });
       const seg = $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="4"]');
       assert.ok(seg.classList.contains('off'));
       assert.equal(seg.style.background, 'rgb(97, 97, 97)');
-      assert.equal(seg.querySelector('.l').textContent, 'Arrêt');
+      assert.equal(seg.querySelector('.l').textContent, 'Éteint');
       assert.equal(seg.querySelector('.t ha-icon').getAttribute('icon'), 'mdi:power');
-      assert.match(seg.title, /21:00 → 24:00 · Arrêt$/);
+      assert.match(seg.title, /21:00 → 24:00 · Éteint$/);
     });
 
     test('a cooling slot is drawn in its preset\'s cool color, with a snowflake; its title says Clim', () => {
@@ -82,11 +82,11 @@ afterEach(() => cleanup());
       assert.equal(segs[0].title, 'Atelier · 00:00 → 14:00 · Éco · Chauffe');
     });
 
-    test('the legend lists the presets; Arrêt and Ventilation only when a shown week has such a slot', () => {
-      assert.match(text($(cardOf(setup(), { show: ['climate.salon'] }), '.legend')), /^Hors-gel.*Éco.*Confort.*Boost.*Arrêt/);
-      assert.doesNotMatch(text($(cardOf(setup(), { show: ['climate.atelier'] }), '.legend')), /Arrêt|Ventilation|Clim/);
+    test('the legend lists the presets; Éteint and Ventilation only when a shown week has such a slot', () => {
+      assert.match(text($(cardOf(setup(), { show: ['climate.salon'] }), '.legend')), /^Hors-gel.*Éco.*Confort.*Boost.*Éteint/);
+      assert.doesNotMatch(text($(cardOf(setup(), { show: ['climate.atelier'] }), '.legend')), /Éteint|Ventilation|Clim/);
       const summer = cardOf(setup({ atelier: SUMMER }), { show: ['climate.atelier'] });
-      assert.match(text($(summer, '.legend')), /Boost.*Arrêt.*Ventilation/);
+      assert.match(text($(summer, '.legend')), /Boost.*Éteint.*Ventilation/);
       assert.ok($(summer, '.legend .legend-fan i.fan'));
     });
 
@@ -98,18 +98,18 @@ afterEach(() => cleanup());
         ['eco', 'comfort', 'boost'].map((id) => rgb(derivedCoolColor(PRESET_COLORS[id]))), 'frost protection never cools');
     });
 
-    test('a thermostat\'s page (week_only) keeps Arrêt in its legend', () => {
-      assert.equal(text($(cardOf(setup(), { show: ['climate.salon'], week_only: true }), '.legend')), 'Arrêt');
+    test('a thermostat\'s page (week_only) keeps Éteint in its legend', () => {
+      assert.equal(text($(cardOf(setup(), { show: ['climate.salon'], week_only: true }), '.legend')), 'Éteint');
       assert.equal($(cardOf(setup(), { show: ['climate.atelier'], week_only: true }), '.legend'), null);
     });
 
-    test('on an off slot, "Arrêt" wins over the time; too narrow for both, the icon alone, larger', () => {
+    test('on an off slot, "Éteint" wins over the time; too narrow for both, the icon alone, larger', () => {
       // A 2 h off slot and a 30 min off slot
       const short = ['00:00 eco', '06:30 comfort', ['08:30', null, OFF], '10:30 comfort', ['17:30', null, OFF], '18:00 comfort'];
       const hass = setup({ weeks: { 'climate.salon': { Normal: Array(7).fill(short) }, 'climate.atelier': { Normal: Array(7).fill(['00:00 eco']) } } });
       const card = cardOf(hass, { show: ['climate.salon', 'climate.atelier'] }); // two thermostats: compact thresholds
       const seg = (idx) => $(card, `.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="${idx}"]`);
-      assert.equal(seg(2).querySelector('.l').textContent, 'Arrêt');
+      assert.equal(seg(2).querySelector('.l').textContent, 'Éteint');
       assert.equal(seg(2).querySelector('.t').textContent, '', 'the time gives way to the word');
       assert.ok(seg(2).querySelector('.t ha-icon'));
       assert.equal(seg(4).querySelector('.l').textContent, '');
@@ -123,21 +123,21 @@ afterEach(() => cleanup());
     const loc = makeLocale(null, 'fr');
     const name = (id) => ({ eco: 'Éco', comfort: 'Confort' })[id] || id;
 
-    test('"Follows the schedule" says Arrêt for an off slot, Ventilation for a fan-only slot, also for the next slot', () => {
+    test('"Follows the schedule" says Éteint for an off slot, Ventilation for a fan-only slot, also for the next slot', () => {
       mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T23:00:00+02:00') });
       try {
         assert.equal(planText({ preset: null, hvac_mode: 'off', next_preset: 'comfort', next_hvac_mode: null, next_start: '2026-10-13T06:30:00+02:00' }, name, loc),
-          'Arrêt jusqu\'à 06:30 (demain), puis Confort');
+          'Éteint jusqu\'à 06:30 (demain), puis Confort');
         assert.equal(planText({ preset: 'comfort', hvac_mode: 'cool', next_preset: null, next_hvac_mode: 'off', next_start: '2026-10-13T06:30:00+02:00' }, name, loc),
-          'Confort jusqu\'à 06:30 (demain), puis Arrêt');
+          'Confort jusqu\'à 06:30 (demain), puis Éteint');
         assert.equal(planText({ preset: null, hvac_mode: 'fan_only', next_preset: null, next_hvac_mode: 'off', next_start: '2026-10-13T06:30:00+02:00' }, name, loc),
-          'Ventilation jusqu\'à 06:30 (demain), puis Arrêt');
+          'Ventilation jusqu\'à 06:30 (demain), puis Éteint');
         assert.equal(planText({ preset: null, hvac_mode: null }, name, loc), '');
       } finally { mock.timers.reset(); }
     });
 
-    test('an override\'s label: Arrêt, or the HVAC mode it was switched to by hand', () => {
-      assert.equal(overrideLabel({ target: OFF }, loc), 'Arrêt');
+    test('an override\'s label: Éteint, or the HVAC mode it was switched to by hand', () => {
+      assert.equal(overrideLabel({ target: OFF }, loc), 'Éteint');
       assert.equal(overrideLabel({ target: { hvac_mode: 'cool' } }, loc), 'Clim');
       assert.equal(overrideLabel({ target: { hvac_mode: 'dry' } }, loc), 'Déshum.');
       assert.equal(overrideLabel({ target: { hvac_mode: 'heat_cool', target_temp_low: 19, target_temp_high: 24.5 } }, loc), '19–24,5 °C');
@@ -156,13 +156,13 @@ afterEach(() => cleanup());
       assert.equal(text($(card, '.chip[data-climate="climate.salon"] .live')), 'fenêtre ouverte');
     });
 
-    test('an off slot reads Arrêt, grey, without setpoint; a fan-only slot reads Ventilation', () => {
+    test('an off slot reads Éteint, grey, without setpoint; a fan-only slot reads Ventilation', () => {
       const hass = setup({ planned: { 'climate.salon': { preset: null, hvac_mode: 'off', next_preset: 'comfort', next_hvac_mode: null, next_start: '2026-10-13T06:30:00+02:00' },
         'climate.atelier': { preset: null, hvac_mode: 'fan_only', next_preset: 'comfort', next_hvac_mode: null, next_start: '2026-10-13T06:30:00+02:00' } } });
       hass.states['climate.salon'].state = 'off';
       hass.states['climate.salon'].attributes.temperature = 17;
       const tc = thermostatCard(hass);
-      assert.equal(text($(tc, '.tc-state')), 'Arrêt');
+      assert.equal(text($(tc, '.tc-state')), 'Éteint');
       assert.ok(!$(tc, '.tc-state').classList.contains('override'));
       hass.states['climate.atelier'].state = 'fan_only';
       assert.equal(text($(thermostatCard(hass, 'climate.atelier'), '.tc-state')), 'Ventilation');
