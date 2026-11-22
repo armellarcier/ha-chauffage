@@ -103,6 +103,16 @@
       "override_end": {
         "name": "Override end",
         "state_attributes": { "target": { "name": "Target" }, "kind": { "name": "Kind" }, "value": { "name": "Value" }, "preset": { "name": "Preset" } }
+      },
+      "next_change": {
+        "name": "Next change",
+        "state_attributes": {
+          "preset": { "name": "Preset" },
+          "preset_name": { "name": "Preset name" },
+          "hvac_mode": { "name": "HVAC mode" },
+          "target": { "name": "Target" },
+          "temperature": { "name": "Temperature" }
+        }
       }
     }
   },

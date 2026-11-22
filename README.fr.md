@@ -109,6 +109,7 @@ comment mettre à jour.
 | [Dérogations](docs/overrides.fr.md) | choisir combien de temps dure un changement à la main, et créer ou arrêter une dérogation |
 | [Entités, services et événements](docs/automations.fr.md) | utiliser Chauffage dans vos automatisations, scripts et tableaux de bord |
 | [Dépannage](docs/troubleshooting.fr.md) | comprendre pourquoi un thermostat a fait quelque chose |
+| [Outils de préchauffage](docs/preheating.fr.md) | créer un outil qui préchauffe une pièce avant un créneau |
 | [Comment ça marche](docs/how-it-works.fr.md) | savoir comment Chauffage stocke ses données et pilote les thermostats |
 
 ## Licence

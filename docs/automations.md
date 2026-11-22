@@ -27,6 +27,7 @@ thermostat's page in the Chauffage panel.
 | **Planned preset** (sensor) | The preset planned now. |
 | **Override** (binary sensor) | On while the thermostat has an override. |
 | **Override end** (sensor, disabled by default) | The end of the current override, as a timestamp. |
+| **Next change** (sensor) | When Chauffage next changes the thermostat, and to what. For preheating tools, see [Preheating tools](preheating.md). |
 
 The sensors are unavailable while the thermostat is paused.
 

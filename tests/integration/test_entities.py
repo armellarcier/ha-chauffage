@@ -240,6 +240,7 @@ async def test_the_card_is_told_the_entities_of_each_thermostat_and_of_chauffage
     assert snapshot["thermostat_entities"]["climate.salon"] == {
         "control": "switch.salon_control", "override": "binary_sensor.salon_override",
         "planned_preset": "sensor.salon_planned_preset", "override_end": "sensor.salon_override_end",
+        "next_change": "sensor.salon_next_change",
     }
     assert snapshot["schedule_select"] == "select.chauffage_schedule"
     assert dr.async_get(bench.hass).async_get(snapshot["device_id"]).name == "Chauffage"
