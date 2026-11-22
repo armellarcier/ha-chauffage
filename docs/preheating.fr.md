@@ -44,12 +44,11 @@ Sur un thermostat qui a ses propres préréglages, Chauffage apprend la tempéra
 préréglage pendant que le thermostat l'utilise. Un Versatile Thermostat publie les températures
 de ses préréglages, donc Chauffage les connaît tout de suite.
 
-### Trouver le capteur d'un thermostat
+### Laisser l'utilisateur choisir le capteur
 
-Le capteur est sur l'appareil que Chauffage donne au thermostat. Cet appareil est connecté via
-l'appareil du thermostat lui-même. Dans le registre des entités, le capteur a la plateforme
-`chauffage` et un identifiant unique qui se termine par `_<entité climate>_next_change`, par
-exemple `_climate.salon_next_change`.
+Dans la configuration de votre outil, laissez l'utilisateur choisir le capteur **Prochain
+changement** du thermostat, comme il choisit une entité de planning. Le capteur a la plateforme
+`chauffage` et la classe d'appareil `timestamp`.
 
 ## 2. Appliquer le prochain créneau en avance
 

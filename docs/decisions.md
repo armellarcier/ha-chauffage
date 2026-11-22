@@ -936,10 +936,12 @@ dashboards, automations, scripts and by voice without the card
     an air conditioner, a cooling slot gives the preset's cooling value. The internal keys of a
     preset, such as `cool_temperature`, never show. The *Planned preset* sensor's `target`
     still shows them.
-  - **The sensor is found by its unique id** (a proposal from Claude). The sensor is on the
-    device Chauffage gives the thermostat, not on the thermostat's own device. A preheating tool
-    finds it in the entity registry, by a unique id that ends with
-    `_<climate entity id>_next_change`.
+  - **The user chooses the sensor in the preheating tool** (the owner). A preheating tool
+    such as IHP already lets the user choose its scheduler entities, for example a `schedule.*`
+    helper, next to the thermostat. Chauffage offers no discovery: the format of a unique id
+    stays internal. The sensor is on the device Chauffage gives the thermostat, so a tool could
+    not find it through the thermostat's own device anyway. An attribute naming the thermostat
+    waits for a tool that needs it.
   - **The activation rules are ignored** (the owner). A rule is a template, so Chauffage cannot
     predict when it switches the schedule. The sensor follows the new schedule as soon as a rule
     activates it.

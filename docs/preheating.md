@@ -42,12 +42,11 @@ On a thermostat with presets of its own, Chauffage learns the temperature of eac
 the thermostat is on it. A Versatile Thermostat publishes its preset temperatures, so Chauffage
 knows them at once.
 
-### Find the sensor of a thermostat
+### Let the user choose the sensor
 
-The sensor is on the device that Chauffage gives the thermostat. That device is connected via
-the thermostat's own device. In the entity registry, the sensor has the platform `chauffage` and
-a unique id that ends with `_<climate entity id>_next_change`, for example
-`_climate.salon_next_change`.
+In your tool's configuration, let the user choose the **Next change** sensor of the thermostat,
+as they choose a schedule entity. The sensor has the platform `chauffage` and the device class
+`timestamp`.
 
 ## 2. Apply the next slot early
 
