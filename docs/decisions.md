@@ -934,7 +934,7 @@ dashboards, automations, scripts and by voice without the card
   - **A parent context tells a preheat from a change by hand**, not "another integration". The
     HomeKit bridge reaches Home Assistant like another integration: its users would lose their
     overrides.
-- **The *Planned preset* sensor is deprecated** (the owner). *Next change* answers the same
+- **The *Planned preset* sensor is deprecated** (#125, the owner). *Next change* answers the same
   question better: `next_preset` ignores an override and stops at midnight, and `target` shows
   Chauffage's internal keys, such as `cool_temperature`. This amends *Enabled by default*
   above.

@@ -17,7 +17,7 @@ then disable the *Planned preset* sensors. The sensor will be removed in 0.12 at
 
 ### Deprecated
 
-- **The *Planned preset* sensor** (#82). The *Next change* sensor answers the same question
+- **The *Planned preset* sensor** (#125). The *Next change* sensor answers the same question
   better: it sees overrides and the slots after midnight. A new installation has the *Planned
   preset* sensor disabled.
 
