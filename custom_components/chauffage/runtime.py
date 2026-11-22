@@ -664,8 +664,9 @@ class ChauffageRuntime:
         target = plan.target_of(entity_id, slot, thermostat) or {}
         # What it sends, in the slot's HVAC mode: a preset's cooling value in cool, not its heating one
         sent = engine.complete(target, thermostat, planned=target.get("hvac_mode")) if target else {}
-        # The HVAC mode sent, or the one the thermostat keeps
-        hvac_mode = sent.get("hvac_mode") or (thermostat.state if thermostat is not None and target else None)
+        # The HVAC mode sent, or the one the thermostat keeps. Unknown while it is unavailable
+        known = thermostat is not None and not engine.ignored(thermostat)
+        hvac_mode = sent.get("hvac_mode") or (thermostat.state if known and target else None)
         info = {"start": start, "preset": slot.preset if slot else None, "hvac_mode": hvac_mode,
                 "preset_mode": sent.get("preset_mode"), "temperature": sent.get("temperature")}
         if all(key in sent for key in engine.RANGE_KEYS):

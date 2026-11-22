@@ -37,7 +37,7 @@ passer tels quels aux services `climate`.
 
 | Attribut | Ce qu'il donne | Exemple |
 |---|---|---|
-| `hvac_mode` | Le mode HVAC qu'aura le thermostat : celui que Chauffage envoie, ou celui que le thermostat garde. | `"heat"` |
+| `hvac_mode` | Le mode HVAC qu'aura le thermostat : celui que Chauffage envoie, ou celui que le thermostat garde. `null` tant que le thermostat est indisponible. | `"heat"` |
 | `preset_mode` | Le préréglage du thermostat que Chauffage enverra, ou `null` quand Chauffage envoie une température. | `"comfort"` |
 | `temperature` | La consigne qu'aura le thermostat, ou `null` quand Chauffage ne la connaît pas encore. | `20.0` |
 | `target_temp_low`, `target_temp_high` | La plage d'un créneau chaud/froid. Présents seulement pour un créneau chaud/froid. | `20.0`, `25.0` |
@@ -51,9 +51,11 @@ de ses préréglages, donc Chauffage les connaît tout de suite.
 ### Quoi envoyer
 
 1. Quand `hvac_mode` vaut `off`, Chauffage éteindra le thermostat. Il n'y a rien à préchauffer.
-2. Quand `preset_mode` est renseigné, envoyez ce préréglage. La `temperature` à côté indique ce
+2. Quand le thermostat est dans un autre mode HVAC, envoyez aussi `hvac_mode`, ou ne préchauffez
+   pas. Par exemple, un climatiseur en ventilation ne chauffe pas tant qu'il n'a pas reçu `heat`.
+3. Quand `preset_mode` est renseigné, envoyez ce préréglage. La `temperature` à côté indique ce
    que donne le préréglage : ne l'envoyez pas.
-3. Sinon, envoyez `temperature`, ou la plage d'un créneau chaud/froid.
+4. Sinon, envoyez `temperature`, ou la plage d'un créneau chaud/froid.
 
 ### Laisser l'utilisateur choisir le capteur
 

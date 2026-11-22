@@ -176,3 +176,14 @@ async def test_a_heat_cool_slot_gives_its_range(bench: Bench):
     assert state.attributes["hvac_mode"] == "heat_cool"
     assert (state.attributes["target_temp_low"], state.attributes["target_temp_high"]) == (20.0, 25.0)
     assert state.attributes["temperature"] is None
+
+
+async def test_an_unavailable_thermostat_has_no_hvac_mode_yet(bench: Bench):
+    """Chauffage sets it when it is back: until then, its HVAC mode is unknown, never
+    "unavailable"."""
+    await start(bench)
+    bench.thermostat("climate.salon", None, state="unavailable")
+    await bench.advance(1)
+    state = bench.hass.states.get(SENSOR)
+    assert state.state == "2026-10-12T15:30:00+00:00"
+    assert state.attributes["hvac_mode"] is None

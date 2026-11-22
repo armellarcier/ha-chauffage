@@ -35,7 +35,7 @@ The attributes are named like a `climate` entity's attributes, so your tool can 
 
 | Attribute | What it gives | Example |
 |---|---|---|
-| `hvac_mode` | The HVAC mode the thermostat will have: the one Chauffage sends, or the one the thermostat keeps. | `"heat"` |
+| `hvac_mode` | The HVAC mode the thermostat will have: the one Chauffage sends, or the one the thermostat keeps. `null` while the thermostat is unavailable. | `"heat"` |
 | `preset_mode` | The thermostat's own preset that Chauffage will send, or `null` when Chauffage sends a temperature. | `"comfort"` |
 | `temperature` | The setpoint the thermostat will have, or `null` when Chauffage doesn't know it yet. | `20.0` |
 | `target_temp_low`, `target_temp_high` | The range of a heat/cool slot. Only present for a heat/cool slot. | `20.0`, `25.0` |
@@ -50,9 +50,11 @@ knows them at once.
 
 1. When `hvac_mode` is `off`, Chauffage will turn the thermostat off. There is nothing to
    preheat.
-2. When `preset_mode` is set, send this preset. The `temperature` next to it tells you what the
+2. When the thermostat is in another HVAC mode, send `hvac_mode` too, or don't preheat. For
+   example, an air conditioner in fan only does not heat until it gets `heat`.
+3. When `preset_mode` is set, send this preset. The `temperature` next to it tells you what the
    preset gives: don't send it.
-3. Otherwise, send `temperature`, or the range of a heat/cool slot.
+4. Otherwise, send `temperature`, or the range of a heat/cool slot.
 
 ### Let the user choose the sensor
 
