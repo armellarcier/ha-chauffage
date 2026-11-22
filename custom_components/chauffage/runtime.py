@@ -64,6 +64,7 @@ from .const import (
     MANUAL_OVERRIDE_ENDS,
     MAX_MANUAL_OVERRIDE,
     MIN_MANUAL_OVERRIDE,
+    NEXT_CHANGE_KEY,
     NEXT_SLOT,
     NO_NEXT_SLOT,
     OVERRIDE_DURATION_MAX,
@@ -564,11 +565,11 @@ class ChauffageRuntime:
         return {s: entity_id for s, entity_id in entities.items() if entity_id}
 
     def thermostat_entities(self) -> dict[str, dict[str, str]]:
-        """{thermostat: {control, override, planned_preset, override_end: entity id}}: a thermostat
+        """{thermostat: {control, override, planned_preset, override_end, next_change: entity id}}: a thermostat
         without a device has no other way to find its entities (named after it, not attached)."""
         registry = er.async_get(self.hass)
         names = {CONTROL_KEY: "control", OVERRIDE_KEY: "override", PLANNED_PRESET_KEY: "planned_preset",
-                 OVERRIDE_END_KEY: "override_end"}
+                 OVERRIDE_END_KEY: "override_end", NEXT_CHANGE_KEY: "next_change"}
         out = {}
         for climate in self.scheduled:
             ids = {names[key]: registry.async_get_entity_id(platform, DOMAIN, thermostat_unique_id(
@@ -644,6 +645,34 @@ class ChauffageRuntime:
             "next_slot_end": slot.isoformat() if slot else None,
             "next_day_slot_end": tomorrow.isoformat() if tomorrow else None,
         }
+
+    def next_change_info(self, entity_id: str, now: datetime | None = None) -> dict[str, Any]:
+        """When Chauffage next changes a thermostat, and to what (#82): the end of its override,
+        else the next slot that sends something different, within a week. Its Chauffage preset,
+        then what the thermostat will have, named like a climate's attributes: its HVAC mode, its
+        own preset, its temperature (None when unknown), its range in heat/cool. `start` is None
+        when no slot ever changes the thermostat."""
+        plan, now = self.plan(), now or dt_util.now()
+        thermostat = self.current(self.hass.states.get(entity_id))
+        override = self.data["overrides"].get(entity_id)
+        if override:
+            start = engine.parse_datetime(override.get("end"))
+            start = dt_util.as_local(start) if start else None
+        else:
+            start = plan.next_change(entity_id, now, thermostat, not_before=now, until=now + timedelta(days=8))
+        slot = plan.slot_at(entity_id, start)[0] if start else None
+        target = plan.target_of(entity_id, slot, thermostat) or {}
+        # What it sends, in the slot's HVAC mode: a preset's cooling value in cool, not its heating one
+        sent = engine.complete(target, thermostat, planned=target.get("hvac_mode")) if target else {}
+        # The HVAC mode sent, or the one the thermostat keeps
+        hvac_mode = sent.get("hvac_mode") or (thermostat.state if thermostat is not None and target else None)
+        info = {"start": start, "preset": slot.preset if slot else None, "hvac_mode": hvac_mode,
+                "preset_mode": sent.get("preset_mode"), "temperature": sent.get("temperature")}
+        if all(key in sent for key in engine.RANGE_KEYS):
+            info.update({key: sent[key] for key in engine.RANGE_KEYS})
+        elif info["temperature"] is None and slot is not None and slot.preset and hvac_mode != "off":
+            info["temperature"] = self.preset_temperatures_of(entity_id, hvac_mode == "cool").get(slot.preset)
+        return info
 
     def next_day_slot_end(self, entity_id: str, current: engine.Thermostat | None, plan: engine.Plan | None = None,
                           now: datetime | None = None) -> datetime | None:

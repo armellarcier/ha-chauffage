@@ -918,6 +918,22 @@ dashboards, automations, scripts and by voice without the card
   enable *Planned preset* once (config entry 1.2), unless the user disabled it.
 - **On a paused thermostat the sensors are unavailable**, Home Assistant's convention for a
   value that has no meaning.
+- **A *Next change* sensor for preheating tools** (#82). Chauffage decides what happens to a
+  thermostat, and when. The preheating tool decides how early to start.
+  - **An entity, not a service.** A tool reacts when the entity changes. A service has to be
+    polled.
+  - **The next change is the next time Chauffage sends something different** (the owner). A
+    slot that sends the same thing is no change, as for *Until the next slot*.
+  - **The attributes are named like a climate entity's** (the owner): `hvac_mode`,
+    `preset_mode`, `temperature`. A tool sends them with the climate services as they are. A
+    `target` dict of Chauffage's own keys would make each tool translate it.
+  - **The activation rules are ignored** (the owner). A rule is a template, so Chauffage cannot
+    predict when it switches the schedule.
+  - **The user chooses the sensor in the tool** (the owner). Chauffage offers no discovery, so
+    the format of a unique id stays internal.
+  - **A parent context tells a preheat from a change by hand**, not "another integration". The
+    HomeKit bridge reaches Home Assistant like another integration: its users would lose their
+    overrides.
 - **No "resume the rules" service.** Rules are never disabled: a schedule chosen by hand stays
   until their outcome changes, then they take over again by themselves. The select's
   `rules_choice` attribute shows what they give, and an automation can activate it.

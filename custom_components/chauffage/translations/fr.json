@@ -103,6 +103,18 @@
       "override_end": {
         "name": "Fin de dérogation",
         "state_attributes": { "target": { "name": "Cible" }, "kind": { "name": "Type" }, "value": { "name": "Valeur" }, "preset": { "name": "Préréglage" } }
+      },
+      "next_change": {
+        "name": "Prochain changement",
+        "state_attributes": {
+          "preset": { "name": "Préréglage" },
+          "preset_name": { "name": "Nom du préréglage" },
+          "hvac_mode": { "name": "Mode HVAC" },
+          "preset_mode": { "name": "Préréglage du thermostat" },
+          "temperature": { "name": "Température" },
+          "target_temp_low": { "name": "Température cible basse" },
+          "target_temp_high": { "name": "Température cible haute" }
+        }
       }
     }
   },

@@ -3,7 +3,9 @@
 - planned preset (enabled by default): the preset planned now; attributes: the next preset and
   its start time, the temperature of each preset on this thermostat;
 - override end (disabled by default: the override binary sensor carries the end): when the
-  current override ends (unknown without override).
+  current override ends (unknown without override);
+- next change (enabled by default, for preheating tools, #82): when Chauffage next changes the
+  thermostat, and to what (unknown when no slot changes it).
 
 Created and removed with the scheduled thermostats (entity.async_follow_thermostats).
 """
@@ -18,7 +20,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import ChauffageConfigEntry, engine
-from .const import OVERRIDE_END_KEY, PLANNED_PRESET_KEY
+from .const import NEXT_CHANGE_KEY, OVERRIDE_END_KEY, PLANNED_PRESET_KEY
 from .entity import ThermostatSensorEntity, async_follow_thermostats
 
 
@@ -27,7 +29,8 @@ async def async_setup_entry(
 ) -> None:
     async_follow_thermostats(
         hass, entry, async_add_entities,
-        lambda runtime, climate: [PlannedPresetSensor(runtime, climate), OverrideEndSensor(runtime, climate)],
+        lambda runtime, climate: [PlannedPresetSensor(runtime, climate), OverrideEndSensor(runtime, climate),
+                                  NextChangeSensor(runtime, climate)],
     )
 
 
@@ -80,3 +83,24 @@ class OverrideEndSensor(ThermostatSensorEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         info = self.runtime.override_info(self.climate)
         return {key: info[key] for key in ("target", "kind", "value", "preset")}
+
+
+class NextChangeSensor(ThermostatSensorEntity, SensorEntity):
+    """For preheating tools (#82, docs/preheating.md): its format is stable. Its attributes are
+    named like a climate entity's."""
+
+    key = NEXT_CHANGE_KEY
+    update_on_tick = True
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def native_value(self) -> datetime | None:
+        return self.runtime.next_change_info(self.climate)["start"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        info = self.runtime.next_change_info(self.climate)
+        name = next((p["name"] for p in self.runtime.data["presets"] if p["id"] == info["preset"]), None)
+        # Named like a climate entity's attributes, to apply with the climate services as they are
+        return {"preset": info["preset"], "preset_name": name,
+                **{key: value for key, value in info.items() if key not in ("start", "preset")}}

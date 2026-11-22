@@ -107,6 +107,7 @@ every step, the cards to add, and how to update.
 | [Overrides](docs/overrides.md) | choose how long a change by hand lasts, and start or end an override |
 | [Entities, services and events](docs/automations.md) | use Chauffage in your automations, scripts and dashboards |
 | [Troubleshooting](docs/troubleshooting.md) | find out why a thermostat did something |
+| [Preheating tools](docs/preheating.md) | build a tool that preheats a room before a slot |
 | [How it works](docs/how-it-works.md) | learn how Chauffage stores its data and drives the thermostats |
 
 ## License

@@ -118,8 +118,10 @@ PACKAGE_DATA_VERSION = 1  # newest package data version the import understands
 # Keys of the entities of each scheduled thermostat, and their platforms. The planned preset
 # sensor keeps its former key, "schedule": its unique id, so existing entity ids do not change
 PLANNED_PRESET_KEY, OVERRIDE_KEY, OVERRIDE_END_KEY, CONTROL_KEY = "schedule", "override", "override_end", "control"
+NEXT_CHANGE_KEY = "next_change"
 THERMOSTAT_ENTITIES = {
     PLANNED_PRESET_KEY: "sensor", OVERRIDE_KEY: "binary_sensor", OVERRIDE_END_KEY: "sensor", CONTROL_KEY: "switch",
+    NEXT_CHANGE_KEY: "sensor",
 }
 
 
