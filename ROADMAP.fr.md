@@ -24,8 +24,8 @@ idée retenue renvoie vers son issue quand elle en a une.
 
 Fait en 0.5 (en bêta, [#1](https://github.com/armellarcier/ha-chauffage/issues/1)) : des plannings
 qui s'activent d'eux-mêmes, selon une liste ordonnée de règles écrites en templates, la première
-qui s'applique l'emportant, un planning par défaut sinon. Voir le
-[README](README.fr.md#règles-dactivation).
+qui s'applique l'emportant, un planning par défaut sinon. Voir
+[Règles d'activation](docs/activation-rules.fr.md).
 
 ## À court terme
 
@@ -45,8 +45,8 @@ par mois, avec des périodes (jours et heures) colorées selon le planning, comm
 semaine avec ses créneaux. Ses périodes sont aussi des règles. Il couvre également « activer
 *Absent* jusqu'à mardi » ou « jusqu'à 18:00 ».
 
-Aujourd'hui, un calendrier de Home Assistant lu par une règle le fait déjà (voir le
-[README](README.fr.md#règles-dactivation)). Un calendrier de ha-chauffage doit faire plus, ou
+Aujourd'hui, un calendrier de Home Assistant lu par une règle le fait déjà (voir
+[Règles d'activation](docs/activation-rules.fr.md)). Un calendrier de ha-chauffage doit faire plus, ou
 apporter quelque chose par-dessus un calendrier de HA : un planning choisi dans la liste plutôt
 qu'un titre saisi en texte libre, pas de périodes qui se chevauchent.
 
@@ -73,11 +73,8 @@ Certains appareils ajustent eux-mêmes leur consigne (fenêtre ouverte, présenc
 aujourd'hui cela ressemble à un changement manuel et devient une dérogation. Reconnaître ces
 ajustements (règles par thermostat ou par intégration).
 
-### Plus de thermostats et de créneaux
+### Créneaux avec une température
 
-- Les thermostats chaud / froid à plage de températures (`heat_cool` : `target_temp_low` /
-  `target_temp_high`).
-- Un préréglage *Éteint* (`hvac_mode: off`).
 - Des créneaux portant directement une température (« 21 °C à partir de 06:30 »), sans
   préréglage nommé.
 

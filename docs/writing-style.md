@@ -27,7 +27,11 @@ French.
 10. **In CONTRIBUTING, say what to do**, in the imperative. Write the reasons in
     [decisions.md](decisions.md).
 11. **Write French in French**, from the meaning, without copying the English sentence.
-12. **Don't rewrite the past.** Past changelog entries, release notes and commit messages stay as
+12. **In the user docs, say what the reader does and what they get.** Write one sentence for
+    each behavior the reader relies on. Leave out what Chauffage does not do, the corner cases
+    the reader has nothing to do about, and what the screen already says. These details belong
+    in [decisions.md](decisions.md).
+13. **Don't rewrite the past.** Past changelog entries, release notes and commit messages stay as
     they are. New text follows these rules.
 
 These rules serve the reader. When a rule makes a text harder to read, the text wins.
@@ -40,8 +44,34 @@ These rules serve the reader. When a rule makes a text harder to read, the text 
 - A bullet runs over three or four lines.
 - The French sentence follows the English one word by word.
 - The text describes the system ("is shown", "se suit") instead of telling the reader what to do.
+- The text says what Chauffage does *not* send, or describes a line of the popover word by word.
 
 ## Examples
+
+### A behavior in the user docs
+
+Before:
+
+> Le thermostat s'éteint au début du créneau. Chauffage ne lui envoie rien d'autre : si vous le
+> rallumez à la main, le thermostat repart sur sa dernière consigne. Le prochain créneau qui
+> demande un préréglage le rallume.
+
+After:
+
+> Le thermostat s'éteint au début du créneau, et se rallume au prochain créneau qui demande un
+> préréglage.
+
+### Name what the sentence talks about
+
+Before:
+
+> Vous pouvez choisir une autre fin, par exemple le prochain créneau, comme sur un thermostat
+> classique.
+
+After:
+
+> Vous pouvez modifier l'heure à laquelle se terminera la dérogation. Par exemple, elle peut
+> s'arrêter au prochain créneau, comme sur un thermostat classique.
 
 ### A feature description
 

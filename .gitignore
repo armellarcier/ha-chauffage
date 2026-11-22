@@ -8,6 +8,7 @@ __pycache__/
 .pytest_cache/
 dev/demo/out/
 dev/demo/node_modules/
+dev/demo/hass/
 dev/review/out/
 dev/review/.auth/
 lcov.info

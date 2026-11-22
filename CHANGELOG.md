@@ -9,6 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Changed
+
+- **The documentation has a page for each topic.** The README now presents Chauffage and its
+  installation. The other topics have their own page in `docs/`, in English and in French, for
+  example [Overrides](docs/overrides.md). An old link to a section of the README still works:
+  it lands on a table at the end of the README, which links to the new page.
+
 ## [0.10.0-alpha.2] - 2026-11-21
 
 **A second alpha: install it only to try it, on a Home Assistant you can restore.** It fixes what

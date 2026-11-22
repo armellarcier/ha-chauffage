@@ -1,0 +1,94 @@
+# Installation
+
+[English](installation.md) · **Français**
+
+ha-chauffage se configure depuis l'interface de Home Assistant. Vous n'avez aucun YAML à
+modifier.
+
+Nécessite Home Assistant 2025.1 ou plus récent. Le [journal des modifications](../CHANGELOG.md)
+(en anglais) annonce quand la version minimale de Home Assistant augmente.
+
+## 1. Installer l'intégration depuis HACS
+
+[![Ouvrir ha-chauffage dans HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=armellarcier&repository=ha-chauffage&category=integration)
+
+Le bouton ouvre ha-chauffage dans le HACS de votre Home Assistant. Cliquez sur *Télécharger*,
+puis redémarrez Home Assistant.
+
+Sans le bouton, ouvrez HACS et cherchez **ha-chauffage**.
+
+## 2. Ajouter l'intégration
+
+Allez dans Paramètres → Appareils et services → *Ajouter une intégration*, puis choisissez
+**Chauffage**.
+
+Un panneau **Chauffage** apparaît alors dans la barre latérale, pour les administrateurs.
+Ouvrez le panneau et cochez les thermostats que Chauffage doit piloter, par exemple trois. Puis
+cliquez sur *Programmer 3 thermostats*. Voir [Le panneau Chauffage](panel.fr.md).
+
+## 3. Ajouter la carte des plannings
+
+Ajoutez la carte à un tableau de bord : *Ajouter une carte* → **Plannings de chauffe**. Dans
+l'éditeur visuel de la carte, choisissez les thermostats et leurs noms.
+
+Vous pouvez aussi écrire la carte en YAML :
+
+```yaml
+type: custom:chauffage-programme-card
+thermostats:
+  - entity: climate.salon
+    name: Salon
+```
+
+**Langue.** La carte suit votre langue et vos formats, par exemple l'heure sur 12 ou 24 heures.
+Pour imposer l'anglais ou le français, ajoutez `language: en` ou `language: fr`.
+
+**Jours groupés.** Les jours identiques partagent une ligne, par exemple *Lun–Ven*. Pour rendre
+un jour différent, désactivez *Grouper les jours*. La carte affiche alors chaque jour sur sa
+propre ligne. Pour afficher chaque jour sur sa ligne par défaut, ajoutez `group_days: false`.
+
+## 4. Ajouter une carte par pièce (facultatif)
+
+La carte **Thermostat programmé** montre un seul thermostat, pour vos propres tableaux de bord.
+Pour ajouter la carte, ouvrez *Ajouter une carte* et cherchez **Thermostat programmé**. Depuis
+Home Assistant 2026.6, l'onglet *Par entité* d'*Ajouter une carte* propose aussi la carte pour
+chaque thermostat.
+
+Vous pouvez aussi écrire la carte en YAML :
+
+```yaml
+type: custom:chauffage-thermostat-card
+entity: climate.salon
+name: Salon  # facultatif
+```
+
+Depuis la carte, vous pouvez créer une dérogation et suspendre le pilotage du thermostat.
+
+Pour modifier la semaine du thermostat, cliquez sur *Modifier sa semaine* dans la fenêtre de
+détail du thermostat.
+
+## Mettre à jour
+
+Lisez le [journal des modifications](../CHANGELOG.md) (en anglais), puis mettez ha-chauffage à
+jour depuis HACS. Chauffage migre vos données automatiquement. Vous ne pouvez pas revenir à une
+version antérieure.
+
+## Mise à jour depuis le package (v0.1)
+
+La version 0.1 d'ha-chauffage était un package YAML. L'intégration importe les données du
+package.
+
+1. Installez l'intégration (étapes 1 et 2 ci-dessus). **Ne retirez pas encore le package.** La
+   configuration vous indique ce qu'elle importe, par exemple les semaines du package et son
+   planning actif. Validez la configuration pour les importer. Puis la configuration désactive
+   les deux automatisations du package.
+2. Vérifiez la carte et les thermostats. Pour revenir au package, supprimez l'intégration et
+   réactivez les deux automatisations `automation.chauffage_*`.
+3. Suivez la réparation que Home Assistant affiche dans Paramètres. La réparation vous dit quels
+   fichiers et quelles lignes retirer, puis vous demande de redémarrer Home Assistant.
+4. Dans vos automatisations, remplacez `input_select.mode_chauffage` par
+   `select.chauffage_schedule`.
+
+Le package n'est plus maintenu. La
+[version v0.1.0](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) le contient
+toujours, avec son propre README.

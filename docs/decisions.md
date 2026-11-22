@@ -23,6 +23,9 @@ future contributor might question.
   **Amended by #57**: the settings move from the card to the Chauffage panel,
   which reuses the card's views. The options flow keeps its single form. See
   [The panel](#the-panel).
+- **ZHA presets are Enums.** A thermostat's `preset_mode` may be an Enum, for example on ZHA.
+  Chauffage converts it with `.value` before it stores it or puts it in an attribute. Tests
+  cover it.
 
 ## Scheduling
 
@@ -1335,6 +1338,9 @@ dashboards, automations, scripts and by voice without the card
   - **On a 12 h clock, a time typed without AM / PM keeps the period of the field**: "0715" in
     a field at "06:00 PM" means 7:15 PM. Except 12, which is noon: "1230" in a morning field
     means half past noon, not half past midnight.
+- **Known pitfalls of the browsers**, handled and covered by tests:
+  - Safari rejects dates with microseconds.
+  - `ha-card` renders asynchronously, which matters to place the popovers.
 
 ## Chauffage panel and devices (#57)
 
@@ -1889,6 +1895,34 @@ A review of every surface, before the merge into `main`, settled these choices.
   semicolons, every case in parentheses, and French translated word by word. The writing guide
   gives the rules and examples, mainly for AI edits, where this style came from. CONTRIBUTING
   says what to do, and this file says why.
+- **A short README, and one page per topic in `docs/`.** The README had grown to 950 lines: a
+  new user could not find the installation, and the README could not show several demos. The
+  README now shows Chauffage off: each section presents a topic in a few sentences, with its
+  demo, and links to its page. The installation is a button and a link, not the full steps. The
+  details go to `docs/<topic>.md`, with a `.fr.md` version, and `docs/README.md` lists every
+  page. The README keeps an `<a id>` for every old section anchor, in a *Moved sections* table:
+  released cards, the changelog and old issues link to them.
+- **Three demos, not one per feature.** A visitor watches a few animations, not seven, and
+  each demo is a scenario to keep working. The three demos follow the three moments of use:
+  the week, a change by hand, and the panel.
+- **The override demo runs on a phone.** The README says that the card works on phones: the
+  override demo shows it, at 390 px wide.
+- **The demos run on a Tuesday at 17:30, on a demo HA of their own.** A weekday evening shows a
+  typical home: the evening *Comfort* slot, today's line before the evening, and a history
+  where yesterday is a full weekday. The integration takes the time from its own clock, so the
+  browser alone cannot fake it. `scripts/demo.sh` starts a new HA with libfaketime, and sets
+  the browser's clock to the HA's clock. The monotonic clock stays real, so Home Assistant's
+  timers keep working. A new HA at each recording gives the same sample data every time, and
+  leaves the development HA alone. The former demo ran at the real time, and could only be
+  recorded between 21:00 and 22:00.
+- **The GIFs come from lossless frames, at 15 frames a second.** Playwright's video is
+  compressed, and blurred the text of the card. Chrome's screencast gives each painted frame as
+  a PNG, with its time. One palette for the whole GIF keeps the colours of the presets the same
+  from frame to frame, and each frame redraws only the rectangle that changes: a demo weighs
+  less than 1 MB.
+- **The demos are recorded in French only.** The development HA and its sample data are in
+  French, and one recording per demo keeps `scripts/demo.sh` simple. The English README shows
+  the same GIFs. The card follows the user's language, so an English recording stays possible.
 
 ### Trying a commit on a real installation (scripts/deploy.sh)
 

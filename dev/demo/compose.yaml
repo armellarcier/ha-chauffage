@@ -1,0 +1,23 @@
+# The demo HA: a new development HA whose clock runs at the demo's time. scripts/demo.sh starts
+# it next to dev/compose.yaml, as its own compose project:
+#   docker compose -p ha-chauffage-demo -f dev/compose.yaml -f dev/demo/compose.yaml up -d
+# FAKETIME is an offset in seconds from the real time, with its sign (+202991). The monotonic
+# clock stays real, so the timers of Home Assistant keep working.
+x-faketime: &faketime
+  build:
+    context: ./demo
+    args:
+      HA_VERSION: ${HA_VERSION:-stable}
+  image: ha-chauffage-demo-ha:${HA_VERSION:-stable}
+  environment:
+    TZ: Europe/Paris
+    LD_PRELOAD: /usr/lib/faketime/libfaketime.so.1
+    FAKETIME: ${DEMO_FAKETIME:?the offset of the demo time, in seconds}
+    FAKETIME_DONT_FAKE_MONOTONIC: "1"
+
+services:
+  homeassistant:
+    <<: *faketime
+    restart: "no"
+  setup:
+    <<: *faketime
