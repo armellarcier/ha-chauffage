@@ -86,7 +86,8 @@ class OverrideEndSensor(ThermostatSensorEntity, SensorEntity):
 
 
 class NextChangeSensor(ThermostatSensorEntity, SensorEntity):
-    """For preheating tools (#82, docs/preheating.md): its format is stable."""
+    """For preheating tools (#82, docs/preheating.md): its format is stable. Its attributes are
+    named like a climate entity's."""
 
     key = NEXT_CHANGE_KEY
     update_on_tick = True
@@ -100,5 +101,6 @@ class NextChangeSensor(ThermostatSensorEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         info = self.runtime.next_change_info(self.climate)
         name = next((p["name"] for p in self.runtime.data["presets"] if p["id"] == info["preset"]), None)
-        return {"preset": info["preset"], "preset_name": name, "hvac_mode": info["hvac_mode"],
-                "target": info["target"], "temperature": info["temperature"]}
+        # Named like a climate entity's attributes, to apply with the climate services as they are
+        return {"preset": info["preset"], "preset_name": name,
+                **{key: value for key, value in info.items() if key not in ("start", "preset")}}

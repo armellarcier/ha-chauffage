@@ -30,7 +30,7 @@ ouvre la page du thermostat dans le panneau Chauffage.
 | **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. |
 | **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours, sous forme d'horodatage. |
-| **Prochain changement** (capteur) | Le moment où Chauffage changera le thermostat, et pour quoi. Pour les outils de préchauffage, voir [Outils de préchauffage](preheating.fr.md). |
+| **Prochain changement** (capteur) | Le moment où Chauffage changera le thermostat, et ce qu'il enverra. Pour les outils de préchauffage, voir [Outils de préchauffage](preheating.fr.md). |
 
 Les capteurs sont indisponibles pendant la pause du thermostat.
 

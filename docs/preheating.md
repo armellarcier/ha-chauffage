@@ -30,17 +30,29 @@ at once.
 
 ### The attributes
 
+The attributes are named like a `climate` entity's attributes, so your tool can pass them to the
+`climate` services as they are.
+
 | Attribute | What it gives | Example |
 |---|---|---|
+| `hvac_mode` | The HVAC mode the thermostat will have: the one Chauffage sends, or the one the thermostat keeps. | `"heat"` |
+| `preset_mode` | The thermostat's own preset that Chauffage will send, or `null` when Chauffage sends a temperature. | `"comfort"` |
+| `temperature` | The setpoint the thermostat will have, or `null` when Chauffage doesn't know it yet. | `20.0` |
+| `target_temp_low`, `target_temp_high` | The range of a heat/cool slot. Only present for a heat/cool slot. | `20.0`, `25.0` |
 | `preset` | The Chauffage preset of the slot that runs then. `null` for an off slot. | `"comfort"` |
 | `preset_name` | The preset's name, as the user wrote it. | `"Comfort"` |
-| `hvac_mode` | The slot's HVAC mode, when the slot chooses one. | `"cool"` |
-| `target` | What Chauffage will send: the thermostat's own preset, a temperature, an HVAC mode. | `{"preset_mode": "comfort"}` |
-| `temperature` | The temperature the thermostat will have, or `null` when Chauffage doesn't know it yet. | `20.0` |
 
 On a thermostat with presets of its own, Chauffage learns the temperature of each preset while
 the thermostat is on it. A Versatile Thermostat publishes its preset temperatures, so Chauffage
 knows them at once.
+
+### What to send
+
+1. When `hvac_mode` is `off`, Chauffage will turn the thermostat off. There is nothing to
+   preheat.
+2. When `preset_mode` is set, send this preset. The `temperature` next to it tells you what the
+   preset gives: don't send it.
+3. Otherwise, send `temperature`, or the range of a heat/cool slot.
 
 ### Let the user choose the sensor
 
@@ -75,9 +87,9 @@ For example, with a *Comfort* slot at 17:30 preheated from 16:45:
 
 ## 3. Start again after a realignment
 
-Chauffage sets every thermostat to its current slot when Home Assistant starts, when a schedule
-is activated, and when the user saves the weeks. A realignment during a preheat cancels the
-preheat. Read the **Next change** sensor again to decide whether to start again.
+Chauffage sometimes sets a thermostat back to its current slot, for example when Home Assistant
+starts or when the user edits a preset. This realignment cancels a preheat. Read the **Next
+change** sensor again to decide whether to start again.
 
 ## A stable format
 

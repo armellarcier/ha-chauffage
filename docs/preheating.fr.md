@@ -32,17 +32,28 @@ suit aussitôt le nouveau planning.
 
 ### Les attributs
 
+Les attributs portent les noms des attributs d'une entité `climate`. Votre outil peut donc les
+passer tels quels aux services `climate`.
+
 | Attribut | Ce qu'il donne | Exemple |
 |---|---|---|
+| `hvac_mode` | Le mode HVAC qu'aura le thermostat : celui que Chauffage envoie, ou celui que le thermostat garde. | `"heat"` |
+| `preset_mode` | Le préréglage du thermostat que Chauffage enverra, ou `null` quand Chauffage envoie une température. | `"comfort"` |
+| `temperature` | La consigne qu'aura le thermostat, ou `null` quand Chauffage ne la connaît pas encore. | `20.0` |
+| `target_temp_low`, `target_temp_high` | La plage d'un créneau chaud/froid. Présents seulement pour un créneau chaud/froid. | `20.0`, `25.0` |
 | `preset` | Le préréglage Chauffage du créneau qui commencera. `null` pour un créneau éteint. | `"comfort"` |
 | `preset_name` | Le nom du préréglage, tel que l'utilisateur l'a écrit. | `"Confort"` |
-| `hvac_mode` | Le mode HVAC du créneau, quand le créneau en choisit un. | `"cool"` |
-| `target` | Ce que Chauffage enverra : le préréglage du thermostat, une température, un mode HVAC. | `{"preset_mode": "comfort"}` |
-| `temperature` | La température qu'aura le thermostat, ou `null` quand Chauffage ne la connaît pas encore. | `20.0` |
 
 Sur un thermostat qui a ses propres préréglages, Chauffage apprend la température de chaque
 préréglage pendant que le thermostat l'utilise. Un Versatile Thermostat publie les températures
 de ses préréglages, donc Chauffage les connaît tout de suite.
+
+### Quoi envoyer
+
+1. Quand `hvac_mode` vaut `off`, Chauffage éteindra le thermostat. Il n'y a rien à préchauffer.
+2. Quand `preset_mode` est renseigné, envoyez ce préréglage. La `temperature` à côté indique ce
+   que donne le préréglage : ne l'envoyez pas.
+3. Sinon, envoyez `temperature`, ou la plage d'un créneau chaud/froid.
 
 ### Laisser l'utilisateur choisir le capteur
 
@@ -78,10 +89,9 @@ Par exemple, avec un créneau *Confort* à 17h30 préchauffé dès 16h45 :
 
 ## 3. Recommencer après un réalignement
 
-Chauffage remet chaque thermostat sur son créneau en cours quand Home Assistant démarre, quand un
-planning est activé, et quand l'utilisateur enregistre les semaines. Un réalignement pendant un
-préchauffage annule le préchauffage. Relisez le capteur **Prochain changement** pour décider s'il
-faut recommencer.
+Chauffage remet parfois un thermostat sur son créneau en cours, par exemple quand Home Assistant
+démarre ou quand l'utilisateur modifie un préréglage. Ce réalignement annule le préchauffage.
+Relisez le capteur **Prochain changement** pour décider s'il faut recommencer.
 
 ## Un format stable
 

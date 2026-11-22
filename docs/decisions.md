@@ -924,6 +924,9 @@ dashboards, automations, scripts and by voice without the card
     polled.
   - **The next change is the next time Chauffage sends something different** (the owner). A
     slot that sends the same thing is no change, as for *Until the next slot*.
+  - **The attributes are named like a climate entity's** (the owner): `hvac_mode`,
+    `preset_mode`, `temperature`. A tool sends them with the climate services as they are. A
+    `target` dict of Chauffage's own keys would make each tool translate it.
   - **The activation rules are ignored** (the owner). A rule is a template, so Chauffage cannot
     predict when it switches the schedule.
   - **The user chooses the sensor in the tool** (the owner). Chauffage offers no discovery, so

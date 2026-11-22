@@ -110,8 +110,10 @@
           "preset": { "name": "Préréglage" },
           "preset_name": { "name": "Nom du préréglage" },
           "hvac_mode": { "name": "Mode HVAC" },
-          "target": { "name": "Consigne" },
-          "temperature": { "name": "Température" }
+          "preset_mode": { "name": "Préréglage du thermostat" },
+          "temperature": { "name": "Température" },
+          "target_temp_low": { "name": "Température cible basse" },
+          "target_temp_high": { "name": "Température cible haute" }
         }
       }
     }

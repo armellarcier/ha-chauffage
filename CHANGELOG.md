@@ -12,9 +12,10 @@ Each entry says whether the release **migrates stored data** and what to do when
 ### Added
 
 - **A *Next change* sensor for each thermostat, for preheating tools** (#82). The sensor says
-  when Chauffage next changes the thermostat, and to what: the preset, the target and the
-  temperature. With an override, the next change is the end of the override. A preheating tool
-  that applies the next slot early with a parent context creates no override.
+  when Chauffage next changes the thermostat, and to what. Its attributes are named like a
+  `climate` entity's, for example `hvac_mode`, `preset_mode` and `temperature`, so a tool can
+  send them as they are. With an override, the next change is the end of the override. A
+  preheating tool that applies the next slot early with a parent context creates no override.
   [Preheating tools](docs/preheating.md) describes the sensor and this convention.
 
 ### Changed

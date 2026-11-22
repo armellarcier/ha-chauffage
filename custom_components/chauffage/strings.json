@@ -110,8 +110,10 @@
           "preset": { "name": "Preset" },
           "preset_name": { "name": "Preset name" },
           "hvac_mode": { "name": "HVAC mode" },
-          "target": { "name": "Target" },
-          "temperature": { "name": "Temperature" }
+          "preset_mode": { "name": "Thermostat preset" },
+          "temperature": { "name": "Temperature" },
+          "target_temp_low": { "name": "Low target temperature" },
+          "target_temp_high": { "name": "High target temperature" }
         }
       }
     }

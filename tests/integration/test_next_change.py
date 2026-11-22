@@ -4,16 +4,15 @@ and to what."""
 import pytest
 from homeassistant.helpers import entity_registry as er
 
-from conftest import CTX_AUTOMATION, KINDS, WEEKDAY, Bench, every_day
-from hvac_helpers import COOL_WEEKDAY, OFF, PRESETS, start_ac
+from conftest import CTX_USER, KINDS, WEEKDAY, Bench, every_day
+from hvac_helpers import COOL_WEEKDAY, OFF, PRESETS, start_ac, start_ac_with_range
 
 from custom_components.chauffage.const import DOMAIN
 
 SENSOR = "sensor.salon_next_change"
 WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": every_day(("00:00", "frost"))}}
-# What the comfort preset sends to each kind of thermostat
-COMFORT = {"vtherm": {"preset_mode": "comfort"}, "standard": {"preset_mode": "comfort"},
-           "plain": {"temperature": 20.0}}
+# What the comfort preset sends to each kind of thermostat: its own preset, or a temperature
+COMFORT = {"vtherm": ("comfort", None), "standard": ("comfort", None), "plain": (None, 20.0)}
 
 
 @pytest.fixture(params=KINDS)
@@ -45,7 +44,8 @@ async def test_the_next_change_is_the_next_slot_that_sends_something_different(b
     assert state.state == "2026-10-12T15:30:00+00:00"  # 17:30 in Paris
     assert state.attributes["preset"] == "comfort"
     assert state.attributes["preset_name"] == "Comfort"
-    assert state.attributes["target"] == COMFORT[bench.kind]
+    assert (state.attributes["preset_mode"], state.attributes["temperature"]) == COMFORT[bench.kind]
+    assert state.attributes["hvac_mode"] == "heat"
     await bench.go_to("17:30")
     assert bench.hass.states.get(SENSOR).state == "2026-10-12T20:30:00+00:00"  # eco at 22:30
 
@@ -111,7 +111,7 @@ async def test_an_off_slot_is_a_change_without_a_temperature(bench: Bench):
     assert state.state == "2026-10-12T20:30:00+00:00"
     assert state.attributes["preset"] is None
     assert state.attributes["hvac_mode"] == "off"
-    assert state.attributes["temperature"] is None
+    assert state.attributes["preset_mode"] is None and state.attributes["temperature"] is None
 
 
 async def test_the_next_change_of_an_air_conditioner_gives_what_it_will_cool_at(bench: Bench):
@@ -120,11 +120,12 @@ async def test_the_next_change_of_an_air_conditioner_gives_what_it_will_cool_at(
     await start_ac(bench, day=COOL_WEEKDAY, state="cool")
     state = bench.hass.states.get(SENSOR)
     assert state.state == "2026-10-12T15:30:00+00:00"
-    target = state.attributes["target"]
-    assert target["hvac_mode"] == "cool"
-    assert not set(target) & {"cool_preset_mode", "cool_temperature", "target_temp_low", "target_temp_high"}
+    assert state.attributes["hvac_mode"] == "cool"
     if bench.kind == "plain":
-        assert target["temperature"] == state.attributes["temperature"] == PRESETS["comfort"]["cool_temperature"]
+        assert state.attributes["preset_mode"] is None
+        assert state.attributes["temperature"] == PRESETS["comfort"]["cool_temperature"]
+    else:
+        assert state.attributes["preset_mode"] == PRESETS["comfort"].get("cool_preset_mode", "comfort")
 
 
 async def test_the_next_change_of_a_paused_thermostat_is_unavailable(bench: Bench):
@@ -146,3 +147,32 @@ async def test_a_preheating_tool_that_applies_the_next_slot_early_creates_no_ove
     assert bench.overrides() == {}
     assert bench.applied() == {}
     assert bench.hass.states.get("climate.salon").attributes["temperature"] == 20.0
+
+
+async def test_the_next_change_names_its_attributes_like_a_climate_entity(bench: Bench):
+    """A preheating tool applies them with the climate services as they are: no target to read."""
+    await start(bench)
+    attributes = bench.hass.states.get(SENSOR).attributes
+    assert {"hvac_mode", "preset_mode", "temperature", "preset", "preset_name"} <= set(attributes)
+    assert not set(attributes) & {"target", "cool_preset_mode", "cool_temperature", "target_temp_low", "target_temp_high"}
+
+
+async def test_a_thermostat_turned_off_by_hand_will_be_turned_back_on_in_heat(bench: Bench):
+    """Off by hand: an override until the next slot. That slot chooses no HVAC mode, so Chauffage
+    turns the thermostat back on in heat: the HVAC mode is always given."""
+    await start(bench)
+    bench.thermostat("climate.salon", "eco", state="off", context=CTX_USER)
+    await bench.hass.async_block_till_done()
+    state = bench.hass.states.get(SENSOR)
+    assert state.state == "2026-10-12T15:30:00+00:00"
+    assert state.attributes["hvac_mode"] == "heat"
+    assert (state.attributes["preset_mode"], state.attributes["temperature"]) == COMFORT[bench.kind]
+
+
+async def test_a_heat_cool_slot_gives_its_range(bench: Bench):
+    await start_ac_with_range(bench, [["00:00", "eco"], ["14:00", "comfort", {"hvac_mode": "heat_cool"}]], "13:00")
+    state = bench.hass.states.get(SENSOR)
+    assert state.state == "2026-10-12T12:00:00+00:00"
+    assert state.attributes["hvac_mode"] == "heat_cool"
+    assert (state.attributes["target_temp_low"], state.attributes["target_temp_high"]) == (20.0, 25.0)
+    assert state.attributes["temperature"] is None
