@@ -918,38 +918,19 @@ dashboards, automations, scripts and by voice without the card
   enable *Planned preset* once (config entry 1.2), unless the user disabled it.
 - **On a paused thermostat the sensors are unavailable**, Home Assistant's convention for a
   value that has no meaning.
-- **A *Next change* sensor for preheating tools** (#82). A preheating tool, such as Intelligent
-  Heating Pilot, needs to know when Chauffage changes a thermostat next, and to what. The
-  scheduler decides what happens and when. The preheating tool decides how early.
-  - **An entity, not a service.** A preheating tool listens to an entity and reacts when the
-    next change moves. A service has to be polled.
-  - **A timestamp sensor**, enabled by default. The *Planned preset* sensor keeps its
-    `next_preset` and `next_start` attributes, which ignore an override.
-  - **The next change is the next time Chauffage sends something different** (the owner). It is
-    the next slot whose target differs, as for *Until the next slot*. A slot on another preset
-    that gives the same temperature on a thermostat without presets is not a change: Chauffage
-    sends nothing then. On a thermostat with presets, the same two slots send two presets, so
-    the second slot is a change, with its temperature.
-  - **With an override, the next change is the end of the override**, with the slot that runs
-    then.
-  - **The target is what Chauffage sends in the slot's HVAC mode** (a proposal from Claude). On
-    an air conditioner, a cooling slot gives the preset's cooling value. The internal keys of a
-    preset, such as `cool_temperature`, never show. The *Planned preset* sensor's `target`
-    still shows them.
-  - **The user chooses the sensor in the preheating tool** (the owner). A preheating tool
-    such as IHP already lets the user choose its scheduler entities, for example a `schedule.*`
-    helper, next to the thermostat. Chauffage offers no discovery: the format of a unique id
-    stays internal. The sensor is on the device Chauffage gives the thermostat, so a tool could
-    not find it through the thermostat's own device anyway. An attribute naming the thermostat
-    waits for a tool that needs it.
+- **A *Next change* sensor for preheating tools** (#82). Chauffage decides what happens to a
+  thermostat, and when. The preheating tool decides how early to start.
+  - **An entity, not a service.** A tool reacts when the entity changes. A service has to be
+    polled.
+  - **The next change is the next time Chauffage sends something different** (the owner). A
+    slot that sends the same thing is no change, as for *Until the next slot*.
   - **The activation rules are ignored** (the owner). A rule is a template, so Chauffage cannot
-    predict when it switches the schedule. The sensor follows the new schedule as soon as a rule
-    activates it.
-  - **A parent context, not "another integration", tells a preheat from a change by hand.** A
-    preheating tool applies the next slot early with a context that has a parent, as an
-    automation does, so the change is no override. A change from another integration and a
-    change from the HomeKit bridge reach Home Assistant the same way. Ignoring them all would
-    turn off overrides for HomeKit users.
+    predict when it switches the schedule.
+  - **The user chooses the sensor in the tool** (the owner). Chauffage offers no discovery, so
+    the format of a unique id stays internal.
+  - **A parent context tells a preheat from a change by hand**, not "another integration". The
+    HomeKit bridge reaches Home Assistant like another integration: its users would lose their
+    overrides.
 - **No "resume the rules" service.** Rules are never disabled: a schedule chosen by hand stays
   until their outcome changes, then they take over again by themselves. The select's
   `rules_choice` attribute shows what they give, and an automation can activate it.
