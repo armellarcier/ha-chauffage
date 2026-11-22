@@ -35,7 +35,7 @@ The attributes are named like a `climate` entity's attributes, so your tool can 
 
 | Attribute | What it gives | Example |
 |---|---|---|
-| `hvac_mode` | The HVAC mode the thermostat will have: the one Chauffage sends, or the one the thermostat keeps. `null` while the thermostat is unavailable. | `"heat"` |
+| `hvac_mode` | The HVAC mode the thermostat will have: the one Chauffage sends, or the one the thermostat keeps. | `"heat"` |
 | `preset_mode` | The thermostat's own preset that Chauffage will send, or `null` when Chauffage sends a temperature. | `"comfort"` |
 | `temperature` | The setpoint the thermostat will have, or `null` when Chauffage doesn't know it yet. | `20.0` |
 | `target_temp_low`, `target_temp_high` | The range of a heat/cool slot. Only present for a heat/cool slot. | `20.0`, `25.0` |

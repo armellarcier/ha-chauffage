@@ -37,7 +37,7 @@ passer tels quels aux services `climate`.
 
 | Attribut | Ce qu'il donne | Exemple |
 |---|---|---|
-| `hvac_mode` | Le mode HVAC qu'aura le thermostat : celui que Chauffage envoie, ou celui que le thermostat garde. `null` tant que le thermostat est indisponible. | `"heat"` |
+| `hvac_mode` | Le mode HVAC qu'aura le thermostat : celui que Chauffage envoie, ou celui que le thermostat garde. | `"heat"` |
 | `preset_mode` | Le préréglage du thermostat que Chauffage enverra, ou `null` quand Chauffage envoie une température. | `"comfort"` |
 | `temperature` | La consigne qu'aura le thermostat, ou `null` quand Chauffage ne la connaît pas encore. | `20.0` |
 | `target_temp_low`, `target_temp_high` | La plage d'un créneau chaud/froid. Présents seulement pour un créneau chaud/froid. | `20.0`, `25.0` |
