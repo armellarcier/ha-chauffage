@@ -125,11 +125,11 @@
     },
     "deprecated_planned_preset": {
       "title": "Le capteur Préréglage prévu est déprécié",
-      "description": "Chauffage retirera le capteur *Préréglage prévu* dans une future version. Utilisez plutôt le capteur *Prochain changement* de chaque thermostat.\n\nCes capteurs sont activés :\n{sensors}\n\nDésactivez-les pour fermer cet avertissement."
+      "description": "Chauffage retirera le capteur *Préréglage prévu* dans une future version. Utilisez plutôt le capteur *Prochain changement* de chaque thermostat.\n\nCes capteurs sont activés :\n{sensors}\n\nLes désactiver ferme cet avertissement. Avant, vérifiez qu'aucune autre intégration ne les lit."
     },
     "deprecated_planned_preset_used": {
       "title": "Le capteur Préréglage prévu est déprécié",
-      "description": "Chauffage retirera le capteur *Préréglage prévu* dans une future version. Utilisez plutôt le capteur *Prochain changement* de chaque thermostat.\n\nCes capteurs sont activés :\n{sensors}\n\nCes automatisations et scripts les utilisent :\n{users}\n\nModifiez-les, puis désactivez les capteurs pour fermer cet avertissement."
+      "description": "Chauffage retirera le capteur *Préréglage prévu* dans une future version. Utilisez plutôt le capteur *Prochain changement* de chaque thermostat.\n\nCes capteurs sont activés :\n{sensors}\n\nCes automatisations et scripts les utilisent :\n{users}\n\nModifiez-les. Désactiver les capteurs fermera ensuite cet avertissement. Avant, vérifiez qu'aucune autre intégration ne les lit."
     },
     "missing": {
       "title": "Le thermostat programmé {entity_id} a disparu",

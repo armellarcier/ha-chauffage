@@ -286,7 +286,6 @@ async def test_an_override_that_switches_to_cool_with_a_temperature_sends_it(ben
     assert bench.temperature_calls == [("climate.salon", 24.0)]
 
 
-@pytest.mark.usefixtures("planned_preset_enabled")
 async def test_the_planned_preset_sensor_gives_the_cooling_temperatures_while_the_slot_cools(bench: Bench):
     await start_ac(bench, "10:00", [["00:00", "eco", HEAT], ["14:00", "comfort", COOL]])
     await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 24}, "frost": {"temperature": 8}})

@@ -345,13 +345,3 @@ async def bench(hass: HomeAssistant, freezer, thermostat_kind, hass_storage) -> 
     hass.services.async_register("climate", "set_preset_mode", set_preset_mode)
     hass.services.async_register("climate", "set_temperature", set_temperature)
     return b
-
-
-@pytest.fixture
-def planned_preset_enabled():
-    """An installation from before 0.10.0-alpha.4, where the deprecated *Planned preset* sensor
-    is enabled."""
-    from custom_components.chauffage.sensor import PlannedPresetSensor
-
-    with patch.object(PlannedPresetSensor, "_attr_entity_registry_enabled_default", True):
-        yield

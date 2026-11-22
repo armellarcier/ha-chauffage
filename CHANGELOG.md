@@ -12,14 +12,14 @@ Each entry says whether the release **migrates stored data** and what to do when
 ### Upgrading
 
 The *Planned preset* sensor is deprecated. If one is enabled, a repair in **Settings → Repairs**
-lists it, with the automations and scripts that use it. Move them to the *Next change* sensor,
-then disable the *Planned preset* sensors. The sensor will be removed in 0.12 at the earliest.
+lists it, with the automations and scripts that use it. Move them to the *Next change* sensor.
+Before you disable the *Planned preset* sensors, check that no other integration reads them. The
+sensor will be removed in 0.12 at the earliest.
 
 ### Deprecated
 
 - **The *Planned preset* sensor** (#125). The *Next change* sensor answers the same question
-  better: it sees overrides and the slots after midnight. A new installation has the *Planned
-  preset* sensor disabled.
+  better: it sees overrides and the slots after midnight.
 
 ## [0.10.0-alpha.3] - 2026-11-22
 

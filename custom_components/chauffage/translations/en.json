@@ -125,11 +125,11 @@
     },
     "deprecated_planned_preset": {
       "title": "The Planned preset sensor is deprecated",
-      "description": "Chauffage will remove the *Planned preset* sensor in a future version. Use the *Next change* sensor of each thermostat instead.\n\nThese sensors are enabled:\n{sensors}\n\nDisable them to close this warning."
+      "description": "Chauffage will remove the *Planned preset* sensor in a future version. Use the *Next change* sensor of each thermostat instead.\n\nThese sensors are enabled:\n{sensors}\n\nDisabling them closes this warning. Before you do, check that no other integration reads them."
     },
     "deprecated_planned_preset_used": {
       "title": "The Planned preset sensor is deprecated",
-      "description": "Chauffage will remove the *Planned preset* sensor in a future version. Use the *Next change* sensor of each thermostat instead.\n\nThese sensors are enabled:\n{sensors}\n\nThese automations and scripts use them:\n{users}\n\nUpdate them, then disable the sensors to close this warning."
+      "description": "Chauffage will remove the *Planned preset* sensor in a future version. Use the *Next change* sensor of each thermostat instead.\n\nThese sensors are enabled:\n{sensors}\n\nThese automations and scripts use them:\n{users}\n\nUpdate them. Disabling the sensors then closes this warning. Before you do, check that no other integration reads them."
     },
     "missing": {
       "title": "Scheduled thermostat {entity_id} is gone",

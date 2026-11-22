@@ -72,7 +72,6 @@ async def test_two_slots_alike_are_stored_as_two_and_the_second_one_sends_nothin
 
 # ----- what the card, the sensor and scripts see -----
 
-@pytest.mark.usefixtures("planned_preset_enabled")
 async def test_the_card_sees_the_hvac_mode_of_the_current_and_next_slot(bench: Bench):
     await start_salon(bench, "23:00", NIGHT_OFF, state="off")
     planned = bench.runtime.snapshot()["planned"]["climate.salon"]
@@ -85,7 +84,6 @@ async def test_the_card_sees_the_hvac_mode_of_the_current_and_next_slot(bench: B
     assert sensor.attributes["target"] == OFF
 
 
-@pytest.mark.usefixtures("planned_preset_enabled")
 async def test_the_planned_preset_sensor_says_the_slot_s_hvac_mode(bench: Bench):
     day = [["00:00", "eco"], ["14:00", "comfort", COOL], ["18:00", None, FAN], ["22:00", None, OFF]]
     await start_ac(bench, "13:00", day)

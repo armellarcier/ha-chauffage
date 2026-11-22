@@ -936,14 +936,14 @@ dashboards, automations, scripts and by voice without the card
     overrides.
 - **The *Planned preset* sensor is deprecated** (#125, the owner). *Next change* answers the same
   question better: `next_preset` ignores an override and stops at midnight, and `target` shows
-  Chauffage's internal keys, such as `cool_temperature`. This amends *Enabled by default*
-  above.
+  Chauffage's internal keys, such as `cool_temperature`.
   - **A repair warns while one is enabled**, with the automations and scripts that use it, as
     Home Assistant's own integrations do. Nobody has to remember to warn the users.
   - **No removal version is promised**: 0.12 at the earliest. Hestia Confort detects Chauffage
     through this sensor, and must move to *Next change* first.
-  - **Disabled by default on a new installation** (a proposal from Claude). A new user would
-    otherwise get the warning for a sensor they never used.
+  - **Still enabled by default**, on a new installation too. Hestia Confort stops reading
+    Chauffage when the sensor has no state. The repair does not ask to disable the sensor: it
+    says to check first that no other integration reads it.
 - **No "resume the rules" service.** Rules are never disabled: a schedule chosen by hand stays
   until their outcome changes, then they take over again by themselves. The select's
   `rules_choice` attribute shows what they give, and an automation can activate it.

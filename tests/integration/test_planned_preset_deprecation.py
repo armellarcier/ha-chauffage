@@ -1,5 +1,7 @@
-"""The *Planned preset* sensor is deprecated in favour of *Next change* (#82): a repair warns
+"""The *Planned preset* sensor is deprecated in favour of *Next change* (#125): a repair warns
 the installations that have it enabled, with the automations and scripts that use it."""
+
+from unittest.mock import patch
 
 import pytest
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
@@ -29,10 +31,12 @@ async def enable(bench: Bench, disabled_by: er.RegistryEntryDisabler | None = No
     await bench.hass.async_block_till_done()
 
 
-async def test_a_new_installation_has_the_planned_preset_sensor_disabled_and_no_repair(bench: Bench):
+async def test_the_planned_preset_sensor_stays_enabled_by_default_with_its_repair(bench: Bench):
+    """Hestia Confort reads Chauffage through this sensor's state (#125): it stays enabled until
+    the removal."""
     await start(bench)
-    assert er.async_get(bench.hass).async_get(SENSOR).disabled_by is er.RegistryEntryDisabler.INTEGRATION
-    assert issues(bench) == {}
+    assert er.async_get(bench.hass).async_get(SENSOR).disabled_by is None
+    assert DEPRECATED in issues(bench)
 
 
 async def test_an_enabled_planned_preset_sensor_raises_a_deprecation_repair(bench: Bench):
@@ -45,9 +49,25 @@ async def test_an_enabled_planned_preset_sensor_raises_a_deprecation_repair(benc
 
 async def test_disabling_the_planned_preset_sensor_closes_the_repair(bench: Bench):
     await start(bench)
-    await enable(bench)
     await enable(bench, er.RegistryEntryDisabler.USER)
     assert issues(bench) == {}
+
+
+async def test_an_ignored_repair_stays_ignored(bench: Bench):
+    """Checked again at each start and each change of the sensor: the user's *Ignore* is kept."""
+    await start(bench)
+    ir.async_ignore_issue(bench.hass, "chauffage", DEPRECATED, True)
+    er.async_get(bench.hass).async_update_entity(SENSOR, name="Planned")
+    await bench.hass.async_block_till_done()
+    assert issues(bench)[DEPRECATED].dismissed_version is not None
+
+
+async def test_the_repair_follows_the_automations_once_they_are_reloaded(bench: Bench):
+    await start(bench)
+    with patch("homeassistant.components.automation.automations_with_entity", return_value=["automation.heating"]):
+        bench.hass.bus.async_fire("automation_reloaded")
+        await bench.hass.async_block_till_done()
+    assert "automation.heating" in issues(bench)[USED].translation_placeholders["users"]
 
 
 @pytest.mark.parametrize("domain", ["automation", "script"])

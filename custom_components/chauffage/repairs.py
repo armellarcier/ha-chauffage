@@ -46,13 +46,16 @@ def check_planned_preset(hass: HomeAssistant, sensors: list[str]) -> None:
     users = sorted({user for sensor in sensors
                     for user in (*automations_with_entity(hass, sensor), *scripts_with_entity(hass, sensor))})
     used = f"{DEPRECATED_PLANNED_PRESET}_used"
-    for issue_id in (DEPRECATED_PLANNED_PRESET, used):
-        ir.async_delete_issue(hass, DOMAIN, issue_id)
-    if not sensors:
+    issue_id = (used if users else DEPRECATED_PLANNED_PRESET) if sensors else None
+    # Only the other one is deleted: an issue created again keeps the user's *Ignore*
+    for other in (DEPRECATED_PLANNED_PRESET, used):
+        if other != issue_id:
+            ir.async_delete_issue(hass, DOMAIN, other)
+    if issue_id is None:
         return
     ir.async_create_issue(
-        hass, DOMAIN, used if users else DEPRECATED_PLANNED_PRESET, is_fixable=False, is_persistent=False,
-        severity=ir.IssueSeverity.WARNING, translation_key=used if users else DEPRECATED_PLANNED_PRESET,
+        hass, DOMAIN, issue_id, is_fixable=False, is_persistent=False,
+        severity=ir.IssueSeverity.WARNING, translation_key=issue_id,
         translation_placeholders={"sensors": "\n".join(f"- {s}" for s in sorted(sensors)),
                                   "users": "\n".join(f"- {u}" for u in users)},
     )

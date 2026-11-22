@@ -57,20 +57,18 @@ async def test_an_entity_id_chosen_by_the_user_is_kept(bench: Bench):
     assert bench.hass.states.get("select.chauffage_schedule") is None
 
 
-async def test_the_override_sensor_is_enabled_by_default(bench: Bench):
-    """The device page shows whether there is an override; the override end, "Unknown" most of
-    the time, stays disabled, and so does the deprecated planned preset (docs/decisions.md,
-    "Entities")."""
+async def test_the_planned_preset_and_override_sensors_are_enabled_by_default(bench: Bench):
+    """The device page shows what Chauffage plans and whether there is an override; the override
+    end, "Unknown" most of the time, stays disabled (docs/decisions.md, "Entities")."""
     await start(bench)
     registry = er.async_get(bench.hass)
-    assert registry.async_get("sensor.salon_planned_preset").disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert registry.async_get("sensor.salon_planned_preset").disabled_by is None
     assert registry.async_get("binary_sensor.salon_override").disabled_by is None
     end = registry.async_get("sensor.salon_override_end")
     assert end is not None and end.disabled_by is er.RegistryEntryDisabler.INTEGRATION
     assert bench.hass.states.get("sensor.salon_override_end") is None
 
 
-@pytest.mark.usefixtures("planned_preset_enabled")
 async def test_the_planned_preset_sensor_shows_the_planned_preset_and_the_next_slot(bench: Bench):
     await start(bench)
     state = bench.hass.states.get("sensor.salon_planned_preset")
@@ -83,7 +81,6 @@ async def test_the_planned_preset_sensor_shows_the_planned_preset_and_the_next_s
     assert bench.hass.states.get("sensor.salon_planned_preset").state == "frost"
 
 
-@pytest.mark.usefixtures("planned_preset_enabled")
 async def test_the_planned_preset_sensor_gives_the_temperature_of_each_preset_on_the_thermostat(bench: Bench):
     """The temperature the thermostat has at each preset: its own preset's (learned while on it,
     published by Versatile Thermostat), else the preset's; unknown ones are left out."""
@@ -97,7 +94,6 @@ async def test_the_planned_preset_sensor_gives_the_temperature_of_each_preset_on
     assert temperatures == expected[bench.kind]
 
 
-@pytest.mark.usefixtures("planned_preset_enabled")
 async def test_the_planned_preset_sensor_reads_the_temperatures_versatile_thermostat_publishes(bench: Bench):
     bench.needs("vtherm")
     await start(bench)
@@ -167,7 +163,6 @@ async def test_the_planned_preset_sensor_of_an_existing_installation_keeps_its_i
     assert entry.minor_version == 2
 
 
-@pytest.mark.usefixtures("planned_preset_enabled")
 async def test_entities_follow_the_scheduled_thermostats(bench: Bench):
     await start(bench)
     bench.thermostat("climate.bureau", "eco", friendly_name="Bureau")

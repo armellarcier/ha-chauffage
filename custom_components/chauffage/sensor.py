@@ -35,11 +35,10 @@ async def async_setup_entry(
 
 
 class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
-    """Deprecated for *Next change* (docs/decisions.md, "Entities"): disabled by default, and a
-    repair warns while one is enabled."""
+    """Deprecated for *Next change* (#125, docs/decisions.md, "Entities"). Still enabled by
+    default, as Hestia Confort reads it: a repair warns while one is enabled."""
     key = PLANNED_PRESET_KEY
     name_key = "planned_preset"
-    _attr_entity_registry_enabled_default = False
     update_on_tick = True
     _attr_device_class = SensorDeviceClass.ENUM
 
