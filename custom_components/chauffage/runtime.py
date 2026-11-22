@@ -244,6 +244,7 @@ class ChauffageRuntime:
         for entity_id in self.scheduled:
             if self.hass.states.get(entity_id) is None and er.async_get(self.hass).async_get(entity_id) is None:
                 repairs.raise_missing(self.hass, entity_id)
+        self._check_planned_preset()  # once the automations and scripts are loaded
         self._track_rules()
         await self.follow_rules()
         await self.apply(force=True, reason="Home Assistant started")
@@ -795,6 +796,17 @@ class ChauffageRuntime:
             self._renamed(event.data["old_entity_id"], entity_id)
         if action != "remove" and entity_id in self._card_entities():
             self._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
+        if entity_id and entity_id.startswith("sensor."):
+            self._check_planned_preset()
+
+    @callback
+    def _check_planned_preset(self) -> None:
+        """The deprecated *Planned preset* sensors enabled: a repair warns about them."""
+        registry = er.async_get(self.hass)
+        sensors = [entity_id for entities in self.thermostat_entities().values()
+                   if (entity_id := entities.get("planned_preset"))
+                   and (entry := registry.async_get(entity_id)) is not None and entry.disabled_by is None]
+        repairs.check_planned_preset(self.hass, sensors)
 
     @callback
     def _renamed(self, old: str, new: str) -> None:

@@ -934,6 +934,16 @@ dashboards, automations, scripts and by voice without the card
   - **A parent context tells a preheat from a change by hand**, not "another integration". The
     HomeKit bridge reaches Home Assistant like another integration: its users would lose their
     overrides.
+- **The *Planned preset* sensor is deprecated** (the owner). *Next change* answers the same
+  question better: `next_preset` ignores an override and stops at midnight, and `target` shows
+  Chauffage's internal keys, such as `cool_temperature`. This amends *Enabled by default*
+  above.
+  - **A repair warns while one is enabled**, with the automations and scripts that use it, as
+    Home Assistant's own integrations do. Nobody has to remember to warn the users.
+  - **No removal version is promised**: 0.12 at the earliest. Hestia Confort detects Chauffage
+    through this sensor, and must move to *Next change* first.
+  - **Disabled by default on a new installation** (a proposal from Claude). A new user would
+    otherwise get the warning for a sensor they never used.
 - **No "resume the rules" service.** Rules are never disabled: a schedule chosen by hand stays
   until their outcome changes, then they take over again by themselves. The select's
   `rules_choice` attribute shows what they give, and an automation can activate it.

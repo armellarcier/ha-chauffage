@@ -24,7 +24,7 @@ thermostat's page in the Chauffage panel.
 | Entity | What it says |
 |---|---|
 | **Control** (switch) | Off while the thermostat is **paused**. |
-| **Planned preset** (sensor) | The preset planned now. |
+| **Planned preset** (sensor) | Deprecated: use **Next change**. The preset planned now. Disabled by default. |
 | **Override** (binary sensor) | On while the thermostat has an override. |
 | **Override end** (sensor, disabled by default) | The end of the current override, as a timestamp. |
 | **Next change** (sensor) | When Chauffage next changes the thermostat, and to what. For preheating tools, see [Preheating tools](preheating.md). |

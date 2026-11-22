@@ -33,6 +33,31 @@ def close_missing(hass: HomeAssistant, entity_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, f"{MISSING}_{entity_id}")
 
 
+DEPRECATED_PLANNED_PRESET = "deprecated_planned_preset"
+
+
+@callback
+def check_planned_preset(hass: HomeAssistant, sensors: list[str]) -> None:
+    """The *Planned preset* sensor is deprecated (docs/decisions.md, "Entities"): a warning while
+    one is enabled (`sensors`), with the automations and scripts that use it, if any."""
+    from homeassistant.components.automation import automations_with_entity
+    from homeassistant.components.script import scripts_with_entity
+
+    users = sorted({user for sensor in sensors
+                    for user in (*automations_with_entity(hass, sensor), *scripts_with_entity(hass, sensor))})
+    used = f"{DEPRECATED_PLANNED_PRESET}_used"
+    for issue_id in (DEPRECATED_PLANNED_PRESET, used):
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+    if not sensors:
+        return
+    ir.async_create_issue(
+        hass, DOMAIN, used if users else DEPRECATED_PLANNED_PRESET, is_fixable=False, is_persistent=False,
+        severity=ir.IssueSeverity.WARNING, translation_key=used if users else DEPRECATED_PLANNED_PRESET,
+        translation_placeholders={"sensors": "\n".join(f"- {s}" for s in sorted(sensors)),
+                                  "users": "\n".join(f"- {u}" for u in users)},
+    )
+
+
 class MissingFlow(RepairsFlow):
     """A menu of what to do with a thermostat whose entity is gone."""
 

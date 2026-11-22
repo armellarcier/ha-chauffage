@@ -27,7 +27,7 @@ ouvre la page du thermostat dans le panneau Chauffage.
 | Entité | Ce qu'elle indique |
 |---|---|
 | **Pilotage** (interrupteur) | Éteint quand le pilotage du thermostat est **suspendu**. |
-| **Préréglage prévu** (capteur) | Le préréglage prévu maintenant. |
+| **Préréglage prévu** (capteur) | Déprécié : utilisez **Prochain changement**. Le préréglage prévu maintenant. Désactivé par défaut. |
 | **Dérogation** (capteur binaire) | Allumé tant que le thermostat a une dérogation. |
 | **Fin de dérogation** (capteur, désactivé par défaut) | La fin de la dérogation en cours, sous forme d'horodatage. |
 | **Prochain changement** (capteur) | Le moment où Chauffage changera le thermostat, et ce qu'il enverra. Pour les outils de préchauffage, voir [Outils de préchauffage](preheating.fr.md). |
