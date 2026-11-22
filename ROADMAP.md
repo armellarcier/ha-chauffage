@@ -23,7 +23,7 @@ its issue when it has one.
 
 Done in 0.5 (in beta, [#1](https://github.com/armellarcier/ha-chauffage/issues/1)): schedules
 activated by themselves, from an ordered list of rules written as templates, the first that
-applies winning, a default schedule otherwise. See the [README](README.md#activation-rules).
+applies winning, a default schedule otherwise. See [Activation rules](docs/activation-rules.md).
 
 ## Short term
 
@@ -42,8 +42,8 @@ Built on the [activation rules](#activation-rules). A year view, one row per mon
 (days and times) colored by schedule, like the weekly view with its slots. Its periods are rules
 too. It also covers "activate *Away* until Tuesday" or "until 18:00".
 
-Today a Home Assistant calendar read by one rule already does this (see the
-[README](README.md#activation-rules)). A calendar of ha-chauffage must do more than that, or
+Today a Home Assistant calendar read by one rule already does this (see
+[Activation rules](docs/activation-rules.md)). A calendar of ha-chauffage must do more than that, or
 add something on top of a HA calendar: a schedule picked from the list instead of a title typed
 as free text, no overlapping periods.
 
@@ -68,11 +68,8 @@ Some devices adjust their own setpoint (open window, presence, safety): today it
 manual change and becomes an override. Recognize these adjustments (rules per thermostat or per
 integration).
 
-### More thermostats and slots
+### Slots with a temperature
 
-- Heat / cool thermostats with a temperature range (`heat_cool`: `target_temp_low` /
-  `target_temp_high`).
-- An *Off* preset (`hvac_mode: off`).
 - Slots carrying a temperature directly ("21 °C from 06:30"), without a named preset.
 
 ### Editing the weeks

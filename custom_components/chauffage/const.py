@@ -98,7 +98,7 @@ SCHEDULED_THERMOSTAT_MODEL = {
     "fr": "Thermostat programmé",
 }
 
-# Events, for automations (data: README, "Events")
+# Events, for automations (their data: docs/automations.md, "Events")
 EVENT_OVERRIDE_STARTED = f"{DOMAIN}_override_started"
 EVENT_OVERRIDE_ENDED = f"{DOMAIN}_override_ended"
 # An override that only got a new end: the logbook tells it; "started" stays for a new value

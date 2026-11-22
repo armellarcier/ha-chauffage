@@ -139,7 +139,7 @@ def async_update_package_issue(hass: HomeAssistant, schedule_entity_id: str | No
             severity=ir.IssueSeverity.WARNING,
             translation_key=ISSUE_PACKAGE,
             translation_placeholders={"schedule_entity": schedule_entity_id or "select.…"},
-            learn_more_url="https://github.com/armellarcier/ha-chauffage#upgrading-from-the-package-v01",
+            learn_more_url="https://github.com/armellarcier/ha-chauffage/blob/main/docs/installation.md#upgrading-from-the-package-v01",
         )
     else:
         ir.async_delete_issue(hass, DOMAIN, ISSUE_PACKAGE)

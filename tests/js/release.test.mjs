@@ -18,7 +18,7 @@ test('card, package.json, integration and CHANGELOG have the same version', () =
 
 // Minimum supported Home Assistant: hacs.json is the reference (see CONTRIBUTING.md, "Supported
 // Home Assistant versions"); the tests, the CI and the READMEs say the same.
-test('the minimum Home Assistant is the same in hacs.json, the tests, the CI and the READMEs', () => {
+test('the minimum Home Assistant is the same in hacs.json, the tests, the CI, the READMEs and the installation pages', () => {
   const minimum = JSON.parse(read('hacs.json')).homeassistant; // 2026.9.0
   assert.match(minimum, /^\d{4}\.\d+\.\d+$/);
   const short = minimum.replace(/\.0$/, ''); // 2026.9
@@ -26,4 +26,6 @@ test('the minimum Home Assistant is the same in hacs.json, the tests, the CI and
   assert.match(read('.github/workflows/tests.yml'), new RegExp(`name: Integration, HA ${short}$`, 'm'));
   assert.match(read('README.md'), new RegExp(`Requires Home Assistant ${short} or later`));
   assert.match(read('README.fr.md'), new RegExp(`Nécessite Home Assistant ${short} ou plus récent`));
+  assert.match(read('docs/installation.md'), new RegExp(`Requires Home Assistant ${short} or later`));
+  assert.match(read('docs/installation.fr.md'), new RegExp(`Nécessite Home Assistant ${short} ou plus récent`));
 });

@@ -15,6 +15,31 @@ Assistant.
 The card is a JavaScript file served as is, so there is no build step. Node and Python are only
 used by the automated tests. If Node or Python is not installed, the tests run in Docker.
 
+## Repository layout
+
+```
+custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
+custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
+dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
+dev/sim_rooms/, dev/sim_climate/    dev only: thermal model of the rooms (and a simulated week of
+                                    history for a new dev HA), a climate with standard presets
+tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node --test + jsdom)
+docs/                               the user guide (one page per topic, in English and French), and
+                                    the glossary, design decisions, use cases and writing style
+tests/fixtures/                     stored data in each past format (migration tests)
+scripts/                            test.sh, logs.sh, demo.sh
+.github/workflows/                  tests (CI), hassfest, HACS checks and releases
+```
+
+### Add or move a page of the docs
+
+1. Write the page in `docs/<topic>.md`, and its French version in `docs/<topic>.fr.md`.
+2. Add a row for the page to the user-guide table of `docs/README.md` and `docs/README.fr.md`.
+3. Add the same row to the *Documentation* table of `README.md` and `README.fr.md`, at the end
+   of *Learn more*. If a README section presents the page's topic, link the page from it too.
+4. When a section leaves the README, keep its anchor: add an `<a id>` to the *Moved sections*
+   table of the README.
+
 ## The development HA
 
 Start the development HA:
@@ -113,9 +138,8 @@ docker compose -f dev/compose.yaml down && git clean -fdX dev/hass
 
 ### A second, new development HA
 
-To try something on a clean development HA, or to record the demo, start a second one next to
-yours. The second development HA is another compose project, with its own configuration folder
-and its own port:
+To try something on a clean development HA, start a second one next to yours. The second
+development HA is another compose project, with its own configuration folder and its own port:
 
 ```bash
 mkdir -p /tmp/ha-fresh/packages && cp dev/hass/configuration.yaml /tmp/ha-fresh/ && cp dev/hass/packages/simulation.yaml /tmp/ha-fresh/packages/
@@ -168,7 +192,7 @@ Change these files in the same commit:
 - `tests/integration/requirements-min.txt`, with the `pytest-homeassistant-custom-component`
   version that ships this Home Assistant version;
 - the name of the minimum-version job in `.github/workflows/tests.yml`;
-- `README.md` and `README.fr.md`.
+- `README.md`, `README.fr.md`, `docs/installation.md` and `docs/installation.fr.md`.
 
 `tests/js/release.test.mjs` checks that these files give the same minimum version. If this Home
 Assistant version needs another Python version, also change the Python version of the
@@ -230,56 +254,53 @@ The script runs in the Playwright Docker image, so you install nothing. The scre
 Before a script changes slots or overrides, take a `backup` of the thermostats it touches, and
 `restore` it at the end. [`dev/review/README.md`](dev/review/README.md) lists every helper.
 
-## Demo animation
+## Demos
 
-The README shows `docs/demo.gif`. To record the demo again, start a second, new development HA
-(see [above](#a-second-new-development-ha)), then run:
+The README shows three demos, in `docs/media/`:
 
-```bash
-DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh      # Playwright + ffmpeg in Docker
-```
+| GIF | What it shows |
+|---|---|
+| `week.gif` | a schedule copied and edited, another one activated, then the history |
+| `override.gif` | a change by hand on a phone, then its end dragged later and 30 more minutes, on the room's card |
+| `panel.gif` | the *Presets* tab of the panel, then the settings of Chauffage |
 
-The demo needs the sample data, the *Pièces* view and the simulated week of a new development
-HA, with the French names *Normal*, *Vacances* and *Absent*.
+Each demo has its scenario in `dev/demo/scenarios/<name>.mjs`. `dev/demo/lib.mjs` logs in,
+records the frames and cleans up, for every scenario.
 
-### The time of the demo
-
-The demo runs at the real time of the development HA, in its time zone. The integration
-computes the end of a change by hand from its own clock, so the browser can't fake the time.
-
-The scenario sets *End of overrides* to *For the override duration, or less if a slot starts
-first* before it starts, and sets it back at the end. Record the demo between 21:00 and 22:00,
-the development HA's time. A change by hand then ends at the next slot, at 22:30, and the card
-says "today, at the next slot". At another hour, the change by hand ends after 2 hours.
-
-To record at another hour, give the second development HA a time zone where it is between 21:00
-and 22:00, before you start it. For example, at 01:00 in Paris, it is 21:00 in `Etc/GMT+3`:
+### 1. Record the demos
 
 ```bash
-sed -i 's|Europe/Paris|Etc/GMT+3|' /tmp/ha-fresh/configuration.yaml
+scripts/demo.sh            # every demo
+scripts/demo.sh override   # one demo
 ```
 
-`scripts/demo.sh` warns you when the development HA is not between 21:00 and 22:00.
+The script needs only Docker. Your development HA can keep running.
 
-### The scenario
+**The demo HA.** The script starts a new development HA, the demo HA, on port 8127. The clock
+of the demo HA runs on a Tuesday at 17:30, Paris time, whatever the real time. So the demos
+show the same day and the same hour at every recording. The demo HA has the sample data and
+the simulated week of a new development HA. The script removes the demo HA at the end.
 
-The scenario lives in [`dev/demo/record.mjs`](dev/demo/record.mjs). It shows, in order:
+- To record at another time, set `DEMO_TIME`, for example `DEMO_TIME="wednesday 08:00"`.
+- To keep the demo HA running after the recording, set `DEMO_KEEP=1`. Open it at
+  <http://localhost:8127>, with `dev` / `dev`.
 
-1. a *Télétravail* schedule created as a copy of *Normal*, its days shown one by one, and its
-   Tuesday edited;
-2. the Chauffage panel, opened from the card's top right, and its *Presets* tab: a preset's
-   popover, then a thermostat's cell;
-3. *Vacances* activated;
-4. a thermostat's more-info dialog. The living room's setpoint is raised by one degree with the
-   dialog's +. The setpoint becomes an override, and the dialog says until when and why: "today,
-   at the next slot". Then *Edit its week* opens the thermostat's page in the panel;
-5. the thermostat cards of the *Pièces* view, with 30 more minutes for the living room's
-   override;
-6. the living room's *History*, and one day shown larger.
+**The GIFs.** The script saves every frame the browser paints, without loss. Then ffmpeg makes
+a GIF at 15 frames a second, with one palette built for the whole GIF. The script writes
+`docs/media/<name>.gif`.
 
-At the end, the scenario restores everything: it removes the override and the new schedule,
-activates *Normal* again, sets *End of overrides* back, and does not save the edits of
-the weeks. If a run stops half-way, its log gives the setting to set back.
+### 2. Check each GIF
+
+Open each GIF before you commit it. A GIF can play to the end and still show the wrong thing.
+Keep a demo under 30 seconds and under 2 MB.
+
+### 3. Add a demo
+
+1. Copy a scenario in `dev/demo/scenarios/`, and give it a new name.
+2. Write its `scene`. Write its `prepare` with the integration's API, if the scene needs a state
+   that the sample data doesn't have.
+3. Add the name to the default list of `scripts/demo.sh`.
+4. Show the GIF in the README section of its topic, and on the docs page of its topic.
 
 ## Trying a version on a real Home Assistant
 
@@ -412,11 +433,11 @@ change the installation or the stored data. The stored data is always migrated a
 
 Run `scripts/test.sh`. Everything must be green, and every migration must have its fixture.
 
-### 2. Decide whether to record the demo again
+### 2. Decide whether to record the demos again
 
-Ask the question at every release. Record the demo again (see [Demo animation](#demo-animation)) when the card
-looks different, or when a visible feature is worth showing: then extend the scenario. Don't
-record it again when the changes cannot be seen.
+Ask the question at every release. Record a demo again (see [Demos](#demos)) when what it shows
+looks different. When a visible feature is worth showing, extend the scenario of its topic, or
+add a demo. Don't record anything again when the changes cannot be seen.
 
 ### 3. Set the version
 
@@ -549,8 +570,8 @@ point here.
 - **Write the commits in English**, short and descriptive.
 - **Write the docs for the reader.** Read [docs/writing-style.md](docs/writing-style.md) before
   you edit a doc, a changelog entry or a pull request.
-- **Keep the French docs up to date.** The English docs (`README.md`, `CONTRIBUTING.md`) are the
-  reference. Update the French version (`*.fr.md`) in the same commit.
+- **Keep the French docs up to date.** The English docs (`README.md`, `CONTRIBUTING.md` and the
+  pages of `docs/`) are the reference. Update the French version (`*.fr.md`) in the same commit.
 - **Write the tests first** (see [Tests first](#tests-first)): `tests/integration/` for the
   integration, `tests/js/` for the card.
 - **Record the decisions.** When you make a choice that a future contributor might question,

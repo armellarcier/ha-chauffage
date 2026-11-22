@@ -16,6 +16,35 @@ La carte est un fichier JavaScript servi tel quel : il n'y a rien à compiler. N
 servent qu'aux tests automatisés. Si Node ou Python n'est pas installé, les tests tournent dans
 Docker.
 
+## Structure du dépôt
+
+```
+custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
+custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
+dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
+dev/sim_rooms/, dev/sim_climate/    dev uniquement : modèle thermique des pièces (et une semaine
+                                    d'historique simulée pour un HA de dev neuf), un climate à
+                                    préréglages standard
+tests/integration/, tests/js/       tests automatisés (pytest + HA en mémoire, node --test + jsdom)
+docs/                               le guide utilisateur (une page par sujet, en anglais et en
+                                    français), et le glossaire, les décisions, les cas d'usage et
+                                    le style d'écriture (en anglais)
+tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
+scripts/                            test.sh, logs.sh, demo.sh
+.github/workflows/                  tests (CI), hassfest, vérifications HACS et publication
+```
+
+### Ajouter ou déplacer une page de la doc
+
+1. Écrivez la page dans `docs/<sujet>.md`, et sa version française dans `docs/<sujet>.fr.md`.
+2. Ajoutez une ligne pour la page dans la table du guide de `docs/README.md` et de
+   `docs/README.fr.md`.
+3. Ajoutez la même ligne dans la table *Documentation* de `README.md` et de `README.fr.md`, à la
+   fin de *En savoir plus*. Si une section du README présente le sujet de la page, faites aussi
+   un lien vers la page depuis cette section.
+4. Quand une section quitte le README, gardez son ancre : ajoutez un `<a id>` dans la table
+   *Sections déplacées* du README.
+
 ## Le HA de développement
 
 Démarrez le HA de développement :
@@ -119,9 +148,9 @@ docker compose -f dev/compose.yaml down && git clean -fdX dev/hass
 
 ### Un second HA de développement neuf
 
-Pour essayer quelque chose sur un HA de développement vierge, ou pour enregistrer la démo,
-démarrez-en un second à côté du vôtre. Le second HA de développement est un autre projet compose,
-avec son propre dossier de configuration et son propre port :
+Pour essayer quelque chose sur un HA de développement vierge, démarrez-en un second à côté du
+vôtre. Le second HA de développement est un autre projet compose, avec son propre dossier de
+configuration et son propre port :
 
 ```bash
 mkdir -p /tmp/ha-fresh/packages && cp dev/hass/configuration.yaml /tmp/ha-fresh/ && cp dev/hass/packages/simulation.yaml /tmp/ha-fresh/packages/
@@ -177,7 +206,7 @@ Modifiez ces fichiers dans le même commit :
 - `tests/integration/requirements-min.txt`, avec la version de
   `pytest-homeassistant-custom-component` qui embarque cette version de Home Assistant ;
 - le nom du job de la version minimale dans `.github/workflows/tests.yml` ;
-- `README.md` et `README.fr.md`.
+- `README.md`, `README.fr.md`, `docs/installation.md` et `docs/installation.fr.md`.
 
 `tests/js/release.test.mjs` vérifie que ces fichiers indiquent la même version minimale. Si cette
 version de Home Assistant demande une autre version de Python, changez aussi la version de Python
@@ -246,62 +275,56 @@ Avant qu'un script modifie des créneaux ou des dérogations, faites un `backup`
 qu'il touche, puis un `restore` à la fin. [`dev/review/README.md`](dev/review/README.md), en
 anglais, décrit chaque fonction de la bibliothèque.
 
-## Animation de démo
+## Démos
 
-Le README affiche `docs/demo.gif`. Pour réenregistrer la démo, démarrez un second HA de
-développement neuf (voir [plus haut](#un-second-ha-de-développement-neuf)), puis lancez :
+Le README montre trois démos, dans `docs/media/` :
 
-```bash
-DEMO_NETWORK=ha-chauffage-fresh_default scripts/demo.sh      # Playwright + ffmpeg dans Docker
-```
+| GIF | Ce qu'il montre |
+|---|---|
+| `week.gif` | un planning copié et modifié, un autre activé, puis l'historique |
+| `override.gif` | un changement à la main sur téléphone, puis sa fin glissée plus tard et 30 minutes de plus, sur la carte de la pièce |
+| `panel.gif` | l'onglet *Préréglages* du panneau, puis les réglages de Chauffage |
 
-La démo a besoin des données d'exemple, de la vue *Pièces* et de la semaine simulée d'un HA de
-développement neuf, avec les noms français *Normal*, *Vacances* et *Absent*.
+Chaque démo a son scénario dans `dev/demo/scenarios/<nom>.mjs`. `dev/demo/lib.mjs` se connecte,
+enregistre les images et remet tout en état, pour chaque scénario.
 
-### L'heure de la démo
-
-La démo se déroule à l'heure réelle du HA de développement, dans son fuseau horaire.
-L'intégration calcule la fin d'un changement à la main avec sa propre horloge : le navigateur ne
-peut donc pas simuler l'heure.
-
-Avant de commencer, le scénario règle *Fin des dérogations* sur *Pendant la durée, ou moins si
-un créneau commence avant*, et remet le réglage à la fin. Enregistrez la démo
-entre 21 h et 22 h, à l'heure du HA de développement. Un changement à la main se termine alors
-au prochain créneau, à 22 h 30, et la carte affiche « aujourd'hui, au prochain créneau ». À
-une autre heure, le changement à la main se termine au bout de 2 heures.
-
-Pour enregistrer à une autre heure, donnez au second HA de développement un fuseau horaire où il
-est entre 21 h et 22 h, avant de le démarrer. Par exemple, à 1 h à Paris, il est 21 h dans
-`Etc/GMT+3` :
+### 1. Enregistrer les démos
 
 ```bash
-sed -i 's|Europe/Paris|Etc/GMT+3|' /tmp/ha-fresh/configuration.yaml
+scripts/demo.sh            # toutes les démos
+scripts/demo.sh override   # une seule démo
 ```
 
-`scripts/demo.sh` vous prévient quand le HA de développement n'est pas entre 21 h et 22 h.
+Le script n'a besoin que de Docker. Votre HA de développement peut continuer à tourner.
 
-### Le scénario
+**Le HA de démo.** Le script démarre un nouveau HA de développement, le HA de démo, sur le port
+8127. L'horloge du HA de démo indique un mardi à 17 h 30, heure de Paris, quelle que soit l'heure
+réelle. Les démos montrent donc le même jour et la même heure à chaque enregistrement. Le HA de
+démo a les données d'exemple et la semaine simulée d'un HA de développement neuf. Le script
+supprime le HA de démo à la fin.
 
-Le scénario se trouve dans [`dev/demo/record.mjs`](dev/demo/record.mjs). Il montre, dans
-l'ordre :
+- Pour enregistrer à une autre heure, réglez `DEMO_TIME`, par exemple
+  `DEMO_TIME="wednesday 08:00"`.
+- Pour garder le HA de démo après l'enregistrement, réglez `DEMO_KEEP=1`. Ouvrez-le sur
+  <http://localhost:8127>, avec `dev` / `dev`.
 
-1. un planning *Télétravail* créé par copie de *Normal*, ses jours affichés un par un, puis son
-   mardi modifié ;
-2. le panneau Chauffage, ouvert depuis le haut à droite de la carte, et son onglet
-   *Préréglages* : la fenêtre d'un préréglage, puis la case d'un thermostat ;
-3. l'activation de *Vacances* ;
-4. la fenêtre de détail d'un thermostat. La consigne du salon monte d'un degré avec le + de la
-   fenêtre. La consigne devient une dérogation, et la fenêtre dit jusqu'à quand et pourquoi :
-   « aujourd'hui, au prochain créneau ». Puis *Modifier sa semaine* ouvre la page du
-   thermostat dans le panneau ;
-5. les cartes thermostat de la vue *Pièces*, avec 30 minutes de plus pour la dérogation du
-   salon ;
-6. l'*Historique* du salon, et une journée en grand.
+**Les GIF.** Le script garde chaque image que dessine le navigateur, sans perte. Puis ffmpeg en
+fait un GIF à 15 images par seconde, avec une seule palette calculée pour tout le GIF. Le script
+écrit `docs/media/<nom>.gif`.
 
-À la fin, le scénario remet tout en état : il supprime la dérogation et le nouveau planning,
-réactive *Normal*, remet *Fin des dérogations* comme avant, et n'enregistre pas les
-modifications des semaines. Si un enregistrement s'arrête en route, son journal donne le
-réglage à remettre.
+### 2. Vérifier chaque GIF
+
+Ouvrez chaque GIF avant de le commiter. Un GIF peut aller jusqu'au bout et montrer quand même la
+mauvaise chose. Gardez une démo sous 30 secondes et sous 2 Mo.
+
+### 3. Ajouter une démo
+
+1. Copiez un scénario de `dev/demo/scenarios/`, et donnez-lui un nouveau nom.
+2. Écrivez sa `scene`. Écrivez son `prepare` avec l'API de l'intégration, si la scène a besoin
+   d'un état que les données d'exemple n'ont pas.
+3. Ajoutez le nom à la liste par défaut de `scripts/demo.sh`.
+4. Montrez le GIF dans la section du README qui présente son sujet, et sur la page de la doc de
+   son sujet.
 
 ## Essayer une version sur un vrai Home Assistant
 
@@ -444,11 +467,12 @@ toujours migrées automatiquement.
 
 Lancez `scripts/test.sh`. Tout doit être au vert, et chaque migration doit avoir sa fixture.
 
-### 2. Décider s'il faut réenregistrer la démo
+### 2. Décider s'il faut réenregistrer les démos
 
-Posez-vous la question à chaque publication. Réenregistrez la démo (voir [Animation de démo](#animation-de-démo)) quand la
-carte a changé d'apparence, ou quand une fonctionnalité visible mérite d'être montrée : complétez
-alors le scénario. Ne la réenregistrez pas quand les changements ne se voient pas.
+Posez-vous la question à chaque publication. Réenregistrez une démo (voir [Démos](#démos)) quand
+ce qu'elle montre a changé d'apparence. Quand une fonctionnalité visible mérite d'être montrée,
+complétez le scénario de son sujet, ou ajoutez une démo. Ne réenregistrez rien quand les
+changements ne se voient pas.
 
 ### 3. Changer la version
 
@@ -589,8 +613,9 @@ et `CLAUDE.md` renvoient ici.
 - **Écrivez les commits en anglais**, courts et descriptifs.
 - **Écrivez la doc pour le lecteur.** Lisez [docs/writing-style.md](docs/writing-style.md)
   avant de modifier une doc, une entrée du changelog ou une pull request.
-- **Tenez la doc française à jour.** La doc anglaise (`README.md`, `CONTRIBUTING.md`) est la
-  référence. Mettez à jour la version française (`*.fr.md`) dans le même commit.
+- **Tenez la doc française à jour.** La doc anglaise (`README.md`, `CONTRIBUTING.md` et les
+  pages de `docs/`) est la référence. Mettez à jour la version française (`*.fr.md`) dans le
+  même commit.
 - **Écrivez les tests d'abord** (voir [Les tests d'abord](#les-tests-dabord)) :
   `tests/integration/` pour l'intégration, `tests/js/` pour la carte.
 - **Notez les décisions.** Quand vous faites un choix qu'un futur contributeur pourrait remettre

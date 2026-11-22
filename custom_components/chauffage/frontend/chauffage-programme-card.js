@@ -7874,12 +7874,12 @@ const SETTINGS_DIALOG = 'chauffage-settings-dialog';
 const INTEGRATION_PAGE = '/config/integrations/integration/chauffage';
 // The one-time notice for existing users (#91): a thermostat turned off by hand turns back on at
 // the end of its override. 'seen' once closed, or for a new user, who gets the next steps (this
-// browser). It links to the README, in the user's language
+// browser). It links to the overrides page of the docs, in the user's language
 const LS_NEW_OFF = 'chauffage-panel:new-off';
 const seenNewOff = () => { try { localStorage.setItem(LS_NEW_OFF, 'seen'); } catch (e) { /* ignore */ } };
-const README_OFF_BY_HAND = {
-  en: 'https://github.com/armellarcier/ha-chauffage/blob/main/README.md#turn-a-thermostat-off-by-hand',
-  fr: 'https://github.com/armellarcier/ha-chauffage/blob/main/README.fr.md#%C3%A9teindre-un-thermostat-%C3%A0-la-main',
+const DOC_OFF_BY_HAND = {
+  en: 'https://github.com/armellarcier/ha-chauffage/blob/main/docs/overrides.md#turn-a-thermostat-off-by-hand',
+  fr: 'https://github.com/armellarcier/ha-chauffage/blob/main/docs/overrides.fr.md#%C3%A9teindre-un-thermostat-%C3%A0-la-main',
 };
 // The notice of the setting *End of a change by hand* for existing users (#83): 'seen' once closed,
 // once the settings were opened, or for a new user, who gets the next steps (this browser)
@@ -8230,7 +8230,7 @@ class ChauffageSettingsDialog extends HTMLElement {
   }
 
   // The section *Overrides* (#83). The duration first, then the three ends of an override, each
-  // labelled with the user's own duration. Labels only: the README explains them (decisions.md)
+  // labelled with the user's own duration. Labels only: docs/overrides.md explains them (decisions.md)
   _fillSettings(settings, src) {
     const loc = this._loc;
     const t = loc.t;
@@ -8669,7 +8669,7 @@ class ChauffagePanel extends HTMLElement {
         // An existing user never sees the next steps: the new off behavior (#91) and the new
         // setting (#83, the access level for an admin, #99) are told once each
         : (notice ? `<div class="notice new-off"><span>${esc(t('newOffNotice'))}
-            <a href="${README_OFF_BY_HAND[makeLocale(this._hass).lang] || README_OFF_BY_HAND.en}" target="_blank" rel="noopener">${esc(t('readMore'))}</a></span>
+            <a href="${DOC_OFF_BY_HAND[makeLocale(this._hass).lang] || DOC_OFF_BY_HAND.en}" target="_blank" rel="noopener">${esc(t('readMore'))}</a></span>
             <button class="btn" data-close-notice>${esc(t('nextClose'))}</button></div>` : '')
           + (setting ? `<div class="notice new-setting"><span>${esc(t(src.admin ? 'newAccessNotice' : 'newSettingNotice'))}
             <a href="${panelPath('settings')}" data-open-settings${src.admin ? '="access"' : ''}>${esc(t('pageSettings'))}</a></span>

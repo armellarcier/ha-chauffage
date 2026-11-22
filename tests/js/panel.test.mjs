@@ -339,17 +339,17 @@ describe('the Chauffage panel', () => {
   });
 
   describe('telling existing users about the new off behavior (#91)', () => {
-    test('the Thermostats tab says once: a thermostat turned off by hand turns back on; its link opens the README, in the user\'s language', () => {
+    test('the Thermostats tab says once: a thermostat turned off by hand turns back on; its link opens the overrides page, in the user\'s language', () => {
       const el = panel(setup(), '/thermostats');
       assert.match(text($(el, '.notice.new-off')), /Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation\. Pour le laisser éteint, suspendez son pilotage\./);
       const link = $(el, '.new-off a');
       assert.equal(text(link), 'En savoir plus');
-      assert.match(link.href, /README\.fr\.md#/);
+      assert.match(link.href, /\/docs\/overrides\.fr\.md#%C3%A9teindre-un-thermostat-%C3%A0-la-main$/);
       assert.equal(link.target, '_blank');
       el.remove();
       const en = panel(setup({ locale: { language: 'en' } }), '/thermostats');
       assert.match(text($(en, '.notice.new-off')), /^New: a thermostat turned off by hand turns back on/);
-      assert.match($(en, '.new-off a').href, /README\.md#turn-a-thermostat-off-by-hand/);
+      assert.match($(en, '.new-off a').href, /\/docs\/overrides\.md#turn-a-thermostat-off-by-hand$/);
     });
 
     test('closed, it stays closed on this browser', () => {
