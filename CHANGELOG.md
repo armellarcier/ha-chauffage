@@ -9,6 +9,21 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.10.0-alpha.3] - 2026-11-22
+
+**A third alpha: install it only to try it, on a Home Assistant you can restore.** It adds a
+*Next change* sensor for preheating tools.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+You can upgrade from 0.10.0-alpha.2 directly. No stored data is migrated.
+
+Each scheduled thermostat gets a new *Next change* sensor, enabled by default.
+
+From 0.9.0, follow the upgrade steps of 0.10.0-alpha.1 below. Make a full backup of Home
+Assistant first.
+
 ### Added
 
 - **A *Next change* sensor for each thermostat, for preheating tools** (#82). The sensor says
