@@ -9,6 +9,18 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+The *Planned preset* sensor is deprecated. If one is enabled, a repair in **Settings → Repairs**
+lists it, with the automations and scripts that use it. Move them to the *Next change* sensor.
+Before you disable the *Planned preset* sensors, check that no other integration reads them. The
+sensor will be removed in 0.12 at the earliest.
+
+### Deprecated
+
+- **The *Planned preset* sensor** (#125). The *Next change* sensor answers the same question
+  better: it sees overrides and the slots after midnight.
+
 ## [0.10.0-alpha.3] - 2026-11-22
 
 **A third alpha: install it only to try it, on a Home Assistant you can restore.** It adds a

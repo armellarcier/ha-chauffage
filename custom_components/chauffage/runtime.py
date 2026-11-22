@@ -212,6 +212,7 @@ class ChauffageRuntime:
         self._unsub_states: Callable[[], None] | None = None
         self._last_tick: datetime | None = None
         self._retry: set[str] = set()  # thermostats whose last command failed
+        self._planned_presets: set[str] = set()  # the deprecated sensors, seen at the last check
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
         self._unsub_rules: Callable[[], None] | None = None
         self.rule_results: list[Any] = []  # each rule now (see render_rule)
@@ -225,6 +226,8 @@ class ChauffageRuntime:
         self._last_tick = dt_util.now()  # the realignment below covers the time before
         self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
         self._unsubs.append(self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self._registry_updated))
+        for reloaded in ("automation_reloaded", "script_reloaded"):
+            self._unsubs.append(self.hass.bus.async_listen(reloaded, self._check_planned_preset))
         self._track_thermostats()
         for entity_id in self.active:
             self._learn(self.hass.states.get(entity_id))
@@ -244,6 +247,7 @@ class ChauffageRuntime:
         for entity_id in self.scheduled:
             if self.hass.states.get(entity_id) is None and er.async_get(self.hass).async_get(entity_id) is None:
                 repairs.raise_missing(self.hass, entity_id)
+        self._check_planned_preset()  # once the automations and scripts are loaded
         self._track_rules()
         await self.follow_rules()
         await self.apply(force=True, reason="Home Assistant started")
@@ -795,6 +799,22 @@ class ChauffageRuntime:
             self._renamed(event.data["old_entity_id"], entity_id)
         if action != "remove" and entity_id in self._card_entities():
             self._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
+        entry = er.async_get(self.hass).async_get(entity_id) if entity_id else None
+        if entity_id in self._planned_presets or (
+                entry is not None and entry.domain == "sensor" and entry.platform == DOMAIN
+                and entry.unique_id.endswith(f"_{PLANNED_PRESET_KEY}")):
+            self._check_planned_preset()
+
+    @callback
+    def _check_planned_preset(self, _event: Event | None = None) -> None:
+        """The deprecated *Planned preset* sensors enabled: a repair warns about them. Also when
+        the automations or the scripts are reloaded: the repair lists those that use them."""
+        registry = er.async_get(self.hass)
+        self._planned_presets = {entity_id for entities in self.thermostat_entities().values()
+                                 if (entity_id := entities.get("planned_preset"))}
+        sensors = [entity_id for entity_id in self._planned_presets
+                   if (entry := registry.async_get(entity_id)) is not None and entry.disabled_by is None]
+        repairs.check_planned_preset(self.hass, sensors)
 
     @callback
     def _renamed(self, old: str, new: str) -> None:

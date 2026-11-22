@@ -123,6 +123,14 @@
       "title": "Retirer le package ha-chauffage",
       "description": "L'intégration Chauffage programme désormais vos thermostats ; les automatisations du package ont été désactivées. Pour terminer : supprimez `packages/chauffage/` et `www/chauffage/` de votre dossier de configuration, retirez la ligne `/local/chauffage/chauffage-loader.js` de `frontend: extra_module_url` et les trois lignes `sensor.*_chauffage` de `recorder: exclude` dans `configuration.yaml`, puis redémarrez Home Assistant. Dans vos propres automatisations, remplacez `input_select.mode_chauffage` par `{schedule_entity}`."
     },
+    "deprecated_planned_preset": {
+      "title": "Le capteur Préréglage prévu est déprécié",
+      "description": "Chauffage retirera le capteur *Préréglage prévu* dans une future version. Utilisez plutôt le capteur *Prochain changement* de chaque thermostat.\n\nCes capteurs sont activés :\n{sensors}\n\nLes désactiver ferme cet avertissement. Avant, vérifiez qu'aucune autre intégration ne les lit."
+    },
+    "deprecated_planned_preset_used": {
+      "title": "Le capteur Préréglage prévu est déprécié",
+      "description": "Chauffage retirera le capteur *Préréglage prévu* dans une future version. Utilisez plutôt le capteur *Prochain changement* de chaque thermostat.\n\nCes capteurs sont activés :\n{sensors}\n\nCes automatisations et scripts les utilisent :\n{users}\n\nModifiez-les. Désactiver les capteurs fermera ensuite cet avertissement. Avant, vérifiez qu'aucune autre intégration ne les lit."
+    },
     "missing": {
       "title": "Le thermostat programmé {entity_id} a disparu",
       "fix_flow": {
