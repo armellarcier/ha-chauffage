@@ -206,6 +206,8 @@ const I18N = {
     heatingNone: 'Nothing heating',
     heatingOne: '1 heating',
     heatingMany: '{n} heating',
+    coolingOne: '1 cooling',
+    coolingMany: '{n} cooling',
     overridesOne: '1 override',
     overridesMany: '{n} overrides',
     pausedOne: '1 paused',
@@ -540,6 +542,8 @@ const I18N = {
     heatingNone: 'Rien ne chauffe',
     heatingOne: '1 chauffe',
     heatingMany: '{n} chauffent',
+    coolingOne: '1 refroidit',
+    coolingMany: '{n} refroidissent',
     overridesOne: '1 dérogation',
     overridesMany: '{n} dérogations',
     pausedOne: '1 en pause',
@@ -7619,6 +7623,8 @@ class ChauffageThermostatCardEditor extends HTMLElement {
 
 // How long the − and + wait for another tap before they set the setpoint, in milliseconds
 const ROOMS_SEND_DELAY = 1500;
+// How long a row waits for the thermostat to answer a setpoint before it shows its own again
+const ROOMS_ANSWER_DELAY = 10000;
 // The color of an HVAC mode, as Home Assistant's Tile card draws it
 const tileColor = (mode) => (mode === 'off'
   ? 'var(--state-climate-off-color, var(--state-inactive-color))'
@@ -7702,8 +7708,10 @@ class ChauffageRoomsCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._pending = {}; // entity → the setpoint tapped, shown until the thermostat has it
+    this._pending = {}; // entity → the setpoint tapped, shown until the thermostat answers
+    this._sentFrom = {}; // entity → the thermostat's setpoint when the one tapped was sent
     this._timers = {};
+    linksByKeyboard(this.shadowRoot);
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     // A tap outside the card closes the popover of the HVAC modes
     this._outside = (e) => {
@@ -7806,8 +7814,12 @@ class ChauffageRoomsCard extends HTMLElement {
     const a = st.attributes;
     const paused = src.paused(entity);
     const d = !paused ? filterActive(src.overrides())[entity] : null;
-    // The setpoint tapped is shown until the thermostat reports it
-    if (this._pending[entity] !== undefined && a.temperature === this._pending[entity]) delete this._pending[entity];
+    // The setpoint tapped is shown until the thermostat answers: with that setpoint, or with
+    // another one (rounded, or set back), which it then shows
+    if (entity in this._sentFrom && (a.temperature === this._pending[entity] || a.temperature !== this._sentFrom[entity])) {
+      delete this._pending[entity];
+      delete this._sentFrom[entity];
+    }
     const off = st.state === 'off';
     const measured = a.current_temperature != null ? `${loc.number(a.current_temperature)}°` : '';
     const { html: state, action } = this._stateOf(entity, st, d, paused, loc, src);
@@ -7909,6 +7921,7 @@ class ChauffageRoomsCard extends HTMLElement {
       const shown = this._pending[entity] ?? st.attributes.temperature;
       const value = fitTemperature(hass, entity, shown + Number(step.dataset.delta) * stepOf(hass, entity));
       this._pending[entity] = value;
+      delete this._sentFrom[entity]; // a new value, not sent yet
       const field = rowEl.querySelector('.rc-value');
       if (field) field.textContent = `${loc.number(value)}°`;
       clearTimeout(this._timers[entity]);
@@ -7939,8 +7952,17 @@ class ChauffageRoomsCard extends HTMLElement {
     const hass = this._hass;
     const value = this._pending[entity];
     if (!hass || value === undefined) return;
-    hass.callService('climate', 'set_temperature', { entity_id: entity, temperature: value })
-      .catch(() => { delete this._pending[entity]; this._html = null; this._render(); });
+    const forget = () => {
+      delete this._pending[entity];
+      delete this._sentFrom[entity];
+      this._html = null;
+      if (this._hass) this._render();
+    };
+    const st = hass.states[entity];
+    this._sentFrom[entity] = st ? st.attributes.temperature : undefined;
+    hass.callService('climate', 'set_temperature', { entity_id: entity, temperature: value }).catch(forget);
+    // A thermostat that never answers: its own setpoint again after a while
+    this._timers[entity] = setTimeout(() => { if (this._pending[entity] === value && entity in this._sentFrom) forget(); }, ROOMS_ANSWER_DELAY);
   }
 }
 
@@ -7986,6 +8008,7 @@ class ChauffageSummaryCard extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
+    this.shadowRoot.addEventListener('keydown', (e) => this._onKey(e));
   }
 
   setConfig(config) {
@@ -8037,11 +8060,14 @@ class ChauffageSummaryCard extends HTMLElement {
     else {
       const thermostats = this._thermostats();
       const overrides = filterActive(src.overrides());
-      const heating = thermostats.filter((e) => hass.states[e].attributes.hvac_action === 'heating').length;
+      const doing = (action) => thermostats.filter((e) => hass.states[e].attributes.hvac_action === action).length;
+      const heating = doing('heating');
+      const cooling = doing('cooling');
       const overridden = thermostats.filter((e) => overrides[e] && !src.paused(e)).length;
       const paused = thermostats.filter((e) => src.paused(e)).length;
       const count = (n, one, many) => (n === 1 ? t(one) : t(many, { n }));
-      const status = [heating ? count(heating, 'heatingOne', 'heatingMany') : t('heatingNone'),
+      const status = [heating ? count(heating, 'heatingOne', 'heatingMany') : cooling ? '' : t('heatingNone'),
+        cooling ? count(cooling, 'coolingOne', 'coolingMany') : '',
         overridden ? count(overridden, 'overridesOne', 'overridesMany') : '',
         paused ? count(paused, 'pausedOne', 'pausedMany') : ''].filter(Boolean).join(' · ');
       const action = this._config.tap_action && this._config.tap_action.action !== 'none';
@@ -8052,7 +8078,7 @@ class ChauffageSummaryCard extends HTMLElement {
         return `<button type="button" data-schedule="${esc(id)}" aria-pressed="${id === active}">${icon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}<span>${esc(src.scheduleName(id))}</span></button>`;
       }).join('') : '';
       html = `<div class="sc-main${action ? ' action' : ''}"${action ? ' role="button" tabindex="0"' : ''}>
-          <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : 'off')}"><ha-icon icon="${esc(this._config.icon || 'mdi:home-thermometer')}"></ha-icon></span>
+          <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : cooling ? 'cool' : 'off')}"><ha-icon icon="${esc(this._config.icon || 'mdi:home-thermometer')}"></ha-icon></span>
           <div class="sc-text">
             <div class="sc-line"><span class="sc-name">${esc(this._config.name || t('summaryDefaultName'))}</span>
               <span class="sc-climate">${esc(this._climateText(loc, thermostats))}</span></div>
@@ -8099,10 +8125,21 @@ class ChauffageSummaryCard extends HTMLElement {
       hass.callService('select', 'select_option', { entity_id: src.scheduleSelect(), option: src.scheduleName(chip.dataset.schedule) });
       return;
     }
+    if (e.target.closest('.sc-main')) this._tap();
+  }
+
+  // Enter or Space on the card does its action, as a tap
+  _onKey(e) {
+    if ((e.key !== 'Enter' && e.key !== ' ') || !e.target.closest || !e.target.closest('.sc-main')) return;
+    e.preventDefault();
+    this._tap();
+  }
+
+  // The card's action (`tap_action`), through Home Assistant's own handler of card actions
+  _tap() {
     const tap = this._config.tap_action;
-    if (e.target.closest('.sc-main') && tap && tap.action !== 'none') {
-      this.dispatchEvent(new CustomEvent('hass-action', { detail: { config: { tap_action: tap }, action: 'tap' }, bubbles: true, composed: true }));
-    }
+    if (!tap || tap.action === 'none') return;
+    this.dispatchEvent(new CustomEvent('hass-action', { detail: { config: { tap_action: tap }, action: 'tap' }, bubbles: true, composed: true }));
   }
 }
 

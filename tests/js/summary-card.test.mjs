@@ -110,6 +110,27 @@ describe('the summary card', () => {
     assert.equal(actions.length, 1, 'a schedule tapped does not do the card\'s action');
   });
 
+  test('Enter or Space does the card\'s action too', () => {
+    const card = cardFor(setup(), { tap_action: { action: 'navigate', navigation_path: '#heats' } });
+    const actions = [];
+    card.addEventListener('hass-action', (e) => actions.push(e.detail));
+    for (const key of ['Enter', ' ']) $(card, '.sc-main').dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, composed: true }));
+    assert.equal(actions.length, 2);
+  });
+
+  test('thermostats that cool are counted, and color its icon', () => {
+    const hass = setup();
+    hass.states['climate.salon'].attributes.hvac_action = 'idle';
+    hass.states['climate.bureau'] = { ...hass.states['climate.bureau'], state: 'cool' };
+    hass.states['climate.bureau'].attributes.hvac_action = 'cooling';
+    const card = cardFor(hass);
+    assert.equal(text($(card, '.sc-status')), '1 refroidit');
+    assert.match($(card, '.sc-badge').style.getPropertyValue('--tile-color'), /--state-climate-cool-color/);
+    cleanup();
+    hass.states['climate.salon'].attributes.hvac_action = 'heating';
+    assert.equal(text($(cardFor(hass), '.sc-status')), '1 chauffe · 1 refroidit');
+  });
+
   test('without an action, a tap does nothing', () => {
     const card = cardFor(setup());
     const actions = [];

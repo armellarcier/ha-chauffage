@@ -205,6 +205,12 @@ describe('the rooms card', () => {
     assert.deepEqual(opened, ['climate.salon']);
   });
 
+  test('Enter on a row opens the thermostat', () => {
+    const card = cardFor(setup());
+    row(card, 'climate.salon').querySelector('.rc-main').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
+    assert.deepEqual(opened, ['climate.salon']);
+  });
+
   test('+ and − change the setpoint shown at once, and set it on the thermostat when the taps stop', () => {
     const hass = setup();
     const card = cardFor(hass);
@@ -232,6 +238,30 @@ describe('the rooms card', () => {
     card.hass = report(17.5, 20.2);
     card.hass = report(18, 20.3); // changed elsewhere after that
     assert.equal(text(row(card, 'climate.salon').querySelector('.rc-value')), '18°');
+  });
+
+  test('a thermostat that takes another setpoint than the one tapped shows its own', () => {
+    const hass = setup();
+    const card = cardFor(hass);
+    const plus = row(card, 'climate.salon').querySelector('[data-delta="1"]');
+    plus.click();
+    plus.click();
+    mock.timers.tick(1500); // 18° sent
+    const salon = hass.states['climate.salon'];
+    card.hass = { ...hass, states: { ...hass.states, 'climate.salon': { ...salon, attributes: { ...salon.attributes, temperature: 17.5 } } } };
+    assert.equal(text(row(card, 'climate.salon').querySelector('.rc-value')), '17,5°', 'rounded by the thermostat');
+    row(card, 'climate.salon').querySelector('[data-delta="1"]').click();
+    assert.equal(text(row(card, 'climate.salon').querySelector('.rc-value')), '18°', 'the next tap starts from it');
+  });
+
+  test('a thermostat that ignores the setpoint tapped shows its own again after a while', () => {
+    const hass = setup();
+    const card = cardFor(hass);
+    row(card, 'climate.salon').querySelector('[data-delta="1"]').click();
+    mock.timers.tick(1500);
+    assert.equal(text(row(card, 'climate.salon').querySelector('.rc-value')), '17,5°');
+    mock.timers.tick(10000);
+    assert.equal(text(row(card, 'climate.salon').querySelector('.rc-value')), '17°');
   });
 
   test('− and + follow the thermostat\'s step and limits', () => {

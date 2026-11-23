@@ -1113,7 +1113,9 @@ dashboards, automations, scripts and by voice without the card
     override. One concept, not two: the card does not create overrides of its own. The cost: a
     row shows the override a few seconds later, once the thermostat reports.
   - **− and + show the new value at once** and set it 1.5 s after the last tap: three taps make
-    one command, not three. The value tapped stays shown until the thermostat reports it.
+    one command, not three. The value tapped stays shown until the thermostat answers. The
+    thermostat may answer with another setpoint, rounded or set back: the row then shows that
+    setpoint. Without an answer after 10 s, the row shows the thermostat's own setpoint again.
   - **A paused thermostat keeps − and +.** They set its own setpoint, which Chauffage leaves
     alone.
   - **The icon opens the thermostat, as the rest of the row** (the owner). It is in the color of
@@ -1143,9 +1145,9 @@ dashboards, automations, scripts and by voice without the card
   schedules, and a tap opens a pop-up of the rooms. The summary card is that tile, made by
   Chauffage. It is a card of its own, not a header of the rooms card, because the tile and the
   pop-up are in different places of the dashboard.
-  - **It counts what the thermostats say**: "2 heating · 1 override · 1 paused". Heating is
-    `hvac_action: heating`, as HA's Tile card colors it. A thermostat that does not report
-    `hvac_action` is not counted.
+  - **It counts what the thermostats say**: "2 heating · 1 cooling · 1 override · 1 paused".
+    Heating is `hvac_action: heating`, cooling is `hvac_action: cooling`, as HA's Tile card
+    colors them. A thermostat that does not report `hvac_action` is not counted.
   - **Its temperature is a sensor's**, given in the card, with an optional humidity sensor.
     Without a sensor, the card shows the range its thermostats measure ("19–20,1°"), not an
     average that no room has.
