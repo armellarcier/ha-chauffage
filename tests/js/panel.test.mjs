@@ -660,6 +660,17 @@ describe('the Chauffage panel', () => {
       assert.deepEqual(away._week('climate.salon'), normal._week('climate.salon'));
     });
 
+    test('the popover of a slot goes over the sheet\'s save bar', () => {
+      const el = panel(setup(), '/thermostats/climate.salon');
+      const [, away] = weeks(el);
+      away.shadowRoot.querySelector('.bar[data-climate="climate.salon"] .seg[data-idx="0"]').click();
+      away.shadowRoot.querySelector('.editor [data-act="preset"][data-preset="eco"]').click();
+      assert.ok($(el, '.sheet-savebar'));
+      const z = (root, selector) => Number(new RegExp(`\\n  ${selector} \\{[^}]*z-index:(\\d+)`)
+        .exec($$(root, 'style').map((s) => s.textContent).join('\n'))[1]);
+      assert.ok(z(away, '\\.editor') > z(el, '\\[data-fill="savebar"\\]'));
+    });
+
     test('the ⋮ of a week sets every slot of an air conditioner\'s week to heat or to cool, unsaved', () => {
       const hass = setup();
       hass.states['climate.salon'].attributes.hvac_modes = ['off', 'heat', 'cool'];

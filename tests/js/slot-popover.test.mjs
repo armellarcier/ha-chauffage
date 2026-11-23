@@ -414,29 +414,141 @@ afterEach(() => cleanup());
     });
   });
 
-  describe('the popover of a slot leaves the save bar free', () => {
+  describe('the popover of a slot and the save bar', () => {
     onMondayAtTen();
-    test('it opens above its row when it would cover Cancel and Save', () => {
+    const placed = (card, top, height) => {
+      const rect = (t, h) => () => ({ left: 0, right: 360, width: 360, top: t, bottom: t + h, height: h });
+      $(card, 'ha-card').getBoundingClientRect = rect(0, 900);
+      $(card, '.seg.sel').parentElement.getBoundingClientRect = rect(top, 38);
+      $(card, '.seg.sel').getBoundingClientRect = rect(top, 38);
+      const editor = $(card, '.editor');
+      Object.defineProperty(editor, 'offsetHeight', { value: height });
+      Object.defineProperty(editor, 'offsetWidth', { value: 340 });
+      card._placeEditor();
+      return editor;
+    };
+    const edited = () => {
       const card = cardOf(setup());
       select(card, SALON, 1);
       click(card, '.editor [data-act="preset"][data-preset="boost"]');
       assert.ok($(card, '.savebar'));
-      const rect = (top, height) => () => ({ left: 0, right: 360, width: 360, top, bottom: top + height, height });
-      $(card, 'ha-card').getBoundingClientRect = rect(0, 900);
-      $(card, '.seg.sel').parentElement.getBoundingClientRect = rect(500, 38);
-      $(card, '.seg.sel').getBoundingClientRect = rect(500, 38);
-      $(card, '.savebar').getBoundingClientRect = rect(708, 60);
-      const editor = $(card, '.editor');
-      Object.defineProperty(editor, 'offsetHeight', { value: 200 });
-      Object.defineProperty(editor, 'offsetWidth', { value: 340 });
-      card._placeEditor();
-      // 500 + 38 + 9 + 200 = 747: inside the window (768), but under the save bar (from 708)
-      assert.ok(editor.classList.contains('above'));
+      return card;
+    };
+    const children = (ed) => [...ed.children].map((c) => c.className);
+
+    test('a popover goes over the save bar: it opens under its row while the window has room', () => {
+      // 500 + 38 + 9 + 200 = 747: over the save bar, inside the window (768)
+      assert.ok(!placed(edited(), 500, 200).classList.contains('above'));
+      const z = (selector) => Number(new RegExp(`\\n  ${selector} \\{[^}]*z-index:(\\d+)`).exec(STYLE_TEXT)[1]);
+      assert.ok(z('\\.editor') > z('\\.savebar'));
     });
 
-    test('the save bar stays over a popover that has no room above', () => {
+    test('with no room above either, it stops 8 px above the bottom of the window', () => {
+      const editor = placed(edited(), 100, 700);
+      assert.ok(!editor.classList.contains('above'));
+      assert.equal(editor.style.maxHeight, `${768 - 138 - 9 - 8}px`);
+    });
+
+    test('with no room on either side, it takes the larger one: above a row low in the window', () => {
+      // 483 px above the row (500 − 9 − 8), 213 px below it (768 − 538 − 9 − 8)
+      const editor = placed(edited(), 500, 600);
+      assert.ok(editor.classList.contains('above'));
+      assert.equal(editor.style.maxHeight, '483px');
+      assert.equal(editor.style.top, `${500 - 483 - 9}px`);
+    });
+
+    test('when it scrolls, its head and its buttons stay in sight, and its caret stays on the slot', () => {
+      const card = cardOf(setup());
+      select(card, SALON, 1);
+      assert.deepEqual(children($(card, '.editor')), ['ed-head', 'ed-body', 'ed-actions']);
+      assert.ok($(card, '.editor .ed-body [data-act="preset"]'));
+      // Only the body scrolls: the popover itself does not clip its caret, drawn outside it
+      assert.match(STYLE_TEXT, /\n {2}\.ed-body \{[^}]*min-height:0[^}]*overflow-y:auto/);
+      assert.doesNotMatch(STYLE_TEXT, /\n {2}\.editor[^{,]*\{[^}]*overflow/);
+    });
+
+    test('the popovers of an override and of a preset\'s value scroll the same way', () => {
+      const card = cardOf(setup());
+      card._overrideSel = { climate: SALON, day: 0, create: true };
+      card._render();
+      assert.deepEqual(children($(card, '.editor.override-ed')).slice(0, 2), ['ed-head', 'ed-body']);
+      const presets = cardOf(setup(), { view: 'presets' });
+      click(presets, '[data-act="cell"]');
+      assert.deepEqual(children($(presets, '.editor.cell-ed')), ['ed-head', 'ed-body', 'ed-actions pv-foot']);
+    });
+
+    test('a scrolling body clips no ring of a chosen chip, and shows a shadow on the side with more', () => {
+      const rule = new RegExp('\\n  \\.ed-body \\{([^}]*)\\}').exec(STYLE_TEXT)[1];
+      // Room for the ring of a chip at its edges, without moving the content
+      assert.match(rule, /padding:4px;\s*margin:-4px/);
+      // The shadows scroll with the view, their covers with the content (background-attachment)
+      assert.match(rule, /background:[^;]*local[^;]*local[^;]*scroll[^;]*scroll/);
+    });
+
+    test('a menu opened while a popover is open shows over it', () => {
       const z = (selector) => Number(new RegExp(`\\n  ${selector} \\{[^}]*z-index:(\\d+)`).exec(STYLE_TEXT)[1]);
-      assert.ok(z('\\.savebar') > z('\\.editor'));
+      assert.ok(z('\\.menu') > z('\\.editor'));
+    });
+
+    test('above its row, it stays under Home Assistant\'s top bar', () => {
+      const card = edited();
+      card.style.setProperty('--header-height', '56px');
+      // 427 px above the row (500 − 9 − 8 − 56), 213 px below it
+      const editor = placed(card, 500, 600);
+      assert.ok(editor.classList.contains('above'));
+      assert.equal(editor.style.maxHeight, '427px');
+      assert.equal(editor.style.top, `${500 - 427 - 9}px`);
+    });
+
+    test('its body keeps where it was scrolled when the card is redrawn', () => {
+      const card = edited();
+      placed(card, 100, 700);
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, value: 120 });
+      card._render(); // a preset tapped, or Home Assistant's new data
+      let kept;
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, get: () => 0, set: (v) => { kept = v; } });
+      placed(card, 100, 700);
+      assert.equal(kept, 120);
+      // Another slot's popover starts at its top
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, value: 120 });
+      select(card, SALON, 2);
+      kept = undefined;
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, get: () => 0, set: (v) => { kept = v; } });
+      placed(card, 100, 700);
+      assert.equal(kept, undefined);
+    });
+
+    test('More settings opened in a scrolling body is scrolled into sight', () => {
+      const card = cardOf(setup(), { show: [SUITE] });
+      select(card, SUITE, 1);
+      card._placeEditor = () => true;
+      const body = $(card, '.ed-body');
+      const more = $(card, '.editor details.more');
+      let top = 40;
+      Object.defineProperty(body, 'scrollTop', { configurable: true, get: () => top, set: (v) => { top = v; } });
+      body.getBoundingClientRect = () => ({ top: 400, bottom: 600, height: 200 });
+      more.getBoundingClientRect = () => ({ top: 520, bottom: 760, height: 240 });
+      // A redraw opens it again: no scroll
+      more.open = true;
+      more.dispatchEvent(new window.Event('toggle'));
+      assert.equal(top, 40);
+      more.open = false;
+      more.querySelector('summary').dispatchEvent(new window.MouseEvent('click', { bubbles: true, composed: true, cancelable: true }));
+      more.open = true;
+      more.dispatchEvent(new window.Event('toggle'));
+      // Its top at the top of the body: the settings it holds come into sight
+      assert.equal(top, 40 + 520 - 400);
+    });
+
+    test('it is placed again when More settings opens', () => {
+      const card = cardOf(setup(), { show: [SUITE] });
+      select(card, SUITE, 1);
+      let count = 0;
+      card._placeEditor = () => { count += 1; return true; };
+      const more = $(card, '.editor details.more');
+      more.open = true;
+      more.dispatchEvent(new window.Event('toggle'));
+      assert.equal(count, 1);
     });
   });
 

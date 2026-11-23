@@ -4185,11 +4185,13 @@ class ChauffageProgrammeCard extends HTMLElement {
         <span class="ed-times"><label>${esc(t('from'))} ${from}</label><label>${esc(t('to'))} ${to}</label></span>
         <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
       </div>
-      ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
-      ${modeRow}
-      ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
-      ${setpointLine}
-      ${more}
+      <div class="ed-body">
+        ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
+        ${modeRow}
+        ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
+        ${setpointLine}
+        ${more}
+      </div>
       <div class="ed-actions">
         <button class="btn" data-act="insert" ${end - s.start < 2 * this._config.step ? 'disabled' : ''}>${esc(t('insertSlot'))}</button>
         <button class="btn" data-act="delete" ${segs.length === 1 ? 'disabled' : ''}>${esc(t('delete'))}</button>
@@ -4211,7 +4213,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${d ? `<span class="override-value">${esc(overrideSummary(d, this._source(), climate, this._loc, this._hass))}</span>` : ''}
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>
-      ${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}
+      <div class="ed-body">${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}</div>
       ${d ? `<div class="ed-actions"><button class="btn danger" data-act="override-del">${esc(t('resume'))}</button></div>` : ''}
     </div>`;
   }
@@ -4305,6 +4307,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // On a narrow card (a phone), the popover takes the card's width: centred, whatever it holds
     ed.style.width = card.width <= 516 ? `${card.width - 16}px` : '';
     ed.classList.toggle('narrow', card.width <= 516); // its HVAC modes in three columns
+    ed.style.maxHeight = ''; // its whole height first
     const w = ed.offsetWidth;
     const h = ed.offsetHeight;
     // The popover is placed from inside the card's border: centred between its two borders
@@ -4313,19 +4316,38 @@ class ChauffageProgrammeCard extends HTMLElement {
     const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2)) - border;
     let top = row.bottom - card.top + 9;
     let above = false;
-    // The save bar stays at the bottom of the window: the popover does not go under it
-    const save = root.querySelector('.savebar');
-    const floor = window.innerHeight - (save ? save.getBoundingClientRect().height : 0);
-    if (row.bottom + 9 + h > floor && row.top - 9 - h > 0) {
-      top = row.top - card.top - h - 9;
-      above = true;
+    // The popover goes over the save bar, but stays in the window, under Home Assistant's top bar
+    const topBar = parseFloat(getComputedStyle(this).getPropertyValue('--header-height')) || 0;
+    let max = 0;
+    if (row.bottom + 9 + h > window.innerHeight) {
+      const roomBelow = window.innerHeight - row.bottom - 9 - 8;
+      const roomAbove = row.top - 9 - 8 - topBar;
+      // No room on either side: it takes the larger one, and its body scrolls
+      if (row.top - 9 - h <= topBar) max = Math.max(roomBelow, roomAbove);
+      if (max !== roomBelow) {
+        top = row.top - card.top - (max || h) - 9;
+        above = true;
+      }
     }
+    ed.style.maxHeight = max ? `${max}px` : '';
+    // A redraw (a preset tapped, Home Assistant's new data) keeps where the body was scrolled
+    const kept = this._bodyScroll;
+    this._bodyScroll = null;
+    this._placedKey = this._editorKey();
+    const body = ed.querySelector('.ed-body');
+    if (kept && body && kept.key === this._placedKey) body.scrollTop = kept.top;
     ed.style.left = `${left}px`;
     ed.style.top = `${top}px`;
     ed.style.setProperty('--caret', `${Math.max(14, Math.min(w - 14, cx - left))}px`);
     ed.classList.toggle('above', above);
     ed.classList.add('placed');
     return true;
+  }
+
+  // Which popover is open: a slot, an override or a preset's value
+  _editorKey() {
+    const cell = this._cell && [this._cell.kind, this._cell.preset, this._cell.climate];
+    return JSON.stringify([this._sel, this._overrideSel && this._overrideSel.climate, cell]);
   }
 
   // Redraws the card, keeping a schedule name being typed in a menu, and the caret of a rule's
@@ -4345,6 +4367,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The presets table keeps where it was scrolled sideways: a tap on a cell redraws it
     const table = this.shadowRoot.querySelector('.table-wrap');
     if (table) this._tableLeft = table.scrollLeft;
+    // A popover's body scrolled: put back by _placeEditor(), if the same popover is still open
+    const body = this.shadowRoot.querySelector('.editor .ed-body');
+    this._bodyScroll = body && body.scrollTop ? { key: this._placedKey, top: body.scrollTop } : null;
     this._draw();
     this._keepTable();
     this._showTargetRow();
@@ -5007,7 +5032,19 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
     // "More settings" of a slot stays open or closed across redraws (toggle does not bubble)
     root.addEventListener('toggle', (e) => {
-      if (e.target.matches && e.target.matches('.editor:not(.cell-ed) details.more')) this._moreOpen = e.target.open;
+      if (!e.target.matches || !e.target.matches('.editor details.more')) return;
+      if (!e.target.matches('.cell-ed details.more')) this._moreOpen = e.target.open;
+      this._placeEditor(); // taller or shorter: it may no longer fit where it is
+      // Opened by the user (a redraw opens it again too): what it holds comes into sight
+      const tapped = this._moreTapped;
+      this._moreTapped = false;
+      const body = e.target.closest('.ed-body');
+      if (!tapped || !e.target.open || !body) return;
+      const below = e.target.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+      if (below > 0) body.scrollTop += Math.min(below, e.target.getBoundingClientRect().top - body.getBoundingClientRect().top);
+    }, true);
+    root.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('.editor details.more > summary')) this._moreTapped = true;
     }, true);
   }
 
@@ -5814,8 +5851,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="editor cell-ed" data-panel="cell">
       <div class="ed-head"><strong>${dot}${heading}</strong>
         <button class="btn icon close" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
-      ${body}
-      ${this._cellError ? `<div class="pv-error">${esc(this._cellError)}</div>` : ''}
+      <div class="ed-body">${body}
+        ${this._cellError ? `<div class="pv-error">${esc(this._cellError)}</div>` : ''}</div>
       <div class="ed-actions pv-foot">${buttons}</div>
     </div>`;
   }
@@ -6701,7 +6738,7 @@ const STYLE = `
   /* A day with nothing to offer keeps its place in the grid */
   .ibtn.none { visibility:hidden; }
   .bar.clipsrc { outline:2px dashed var(--primary-color); outline-offset:2px; }
-  .menu { position:absolute; z-index:10; min-width:230px; padding:6px 0; border-radius:10px;
+  .menu { position:absolute; z-index:12; min-width:230px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color);
     box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .mh { padding:4px 14px 6px; font-size:.78em; color:var(--secondary-text-color); }
@@ -6714,10 +6751,21 @@ const STYLE = `
   .mi small { display:block; font-size:.8em; color:var(--secondary-text-color); }
   .sep { height:1px; margin:5px 0; background:var(--divider-color); }
   .hint { margin-top:10px; font-size:.8em; color:var(--secondary-text-color); }
-  .editor { position:absolute; z-index:9; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
+  .editor { position:absolute; z-index:11; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
     padding:10px 12px; border-radius:10px; background:var(--card-background-color);
     border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25);
     display:flex; flex-direction:column; gap:var(--chauffage-row-gap); }
+  /* No room above nor below its row: only the body scrolls. Its head and its buttons stay in
+     sight, and the popover does not clip its caret. Its padding leaves room for the ring of a
+     chip at its edges. A shadow shows on the side where there is more: the covers scroll with
+     the content (local), the shadows stay with the view (scroll) */
+  .ed-body { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); min-height:0; overflow-y:auto;
+    overscroll-behavior:contain; padding:4px; margin:-4px;
+    background:linear-gradient(var(--card-background-color) 30%, transparent) top / 100% 24px no-repeat local,
+      linear-gradient(transparent, var(--card-background-color) 70%) bottom / 100% 24px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, rgba(0,0,0,.3), transparent) top / 100% 10px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.3), transparent) bottom / 100% 10px no-repeat scroll; }
+  .editor > .ed-head, .editor > .ed-actions { flex:none; }
   .editor.placed { visibility:visible; }
   .editor::before { content:''; position:absolute; top:-7px; left:var(--caret,50%); width:12px; height:12px;
     margin-left:-6px; transform:rotate(45deg); background:var(--card-background-color);
@@ -9106,7 +9154,7 @@ const PANEL_CSS = `
   .mi.danger { color:var(--error-color, #db4437); }
   .menu-btns { display:flex; gap:8px; padding:6px 14px 8px; }
   .menu .sep { height:1px; margin:5px 0; background:var(--divider-color); }
-  .menu { position:absolute; top:100%; right:0; z-index:10; min-width:200px; padding:6px 0; border-radius:10px;
+  .menu { position:absolute; top:100%; right:0; z-index:12; min-width:200px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .mh { padding:4px 14px 6px; font-size:12px; color:var(--secondary-text-color); }
   .mi { display:block; width:100%; padding:8px 14px; border:0; background:transparent; text-align:left; cursor:pointer;
