@@ -180,15 +180,23 @@ describe('the rooms card', () => {
     assert.ok(!mode('climate.bureau').classList.contains('active'));
   });
 
-  test('the room\'s icon is in the color of its mode, at its setpoint too, and never grey', () => {
+  test('the room\'s icon is in color while the thermostat heats, in Home Assistant\'s icon color otherwise', () => {
     const hass = setup();
-    hass.states['climate.salon'].attributes.hvac_action = 'idle';
-    hass.states['climate.bureau'] = { ...hass.states['climate.bureau'], state: 'off' };
-    hass.states['climate.bureau'].attributes.hvac_action = 'off';
+    hass.states['climate.salon'].attributes.hvac_action = 'heating';
+    hass.states['climate.bureau'].attributes.hvac_action = 'idle';
     const card = cardFor(hass);
-    const color = (entity) => row(card, entity).querySelector('.rc-badge').style.getPropertyValue('--tile-color');
-    assert.match(color('climate.salon'), /--state-climate-heat-color/);
-    assert.equal(color('climate.bureau'), '', 'off: Home Assistant\'s icon color, not grey');
+    assert.match(row(card, 'climate.salon').querySelector('.rc-badge').style.getPropertyValue('--tile-color'), /--state-climate-heat-color/);
+    assert.equal(row(card, 'climate.bureau').querySelector('.rc-badge').getAttribute('style'), null, 'at its setpoint: never grey');
+  });
+
+  test('an override is the striped chip of the rest of Chauffage, the − and + stay plain', () => {
+    const override = { target: { temperature: 21 }, start: '2026-10-12T09:00:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+    const card = cardFor(setup({ overrides: { 'climate.salon': override } }));
+    assert.equal(text(row(card, 'climate.salon').querySelector('.rc-state .rc-override')), '⏱ jusqu\'à 11:30');
+    const style = card.shadowRoot.querySelector('style').textContent;
+    // The stripes of the thermostat card's chip and of the schedule card's override
+    assert.match(style, /\.rc-override \{[^}]*repeating-linear-gradient\(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px\)/);
+    assert.doesNotMatch(style, /\.rc-row\.override \.rc-(step|value)/);
   });
 
   test('the color of heat/cool is Home Assistant\'s', () => {

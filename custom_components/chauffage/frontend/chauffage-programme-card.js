@@ -1070,6 +1070,9 @@ const HVAC_ICONS = { off: 'mdi:power', heat: 'mdi:fire', cool: 'mdi:snowflake', 
 // Home Assistant's color of each HVAC mode (its state color), with the color it is by default.
 // Off is grey, as an off slot
 const OFF_COLOR = '#616161';
+// The stripes of an override, everywhere Chauffage draws one (the schedule card, the thermostat
+// card's chip, a row of the rooms card), with a white text
+const OVERRIDE_STRIPES = 'repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px)';
 const HVAC_COLORS = {
   off: OFF_COLOR,
   heat: 'var(--state-climate-heat-color, #ff5722)',
@@ -7408,7 +7411,7 @@ const THERMOSTAT_CARD_STYLE = `
     font-size:.88em; font-weight:500; white-space:nowrap; background:var(--secondary-background-color); }
   .tc-state i { width:10px; height:10px; border-radius:3px; flex:none; }
   .tc-state .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; }
-  .tc-state.override { color:#fff; background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
+  .tc-state.override { color:#fff; background:${OVERRIDE_STRIPES}; }
   ${LINK_STYLE}
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
@@ -7645,7 +7648,6 @@ const tileColor = (mode) => (mode === 'off'
 // reached its setpoint (idle) is grey, as off; one that does not say is in the color of its mode
 const ACTION_MODES = { heating: 'heat', preheating: 'heat', defrosting: 'heat', cooling: 'cool', drying: 'dry', fan: 'fan_only', idle: 'off', off: 'off' };
 const activityMode = (st) => ACTION_MODES[st.attributes.hvac_action] || st.state;
-const OVERRIDE_COLOR = '#7b1fa2';
 // An instant to come, in a row: its time alone within a day ("→ Comfort 06:30" in the evening is
 // tomorrow), else its day too
 const soonText = (at, loc) => (at - Date.now() < DAY_MIN * 60000 ? loc.time(minutesOf(at)) : whenText(at, loc));
@@ -7685,8 +7687,9 @@ const ROOMS_CARD_STYLE = `
   /* Heating or cooling: the button filled with the color of its mode, its icon white */
   .rc-mode.active { background:var(--tile-color); border-color:var(--tile-color); color:var(--text-primary-color, #fff); }
   .rc-mode.active:hover, .rc-mode.active[aria-expanded="true"] { background:var(--tile-color); filter:brightness(1.1); }
-  .rc-badge:not([style]) { color:var(--state-icon-color, var(--secondary-text-color)); }
-  .rc-badge:not([style])::before { background:var(--secondary-text-color); opacity:.12; }
+  /* At rest, the room's icon is in the color of the text: HA's icon color is a bluish grey */
+  .rc-badge:not([style]) { color:var(--primary-text-color); }
+  .rc-badge:not([style])::before { background:var(--primary-text-color); opacity:.08; }
   .rc-modes { position:absolute; top:calc(100% + 4px); right:0; z-index:5; display:flex; flex-direction:column; min-width:170px;
     padding:4px 0; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color, #fff);
     box-shadow:0 4px 16px rgba(0,0,0,.25); }
@@ -7699,7 +7702,9 @@ const ROOMS_CARD_STYLE = `
   .rc-modes button.on { font-weight:var(--ha-font-weight-medium, 500); }
   .rc-modes button.on::before { content:''; position:absolute; inset:0; background:var(--tile-color); opacity:.15; }
   .rc-state i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:0; }
-  .rc-row.override .rc-state { color:${OVERRIDE_COLOR}; }
+  .rc-override { display:inline-block; max-width:100%; box-sizing:border-box; padding:0 6px; border-radius:8px;
+    color:#fff; font-weight:var(--ha-font-weight-medium, 500); overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
+    background:${OVERRIDE_STRIPES}; }
   .rc-row.paused .rc-name, .rc-row.paused .rc-temp { color:var(--disabled-text-color, var(--secondary-text-color)); }
   /* 20px drawn, 36px to tap: the rest of its target overflows the line */
   .rc-x { position:relative; flex:none; width:20px; height:20px; padding:0; border:0; border-radius:50%; background:none;
@@ -7707,12 +7712,10 @@ const ROOMS_CARD_STYLE = `
   .rc-x::after { content:''; position:absolute; inset:-8px; }
   .rc-x:hover { background:var(--secondary-background-color); }
   .rc-step { display:flex; align-items:center; border:1px solid var(--divider-color); border-radius:18px; }
-  .rc-row.override .rc-step { border-color:${OVERRIDE_COLOR}; }
   .rc-step button { width:32px; height:34px; padding:0; border:0; border-radius:50%; background:none; cursor:pointer;
     color:var(--primary-text-color); font:inherit; font-size:18px; line-height:34px; }
   .rc-step button:hover { background:var(--secondary-background-color); }
   .rc-value { min-width:2.5em; text-align:center; font-variant-numeric:tabular-nums; font-weight:500; }
-  .rc-row.override .rc-value { color:${OVERRIDE_COLOR}; }
   .msg { color:var(--secondary-text-color); font-size:.92em; padding:8px 0; }
 `;
 
@@ -7867,10 +7870,12 @@ class ChauffageRoomsCard extends HTMLElement {
         : '';
       mode = `<div class="rc-mode-wrap"><button type="button" class="rc-mode${active ? ' active' : ''}" data-mode-button aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(t('hvacModeLabel'))}" title="${esc(`${t('hvacModeLabel')} · ${modeName(loc, st.state)}`)}" style="--tile-color:${tileColor(st.state)}">${hvacIcon(st.state)}</button>${popover}</div>`;
     }
-    // The room's icon is in the color of its mode, never grey: off, Home Assistant's icon color.
-    // What the thermostat does is on the mode button
-    const badge = off ? `<span class="rc-badge">${icon}</span>`
-      : `<span class="rc-badge" style="--tile-color:${tileColor(st.state)}">${icon}</span>`;
+    // The room's icon is in color while the thermostat heats or cools, else in Home Assistant's
+    // icon color, never grey
+    const doingNow = activityMode(st);
+    const badge = a.hvac_action && doingNow !== 'off'
+      ? `<span class="rc-badge" style="--tile-color:${tileColor(doingNow)}">${icon}</span>`
+      : `<span class="rc-badge">${icon}</span>`;
     const cls = ['rc-row', d ? 'override' : '', paused ? 'paused' : ''].filter(Boolean).join(' ');
     return `<div class="${cls}" data-entity="${esc(entity)}">
       <div class="rc-main" role="link" tabindex="0" title="${esc(t('openThermostat'))}">${badge}<div class="rc-text">
@@ -7898,7 +7903,7 @@ class ChauffageRoomsCard extends HTMLElement {
       const label = isTemperature ? '' : overrideLabel(d, loc, presets);
       const until = `${t('until')} ${soonText(parseDate(d.end), loc)}`;
       return {
-        html: esc(`⏱ ${label ? `${label} ` : ''}${until}`),
+        html: `<span class="rc-override">${esc(`⏱ ${label ? `${label} ` : ''}${until}`)}</span>`,
         action: `<button type="button" class="rc-x" data-resume-schedule aria-label="${esc(t('resume'))}" title="${esc(t('resume'))}">✕</button>`,
       };
     }
