@@ -9,6 +9,13 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Fixed
+
+- **You can reach every button of a slot again** (#127). On a thermostat's page, the save bar
+  hid the bottom of a slot's popover once *More settings* was open, for example *Delete*. A
+  popover now goes over the save bar. When a popover doesn't fit above or below its slot, its
+  settings scroll, and its buttons stay in sight.
+
 ## [0.10.0-alpha.4] - 2026-11-22
 
 **A fourth alpha: install it only to try it, on a Home Assistant you can restore.** It deprecates

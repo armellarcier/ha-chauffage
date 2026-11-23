@@ -4185,11 +4185,13 @@ class ChauffageProgrammeCard extends HTMLElement {
         <span class="ed-times"><label>${esc(t('from'))} ${from}</label><label>${esc(t('to'))} ${to}</label></span>
         <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
       </div>
-      ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
-      ${modeRow}
-      ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
-      ${setpointLine}
-      ${more}
+      <div class="ed-body">
+        ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
+        ${modeRow}
+        ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
+        ${setpointLine}
+        ${more}
+      </div>
       <div class="ed-actions">
         <button class="btn" data-act="insert" ${end - s.start < 2 * this._config.step ? 'disabled' : ''}>${esc(t('insertSlot'))}</button>
         <button class="btn" data-act="delete" ${segs.length === 1 ? 'disabled' : ''}>${esc(t('delete'))}</button>
@@ -4211,7 +4213,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${d ? `<span class="override-value">${esc(overrideSummary(d, this._source(), climate, this._loc, this._hass))}</span>` : ''}
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>
-      ${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}
+      <div class="ed-body">${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}</div>
       ${d ? `<div class="ed-actions"><button class="btn danger" data-act="override-del">${esc(t('resume'))}</button></div>` : ''}
     </div>`;
   }
@@ -4305,6 +4307,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // On a narrow card (a phone), the popover takes the card's width: centred, whatever it holds
     ed.style.width = card.width <= 516 ? `${card.width - 16}px` : '';
     ed.classList.toggle('narrow', card.width <= 516); // its HVAC modes in three columns
+    ed.style.maxHeight = ''; // its whole height first
     const w = ed.offsetWidth;
     const h = ed.offsetHeight;
     // The popover is placed from inside the card's border: centred between its two borders
@@ -4313,13 +4316,19 @@ class ChauffageProgrammeCard extends HTMLElement {
     const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2)) - border;
     let top = row.bottom - card.top + 9;
     let above = false;
-    // The save bar stays at the bottom of the window: the popover does not go under it
-    const save = root.querySelector('.savebar');
-    const floor = window.innerHeight - (save ? save.getBoundingClientRect().height : 0);
-    if (row.bottom + 9 + h > floor && row.top - 9 - h > 0) {
-      top = row.top - card.top - h - 9;
-      above = true;
+    // The popover goes over the save bar, but stays in the window
+    let max = 0;
+    if (row.bottom + 9 + h > window.innerHeight) {
+      const roomBelow = window.innerHeight - row.bottom - 9 - 8;
+      const roomAbove = row.top - 9 - 8;
+      // No room on either side: it takes the larger one, and its body scrolls
+      if (row.top - 9 - h <= 0) max = Math.max(roomBelow, roomAbove);
+      if (max !== roomBelow) {
+        top = row.top - card.top - (max || h) - 9;
+        above = true;
+      }
     }
+    ed.style.maxHeight = max ? `${max}px` : '';
     ed.style.left = `${left}px`;
     ed.style.top = `${top}px`;
     ed.style.setProperty('--caret', `${Math.max(14, Math.min(w - 14, cx - left))}px`);
@@ -5007,7 +5016,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
     // "More settings" of a slot stays open or closed across redraws (toggle does not bubble)
     root.addEventListener('toggle', (e) => {
-      if (e.target.matches && e.target.matches('.editor:not(.cell-ed) details.more')) this._moreOpen = e.target.open;
+      if (!e.target.matches || !e.target.matches('.editor details.more')) return;
+      if (!e.target.matches('.cell-ed details.more')) this._moreOpen = e.target.open;
+      this._placeEditor(); // taller or shorter: it may no longer fit where it is
     }, true);
   }
 
@@ -5814,8 +5825,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="editor cell-ed" data-panel="cell">
       <div class="ed-head"><strong>${dot}${heading}</strong>
         <button class="btn icon close" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
-      ${body}
-      ${this._cellError ? `<div class="pv-error">${esc(this._cellError)}</div>` : ''}
+      <div class="ed-body">${body}
+        ${this._cellError ? `<div class="pv-error">${esc(this._cellError)}</div>` : ''}</div>
       <div class="ed-actions pv-foot">${buttons}</div>
     </div>`;
   }
@@ -6714,10 +6725,15 @@ const STYLE = `
   .mi small { display:block; font-size:.8em; color:var(--secondary-text-color); }
   .sep { height:1px; margin:5px 0; background:var(--divider-color); }
   .hint { margin-top:10px; font-size:.8em; color:var(--secondary-text-color); }
-  .editor { position:absolute; z-index:9; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
+  .editor { position:absolute; z-index:11; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
     padding:10px 12px; border-radius:10px; background:var(--card-background-color);
     border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25);
     display:flex; flex-direction:column; gap:var(--chauffage-row-gap); }
+  /* No room above nor below its row: only the body scrolls. Its head and its buttons stay in
+     sight, and the popover does not clip its caret */
+  .ed-body { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); min-height:0; overflow-y:auto;
+    overscroll-behavior:contain; }
+  .editor > .ed-head, .editor > .ed-actions { flex:none; }
   .editor.placed { visibility:visible; }
   .editor::before { content:''; position:absolute; top:-7px; left:var(--caret,50%); width:12px; height:12px;
     margin-left:-6px; transform:rotate(45deg); background:var(--card-background-color);
