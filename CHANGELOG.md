@@ -16,9 +16,11 @@ Each entry says whether the release **migrates stored data** and what to do when
   and what comes next, for example "Éco → Confort 06:30". Its − and + and its HVAC mode button
   act as the thermostat's own controls, so Chauffage turns a change into an override.
 - **The *Heating summary* card** (`custom:chauffage-summary-card`), a prototype. It shows a
-  floor or the house in one row: its temperature, how many thermostats heat, the overrides and
-  the schedules. A tap elsewhere runs the card's `tap_action`, for example to open a pop-up of
-  the rooms.
+  floor or the house in one row: its temperature, how many thermostats heat or cool, the
+  overrides and the schedules. A tap elsewhere runs the card's `tap_action`, for example to open
+  a pop-up of the rooms.
+
+Both cards have a visual editor. See [Installation](docs/installation.md#5-add-a-list-of-rooms-and-a-summary-optional).
 
 ### Fixed
 

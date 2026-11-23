@@ -7918,8 +7918,8 @@ class ChauffageRoomsCard extends HTMLElement {
         : '';
       mode = `<div class="rc-mode-wrap"><button type="button" class="rc-mode${active ? ' active' : ''}" data-mode-button aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(t('hvacModeLabel'))}" title="${esc(`${t('hvacModeLabel')} · ${modeName(loc, st.state)}`)}" style="--tile-color:${tileColor(st.state)}">${hvacIcon(st.state)}</button>${popover}</div>`;
     }
-    // The room's icon is in color while the thermostat heats or cools, else in Home Assistant's
-    // icon color, never grey
+    // The room's icon is in color while the thermostat heats or cools, else in the color of the
+    // text, never grey
     const doingNow = activityMode(st);
     const badge = a.hvac_action && doingNow !== 'off'
       ? `<span class="rc-badge" style="--tile-color:${tileColor(doingNow)}">${icon}</span>`

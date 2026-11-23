@@ -1119,8 +1119,8 @@ dashboards, automations, scripts and by voice without the card
   - **A paused thermostat keeps − and +.** They set its own setpoint, which Chauffage leaves
     alone.
   - **The icon opens the thermostat, as the rest of the row** (the owner). It is in the color of
-    heating or cooling while the thermostat heats or cools, else in Home Assistant's icon color.
-    Never grey: grey read as "off" for a room at its setpoint.
+    heating or cooling while the thermostat heats or cools, else in the color of the text. Never
+    grey: grey read as "off" for a room at its setpoint, and HA's icon color is a bluish grey.
   - **An override is the striped chip of the rest of Chauffage** (the owner): "⏱ until 02:15",
     white on the purple stripes of the thermostat card's chip and of the schedule card's
     override. − and + stay plain. Purple text and a purple outline were tried first: purple text

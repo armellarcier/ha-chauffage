@@ -180,7 +180,7 @@ describe('the rooms card', () => {
     assert.ok(!mode('climate.bureau').classList.contains('active'));
   });
 
-  test('the room\'s icon is in color while the thermostat heats, in Home Assistant\'s icon color otherwise', () => {
+  test('the room\'s icon is in color while the thermostat heats, in the color of the text otherwise', () => {
     const hass = setup();
     hass.states['climate.salon'].attributes.hvac_action = 'heating';
     hass.states['climate.bureau'].attributes.hvac_action = 'idle';
