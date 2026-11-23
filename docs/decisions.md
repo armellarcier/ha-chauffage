@@ -1095,6 +1095,68 @@ dashboards, automations, scripts and by voice without the card
   until when, today, the temporary setpoint, the week): one piece of code, the same in both.
   The schedule card's chips no longer show temperatures: their length changed with the state,
   so they wrapped and moved the card.
+- **The rooms card lists the thermostats, one dense row each** (proposal from Claude, prototype,
+  to be validated by the owner). The thermostat card is one block per thermostat: with a dozen
+  rooms, a dashboard of thermostat cards scrolls a lot for little. Users who build their own
+  dashboards put a list of rooms in a pop-up, with the measured temperature and a − / + per row,
+  but such a list knows nothing of Chauffage. The rooms card is that list, made by Chauffage. It
+  is a card of its own, not a view of the schedule card, for the reason the *Now* view was
+  dropped (above).
+  - **A row says what the thermostat does now and when it changes**, nothing more: "Eco →
+    Comfort 06:30", or "⏱ Boost until 23:40" and a cross that resumes the schedule. Within a
+    day, a time alone is clear, so a row only says a day further ahead. The rest (why, the end of
+    an override, the week) is one tap away: the row opens the thermostat's more-info dialog,
+    with Chauffage's block.
+  - **Its controls are Home Assistant's own commands** (the owner, on a proposal from Claude):
+    `climate.set_temperature` for − and +, `climate.set_hvac_mode` for the HVAC mode. A tap on
+    the row is a change by hand, as on the thermostat's dial, and Chauffage makes it an
+    override. One concept, not two: the card does not create overrides of its own. The cost: a
+    row shows the override a few seconds later, once the thermostat reports.
+  - **− and + show the new value at once** and set it 1.5 s after the last tap: three taps make
+    one command, not three. The value tapped stays shown until the thermostat reports it.
+  - **A paused thermostat keeps − and +.** They set its own setpoint, which Chauffage leaves
+    alone.
+  - **The icon opens the thermostat, as the rest of the row** (the owner). It is in the color of
+    the thermostat's mode, at its setpoint too, and never grey. A thermostat that is off has
+    Home Assistant's icon color.
+  - **The mode button says what the thermostat does** (the owner). It is filled with the color
+    of its mode while the thermostat heats or cools (`hvac_action`), with a white icon. At its
+    setpoint, or when the thermostat does not say, it is empty, with its icon in the color of
+    its mode.
+  - **No − and + in fan-only or dry mode** (the owner): the setpoint does nothing there.
+  - **The HVAC mode has a round button of its own**, left of − and + (the owner). It shows the
+    icon of the current mode, and opens a popover of the thermostat's modes. A tap on a mode
+    sets it and closes the popover, and so does a tap anywhere else. The popover opens upward
+    when the screen has no room below. A thermostat that is off has no − and +, and turns on
+    from this popover. A thermostat with a single mode has no mode button.
+  - **A thermostat off to protect itself stays off**: no mode button. Turned on by hand, a
+    VTherm with its window open, or stopped by its auto start/stop, would stop protecting
+    itself.
+  - **The row is drawn like HA's Tile card**, with our own elements. HA's `ha-tile-icon`,
+    `ha-tile-info` and `ha-control-number-buttons` are private, and only defined once the Tile
+    card's code is loaded. The row copies their sizes and theme variables: a 36 px pill in the
+    color of the HVAC mode, the name in 14 px medium, the state in 12 px.
+  - **The mode is said once when it does not change**: "Heat · Eco → Comfort 06:30". The row
+    is one line, and the mode twice cut it on a phone.
+- **The summary card is a floor or the house in one row** (prototype, the owner chose a card of
+  its own). Users put a tile per floor on their home view, with a sensor's temperature and the
+  schedules, and a tap opens a pop-up of the rooms. The summary card is that tile, made by
+  Chauffage. It is a card of its own, not a header of the rooms card, because the tile and the
+  pop-up are in different places of the dashboard.
+  - **It counts what the thermostats say**: "2 heating · 1 override · 1 paused". Heating is
+    `hvac_action: heating`, as HA's Tile card colors it. A thermostat that does not report
+    `hvac_action` is not counted.
+  - **Its temperature is a sensor's**, given in the card, with an optional humidity sensor.
+    Without a sensor, the card shows the range its thermostats measure ("19–20,1°"), not an
+    average that no room has.
+  - **The schedules are activated through the select of the active schedule**
+    (`select.select_option`), as Home Assistant's own cards would. A schedule shows the icon
+    of its switch, if the user gave it one.
+  - **A tap elsewhere does the card's `tap_action`**, through HA's `hass-action` event, as HA's
+    own cards do: a pop-up of the rooms, another view. Without `tap_action`, a tap does
+    nothing.
+  - **Named "summary", not "floor" or "zone"**: the card fits a floor or the whole house, and
+    *zone* is kept for the groups of thermostats of the roadmap.
 - **Everything a card names opens in Home Assistant** (#39): thermostats, a schedule's switch,
   the active-schedule select, a thermostat's own entities (*Control*, *Override*, *Planned
   preset*) and devices. Users build automations, dashboards and history on these entities; a
