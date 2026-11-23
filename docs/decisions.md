@@ -1317,7 +1317,8 @@ dashboards, automations, scripts and by voice without the card
     - **A popover goes over the save bar** (#127, the owner's choice). On the dashboard card,
       the save bar hid *Delete* once *More settings* was open, with no room above the row. The
       user closes the popover before saving, and the bar shows again. The row menus (⋮) stay
-      over a popover.
+      over a popover. Known limit, kept by the owner: below its row, the popover's *Delete* can
+      sit where *Save* was, so a tap meant for *Save* deletes the slot. *Cancel* undoes it.
     - **A popover with no room above or below its row scrolls its body** (#127). It takes the
       larger side, and stops 8 px from the bottom of the window, or from Home Assistant's top
       bar (`--header-height`). Its head and its buttons (*Insert a slot*, *Delete*) stay in
