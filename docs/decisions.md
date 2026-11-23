@@ -1381,7 +1381,21 @@ dashboards, automations, scripts and by voice without the card
     - **On a touch screen, a time field has a − and a +**, each as large as a chip: its
       arrows were 21 by 17 px, under the 24 px of WCAG 2.5.8.
     - **The save bar stays over a popover**, and a slot's popover opens above its row when it
-      would cover the bar: *Cancel* was out of reach on a phone.
+      would cover the bar: *Cancel* was out of reach on a phone. Replaced in #127, see below.
+    - **A popover goes over the save bar** (#127, the owner's choice). On the dashboard card,
+      the save bar hid *Delete* once *More settings* was open, with no room above the row. The
+      user closes the popover before saving, and the bar shows again. The row menus (⋮) stay
+      over a popover. Known limit, kept by the owner: below its row, the popover's *Delete* can
+      sit where *Save* was, so a tap meant for *Save* deletes the slot. *Cancel* undoes it.
+    - **A popover with no room above or below its row scrolls its body** (#127). It takes the
+      larger side, and stops 8 px from the bottom of the window, or from Home Assistant's top
+      bar (`--header-height`). Its head and its buttons (*Insert a slot*, *Delete*) stay in
+      sight. The popover itself does not scroll: a scrolling popover would clip its caret.
+      - A shadow at the top or the bottom of the body shows that there is more to scroll.
+      - The body keeps where it was scrolled when the card is redrawn, for example after a
+        tap on a preset.
+      - The popover is placed again when *More settings* opens or closes. A tap that opens
+        *More settings* scrolls the body to show it.
     - **New installations get a darker *Boost* red** (`#d32f2f`): white text was at 4.2:1 on
       `#e53935`, under WCAG AA. The stored presets keep their colors (`FORMER_COLORS`).
   - **A double tap cuts a short slot.** On a slot narrower than its two handles, the first tap
