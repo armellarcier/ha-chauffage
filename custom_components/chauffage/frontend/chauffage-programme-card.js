@@ -4316,25 +4316,38 @@ class ChauffageProgrammeCard extends HTMLElement {
     const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2)) - border;
     let top = row.bottom - card.top + 9;
     let above = false;
-    // The popover goes over the save bar, but stays in the window
+    // The popover goes over the save bar, but stays in the window, under Home Assistant's top bar
+    const topBar = parseFloat(getComputedStyle(this).getPropertyValue('--header-height')) || 0;
     let max = 0;
     if (row.bottom + 9 + h > window.innerHeight) {
       const roomBelow = window.innerHeight - row.bottom - 9 - 8;
-      const roomAbove = row.top - 9 - 8;
+      const roomAbove = row.top - 9 - 8 - topBar;
       // No room on either side: it takes the larger one, and its body scrolls
-      if (row.top - 9 - h <= 0) max = Math.max(roomBelow, roomAbove);
+      if (row.top - 9 - h <= topBar) max = Math.max(roomBelow, roomAbove);
       if (max !== roomBelow) {
         top = row.top - card.top - (max || h) - 9;
         above = true;
       }
     }
     ed.style.maxHeight = max ? `${max}px` : '';
+    // A redraw (a preset tapped, Home Assistant's new data) keeps where the body was scrolled
+    const kept = this._bodyScroll;
+    this._bodyScroll = null;
+    this._placedKey = this._editorKey();
+    const body = ed.querySelector('.ed-body');
+    if (kept && body && kept.key === this._placedKey) body.scrollTop = kept.top;
     ed.style.left = `${left}px`;
     ed.style.top = `${top}px`;
     ed.style.setProperty('--caret', `${Math.max(14, Math.min(w - 14, cx - left))}px`);
     ed.classList.toggle('above', above);
     ed.classList.add('placed');
     return true;
+  }
+
+  // Which popover is open: a slot, an override or a preset's value
+  _editorKey() {
+    const cell = this._cell && [this._cell.kind, this._cell.preset, this._cell.climate];
+    return JSON.stringify([this._sel, this._overrideSel && this._overrideSel.climate, cell]);
   }
 
   // Redraws the card, keeping a schedule name being typed in a menu, and the caret of a rule's
@@ -4354,6 +4367,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The presets table keeps where it was scrolled sideways: a tap on a cell redraws it
     const table = this.shadowRoot.querySelector('.table-wrap');
     if (table) this._tableLeft = table.scrollLeft;
+    // A popover's body scrolled: put back by _placeEditor(), if the same popover is still open
+    const body = this.shadowRoot.querySelector('.editor .ed-body');
+    this._bodyScroll = body && body.scrollTop ? { key: this._placedKey, top: body.scrollTop } : null;
     this._draw();
     this._keepTable();
     this._showTargetRow();
@@ -5019,6 +5035,16 @@ class ChauffageProgrammeCard extends HTMLElement {
       if (!e.target.matches || !e.target.matches('.editor details.more')) return;
       if (!e.target.matches('.cell-ed details.more')) this._moreOpen = e.target.open;
       this._placeEditor(); // taller or shorter: it may no longer fit where it is
+      // Opened by the user (a redraw opens it again too): what it holds comes into sight
+      const tapped = this._moreTapped;
+      this._moreTapped = false;
+      const body = e.target.closest('.ed-body');
+      if (!tapped || !e.target.open || !body) return;
+      const below = e.target.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+      if (below > 0) body.scrollTop += Math.min(below, e.target.getBoundingClientRect().top - body.getBoundingClientRect().top);
+    }, true);
+    root.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('.editor details.more > summary')) this._moreTapped = true;
     }, true);
   }
 
@@ -6712,7 +6738,7 @@ const STYLE = `
   /* A day with nothing to offer keeps its place in the grid */
   .ibtn.none { visibility:hidden; }
   .bar.clipsrc { outline:2px dashed var(--primary-color); outline-offset:2px; }
-  .menu { position:absolute; z-index:10; min-width:230px; padding:6px 0; border-radius:10px;
+  .menu { position:absolute; z-index:12; min-width:230px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color);
     box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .mh { padding:4px 14px 6px; font-size:.78em; color:var(--secondary-text-color); }
@@ -6730,9 +6756,15 @@ const STYLE = `
     border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25);
     display:flex; flex-direction:column; gap:var(--chauffage-row-gap); }
   /* No room above nor below its row: only the body scrolls. Its head and its buttons stay in
-     sight, and the popover does not clip its caret */
+     sight, and the popover does not clip its caret. Its padding leaves room for the ring of a
+     chip at its edges. A shadow shows on the side where there is more: the covers scroll with
+     the content (local), the shadows stay with the view (scroll) */
   .ed-body { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); min-height:0; overflow-y:auto;
-    overscroll-behavior:contain; }
+    overscroll-behavior:contain; padding:4px; margin:-4px;
+    background:linear-gradient(var(--card-background-color) 30%, transparent) top / 100% 24px no-repeat local,
+      linear-gradient(transparent, var(--card-background-color) 70%) bottom / 100% 24px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, rgba(0,0,0,.3), transparent) top / 100% 10px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.3), transparent) bottom / 100% 10px no-repeat scroll; }
   .editor > .ed-head, .editor > .ed-actions { flex:none; }
   .editor.placed { visibility:visible; }
   .editor::before { content:''; position:absolute; top:-7px; left:var(--caret,50%); width:12px; height:12px;
@@ -9122,7 +9154,7 @@ const PANEL_CSS = `
   .mi.danger { color:var(--error-color, #db4437); }
   .menu-btns { display:flex; gap:8px; padding:6px 14px 8px; }
   .menu .sep { height:1px; margin:5px 0; background:var(--divider-color); }
-  .menu { position:absolute; top:100%; right:0; z-index:10; min-width:200px; padding:6px 0; border-radius:10px;
+  .menu { position:absolute; top:100%; right:0; z-index:12; min-width:200px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .mh { padding:4px 14px 6px; font-size:12px; color:var(--secondary-text-color); }
   .mi { display:block; width:100%; padding:8px 14px; border:0; background:transparent; text-align:left; cursor:pointer;

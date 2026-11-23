@@ -477,6 +477,69 @@ afterEach(() => cleanup());
       assert.deepEqual(children($(presets, '.editor.cell-ed')), ['ed-head', 'ed-body', 'ed-actions pv-foot']);
     });
 
+    test('a scrolling body clips no ring of a chosen chip, and shows a shadow on the side with more', () => {
+      const rule = new RegExp('\\n  \\.ed-body \\{([^}]*)\\}').exec(STYLE_TEXT)[1];
+      // Room for the ring of a chip at its edges, without moving the content
+      assert.match(rule, /padding:4px;\s*margin:-4px/);
+      // The shadows scroll with the view, their covers with the content (background-attachment)
+      assert.match(rule, /background:[^;]*local[^;]*local[^;]*scroll[^;]*scroll/);
+    });
+
+    test('a menu opened while a popover is open shows over it', () => {
+      const z = (selector) => Number(new RegExp(`\\n  ${selector} \\{[^}]*z-index:(\\d+)`).exec(STYLE_TEXT)[1]);
+      assert.ok(z('\\.menu') > z('\\.editor'));
+    });
+
+    test('above its row, it stays under Home Assistant\'s top bar', () => {
+      const card = edited();
+      card.style.setProperty('--header-height', '56px');
+      // 427 px above the row (500 − 9 − 8 − 56), 213 px below it
+      const editor = placed(card, 500, 600);
+      assert.ok(editor.classList.contains('above'));
+      assert.equal(editor.style.maxHeight, '427px');
+      assert.equal(editor.style.top, `${500 - 427 - 9}px`);
+    });
+
+    test('its body keeps where it was scrolled when the card is redrawn', () => {
+      const card = edited();
+      placed(card, 100, 700);
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, value: 120 });
+      card._render(); // a preset tapped, or Home Assistant's new data
+      let kept;
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, get: () => 0, set: (v) => { kept = v; } });
+      placed(card, 100, 700);
+      assert.equal(kept, 120);
+      // Another slot's popover starts at its top
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, value: 120 });
+      select(card, SALON, 2);
+      kept = undefined;
+      Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, get: () => 0, set: (v) => { kept = v; } });
+      placed(card, 100, 700);
+      assert.equal(kept, undefined);
+    });
+
+    test('More settings opened in a scrolling body is scrolled into sight', () => {
+      const card = cardOf(setup(), { show: [SUITE] });
+      select(card, SUITE, 1);
+      card._placeEditor = () => true;
+      const body = $(card, '.ed-body');
+      const more = $(card, '.editor details.more');
+      let top = 40;
+      Object.defineProperty(body, 'scrollTop', { configurable: true, get: () => top, set: (v) => { top = v; } });
+      body.getBoundingClientRect = () => ({ top: 400, bottom: 600, height: 200 });
+      more.getBoundingClientRect = () => ({ top: 520, bottom: 760, height: 240 });
+      // A redraw opens it again: no scroll
+      more.open = true;
+      more.dispatchEvent(new window.Event('toggle'));
+      assert.equal(top, 40);
+      more.open = false;
+      more.querySelector('summary').dispatchEvent(new window.MouseEvent('click', { bubbles: true, composed: true, cancelable: true }));
+      more.open = true;
+      more.dispatchEvent(new window.Event('toggle'));
+      // Its top at the top of the body: the settings it holds come into sight
+      assert.equal(top, 40 + 520 - 400);
+    });
+
     test('it is placed again when More settings opens', () => {
       const card = cardOf(setup(), { show: [SUITE] });
       select(card, SUITE, 1);
