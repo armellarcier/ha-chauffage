@@ -297,6 +297,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | The mode button shows the current mode and opens a popover of the HVAC modes; a tap on a mode sets it and closes it, a tap elsewhere or on another mode button closes it; a thermostat off has no − and +, and turns on from the popover; no mode button on a thermostat with a single mode, or off to protect itself | `C/rooms-card.test.mjs` |
 | An override says until when, and its cross resumes the schedule; a paused thermostat says so, keeps − and +, and resumes control from its row; no − and + on a thermostat without a setpoint, or in fan-only or dry mode | `C/rooms-card.test.mjs` |
 | A row opens the thermostat; a thermostat that does not exist, or the integration missing, says so; in the *Add card* dialog, with a preview | `C/rooms-card.test.mjs` |
+| Set up the card from its visual editor, as the schedule card: thermostats added, removed, reordered, a name and an icon on each thermostat's page; without a list, every scheduled thermostat, which the editor says; no option of the schedule card | `C/cards-editors.test.mjs` |
 
 ## Summary card
 
@@ -306,6 +307,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | It says how many thermostats heat ("Rien ne chauffe", "1 chauffe", "2 chauffent") and cool ("1 refroidit"), the overrides and the paused thermostats; its icon is in color while one heats or cools; Enter or Space does its action, as a tap | `C/summary-card.test.mjs` |
 | Its schedules, the active one marked, with the icon of their switch; a tap activates one through the select of the active schedule | `C/summary-card.test.mjs` |
 | A tap elsewhere does the card's `tap_action` (a pop-up of the rooms, another view), nothing without one; the integration missing says so; in the *Add card* dialog, with a preview | `C/summary-card.test.mjs` |
+| Set up the card from its visual editor, one form: its name, its icon, its temperature and humidity sensors, its thermostats and its tap action (HA's own field, "do nothing" by default); an option emptied is left out, options written in YAML are kept | `C/cards-editors.test.mjs` |
 
 ## More-info dialog of a thermostat
 

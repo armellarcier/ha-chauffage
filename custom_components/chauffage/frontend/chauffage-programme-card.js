@@ -358,6 +358,12 @@ const I18N = {
     editorNameDefault: 'Leave empty to use “{name}”',
     editorShowAll: 'Show every thermostat at first',
     editorStep: 'Time step (minutes)',
+    editorThermostatsOptional: 'Thermostats (optional)',
+    editorAllScheduled: 'Every thermostat Chauffage schedules is shown. Add one to choose the list.',
+    editorIcon: 'Icon (optional)',
+    editorTemperature: 'Temperature sensor (optional)',
+    editorHumidity: 'Humidity sensor (optional)',
+    editorTapAction: 'Tap action (optional)',
   },
   fr: {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
@@ -694,6 +700,12 @@ const I18N = {
     editorNameDefault: 'Laisser vide pour « {name} »',
     editorShowAll: 'Afficher tous les thermostats au départ',
     editorStep: 'Pas des horaires (minutes)',
+    editorThermostatsOptional: 'Thermostats (facultatif)',
+    editorAllScheduled: 'Tous les thermostats programmés sont affichés. Ajoutez-en un pour choisir la liste.',
+    editorIcon: 'Icône (facultatif)',
+    editorTemperature: 'Sonde de température (facultatif)',
+    editorHumidity: 'Sonde d’humidité (facultatif)',
+    editorTapAction: 'Action au tap (facultatif)',
   },
 };
 
@@ -7705,6 +7717,15 @@ const ROOMS_CARD_STYLE = `
 `;
 
 class ChauffageRoomsCard extends HTMLElement {
+  static getConfigElement() {
+    return document.createElement('chauffage-rooms-card-editor');
+  }
+
+  // A new card: every scheduled thermostat
+  static async getStubConfig() {
+    return {};
+  }
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -8004,6 +8025,15 @@ const SUMMARY_CARD_STYLE = `
 `;
 
 class ChauffageSummaryCard extends HTMLElement {
+  static getConfigElement() {
+    return document.createElement('chauffage-summary-card-editor');
+  }
+
+  // A new card: the whole house, every scheduled thermostat
+  static async getStubConfig() {
+    return {};
+  }
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -8233,15 +8263,58 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
       else this._buildList(loc, thermostats);
     }
     for (const el of this.shadowRoot.querySelectorAll('ha-entity-picker, ha-form')) el.hass = this._hass;
-    if (this._editing !== null) {
-      const t = thermostats[this._editing];
-      this._page.data = this._haNameField()
-        ? { entity: t.entity, ...(t.name !== undefined ? { name: t.name } : {}) }
-        : { entity: t.entity, name: typeof t.name === 'string' ? t.name : '' };
-    } else {
+    if (this._editing !== null) this._page.data = this._pageData(thermostats[this._editing]);
+    else if (this._options) {
       const c = this._config;
       this._options.data = { show_all: c.show === 'all', step: String(c.step || 15) };
     }
+  }
+
+  // What a thermostat's page shows: its entity and its optional name
+  _pageData(t) {
+    return this._haNameField()
+      ? { entity: t.entity, ...(t.name !== undefined ? { name: t.name } : {}) }
+      : { entity: t.entity, name: typeof t.name === 'string' ? t.name : '' };
+  }
+
+  _pageSchema() {
+    return [
+      { name: 'entity', required: true, selector: { entity: { domain: 'climate' } } },
+      this._haNameField()
+        ? { name: 'name', selector: { entity_name: {} }, context: { entity: 'entity' } }
+        : { name: 'name', selector: { text: {} } },
+    ];
+  }
+
+  _listTitle(loc) {
+    return loc.t('editorThermostats');
+  }
+
+  // A note under the list, if any
+  _listNote() {
+    return null;
+  }
+
+  // The card's options under the list: whether every thermostat shows at first, the time step
+  _buildOptions(loc) {
+    const options = document.createElement('ha-form');
+    options.className = 'options';
+    options.schema = [
+      { name: 'show_all', selector: { boolean: {} } },
+      { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) })) } } },
+    ];
+    options.computeLabel = (s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name]);
+    options.addEventListener('value-changed', (e) => {
+      e.stopPropagation();
+      const config = { ...this._config };
+      if (e.detail.value.show_all) config.show = 'all';
+      else if (config.show === 'all') delete config.show;
+      const step = Number(e.detail.value.step);
+      if (step && step !== 15) config.step = step;
+      else delete config.step;
+      this._emit(config);
+    });
+    return options;
   }
 
   _button(cls, label, path, onClick) {
@@ -8279,7 +8352,7 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
 
   _buildList(loc, thermostats) {
     const title = document.createElement('h3');
-    title.textContent = loc.t('editorThermostats');
+    title.textContent = this._listTitle(loc);
     const sortable = document.createElement('ha-sortable');
     sortable.setAttribute('handle-selector', '.handle');
     sortable.addEventListener('item-moved', (e) => {
@@ -8356,25 +8429,9 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
       this._setThermostats([...this._thermostats(), { entity }]);
     });
     add.setAttribute('add-button', '');
-    const options = document.createElement('ha-form');
-    options.className = 'options';
-    options.schema = [
-      { name: 'show_all', selector: { boolean: {} } },
-      { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) })) } } },
-    ];
-    options.computeLabel = (s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name]);
-    options.addEventListener('value-changed', (e) => {
-      e.stopPropagation();
-      const config = { ...this._config };
-      if (e.detail.value.show_all) config.show = 'all';
-      else if (config.show === 'all') delete config.show;
-      const step = Number(e.detail.value.step);
-      if (step && step !== 15) config.step = step;
-      else delete config.step;
-      this._emit(config);
-    });
-    this._options = options;
-    this.shadowRoot.append(title, sortable, ...removed, add, options);
+    this._options = this._buildOptions(loc);
+    const note = this._listNote(loc, thermostats);
+    this.shadowRoot.append(title, sortable, ...(note ? [note] : []), ...removed, add, ...(this._options ? [this._options] : []));
   }
 
   _buildPage(loc) {
@@ -8390,22 +8447,20 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     title.textContent = loc.t('editorThermostat');
     header.append(back, title);
     const form = document.createElement('ha-form');
-    form.schema = [
-      { name: 'entity', required: true, selector: { entity: { domain: 'climate' } } },
-      this._haNameField()
-        ? { name: 'name', selector: { entity_name: {} }, context: { entity: 'entity' } }
-        : { name: 'name', selector: { text: {} } },
-    ];
-    form.computeLabel = (s) => loc.t(s.name === 'name' ? 'editorName' : 'editorThermostat');
+    form.schema = this._pageSchema();
+    form.computeLabel = (s) => loc.t({ name: 'editorName', icon: 'editorIcon' }[s.name] || 'editorThermostat');
     form.computeHelper = (s) => (s.name === 'name' && !this._haNameField() ? loc.t('editorNameDefault', { name: this._defaultName(form.data && form.data.entity) }) : undefined);
     form.addEventListener('value-changed', (e) => {
       e.stopPropagation();
       const list = this._thermostats();
       const t = list[this._editing];
       if (e.detail.value.entity) t.entity = e.detail.value.entity;
-      const name = e.detail.value.name;
-      if (name === undefined || name === '' || (Array.isArray(name) && !name.length)) delete t.name;
-      else t.name = name;
+      // An option emptied is left out: the thermostat's own name or icon
+      for (const { name: key } of form.schema.filter((s) => s.name !== 'entity')) {
+        const v = e.detail.value[key];
+        if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) delete t[key];
+        else t[key] = v;
+      }
       this._setThermostats(list);
     });
     this._page = form;
@@ -8421,6 +8476,96 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     this._config = config;
     this._render();
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
+  }
+}
+
+// The rooms card's editor: the schedule card's list of thermostats, a thermostat's page with its
+// icon too, and no option of the schedule card. An empty list shows every scheduled thermostat
+class ChauffageRoomsCardEditor extends ChauffageProgrammeCardEditor {
+  _listTitle(loc) {
+    return loc.t('editorThermostatsOptional');
+  }
+
+  _listNote(loc, thermostats) {
+    if (thermostats.length) return null;
+    const note = document.createElement('div');
+    note.className = 'all-note custom-name';
+    note.textContent = loc.t('editorAllScheduled');
+    return note;
+  }
+
+  _buildOptions() {
+    return null;
+  }
+
+  _removedScheduled() {
+    return [];
+  }
+
+  _pageSchema() {
+    return [...super._pageSchema(), { name: 'icon', selector: { icon: {} } }];
+  }
+
+  _pageData(t) {
+    return { ...super._pageData(t), icon: t.icon || '' };
+  }
+}
+
+// The summary card's editor: one form, as Home Assistant's own card editors. Options written in
+// YAML that it does not show (`language`) are kept; an option emptied is left out
+const SUMMARY_FIELDS = ['name', 'icon', 'temperature', 'humidity', 'thermostats', 'tap_action'];
+class ChauffageSummaryCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  setConfig(config) {
+    this._config = config;
+    this._render();
+  }
+
+  _render() {
+    if (!this._config) return;
+    const loc = makeLocale(this._hass);
+    if (!this._form) {
+      this._form = document.createElement('ha-form');
+      this._form.addEventListener('value-changed', (e) => {
+        e.stopPropagation();
+        const config = { ...this._config };
+        for (const key of SUMMARY_FIELDS) {
+          const v = e.detail.value[key];
+          if (v === undefined || v === '' || v === null || (Array.isArray(v) && !v.length)) delete config[key];
+          else config[key] = v;
+        }
+        this._config = config;
+        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
+      });
+      this.shadowRoot.appendChild(this._form);
+    }
+    const form = this._form;
+    form.hass = this._hass;
+    form.schema = [
+      { name: 'name', selector: { text: {} } },
+      { name: 'icon', selector: { icon: {} } },
+      { name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+      { name: 'humidity', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
+      { name: 'thermostats', selector: { entity: { domain: 'climate', multiple: true } } },
+      { name: 'tap_action', selector: { ui_action: { default_action: 'none' } } },
+    ];
+    const labels = { name: 'editorName', icon: 'editorIcon', temperature: 'editorTemperature', humidity: 'editorHumidity',
+      thermostats: 'editorThermostatsOptional', tap_action: 'editorTapAction' };
+    form.computeLabel = (s) => loc.t(labels[s.name]);
+    form.computeHelper = (s) => (s.name === 'thermostats' && !(this._config.thermostats || []).length ? loc.t('editorAllScheduled') : undefined);
+    // The thermostats as entity ids: a name given in YAML is not used by this card
+    const c = this._config;
+    form.data = { ...Object.fromEntries(SUMMARY_FIELDS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])),
+      ...(c.thermostats ? { thermostats: c.thermostats.map((t) => (typeof t === 'string' ? t : t.entity)) } : {}) };
   }
 }
 
@@ -9710,6 +9855,8 @@ function defineElements() {
   if (!customElements.get('chauffage-thermostat-card-editor')) customElements.define('chauffage-thermostat-card-editor', ChauffageThermostatCardEditor);
   if (!customElements.get('chauffage-rooms-card')) customElements.define('chauffage-rooms-card', ChauffageRoomsCard);
   if (!customElements.get('chauffage-summary-card')) customElements.define('chauffage-summary-card', ChauffageSummaryCard);
+  if (!customElements.get('chauffage-rooms-card-editor')) customElements.define('chauffage-rooms-card-editor', ChauffageRoomsCardEditor);
+  if (!customElements.get('chauffage-summary-card-editor')) customElements.define('chauffage-summary-card-editor', ChauffageSummaryCardEditor);
   if (!customElements.get('chauffage-panel')) customElements.define('chauffage-panel', ChauffagePanel);
   if (!customElements.get(SETTINGS_DIALOG)) customElements.define(SETTINGS_DIALOG, ChauffageSettingsDialog);
 }
