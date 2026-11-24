@@ -203,6 +203,7 @@ const I18N = {
     summaryCardName: 'Heating summary',
     summaryCardDescription: 'A floor or the house in one row: its temperature, what heats, the overrides, the schedules',
     summaryDefaultName: 'Heating',
+    summaryRooms: 'Rooms',
     heatingNone: 'Nothing heating',
     heatingOne: '1 heating',
     heatingMany: '{n} heating',
@@ -546,6 +547,7 @@ const I18N = {
     summaryCardName: 'Résumé du chauffage',
     summaryCardDescription: 'Un étage ou la maison en une ligne : sa température, ce qui chauffe, les dérogations, les plannings',
     summaryDefaultName: 'Chauffage',
+    summaryRooms: 'Pièces',
     heatingNone: 'Rien ne chauffe',
     heatingOne: '1 chauffe',
     heatingMany: '{n} chauffent',
@@ -8068,6 +8070,10 @@ const SUMMARY_CARD_STYLE = `
   .sc-status { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
   /* One button with the active schedule, its menu under it */
+  /* Without the menu: the range the rooms measure, its label under it, like the name and status */
+  .sc-range { flex:none; display:flex; flex-direction:column; align-items:flex-end; }
+  .sc-range-value { font-size:var(--ha-font-size-m, 14px); line-height:20px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sc-range-label { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; color:var(--secondary-text-color); }
   .sc-pick { position:relative; flex:none; max-width:45%; margin-left:auto; }
   .sc-pick > button { position:relative; display:flex; align-items:center; gap:4px; max-width:100%; height:32px; padding:0 6px 0 10px;
     border:1px solid var(--primary-color); border-radius:16px; background:none; color:var(--primary-color); cursor:pointer;
@@ -8185,7 +8191,12 @@ class ChauffageSummaryCard extends HTMLElement {
       const menu = this._menuOpen
         ? `<div class="sc-menu" role="menu">${ids.map((id) => `<button type="button" role="menuitemradio" data-schedule="${esc(id)}" aria-checked="${id === active}">${label(id)}</button>`).join('')}</div>`
         : '';
-      const pick = ids.length
+      // Without the menu, and with a sensor for its temperature: the range its rooms measure. Without
+      // a sensor, the range is already beside its name
+      const range = this._config.show_schedules === false && this._config.temperature ? this._measuredRange(loc, thermostats) : '';
+      const pick = range
+        ? `<div class="sc-range"><span class="sc-range-value">${esc(range)}</span><span class="sc-range-label">${esc(t('summaryRooms'))}</span></div>`
+        : ids.length
         ? `<div class="sc-pick"><button type="button" data-schedules-button aria-haspopup="menu" aria-expanded="${!!this._menuOpen}" aria-label="${esc(t('activeSchedule'))}" title="${esc(t('activeSchedule'))}">${active ? label(active) : ''}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI.menuDown}"/></svg></button>${menu}</div>`
         : '';
       html = `<div class="sc-main${action ? ' action' : ''}"${action ? ' role="button" tabindex="0"' : ''}>
@@ -8219,18 +8230,19 @@ class ChauffageSummaryCard extends HTMLElement {
     };
     const one = (v) => loc.number(Math.round(v * 10) / 10);
     const temperature = number(this._config.temperature);
-    let text;
-    if (temperature != null) text = `${one(temperature)}°`;
-    else {
-      const measured = thermostats.map((e) => Number(this._hass.states[e].attributes.current_temperature)).filter(Number.isFinite);
-      if (measured.length) {
-        const low = Math.min(...measured);
-        const high = Math.max(...measured);
-        text = low === high ? `${one(low)}°` : `${one(low)}–${one(high)}°`;
-      }
-    }
+    const text = temperature != null ? `${one(temperature)}°` : this._measuredRange(loc, thermostats);
     const humidity = number(this._config.humidity);
     return [text, humidity != null ? `${loc.number(Math.round(humidity))} %` : ''].filter(Boolean).join(' · ');
+  }
+
+  // The range of the temperatures its thermostats measure: "19–20,1°", "19°", or '' without one
+  _measuredRange(loc, thermostats) {
+    const one = (v) => loc.number(Math.round(v * 10) / 10);
+    const measured = thermostats.map((e) => Number(this._hass.states[e].attributes.current_temperature)).filter(Number.isFinite);
+    if (!measured.length) return '';
+    const low = Math.min(...measured);
+    const high = Math.max(...measured);
+    return low === high ? `${one(low)}°` : `${one(low)}–${one(high)}°`;
   }
 
   _onClick(e) {

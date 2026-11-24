@@ -81,7 +81,9 @@ thermostat. Un appui sur la ligne ouvre le thermostat.
 
 **La carte Résumé du chauffage** montre un étage ou la maison sur une ligne : sa température, le
 nombre de thermostats qui chauffent et les dérogations. Son bouton montre le planning actif, et
-ouvre un menu pour en activer un autre. Vous pouvez masquer ce bouton. Un appui ailleurs lance
+ouvre un menu pour en activer un autre. Vous pouvez masquer ce bouton : la carte montre alors la
+plage des températures mesurées dans ses pièces, si vous lui avez donné une sonde de température.
+Un appui ailleurs lance
 l'action de la carte, par exemple pour ouvrir la fenêtre des pièces.
 
 Pour les ajouter, ouvrez *Ajouter une carte* et cherchez **Pièces** ou **Résumé du chauffage**.

@@ -116,6 +116,19 @@ describe('the summary card', () => {
     assert.equal($(card, '[data-schedule]'), null);
   });
 
+  test('without the menu, the range its thermostats measure, beside the temperature of its sensor', () => {
+    const card = cardFor(setup(), { show_schedules: false, temperature: 'sensor.sonde_temperature' });
+    assert.equal(text($(card, '.sc-climate')), '20,4°');
+    assert.equal(text($(card, '.sc-range-value')), '19–20,1°');
+    assert.equal(text($(card, '.sc-range-label')), 'Pièces');
+  });
+
+  test('without a sensor, the range is not said twice; with the menu, the menu is there instead', () => {
+    assert.equal($(cardFor(setup(), { show_schedules: false }), '.sc-range'), null, 'already beside its name');
+    cleanup();
+    assert.equal($(cardFor(setup(), { temperature: 'sensor.sonde_temperature' }), '.sc-range'), null);
+  });
+
   test('the menu of the schedules closes on a second tap of its button or a tap outside, without the card\'s action', () => {
     const card = cardFor(setup(), { tap_action: { action: 'navigate', navigation_path: '#heats' } });
     const actions = [];
