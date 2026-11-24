@@ -67,22 +67,22 @@ describe('the summary card', () => {
 
   test('how many thermostats heat, and the overrides', () => {
     const card = cardFor(setup({ overrides: { 'climate.bureau': OVERRIDE } }));
-    assert.equal(text($(card, '.sc-status')), '1 chauffe · 1 dérogation');
+    assert.equal(text($(card, '.sc-state')), '1 chauffe · 1 dérogation');
   });
 
   test('several, or none, and the paused thermostats', () => {
     const hass = setup({ paused: ['climate.bureau'] });
     hass.states['climate.salon'].attributes.hvac_action = 'idle';
-    assert.equal(text($(cardFor(hass), '.sc-status')), 'Rien ne chauffe · 1 en pause');
+    assert.equal(text($(cardFor(hass), '.sc-state')), 'Rien ne chauffe · 1 en pause');
     cleanup();
     const both = setup({ overrides: { 'climate.salon': OVERRIDE, 'climate.bureau': OVERRIDE } });
     both.states['climate.bureau'].attributes.hvac_action = 'heating';
-    assert.equal(text($(cardFor(both), '.sc-status')), '2 chauffent · 2 dérogations');
+    assert.equal(text($(cardFor(both), '.sc-state')), '2 chauffent · 2 dérogations');
   });
 
   test('only the thermostats listed in the card', () => {
     const card = cardFor(setup({ overrides: { 'climate.bureau': OVERRIDE } }), { thermostats: ['climate.bureau'] });
-    assert.equal(text($(card, '.sc-status')), 'Rien ne chauffe · 1 dérogation');
+    assert.equal(text($(card, '.sc-state')), 'Rien ne chauffe · 1 dérogation');
     assert.equal(text($(card, '.sc-temperature')), '19°');
   });
 
@@ -166,11 +166,11 @@ describe('the summary card', () => {
     hass.states['climate.bureau'] = { ...hass.states['climate.bureau'], state: 'cool' };
     hass.states['climate.bureau'].attributes.hvac_action = 'cooling';
     const card = cardFor(hass);
-    assert.equal(text($(card, '.sc-status')), '1 refroidit');
+    assert.equal(text($(card, '.sc-state')), '1 refroidit');
     assert.match($(card, '.sc-badge').style.getPropertyValue('--tile-color'), /--state-climate-cool-color/);
     cleanup();
     hass.states['climate.salon'].attributes.hvac_action = 'heating';
-    assert.equal(text($(cardFor(hass), '.sc-status')), '1 chauffe · 1 refroidit');
+    assert.equal(text($(cardFor(hass), '.sc-state')), '1 chauffe · 1 refroidit');
   });
 
   test('without an action, a tap does nothing', () => {
@@ -188,7 +188,7 @@ describe('the summary card', () => {
 
   test('in English', () => {
     const card = cardFor(setup({ locale: ENGLISH, overrides: { 'climate.bureau': OVERRIDE } }));
-    assert.equal(text($(card, '.sc-status')), '1 heating · 1 override');
+    assert.equal(text($(card, '.sc-state')), '1 heating · 1 override');
   });
 });
 

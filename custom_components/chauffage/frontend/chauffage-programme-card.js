@@ -7698,7 +7698,35 @@ const activityMode = (st) => ACTION_MODES[st.attributes.hvac_action] || st.state
 // tomorrow), else its day too
 const soonText = (at, loc) => (at - Date.now() < DAY_MIN * 60000 ? loc.time(minutesOf(at)) : whenText(at, loc));
 
-const ROOMS_CARD_STYLE = `
+// What the rooms card and the summary card draw alike, as HA's Tile card does (`p`: the class
+// prefix of the card): the icon, a 36px pill in its color (--tile-color), its background at 20 %;
+// the name; the state; the popover menu under a button, its item checked in its color
+const tileCss = (p) => `
+  .${p}-badge { position:relative; flex:none; width:36px; height:36px; padding:0; border:0; overflow:hidden; background:none;
+    border-radius:var(--ha-tile-icon-border-radius, 18px); display:flex; align-items:center; justify-content:center;
+    color:var(--tile-color, var(--state-inactive-color)); font:inherit; --mdc-icon-size:24px; }
+  .${p}-badge::before { content:''; position:absolute; inset:0; background:var(--tile-color, var(--state-inactive-color)); opacity:.2;
+    transition:opacity .18s ease-in-out; }
+  .${p}-badge > * { position:relative; }
+  .${p}-name { font-size:var(--ha-font-size-m, 14px); font-weight:var(--ha-font-weight-medium, 500); line-height:20px;
+    letter-spacing:.1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .${p}-state { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; color:var(--primary-text-color);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .${p}-menu { position:absolute; top:calc(100% + 4px); right:0; z-index:5; display:flex; flex-direction:column; min-width:170px;
+    padding:4px 0; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color, #fff);
+    box-shadow:0 4px 16px rgba(0,0,0,.25); }
+  .${p}-menu.up { top:auto; bottom:calc(100% + 4px); }
+  .${p}-menu button { position:relative; display:flex; align-items:center; gap:12px; height:44px; padding:0 16px; border:0;
+    background:none; color:var(--primary-text-color); cursor:pointer; font:inherit; font-size:var(--ha-font-size-m, 14px);
+    text-align:start; white-space:nowrap; --mdc-icon-size:20px; }
+  .${p}-menu button:hover { background:var(--secondary-background-color); }
+  .${p}-menu button > * { position:relative; }
+  .${p}-menu button ha-icon { color:var(--tile-color); }
+  .${p}-menu button[aria-checked="true"] { font-weight:var(--ha-font-weight-medium, 500); }
+  .${p}-menu button[aria-checked="true"]::before { content:''; position:absolute; inset:0; background:var(--tile-color); opacity:.15; }
+`;
+
+const ROOMS_CARD_STYLE = `${tileCss('rc')}
   :host { display:block; }
   ha-card { display:block; padding:4px 10px; }
   .rc-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:6px 0; }
@@ -7706,24 +7734,12 @@ const ROOMS_CARD_STYLE = `
   .rc-row + .rc-row { border-top:1px solid var(--divider-color); }
   .rc-main { display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px; cursor:pointer;
     min-width:0; -webkit-tap-highlight-color:transparent; }
-  /* The icon of HA's Tile card: a 36px pill in the color of the HVAC mode, its background at 20 % */
-  .rc-badge { position:relative; width:36px; height:36px; padding:0; border:0; border-radius:var(--ha-tile-icon-border-radius, 18px);
-    display:flex; align-items:center; justify-content:center; overflow:hidden; background:none;
-    color:var(--tile-color, var(--state-inactive-color)); font:inherit; }
-  .rc-badge::before { content:''; position:absolute; inset:0; background:var(--tile-color, var(--state-inactive-color)); opacity:.2;
-    transition:opacity .18s ease-in-out; }
   .rc-main:hover .rc-badge::before { opacity:.35; }
-  .rc-icon { position:relative; --mdc-icon-size:24px; }
   .rc-text { min-width:0; }
-  /* The text of HA's Tile card */
   .rc-line { display:flex; align-items:baseline; gap:6px; min-width:0; }
-  .rc-name { font-size:var(--ha-font-size-m, 14px); font-weight:var(--ha-font-weight-medium, 500); line-height:20px;
-    letter-spacing:.1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .rc-temp { font-size:var(--ha-font-size-m, 14px); color:var(--secondary-text-color); font-variant-numeric:tabular-nums; white-space:nowrap; }
   /* One height for every row: the cross of an override must not make its row taller */
   .rc-sub { display:flex; align-items:center; gap:4px; min-width:0; height:20px; }
-  .rc-state { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; color:var(--primary-text-color);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* The HVAC mode: a round button in the color of the mode, its popover under it */
   .rc-mode-wrap { position:relative; }
   .rc-mode { position:relative; width:34px; height:34px; padding:0; border:1px solid var(--divider-color); border-radius:18px;
@@ -7736,17 +7752,6 @@ const ROOMS_CARD_STYLE = `
   /* At rest, the room's icon is in the color of the text: HA's icon color is a bluish grey */
   .rc-badge:not([style]) { color:var(--primary-text-color); }
   .rc-badge:not([style])::before { background:var(--primary-text-color); opacity:.08; }
-  .rc-modes { position:absolute; top:calc(100% + 4px); right:0; z-index:5; display:flex; flex-direction:column; min-width:170px;
-    padding:4px 0; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color, #fff);
-    box-shadow:0 4px 16px rgba(0,0,0,.25); }
-  .rc-modes.up { top:auto; bottom:calc(100% + 4px); }
-  .rc-modes button { position:relative; display:flex; align-items:center; gap:12px; height:44px; padding:0 16px; border:0;
-    background:none; color:var(--primary-text-color); cursor:pointer; font:inherit; font-size:var(--ha-font-size-m, 14px);
-    text-align:start; --mdc-icon-size:20px; }
-  .rc-modes button:hover { background:var(--secondary-background-color); }
-  .rc-modes button ha-icon { color:var(--tile-color); }
-  .rc-modes button.on { font-weight:var(--ha-font-weight-medium, 500); }
-  .rc-modes button.on::before { content:''; position:absolute; inset:0; background:var(--tile-color); opacity:.15; }
   .rc-state i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:0; }
   .rc-override { display:inline-block; max-width:100%; box-sizing:border-box; padding:0 6px; border-radius:8px;
     color:#fff; font-weight:var(--ha-font-weight-medium, 500); overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
@@ -7847,7 +7852,7 @@ class ChauffageRoomsCard extends HTMLElement {
 
   // The popover of the HVAC modes opens upward when the screen has no room for it below
   _placePopover() {
-    const popover = this.shadowRoot.querySelector('.rc-modes');
+    const popover = this.shadowRoot.querySelector('.rc-menu');
     if (!popover) return;
     const r = popover.getBoundingClientRect();
     if (r.bottom > window.innerHeight && r.top - r.height - 48 > 0) popover.classList.add('up');
@@ -7912,7 +7917,7 @@ class ChauffageRoomsCard extends HTMLElement {
       const active = !!a.hvac_action && doing !== 'off';
       const open = this._modesOpen === entity;
       const popover = open
-        ? `<div class="rc-modes" role="menu">${modes.map((m) => `<button type="button" role="menuitemradio" aria-checked="${m === st.state}" data-hvac-mode="${esc(m)}" class="${m === st.state ? 'on' : ''}" style="--tile-color:${tileColor(m)}">${hvacIcon(m)}${esc(modeName(loc, m))}</button>`).join('')}</div>`
+        ? `<div class="rc-menu" role="menu">${modes.map((m) => `<button type="button" role="menuitemradio" aria-checked="${m === st.state}" data-hvac-mode="${esc(m)}" style="--tile-color:${tileColor(m)}">${hvacIcon(m)}${esc(modeName(loc, m))}</button>`).join('')}</div>`
         : '';
       mode = `<div class="rc-mode-wrap"><button type="button" class="rc-mode${active ? ' active' : ''}" data-mode-button aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(t('hvacModeLabel'))}" title="${esc(`${t('hvacModeLabel')} · ${modeName(loc, st.state)}`)}" style="--tile-color:${tileColor(st.state)}">${hvacIcon(st.state)}</button>${popover}</div>`;
     }
@@ -8045,49 +8050,27 @@ class ChauffageRoomsCard extends HTMLElement {
 //  elsewhere does the card's action (`tap_action`), a pop-up of the rooms for example.
 // =====================================================================
 
-const SUMMARY_CARD_STYLE = `
+const SUMMARY_CARD_STYLE = `${tileCss('sc')}
   :host { display:block; }
   ha-card { display:flex; align-items:center; gap:8px; padding:10px 12px; }
   .sc-main { flex:1 1 0; display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px;
     min-width:0; -webkit-tap-highlight-color:transparent; }
   .sc-main.action { cursor:pointer; }
-  .sc-badge { position:relative; width:36px; height:36px; border-radius:var(--ha-tile-icon-border-radius, 18px); overflow:hidden;
-    display:flex; align-items:center; justify-content:center; color:var(--tile-color); --mdc-icon-size:24px; }
-  .sc-badge::before { content:''; position:absolute; inset:0; background:var(--tile-color); opacity:.2; }
-  .sc-badge ha-icon { position:relative; }
   .sc-text { min-width:0; }
-  .sc-line { display:flex; align-items:baseline; gap:6px; min-width:0; }
-  .sc-name { font-size:var(--ha-font-size-m, 14px); font-weight:var(--ha-font-weight-medium, 500); line-height:20px;
-    letter-spacing:.1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  /* What its thermostats measure, at its right end: the temperatures large, the humidity under them */
-  .sc-measures { flex:none; display:flex; flex-direction:column; align-items:flex-end; white-space:nowrap;
-    font-variant-numeric:tabular-nums; }
-  .sc-measures > div { display:flex; align-items:center; gap:2px; }
-  .sc-measures ha-icon { color:var(--secondary-text-color); }
-  .sc-temperature { font-size:var(--ha-font-size-l, 16px); line-height:20px; --mdc-icon-size:16px; }
-  .sc-humidity { font-size:var(--ha-font-size-s, 12px); line-height:16px; color:var(--secondary-text-color); --mdc-icon-size:14px; }
-  .sc-status { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; overflow:hidden;
-    text-overflow:ellipsis; white-space:nowrap; }
-  /* One button with the active schedule, its menu under it */
+  /* One button with the active schedule, outlined like the HVAC mode button of the rooms card */
   .sc-pick { position:relative; flex:none; max-width:45%; margin-left:auto; }
-  .sc-pick > button { position:relative; display:flex; align-items:center; gap:4px; max-width:100%; height:32px; padding:0 6px 0 10px;
-    border:1px solid var(--primary-color); border-radius:16px; background:none; color:var(--primary-color); cursor:pointer;
-    font:inherit; font-size:var(--ha-font-size-s, 12px); font-weight:var(--ha-font-weight-medium, 500); --mdc-icon-size:16px; }
-  .sc-pick > button::before { content:''; position:absolute; inset:0; border-radius:inherit; background:var(--primary-color); opacity:.12; }
-  .sc-pick > button > * { position:relative; flex:none; }
+  .sc-pick > button { display:flex; align-items:center; gap:4px; max-width:100%; height:34px; padding:0 4px 0 10px;
+    border:1px solid var(--divider-color); border-radius:18px; background:none; color:var(--primary-text-color); cursor:pointer;
+    font:inherit; font-size:var(--ha-font-size-s, 12px); --mdc-icon-size:18px; }
+  .sc-pick > button:hover, .sc-pick > button[aria-expanded="true"] { background:var(--secondary-background-color); }
+  .sc-pick > button > * { flex:none; }
   .sc-pick > button > span { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .sc-pick > button svg { width:18px; height:18px; fill:currentColor; }
-  .sc-menu { position:absolute; top:calc(100% + 4px); right:0; z-index:5; display:flex; flex-direction:column; min-width:170px;
-    padding:4px 0; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color, #fff);
-    box-shadow:0 4px 16px rgba(0,0,0,.25); }
-  .sc-menu.up { top:auto; bottom:calc(100% + 4px); }
-  .sc-menu button { position:relative; display:flex; align-items:center; gap:12px; height:44px; padding:0 16px; border:0;
-    background:none; color:var(--primary-text-color); cursor:pointer; font:inherit; font-size:var(--ha-font-size-m, 14px);
-    text-align:start; white-space:nowrap; --mdc-icon-size:20px; }
-  .sc-menu button:hover { background:var(--secondary-background-color); }
-  .sc-menu button[aria-checked="true"] { color:var(--primary-color); font-weight:var(--ha-font-weight-medium, 500); }
-  .sc-menu button[aria-checked="true"]::before { content:''; position:absolute; inset:0; background:var(--primary-color); opacity:.12; }
-  .sc-menu button > * { position:relative; }
+  .sc-menu { --tile-color:var(--primary-color); }
+  /* What its thermostats measure, at its right end: the temperatures as a name, the humidity as a state */
+  .sc-measures { flex:none; display:flex; flex-direction:column; align-items:flex-end; font-variant-numeric:tabular-nums; }
+  .sc-measures > div { display:flex; align-items:center; gap:2px; }
+  .sc-measures ha-icon { color:var(--secondary-text-color); --mdc-icon-size:16px; }
+  .sc-humidity { color:var(--secondary-text-color); }
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
 
@@ -8187,13 +8170,13 @@ class ChauffageSummaryCard extends HTMLElement {
         ? `<div class="sc-menu" role="menu">${ids.map((id) => `<button type="button" role="menuitemradio" data-schedule="${esc(id)}" aria-checked="${id === active}">${label(id)}</button>`).join('')}</div>`
         : '';
       const pick = ids.length
-        ? `<div class="sc-pick"><button type="button" data-schedules-button aria-haspopup="menu" aria-expanded="${!!this._menuOpen}" aria-label="${esc(t('activeSchedule'))}" title="${esc(t('activeSchedule'))}">${active ? label(active) : ''}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI.menuDown}"/></svg></button>${menu}</div>`
+        ? `<div class="sc-pick"><button type="button" data-schedules-button aria-haspopup="menu" aria-expanded="${!!this._menuOpen}" aria-label="${esc(t('activeSchedule'))}" title="${esc(t('activeSchedule'))}">${active ? label(active) : ''}<ha-icon icon="mdi:menu-down"></ha-icon></button>${menu}</div>`
         : '';
       html = `<div class="sc-main${action ? ' action' : ''}"${action ? ' role="button" tabindex="0"' : ''}>
           <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : cooling ? 'cool' : 'off')}"><ha-icon icon="${esc(this._config.icon || 'mdi:home-thermometer')}"></ha-icon></span>
           <div class="sc-text">
             <div class="sc-line"><span class="sc-name">${esc(this._config.name || t('summaryDefaultName'))}</span></div>
-            <div class="sc-status">${esc(status)}</div>
+            <div class="sc-state">${esc(status)}</div>
           </div>
         </div>
         ${pick}${this._measuresHtml(loc, thermostats)}`;
@@ -8221,8 +8204,8 @@ class ChauffageSummaryCard extends HTMLElement {
       return low === high ? `${loc.number(low)}${unit}` : `${loc.number(low)}–${loc.number(high)}${unit}`;
     };
     const line = (cls, icon, value) => (value ? `<div class="${cls}"><ha-icon icon="${icon}"></ha-icon>${esc(value)}</div>` : '');
-    const html = line('sc-temperature', 'mdi:thermometer', range('current_temperature', (v) => Math.round(v * 10) / 10, '°'))
-      + line('sc-humidity', 'mdi:water-percent', range('current_humidity', Math.round, ' %'));
+    const html = line('sc-temperature sc-name', 'mdi:thermometer', range('current_temperature', (v) => Math.round(v * 10) / 10, '°'))
+      + line('sc-humidity sc-state', 'mdi:water-percent', range('current_humidity', Math.round, ' %'));
     return html ? `<div class="sc-measures">${html}</div>` : '';
   }
 
@@ -8270,7 +8253,6 @@ const EDITOR_STEPS = [5, 10, 15, 30];
 const MDI = {
   drag: 'M21,11H3V9H21V11M21,13H3V15H21V13Z',
   close: 'M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z',
-  menuDown: 'M7,10L12,15L17,10H7Z',
   pencil: 'M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z',
 };
 const EDITOR_CSS = `

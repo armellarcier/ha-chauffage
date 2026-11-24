@@ -112,25 +112,25 @@ describe('the rooms card', () => {
     hass.states['climate.salon'].attributes.hvac_modes = ['off', 'heat', 'cool', 'fan_only'];
     const card = cardFor(hass);
     const r = () => row(card, 'climate.salon');
-    assert.equal(r().querySelector('.rc-modes'), null, 'closed at first');
+    assert.equal(r().querySelector('.rc-menu'), null, 'closed at first');
     r().querySelector('[data-mode-button]').click();
-    assert.deepEqual([...r().querySelectorAll('.rc-modes [data-hvac-mode]')].map((b) => b.dataset.hvacMode), ['off', 'heat', 'cool', 'fan_only']);
-    assert.ok(r().querySelector('[data-hvac-mode="heat"]').classList.contains('on'), 'the current mode');
+    assert.deepEqual([...r().querySelectorAll('.rc-menu [data-hvac-mode]')].map((b) => b.dataset.hvacMode), ['off', 'heat', 'cool', 'fan_only']);
+    assert.equal(r().querySelector('[data-hvac-mode="heat"]').getAttribute('aria-checked'), 'true', 'the current mode');
     assert.equal(servicesCalled(hass).length, 0, 'nothing sent before a mode is tapped');
     assert.equal(opened.length, 0, 'the mode button does not open the thermostat');
     r().querySelector('[data-hvac-mode="cool"]').click();
     assert.deepEqual(lastCall(hass), { domain: 'climate', service: 'set_hvac_mode', data: { entity_id: 'climate.salon', hvac_mode: 'cool' } });
-    assert.equal(r().querySelector('.rc-modes'), null, 'closed again');
+    assert.equal(r().querySelector('.rc-menu'), null, 'closed again');
   });
 
   test('a tap elsewhere closes the popover, and a second popover closes the first', () => {
     const card = cardFor(setup());
     row(card, 'climate.salon').querySelector('[data-mode-button]').click();
     row(card, 'climate.bureau').querySelector('[data-mode-button]').click();
-    assert.equal(row(card, 'climate.salon').querySelector('.rc-modes'), null);
-    assert.ok(row(card, 'climate.bureau').querySelector('.rc-modes'));
+    assert.equal(row(card, 'climate.salon').querySelector('.rc-menu'), null);
+    assert.ok(row(card, 'climate.bureau').querySelector('.rc-menu'));
     document.body.click();
-    assert.equal(card.shadowRoot.querySelector('.rc-modes'), null);
+    assert.equal(card.shadowRoot.querySelector('.rc-menu'), null);
   });
 
   test('the mode button shows the icon of the current mode', () => {
