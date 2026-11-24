@@ -83,24 +83,7 @@ describe('the summary card', () => {
     assert.match(color(cardFor(hass)), /--state-climate-off-color/);
   });
 
-  test('the schedules, the active one marked; a tap activates one through its select', () => {
-    const hass = setup();
-    const card = cardFor(hass);
-    const chips = [...card.shadowRoot.querySelectorAll('[data-schedule]')];
-    assert.deepEqual(chips.map((c) => text(c)), ['Normal', 'Absent', 'Vacances']);
-    assert.equal($(card, '[data-schedule="normal"]').getAttribute('aria-pressed'), 'true');
-    $(card, '[data-schedule="away"]').click();
-    assert.deepEqual(lastCall(hass), { domain: 'select', service: 'select_option', data: { entity_id: 'select.chauffage_schedule', option: 'Absent' } });
-  });
-
-  test('a schedule with an icon shows it', () => {
-    const hass = setup();
-    hass.entities['switch.chauffage_schedule_away'] = { entity_id: 'switch.chauffage_schedule_away', icon: 'mdi:airplane' };
-    const card = cardFor(hass);
-    assert.equal($(card, '[data-schedule="away"] ha-icon').getAttribute('icon'), 'mdi:airplane');
-  });
-
-  test('on a narrow card, one button shows the active schedule and opens a menu of the schedules', () => {
+  test('one button shows the active schedule and opens a menu of the schedules; a tap activates one through its select', () => {
     const hass = setup();
     hass.entities['switch.chauffage_schedule_normal'] = { entity_id: 'switch.chauffage_schedule_normal', icon: 'mdi:home' };
     const card = cardFor(hass);
@@ -119,10 +102,18 @@ describe('the summary card', () => {
     assert.equal($(card, '.sc-menu'), null, 'closed once a schedule is chosen');
   });
 
-  test('the button takes the place of the schedules only on a narrow card, so that the card keeps one line', () => {
-    const style = $(cardFor(setup()), 'style').textContent;
-    assert.match(style, /ha-card \{[^}]*container-type:inline-size/);
-    assert.match(style, /@container \(max-width: 440px\) \{[^@]*\.sc-schedules \{ display:none; \}[^@]*\.sc-pick \{ display:block; \}/);
+  test('a schedule with an icon shows it in the menu', () => {
+    const hass = setup();
+    hass.entities['switch.chauffage_schedule_away'] = { entity_id: 'switch.chauffage_schedule_away', icon: 'mdi:airplane' };
+    const card = cardFor(hass);
+    $(card, '[data-schedules-button]').click();
+    assert.equal($(card, '.sc-menu [data-schedule="away"] ha-icon').getAttribute('icon'), 'mdi:airplane');
+  });
+
+  test('without the menu of the schedules (show_schedules: false), no button', () => {
+    const card = cardFor(setup(), { show_schedules: false });
+    assert.equal($(card, '[data-schedules-button]'), null);
+    assert.equal($(card, '[data-schedule]'), null);
   });
 
   test('the menu of the schedules closes on a second tap of its button or a tap outside, without the card\'s action', () => {
@@ -144,7 +135,8 @@ describe('the summary card', () => {
     card.addEventListener('hass-action', (e) => actions.push(e.detail));
     $(card, '.sc-main').click();
     assert.deepEqual(actions, [{ config: { tap_action: { action: 'navigate', navigation_path: '#heats' } }, action: 'tap' }]);
-    $(card, '[data-schedule="away"]').click();
+    $(card, '[data-schedules-button]').click();
+    $(card, '.sc-menu [data-schedule="away"]').click();
     assert.equal(actions.length, 1, 'a schedule tapped does not do the card\'s action');
   });
 

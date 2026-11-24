@@ -364,6 +364,7 @@ const I18N = {
     editorTemperature: 'Temperature sensor (optional)',
     editorHumidity: 'Humidity sensor (optional)',
     editorTapAction: 'Tap action (optional)',
+    editorShowSchedules: 'Schedule menu',
   },
   fr: {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
@@ -706,6 +707,7 @@ const I18N = {
     editorTemperature: 'Sonde de température (facultatif)',
     editorHumidity: 'Sonde d’humidité (facultatif)',
     editorTapAction: 'Action au tap (facultatif)',
+    editorShowSchedules: 'Menu des plannings',
   },
 };
 
@@ -8049,8 +8051,8 @@ class ChauffageRoomsCard extends HTMLElement {
 
 const SUMMARY_CARD_STYLE = `
   :host { display:block; }
-  ha-card { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 12px; container-type:inline-size; }
-  .sc-main { flex:1 1 180px; display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px;
+  ha-card { display:flex; align-items:center; gap:12px; padding:10px 12px; }
+  .sc-main { flex:1 1 0; display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px;
     min-width:0; -webkit-tap-highlight-color:transparent; }
   .sc-main.action { cursor:pointer; }
   .sc-badge { position:relative; width:36px; height:36px; border-radius:var(--ha-tile-icon-border-radius, 18px); overflow:hidden;
@@ -8065,17 +8067,8 @@ const SUMMARY_CARD_STYLE = `
     font-variant-numeric:tabular-nums; }
   .sc-status { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
-  .sc-schedules { display:flex; flex-wrap:wrap; gap:4px; margin-left:auto; }
-  .sc-schedules button { position:relative; display:inline-flex; align-items:center; gap:4px; height:32px; padding:0 10px;
-    border:1px solid var(--divider-color); border-radius:16px; background:none; color:var(--secondary-text-color); cursor:pointer;
-    font:inherit; font-size:var(--ha-font-size-s, 12px); overflow:hidden; --mdc-icon-size:16px; }
-  .sc-schedules button:hover { background:var(--secondary-background-color); }
-  .sc-schedules button[aria-pressed="true"] { color:var(--primary-color); border-color:var(--primary-color);
-    font-weight:var(--ha-font-weight-medium, 500); }
-  .sc-schedules button[aria-pressed="true"]::before { content:''; position:absolute; inset:0; background:var(--primary-color); opacity:.12; }
-  .sc-schedules button > * { position:relative; }
-  /* On a narrow card, one button with the active schedule, its menu under it */
-  .sc-pick { display:none; position:relative; flex:none; max-width:45%; margin-left:auto; }
+  /* One button with the active schedule, its menu under it */
+  .sc-pick { position:relative; flex:none; max-width:45%; margin-left:auto; }
   .sc-pick > button { position:relative; display:flex; align-items:center; gap:4px; max-width:100%; height:32px; padding:0 6px 0 10px;
     border:1px solid var(--primary-color); border-radius:16px; background:none; color:var(--primary-color); cursor:pointer;
     font:inherit; font-size:var(--ha-font-size-s, 12px); font-weight:var(--ha-font-weight-medium, 500); --mdc-icon-size:16px; }
@@ -8094,12 +8087,6 @@ const SUMMARY_CARD_STYLE = `
   .sc-menu button[aria-checked="true"] { color:var(--primary-color); font-weight:var(--ha-font-weight-medium, 500); }
   .sc-menu button[aria-checked="true"]::before { content:''; position:absolute; inset:0; background:var(--primary-color); opacity:.12; }
   .sc-menu button > * { position:relative; }
-  @container (max-width: 440px) {
-    ha-card { flex-wrap:nowrap; }
-    .sc-main { flex:1 1 0; }
-    .sc-schedules { display:none; }
-    .sc-pick { display:block; }
-  }
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
 
@@ -8192,10 +8179,9 @@ class ChauffageSummaryCard extends HTMLElement {
         const icon = src.scheduleIcon(id);
         return `${icon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}<span>${esc(src.scheduleName(id))}</span>`;
       };
-      const ids = select ? src.schedules() : [];
-      const schedules = ids.map((id) => `<button type="button" data-schedule="${esc(id)}" aria-pressed="${id === active}">${label(id)}</button>`).join('');
-      // On a narrow card, the chips do not fit beside its name: one button with the active schedule
-      // opens a menu of them (see the style)
+      // One button with the active schedule opens a menu of them: the card keeps one line on a
+      // phone. The admin may hide it (`show_schedules: false`)
+      const ids = select && this._config.show_schedules !== false ? src.schedules() : [];
       const menu = this._menuOpen
         ? `<div class="sc-menu" role="menu">${ids.map((id) => `<button type="button" role="menuitemradio" data-schedule="${esc(id)}" aria-checked="${id === active}">${label(id)}</button>`).join('')}</div>`
         : '';
@@ -8210,7 +8196,7 @@ class ChauffageSummaryCard extends HTMLElement {
             <div class="sc-status">${esc(status)}</div>
           </div>
         </div>
-        <div class="sc-schedules">${schedules}</div>${pick}`;
+        ${pick}`;
     }
     if (html === this._html && this.shadowRoot.querySelector('ha-card')) return;
     this._html = html;
@@ -8620,7 +8606,7 @@ class ChauffageRoomsCardEditor extends ChauffageProgrammeCardEditor {
 
 // The summary card's editor: one form, as Home Assistant's own card editors. Options written in
 // YAML that it does not show (`language`) are kept; an option emptied is left out
-const SUMMARY_FIELDS = ['name', 'icon', 'temperature', 'humidity', 'thermostats', 'tap_action'];
+const SUMMARY_FIELDS = ['name', 'icon', 'temperature', 'humidity', 'thermostats', 'show_schedules', 'tap_action'];
 class ChauffageSummaryCardEditor extends HTMLElement {
   constructor() {
     super();
@@ -8647,7 +8633,8 @@ class ChauffageSummaryCardEditor extends HTMLElement {
         const config = { ...this._config };
         for (const key of SUMMARY_FIELDS) {
           const v = e.detail.value[key];
-          if (v === undefined || v === '' || v === null || (Array.isArray(v) && !v.length)) delete config[key];
+          // The menu of the schedules is shown by default: written only when hidden
+          if (v === undefined || v === '' || v === null || (Array.isArray(v) && !v.length) || (key === 'show_schedules' && v === true)) delete config[key];
           else config[key] = v;
         }
         this._config = config;
@@ -8663,16 +8650,18 @@ class ChauffageSummaryCardEditor extends HTMLElement {
       { name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
       { name: 'humidity', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
       { name: 'thermostats', selector: { entity: { domain: 'climate', multiple: true } } },
+      { name: 'show_schedules', selector: { boolean: {} } },
       { name: 'tap_action', selector: { ui_action: { default_action: 'none' } } },
     ];
     const labels = { name: 'editorName', icon: 'editorIcon', temperature: 'editorTemperature', humidity: 'editorHumidity',
-      thermostats: 'editorThermostatsOptional', tap_action: 'editorTapAction' };
+      thermostats: 'editorThermostatsOptional', show_schedules: 'editorShowSchedules', tap_action: 'editorTapAction' };
     form.computeLabel = (s) => loc.t(labels[s.name]);
     form.computeHelper = (s) => (s.name === 'thermostats' && !(this._config.thermostats || []).length ? loc.t('editorAllScheduled') : undefined);
     // The thermostats as entity ids: a name given in YAML is not used by this card
     const c = this._config;
     form.data = { ...Object.fromEntries(SUMMARY_FIELDS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])),
-      ...(c.thermostats ? { thermostats: c.thermostats.map((t) => (typeof t === 'string' ? t : t.entity)) } : {}) };
+      ...(c.thermostats ? { thermostats: c.thermostats.map((t) => (typeof t === 'string' ? t : t.entity)) } : {}),
+      show_schedules: c.show_schedules !== false };
   }
 }
 
