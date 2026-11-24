@@ -1158,6 +1158,10 @@ dashboards, automations, scripts and by voice without the card
     the temperature of its rooms, and a sensor would be one more setting for little. A
     thermostat without `current_humidity` (Versatile Thermostat, `generic_thermostat`) gives no
     humidity, even when its room has a sensor.
+  - **Its measures are at its right end, each with its icon**: the temperatures large, the
+    humidity small under them, after the button of the schedules. Beside the name, in the same
+    size, two ranges read as a row of numbers; at the end, the temperature is read at a glance,
+    and the name and status stay a tile's, like the tiles around it.
   - **The schedules are activated through the select of the active schedule**
     (`select.select_option`), as Home Assistant's own cards would. A schedule shows the icon
     of its switch, if the user gave it one.

@@ -304,7 +304,7 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 
 | Use case | Test |
 |---|---|
-| Show a floor or the house in one row (`custom:chauffage-summary-card`): its name, the range of the temperatures its thermostats measure, and of their humidity when they report it; every scheduled thermostat, or the ones listed in the card | `C/summary-card.test.mjs` |
+| Show a floor or the house in one row (`custom:chauffage-summary-card`): its name; at its right end, the range of the temperatures its thermostats measure, and under it the range of their humidity when they report it, each with its icon; every scheduled thermostat, or the ones listed in the card | `C/summary-card.test.mjs` |
 | It says how many thermostats heat ("Rien ne chauffe", "1 chauffe", "2 chauffent") and cool ("1 refroidit"), the overrides and the paused thermostats; its icon is in color while one heats or cools; Enter or Space does its action, as a tap | `C/summary-card.test.mjs` |
 | One button with the active schedule opens a menu of the schedules, with the icon of their switch, so that the card keeps one line on a phone; a tap activates one through the select of the active schedule; a second tap or a tap outside closes it, without the card's action; the admin can hide it (`show_schedules: false`, in the visual editor)| `C/summary-card.test.mjs`, `C/cards-editors.test.mjs` |
 | A tap elsewhere does the card's `tap_action` (a pop-up of the rooms, another view), nothing without one; the integration missing says so; in the *Add card* dialog, with a preview | `C/summary-card.test.mjs` |

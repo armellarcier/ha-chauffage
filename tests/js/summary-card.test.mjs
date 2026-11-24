@@ -44,16 +44,25 @@ describe('the summary card', () => {
     cleanup();
     const card = cardFor(setup(), { name: 'Étage' });
     assert.equal(text($(card, '.sc-name')), 'Étage');
-    assert.equal(text($(card, '.sc-climate')), '19–20,1°');
+    assert.equal(text($(card, '.sc-temperature')), '19–20,1°');
+    assert.equal($(card, '.sc-temperature ha-icon').getAttribute('icon'), 'mdi:thermometer');
+    assert.equal($(card, '.sc-humidity'), null, 'no thermostat reports a humidity');
   });
 
-  test('the range of the humidity of the thermostats that report it', () => {
+  test('the range of the humidity of the thermostats that report it, under the temperatures', () => {
     const hass = setup();
     hass.states['climate.salon'].attributes.current_humidity = 55.6;
-    assert.equal(text($(cardFor(hass), '.sc-climate')), '19–20,1° · 56 %', 'one thermostat reports it');
+    assert.equal(text($(cardFor(hass), '.sc-humidity')), '56 %', 'one thermostat reports it');
     cleanup();
     hass.states['climate.bureau'].attributes.current_humidity = 61;
-    assert.equal(text($(cardFor(hass), '.sc-climate')), '19–20,1° · 56–61 %');
+    const card = cardFor(hass);
+    assert.equal(text($(card, '.sc-humidity')), '56–61 %');
+    assert.equal($(card, '.sc-humidity ha-icon').getAttribute('icon'), 'mdi:water-percent');
+  });
+
+  test('its measures at its right end, after the button of the schedules', () => {
+    const card = cardFor(setup());
+    assert.deepEqual([...$(card, 'ha-card').children].map((el) => el.className), ['sc-main', 'sc-pick', 'sc-measures']);
   });
 
   test('how many thermostats heat, and the overrides', () => {
@@ -74,7 +83,7 @@ describe('the summary card', () => {
   test('only the thermostats listed in the card', () => {
     const card = cardFor(setup({ overrides: { 'climate.bureau': OVERRIDE } }), { thermostats: ['climate.bureau'] });
     assert.equal(text($(card, '.sc-status')), 'Rien ne chauffe · 1 dérogation');
-    assert.equal(text($(card, '.sc-climate')), '19°');
+    assert.equal(text($(card, '.sc-temperature')), '19°');
   });
 
   test('its icon is in color while a thermostat heats, grey otherwise', () => {

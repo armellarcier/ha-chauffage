@@ -8047,7 +8047,7 @@ class ChauffageRoomsCard extends HTMLElement {
 
 const SUMMARY_CARD_STYLE = `
   :host { display:block; }
-  ha-card { display:flex; align-items:center; gap:12px; padding:10px 12px; }
+  ha-card { display:flex; align-items:center; gap:8px; padding:10px 12px; }
   .sc-main { flex:1 1 0; display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px;
     min-width:0; -webkit-tap-highlight-color:transparent; }
   .sc-main.action { cursor:pointer; }
@@ -8059,8 +8059,13 @@ const SUMMARY_CARD_STYLE = `
   .sc-line { display:flex; align-items:baseline; gap:6px; min-width:0; }
   .sc-name { font-size:var(--ha-font-size-m, 14px); font-weight:var(--ha-font-weight-medium, 500); line-height:20px;
     letter-spacing:.1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .sc-climate { font-size:var(--ha-font-size-m, 14px); color:var(--secondary-text-color); white-space:nowrap;
+  /* What its thermostats measure, at its right end: the temperatures large, the humidity under them */
+  .sc-measures { flex:none; display:flex; flex-direction:column; align-items:flex-end; white-space:nowrap;
     font-variant-numeric:tabular-nums; }
+  .sc-measures > div { display:flex; align-items:center; gap:2px; }
+  .sc-measures ha-icon { color:var(--secondary-text-color); }
+  .sc-temperature { font-size:var(--ha-font-size-l, 16px); line-height:20px; --mdc-icon-size:16px; }
+  .sc-humidity { font-size:var(--ha-font-size-s, 12px); line-height:16px; color:var(--secondary-text-color); --mdc-icon-size:14px; }
   .sc-status { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
   /* One button with the active schedule, its menu under it */
@@ -8187,12 +8192,11 @@ class ChauffageSummaryCard extends HTMLElement {
       html = `<div class="sc-main${action ? ' action' : ''}"${action ? ' role="button" tabindex="0"' : ''}>
           <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : cooling ? 'cool' : 'off')}"><ha-icon icon="${esc(this._config.icon || 'mdi:home-thermometer')}"></ha-icon></span>
           <div class="sc-text">
-            <div class="sc-line"><span class="sc-name">${esc(this._config.name || t('summaryDefaultName'))}</span>
-              <span class="sc-climate">${esc(this._climateText(loc, thermostats))}</span></div>
+            <div class="sc-line"><span class="sc-name">${esc(this._config.name || t('summaryDefaultName'))}</span></div>
             <div class="sc-status">${esc(status)}</div>
           </div>
         </div>
-        ${pick}`;
+        ${pick}${this._measuresHtml(loc, thermostats)}`;
     }
     if (html === this._html && this.shadowRoot.querySelector('ha-card')) return;
     this._html = html;
@@ -8205,9 +8209,9 @@ class ChauffageSummaryCard extends HTMLElement {
     }
   }
 
-  // What its thermostats measure: the range of their temperatures, and of their humidity when
-  // they report it: "19–20,1° · 56–61 %"
-  _climateText(loc, thermostats) {
+  // What its thermostats measure: the range of their temperatures ("19–20,1°"), and under it the
+  // range of their humidity when they report it ("56–61 %"), each with its icon
+  _measuresHtml(loc, thermostats) {
     const range = (attribute, round, unit) => {
       const measured = thermostats.map((e) => this._hass.states[e].attributes[attribute])
         .filter((v) => v != null && v !== '').map(Number).filter(Number.isFinite).map(round);
@@ -8216,8 +8220,10 @@ class ChauffageSummaryCard extends HTMLElement {
       const high = Math.max(...measured);
       return low === high ? `${loc.number(low)}${unit}` : `${loc.number(low)}–${loc.number(high)}${unit}`;
     };
-    return [range('current_temperature', (v) => Math.round(v * 10) / 10, '°'), range('current_humidity', Math.round, ' %')]
-      .filter(Boolean).join(' · ');
+    const line = (cls, icon, value) => (value ? `<div class="${cls}"><ha-icon icon="${icon}"></ha-icon>${esc(value)}</div>` : '');
+    const html = line('sc-temperature', 'mdi:thermometer', range('current_temperature', (v) => Math.round(v * 10) / 10, '°'))
+      + line('sc-humidity', 'mdi:water-percent', range('current_humidity', Math.round, ' %'));
+    return html ? `<div class="sc-measures">${html}</div>` : '';
   }
 
   _onClick(e) {
