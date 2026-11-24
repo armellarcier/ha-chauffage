@@ -19,8 +19,6 @@ function setup(more = {}) {
   const hass = fakeHass({ data, ...(more.locale ? { locale: more.locale } : {}) });
   Object.assign(hass.states['climate.salon'].attributes, { current_temperature: 20.1, hvac_action: 'heating' });
   Object.assign(hass.states['climate.bureau'].attributes, { current_temperature: 19, hvac_action: 'idle' });
-  hass.states['sensor.sonde_temperature'] = { state: '20.44', attributes: { unit_of_measurement: '°C' } };
-  hass.states['sensor.sonde_humidite'] = { state: '60.6', attributes: { unit_of_measurement: '%' } };
   hass.callService = async (domain, service, data) => { hass.events.push({ domain, service, data }); };
   return hass;
 }
@@ -41,16 +39,21 @@ describe('the summary card', () => {
     cleanup();
   });
 
-  test('its name, and the temperature and humidity of its sensors', () => {
-    const card = cardFor(setup(), { name: 'Étage', temperature: 'sensor.sonde_temperature', humidity: 'sensor.sonde_humidite' });
+  test('its name, and the range of the temperatures measured by its thermostats', () => {
+    assert.equal(text($(cardFor(setup()), '.sc-name')), 'Chauffage');
+    cleanup();
+    const card = cardFor(setup(), { name: 'Étage' });
     assert.equal(text($(card, '.sc-name')), 'Étage');
-    assert.equal(text($(card, '.sc-climate')), '20,4° · 61 %');
+    assert.equal(text($(card, '.sc-climate')), '19–20,1°');
   });
 
-  test('without a sensor, the range of the temperatures measured by its thermostats', () => {
-    const card = cardFor(setup());
-    assert.equal(text($(card, '.sc-name')), 'Chauffage');
-    assert.equal(text($(card, '.sc-climate')), '19–20,1°');
+  test('the range of the humidity of the thermostats that report it', () => {
+    const hass = setup();
+    hass.states['climate.salon'].attributes.current_humidity = 55.6;
+    assert.equal(text($(cardFor(hass), '.sc-climate')), '19–20,1° · 56 %', 'one thermostat reports it');
+    cleanup();
+    hass.states['climate.bureau'].attributes.current_humidity = 61;
+    assert.equal(text($(cardFor(hass), '.sc-climate')), '19–20,1° · 56–61 %');
   });
 
   test('how many thermostats heat, and the overrides', () => {
@@ -114,19 +117,6 @@ describe('the summary card', () => {
     const card = cardFor(setup(), { show_schedules: false });
     assert.equal($(card, '[data-schedules-button]'), null);
     assert.equal($(card, '[data-schedule]'), null);
-  });
-
-  test('without the menu, the range its thermostats measure, beside the temperature of its sensor', () => {
-    const card = cardFor(setup(), { show_schedules: false, temperature: 'sensor.sonde_temperature' });
-    assert.equal(text($(card, '.sc-climate')), '20,4°');
-    assert.equal(text($(card, '.sc-range-value')), '19–20,1°');
-    assert.equal(text($(card, '.sc-range-label')), 'Pièces');
-  });
-
-  test('without a sensor, the range is not said twice; with the menu, the menu is there instead', () => {
-    assert.equal($(cardFor(setup(), { show_schedules: false }), '.sc-range'), null, 'already beside its name');
-    cleanup();
-    assert.equal($(cardFor(setup(), { temperature: 'sensor.sonde_temperature' }), '.sc-range'), null);
   });
 
   test('the menu of the schedules closes on a second tap of its button or a tap outside, without the card\'s action', () => {

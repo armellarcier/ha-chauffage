@@ -1145,26 +1145,27 @@ dashboards, automations, scripts and by voice without the card
   - **The mode is said once when it does not change**: "Heat · Eco → Comfort 06:30". The row
     is one line, and the mode twice cut it on a phone.
 - **The summary card is a floor or the house in one row** (prototype, the owner chose a card of
-  its own). Users put a tile per floor on their home view, with a sensor's temperature and the
+  its own). Users put a tile per floor on their home view, with its temperature and the
   schedules, and a tap opens a pop-up of the rooms. The summary card is that tile, made by
   Chauffage. It is a card of its own, not a header of the rooms card, because the tile and the
   pop-up are in different places of the dashboard.
   - **It counts what the thermostats say**: "2 heating · 1 cooling · 1 override · 1 paused".
     Heating is `hvac_action: heating`, cooling is `hvac_action: cooling`, as HA's Tile card
     colors them. A thermostat that does not report `hvac_action` is not counted.
-  - **Its temperature is a sensor's**, given in the card, with an optional humidity sensor.
-    Without a sensor, the card shows the range its thermostats measure ("19–20,1°"), not an
-    average that no room has.
+  - **It shows what its thermostats measure**: the range of their temperatures, and of their
+    humidity when they report it (`current_humidity`): "19–20,1° · 56–61 %". A range, not an
+    average that no room has. The card takes no sensor of its own: the temperature of a floor is
+    the temperature of its rooms, and a sensor would be one more setting for little. A
+    thermostat without `current_humidity` (Versatile Thermostat, `generic_thermostat`) gives no
+    humidity, even when its room has a sensor.
   - **The schedules are activated through the select of the active schedule**
     (`select.select_option`), as Home Assistant's own cards would. A schedule shows the icon
     of its switch, if the user gave it one.
   - **One button opens a menu of the schedules**, not a chip per schedule. The chips went to a
     second line on a phone, and only the active schedule is worth seeing at a glance. The button
     shows it, like the HVAC mode button of the rooms card. The admin can hide the button
-    (`show_schedules: false`), for a floor whose schedules are changed elsewhere. In its place,
-    the card shows the range its rooms measure ("19–20,1°", labeled *Rooms*), if a sensor gives
-    the card's temperature. Without a sensor, that range is already beside the name, so the place
-    stays empty rather than say it twice.
+    (`show_schedules: false`), for a floor whose schedules are changed elsewhere. Its place then
+    stays empty: the right of the card holds controls, the text on its left holds what it says.
   - **A tap elsewhere does the card's `tap_action`**, through HA's `hass-action` event, as HA's
     own cards do: a pop-up of the rooms, another view. Without `tap_action`, a tap does
     nothing.

@@ -75,11 +75,11 @@ what comes next, for example *Éco → Confort 06:30*. The **−** and **+** set
 round button sets the HVAC mode. Chauffage turns these changes into an override, as with the
 thermostat's dial. A tap on the row opens the thermostat.
 
-**The Heating summary card** shows a floor or the house in one row: its temperature, how many
-thermostats heat and the overrides. Its button shows the active schedule, and opens a menu to
-activate another one. You can hide this button: the card then shows the range of temperatures
-its rooms measure, if you gave it a temperature sensor. A tap elsewhere runs the card's action, for
-example to open the pop-up of the rooms.
+**The Heating summary card** shows a floor or the house in one row: the range of temperatures
+its rooms measure, and of their humidity if the thermostats report it, how many thermostats heat
+and the overrides. Its button shows the active schedule, and opens a menu to activate another
+one. You can hide this button. A tap elsewhere runs the card's action, for example to open the
+pop-up of the rooms.
 
 To add them, open *Add card* and search for **Rooms** or **Heating summary**. Without a list of
 thermostats, each card shows every thermostat Chauffage schedules. You can also write the cards
@@ -97,8 +97,6 @@ thermostats:        # optional
 ```yaml
 type: custom:chauffage-summary-card
 name: Upstairs                          # optional
-temperature: sensor.upstairs_temperature  # optional
-humidity: sensor.upstairs_humidity        # optional
 thermostats: [climate.living_room, climate.bedroom]  # optional
 show_schedules: false                   # optional: hides the button of the schedules
 tap_action:                             # optional

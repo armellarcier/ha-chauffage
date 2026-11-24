@@ -73,13 +73,12 @@ describe('the summary card\'s visual editor', () => {
     assert.deepEqual(await card.getStubConfig(fakeHass()), {});
   });
 
-  test('its form: the name, the icon, the sensors, the thermostats, the menu of the schedules and the tap action', () => {
+  test('its form: the name, the icon, the thermostats, the menu of the schedules and the tap action', () => {
     const { $ } = editorFor(tag, { type: TYPE });
     const form = $('ha-form');
-    assert.deepEqual(form.schema.map((s) => s.name), ['name', 'icon', 'temperature', 'humidity', 'thermostats', 'show_schedules', 'tap_action']);
+    assert.deepEqual(form.schema.map((s) => s.name), ['name', 'icon', 'thermostats', 'show_schedules', 'tap_action']);
     assert.deepEqual(form.schema.find((s) => s.name === 'show_schedules').selector, { boolean: {} });
     assert.equal(form.data.show_schedules, true, 'shown by default');
-    assert.deepEqual(form.schema.find((s) => s.name === 'temperature').selector, { entity: { domain: 'sensor', device_class: 'temperature' } });
     assert.deepEqual(form.schema.find((s) => s.name === 'thermostats').selector, { entity: { domain: 'climate', multiple: true } });
     // Without an action, the card does nothing: HA's field says so
     assert.deepEqual(form.schema.find((s) => s.name === 'tap_action').selector, { ui_action: { default_action: 'none' } });
@@ -88,10 +87,10 @@ describe('the summary card\'s visual editor', () => {
   test('what is set is written, what is emptied is left out', () => {
     const { $, formChange, last } = editorFor(tag, { type: TYPE, language: 'en' });
     const form = $('ha-form');
-    formChange(form, { name: 'Étage', temperature: 'sensor.sonde', thermostats: ['climate.salon'], tap_action: { action: 'navigate', navigation_path: '#heats' } });
-    assert.deepEqual(last(), { type: TYPE, language: 'en', name: 'Étage', temperature: 'sensor.sonde', thermostats: ['climate.salon'], tap_action: { action: 'navigate', navigation_path: '#heats' } });
-    formChange(form, { name: '', thermostats: [], tap_action: undefined });
-    assert.deepEqual(last(), { type: TYPE, language: 'en', temperature: 'sensor.sonde' });
+    formChange(form, { name: 'Étage', thermostats: ['climate.salon'], tap_action: { action: 'navigate', navigation_path: '#heats' } });
+    assert.deepEqual(last(), { type: TYPE, language: 'en', name: 'Étage', thermostats: ['climate.salon'], tap_action: { action: 'navigate', navigation_path: '#heats' } });
+    formChange(form, { name: '', tap_action: undefined });
+    assert.deepEqual(last(), { type: TYPE, language: 'en', thermostats: ['climate.salon'] });
   });
 
   test('the menu of the schedules is written only when hidden', () => {
@@ -107,7 +106,7 @@ describe('the summary card\'s visual editor', () => {
   test('its labels in the user\'s language', () => {
     const { $ } = editorFor(tag, { type: TYPE });
     const form = $('ha-form');
-    assert.equal(form.computeLabel({ name: 'temperature' }), 'Sonde de température (facultatif)');
+    assert.equal(form.computeLabel({ name: 'thermostats' }), 'Thermostats (facultatif)');
     assert.equal(form.computeLabel({ name: 'tap_action' }), 'Action au tap (facultatif)');
     assert.equal(form.computeLabel({ name: 'show_schedules' }), 'Menu des plannings');
   });
