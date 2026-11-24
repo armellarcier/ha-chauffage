@@ -100,6 +100,44 @@ describe('the summary card', () => {
     assert.equal($(card, '[data-schedule="away"] ha-icon').getAttribute('icon'), 'mdi:airplane');
   });
 
+  test('on a narrow card, one button shows the active schedule and opens a menu of the schedules', () => {
+    const hass = setup();
+    hass.entities['switch.chauffage_schedule_normal'] = { entity_id: 'switch.chauffage_schedule_normal', icon: 'mdi:home' };
+    const card = cardFor(hass);
+    const button = () => $(card, '[data-schedules-button]');
+    assert.equal(text(button()), 'Normal');
+    assert.equal(button().querySelector('ha-icon').getAttribute('icon'), 'mdi:home');
+    assert.equal(button().getAttribute('aria-expanded'), 'false');
+    assert.equal($(card, '.sc-menu'), null, 'closed at first');
+    button().click();
+    assert.equal(button().getAttribute('aria-expanded'), 'true');
+    const items = [...card.shadowRoot.querySelectorAll('.sc-menu [data-schedule]')];
+    assert.deepEqual(items.map((b) => text(b)), ['Normal', 'Absent', 'Vacances']);
+    assert.equal($(card, '.sc-menu [data-schedule="normal"]').getAttribute('aria-checked'), 'true');
+    $(card, '.sc-menu [data-schedule="away"]').click();
+    assert.deepEqual(lastCall(hass), { domain: 'select', service: 'select_option', data: { entity_id: 'select.chauffage_schedule', option: 'Absent' } });
+    assert.equal($(card, '.sc-menu'), null, 'closed once a schedule is chosen');
+  });
+
+  test('the button takes the place of the schedules only on a narrow card, so that the card keeps one line', () => {
+    const style = $(cardFor(setup()), 'style').textContent;
+    assert.match(style, /ha-card \{[^}]*container-type:inline-size/);
+    assert.match(style, /@container \(max-width: 440px\) \{[^@]*\.sc-schedules \{ display:none; \}[^@]*\.sc-pick \{ display:block; \}/);
+  });
+
+  test('the menu of the schedules closes on a second tap of its button or a tap outside, without the card\'s action', () => {
+    const card = cardFor(setup(), { tap_action: { action: 'navigate', navigation_path: '#heats' } });
+    const actions = [];
+    card.addEventListener('hass-action', (e) => actions.push(e.detail));
+    $(card, '[data-schedules-button]').click();
+    $(card, '[data-schedules-button]').click();
+    assert.equal($(card, '.sc-menu'), null, 'a second tap closes it');
+    $(card, '[data-schedules-button]').click();
+    document.body.click();
+    assert.equal($(card, '.sc-menu'), null, 'a tap outside closes it');
+    assert.equal(actions.length, 0, 'the button does not do the card\'s action');
+  });
+
   test('a tap does the card\'s action, a pop-up of the rooms for example', () => {
     const card = cardFor(setup(), { tap_action: { action: 'navigate', navigation_path: '#heats' } });
     const actions = [];

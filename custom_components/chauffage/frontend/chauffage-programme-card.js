@@ -8049,7 +8049,7 @@ class ChauffageRoomsCard extends HTMLElement {
 
 const SUMMARY_CARD_STYLE = `
   :host { display:block; }
-  ha-card { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 12px; }
+  ha-card { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 12px; container-type:inline-size; }
   .sc-main { flex:1 1 180px; display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px;
     min-width:0; -webkit-tap-highlight-color:transparent; }
   .sc-main.action { cursor:pointer; }
@@ -8074,6 +8074,32 @@ const SUMMARY_CARD_STYLE = `
     font-weight:var(--ha-font-weight-medium, 500); }
   .sc-schedules button[aria-pressed="true"]::before { content:''; position:absolute; inset:0; background:var(--primary-color); opacity:.12; }
   .sc-schedules button > * { position:relative; }
+  /* On a narrow card, one button with the active schedule, its menu under it */
+  .sc-pick { display:none; position:relative; flex:none; max-width:45%; margin-left:auto; }
+  .sc-pick > button { position:relative; display:flex; align-items:center; gap:4px; max-width:100%; height:32px; padding:0 6px 0 10px;
+    border:1px solid var(--primary-color); border-radius:16px; background:none; color:var(--primary-color); cursor:pointer;
+    font:inherit; font-size:var(--ha-font-size-s, 12px); font-weight:var(--ha-font-weight-medium, 500); --mdc-icon-size:16px; }
+  .sc-pick > button::before { content:''; position:absolute; inset:0; border-radius:inherit; background:var(--primary-color); opacity:.12; }
+  .sc-pick > button > * { position:relative; flex:none; }
+  .sc-pick > button > span { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sc-pick > button svg { width:18px; height:18px; fill:currentColor; }
+  .sc-menu { position:absolute; top:calc(100% + 4px); right:0; z-index:5; display:flex; flex-direction:column; min-width:170px;
+    padding:4px 0; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color, #fff);
+    box-shadow:0 4px 16px rgba(0,0,0,.25); }
+  .sc-menu.up { top:auto; bottom:calc(100% + 4px); }
+  .sc-menu button { position:relative; display:flex; align-items:center; gap:12px; height:44px; padding:0 16px; border:0;
+    background:none; color:var(--primary-text-color); cursor:pointer; font:inherit; font-size:var(--ha-font-size-m, 14px);
+    text-align:start; white-space:nowrap; --mdc-icon-size:20px; }
+  .sc-menu button:hover { background:var(--secondary-background-color); }
+  .sc-menu button[aria-checked="true"] { color:var(--primary-color); font-weight:var(--ha-font-weight-medium, 500); }
+  .sc-menu button[aria-checked="true"]::before { content:''; position:absolute; inset:0; background:var(--primary-color); opacity:.12; }
+  .sc-menu button > * { position:relative; }
+  @container (max-width: 440px) {
+    ha-card { flex-wrap:nowrap; }
+    .sc-main { flex:1 1 0; }
+    .sc-schedules { display:none; }
+    .sc-pick { display:block; }
+  }
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
 
@@ -8092,6 +8118,10 @@ class ChauffageSummaryCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     this.shadowRoot.addEventListener('keydown', (e) => this._onKey(e));
+    // A tap outside the card closes the menu of the schedules
+    this._outside = (e) => {
+      if (this._menuOpen && !e.composedPath().includes(this)) { this._menuOpen = false; this._render(); }
+    };
   }
 
   setConfig(config) {
@@ -8109,10 +8139,12 @@ class ChauffageSummaryCard extends HTMLElement {
   }
 
   connectedCallback() {
+    document.addEventListener('click', this._outside);
     if (this._hass && !this._unlisten && dataSource(this._hass).available) this.hass = this._hass;
   }
 
   disconnectedCallback() {
+    document.removeEventListener('click', this._outside);
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
   }
@@ -8156,10 +8188,20 @@ class ChauffageSummaryCard extends HTMLElement {
       const action = this._config.tap_action && this._config.tap_action.action !== 'none';
       const select = src.scheduleSelect();
       const active = src.activeSchedule();
-      const schedules = select ? src.schedules().map((id) => {
+      const label = (id) => {
         const icon = src.scheduleIcon(id);
-        return `<button type="button" data-schedule="${esc(id)}" aria-pressed="${id === active}">${icon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}<span>${esc(src.scheduleName(id))}</span></button>`;
-      }).join('') : '';
+        return `${icon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}<span>${esc(src.scheduleName(id))}</span>`;
+      };
+      const ids = select ? src.schedules() : [];
+      const schedules = ids.map((id) => `<button type="button" data-schedule="${esc(id)}" aria-pressed="${id === active}">${label(id)}</button>`).join('');
+      // On a narrow card, the chips do not fit beside its name: one button with the active schedule
+      // opens a menu of them (see the style)
+      const menu = this._menuOpen
+        ? `<div class="sc-menu" role="menu">${ids.map((id) => `<button type="button" role="menuitemradio" data-schedule="${esc(id)}" aria-checked="${id === active}">${label(id)}</button>`).join('')}</div>`
+        : '';
+      const pick = ids.length
+        ? `<div class="sc-pick"><button type="button" data-schedules-button aria-haspopup="menu" aria-expanded="${!!this._menuOpen}" aria-label="${esc(t('activeSchedule'))}" title="${esc(t('activeSchedule'))}">${active ? label(active) : ''}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI.menuDown}"/></svg></button>${menu}</div>`
+        : '';
       html = `<div class="sc-main${action ? ' action' : ''}"${action ? ' role="button" tabindex="0"' : ''}>
           <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : cooling ? 'cool' : 'off')}"><ha-icon icon="${esc(this._config.icon || 'mdi:home-thermometer')}"></ha-icon></span>
           <div class="sc-text">
@@ -8168,11 +8210,17 @@ class ChauffageSummaryCard extends HTMLElement {
             <div class="sc-status">${esc(status)}</div>
           </div>
         </div>
-        <div class="sc-schedules">${schedules}</div>`;
+        <div class="sc-schedules">${schedules}</div>${pick}`;
     }
     if (html === this._html && this.shadowRoot.querySelector('ha-card')) return;
     this._html = html;
     fillCard(this.shadowRoot, SUMMARY_CARD_STYLE, html);
+    // The menu opens upward when the screen has no room for it below
+    const popover = this.shadowRoot.querySelector('.sc-menu');
+    if (popover) {
+      const r = popover.getBoundingClientRect();
+      if (r.bottom > window.innerHeight && r.top - r.height - 48 > 0) popover.classList.add('up');
+    }
   }
 
   // The temperature and humidity of its sensors: "20,4° · 61 %"; without a temperature sensor,
@@ -8202,7 +8250,12 @@ class ChauffageSummaryCard extends HTMLElement {
   _onClick(e) {
     const hass = this._hass;
     if (!hass) return;
+    if (e.target.closest('[data-schedules-button]')) {
+      this._menuOpen = !this._menuOpen;
+      return this._render();
+    }
     const chip = e.target.closest('[data-schedule]');
+    if (this._menuOpen) { this._menuOpen = false; this._render(); }
     if (chip) {
       const src = dataSource(hass);
       hass.callService('select', 'select_option', { entity_id: src.scheduleSelect(), option: src.scheduleName(chip.dataset.schedule) });
@@ -8238,6 +8291,7 @@ const EDITOR_STEPS = [5, 10, 15, 30];
 const MDI = {
   drag: 'M21,11H3V9H21V11M21,13H3V15H21V13Z',
   close: 'M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z',
+  menuDown: 'M7,10L12,15L17,10H7Z',
   pencil: 'M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z',
 };
 const EDITOR_CSS = `

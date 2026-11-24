@@ -1158,6 +1158,11 @@ dashboards, automations, scripts and by voice without the card
   - **The schedules are activated through the select of the active schedule**
     (`select.select_option`), as Home Assistant's own cards would. A schedule shows the icon
     of its switch, if the user gave it one.
+  - **On a narrow card, one button opens a menu of the schedules**. Below 440 px wide, the
+    chips do not fit beside the name and went to a second line on a phone. The button shows the
+    active schedule, like the HVAC mode button of the rooms card. The card measures its own
+    width (a container query), not the screen's, so a narrow column on a computer gets the
+    button too.
   - **A tap elsewhere does the card's `tap_action`**, through HA's `hass-action` event, as HA's
     own cards do: a pop-up of the rooms, another view. Without `tap_action`, a tap does
     nothing.

@@ -76,8 +76,9 @@ round button sets the HVAC mode. Chauffage turns these changes into an override,
 thermostat's dial. A tap on the row opens the thermostat.
 
 **The Heating summary card** shows a floor or the house in one row: its temperature, how many
-thermostats heat, the overrides and the schedules. A tap on a schedule activates it. A tap
-elsewhere runs the card's action, for example to open the pop-up of the rooms.
+thermostats heat, the overrides and the schedules. A tap on a schedule activates it. On a phone,
+the schedules are in a menu, under the button of the active schedule. A tap elsewhere runs the
+card's action, for example to open the pop-up of the rooms.
 
 To add them, open *Add card* and search for **Rooms** or **Heating summary**. Without a list of
 thermostats, each card shows every thermostat Chauffage schedules. You can also write the cards
