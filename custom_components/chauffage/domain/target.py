@@ -3,11 +3,12 @@
 Its keys are the climate attributes: "preset_mode" (one of its climate presets), "temperature"
 (a target temperature), "target_temp_low" and "target_temp_high" (heat/cool), "hvac_mode", and
 the fan and the vanes of an air conditioner. A slot's target says the slot's HVAC mode on this
-thermostat (`slot.slot_hvac_mode`). The target of a preset also holds its value when cooling
-("cool_preset_mode", "cool_temperature", see preset.PresetValue): `Target.completed_for` keeps
-the one of the HVAC mode it is sent in. A target without an HVAC mode (a heater's slot, an
-override to a preset) leaves the thermostat in the HVAC mode it has, or gets the one `on_mode`
-gives if it is off, in fan only or in dry (docs/decisions.md, "Scheduling").
+thermostat (`slot.slot_hvac_mode`). The target of a slot or of an override to a preset also
+holds the preset's value when cooling ("cool_preset_mode", "cool_temperature"), as it is stored:
+`Target.completed_for` asks the preset's value (`PresetValue.setpoint_in`) for the setpoint of
+the HVAC mode it is sent in. A target without an HVAC mode (a heater's slot, an override to a
+preset) leaves the thermostat in the HVAC mode it has, or gets the one `on_mode` gives if it is
+off, in fan only or in dry (docs/decisions.md, "Scheduling").
 """
 
 from __future__ import annotations
@@ -15,9 +16,8 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from typing import Any
 
-from .. import const
-from ..const import HEAT_COOL, OFF
-from .errors import InvalidData
+from ..const import AIR_KEYS, OFF
+from .preset_value import COOL_KEYS, RANGE_KEYS, SETPOINT_KEYS, PresetValue
 from .thermostat import (
     IDLE,
     SETPOINTS,
@@ -28,53 +28,12 @@ from .thermostat import (
     same_temperature,
 )
 
-SETPOINT_KEYS = ("preset_mode", "temperature")
-# A preset's value when cooling, and in heat/cool: never sent as they are (see completed_for)
-COOL_KEYS = ("cool_preset_mode", "cool_temperature")
-RANGE_KEYS = ("target_temp_low", "target_temp_high")
 TEMPERATURE_KEYS = ("temperature", "cool_temperature", *RANGE_KEYS)
 # The keys of a target that hold its setpoint: a preset, a temperature or a range
 SETPOINT_TARGET_KEYS = (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)
-# The attributes of a target compared as they are, with the thermostat's field of the same name
-EQUAL_KEYS = const.AIR_KEYS
-
-# How the attributes given by the card or a service are read. The fan and the vanes of an air
-# conditioner (#91)
-AIR_KEYS = dict.fromkeys(const.AIR_KEYS, str)
-# The attributes a slot's settings may set: everything but the setpoint, which its preset gives
-# (its HVAC mode, then the fan and the vanes of an air conditioner, #91)
-SETTING_KEYS = {"hvac_mode": str, **AIR_KEYS}
-# The climate attributes a preset's value on a thermostat may set. "preset_mode" or
-# "temperature" is its value when the thermostat heats. "cool_temperature" is its setpoint when
-# the thermostat cools: sent as the temperature in cool, see Target.completed_for
-VALUE_KEYS = {"preset_mode": str, "temperature": float, "cool_temperature": float, **AIR_KEYS}
-# The climate attributes the target of an override or of a command may set: an override also
-# sets the HVAC mode (a thermostat turned off by hand, chauffage.set_override), and holds what
-# its preset means in each HVAC mode (preset.PresetValue): its climate preset when cooling, its
-# range in heat/cool
-TARGET_KEYS = {**VALUE_KEYS, "cool_preset_mode": str, "target_temp_low": float, "target_temp_high": float,
-               "hvac_mode": str}
-
-
-def attributes_from_input(attributes: Any, keys: dict[str, type], what: str) -> dict[str, Any]:
-    """The known attributes (`keys`: how each one is read), read, in the order of `keys`."""
-    if not isinstance(attributes, dict):
-        raise InvalidData(f"{what} must be a dictionary")
-    unknown = set(attributes) - set(keys)
-    if unknown:
-        raise InvalidData(f"unknown attributes in {what}: {sorted(unknown)}")
-    out: dict[str, Any] = {}
-    for key, read in keys.items():
-        if key not in attributes:
-            continue
-        try:
-            value = read(attributes[key])
-        except (TypeError, ValueError) as err:
-            raise InvalidData(f"invalid {key}") from err
-        if read is str and not value:
-            raise InvalidData(f"invalid {key}")
-        out[key] = value
-    return out
+# The attributes of a target compared as they are, with the thermostat's field of the same name:
+# the fan and the vanes of an air conditioner
+EQUAL_KEYS = AIR_KEYS
 
 
 class Target(Mapping[str, Any]):
@@ -84,17 +43,6 @@ class Target(Mapping[str, Any]):
 
     def __init__(self, attributes: Mapping[str, Any] | None = None) -> None:
         self._attributes = dict(attributes or {})
-
-    @classmethod
-    def from_input(cls, target: Any) -> Target:
-        """A validated target of an override or a command: a partial state of the thermostat with
-        at least one known attribute (TARGET_KEYS). No rule between the attributes: a change by
-        hand may write a preset and a temperature at once, and the thermostat decides what to do
-        with both (docs/decisions.md, "Presets")."""
-        out = attributes_from_input(target, TARGET_KEYS, "a target")
-        if not out:
-            raise InvalidData("a target needs a climate preset, a temperature or an HVAC mode")
-        return cls(out)
 
     def __getitem__(self, key: str) -> Any:
         return self._attributes[key]
@@ -138,13 +86,9 @@ class Target(Mapping[str, Any]):
         mode of the slot planned now). A thermostat that heats or cools keeps its HVAC mode when
         the target says none: never a cooling air conditioner switched to heat.
 
-        A preset's target holds its value for each HVAC mode (preset.PresetValue). The one of
-        the HVAC mode the target is sent in is kept. In cool, its cooling value replaces its
-        heating one. In heat/cool, its range does. Without a value for that HVAC mode, no
-        setpoint is sent: a heating temperature is never sent in cool (never 7 °C to an air
-        conditioner, one that only cools included). A setpoint the user chose (`by_user`: an
-        override without a Chauffage preset) is their target in any HVAC mode: sent
-        (docs/decisions.md, "Presets")."""
+        The setpoint is the preset's value in the HVAC mode the target is sent in
+        (PresetValue.setpoint_in): never 7 °C to an air conditioner in cool. `by_user`: an
+        override without a Chauffage preset, whose setpoint is sent in any HVAC mode."""
         if self.get("hvac_mode") == OFF:
             return Target({"hvac_mode": OFF})
         out = dict(self.without((*COOL_KEYS, *RANGE_KEYS)))
@@ -152,17 +96,10 @@ class Target(Mapping[str, Any]):
             out["hvac_mode"] = on_mode(thermostat, planned)
         # A thermostat with no state yet, at a restart: the target is sent in the HVAC mode it says
         mode = out.get("hvac_mode") or (thermostat.state if thermostat is not None else None)
-        value = None
-        if mode == "cool":
-            if "cool_temperature" in self:
-                value = {"temperature": self["cool_temperature"]}
-            elif "cool_preset_mode" in self:
-                value = {"preset_mode": self["cool_preset_mode"]}
-        elif mode == HEAT_COOL and all(key in self for key in RANGE_KEYS):
-            value = {key: self[key] for key in RANGE_KEYS}
-        if mode in ("cool", HEAT_COOL) and (value is not None or not by_user):
-            out = {key: v for key, v in out.items() if key not in SETPOINT_KEYS}
-        return Target({**out, **(value or {})})
+        setpoint = PresetValue.from_target(self).setpoint_in(mode, by_user)
+        if setpoint is not None:
+            out = {key: v for key, v in out.items() if key not in SETPOINT_KEYS} | setpoint
+        return Target(out)
 
     def hvac_satisfied_by(self, thermostat: Thermostat) -> bool:
         """The thermostat is in the target's HVAC mode, or on when the target gives none: not off,

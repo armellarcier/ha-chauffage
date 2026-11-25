@@ -21,6 +21,7 @@ l'intégration. Si Node ou Python n'est pas installé, les scripts les lancent d
 ```
 custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
 custom_components/chauffage/domain/ les règles de Chauffage en objets valeur, sans Home Assistant
+custom_components/chauffage/storage/ les données stockées : la validation de ce qu'envoient la carte et les services
 frontend/src/                       la carte, en TypeScript : cartes Lovelace, panneau, bloc injecté
                                     dans la fenêtre de détail
 custom_components/chauffage/frontend/  la carte construite, servie par l'intégration (hors de git)

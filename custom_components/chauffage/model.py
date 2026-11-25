@@ -81,12 +81,8 @@ from __future__ import annotations
 from typing import Any
 
 from .const import DEFAULT_PRESET_COLOR, DEFAULT_PRESET_TEMPERATURE, DEFAULT_PRESETS, PRESET_NAMES
-from .domain.errors import InvalidData
-from .domain.ids import slug, unique_id
-from .domain.override import Override
-from .domain.preset import Preset, mapping_from_input, value_from_input
-from .domain.slot import Day, Week, settings_from_input
-from .domain.target import Target
+from .storage import schema
+from .storage.schema import InvalidData, slug, unique_id
 
 __all__ = ["InvalidData", "slug", "unique_id"]
 
@@ -224,40 +220,40 @@ def rules_outcome(rules: list[dict[str, Any]], results: list[Any], default: str 
     return next((rule["schedule"] or result for rule, result in zip(rules, results) if result), default)
 
 
-# Facades over the value objects of domain/, until their callers use them (rewrite phase I7)
+# Facades over storage/schema.py, until their callers use it (rewrite phase I7)
 
 def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
     """Validated preset; a new preset (no id) gets a unique id from its name."""
-    return Preset.from_input(preset, taken_ids).to_stored()
+    return schema.preset(preset, taken_ids).to_stored()
 
 
 def normalize_target(target: Any) -> dict[str, Any]:
-    """A validated target of an override or a command (Target.from_input)."""
-    return dict(Target.from_input(target))
+    """A validated target of an override or a command (storage/schema.py)."""
+    return dict(schema.target(target))
 
 
 def normalize_settings(settings: Any) -> dict[str, Any]:
-    """A slot's validated settings (slot.settings_from_input)."""
-    return settings_from_input(settings)
+    """A slot's validated settings (storage/schema.py)."""
+    return schema.settings(settings)
 
 
 def normalize_value(value: Any) -> dict[str, Any]:
-    """A validated value of a preset on a thermostat (preset.value_from_input)."""
-    return value_from_input(value)
+    """A validated value of a preset on a thermostat (storage/schema.py)."""
+    return schema.value(value)
 
 
 def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
     """{preset id: value} set by hand for one thermostat."""
-    return mapping_from_input(mapping, preset_ids)
+    return schema.mapping(mapping, preset_ids)
 
 
 def normalize_day(slots: Any) -> list[list[Any]]:
-    """Sorted slots, first one at 00:00, one slot per start time (Day.from_input)."""
-    return Day.from_input(slots).to_stored()
+    """Sorted slots, first one at 00:00, one slot per start time (storage/schema.py)."""
+    return schema.day(slots).to_stored()
 
 
 def normalize_week(week: Any) -> list[list[list[str]]]:
-    return Week.from_input(week).to_stored()
+    return schema.week(week).to_stored()
 
 
 def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | None = None) -> dict[str, dict[str, Any]]:
@@ -282,4 +278,4 @@ def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | N
 
 
 def normalize_override(override: Any) -> dict[str, Any]:
-    return Override.from_input(override).to_stored()
+    return schema.override(override).to_stored()

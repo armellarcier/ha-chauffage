@@ -21,6 +21,7 @@ integration tests. If Node or Python is not installed, the scripts run them in D
 ```
 custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
 custom_components/chauffage/domain/ the rules of Chauffage as value objects, without Home Assistant
+custom_components/chauffage/storage/ the stored data: the validation of what the card and the services send
 frontend/src/                       the card, in TypeScript: Lovelace cards, panel, block injected into
                                     the more-info dialog
 custom_components/chauffage/frontend/  the built card, served by the integration (not in git)

@@ -1,7 +1,8 @@
 """The rules of Chauffage don't depend on Home Assistant: the domain imports nothing from it.
 
-The domain is `domain/`, and until the rewrite moves them there, `engine.py`, `model.py` and
-`const.py`. A domain module imports only the standard library and other domain modules.
+The domain is `domain/`, the validation of the input (`storage/schema.py`), and until the rewrite
+moves them there, `engine.py`, `model.py` and `const.py`. A domain module imports only the
+standard library and other domain modules.
 """
 
 import ast
@@ -11,6 +12,7 @@ import pytest
 
 PACKAGE = Path(__file__).parents[2] / "custom_components" / "chauffage"
 DOMAIN_MODULES = sorted({PACKAGE / "engine.py", PACKAGE / "model.py", PACKAGE / "const.py",
+                         PACKAGE / "storage" / "__init__.py", PACKAGE / "storage" / "schema.py",
                          *(PACKAGE / "domain").rglob("*.py")})
 
 

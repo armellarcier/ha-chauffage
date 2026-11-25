@@ -1,85 +1,20 @@
-"""A preset, and what it is worth on a thermostat (docs/glossary.md)."""
+"""A preset (docs/glossary.md)."""
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from ..const import DEFAULT_PRESET_COLOR, DEFAULT_PRESET_TEMPERATURE, HEAT_COOL
-from .errors import InvalidData
-from .ids import unique_id
-from .target import (
-    COOL_KEYS,
-    EQUAL_KEYS,
-    RANGE_KEYS,
-    SETPOINT_KEYS,
-    VALUE_KEYS,
-    Target,
-    attributes_from_input,
-)
+from ..const import AIR_KEYS, HEAT_COOL
+from .preset_value import SETPOINT_KEYS, PresetValue
 from .thermostat import Thermostat, fit_temperature, setpoint_modes
 
-COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+TEMPERATURES = ("temperature", "cool_temperature")
 
 
-def value_from_input(value: Any) -> dict[str, Any]:
-    """A validated value of a preset on one thermostat, set by hand (VALUE_KEYS): one of its
-    climate presets or a temperature, not both (when it heats), with an optional cooling setpoint
-    (when it cools), fan and vanes. No HVAC mode: the slot chooses it."""
-    out = attributes_from_input(value, VALUE_KEYS, "the value of a preset")
-    if not out:
-        raise InvalidData("the value of a preset needs a climate preset or a temperature")
-    if "preset_mode" in out and "temperature" in out:
-        raise InvalidData("the value of a preset is a climate preset or a temperature, not both")
-    return out
-
-
-def mapping_from_input(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
-    """The mapping of one thermostat: {preset id: value} set by hand."""
-    if not isinstance(mapping, dict):
-        raise InvalidData("a mapping must be a dictionary")
-    out: dict[str, dict[str, Any]] = {}
-    for preset_id, value in mapping.items():
-        if preset_id not in preset_ids:
-            raise InvalidData(f"unknown preset: {preset_id}")
-        try:
-            out[preset_id] = value_from_input(value)
-        except InvalidData as err:
-            raise InvalidData(f"{preset_id}: {err}") from err
-    return out
-
-
-@dataclass(frozen=True)
-class PresetValue:
-    """What a preset is worth on one thermostat, for each HVAC mode, temperatures fitted to it:
-    `heat` ({"preset_mode"} or {"temperature"}), `cool` ({"cool_preset_mode"} or
-    {"cool_temperature"}), `range` (heat/cool: low and high), and the fan and the vanes (`air`).
-    A part is empty when the preset has no value for that HVAC mode."""
-
-    heat: Mapping[str, Any] = field(default_factory=dict)
-    cool: Mapping[str, Any] = field(default_factory=dict)
-    range: tuple[float, float] | None = None
-    air: Mapping[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_target(cls, target: Mapping[str, Any]) -> PresetValue:
-        """The value held by a target (Target.completed_for picks the part to send)."""
-        low, high = (target.get(key) for key in RANGE_KEYS)
-        return cls({key: target[key] for key in SETPOINT_KEYS if key in target},
-                   {key: target[key] for key in COOL_KEYS if key in target},
-                   (low, high) if low is not None and high is not None else None,
-                   {key: target[key] for key in EQUAL_KEYS if key in target})
-
-    def offered_modes(self) -> list[str]:
-        """The HVAC modes the preset can be used in: those it has a value for."""
-        modes = [mode for mode, part in (("heat", self.heat), ("cool", self.cool)) if part]
-        return [*modes, HEAT_COOL] if self.range is not None else modes
-
-    def as_target(self) -> Target:
-        range_ = dict(zip(RANGE_KEYS, self.range)) if self.range is not None else {}
-        return Target({**self.heat, **self.cool, **range_, **self.air})
+def _fitted(part: dict[str, Any], thermostat: Thermostat | None) -> dict[str, Any]:
+    return {key: fit_temperature(value, thermostat) if key in TEMPERATURES else value for key, value in part.items()}
 
 
 @dataclass(frozen=True)
@@ -99,32 +34,6 @@ class Preset:
     def from_stored(cls, stored: Mapping[str, Any]) -> Preset:
         return cls(stored["id"], stored.get("name"), stored.get("color"), stored.get("temperature"),
                    stored.get("cool_temperature"), stored.get("cool_color"))
-
-    @classmethod
-    def from_input(cls, preset: Any, taken_ids: set[str]) -> Preset:
-        """A validated preset; a new preset (no id) gets a unique id from its name."""
-        if not isinstance(preset, dict):
-            raise InvalidData("a preset must be a dictionary")
-        name = str(preset.get("name", "")).strip()
-        if not name:
-            raise InvalidData("a preset needs a name")
-        color = str(preset.get("color", DEFAULT_PRESET_COLOR))
-        if not COLOR.match(color):
-            raise InvalidData(f"invalid color: {color}")
-        # Its default temperature when heating and when cooling: either can be empty, not both (#91)
-        try:
-            temperature = preset.get("temperature", DEFAULT_PRESET_TEMPERATURE)
-            temperature = None if temperature is None else float(temperature)
-            cool_temperature = None if preset.get("cool_temperature") is None else float(preset["cool_temperature"])
-        except (TypeError, ValueError) as err:
-            raise InvalidData("invalid temperature") from err
-        if temperature is None and cool_temperature is None:
-            raise InvalidData("a preset needs a temperature when heating or when cooling")
-        cool_color = preset.get("cool_color")
-        if cool_color is not None and not COLOR.match(str(cool_color)):
-            raise InvalidData(f"invalid color: {cool_color}")
-        return cls(str(preset.get("id") or unique_id(name, taken_ids)), name, color.lower(), temperature,
-                   cool_temperature, None if cool_color is None else str(cool_color).lower())
 
     def to_stored(self) -> dict[str, Any]:
         out = {"id": self.id, "name": self.name, "color": self.color, "temperature": self.temperature}
@@ -172,6 +81,5 @@ class Preset:
             low, high = fit_temperature(low, thermostat), fit_temperature(high, thermostat)
             if low < high:
                 range_ = (low, high)
-        air = {key: value for key, value in cell.items() if key in EQUAL_KEYS}
-        value = PresetValue(heat_value, cool_value, range_, air).as_target()
-        return PresetValue.from_target(value.fitted_to(thermostat))
+        air = {key: value for key, value in cell.items() if key in AIR_KEYS}
+        return PresetValue(_fitted(heat_value, thermostat), _fitted(cool_value, thermostat), range_, air)

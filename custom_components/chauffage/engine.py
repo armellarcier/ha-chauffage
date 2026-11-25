@@ -18,7 +18,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .const import AUTO, DRY, FAN_ONLY, HEAT_COOL, NO_PRESET_MODES, OFF, SETPOINT_MODES
-from .domain.preset import Preset, PresetValue
+from .domain.preset import Preset
+from .domain.preset_value import PresetValue
 from .domain.slot import Day, Slot, Week, slot_hvac_mode, target_of
 from .domain.target import (
     COOL_KEYS,
@@ -142,7 +143,7 @@ def restored(target: Mapping[str, Any] | None, own: Mapping[str, str] | None) ->
 def value_on(preset: Mapping[str, Any], cell: Mapping[str, Any] | None, thermostat: Thermostat | None,
              use_presets: bool = True) -> dict[str, Any]:
     """What a preset means on a thermostat, for each HVAC mode (Preset.value_on)."""
-    return dict(Preset.from_stored(preset).value_on(cell, thermostat, use_presets).as_target())
+    return Preset.from_stored(preset).value_on(cell, thermostat, use_presets).attributes()
 
 
 def offered_modes(value: Mapping[str, Any]) -> list[str]:
