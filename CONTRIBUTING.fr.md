@@ -20,6 +20,8 @@ l'intégration. Si Node ou Python n'est pas installé, les scripts les lancent d
 
 ```
 custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
+custom_components/chauffage/domain/ les règles de Chauffage en objets valeur, sans Home Assistant
+custom_components/chauffage/storage/ les données stockées : la validation de ce qu'envoient la carte et les services
 frontend/src/                       la carte, en TypeScript : cartes Lovelace, panneau, bloc injecté
                                     dans la fenêtre de détail
 custom_components/chauffage/frontend/  la carte construite, servie par l'intégration (hors de git)
@@ -174,7 +176,7 @@ et à chaque pull request (`.github/workflows/tests.yml`).
 
 | Suite | Outil | Ce qui est couvert |
 |---|---|---|
-| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée, `custom_components/` chargé | créneaux appliqués au bon moment, plannings, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin, les règles d'activation, la logique pure (`engine.py`), le stockage et ses migrations, les entités, les services, l'API websocket, l'historique lu dans le recorder, les flux de configuration et d'options |
+| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée, `custom_components/` chargé | créneaux appliqués au bon moment, plannings, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin, les règles d'activation, la logique pure (`domain/`, `engine.py`), le stockage et ses migrations, les entités, les services, l'API websocket, l'historique lu dans le recorder, les flux de configuration et d'options |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé), avec un faux HA et une fausse intégration (`tests/js/helpers.mjs`) | la carte : calculs, édition des semaines, copier / coller, enregistrement, plannings, préréglages, règles d'activation, dérogations, historique et journée en grand, fenêtre de détail |
 
 ### Les tests de l'intégration

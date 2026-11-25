@@ -20,6 +20,8 @@ integration tests. If Node or Python is not installed, the scripts run them in D
 
 ```
 custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
+custom_components/chauffage/domain/ the rules of Chauffage as value objects, without Home Assistant
+custom_components/chauffage/storage/ the stored data: the validation of what the card and the services send
 frontend/src/                       the card, in TypeScript: Lovelace cards, panel, block injected into
                                     the more-info dialog
 custom_components/chauffage/frontend/  the built card, served by the integration (not in git)
@@ -164,7 +166,7 @@ pull request (`.github/workflows/tests.yml`).
 
 | Suite | Tool | What it covers |
 |---|---|---|
-| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, schedules, thermostats turned off or unreachable, manual-change detection, overrides and their end, activation rules, the pure logic (`engine.py`), storage and migrations, entities, services, websocket API, the history read from the recorder, config / options flows |
+| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, schedules, thermostats turned off or unreachable, manual-change detection, overrides and their end, activation rules, the pure logic (`domain/`, `engine.py`), storage and migrations, entities, services, websocket API, the history read from the recorder, config / options flows |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser), with a fake HA and integration (`tests/js/helpers.mjs`) | the card: calculations, editing the weeks, copy / paste, saving, schedules, presets, activation rules, overrides, history and a day shown larger, more-info |
 
 ### The integration tests
