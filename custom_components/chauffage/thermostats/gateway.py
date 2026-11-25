@@ -3,7 +3,6 @@
 - `send` sets a thermostat to a target, as a scene does, with Chauffage's own context.
 - The commands a thermostat does not show yet are pending for a day (docs/decisions.md,
   "Commands applied late"): a battery valve may apply them hours later.
-- A thermostat whose last command failed is retried at the next minutes (`retry`).
 - The fan and the vanes a thermostat had before a slot or an override chose others are given
   back by the next one that chooses none (`own_settings`).
 """
@@ -52,7 +51,6 @@ class ThermostatGateway:
         self._read = read
         self._save = save
         self._own_contexts: deque[str] = deque(maxlen=500)
-        self.retry: set[str] = set()  # thermostats whose last command failed
 
     def is_own(self, context: Context) -> bool:
         """A state change Chauffage caused: not a change by hand."""
@@ -145,9 +143,6 @@ class ThermostatGateway:
         """{thermostat: the last command sent to it that it does not show yet}."""
         return {e: commands[-1] for e in self._data["pending"] if (commands := self.pending(e))}
 
-    def has_pending(self, entity_id: str) -> bool:
-        return bool(self._data["pending"].get(entity_id))
-
     @callback
     def applied(self, entity_id: str, before: Thermostat | None, after: Thermostat | None) -> dict[str, Any] | None:
         """The command not applied yet that the thermostat has just taken (None: none): that one
@@ -177,12 +172,6 @@ class ThermostatGateway:
         for entity_id, commands in list(self._data["pending"].items()):
             if expired := engine.expired_commands([c["sent"] for c in commands], now):
                 self.drop_pending(entity_id, expired)
-
-    @callback
-    def forget(self, entity_id: str) -> None:
-        """A thermostat paused or forgotten: no retry, nothing pending."""
-        self.retry.discard(entity_id)
-        self.drop_pending(entity_id)
 
     @callback
     def renamed(self, old: str, new: str) -> None:

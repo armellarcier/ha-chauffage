@@ -141,6 +141,7 @@ class ChauffageRuntime:
         self.version = version  # of the integration: a card older than it asks to reload the page
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
         self.gateway = ThermostatGateway(hass, data, self.current, self._save)
+        self._retry: set[str] = set()  # thermostats whose last command failed
         self._lock = asyncio.Lock()
         self._listeners: set[Callable[[str], None]] = set()
         self._unsubs: list[Callable[[], None]] = []
@@ -283,7 +284,7 @@ class ChauffageRuntime:
     @property
     def retrying(self) -> set[str]:
         """The thermostats whose last command failed, sent again at the next minutes."""
-        return set(self.gateway.retry)
+        return set(self._retry)
 
     @property
     def schedule_ids(self) -> set[str]:
@@ -655,7 +656,8 @@ class ChauffageRuntime:
         self.thermostats[entity_id]["paused"] = paused
         if paused:
             self._drop_override(entity_id, "paused")
-            self.gateway.forget(entity_id)
+            self._retry.discard(entity_id)
+            self.gateway.drop_pending(entity_id)
         self._track_thermostats()
         self._changed()
         if not paused:
@@ -668,7 +670,8 @@ class ChauffageRuntime:
         if self.thermostats.pop(entity_id, None) is None:
             raise model.InvalidData(f"not scheduled: {entity_id}")
         self._drop_override(entity_id, "forgotten")
-        self.gateway.forget(entity_id)
+        self._retry.discard(entity_id)
+        self.gateway.drop_pending(entity_id)
         self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
         repairs.close_missing(self.hass, entity_id)
         self.data["revision"] += 1
@@ -1129,7 +1132,7 @@ class ChauffageRuntime:
         """Sends the thermostats their slot (see engine.targets); `reason`, logged with each
         command, says why (by default: a new slot)."""
         async with self._lock:
-            now, retry = dt_util.now(), set(self.gateway.retry)
+            now, retry = dt_util.now(), set(self._retry)
             plan = self.plan()
             todo = engine.targets(
                 plan,
@@ -1139,11 +1142,11 @@ class ChauffageRuntime:
                 resumed=resumed,
                 ended=ended or (),
                 since=since,
-                include=frozenset(include or ()) | frozenset(self.gateway.retry),
+                include=frozenset(include or ()) | frozenset(self._retry),
                 pending=self.gateway.last_pending(),
             )
             # A thermostat to retry that needs nothing anymore (already right, override, off…)
-            self.gateway.retry &= {entity_id for entity_id, _ in todo}
+            self._retry &= {entity_id for entity_id, _ in todo}
             for i, (entity_id, target) in enumerate(todo):
                 if i and self.pause:
                     await asyncio.sleep(self.pause)
@@ -1157,9 +1160,9 @@ class ChauffageRuntime:
                 done = await self.gateway.send(entity_id, target, f"{why}, {what} of schedule {self.data['active_schedule']}")
                 # Not delivered (unreachable valve…): sent again at the next minutes
                 if done:
-                    self.gateway.retry.discard(entity_id)
+                    self._retry.discard(entity_id)
                 else:
-                    self.gateway.retry.add(entity_id)
+                    self._retry.add(entity_id)
 
     async def _tick(self, now: datetime) -> None:
         ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
@@ -1239,7 +1242,7 @@ class ChauffageRuntime:
         # On the device, a command sent earlier and applied late: not a change by hand (in doubt,
         # no override). Set back once the thermostat has no newer command to apply.
         if applied and context.user_id is None:
-            if self.gateway.has_pending(new.entity_id):
+            if self.gateway.pending(new.entity_id):
                 then = "a newer command is not applied yet"
             else:
                 then = "set back to its " + ("override" if new.entity_id in self.data["overrides"] else "slot")
