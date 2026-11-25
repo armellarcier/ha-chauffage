@@ -216,6 +216,10 @@ cliquez sur un contrôle avec `act(card, 'save')`, et vérifiez `unsaved(card)` 
 que si aucune action d'un utilisateur ne peut le faire, et dites pourquoi dans un commentaire
 `Internal:`.
 
+Testez un brouillon de `frontend/src/state/` directement, sans la carte, comme le fait
+`week-draft.test.mjs`. Chaque test a un nouvel abonnement à l'intégration : `fakeHass` appelle
+`resetClient()`.
+
 ### Le TypeScript de la carte
 
 Les tests de la carte lancent les sources TypeScript sans build : Node retire les types. Donc :
