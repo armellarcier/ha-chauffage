@@ -1,4 +1,8 @@
-"""Any climate entity: read as it shows itself."""
+"""Any climate entity: read as it shows itself.
+
+Why a thermostat protects itself (`cause`) is read on every thermostat, as `main` does: only
+Versatile Thermostat publishes these attributes, but the reader does not need to know it.
+"""
 
 from __future__ import annotations
 
