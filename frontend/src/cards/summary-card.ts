@@ -1,7 +1,7 @@
 import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { sourceNotice } from '../notices.ts';
 import { dataSource, filterActive } from '../client/snapshot.ts';
-import { client } from '../client/chauffage-client.ts';
+import { SnapshotController } from '../controllers/snapshot-controller.ts';
 import { tileColor, tileCss } from './rooms-card.ts';
 import { makeLocale } from '../i18n/locale.ts';
 
@@ -48,7 +48,8 @@ export class ChauffageSummaryCard extends LitElement {
   declare hass: any;
   declare _config: any;
   declare _menuOpen: boolean;
-  private _unlisten: (() => void) | null = null;
+  // Drawn again when the integration pushes new data
+  _snapshot = new SnapshotController(this);
   // A tap outside the card closes the menu of the schedules
   private _outside = (e) => {
     if (this._menuOpen && !e.composedPath().includes(this)) this._menuOpen = false;
@@ -70,25 +71,11 @@ export class ChauffageSummaryCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('click', this._outside);
-    this._listen();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener('click', this._outside);
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
-  }
-
-  willUpdate(changed) {
-    if (changed.has('hass')) this._listen();
-  }
-
-  // Data pushed by the integration: drawn again
-  _listen() {
-    if (this.hass && this.isConnected && !this._unlisten && dataSource(this.hass).available) {
-      this._unlisten = client.listen(() => this.requestUpdate());
-    }
   }
 
   getCardSize() {

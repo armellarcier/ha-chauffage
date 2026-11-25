@@ -2,7 +2,7 @@ import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { sourceNotice } from '../notices.ts';
 import { dataSource, filterActive } from '../client/snapshot.ts';
 import { commands } from '../client/commands.ts';
-import { client } from '../client/chauffage-client.ts';
+import { SnapshotController } from '../controllers/snapshot-controller.ts';
 import { presetColorIn } from '../colors.ts';
 import { DAY_MIN, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, parseDate, SETPOINT_MODES, thermostatName } from '../common.ts';
 import { causeText, linksByKeyboard } from '../fields.ts';
@@ -125,7 +125,8 @@ export class ChauffageRoomsCard extends LitElement {
   _sentFrom: Record<string, any> = {};
   _timers: Record<string, any> = {};
   _iconsAwaited = false;
-  _unlisten: (() => void) | null = null;
+  // Drawn again when the integration pushes new data
+  _snapshot = new SnapshotController(this);
   // A tap outside the card closes the popover of the HVAC modes
   _outside = (e) => {
     if (this._modesOpen && !e.composedPath().includes(this)) this._modesOpen = null;
@@ -153,25 +154,11 @@ export class ChauffageRoomsCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('click', this._outside);
-    this._listen();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener('click', this._outside);
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
-  }
-
-  willUpdate(changed) {
-    if (changed.has('hass')) this._listen();
-  }
-
-  // Data pushed by the integration: drawn again
-  _listen() {
-    if (this.hass && this.isConnected && !this._unlisten && dataSource(this.hass).available) {
-      this._unlisten = client.listen(() => this.requestUpdate());
-    }
   }
 
   getCardSize() {

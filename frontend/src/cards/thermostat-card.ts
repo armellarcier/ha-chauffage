@@ -1,7 +1,7 @@
 import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { sourceNotice } from '../notices.ts';
 import { dataSource, filterActive } from '../client/snapshot.ts';
-import { client } from '../client/chauffage-client.ts';
+import { SnapshotController } from '../controllers/snapshot-controller.ts';
 import { presetColorIn } from '../colors.ts';
 import { haAtLeast, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, thermostatName } from '../common.ts';
 import { causeText, linksByKeyboard } from '../fields.ts';
@@ -45,7 +45,8 @@ export class ChauffageThermostatCard extends LitElement {
 
   declare hass: any;
   declare _config: any;
-  _unlisten: (() => void) | null = null;
+  // Drawn again when the integration pushes new data
+  _snapshot = new SnapshotController(this);
 
   static getConfigElement() {
     return document.createElement('chauffage-thermostat-card-editor');
@@ -70,28 +71,6 @@ export class ChauffageThermostatCard extends LitElement {
     const root = super.createRenderRoot();
     linksByKeyboard(root);
     return root;
-  }
-
-  connectedCallback() {
-    super.connectedCallback();
-    this._listen();
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
-  }
-
-  willUpdate(changed) {
-    if (changed.has('hass')) this._listen();
-  }
-
-  // Data pushed by the integration: drawn again
-  _listen() {
-    if (this.hass && this.isConnected && !this._unlisten && dataSource(this.hass).available) {
-      this._unlisten = client.listen(() => this.requestUpdate());
-    }
   }
 
   getCardSize() {

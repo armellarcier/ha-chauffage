@@ -2,7 +2,7 @@ import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { dataSource } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
-import { client } from './client/chauffage-client.ts';
+import { SnapshotController } from './controllers/snapshot-controller.ts';
 import { slotColor } from './colors.ts';
 import { DAY_MIN, errorText, hasNoPreset, isFan, isOff, nowMin, pct, slotMode, todayIdx } from './common.ts';
 import { atMinutes, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeFieldDone } from './fields.ts';
@@ -129,7 +129,8 @@ export class ChauffageMoreInfo extends LitElement {
   _redrawLater = false;
   // A temperature being typed when the block is drawn again
   _typed: string | null = null;
-  _unlisten: (() => void) | null = null;
+  // Data pushed by the integration: drawn again if it changes the block, as a new hass
+  _snapshot = new SnapshotController(this, () => this.requestUpdate('hass', undefined));
 
   createRenderRoot() {
     const root = super.createRenderRoot();
@@ -145,24 +146,6 @@ export class ChauffageMoreInfo extends LitElement {
     return root;
   }
 
-  connectedCallback() {
-    super.connectedCallback();
-    this._listen();
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
-  }
-
-  // Data pushed by the integration: drawn again if it changes the block
-  _listen() {
-    if (this.hass && this.isConnected && !this._unlisten && dataSource(this.hass).available) {
-      this._unlisten = client.listen(() => this.requestUpdate());
-    }
-  }
-
   // Draws the block again now, whatever changed (a tap in the block, a field left)
   _render() {
     this._force = true;
@@ -174,16 +157,15 @@ export class ChauffageMoreInfo extends LitElement {
   shouldUpdate(changed) {
     if (changed.has('entity')) { this._key = null; this._overrides.updated(); }
     if (!this.hass || !this.entity) return false;
-    this._listen();
     this._loc = makeLocale(this.hass);
-    if (this._force) {
-      this._force = false;
-      return true;
-    }
     const src = dataSource(this.hass);
     const { weeks, overrides, schedule, thermostats } = src.stamps;
     if (this._key && overrides !== this._key[2]) this._overrides.updated();
     if (this._key && thermostats !== this._key[4]) this._error = null; // paused or resumed: a resume error is over
+    if (this._force) {
+      this._force = false;
+      return true;
+    }
     // (the access level gives the links; the registry gives the device)
     const key = [this.hass.states[this.entity], weeks, overrides, schedule, thermostats, Math.floor(Date.now() / 60000), this._loc.signature,
       src.stamps.access, this.hass.entities && this.hass.entities[this.entity]];
@@ -247,14 +229,11 @@ export class ChauffageMoreInfo extends LitElement {
     };
     let override: any = nothing;
     if (piece) {
-      // End handle only on the large bar of the day the override ends; while dragged, at the end
-      // the finger is on
-      const dragged = this._drag && big && piece.isLast;
-      const end = dragged ? this._drag.end : piece.end;
+      // End handle only on the large bar of the day the override ends
       const handle = big && piece.isLast
-        ? html`<div class="override-handle${dragged ? ' drag' : ''}" data-day=${piece.day} title=${loc.t('dragToChangeEnd')}><span class="tip">${loc.time(end)}</span></div>`
+        ? html`<div class="override-handle" data-day=${piece.day} title=${loc.t('dragToChangeEnd')}><span class="tip">${loc.time(piece.end)}</span></div>`
         : nothing;
-      override = html`<div class="override" style="left:${pct(piece.start)}%;width:${pct(end - piece.start)}%">${handle}</div>`;
+      override = html`<div class="override" style="left:${pct(piece.start)}%;width:${pct(piece.end - piece.start)}%">${handle}</div>`;
     }
     const now = showNow ? html`<div class="now" style="left:${pct(nowMin())}%"></div>` : nothing;
     return html`<div class="bar${big ? ' big' : ''}">${segs.map(seg)}${override}${now}</div>`;
@@ -420,6 +399,8 @@ export class ChauffageMoreInfo extends LitElement {
   }
 
   // ----- dragging the override's end -----
+  // The gesture changes the width of the override and the time of its tip in place, as Lit drew
+  // them; the release puts them back before the end is sent, so that Lit draws the new end.
 
   _onDown(e) {
     const h = e.target.closest('.override-handle');
@@ -428,8 +409,10 @@ export class ChauffageMoreInfo extends LitElement {
     if (!piece) return;
     e.preventDefault();
     h.setPointerCapture(e.pointerId);
-    this._drag = { piece, bar: h.closest('.bar'), end: piece.end, moved: false };
-    this._render();
+    h.classList.add('drag');
+    const el = h.parentElement;
+    const time = [...h.querySelector('.tip').childNodes].find((n) => n.nodeType === Node.TEXT_NODE);
+    this._drag = { piece, handle: h, el, time, width: el.style.width, tip: time.data, bar: h.closest('.bar'), end: piece.end, moved: false };
   }
 
   _onMove(e) {
@@ -445,14 +428,17 @@ export class ChauffageMoreInfo extends LitElement {
     if (m === dr.end) return;
     dr.end = m;
     dr.moved = true;
-    this._render();
+    dr.el.style.width = `${pct(m - p.start)}%`;
+    dr.time.data = this._loc.time(m);
   }
 
   _onUp() {
     const dr = this._drag;
     if (!dr) return;
     this._drag = null;
+    dr.handle.classList.remove('drag');
+    dr.el.style.width = dr.width;
+    dr.time.data = dr.tip;
     if (dr.moved) this._setEnd(atMinutes(dr.piece.d0, dr.end, new Date()));
-    else this._render();
   }
 }

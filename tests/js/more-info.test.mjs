@@ -369,3 +369,31 @@ describe('the foot of the block, in the more-info dialog and the thermostat card
     assert.deepEqual([...foot(el).querySelectorAll('.mi-link, button')].map((e) => e.textContent), ['Suspendre le pilotage']);
   });
 });
+
+describe('the more-info block between two updates', () => {
+  const ending = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
+  afterEach(() => { mock.timers.reset(); cleanup(); });
+
+  test('an end typed that is not a time shows the end again once the field is left', async () => {
+    const el = await block(fakeHass({ overrides: { 'climate.salon': ending } }), 'climate.salon');
+    const field = el.shadowRoot.querySelector('input.time[data-override-end]');
+    assert.equal(field.value, '11:30');
+    field.focus();
+    field.value = 'abc';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    field.blur();
+    await settle();
+    assert.equal(el.shadowRoot.querySelector('input.time[data-override-end]').value, '11:30');
+  });
+
+  test('the integration\'s update that comes with a tap replaces the override sent', async () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': ending } });
+    const el = await block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-act="override-del"]').click();
+    hass.push(integrationData({ overrides: { 'climate.salon': { ...ending, target: { temperature: 23 } } } }));
+    await settle();
+    assert.match(text(el), /23 °C/);
+  });
+});
