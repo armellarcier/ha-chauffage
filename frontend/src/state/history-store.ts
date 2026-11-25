@@ -2,7 +2,7 @@ import { todayIdx } from '../common.ts';
 import { HISTORY_DAYS, HISTORY_MAX_AGE, RECORDER_DELAY, historyDays, mergeRows } from '../history.ts';
 
 // Fetches the rows of the recorder between two dates
-export type HistoryFetch = (since: Date, now: Date) => Promise<any>;
+type HistoryFetch = (since: Date, now: Date) => Promise<any>;
 
 // The measured temperature of the last 7 days, drawn over the weeks while shown. No DOM: the card
 // draws it.

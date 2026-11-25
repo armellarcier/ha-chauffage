@@ -6,7 +6,7 @@ const SUBSCRIBE_RETRY_MS = 5000;
 const SUBSCRIBE_RETRY_MAX_MS = 60000;
 const SUBSCRIBE_NO_DATA_MS = 10000;
 
-export type Listener = () => void;
+type Listener = () => void;
 
 export class ChauffageClient {
   // The latest data pushed by the integration, as `chauffage/subscribe` sends it

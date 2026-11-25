@@ -1,5 +1,4 @@
-import { parseDate } from '../common.ts';
-import type { Snapshot } from '../client/snapshot.ts';
+import { filterActive, type Snapshot } from '../client/snapshot.ts';
 
 // The overrides a card sent, shown at once while the integration's update is on its way. No DOM:
 // the card draws it.
@@ -8,17 +7,13 @@ export class OverrideDraft {
   private pending: Record<string, any> = {};
 
   // The overrides that have not ended, with the ones sent
-  overrides(src: Snapshot | null, now = new Date()) {
-    const raw = src ? src.overrides() : {};
-    const out = raw && typeof raw === 'object' ? { ...raw } : {};
+  overrides(src: Snapshot | null) {
+    const out = src ? src.overrides() : {};
     for (const [c, d] of Object.entries(this.pending)) {
       if (d) out[c] = d;
       else delete out[c];
     }
-    for (const [c, d] of Object.entries(out)) {
-      if (!d || !(parseDate((d as any).end) > now)) delete out[c];
-    }
-    return out;
+    return filterActive(out);
   }
 
   // An override sent: shown until the integration's update, or until it fails

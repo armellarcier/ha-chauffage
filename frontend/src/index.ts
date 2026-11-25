@@ -172,7 +172,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads the bundle as a module.
 export { ChauffageProgrammeCard } from './cards/programme-card.ts';
 export { ChauffageThermostatCard } from './cards/thermostat-card.ts';
-export { ChauffageClient, client, resetClient } from './client/chauffage-client.ts';
+export { client, resetClient } from './client/chauffage-client.ts';
 export { commands } from './client/commands.ts';
 export { compareVersions, dataSource, makeSnapshot } from './client/snapshot.ts';
 export { reloadPage } from './notices.ts';

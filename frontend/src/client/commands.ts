@@ -33,5 +33,3 @@ export function commands(hass) {
     setRules: (rules, defaultSchedule) => call({ type: 'chauffage/rules/set', rules, default_schedule: defaultSchedule }),
   };
 }
-
-export type Commands = ReturnType<typeof commands>;
