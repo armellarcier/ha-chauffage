@@ -142,7 +142,7 @@ class Target(Mapping[str, Any]):
         setpoint: its eco preset would go on against the temperature asked. Set before the
         setpoint: a thermostat may give back an older setpoint when it leaves a preset. Not on a
         Versatile Thermostat, which goes to its manual preset by itself."""
-        if thermostat is None or thermostat.vtherm or is_manual_preset(thermostat.preset):
+        if thermostat is None or thermostat.leaves_preset_itself or is_manual_preset(thermostat.preset):
             return None
         if "preset_mode" in self or not any(key in self for key in SETPOINTS):
             return None

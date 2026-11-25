@@ -112,7 +112,7 @@ def test_a_thermostat_keeps_its_preset_without_a_setpoint_or_without_the_preset_
     plain = engine.Thermostat("heat", "eco", 17.0, presets=("eco", "comfort"), hvac_modes=("off", "heat"))
     assert engine.preset_to_leave({"temperature": 21.0}, plain) is None
     # A Versatile Thermostat goes to its manual preset by itself when it gets a setpoint
-    vtherm = engine.Thermostat("heat", "eco", 17.0, presets=("none", "eco"), hvac_modes=("off", "heat"), vtherm=True)
+    vtherm = engine.Thermostat("heat", "eco", 17.0, presets=("none", "eco"), hvac_modes=("off", "heat"), leaves_preset_itself=True)
     assert engine.preset_to_leave({"temperature": 21.0}, vtherm) is None
 
 

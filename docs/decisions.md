@@ -376,7 +376,7 @@ future contributor might question.
   - **A window that sets the frost setpoint teaches no preset temperature** (the third review).
     A Versatile Thermostat whose window action is *frost* keeps its preset and shows 7 °C:
     `_learn` took 7 °C for the temperature of *Eco*. It now learns nothing while the
-    thermostat says its window is open (`engine.cause`).
+    thermostat says its window is open (the `cause` of its reader, `thermostats/`).
   - **The card cannot set a single temperature in heat/cool** on a thermostat that takes a
     range there: the websocket API refuses it, as `chauffage.set_override` does. The override
     was recorded and did nothing. An override that already has this value keeps it: its end

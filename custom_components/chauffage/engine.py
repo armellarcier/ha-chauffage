@@ -54,58 +54,6 @@ __all__ = [
 ]
 
 
-def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | None, str | None, float | None]:
-    """The HVAC mode, the preset and the setpoint a thermostat was asked for. Versatile
-    Thermostat may change them by itself: it turns off for an open window or its auto start/stop,
-    and sets the frost setpoint for a window (#92). VTherm keeps what it was asked for in
-    requested_state. Its target_temperature is the last manual setpoint, so it counts only on
-    the manual preset, and only when it is known. The HVAC mode is None without requested_state:
-    the state says it."""
-    preset = preset_value(attributes.get("preset_mode"))
-    temperature = temperature_value(attributes.get("temperature"))
-    requested = attributes.get("requested_state") if vtherm else None
-    hvac_mode = None
-    if isinstance(requested, Mapping) and requested.get("preset") is not None:
-        preset = preset_value(requested["preset"])
-        target = temperature_value(requested.get("target_temperature"))
-        if is_manual_preset(preset) and target is not None:
-            temperature = target
-    if isinstance(requested, Mapping) and requested.get("hvac_mode") is not None:
-        hvac_mode = preset_value(requested["hvac_mode"])
-    return hvac_mode, preset, temperature
-
-
-# Why a Versatile Thermostat protects itself, as it says it in specific_states: hvac_off_reason
-# (for example "hvac_off_auto_start_stop" or "hvac_off_window") while it is off, and its window
-# manager while it keeps heating at the frost setpoint for an open window. For the card, which
-# then does not read VTherm's attributes.
-OFF_CAUSES = {"window": "window", "window_detection": "window", "auto_start_stop": "auto_start_stop"}
-
-
-def cause(attributes: Mapping[str, Any], state: str) -> str | None:
-    """"window" or "auto_start_stop" when the thermostat says it turned itself off for that, or
-    "window" while it heats at the frost setpoint for its open window; None otherwise."""
-    specific = attributes.get("specific_states") if isinstance(attributes.get("specific_states"), Mapping) else {}
-    window = specific.get("window_manager")
-    if isinstance(window, Mapping) and str(window.get("window_state")) == "on":
-        return "window"
-    if state != OFF:
-        return None
-    reason = specific.get("hvac_off_reason")
-    return OFF_CAUSES.get(str(preset_value(reason) or "").removeprefix("hvac_off_"))
-
-
-def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
-    """Whether a thermostat shows a known state: a setpoint or a preset. At a restart, a
-    thermostat may write a first state before it has restored its own: Versatile Thermostat
-    writes `off` without setpoint or preset, and builds its presets once Home Assistant has
-    started. A command sent then would be a temperature instead of its preset (#93). VTherm 9
-    and later also say when they are not ready (is_ready)."""
-    if vtherm and attributes.get("is_ready") is False:
-        return False
-    return any(attributes.get(key) is not None for key in (*SETPOINTS, "preset_mode"))
-
-
 def parse_datetime(value: Any) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value))

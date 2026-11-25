@@ -10,7 +10,7 @@ import pytest
 from homeassistant.core import State
 
 from custom_components.chauffage import engine, model
-from custom_components.chauffage.runtime import thermostat
+from custom_components.chauffage.thermostats.reader import GENERIC
 
 CASES = json.loads((Path(__file__).parents[1] / "shared" / "cases.json").read_text(encoding="utf-8"))
 
@@ -21,7 +21,7 @@ def cases(rule: str) -> list:
 
 @pytest.mark.parametrize("case", cases("fit_temperature"))
 def test_a_temperature_is_fitted_to_the_thermostat(case: dict):
-    on = thermostat(State("climate.salon", "heat", case["attributes"]))
+    on = GENERIC.read(State("climate.salon", "heat", case["attributes"]))
     assert engine.fit_temperature(case["value"], on) == case["expected"]
 
 
