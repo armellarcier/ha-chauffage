@@ -421,14 +421,6 @@ async def test_a_new_override_with_the_same_end_no_longer_says_why(bench: Bench)
 
 # ----- the setting -----
 
-async def test_the_setting_is_read_for_each_thermostat(bench: Bench):
-    """One setting for every thermostat today, read through one function that takes the
-    thermostat, so that a setting per thermostat can come later."""
-    await start(bench, NEXT_SLOT)
-    assert bench.runtime.manual_override_end_of("climate.salon") == "next_slot"
-    assert bench.runtime.manual_override_end_of("climate.bureau") == "next_slot"
-
-
 async def test_an_unknown_setting_lasts_the_override_duration(bench: Bench):
     await start(bench, {"manual_override_end": "whenever"}, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)

@@ -125,6 +125,8 @@ future contributor might question.
     (`manual_override_end_of`). Some users will want a setting per room, for example 30 minutes
     for the bathroom. A setting per thermostat can then come without changing the rule. Not
     before a request: a choice per thermostat is one more thing to understand.
+    **Amended by the rewrite**: the function that takes the thermostat is gone. A setting per
+    thermostat would add it back.
   - **The override says why it ends then**, in an optional `ends_at` key: `duration`,
     `next_slot` or `no_next_slot`. The key is optional, so the stored format needs no migration:
     an override stored before #83 simply shows no reason. An end changed on the card drops the

@@ -283,11 +283,6 @@ class ChauffageRuntime:
         end = self.entry.options.get(CONF_MANUAL_OVERRIDE_END)
         return end if end in MANUAL_OVERRIDE_ENDS else DEFAULT_MANUAL_OVERRIDE_END
 
-    def manual_override_end_of(self, entity_id: str) -> str:
-        """How a change by hand ends on this thermostat. The same setting for every thermostat
-        today: a setting per thermostat would be read here (#83)."""
-        return self.manual_override_end
-
     @property
     def off_override_end(self) -> str:
         """The setting *Turned off* (#91), for a thermostat turned off by hand: the
@@ -1164,7 +1159,7 @@ class ChauffageRuntime:
         MIN_MANUAL_OVERRIDE minutes after the change does not count. Computed once, now: a
         schedule activated or a setting changed later does not move the end."""
         off = target.get("hvac_mode") == engine.OFF
-        setting = self.off_override_end if off else self.manual_override_end_of(entity_id)
+        setting = self.off_override_end if off else self.manual_override_end
         unbounded = setting == NEXT_SLOT
         override = self.new_override(target, MAX_MANUAL_OVERRIDE if unbounded else None)
         if setting == DURATION:
