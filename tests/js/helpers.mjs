@@ -1,6 +1,6 @@
 // Fake hass (with the Chauffage integration) and card factory for the tests.
 import './setup.mjs';
-import { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard, INTEGRATION } from '../../frontend/src/index.ts';
+import { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard, resetClient } from '../../frontend/src/index.ts';
 
 export const WEEKDAY = ['00:00 eco', '06:30 comfort', '08:30 eco', '17:30 comfort', '22:30 eco'];
 export const WEEKEND = ['00:00 eco', '08:00 comfort', '23:00 eco'];
@@ -73,15 +73,7 @@ export const INTEGRATION_DATA = () => integrationData();
  * `reply(msg)` answers (or throws for) a command.
  */
 export function fakeHass({ data, weeks, overrides, schedule, paused, planned, locale = FRENCH, reply } = {}) {
-  INTEGRATION.connection = null; // one subscription per page: reset between tests
-  INTEGRATION.subscribed = null;
-  INTEGRATION.watched = null;
-  INTEGRATION.retryIn = 5000;
-  clearTimeout(INTEGRATION.timer);
-  INTEGRATION.timer = null;
-  INTEGRATION.data = null;
-  INTEGRATION.missing = false;
-  INTEGRATION.listeners.clear();
+  resetClient(); // one subscription per page: a new one for each test
   if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, planned, language: locale.language });
   const events = [];
   let globalRevision = data ? data.revision : 4;

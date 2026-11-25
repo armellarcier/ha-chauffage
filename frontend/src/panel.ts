@@ -1,5 +1,9 @@
-import { INTEGRATION, NOTICE_RELOAD, bindReload, dataSource, integrationAvailable, noticeHtml, reloadPage, renamedTo, sourceNotice } from './client.ts';
-import { LS_GROUP, LS_HISTORY, errorText, esc, setHtml } from './common.ts';
+import { bindReload, NOTICE_RELOAD, noticeHtml, reloadPage, sourceNotice } from './notices.ts';
+import { dataSource, integrationAvailable, renamedTo } from './client/snapshot.ts';
+import { commands } from './client/commands.ts';
+import { client } from './client/chauffage-client.ts';
+import { errorText, esc, setHtml } from './common.ts';
+import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference } from './state/preferences.ts';
 import { linksByKeyboard, roundDurationText } from './fields.ts';
 import { hvacIcon, isReversible } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
@@ -86,10 +90,8 @@ export class ChauffagePanel extends HTMLElement {
     this._groupDays = true;
     // …and the history of the measured temperature, as chosen on this device (as the cards)
     this._historyOn = false;
-    try {
-      this._groupDays = localStorage.getItem(LS_GROUP) !== '0';
-      this._historyOn = localStorage.getItem(LS_HISTORY) === '1';
-    } catch (e) { /* ignore */ }
+    this._groupDays = groupPreference() !== false;
+    this._historyOn = historyPreference();
     this._picked = new Set(); // the welcome: the thermostats ticked
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
@@ -124,8 +126,8 @@ export class ChauffagePanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._unlisten && integrationAvailable(hass)) {
-      INTEGRATION.connect(hass);
-      this._unlisten = INTEGRATION.listen(() => this._update());
+      client.connect(hass);
+      this._unlisten = client.listen(() => this._update());
     }
     this._update();
   }
@@ -148,8 +150,8 @@ export class ChauffagePanel extends HTMLElement {
   // Home Assistant may set the properties before it adds the panel to the page
   connectedCallback() {
     if (!this._unlisten && this._hass && integrationAvailable(this._hass)) {
-      INTEGRATION.connect(this._hass);
-      this._unlisten = INTEGRATION.listen(() => this._update());
+      client.connect(this._hass);
+      this._unlisten = client.listen(() => this._update());
     }
     document.addEventListener('keydown', this._onKey);
     window.addEventListener('beforeunload', this._onUnload);
@@ -406,7 +408,7 @@ export class ChauffagePanel extends HTMLElement {
   // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
   // order of the schedules
   _dirtyWeeks() {
-    return Object.entries(this._weekCards || {}).filter(([, card]) => (card as any)._dirty);
+    return Object.entries(this._weekCards || {}).filter(([, card]) => (card as any)._draft.dirty);
   }
 
   // A thermostat's sheet has one save bar for all its weeks: on a phone, a bar under a week further
@@ -448,22 +450,19 @@ export class ChauffagePanel extends HTMLElement {
   // the thermostat's revision. The integration keeps the weeks of the schedules not sent.
   async _saveSheet(climate) {
     const t = this._t;
-    const src = dataSource(this._hass);
     for (const card of Object.values(this._weekCards)) (card as any)._settle(true);
     const dirty = this._dirtyWeeks();
     if (!dirty.length) return;
     const first: any = dirty[0][1];
     const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, (card as any)._week(climate).map(serializeDay)])) };
-    const revisions = { [climate]: first._revisions[climate] ?? null };
+    const revisions = { [climate]: first._draft.revisions[climate] ?? null };
     try {
-      const result = await src.saveWeeks(weeks, revisions);
+      const result = await commands(this._hass).saveWeeks(weeks, revisions);
       for (const card of Object.values(this._weekCards)) {
-        if (result && result.revisions) Object.assign((card as any)._revisions, result.revisions);
-        if (result && result.revision != null) (card as any)._revision = result.revision;
+        (card as any)._draft.recordRevisions(result);
       }
       for (const [, card] of dirty) {
-        (card as any)._loadedWeeks = (card as any)._serialized();
-        (card as any)._dirty = false;
+        (card as any)._draft.saved();
         (card as any)._msg = (card as any)._loc.t('saved');
         (card as any)._render();
       }
@@ -583,7 +582,7 @@ export class ChauffagePanel extends HTMLElement {
       if ('forgetConfirm' in ds) {
         this._pageMenu = false;
         this._fillPageMenu();
-        await src.forget(route.id);
+        await commands(this._hass).forget(route.id);
         return openPanel('thermostats');
       }
       if ('sheetSave' in ds) return this._saveSheet(route.id);
@@ -641,10 +640,8 @@ export class ChauffagePanel extends HTMLElement {
           this._groupDays = !(this._groupDays && !this._historyOn);
           this._historyOn = false;
         }
-        try {
-          localStorage.setItem(LS_GROUP, this._groupDays ? '1' : '0');
-          localStorage.setItem(LS_HISTORY, this._historyOn ? '1' : '0');
-        } catch (err) { /* ignore */ }
+        saveGroupPreference(this._groupDays);
+        saveHistoryPreference(this._historyOn);
         // In place: the weeks keep their edits not saved yet
         const grouped = this._groupDays && !this._historyOn;
         for (const [chip, on] of [['[data-group-days]', grouped], ['[data-history]', this._historyOn]]) {
@@ -675,12 +672,12 @@ export class ChauffagePanel extends HTMLElement {
         try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
         seenNewOff(); // a new user has nothing to upgrade from
         seenNewSetting(this._hass); // the next steps say it
-        await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
+        await commands(this._hass).saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
           Object.fromEntries(climates.map((c) => [c, null])));
         this._picked.clear();
         return this._update();
       }
-      if (ds.pause != null) return await src.setPaused(route.id, ds.pause === '1');
+      if (ds.pause != null) return await commands(this._hass).setPaused(route.id, ds.pause === '1');
     } catch (err) {
       this._error = errorText(this._t, err);
       this._update();

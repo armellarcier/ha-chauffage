@@ -1,4 +1,6 @@
-import { INTEGRATION, dataSource } from './client.ts';
+import { dataSource } from './client/snapshot.ts';
+import { commands } from './client/commands.ts';
+import { client } from './client/chauffage-client.ts';
 import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, errorText, esc, isAdmin, setHtml } from './common.ts';
 import { MDI } from './editors.ts';
 import { durationField, linksByKeyboard, listenTimeFields, roundDurationText, timeFieldDone } from './fields.ts';
@@ -204,7 +206,7 @@ export class ChauffageSettingsDialog extends HTMLElement {
     // Opened from the notice of the access level: scrolled to its section, once filled (_update)
     this._scrollTo = params && (params as any).section === 'access' ? '.access-settings' : null;
     seenNewSetting(this._hass);
-    this._unlisten = INTEGRATION.listen(() => this._update());
+    this._unlisten = client.listen(() => this._update());
     this._build();
     this._update(); // Home Assistant may put the dialog on the page later: then connectedCallback
     if (this._ownHistory) {
@@ -492,7 +494,7 @@ export class ChauffageSettingsDialog extends HTMLElement {
 
   async _sendSettings(settings, key) {
     try {
-      await dataSource(this._hass).setSettings(settings);
+      await commands(this._hass).setSettings(settings);
       this._settingsSaved = true;
       this._savedKey = key;
       clearTimeout(this._savedTimer);

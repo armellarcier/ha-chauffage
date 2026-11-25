@@ -1,8 +1,16 @@
-import { INTEGRATION, bindReload, dataSource, noticeHtml, reloadPage, renamedTo, sourceNotice, thermostatName } from '../client.ts';
+import { bindReload, noticeHtml, reloadPage, sourceNotice } from '../notices.ts';
+import { dataSource, renamedTo } from '../client/snapshot.ts';
+import { commands } from '../client/commands.ts';
+import { client } from '../client/chauffage-client.ts';
+import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference, saveShownPreference, shownPreference } from '../state/preferences.ts';
+import { WeekDraft } from '../state/week-draft.ts';
+import { HistoryStore } from '../state/history-store.ts';
+import { OverrideDraft } from '../state/override-draft.ts';
+import { RulesDraft } from '../state/rules-draft.ts';
 import { chipStyle, coolColor, derivedCoolColor, presetColorIn, slotColor } from '../colors.ts';
-import { DAY_MIN, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, LS_CLIP, LS_GROUP, LS_HISTORY, LS_KEY, MANUAL_PRESETS, NEW_DAY, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, clone, errorText, esc, hasNoPreset, isAdmin, isFan, isOff, minutesOf, noPresetSlot, nowMin, parseDate, pct, pieceSettings, plainRule, sameSlot, slotMode, slotOf, slotSettings, todayIdx, withSettings } from '../common.ts';
+import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, plainRule, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { atMinutes, causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeField, timeFieldDone } from '../fields.ts';
-import { HISTORY_DAYS, HISTORY_MAX_AGE, MEASURE_RAMP, RECORDER_DELAY, SETPOINT_MARGIN, curveValue, historyDays, mergeRows, rowsOfStates } from '../history.ts';
+import { MEASURE_RAMP, SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, captureButtonHtml, captureState, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacIconHtml, hvacModesOf, hvacSlotStyle, isReversible, listsMode, modeName, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn, stateOf, valueOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
 import { LINK_TOKEN, deviceLabel, deviceLinkHtml, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, openPanel, panelPath, panelTitle, placements, placesHtml, thRow, thermostatDevices, weeksPath, withHtml } from '../links.ts';
@@ -10,7 +18,7 @@ import { OVERRIDE_TEMPERATURE, RESUME, coolPresetTemperatureOf, fillCard, focuse
 import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
 import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from '../presets.ts';
 import { INTEGRATION_PAGE, fromSettings, openSettings } from '../settings-dialog.ts';
-import { copyOfDay, joinAt, joined, normalize, parseDay, parseSlot, serializeDay } from '../slots.ts';
+import { copyOfDay, joinAt, joined, normalize, parseSlot, serializeDay } from '../slots.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
@@ -36,21 +44,18 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _config: any;
   declare _configured: any;
   declare _copyWeekMenu: any;
-  declare _data: any;
-  declare _dirty: any;
   declare _dirtyTold: any;
+  declare _draft: WeekDraft;
   declare _downAt: any;
   declare _drag: any;
-  declare _drawn: any;
   declare _focus: any;
   declare _forgetAsk: any;
   declare _groupPref: any;
   declare _handleMoved: any;
   declare _hass: any;
-  declare _history: any;
+  declare _history: HistoryStore;
   declare _lastClick: any;
   declare _linksStamp: any;
-  declare _loadedWeeks: any;
   declare _loc: any;
   declare _menu: any;
   declare _moreOpen: any;
@@ -63,10 +68,9 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _onKey: any;
   declare _overrideDrag: any;
   declare _overrideDragEnded: any;
-  declare _overridePending: any;
+  declare _overrideDraft: OverrideDraft;
   declare _overrideSel: any;
   declare _overrideStamp: any;
-  declare _ownClip: any;
   declare _placeToken: any;
   declare _placedKey: any;
   declare _placements: any;
@@ -79,10 +83,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _readTouch: any;
   declare _redrawLater: any;
   declare _renderedDay: any;
-  declare _revision: any;
-  declare _revisions: any;
   declare _rows: any;
-  declare _rulesDraft: any;
+  declare _rulesDraft: RulesDraft;
   declare _rulesStamp: any;
   declare _schedEd: any;
   declare _schedErr: any;
@@ -116,41 +118,33 @@ export class ChauffageProgrammeCard extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     linksByKeyboard(this.shadowRoot);
-    this._drawn = new Set(); // the weeks drawn but not edited, see _week
-    this._data = {};
-    this._revisions = {};
-    this._dirty = false;
+    this._draft = new WeekDraft(); // the weeks edited, until saved
     this._sel = null; // { climate, day, idx }
     this._focus = null; // last thermostat used (source of "Copier la semaine")
     this._drag = null;
     this._stamp = undefined;
     this._msg = '';
-    this._rulesDraft = null; // activation rules being edited ({ rules, def })
+    this._rulesDraft = new RulesDraft(); // activation rules being edited
     this._previewDelay = 400; // ms of pause in the typing before a rule is tried
     this._preview = null; // last try of the rules shown ({ rules, data })
     this._lastClick = null;
     this._renderedDay = null;
-    // Internal clipboard: { segs, label }, shared between cards through localStorage
-    this._clip = null;
     this._menu = null; // { climate, day, top, right } open row menu
     this._multiSel = false; // "Plusieurs" mode: clicking a thermostat adds / removes it
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
     this._overrideSel = null; // { climate, day } override whose popover is open
     this._overrideDrag = null;
-    this._overridePending = {}; // changes sent, waiting for the integration's update
+    this._overrideDraft = new OverrideDraft(); // changes sent, waiting for the integration's update
     this._overrideStamp = undefined;
     // Measured temperature of the last 7 days, drawn over the bars: rows loaded (until a time), days drawn
     this._zoom = null; // { climate, day } shown larger (with the history)
     this._readTouch = false; // a finger reads the values along the bar shown larger
-    this._history = { shown: false, rows: null, until: 0, days: null, loadedAt: 0, day: null, loading: false };
+    this._history = new HistoryStore();
     // Identical days shown on one row (the user's choice on this device, else the card's option)
     this._groupPref = null;
     this._rows = null; // rows of days drawn last, each edited as a whole
-    try {
-      this._history.shown = localStorage.getItem(LS_HISTORY) === '1';
-      const g = localStorage.getItem(LS_GROUP);
-      if (g === '1' || g === '0') this._groupPref = g === '1';
-    } catch (e) { /* ignore */ }
+    this._history.shown = historyPreference();
+    this._groupPref = groupPreference();
     this._bindEvents();
   }
 
@@ -165,7 +159,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     let src = dataSource(hass);
     if (src.available && !src.ready) {
       await new Promise<void>((resolve) => {
-        const stop = INTEGRATION.listen(() => { stop(); resolve(); });
+        const stop = client.listen(() => { stop(); resolve(); });
         setTimeout(() => { stop(); resolve(); }, 2000);
       });
       src = dataSource(hass);
@@ -226,7 +220,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     if (src.available && !this._unlisten) {
       // Data pushed by the integration: same checks as a hass update
-      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
     }
     if (src.available !== this._available) {
       this._available = src.available; // the integration deleted or disabled, or back
@@ -242,7 +236,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       need = true;
     }
     const stamp = src.stamps.weeks;
-    if ((stamp !== this._stamp || !this._data) && !this._dirty && !this._drag) {
+    if ((stamp !== this._stamp) && !this._draft.dirty && !this._drag) {
       this._load();
       this._stamp = stamp;
       need = true;
@@ -250,7 +244,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const dstamp = src.stamps.overrides;
     if (dstamp !== this._overrideStamp && !this._overrideDrag && !this._drag) {
       this._overrideStamp = dstamp;
-      this._overridePending = {};
+      this._overrideDraft.updated();
       need = true;
     }
     // Active schedule changed (from the card, another dashboard or an automation), or the icon of a
@@ -329,7 +323,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     let saved = null;
     this._shownForPreview = this._isPreview();
     if (!this._shownForPreview) {
-      try { saved = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { /* ignore */ }
+      saved = shownPreference();
     }
     const fromSaved = Array.isArray(saved) ? all.filter((e) => saved.includes(e)) : [];
     // In the "By card" list, a small preview: the first thermostat, even for a new card's `show: all`
@@ -426,6 +420,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     return dataSource(this._hass);
   }
 
+  _commands() {
+    return commands(this._hass);
+  }
+
   _reloadPage() {
     reloadPage();
   }
@@ -453,48 +451,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _load() {
-    const src = this._source();
-    this._data = {};
+    this._draft.load(this._source());
     this._trial = null;
-    this._drawn = new Set();
-    this._revision = src.revision;
-    this._revisions = {};
-    for (const [climate, bySchedule] of Object.entries(src.weeks())) {
-      if (!bySchedule || typeof bySchedule !== 'object') continue;
-      this._data[climate] = {};
-      for (const [schedule, week] of Object.entries(bySchedule)) {
-        if (!Array.isArray(week)) continue;
-        this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map((i) => parseDay(week[i]));
-      }
-      this._revisions[climate] = src.revisionOf(climate);
-    }
-    this._loadedWeeks = this._serialized();
   }
 
-  // {climate: JSON of its weeks by schedule}, to send only the thermostats changed. A week the
-  // card only drew (see _week) and nobody edited is left out: saving another thermostat must not
-  // schedule this one
-  _serialized() {
-    const out = {};
-    for (const [climate, bySchedule] of Object.entries(this._data)) {
-      const weeks = Object.keys(bySchedule).sort()
-        .map((schedule) => [schedule, bySchedule[schedule].map(serializeDay)])
-        .filter(([schedule, week]) => !(this._drawn.has(`${climate}|${schedule}`)
-          && JSON.stringify(week) === JSON.stringify(Array(7).fill(serializeDay(NEW_DAY)))));
-      if (weeks.length) out[climate] = JSON.stringify(Object.fromEntries(weeks));
-    }
-    return out;
-  }
-
-  // A thermostat's week in a schedule; a week it does not have yet is drawn as a new schedule's
-  // week (eco all week)
+  // A thermostat's week in a schedule, the schedule shown by default (see WeekDraft.week)
   _week(climate, schedule = this._schedule) {
-    if (!this._data[climate]) this._data[climate] = {};
-    if (!this._data[climate][schedule]) {
-      this._data[climate][schedule] = [0, 1, 2, 3, 4, 5, 6].map(() => NEW_DAY.map((s) => ({ ...s })));
-      this._drawn.add(`${climate}|${schedule}`);
-    }
-    return this._data[climate][schedule];
+    return this._draft.week(climate, schedule);
   }
 
   // Identical days on one row (the user's choice on this device, else the card's option); not
@@ -559,7 +522,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (trial && (force || !at || this._schedule !== trial.schedule || sel.climate !== trial.climate || sel.day !== trial.day || at.start !== trial.start)) this._trial = null;
     // The pieces of the row whose piece is selected wait
     const open = !force && at && at.cut ? this._rowOf(sel.day).map((d) => this._week(sel.climate)[d]) : [];
-    const days = Object.values(this._data).flatMap((weeks) => Object.values(weeks).flat())
+    const days = Object.values(this._draft.weeks).flatMap((weeks) => Object.values(weeks).flat())
       .filter((segs) => !open.includes(segs) && segs.some((slot) => slot.cut));
     if (!days.length) return;
     for (const segs of days) {
@@ -569,7 +532,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     if (at) this._week(sel.climate)[sel.day].forEach((slot, i) => { if (slot.start <= at.start) sel.idx = i; });
     // Nothing left to save when the piece was the only edit
-    if (this._dirty && this._loadedWeeks && JSON.stringify(this._serialized()) === JSON.stringify(this._loadedWeeks)) this._dirty = false;
+    this._draft.forgetUndoneEdits();
   }
 
   // An edit of a day's slots: spread to the days of its row, then drawn. Two slots that are the
@@ -585,7 +548,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       this._sel = { climate, day, idx };
     }
     this._focus = climate;
-    this._dirty = true;
+    this._draft.dirty = true;
     this._msg = '';
     this._render();
   }
@@ -593,17 +556,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // ---------- overrides ----------
 
   _overrides() {
-    const raw = this._hass ? this._source().overrides() : {};
-    const out = raw && typeof raw === 'object' ? { ...raw } : {};
-    for (const [c, d] of Object.entries(this._overridePending)) {
-      if (d) out[c] = d;
-      else delete out[c];
-    }
-    const now = new Date();
-    for (const [c, d] of Object.entries(out)) {
-      if (!d || !(parseDate((d as any).end) > now)) delete out[c];
-    }
-    return out;
+    return this._overrideDraft.overrides(this._hass ? this._source() : null);
   }
 
   _overridePieces(climate) {
@@ -616,13 +569,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   async _sendOverride(climate, override) {
     override = withoutAir(override);
-    this._overridePending[climate] = override;
+    this._overrideDraft.sent(climate, override);
     if (!override) this._overrideSel = null;
     this._render();
     try {
-      await this._source().setOverride(climate, override, this._changeSource());
+      await this._commands().setOverride(climate, override, this._changeSource());
     } catch (e) {
-      delete this._overridePending[climate];
+      this._overrideDraft.failed(climate);
       this._msg = errorText(this._loc.t, e);
       this._render();
     }
@@ -672,19 +625,12 @@ export class ChauffageProgrammeCard extends HTMLElement {
       return false;
     }
     this._settle(true);
-    const now = this._serialized();
-    // Only the thermostats changed, each against its revision (another card may edit the others)
-    const loaded = this._loadedWeeks || {};
-    const changed = Object.keys(now).filter((c) => now[c] !== loaded[c]);
-    const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
-    const revisions = Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null]));
+    const request = this._draft.saveRequest();
     try {
       // Edits undone: nothing to send (a save would realign every thermostat)
-      const result = changed.length ? await src.saveWeeks(out, revisions) : null;
-      if (result && result.revision != null) this._revision = result.revision;
-      if (result && result.revisions) Object.assign(this._revisions, result.revisions);
-      this._loadedWeeks = now;
-      this._dirty = false;
+      const result = Object.keys(request.weeks).length ? await this._commands().saveWeeks(request.weeks, request.revisions) : null;
+      this._draft.recordRevisions(result);
+      this._draft.saved(request.serialized);
       this._msg = this._loc.t('saved');
       this._render();
       return true;
@@ -728,31 +674,15 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // ---------- history of the measured temperature ----------
 
-  // Loads the last 7 days from the recorder while the history is shown: at once when asked
-  // (`force`), on a new day, otherwise once it is older than 5 minutes
+  // Loads the last 7 days from the recorder while the history is shown (see HistoryStore.due)
   _refreshHistory(force = false) {
     const h = this._history;
-    if (!h.shown || h.loading || !this._hass || !this._config) return;
-    if (!force && h.day === todayIdx() && Date.now() - h.loadedAt < HISTORY_MAX_AGE) return;
-    const now = new Date();
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - (HISTORY_DAYS - 1));
-    // Once loaded, only what is new (from a minute before the last load)
-    const since = h.rows ? new Date(Math.max(start.getTime(), h.until - RECORDER_DELAY)) : start;
-    h.loading = true;
-    h.loadedAt = Date.now();
-    h.day = todayIdx();
+    if (!this._hass || !this._config || !h.due(force)) return;
+    const loading = h.refresh((since, now) => this._fetchHistory(since, now));
     if (!h.days) this._render(); // the button shows the loading
-    return this._fetchHistory(since, now)
-      .then((rows) => {
-        h.rows = mergeRows(h.rows, rows, since.getTime() / 1000, start.getTime() / 1000);
-        h.until = now.getTime();
-        h.days = historyDays(h.rows, now);
-      })
+    return loading
       .catch((e) => { this._msg = this._loc.t('historyUnavailable', { message: (e && e.message) || e }); })
       .then(() => {
-        h.loading = false;
         if (h.shown && !this._drag && !this._overrideDrag) this._render();
       });
   }
@@ -773,7 +703,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // Cancel: the weeks go back as they were saved (the card's bar, or the panel's for a page)
   _discard() {
-    this._dirty = false;
+    this._draft.dirty = false;
     this._sel = null;
     this._msg = '';
     this._load();
@@ -794,7 +724,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const h = this._history;
     h.shown = !h.shown;
     if (!h.shown) this._zoom = null;
-    try { localStorage.setItem(LS_HISTORY, h.shown ? '1' : '0'); } catch (e) { /* ignore */ }
+    saveHistoryPreference(h.shown);
     this._render();
     if (h.shown) this._refreshHistory(true);
   }
@@ -805,8 +735,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _historyOf(climate, day) {
-    const h = this._history;
-    return h.shown && h.days && h.days[climate] ? h.days[climate][day] : null;
+    return this._history.of(climate, day);
   }
 
   _isZoomed(climate, day) {
@@ -1004,7 +933,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const paused = this._source().paused(climate);
     const now = showNow && !paused ? `<div class="now" style="left:${pct(nowMin())}%"></div>` : '';
     // The day copied last stands out, in whatever card it was copied (the copy is shared)
-    const clip = this._clip;
+    const clip = this._draft.clip;
     const cs = clip && clip.src;
     const isSrc = cs && cs.climate === climate && cs.schedule === this._schedule && days.includes(cs.day);
     const history = this._historyHtml(climate, d);
@@ -1113,16 +1042,14 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // The weeks edited can be saved: the access level may have dropped since (U31)
   _maySave() {
-    const now = this._serialized();
-    const loaded = this._loadedWeeks || {};
-    return Object.keys(now).filter((c) => now[c] !== loaded[c]).every((c) => this._mayEdit(c));
+    return this._draft.changed().every((c) => this._mayEdit(c));
   }
 
   // Renders, then runs a change of the integration; its error, if any, is shown
   async _call(change) {
     this._render();
     try {
-      await change(this._source());
+      await change(this._commands());
     } catch (e) {
       this._msg = errorText(this._loc.t, e);
       this._render();
@@ -1130,7 +1057,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _setPaused(climate, paused) {
-    return this._call((src) => src.setPaused(climate, paused));
+    return this._call((cmd) => cmd.setPaused(climate, paused));
   }
 
   _menuHtml() {
@@ -1140,12 +1067,12 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const item = (act, label, icon = '', disabled = false) =>
       `<button class="mi" data-act="${act}" ${ref} ${disabled ? 'disabled' : ''}>${icon}<span>${label}</span></button>`;
     const t = this._loc.t;
-    const paste = this._clip ? `${esc(t('paste'))} <small>${esc(this._clip.label)}</small>` : esc(t('paste'));
+    const paste = this._draft.clip ? `${esc(t('paste'))} <small>${esc(this._draft.clip.label)}</small>` : esc(t('paste'));
     // What can be done with this day, and a temporary setpoint on today; pausing is in the
     // "Thermostats" view. The thermostat's name opens it.
     // Copying and pasting edit the weeks: canPlan (U9)
     const groups = this._mayEdit(m.climate) ? [
-      item('copy-day', esc(t('copyDay')), ICON_COPY) + item('paste-day', paste, ICON_PASTE, !this._clip),
+      item('copy-day', esc(t('copyDay')), ICON_COPY) + item('paste-day', paste, ICON_PASTE, !this._draft.clip),
       item('fill-weekdays', esc(t('copyToWeekdays'))) + item('fill-weekend', esc(t('copyToWeekend')))
         + item('fill-all', esc(t('copyToAll'))) + (this._shown.length > 1 ? item('fill-others', esc(t('copyToOthers'))) : ''),
     ] : [];
@@ -1544,7 +1471,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       return;
     }
     if (this._view === 'rules' && this._source().ready) {
-      const msg = this._msg || (this._rulesDraft ? tr('unsaved') : '');
+      const msg = this._msg || (this._rulesDraft.edited ? tr('unsaved') : '');
       fill(`${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div>`);
       return;
     }
@@ -1622,7 +1549,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     // Copying the week of the thermostat shown to another thermostat or schedule: a menu, as the
     // day's ⋮, opening upwards from the foot of the card
     // Weeks edited, then the access level dropped (U31): kept until Cancel, but not saved
-    const maySave = !this._dirty || (plannable && this._maySave());
+    const maySave = !this._draft.dirty || (plannable && this._maySave());
     const cw = this._copyWeekMenu;
     const copyWeekMenu = !cw ? '' : `<div class="menu copyweek-menu" style="${cw.top != null ? `top:${cw.top}px` : `bottom:${cw.bottom}px`};right:${cw.right}px;max-height:${Math.max(120, cw.maxHeight)}px">${
       this._thermostats.filter((t) => this._mayEdit(t.entity)).map((t) => {
@@ -1664,7 +1591,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
           </div>
         </div>`}
         <div class="msg">${esc(maySave ? this._msg : tr('unauthorized'))}</div>
-        ${this._dirty && !weekOnly ? `<div class="savebar">
+        ${this._draft.dirty && !weekOnly ? `<div class="savebar">
           <span class="dirty">${esc(tr('unsaved'))}</span>
           <button class="btn" data-act="cancel">${esc(tr('cancel'))}</button>
           ${maySave ? `<button class="btn primary" data-act="save">${esc(tr('save'))}</button>` : ''}
@@ -1674,8 +1601,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._schedulePlaceTags();
     // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
     // sheet hears when it has edits to save
-    if (this._config.week_only && this._dirty !== this._dirtyTold) {
-      this._dirtyTold = this._dirty;
+    if (this._config.week_only && this._draft.dirty !== this._dirtyTold) {
+      this._dirtyTold = this._draft.dirty;
       this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
     }
   }
@@ -1704,7 +1631,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   _saveShown() {
     if (this._isPreview()) return; // trying it in a preview does not change the dashboards
-    try { localStorage.setItem(LS_KEY, JSON.stringify(this._shown)); } catch (e) { /* ignore */ }
+    saveShownPreference(this._shown);
   }
 
   // ---------- events ----------
@@ -2070,10 +1997,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e: any) => {
       if (e.target.hasAttribute('data-rule-template')) {
-        const before = !!this._rulesDraft;
+        const before = this._rulesDraft.edited;
         this._editRules((d) => { d.rules[Number(e.target.dataset.ruleTemplate)].template = e.target.value; });
         // Shows or hides Cancel, Save and "unsaved"; the text and the caret are kept
-        if (before !== !!this._rulesDraft) this._render();
+        if (before !== this._rulesDraft.edited) this._render();
         this._syncPreview();
         return;
       }
@@ -2268,10 +2195,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     } else return;
     this._schedEd = null;
     this._render(); // the menu closes at once, not when the integration answers
-    if (this._dirty && !(await this._save())) return;
+    if (this._draft.dirty && !(await this._save())) return;
     try {
-      const result = await this._source().setSchedules(list, this._revision);
-      if (result && result.revision != null) this._revision = result.revision;
+      const result = await this._commands().setSchedules(list, this._draft.revision);
+      if (result && result.revision != null) this._draft.revision = result.revision;
       if (created && result && result.schedules) {
         this._wantSchedule = result.schedules[result.schedules.length - 1].id;
         // The panel's list: the new schedule's sheet, to set its weeks
@@ -2296,7 +2223,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   async _activateSchedule(schedule) {
     try {
-      await this._source().activateSchedule(schedule, this._changeSource());
+      await this._commands().activateSchedule(schedule, this._changeSource());
       this._msg = this._loc.t('scheduleActivated', { schedule: this._scheduleName(schedule) });
     } catch (e) {
       this._msg = errorText(this._loc.t, e);
@@ -2455,8 +2382,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
   _rulesShown() {
-    const src = this._source();
-    return this._rulesDraft || { rules: src.rules().map((r) => ({ ...r })), def: src.defaultSchedule() };
+    return this._rulesDraft.shown(this._source());
   }
 
   // The "Rules" view: one row per rule (template, the schedule it activates or "given by the
@@ -2522,8 +2448,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     const actions = editable ? `<div class="ed-actions start">
         <button class="btn" data-act="rule-add">${esc(t('ruleAdd'))}</button>
-        ${this._rulesDraft ? `<button class="btn" data-act="rules-cancel">${esc(t('cancel'))}</button>` : ''}
-        <button class="btn primary" data-act="rules-save"${this._rulesDraft ? '' : ' disabled'}>${esc(t('save'))}</button></div>` : '';
+        ${this._rulesDraft.edited ? `<button class="btn" data-act="rules-cancel">${esc(t('cancel'))}</button>` : ''}
+        <button class="btn primary" data-act="rules-save"${this._rulesDraft.edited ? '' : ' disabled'}>${esc(t('save'))}</button></div>` : '';
     return `<div class="rules-view">
       <div class="muted">${esc(t('rulesIntro'))} <a class="rules-try" href="/developer-tools/template" target="_top">${esc(t('rulesTry'))}</a></div>
       ${rules.length ? rows : `<div class="rules-empty muted">${esc(t('rulesEmpty'))}</div>`}
@@ -2567,14 +2493,9 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._previewSub = null;
   }
 
-  // Edits the draft of the rules (created from the integration's on the first change; dropped
-  // when the edits are undone, so that nothing is left to save)
+  // Edits the draft of the rules (see RulesDraft.edit)
   _editRules(change) {
-    const draft = this._rulesShown();
-    change(draft);
-    const src = this._source();
-    const state = (rules, def) => JSON.stringify([rules.map(plainRule), def || null]);
-    this._rulesDraft = state(draft.rules, draft.def) !== state(src.rules(), src.defaultSchedule()) ? draft : null;
+    this._rulesDraft.edit(this._source(), change);
     this._msg = '';
   }
 
@@ -2588,14 +2509,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
     } else if (act === 'rule-delete') {
       this._editRules((d) => d.rules.splice(i, 1));
     } else if (act === 'rules-cancel') {
-      this._rulesDraft = null;
+      this._rulesDraft.drop();
       this._msg = '';
     } else if (act === 'rules-save') {
-      const { rules, def } = this._rulesShown();
       try {
-        await this._source().setRules(
-          rules.filter((r) => r.template.trim()).map((r) => plainRule({ ...r, template: r.template.trim() })), def || null);
-        this._rulesDraft = null;
+        const { rules, def } = this._rulesDraft.toSave(this._source());
+        await this._commands().setRules(rules, def);
+        this._rulesDraft.drop();
         this._msg = this._loc.t('saved');
       } catch (err) {
         this._msg = errorText(this._loc.t, err);
@@ -2692,7 +2612,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   _forget(climate) {
     this._forgetAsk = null;
-    return this._call((src) => src.forget(climate));
+    return this._call((cmd) => cmd.forget(climate));
   }
 
   // Table: one column per preset (header: the preset, then its default temperature), one row per
@@ -3010,12 +2930,12 @@ export class ChauffageProgrammeCard extends HTMLElement {
         const mapping = { ...src.mapping(sel.climate) };
         if (Object.keys(target).length) mapping[sel.preset] = target; else delete mapping[sel.preset];
         // The same as what is stored (the default kept): nothing to send
-        if (JSON.stringify(mapping) !== JSON.stringify(src.mapping(sel.climate))) await src.setMapping(sel.climate, mapping);
+        if (JSON.stringify(mapping) !== JSON.stringify(src.mapping(sel.climate))) await this._commands().setMapping(sel.climate, mapping);
       } else if (sel.kind === 'new') {
-        await src.setPresets([...presets, edited({})], {});
+        await this._commands().setPresets([...presets, edited({})], {});
       } else if (act === 'cell-delete-confirm') {
         const replacement = value('[data-cell-replacement]');
-        await src.setPresets(presets.filter((l) => l.id !== sel.preset), replacement ? { [sel.preset]: replacement } : {});
+        await this._commands().setPresets(presets.filter((l) => l.id !== sel.preset), replacement ? { [sel.preset]: replacement } : {});
       } else {
         // A temperature that the weeks use stays: its slots would have nothing to send
         const old = presets.find((l) => l.id === sel.preset);
@@ -3026,7 +2946,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
           this._cellError = this._loc.t(lost[0] === 'cool' ? 'presetUsedCooling' : 'presetUsedHeating');
           return this._render();
         }
-        await src.setPresets(presets.map((l) => (l.id === sel.preset ? next : l)), {});
+        await this._commands().setPresets(presets.map((l) => (l.id === sel.preset ? next : l)), {});
       }
       this._cell = null;
       this._msg = this._loc.t('saved');
@@ -3126,7 +3046,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     this._sel = null;
     this._focus = climate;
-    this._dirty = true;
+    this._draft.dirty = true;
     this._msg = this._loc.t('weekAllDone', { name: this._name(climate), mode: this._loc.t(mode === 'cool' ? 'slotCool' : 'slotHeat') });
     this._render();
   }
@@ -3277,7 +3197,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     const destination = this._loc.destination(target);
     this._focus = climate;
-    this._dirty = true;
+    this._draft.dirty = true;
     this._msg = this._loc.t('dayCopiedTo', { name: this._name(climate), day: this._rowLabel(day, 'long'), destination }) + this._droppedText(dropped);
     this._render();
   }
@@ -3299,9 +3219,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       dropped.push(...fit.dropped);
       return fit.segs;
     });
-    if (!this._data[climate]) this._data[climate] = {};
-    this._data[climate][schedule] = week;
-    this._dirty = true;
+    this._draft.setWeek(climate, schedule, week);
     this._msg = this._loc.t('weekCopiedTo', { source: this._name(source), target: this._name(climate), schedule: this._scheduleName(schedule) })
       + this._droppedText(dropped);
     this._render();
@@ -3310,40 +3228,21 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // A week copied from another card (a thermostat's sheet in the panel): this card's schedule
   // gets it, unsaved, and this card's save bar asks to save it
   _receiveWeek(climate, week, sourceName) {
-    if (!this._data[climate]) this._data[climate] = {};
     const dropped = [];
-    this._data[climate][this._schedule] = clone(week).map((segs) => {
+    this._draft.setWeek(climate, this._schedule, clone(week).map((segs) => {
       const fit = this._adapted(segs, climate);
       dropped.push(...fit.dropped);
       return fit.segs;
-    });
-    this._dirty = true;
+    }));
     this._msg = this._loc.t('weekCopiedFrom', { schedule: sourceName }) + this._droppedText(dropped);
     this._render();
-  }
-
-  // The day copied, shared by every card of the page and kept across reloads (this browser): read
-  // when used, so that a card drawn before the copy, such as another week of a thermostat's sheet
-  // in the panel, can paste it. Without the browser's storage, this card's own copy.
-  get _clip() {
-    try {
-      const c = JSON.parse(localStorage.getItem(LS_CLIP));
-      if (c && Array.isArray(c.segs) && c.segs.length) return c;
-    } catch (e) { /* ignore */ }
-    return this._ownClip || null;
-  }
-
-  set _clip(clip) {
-    this._ownClip = clip;
   }
 
   _copyToClipboard(climate, day) {
     const segs = copyOfDay(this._week(climate)[day]);
     const label = `${this._name(climate)} · ${this._rowLabel(day, 'long')} (${this._scheduleName(this._schedule)})`;
-    // The new copy itself: reading `_clip` back would give the day copied before, still stored
     const clip = { segs, label, src: { climate, schedule: this._schedule, day } };
-    this._clip = clip;
-    try { localStorage.setItem(LS_CLIP, JSON.stringify(clip)); } catch (e) { /* ignore */ }
+    this._draft.copy(clip);
     // Also copies as text to the system clipboard (when the browser allows it)
     try {
       if (navigator.clipboard) navigator.clipboard.writeText(`${label} : ${serializeDay(segs).join(', ')}`).catch(() => {});
@@ -3353,13 +3252,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _pasteFromClipboard(climate, day) {
-    if (!this._clip) return;
-    const fit = this._adapted(clone(this._clip.segs), climate);
+    if (!this._draft.clip) return;
+    const fit = this._adapted(clone(this._draft.clip.segs), climate);
     this._week(climate)[day] = fit.segs;
     this._spread(climate, day);
     if (this._sel && this._sel.climate === climate && this._sel.day === day) this._sel = null;
     this._focus = climate;
-    this._dirty = true;
+    this._draft.dirty = true;
     this._msg = this._loc.t('pastedOn', { name: this._name(climate), day: this._rowLabel(day, 'long') }) + this._droppedText(fit.dropped);
     this._render();
   }
@@ -3418,7 +3317,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'thermostat-add') {
       // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
       const climate = (this.shadowRoot.querySelector('[data-add-climate]') as any).value;
-      return this._call((src) => src.saveWeeks({ [climate]: {} }, { [climate]: null }));
+      return this._call((cmd) => cmd.saveWeeks({ [climate]: {} }, { [climate]: null }));
     }
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._sel = null;
@@ -3460,7 +3359,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'group-days') {
       // The history shows each day: grouping the days hides it
       this._groupPref = !this._grouped();
-      try { localStorage.setItem(LS_GROUP, this._groupPref ? '1' : '0'); } catch (e) { /* ignore */ }
+      saveGroupPreference(this._groupPref);
       this._sel = null;
       return this._history.shown ? this._toggleHistory() : this._render();
     }

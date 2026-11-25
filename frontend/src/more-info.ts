@@ -1,4 +1,6 @@
-import { INTEGRATION, dataSource, filterActive } from './client.ts';
+import { dataSource, filterActive } from './client/snapshot.ts';
+import { commands } from './client/commands.ts';
+import { client } from './client/chauffage-client.ts';
 import { slotColor } from './colors.ts';
 import { DAY_MIN, errorText, esc, hasNoPreset, isFan, isOff, nowMin, pct, slotMode, todayIdx } from './common.ts';
 import { atMinutes, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeFieldDone } from './fields.ts';
@@ -70,7 +72,7 @@ export class ChauffageMoreInfo extends HTMLElement {
     this._loc = makeLocale(hass);
     const src = dataSource(hass);
     if (src.available && !this._unlisten) {
-      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
     }
     const { weeks, overrides, schedule, thermostats } = src.stamps;
     if (this._key && overrides !== this._key[2]) this._pending = undefined;
@@ -106,7 +108,7 @@ export class ChauffageMoreInfo extends HTMLElement {
     if (override && this._creating) this._changeOpen = true;
     this._pending = override;
     this._render();
-    dataSource(this._hass).setOverride(this._entity, override)
+    commands(this._hass).setOverride(this._entity, override)
       .catch(() => { this._pending = undefined; this._render(); });
   }
 
@@ -314,7 +316,7 @@ export class ChauffageMoreInfo extends HTMLElement {
     if (b.hasAttribute('data-new-override')) { this._creating = !this._creating; return this._render(); }
     this._error = null;
     if (b.hasAttribute('data-resume') || b.hasAttribute('data-pause')) {
-      return dataSource(this._hass).setPaused(this._entity, b.hasAttribute('data-pause')).catch((err) => {
+      return commands(this._hass).setPaused(this._entity, b.hasAttribute('data-pause')).catch((err) => {
         this._error = errorText(this._loc.t, err);
         this._render();
       });

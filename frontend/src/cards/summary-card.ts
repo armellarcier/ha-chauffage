@@ -1,5 +1,7 @@
+import { sourceNotice } from '../notices.ts';
+import { dataSource, filterActive } from '../client/snapshot.ts';
+import { client } from '../client/chauffage-client.ts';
 import { tileColor, tileCss } from './rooms-card.ts';
-import { INTEGRATION, dataSource, filterActive, sourceNotice } from '../client.ts';
 import { esc } from '../common.ts';
 import { makeLocale } from '../i18n/locale.ts';
 import { fillCard } from '../override-edit.ts';
@@ -73,7 +75,7 @@ export class ChauffageSummaryCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._unlisten && dataSource(hass).available) {
-      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
     }
     if (this._config) this._render();
   }

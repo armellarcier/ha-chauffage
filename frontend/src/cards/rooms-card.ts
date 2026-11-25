@@ -1,6 +1,9 @@
-import { INTEGRATION, dataSource, filterActive, sourceNotice, thermostatName } from '../client.ts';
+import { sourceNotice } from '../notices.ts';
+import { dataSource, filterActive } from '../client/snapshot.ts';
+import { commands } from '../client/commands.ts';
+import { client } from '../client/chauffage-client.ts';
 import { presetColorIn } from '../colors.ts';
-import { DAY_MIN, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, esc, minutesOf, parseDate } from '../common.ts';
+import { DAY_MIN, esc, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, parseDate, SETPOINT_MODES, thermostatName } from '../common.ts';
 import { causeText, linksByKeyboard } from '../fields.ts';
 import { OFF_COLOR, OVERRIDE_STRIPES, hasModeRow, hvacColor, hvacIcon, modeName } from '../hvac.ts';
 import { capitalize, makeLocale } from '../i18n/locale.ts';
@@ -149,7 +152,7 @@ export class ChauffageRoomsCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._unlisten && dataSource(hass).available) {
-      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
     }
     if (this._config) this._render();
   }
@@ -364,8 +367,8 @@ export class ChauffageRoomsCard extends HTMLElement {
     }
     // Any other tap closes the popover, then does what it does
     if (this._modesOpen) { this._modesOpen = null; redraw(); }
-    if (e.target.closest('[data-resume-schedule]')) return src.setOverride(entity, null).catch(failed);
-    if (e.target.closest('[data-resume-control]')) return src.setPaused(entity, false).catch(failed);
+    if (e.target.closest('[data-resume-schedule]')) return commands(this._hass).setOverride(entity, null).catch(failed);
+    if (e.target.closest('[data-resume-control]')) return commands(this._hass).setPaused(entity, false).catch(failed);
     if (e.target.closest('.rc-main')) openMoreInfo(this, entity);
   }
 

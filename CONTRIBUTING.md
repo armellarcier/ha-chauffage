@@ -204,6 +204,9 @@ click a control with `act(card, 'save')`, and check `unsaved(card)` rather than 
 If the driver lacks a function, add it to the driver. Reach into the card only when no user
 action can do it, and say why in an `Internal:` comment.
 
+Test a draft of `frontend/src/state/` directly, without the card, as `week-draft.test.mjs` does.
+Each test gets a new subscription to the integration: `fakeHass` calls `resetClient()`.
+
 ### The card's TypeScript
 
 The card tests run the TypeScript sources without a build: Node removes the types. So:
