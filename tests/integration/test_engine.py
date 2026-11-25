@@ -557,7 +557,7 @@ def test_a_vtherm_on_a_preset_keeps_the_setpoint_it_shows():
 
 
 def test_a_vtherm_without_requested_state_is_read_as_it_shows():
-    """VTherm before its state manager, or a state without it."""
+    """A state without requested_state: the attributes as they are."""
     assert engine.asked({"preset_mode": "eco", "temperature": 17.0}, vtherm=True) == (None, "eco", 17.0)
     assert engine.asked({"preset_mode": "eco", "temperature": 17.0, "requested_state": {}}, vtherm=True) \
         == (None, "eco", 17.0)

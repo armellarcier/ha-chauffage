@@ -2171,11 +2171,9 @@ function makeDataSource(hass, available) {
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
     renamed: () => (d && d.renamed) || {},
-    // Saves against the revision of each thermostat sent (null: not scheduled when loaded);
-    // an older integration only has the global one
-    perThermostat: !!(d && d.thermostats),
+    // Saves against the revision of each thermostat sent (null: not scheduled when loaded)
     revisionOf: (climate) => (d && d.thermostats && d.thermostats[climate] ? d.thermostats[climate].revision : null),
-    saveWeeks: (weeks, revision, revisions) => {
+    saveWeeks: (weeks, revisions) => {
       const out = {};
       for (const [climate, bySchedule] of Object.entries(weeks)) {
         out[climate] = {};
@@ -2183,8 +2181,7 @@ function makeDataSource(hass, available) {
           if (ids.has(id)) out[climate][id] = week.map((day) => day.map((s) => slotToArray(parseSlot(s))));
         }
       }
-      const against = revisions ? { revisions } : (revision != null ? { revision } : {});
-      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...against });
+      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, revisions });
     },
     // `source`: 'panel' from the panel, told in the logbook; none from a card (older integrations)
     setOverride: (climate, override, source) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override, ...(source ? { source } : {}) }),
@@ -3642,12 +3639,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     const now = this._serialized();
     // Only the thermostats changed, each against its revision (another card may edit the others)
     const loaded = this._loadedWeeks || {};
-    const changed = Object.keys(now).filter((c) => !src.perThermostat || now[c] !== loaded[c]);
+    const changed = Object.keys(now).filter((c) => now[c] !== loaded[c]);
     const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
-    const revisions = src.perThermostat ? Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null])) : null;
+    const revisions = Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null]));
     try {
       // Edits undone: nothing to send (a save would realign every thermostat)
-      const result = changed.length ? await src.saveWeeks(out, this._revision, revisions) : null;
+      const result = changed.length ? await src.saveWeeks(out, revisions) : null;
       if (result && result.revision != null) this._revision = result.revision;
       if (result && result.revisions) Object.assign(this._revisions, result.revisions);
       this._loadedWeeks = now;
@@ -6385,7 +6382,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'thermostat-add') {
       // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
       const climate = this.shadowRoot.querySelector('[data-add-climate]').value;
-      return this._call((src) => src.saveWeeks({ [climate]: {} }, null, { [climate]: null }));
+      return this._call((src) => src.saveWeeks({ [climate]: {} }, { [climate]: null }));
     }
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._sel = null;
@@ -9531,9 +9528,9 @@ class ChauffagePanel extends HTMLElement {
     if (!dirty.length) return;
     const first = dirty[0][1];
     const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, card._week(climate).map(serializeDay)])) };
-    const revisions = src.perThermostat ? { [climate]: first._revisions[climate] ?? null } : null;
+    const revisions = { [climate]: first._revisions[climate] ?? null };
     try {
-      const result = await src.saveWeeks(weeks, first._revision, revisions);
+      const result = await src.saveWeeks(weeks, revisions);
       for (const card of Object.values(this._weekCards)) {
         if (result && result.revisions) Object.assign(card._revisions, result.revisions);
         if (result && result.revision != null) card._revision = result.revision;
@@ -9752,7 +9749,7 @@ class ChauffagePanel extends HTMLElement {
         try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
         seenNewOff(); // a new user has nothing to upgrade from
         seenNewSetting(this._hass); // the next steps say it
-        await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])), null,
+        await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
           Object.fromEntries(climates.map((c) => [c, null])));
         this._picked.clear();
         return this._update();

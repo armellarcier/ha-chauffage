@@ -634,8 +634,8 @@ future contributor might question.
   - **What Chauffage reads.** For a VTherm with `requested_state`, Chauffage reads the preset
     from `requested_state`. On the manual preset (`none`), it also reads the setpoint from
     `requested_state`. On another preset, `requested_state` keeps the last manual setpoint, not
-    the preset's: Chauffage reads the setpoint VTherm shows. Without `requested_state`, for
-    example a VTherm older than version 8, Chauffage reads the attributes as before.
+    the preset's: Chauffage reads the setpoint VTherm shows. For a state without
+    `requested_state`, Chauffage reads the attributes as they are.
   - **What Chauffage learns.** A VTherm can show another preset than the one asked, for example
     *frost* while its central mode is in frost protection. Chauffage then learns no preset
     temperature: the setpoint shown is not the asked preset's.
