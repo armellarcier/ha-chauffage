@@ -148,17 +148,6 @@ def _describe(command: engine.Target | dict[str, Any]) -> str:
     return ", ".join(f"{key} {value}" for key, value in target.items())
 
 
-def _kind_and_value(target: engine.Target | None) -> dict[str, Any]:
-    """An override's kind and value as the events and the sensors told them before #91, from its
-    target: existing automations keep reading them. "preset" or "temperature" as before; an
-    override that only sets the HVAC mode says "hvac_mode"; one that sets none of them (the fan,
-    the cooling setpoint) says nothing."""
-    key = next((key for key in ("preset_mode", "temperature", "hvac_mode") if key in (target or {})), None)
-    if key is None:
-        return {"kind": None, "value": None}
-    return {"kind": "preset" if key == "preset_mode" else key, "value": target[key]}
-
-
 def _cause(state: State | None) -> str | None:
     return engine.cause(state.attributes, state.state) if state is not None else None
 
@@ -1126,11 +1115,10 @@ class ChauffageRuntime:
 
     def override_info(self, entity_id: str) -> dict[str, Any]:
         """A thermostat's override as automations see it (sensor, event): its target, the preset
-        it was set to, its end in local time (None without override). Also its kind and value, as
-        before #91: "preset" and the climate preset, or "temperature" and the temperature."""
+        it was set to, its end in local time (None without override)."""
         override = self.data["overrides"].get(entity_id) or {}
         end = engine.parse_datetime(override.get("end"))
-        return {"target": override.get("target"), "preset": override.get("preset"), **_kind_and_value(override.get("target")),
+        return {"target": override.get("target"), "preset": override.get("preset"),
                 "end": dt_util.as_local(end).isoformat() if end else None}
 
     @callback

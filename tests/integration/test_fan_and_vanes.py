@@ -59,11 +59,10 @@ async def test_a_slot_sends_its_fan_with_the_rest_as_a_scene_does(bench: Bench):
 
 
 async def test_an_override_that_only_sets_the_cooling_setpoint_is_recorded(bench: Bench):
-    """A target without preset, temperature or HVAC mode (the websocket API accepts it): no
-    crash, and no kind or value for the automations of before #91."""
+    """A target without preset, temperature or HVAC mode (the websocket API accepts it)."""
     await start_salon(bench, "10:00", **AC_ATTRS)
     await bench.set_override("climate.salon", bench.runtime.new_override({"cool_temperature": 24}))
-    assert bench.runtime.override_info("climate.salon")["kind"] is None
+    assert bench.runtime.override_info("climate.salon")["target"] == {"cool_temperature": 24}
 
 
 async def test_a_script_reads_the_fan_of_the_slots(bench: Bench):

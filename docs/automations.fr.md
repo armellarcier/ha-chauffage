@@ -49,7 +49,6 @@ Les capteurs sont indisponibles pendant la pause du thermostat.
   `{"preset_mode": "boost"}`.
 - `preset` : le préréglage Chauffage demandé, s'il y en a un.
 - `end`.
-- `kind` et `value` : le format d'avant la 0.10, gardé pour les anciennes automatisations.
 
 **Installé avant la 0.6 ?** Le capteur du préréglage prévu garde son ancien identifiant,
 `sensor.<thermostat>_planning` en français.
@@ -161,8 +160,7 @@ Les trois événements des dérogations portent `entity_id`, `start` et `end`.
 
 - `target`, par exemple `{"temperature": 21.5}`, et `preset` ;
 - `source` : `thermostat` (changé à la main), `card`, `panel` (le panneau Chauffage) ou
-  `service` ;
-- `kind` et `value`, le format d'avant la 0.10.
+  `service`.
 
 `chauffage_override_ended` porte aussi `reason`, par exemple `expired`, `thermostat` (remis sur
 son planning à la main) ou `card`. Les autres raisons sont `panel`, `service`, `paused` et

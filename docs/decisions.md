@@ -669,6 +669,8 @@ future contributor might question.
   applied the same way. The events and the sensors keep `kind` and `value` next to the target,
   read from its first attribute, so existing automations keep working. An override that sets
   none of them (the fan, a cooling setpoint) has no kind and no value.
+  **Amended by the rewrite**: the events and the sensors no longer carry `kind` and `value`.
+  Automations read the target.
 - **A preset's value on a thermostat is a climate preset or a temperature, not both, and never
   an HVAC mode.** A first version stored any mix, as a scene does, and let the device decide
   what to do with a preset and a temperature together. The user could not tell what the room
