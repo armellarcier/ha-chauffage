@@ -1977,3 +1977,22 @@ behind the back of HACS. The docs present the script as a hack, to undo or relea
   in it.
 - **The backup does not hold `.storage/core.config_entries`.** That file belongs to every
   integration.
+
+### The rewrite (2026-11)
+
+The owner wants a clean and maintainable codebase, and considers the procedural code of the
+runtime and the card unmaintainable. [rewrite-plan.md](rewrite-plan.md) plans a rewrite in
+phases. The owner decided these points on 2026-11-25:
+
+- **Step by step, not in one go.** Each phase ships with the tests green, so `main` keeps
+  shipping fixes during the rewrite.
+- **The rewrite changes the structure, not the behavior.** A behavior rule to simplify goes
+  through its own review, outside the rewrite.
+- **The card is built now, in TypeScript, with Lit and esbuild.** The tests run on the
+  TypeScript sources through Node's type stripping, so the sources use erasable syntax only.
+- **HACS installs a ZIP built by the CI** (`zip_release`). The repository holds no built file.
+- **The week editor gets no new feature while it is rewritten** (phase C5).
+- **Versatile Thermostat 10.5 is the minimum supported version.** Every supported VTherm then
+  publishes `requested_state`, so the code for older versions goes.
+- **The rewrite removes the v0.1 import, in its first step.** A v0.1 user first installs a
+  release that still imports.
