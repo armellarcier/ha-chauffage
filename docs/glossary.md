@@ -36,6 +36,4 @@ Retired in v0.4 (code, stored data with a migration, websocket API, entities, ca
 | Level, heating level (`levels`, *Levels* view, `next_level` attribute) | Preset (`presets`, *Presets* view, `next_preset`) |
 | Programme (French, in old code) | Schedule, week |
 
-Kept on purpose: the card's type, `custom:chauffage-programme-card` (dashboards refer to it), and
-the v0.1 package's entities read by the import (`input_select.mode_chauffage`,
-`sensor.programmes_chauffage`…).
+Kept on purpose: the card's type, `custom:chauffage-programme-card`, because dashboards refer to it.

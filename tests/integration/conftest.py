@@ -121,7 +121,7 @@ class Bench:
     async def setup(self, options: dict | None = None, schedules: tuple[str, ...] | None = EXISTING_SCHEDULES,
                     entry: MockConfigEntry | None = None) -> None:
         """Set the integration up; by default as an existing installation with three schedules
-        (`schedules=None`: a new installation, or one importing the package)."""
+        (`schedules=None`: a new installation)."""
         if schedules and DOMAIN not in self.storage:
             self.storage[DOMAIN] = {"version": STORAGE_VERSION, "minor_version": STORAGE_MINOR_VERSION, "key": DOMAIN,
                                     "data": model.default_data(list(schedules))}

@@ -108,13 +108,6 @@ EVENT_SCHEDULE_ACTIVATED = f"{DOMAIN}_schedule_activated"
 # The active-schedule select entity (same id whatever the language: automations refer to it)
 SCHEDULE_ENTITY = "select.chauffage_schedule"
 
-# The package (packages/chauffage/, v0.1): entities read by the import
-PACKAGE_SCHEDULES = "sensor.programmes_chauffage"
-PACKAGE_OVERRIDES = "sensor.derogations_chauffage"
-PACKAGE_MODE = "input_select.mode_chauffage"
-PACKAGE_AUTOMATIONS = ("chauffage_programmes_hebdo", "chauffage_derogation_manuelle")  # unique ids
-PACKAGE_DATA_VERSION = 1  # newest package data version the import understands
-
 # Keys of the entities of each scheduled thermostat, and their platforms. The planned preset
 # sensor keeps its former key, "schedule": its unique id, so existing entity ids do not change
 PLANNED_PRESET_KEY, OVERRIDE_KEY, OVERRIDE_END_KEY, CONTROL_KEY = "schedule", "override", "override_end", "control"

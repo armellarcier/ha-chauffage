@@ -9,14 +9,16 @@ future contributor might question.
 
 - **An integration, not a YAML package** (v0.2). The v0.1 package (template sensors holding the
   data, automations, events from the card) hit its limits: attribute size, no real services, no
-  configuration UI, no HACS, YAML to edit by hand. Its data is still imported when the
-  integration is added (`importer.py`).
+  configuration UI, no HACS, YAML to edit by hand.
+  **Amended by the rewrite**: the integration no longer imports the package's data. A v0.1 user
+  upgrades through 0.10.0, the last release that imports.
 - **Domain `chauffage`, a single config entry.** One installation per Home Assistant; entity
   ids do not depend on the language (`select.chauffage_schedule`), their names are translated.
 - **Data in a versioned `Store`** (`.storage/chauffage`), migrated automatically, each migration
   tested with a fixture of the former format. Going back to an older version is not supported.
 - **A first setup waits for Home Assistant to be running** (retried automatically): during
   startup, the package's restored states and automations may not exist yet.
+  **Removed by the rewrite**, with the import of the package: a first setup no longer waits.
 - **Settings in the card, not in the options flow.** HA's option forms (generated fields, no
   layout, no preview) proved impractical for setting temperatures room by room. The options
   keep a single form of defaults (override duration, use of the thermostats' own presets).

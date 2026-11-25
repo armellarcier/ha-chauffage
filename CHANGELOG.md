@@ -9,6 +9,17 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+- **From the v0.1 package, install 0.10.0 first.** Chauffage no longer imports the data of the
+  v0.1 package. Version 0.10.0 is the last release that imports it. Install 0.10.0, follow its
+  upgrade steps, then update to this release.
+
+### Removed
+
+- **The import of the v0.1 package.** The setup no longer offers to import the package, and the
+  repair that explains how to remove the package is gone.
+
 ## [0.10.0] - 2026-11-25
 
 **A slot says what the device does, not only how warm.** A slot can turn a thermostat off, and on

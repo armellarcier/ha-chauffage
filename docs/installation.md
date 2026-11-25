@@ -111,16 +111,10 @@ stored data automatically. You can't go back to an older version.
 
 ## Upgrading from the package (v0.1)
 
-Version 0.1 of ha-chauffage was a YAML package. The integration imports the package's data.
-
-1. Install the integration (steps 1 and 2 above). **Don't remove the package yet.** The setup
-   tells you what it imports, for example the package's weeks and its active schedule. Submit the
-   setup to import them. Then the setup turns off the package's two automations.
-2. Check the card and the thermostats. To go back to the package, delete the integration and
-   turn the two `automation.chauffage_*` automations back on.
-3. Follow the repair that Home Assistant shows in Settings. The repair tells you which files and
-   lines to remove, then asks you to restart Home Assistant.
-4. In your automations, replace `input_select.mode_chauffage` with `select.chauffage_schedule`.
+Version 0.1 of ha-chauffage was a YAML package. To upgrade from the package, first install
+ha-chauffage 0.10.0, the last release that imports the package's data. Follow the steps of
+[its installation guide](https://github.com/armellarcier/ha-chauffage/blob/v0.10.0/docs/installation.md#upgrading-from-the-package-v01).
+Then update to the latest release.
 
 The package is no longer maintained. The
 [v0.1.0 release](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) still holds
