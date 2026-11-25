@@ -28,8 +28,9 @@ class Thermostat:
     min_temp: float | None = None
     max_temp: float | None = None
     step: float | None = None
-    vtherm: bool = False  # Versatile Thermostat
-    ready: bool = True  # it shows a known state (see engine.ready)
+    # It goes to its manual preset by itself when it gets a setpoint (Versatile Thermostat)
+    leaves_preset_itself: bool = False
+    ready: bool = True  # it shows a known state (thermostats/generic.py)
     hvac_modes: tuple[str, ...] = field(default=())
     # The fan and the vanes of an air conditioner, as shown (#91)
     fan_mode: str | None = None

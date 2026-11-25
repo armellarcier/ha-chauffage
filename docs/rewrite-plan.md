@@ -239,7 +239,8 @@ The first step removes code that the rewrite would otherwise carry over.
    `requested_state`, `specific_states` and `preset_temperatures`. So remove:
    - the `shown` field and "off read as on" for a VTherm without `requested_state`
      (`engine.py:46-48`, `runtime.py:108-110` and `134-135`);
-   - the top-level `hvac_off_reason` and `window_manager` in `cause` (`engine.py:91-101`);
+   - the top-level `hvac_off_reason` in `cause` (`engine.py:91-101`). Not the top-level
+     `window_manager`: VTherm 10.5.0 still publishes it there (decisions.md, phase I2);
    - the top-level `eco_temp` keys in `preset_temperature` (`engine.py:658-660`);
    - the tests of these cases, and their entries in [decisions.md](decisions.md), marked as
      removed.

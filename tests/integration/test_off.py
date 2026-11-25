@@ -500,3 +500,15 @@ async def test_a_vtherm_heating_at_the_frost_setpoint_for_its_window_says_so(ben
     await bench.hass.async_block_till_done()
     assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["cause"] == "window"
     assert bench.overrides() == {}
+
+
+async def test_a_vtherm_10_5_heating_at_the_frost_setpoint_for_its_window_says_so(bench: Bench):
+    """Versatile Thermostat 10.5 publishes its window manager as a top-level attribute, not in
+    specific_states: the card is told the window anyway."""
+    await start_vtherm(bench, "10:00")
+    bench.thermostat("climate.salon", "eco", 7.0, context=Context(),
+                     requested_state={"hvac_mode": "heat", "target_temperature": 17.0, "preset": "eco"},
+                     window_manager={"window_state": "on", "window_action": "window_frost_temp"})
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.snapshot()["thermostats"]["climate.salon"]["cause"] == "window"
+    assert bench.overrides() == {}

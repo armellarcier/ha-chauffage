@@ -376,7 +376,7 @@ future contributor might question.
   - **A window that sets the frost setpoint teaches no preset temperature** (the third review).
     A Versatile Thermostat whose window action is *frost* keeps its preset and shows 7 °C:
     `_learn` took 7 °C for the temperature of *Eco*. It now learns nothing while the
-    thermostat says its window is open (`engine.cause`).
+    thermostat says its window is open (the `cause` of its reader, `thermostats/`).
   - **The card cannot set a single temperature in heat/cool** on a thermostat that takes a
     range there: the websocket API refuses it, as `chauffage.set_override` does. The override
     was recorded and did nothing. An override that already has this value keeps it: its end
@@ -577,7 +577,9 @@ future contributor might question.
     checked; they are rare, and the risk is accepted.
     **Removed by the rewrite**: Versatile Thermostat 10.5 is the minimum supported version, and
     every supported VTherm publishes `requested_state`. The `shown` field, the top-level
-    `hvac_off_reason` and `window_manager`, and the top-level `eco_temp` keys are no longer read.
+    `hvac_off_reason` and the top-level `eco_temp` keys are no longer read. The top-level
+    `window_manager` stays: VTherm 10.5.0 still publishes it there, not in `specific_states`
+    (phase I2 of the rewrite found it in a development HA).
 - **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
   thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
   `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its

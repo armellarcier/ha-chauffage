@@ -24,7 +24,6 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
-from homeassistant.components.climate.const import ClimateEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Context, Event, EventStateChangedData, HomeAssistant, State, callback
@@ -78,6 +77,7 @@ from .const import (
     thermostat_unique_id,
 )
 from .store import SAVE_DELAY, ChauffageStore
+from .thermostats.reader import ThermostatReader, reader_for
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,37 +100,6 @@ class ThermostatPaused(model.InvalidData):
     """An override asked for a paused thermostat."""
 
 
-VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
-
-
-def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat | None:
-    """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current). A VTherm is read as
-    it was asked (requested_state, #92): off by its window or its auto start/stop, it is still
-    "on" for Chauffage."""
-    if state is None:
-        return None
-    attributes = state.attributes
-    presets = attributes.get("preset_modes") or ()
-    hvac_mode, preset, temperature = engine.asked(attributes, vtherm)
-    return engine.Thermostat(
-        hvac_mode or state.state,
-        preset,
-        temperature,
-        tuple(p for p in (engine.preset_value(p) for p in presets) if p),
-        engine.temperature_value(attributes.get("min_temp")),
-        engine.temperature_value(attributes.get("max_temp")),
-        engine.temperature_value(attributes.get("target_temp_step")),
-        vtherm,
-        engine.ready(attributes, vtherm),
-        tuple(m for m in (engine.preset_value(m) for m in attributes.get("hvac_modes") or ()) if m),
-        fan_mode=engine.preset_value(attributes.get("fan_mode")),
-        swing_mode=engine.preset_value(attributes.get("swing_mode")),
-        swing_horizontal_mode=engine.preset_value(attributes.get("swing_horizontal_mode")),
-        supports_range=bool(int(attributes.get("supported_features") or 0) & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE),
-        **{key: engine.temperature_value(attributes.get(key)) for key in engine.RANGE_KEYS},
-    )
-
-
 def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
     """One of the integration's devices, by its identifier."""
     registry = dr.async_get(hass)
@@ -146,10 +115,6 @@ def _describe(command: engine.Target | dict[str, Any]) -> str:
     "temperature 21.5"."""
     target = command["target"] if "target" in command else command
     return ", ".join(f"{key} {value}" for key, value in target.items())
-
-
-def _cause(state: State | None) -> str | None:
-    return engine.cause(state.attributes, state.state) if state is not None else None
 
 
 def _end_data(override: dict[str, Any]) -> dict[str, Any]:
@@ -383,11 +348,18 @@ class ChauffageRuntime:
     def learned_temperatures(self) -> dict[str, dict[str, float]]:
         return {entity_id: t["preset_temperatures"] for entity_id, t in self.thermostats.items() if t["preset_temperatures"]}
 
+    def reader(self, entity_id: str) -> ThermostatReader:
+        """How to read a thermostat, from the integration that provides it (thermostats/)."""
+        entry = er.async_get(self.hass).async_get(entity_id)
+        return reader_for(entry.platform if entry is not None else None)
+
     def current(self, state: State | None) -> engine.Thermostat | None:
-        """What the scheduler needs to know about a thermostat. A Versatile Thermostat is
-        recognized by its integration, not by its attributes: VTherm moved some of them (#74)."""
-        entry = er.async_get(self.hass).async_get(state.entity_id) if state is not None else None
-        return thermostat(state, entry is not None and entry.platform == VTHERM)
+        """What the scheduler needs to know about a thermostat."""
+        return self.reader(state.entity_id).read(state) if state is not None else None
+
+    def _cause_of(self, state: State | None) -> str | None:
+        """Why a thermostat protects itself: "window", "auto_start_stop", or None."""
+        return self.reader(state.entity_id).cause(state) if state is not None else None
 
     def _learned(self, entity_id: str, cool: bool = False) -> dict[str, float]:
         """{own preset: temperature} learned from a thermostat. `cool`: while it cooled."""
@@ -405,7 +377,7 @@ class ChauffageRuntime:
         if state is None:
             return {}
         learned = self._learned(state.entity_id, cool)
-        temperatures = {p: self.preset_temperature(state, p, cool) for p in {*thermostat(state).presets, *learned}}
+        temperatures = {p: self.preset_temperature(state, p, cool) for p in {*self.current(state).presets, *learned}}
         return {p: t for p, t in temperatures.items() if t is not None}
 
     def plan(self) -> engine.Plan:
@@ -579,7 +551,7 @@ class ChauffageRuntime:
         """Why a thermostat protects itself, when it says it (a VTherm's window, open while it is
         off or heats at the frost setpoint, or its auto start/stop): for the card, which then
         does not read VTherm's attributes."""
-        return _cause(self.hass.states.get(entity_id))
+        return self._cause_of(self.hass.states.get(entity_id))
 
     def planned(self, entity_id: str, now: datetime | None = None, thermostat: engine.Thermostat | None = None
                 ) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
@@ -1378,7 +1350,7 @@ class ChauffageRuntime:
         # protection: its setpoint is not the asked preset's temperature (#92). Nor is the frost
         # setpoint it shows on the asked preset while its window is open
         if (current.temperature is not None and not engine.is_manual_preset(current.preset)
-                and _cause(state) is None
+                and self._cause_of(state) is None
                 and current.state not in (engine.HEAT_COOL, engine.DRY, engine.FAN_ONLY)
                 and current.preset == engine.preset_value(state.attributes.get("preset_mode"))
                 and temperatures.get(current.preset) != current.temperature):
@@ -1393,7 +1365,7 @@ class ChauffageRuntime:
         old, new = event.data["old_state"], event.data["new_state"]
         if not self._learn(new) and (self.temperatures_of(old) != self.temperatures_of(new)
                                      or self.temperatures_of(old, cool=True) != self.temperatures_of(new, cool=True)
-                                     or _cause(old) != _cause(new)):
+                                     or self._cause_of(old) != self._cause_of(new)):
             self._notify()  # published by the thermostat: the card shows them
         # Paused thermostats are followed for their preset temperatures only
         if old is None or new is None or self.is_paused(new.entity_id):
