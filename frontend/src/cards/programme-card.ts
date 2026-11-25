@@ -4,10 +4,13 @@ import { commands } from '../client/commands.ts';
 import { client } from '../client/chauffage-client.ts';
 import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference, saveShownPreference, shownPreference } from '../state/preferences.ts';
 import { WeekDraft } from '../state/week-draft.ts';
+import { HistoryStore } from '../state/history-store.ts';
+import { OverrideDraft } from '../state/override-draft.ts';
+import { RulesDraft } from '../state/rules-draft.ts';
 import { chipStyle, coolColor, derivedCoolColor, presetColorIn, slotColor } from '../colors.ts';
-import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, MANUAL_PRESETS, minutesOf, NEW_DAY, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, plainRule, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
+import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, plainRule, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { atMinutes, causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeField, timeFieldDone } from '../fields.ts';
-import { HISTORY_DAYS, HISTORY_MAX_AGE, MEASURE_RAMP, RECORDER_DELAY, SETPOINT_MARGIN, curveValue, historyDays, mergeRows, rowsOfStates } from '../history.ts';
+import { MEASURE_RAMP, SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, captureButtonHtml, captureState, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacIconHtml, hvacModesOf, hvacSlotStyle, isReversible, listsMode, modeName, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn, stateOf, valueOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
 import { LINK_TOKEN, deviceLabel, deviceLinkHtml, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, openPanel, panelPath, panelTitle, placements, placesHtml, thRow, thermostatDevices, weeksPath, withHtml } from '../links.ts';
@@ -15,7 +18,7 @@ import { OVERRIDE_TEMPERATURE, RESUME, coolPresetTemperatureOf, fillCard, focuse
 import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
 import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from '../presets.ts';
 import { INTEGRATION_PAGE, fromSettings, openSettings } from '../settings-dialog.ts';
-import { copyOfDay, joinAt, joined, normalize, parseDay, parseSlot, serializeDay } from '../slots.ts';
+import { copyOfDay, joinAt, joined, normalize, parseSlot, serializeDay } from '../slots.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
@@ -50,7 +53,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _groupPref: any;
   declare _handleMoved: any;
   declare _hass: any;
-  declare _history: any;
+  declare _history: HistoryStore;
   declare _lastClick: any;
   declare _linksStamp: any;
   declare _loc: any;
@@ -65,7 +68,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _onKey: any;
   declare _overrideDrag: any;
   declare _overrideDragEnded: any;
-  declare _overridePending: any;
+  declare _overrideDraft: OverrideDraft;
   declare _overrideSel: any;
   declare _overrideStamp: any;
   declare _placeToken: any;
@@ -81,7 +84,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _redrawLater: any;
   declare _renderedDay: any;
   declare _rows: any;
-  declare _rulesDraft: any;
+  declare _rulesDraft: RulesDraft;
   declare _rulesStamp: any;
   declare _schedEd: any;
   declare _schedErr: any;
@@ -121,7 +124,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._drag = null;
     this._stamp = undefined;
     this._msg = '';
-    this._rulesDraft = null; // activation rules being edited ({ rules, def })
+    this._rulesDraft = new RulesDraft(); // activation rules being edited
     this._previewDelay = 400; // ms of pause in the typing before a rule is tried
     this._preview = null; // last try of the rules shown ({ rules, data })
     this._lastClick = null;
@@ -131,12 +134,12 @@ export class ChauffageProgrammeCard extends HTMLElement {
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
     this._overrideSel = null; // { climate, day } override whose popover is open
     this._overrideDrag = null;
-    this._overridePending = {}; // changes sent, waiting for the integration's update
+    this._overrideDraft = new OverrideDraft(); // changes sent, waiting for the integration's update
     this._overrideStamp = undefined;
     // Measured temperature of the last 7 days, drawn over the bars: rows loaded (until a time), days drawn
     this._zoom = null; // { climate, day } shown larger (with the history)
     this._readTouch = false; // a finger reads the values along the bar shown larger
-    this._history = { shown: false, rows: null, until: 0, days: null, loadedAt: 0, day: null, loading: false };
+    this._history = new HistoryStore();
     // Identical days shown on one row (the user's choice on this device, else the card's option)
     this._groupPref = null;
     this._rows = null; // rows of days drawn last, each edited as a whole
@@ -241,7 +244,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const dstamp = src.stamps.overrides;
     if (dstamp !== this._overrideStamp && !this._overrideDrag && !this._drag) {
       this._overrideStamp = dstamp;
-      this._overridePending = {};
+      this._overrideDraft.updated();
       need = true;
     }
     // Active schedule changed (from the card, another dashboard or an automation), or the icon of a
@@ -553,17 +556,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // ---------- overrides ----------
 
   _overrides() {
-    const raw = this._hass ? this._source().overrides() : {};
-    const out = raw && typeof raw === 'object' ? { ...raw } : {};
-    for (const [c, d] of Object.entries(this._overridePending)) {
-      if (d) out[c] = d;
-      else delete out[c];
-    }
-    const now = new Date();
-    for (const [c, d] of Object.entries(out)) {
-      if (!d || !(parseDate((d as any).end) > now)) delete out[c];
-    }
-    return out;
+    return this._overrideDraft.overrides(this._hass ? this._source() : null);
   }
 
   _overridePieces(climate) {
@@ -576,13 +569,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   async _sendOverride(climate, override) {
     override = withoutAir(override);
-    this._overridePending[climate] = override;
+    this._overrideDraft.sent(climate, override);
     if (!override) this._overrideSel = null;
     this._render();
     try {
       await this._commands().setOverride(climate, override, this._changeSource());
     } catch (e) {
-      delete this._overridePending[climate];
+      this._overrideDraft.failed(climate);
       this._msg = errorText(this._loc.t, e);
       this._render();
     }
@@ -681,31 +674,15 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // ---------- history of the measured temperature ----------
 
-  // Loads the last 7 days from the recorder while the history is shown: at once when asked
-  // (`force`), on a new day, otherwise once it is older than 5 minutes
+  // Loads the last 7 days from the recorder while the history is shown (see HistoryStore.due)
   _refreshHistory(force = false) {
     const h = this._history;
-    if (!h.shown || h.loading || !this._hass || !this._config) return;
-    if (!force && h.day === todayIdx() && Date.now() - h.loadedAt < HISTORY_MAX_AGE) return;
-    const now = new Date();
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - (HISTORY_DAYS - 1));
-    // Once loaded, only what is new (from a minute before the last load)
-    const since = h.rows ? new Date(Math.max(start.getTime(), h.until - RECORDER_DELAY)) : start;
-    h.loading = true;
-    h.loadedAt = Date.now();
-    h.day = todayIdx();
+    if (!this._hass || !this._config || !h.due(force)) return;
+    const loading = h.refresh((since, now) => this._fetchHistory(since, now));
     if (!h.days) this._render(); // the button shows the loading
-    return this._fetchHistory(since, now)
-      .then((rows) => {
-        h.rows = mergeRows(h.rows, rows, since.getTime() / 1000, start.getTime() / 1000);
-        h.until = now.getTime();
-        h.days = historyDays(h.rows, now);
-      })
+    return loading
       .catch((e) => { this._msg = this._loc.t('historyUnavailable', { message: (e && e.message) || e }); })
       .then(() => {
-        h.loading = false;
         if (h.shown && !this._drag && !this._overrideDrag) this._render();
       });
   }
@@ -758,8 +735,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _historyOf(climate, day) {
-    const h = this._history;
-    return h.shown && h.days && h.days[climate] ? h.days[climate][day] : null;
+    return this._history.of(climate, day);
   }
 
   _isZoomed(climate, day) {
@@ -1495,7 +1471,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       return;
     }
     if (this._view === 'rules' && this._source().ready) {
-      const msg = this._msg || (this._rulesDraft ? tr('unsaved') : '');
+      const msg = this._msg || (this._rulesDraft.edited ? tr('unsaved') : '');
       fill(`${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div>`);
       return;
     }
@@ -2021,10 +1997,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e: any) => {
       if (e.target.hasAttribute('data-rule-template')) {
-        const before = !!this._rulesDraft;
+        const before = this._rulesDraft.edited;
         this._editRules((d) => { d.rules[Number(e.target.dataset.ruleTemplate)].template = e.target.value; });
         // Shows or hides Cancel, Save and "unsaved"; the text and the caret are kept
-        if (before !== !!this._rulesDraft) this._render();
+        if (before !== this._rulesDraft.edited) this._render();
         this._syncPreview();
         return;
       }
@@ -2406,8 +2382,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
   _rulesShown() {
-    const src = this._source();
-    return this._rulesDraft || { rules: src.rules().map((r) => ({ ...r })), def: src.defaultSchedule() };
+    return this._rulesDraft.shown(this._source());
   }
 
   // The "Rules" view: one row per rule (template, the schedule it activates or "given by the
@@ -2473,8 +2448,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     const actions = editable ? `<div class="ed-actions start">
         <button class="btn" data-act="rule-add">${esc(t('ruleAdd'))}</button>
-        ${this._rulesDraft ? `<button class="btn" data-act="rules-cancel">${esc(t('cancel'))}</button>` : ''}
-        <button class="btn primary" data-act="rules-save"${this._rulesDraft ? '' : ' disabled'}>${esc(t('save'))}</button></div>` : '';
+        ${this._rulesDraft.edited ? `<button class="btn" data-act="rules-cancel">${esc(t('cancel'))}</button>` : ''}
+        <button class="btn primary" data-act="rules-save"${this._rulesDraft.edited ? '' : ' disabled'}>${esc(t('save'))}</button></div>` : '';
     return `<div class="rules-view">
       <div class="muted">${esc(t('rulesIntro'))} <a class="rules-try" href="/developer-tools/template" target="_top">${esc(t('rulesTry'))}</a></div>
       ${rules.length ? rows : `<div class="rules-empty muted">${esc(t('rulesEmpty'))}</div>`}
@@ -2518,14 +2493,9 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._previewSub = null;
   }
 
-  // Edits the draft of the rules (created from the integration's on the first change; dropped
-  // when the edits are undone, so that nothing is left to save)
+  // Edits the draft of the rules (see RulesDraft.edit)
   _editRules(change) {
-    const draft = this._rulesShown();
-    change(draft);
-    const src = this._source();
-    const state = (rules, def) => JSON.stringify([rules.map(plainRule), def || null]);
-    this._rulesDraft = state(draft.rules, draft.def) !== state(src.rules(), src.defaultSchedule()) ? draft : null;
+    this._rulesDraft.edit(this._source(), change);
     this._msg = '';
   }
 
@@ -2539,14 +2509,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
     } else if (act === 'rule-delete') {
       this._editRules((d) => d.rules.splice(i, 1));
     } else if (act === 'rules-cancel') {
-      this._rulesDraft = null;
+      this._rulesDraft.drop();
       this._msg = '';
     } else if (act === 'rules-save') {
-      const { rules, def } = this._rulesShown();
       try {
-        await this._commands().setRules(
-          rules.filter((r) => r.template.trim()).map((r) => plainRule({ ...r, template: r.template.trim() })), def || null);
-        this._rulesDraft = null;
+        const { rules, def } = this._rulesDraft.toSave(this._source());
+        await this._commands().setRules(rules, def);
+        this._rulesDraft.drop();
         this._msg = this._loc.t('saved');
       } catch (err) {
         this._msg = errorText(this._loc.t, err);
