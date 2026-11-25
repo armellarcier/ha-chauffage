@@ -6,6 +6,7 @@ Run with `scripts/test.sh integration`. The bench: simulated `climate.*` states,
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -15,6 +16,7 @@ from unittest.mock import PropertyMock, patch
 import pytest
 from homeassistant.auth import models as auth_models
 from homeassistant.auth.const import GROUP_ID_USER
+from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE
 from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
 from homeassistant.exceptions import HomeAssistantError
@@ -247,7 +249,38 @@ class Bench:
 
     def schedule_list(self) -> list[tuple[str, str]]:
         """(id, name) of the schedules, in order."""
-        return [(s["id"], s["name"]) for s in self.runtime.data["schedules"]]
+        return [(s["id"], s["name"]) for s in self.snapshot()["schedules"]]
+
+    # ----- what the integration shows and saves -----
+
+    def snapshot(self) -> dict[str, Any]:
+        """What the card receives from `chauffage/subscribe`."""
+        return self.runtime.snapshot()
+
+    def presets(self) -> list[dict]:
+        return self.snapshot()["presets"]
+
+    def active_schedule(self) -> str | None:
+        return self.snapshot()["active_schedule"]
+
+    def revision(self) -> int:
+        """The revision of the presets and the list of schedules."""
+        return self.snapshot()["revision"]
+
+    def rules(self) -> list[dict]:
+        return self.snapshot()["rules"]
+
+    async def stored(self) -> dict[str, Any]:
+        """The data saved in `.storage/chauffage`, once the delayed save is written."""
+        self.hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
+        await self.hass.async_block_till_done()
+        return self.storage[DOMAIN]["data"]
+
+    async def edit_stored_data(self, change: Callable[[dict[str, Any]], None]) -> None:
+        """Change the data in memory as an older version stored it, or in a state that no API
+        reaches. The only place where the tests touch the integration's data."""
+        change(self.runtime.data)
+        await self.hass.async_block_till_done()
 
     async def set_override(self, entity_id: str, override: dict | None) -> None:
         """What the card sends to extend (+30 min…) or remove an override."""
@@ -259,7 +292,7 @@ class Bench:
         return self.hass.states.async_entity_ids("select")[0]
 
     def overrides(self) -> dict:
-        return self.runtime.data["overrides"]
+        return self.snapshot()["overrides"]
 
     def settings(self) -> dict[tuple[str, str], str]:
         """Last fan or swing mode requested per thermostat and attribute, then reset the call log."""

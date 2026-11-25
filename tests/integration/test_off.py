@@ -92,7 +92,7 @@ async def test_an_off_night_needs_no_rule(bench: Bench):
 
 async def test_a_preset_removed_leaves_the_off_slots_alone(bench: Bench):
     await start_ac(bench, "10:00", [["00:00", "boost"], ["22:00", None, OFF]])
-    presets = [p for p in bench.runtime.data["presets"] if p["id"] != "boost"]
+    presets = [p for p in bench.presets() if p["id"] != "boost"]
     await bench.runtime.set_presets(presets, {"boost": "comfort"})
     assert bench.runtime.weeks[SALON]["normal"][0] == [["00:00", "comfort"], ["22:00", None, OFF]]
 

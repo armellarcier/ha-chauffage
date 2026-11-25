@@ -142,7 +142,7 @@ async def test_the_card_sets_what_a_preset_means_for_a_thermostat(bench: Bench, 
 
 async def test_the_card_edits_the_presets(bench: Bench, ws_client):
     await start(bench)
-    presets = [dict(p) for p in bench.runtime.data["presets"] if p["id"] != "comfort"]
+    presets = [dict(p) for p in bench.presets() if p["id"] != "comfort"]
     presets.append({"name": "Nuit", "color": "#3f51b5", "temperature": 18})
     client = await ws_client(bench.hass)
     await client.send_json_auto_id({"type": "chauffage/presets/set", "presets": presets})
@@ -150,7 +150,7 @@ async def test_the_card_edits_the_presets(bench: Bench, ws_client):
     assert not reply["success"] and "replacement" in reply["error"]["message"]  # comfort is used
     await client.send_json_auto_id({"type": "chauffage/presets/set", "presets": presets, "replacements": {"comfort": "nuit"}})
     assert (await client.receive_json())["success"]
-    assert [lv["id"] for lv in bench.runtime.data["presets"]] == ["eco", "boost", "frost", "nuit"]
+    assert [lv["id"] for lv in bench.presets()] == ["eco", "boost", "frost", "nuit"]
     assert bench.runtime.weeks["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
 
 

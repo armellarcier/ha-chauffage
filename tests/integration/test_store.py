@@ -7,7 +7,10 @@ import pytest
 from homeassistant.core import HomeAssistant
 
 from custom_components.chauffage import store as store_module
+from custom_components.chauffage.const import DOMAIN
 from custom_components.chauffage.store import STORAGE_VERSION, ChauffageStore, migrate
+
+from conftest import Bench
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -96,3 +99,19 @@ def test_version_7_holds_targets_as_partial_states():
     assert v7["pending"]["climate.salon"] == [{"target": {"preset_mode": "comfort"}, "sent": "2026-10-12T06:30:00+02:00"}]
     assert v7["thermostats"]["climate.salon"]["weeks"] == salon["weeks"]
     assert "hvac_mode" not in v7["thermostats"]["climate.salon"]  # Chauffage learns no HVAC mode
+
+
+# ----- the stored data goes through Chauffage unchanged -----
+
+@pytest.mark.parametrize("version", range(1, STORAGE_VERSION + 1))
+async def test_the_stored_data_is_saved_back_as_it_was_read(bench: Bench, version: int):
+    """Chauffage reads a file stored by any version and saves it back in the current format,
+    without losing a value, even a key it doesn't know."""
+    stored = fixture(version)
+    stored["data"]["from_a_later_version"] = {"kept": True}
+    bench.storage[DOMAIN] = stored
+    await bench.go_to("10:00")
+    await bench.setup()
+    await bench.activate_schedule("Absent")
+    expected = {**fixture(STORAGE_VERSION)["data"], "active_schedule": "absent", "from_a_later_version": {"kept": True}}
+    assert await bench.stored() == expected

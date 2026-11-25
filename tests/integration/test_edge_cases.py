@@ -109,7 +109,7 @@ async def test_unknown_schedules_duplicate_or_no_presets_are_refused(bench: Benc
     await start(bench)
     with pytest.raises(model.InvalidData):
         await bench.runtime.activate_schedule("unknown", source="card")
-    presets = [dict(p) for p in bench.runtime.data["presets"]]
+    presets = [dict(p) for p in bench.presets()]
     with pytest.raises(model.InvalidData):
         await bench.runtime.set_presets(presets + [presets[0]])
     with pytest.raises(model.InvalidData):
@@ -118,10 +118,10 @@ async def test_unknown_schedules_duplicate_or_no_presets_are_refused(bench: Benc
 
 async def test_removing_an_override_that_does_not_exist_changes_nothing(bench: Bench):
     await start(bench)
-    revision = bench.runtime.data["revision"]
+    revision = bench.revision()
     await bench.set_override("climate.salon", None)
     assert bench.applied() == {}
-    assert bench.runtime.data["revision"] == revision
+    assert bench.revision() == revision
 
 
 async def test_a_thermostat_not_scheduled_has_no_planned_preset(bench: Bench):

@@ -25,12 +25,12 @@ async def start(bench: Bench) -> None:
 
 
 def presets(bench: Bench) -> list[dict]:
-    return [dict(preset) for preset in bench.runtime.data["presets"]]
+    return [dict(preset) for preset in bench.presets()]
 
 
 async def test_a_new_installation_has_the_four_default_presets(bench: Bench):
     await bench.setup()
-    assert [(p["id"], p["temperature"]) for p in bench.runtime.data["presets"]] == [
+    assert [(p["id"], p["temperature"]) for p in bench.presets()] == [
         ("comfort", 20.0), ("eco", 17.0), ("boost", 22.0), ("frost", 7.0)]
 
 
@@ -40,8 +40,7 @@ async def test_storage_from_v0_2_is_migrated_without_changing_anything(bench: Be
     await bench.go_to("10:00")
     bench.thermostat("climate.salon", "eco")
     await bench.setup()
-    data = bench.runtime.data
-    assert [p["id"] for p in data["presets"]] == ["comfort", "eco", "boost", "frost"]
+    assert [p["id"] for p in bench.presets()] == ["comfort", "eco", "boost", "frost"]
     assert bench.runtime.mappings == {}
     assert bench.runtime.weeks["climate.salon"]["normal"][0] == WEEKDAY
     assert bench.runtime.targets_of("climate.salon")["comfort"] == {"preset_mode": "comfort"}
@@ -78,8 +77,8 @@ async def test_renaming_and_adding_presets(bench: Bench):
     new[1]["name"] = "Économique"
     new.append({"name": "Nuit", "color": "#3f51b5", "temperature": 18})
     await bench.runtime.set_presets(new)
-    assert [p["id"] for p in bench.runtime.data["presets"]] == ["comfort", "eco", "boost", "frost", "nuit"]
-    assert bench.runtime.data["presets"][1]["name"] == "Économique"
+    assert [p["id"] for p in bench.presets()] == ["comfort", "eco", "boost", "frost", "nuit"]
+    assert bench.presets()[1]["name"] == "Économique"
 
 
 async def test_removing_a_preset_used_in_the_weeks_needs_a_replacement(bench: Bench):
@@ -87,11 +86,11 @@ async def test_removing_a_preset_used_in_the_weeks_needs_a_replacement(bench: Be
     without_comfort = [p for p in presets(bench) if p["id"] != "comfort"]
     with pytest.raises(model.InvalidData):
         await bench.runtime.set_presets(without_comfort)
-    revision = bench.runtime.data["revision"]
+    revision = bench.revision()
     await bench.runtime.set_presets(without_comfort, {"comfort": "boost"})
     await bench.hass.async_block_till_done()
     assert bench.runtime.weeks["climate.salon"]["normal"][0][1] == ["06:30", "boost"]
-    assert bench.runtime.data["revision"] == revision + 1  # the card reloads its copy
+    assert bench.revision() == revision + 1  # the card reloads its copy
     assert bench.applied() == {"climate.bureau": "boost"}
 
 

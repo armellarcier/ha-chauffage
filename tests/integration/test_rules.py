@@ -35,7 +35,7 @@ async def tempo(bench: Bench, color: str) -> None:
 
 
 def active(bench: Bench) -> str:
-    return bench.runtime.data["active_schedule"]
+    return bench.active_schedule()
 
 
 async def restart(bench: Bench) -> None:
@@ -186,7 +186,7 @@ async def test_invalid_rules_are_refused(bench: Bench, rules, default):
     await start(bench)
     with pytest.raises(InvalidData):
         await bench.runtime.set_rules(rules, default)
-    assert bench.runtime.data["rules"] == []
+    assert bench.rules() == []
 
 
 async def test_a_schedule_used_by_the_rules_cannot_be_deleted(bench: Bench):
@@ -282,7 +282,7 @@ async def test_rules_being_typed_are_tried_as_the_integration_would(bench: Bench
     assert event["results"] == [False, True, "holiday", False, None]
     assert event["texts"] == ["False", "True", "Holiday", "white", None]
     assert event["errors"] == [None] * 5
-    assert bench.runtime.data["rules"] == [], "nothing is saved"
+    assert bench.rules() == [], "nothing is saved"
 
 
 async def test_a_rule_being_typed_is_tried_again_when_its_entities_change(bench: Bench, ws_client):

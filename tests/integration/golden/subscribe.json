@@ -1,0 +1,1460 @@
+{
+  "access_level": "use",
+  "active_schedule": "normal",
+  "cool_preset_temperatures": {
+    "climate.atelier": {
+      "eco": 27.0
+    }
+  },
+  "default_schedule": "normal",
+  "device_id": "<device id>",
+  "manual_override_end": "duration",
+  "mappings": {},
+  "off_override_end": "next_slot",
+  "override_duration": 120,
+  "overrides": {
+    "climate.salon": {
+      "end": "2026-10-12T12:00:00+02:00",
+      "ends_at": "duration",
+      "start": "2026-10-12T10:00:00+02:00",
+      "target": {
+        "temperature": 21.5
+      }
+    }
+  },
+  "planned": {
+    "climate.atelier": {
+      "hvac_mode": "heat_cool",
+      "next_day_slot_end": "2026-10-13T00:00:00+02:00",
+      "next_hvac_mode": "off",
+      "next_preset": null,
+      "next_slot_end": "2026-10-12T20:00:00+02:00",
+      "next_start": "2026-10-12T20:00:00+02:00",
+      "preset": "comfort",
+      "target": {
+        "cool_preset_mode": "comfort",
+        "fan_mode": "low",
+        "hvac_mode": "heat_cool",
+        "preset_mode": "comfort",
+        "target_temp_high": 25.0,
+        "target_temp_low": 20.0
+      }
+    },
+    "climate.bureau": {
+      "hvac_mode": null,
+      "next_day_slot_end": null,
+      "next_hvac_mode": null,
+      "next_preset": "comfort",
+      "next_slot_end": null,
+      "next_start": "2026-10-12T17:30:00+02:00",
+      "preset": "eco",
+      "target": {
+        "temperature": 17.0
+      }
+    },
+    "climate.chambre": {
+      "hvac_mode": null,
+      "next_day_slot_end": "2026-10-13T06:30:00+02:00",
+      "next_hvac_mode": null,
+      "next_preset": "comfort",
+      "next_slot_end": "2026-10-12T17:30:00+02:00",
+      "next_start": "2026-10-12T17:30:00+02:00",
+      "preset": "eco",
+      "target": {
+        "preset_mode": "eco"
+      }
+    },
+    "climate.cuisine": {
+      "hvac_mode": null,
+      "next_day_slot_end": "2026-10-13T00:00:00+02:00",
+      "next_hvac_mode": null,
+      "next_preset": "comfort",
+      "next_slot_end": "2026-10-12T11:00:00+02:00",
+      "next_start": "2026-10-12T11:00:00+02:00",
+      "preset": "eco",
+      "target": {
+        "temperature": 17.0
+      }
+    },
+    "climate.salon": {
+      "hvac_mode": null,
+      "next_day_slot_end": "2026-10-13T06:30:00+02:00",
+      "next_hvac_mode": null,
+      "next_preset": "comfort",
+      "next_slot_end": "2026-10-12T17:30:00+02:00",
+      "next_start": "2026-10-12T17:30:00+02:00",
+      "preset": "eco",
+      "target": {
+        "preset_mode": "eco"
+      }
+    }
+  },
+  "preset_temperatures": {
+    "climate.chambre": {
+      "eco": 17.0
+    },
+    "climate.salon": {
+      "eco": 17.0
+    }
+  },
+  "presets": [
+    {
+      "color": "#f57c00",
+      "cool_temperature": 25.0,
+      "id": "comfort",
+      "name": "Comfort",
+      "temperature": 20.0
+    },
+    {
+      "color": "#43a047",
+      "cool_temperature": 27.0,
+      "id": "eco",
+      "name": "Eco",
+      "temperature": 17.0
+    },
+    {
+      "color": "#d32f2f",
+      "cool_temperature": 23.0,
+      "id": "boost",
+      "name": "Boost",
+      "temperature": 22.0
+    },
+    {
+      "color": "#78909c",
+      "id": "frost",
+      "name": "Frost protection",
+      "temperature": 7.0
+    }
+  ],
+  "renamed": {},
+  "revision": 1,
+  "rule_results": [
+    false
+  ],
+  "rules": [
+    {
+      "schedule": "away",
+      "template": "{{ is_state('input_boolean.away', 'on') }}"
+    }
+  ],
+  "schedule_entities": {
+    "away": "switch.chauffage_schedule_away",
+    "holiday": "switch.chauffage_schedule_holiday",
+    "normal": "switch.chauffage_schedule_normal"
+  },
+  "schedule_select": "select.chauffage_schedule",
+  "schedules": [
+    {
+      "id": "normal",
+      "name": "Normal"
+    },
+    {
+      "id": "away",
+      "name": "Away"
+    },
+    {
+      "id": "holiday",
+      "name": "Holiday"
+    }
+  ],
+  "targets": {
+    "climate.atelier": {
+      "boost": {
+        "cool_preset_mode": "boost",
+        "preset_mode": "boost",
+        "target_temp_high": 23.0,
+        "target_temp_low": 22.0
+      },
+      "comfort": {
+        "cool_preset_mode": "comfort",
+        "preset_mode": "comfort",
+        "target_temp_high": 25.0,
+        "target_temp_low": 20.0
+      },
+      "eco": {
+        "cool_preset_mode": "eco",
+        "preset_mode": "eco",
+        "target_temp_high": 27.0,
+        "target_temp_low": 17.0
+      },
+      "frost": {
+        "temperature": 16.0
+      }
+    },
+    "climate.bureau": {
+      "boost": {
+        "temperature": 22.0
+      },
+      "comfort": {
+        "temperature": 20.0
+      },
+      "eco": {
+        "temperature": 17.0
+      },
+      "frost": {
+        "temperature": 7.0
+      }
+    },
+    "climate.chambre": {
+      "boost": {
+        "preset_mode": "boost"
+      },
+      "comfort": {
+        "preset_mode": "comfort"
+      },
+      "eco": {
+        "preset_mode": "eco"
+      },
+      "frost": {
+        "temperature": 7.0
+      }
+    },
+    "climate.cuisine": {
+      "boost": {
+        "temperature": 22.0
+      },
+      "comfort": {
+        "temperature": 20.0
+      },
+      "eco": {
+        "temperature": 17.0
+      },
+      "frost": {
+        "temperature": 7.0
+      }
+    },
+    "climate.salon": {
+      "boost": {
+        "preset_mode": "boost"
+      },
+      "comfort": {
+        "preset_mode": "comfort"
+      },
+      "eco": {
+        "preset_mode": "eco"
+      },
+      "frost": {
+        "preset_mode": "frost"
+      }
+    }
+  },
+  "thermostat_entities": {
+    "climate.atelier": {
+      "control": "switch.atelier_control",
+      "next_change": "sensor.atelier_next_change",
+      "override": "binary_sensor.atelier_override",
+      "override_end": "sensor.atelier_override_end",
+      "planned_preset": "sensor.atelier_planned_preset"
+    },
+    "climate.bureau": {
+      "control": "switch.bureau_control",
+      "next_change": "sensor.bureau_next_change",
+      "override": "binary_sensor.bureau_override",
+      "override_end": "sensor.bureau_override_end",
+      "planned_preset": "sensor.bureau_planned_preset"
+    },
+    "climate.chambre": {
+      "control": "switch.chambre_control",
+      "next_change": "sensor.chambre_next_change",
+      "override": "binary_sensor.chambre_override",
+      "override_end": "sensor.chambre_override_end",
+      "planned_preset": "sensor.chambre_planned_preset"
+    },
+    "climate.cuisine": {
+      "control": "switch.cuisine_control",
+      "next_change": "sensor.cuisine_next_change",
+      "override": "binary_sensor.cuisine_override",
+      "override_end": "sensor.cuisine_override_end",
+      "planned_preset": "sensor.cuisine_planned_preset"
+    },
+    "climate.salon": {
+      "control": "switch.salon_control",
+      "next_change": "sensor.salon_next_change",
+      "override": "binary_sensor.salon_override",
+      "override_end": "sensor.salon_override_end",
+      "planned_preset": "sensor.salon_planned_preset"
+    }
+  },
+  "thermostats": {
+    "climate.atelier": {
+      "cause": null,
+      "own_settings": {
+        "fan_mode": "auto"
+      },
+      "paused": false,
+      "revision": 1
+    },
+    "climate.bureau": {
+      "cause": null,
+      "own_settings": {},
+      "paused": true,
+      "revision": 1
+    },
+    "climate.chambre": {
+      "cause": null,
+      "own_settings": {},
+      "paused": false,
+      "revision": 1
+    },
+    "climate.cuisine": {
+      "cause": null,
+      "own_settings": {},
+      "paused": false,
+      "revision": 1
+    },
+    "climate.salon": {
+      "cause": null,
+      "own_settings": {},
+      "paused": false,
+      "revision": 1
+    }
+  },
+  "use_presets": true,
+  "version": "<version>",
+  "weeks": {
+    "climate.atelier": {
+      "away": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "holiday": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "normal": [
+        [
+          [
+            "00:00",
+            "eco",
+            {
+              "hvac_mode": "cool"
+            }
+          ],
+          [
+            "08:00",
+            "comfort",
+            {
+              "fan_mode": "low",
+              "hvac_mode": "heat_cool"
+            }
+          ],
+          [
+            "20:00",
+            null,
+            {
+              "hvac_mode": "off"
+            }
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco",
+            {
+              "hvac_mode": "cool"
+            }
+          ],
+          [
+            "08:00",
+            "comfort",
+            {
+              "fan_mode": "low",
+              "hvac_mode": "heat_cool"
+            }
+          ],
+          [
+            "20:00",
+            null,
+            {
+              "hvac_mode": "off"
+            }
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco",
+            {
+              "hvac_mode": "cool"
+            }
+          ],
+          [
+            "08:00",
+            "comfort",
+            {
+              "fan_mode": "low",
+              "hvac_mode": "heat_cool"
+            }
+          ],
+          [
+            "20:00",
+            null,
+            {
+              "hvac_mode": "off"
+            }
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco",
+            {
+              "hvac_mode": "cool"
+            }
+          ],
+          [
+            "08:00",
+            "comfort",
+            {
+              "fan_mode": "low",
+              "hvac_mode": "heat_cool"
+            }
+          ],
+          [
+            "20:00",
+            null,
+            {
+              "hvac_mode": "off"
+            }
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco",
+            {
+              "hvac_mode": "cool"
+            }
+          ],
+          [
+            "08:00",
+            "comfort",
+            {
+              "fan_mode": "low",
+              "hvac_mode": "heat_cool"
+            }
+          ],
+          [
+            "20:00",
+            null,
+            {
+              "hvac_mode": "off"
+            }
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco",
+            {
+              "hvac_mode": "cool"
+            }
+          ],
+          [
+            "08:00",
+            "comfort",
+            {
+              "fan_mode": "low",
+              "hvac_mode": "heat_cool"
+            }
+          ],
+          [
+            "20:00",
+            null,
+            {
+              "hvac_mode": "off"
+            }
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco",
+            {
+              "hvac_mode": "cool"
+            }
+          ],
+          [
+            "08:00",
+            "comfort",
+            {
+              "fan_mode": "low",
+              "hvac_mode": "heat_cool"
+            }
+          ],
+          [
+            "20:00",
+            null,
+            {
+              "hvac_mode": "off"
+            }
+          ]
+        ]
+      ]
+    },
+    "climate.bureau": {
+      "away": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "holiday": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "normal": [
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ]
+      ]
+    },
+    "climate.chambre": {
+      "away": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "holiday": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "normal": [
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ]
+      ]
+    },
+    "climate.cuisine": {
+      "away": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "holiday": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "normal": [
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "11:00",
+            "comfort"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "11:00",
+            "comfort"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "11:00",
+            "comfort"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "11:00",
+            "comfort"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "11:00",
+            "comfort"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "11:00",
+            "comfort"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "11:00",
+            "comfort"
+          ]
+        ]
+      ]
+    },
+    "climate.salon": {
+      "away": [
+        [
+          [
+            "00:00",
+            "frost"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "frost"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "frost"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "frost"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "frost"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "frost"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "frost"
+          ]
+        ]
+      ],
+      "holiday": [
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ]
+        ]
+      ],
+      "normal": [
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "06:30",
+            "comfort"
+          ],
+          [
+            "08:30",
+            "eco"
+          ],
+          [
+            "17:30",
+            "comfort"
+          ],
+          [
+            "22:30",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "08:00",
+            "comfort"
+          ],
+          [
+            "23:00",
+            "eco"
+          ]
+        ],
+        [
+          [
+            "00:00",
+            "eco"
+          ],
+          [
+            "08:00",
+            "comfort"
+          ],
+          [
+            "23:00",
+            "eco"
+          ]
+        ]
+      ]
+    }
+  }
+}
