@@ -990,6 +990,8 @@ dashboards, automations, scripts and by voice without the card
 
 - **No build step**: one JavaScript file, served by the integration and loaded on every page
   (card and more-info block). Bundling comes with the translations as files (roadmap).
+  **Replaced by the rewrite** (phase C0): the card is written in TypeScript in `frontend/src/`,
+  and esbuild bundles it into the one file that the integration serves.
 - **Loaded with `add_extra_js_url`, registered twice if needed**, not as a Lovelace resource
   (nothing to configure, and the more-info block needs it on every page). The module is loaded
   in parallel with HA's frontend, which replaces `customElements` with a scoped registry
@@ -2125,3 +2127,23 @@ phases. The owner decided these points on 2026-11-25:
   publishes `requested_state`, so the code for older versions goes.
 - **The rewrite removes the v0.1 import, in its first step.** A v0.1 user first installs a
   release that still imports.
+
+#### Phase C0: the build of the card
+
+Claude made these choices while splitting the card (proposals, for the owner to confirm):
+
+- **The sources live in `frontend/src/`, at the root of the repository.** The integration's
+  folder holds only what Home Assistant runs, so the release ZIP needs no filtering.
+- **The card takes its version from `manifest.json`.** The card imports the manifest, and
+  esbuild puts the version in the bundle. A release sets one version, in the manifest.
+- **The types stay loose until the card is rewritten.** `tsc` checks the modules with
+  `strict` off. The fields of the elements, the event parameters and the queried elements are
+  `any`. Each later phase types the code it rewrites.
+- **The bundle keeps the code as written**: no minification, no syntax lowering (`esnext`), as
+  the file the integration served before.
+- **The integration's `frontend/` folder stays in git**, with a `.gitignore` for the built card.
+  Home Assistant registers this folder when the integration starts, so the folder must exist
+  before the first build.
+- **The release ZIP holds the integration's files at its root**, as HACS expects with
+  `zip_release`. Without HACS, a user unzips it into `custom_components/chauffage/`.
+- **`scripts/deploy.sh` builds the card of the commit it deploys**, with Node or Docker.

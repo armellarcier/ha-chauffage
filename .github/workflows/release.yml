@@ -1,7 +1,7 @@
 name: Release
 
 # Pushing a tag vX.Y.Z publishes the GitHub release (see CONTRIBUTING.md, "Releasing"):
-# tests, version check, ZIP to unzip into the HA configuration, notes from CHANGELOG.md.
+# tests, version check, the card built, the ZIP that HACS installs, notes from CHANGELOG.md.
 on:
   push:
     tags: ["v*"]
@@ -24,20 +24,26 @@ jobs:
 
       - name: Check the version
         run: |
+          # The card takes its version from the manifest
           version="${GITHUB_REF_NAME#v}"
-          grep -q "^const VERSION = '$version';" custom_components/chauffage/frontend/chauffage-programme-card.js \
-            || { echo "::error::Tag $GITHUB_REF_NAME does not match VERSION in the card"; exit 1; }
+          grep -q "\"version\": \"$version\"" custom_components/chauffage/manifest.json \
+            || { echo "::error::Tag $GITHUB_REF_NAME does not match the version in manifest.json"; exit 1; }
           grep -q "^## \[$version\]" CHANGELOG.md \
             || { echo "::error::No CHANGELOG.md entry for $version"; exit 1; }
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build the card
+        run: npm ci && npm run build
+
       - name: Build the ZIP
         run: |
-          # To unzip into the HA configuration folder (installation without HACS)
-          mkdir -p dist/custom_components
-          cp -R custom_components/chauffage dist/custom_components/
-          find dist -name __pycache__ -prune -exec rm -rf {} +
-          cp LICENSE CHANGELOG.md dist/
-          (cd dist && zip -r "../ha-chauffage-$GITHUB_REF_NAME.zip" .)
+          # HACS unzips it into custom_components/chauffage/ (hacs.json: zip_release, filename).
+          # Without HACS, unzip it there too.
+          cd custom_components/chauffage
+          zip -r ../../ha-chauffage.zip .
 
       - name: Release notes
         run: |
@@ -49,6 +55,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "ha-chauffage-$GITHUB_REF_NAME.zip" \
+          gh release create "$GITHUB_REF_NAME" ha-chauffage.zip \
             --title "$GITHUB_REF_NAME" --notes-file notes.md \
             $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)

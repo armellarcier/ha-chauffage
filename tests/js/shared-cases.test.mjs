@@ -4,7 +4,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './helpers.mjs';
-import { fitTemperature, parseDay, slotToArray } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { fitTemperature, parseDay, slotToArray } from '../../frontend/src/index.ts';
 
 const CASES = JSON.parse(readFileSync(new URL('../shared/cases.json', import.meta.url), 'utf8'));
 

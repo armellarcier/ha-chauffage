@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, delimiter, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compareVersions } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { compareVersions } from '../../frontend/src/index.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const posix = (path) => path.replace(/\\/g, '/');
@@ -33,10 +33,20 @@ function repository(version = '0.9.0-beta.4') {
   for (const script of SCRIPTS) {
     copyFileSync(join(root, script), join(dir, script));
   }
+  // The build of the card, without Node or Docker: the card of the copy given, with the version
+  // of its manifest. A commit with frontend/broken does not build.
+  write('scripts/build.sh', [
+    '#!/usr/bin/env bash',
+    'set -euo pipefail',
+    '[ ! -e "$1/frontend/broken" ] || { echo "Build failed" >&2; exit 1; }',
+    'v=$(sed -n \'s/.*"version": *"\\([^"]*\\)".*/\\1/p\' "$1/custom_components/chauffage/manifest.json")',
+    'mkdir -p "$1/custom_components/chauffage/frontend"',
+    'printf "const VERSION = \'%s\';\\n" "$v" > "$1/custom_components/chauffage/frontend/chauffage-programme-card.js"',
+  ].join('\n'));
+  chmodSync(join(dir, 'scripts/build.sh'), 0o755);
   const integration = 'custom_components/chauffage';
   const setVersion = (v) => {
     write(`${integration}/manifest.json`, `{\n  "domain": "chauffage",\n  "version": "${v}"\n}\n`);
-    write(`${integration}/frontend/chauffage-programme-card.js`, `const VERSION = '${v}';\n`);
   };
   setVersion(version);
   write(`${integration}/__init__.py`, '"""Chauffage."""\n');
@@ -142,6 +152,18 @@ test('the commit at HEAD is deployed, with a dev version, the same in the card a
   assert.match(version, /^0\.9\.0-beta\.4\.dev\.\d{14}\.g[0-9a-f]+$/);
   assert.ok(version.endsWith(`.g${ha.repo.git('rev-parse', '--short', 'HEAD').trim()}`), version);
   assert.equal(ha.read('custom_components/chauffage/frontend/chauffage-programme-card.js'), `const VERSION = '${version}';\n`);
+});
+
+test('a commit whose card does not build is refused, with Home Assistant left running', () => {
+  const repo = repository();
+  repo.write('frontend/broken', '');
+  repo.commit('Broken card');
+  const ha = home({ repo });
+  const { status, said } = ha.attempt();
+  assert.notEqual(status, 0);
+  assert.match(said, /Build failed/);
+  assert.equal(ha.installed(), '0.8.0');
+  assert.deepEqual(ha.docker(), []);
 });
 
 test('changes that are not committed are not deployed', () => {

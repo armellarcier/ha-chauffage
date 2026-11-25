@@ -18,7 +18,7 @@ class ScopedRegistry {
 
 test('the card loaded before the frontend replaces the registry is registered again in the new one', async () => {
   const native = customElements;
-  await import('../../custom_components/chauffage/frontend/chauffage-programme-card.js');
+  await import('../../frontend/src/index.ts');
   assert.ok(native.get('chauffage-programme-card'));
 
   // The frontend boots: the polyfill replaces the registry, then HA defines its own elements

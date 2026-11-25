@@ -12,14 +12,17 @@ Assistant.
 - [Docker](https://docs.docker.com/get-docker/) for the development HA. On Windows and macOS,
   use Docker Desktop.
 
-The card is a JavaScript file served as is, so there is no build step. Node and Python are only
-used by the automated tests. If Node or Python is not installed, the tests run in Docker.
+The card is written in TypeScript, in `frontend/src/`. esbuild bundles it into one file, which
+the integration serves. Node builds the card and runs the card tests, and Python runs the
+integration tests. If Node or Python is not installed, the scripts run them in Docker.
 
 ## Repository layout
 
 ```
 custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
-custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
+frontend/src/                       the card, in TypeScript: Lovelace cards, panel, block injected into
+                                    the more-info dialog
+custom_components/chauffage/frontend/  the built card, served by the integration (not in git)
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
 dev/sim_rooms/, dev/sim_climate/    dev only: thermal model of the rooms (and a simulated week of
                                     history for a new dev HA), a climate with standard presets
@@ -27,7 +30,7 @@ tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node
 docs/                               the user guide (one page per topic, in English and French), and
                                     the glossary, design decisions, use cases and writing style
 tests/fixtures/                     stored data in each past format (migration tests)
-scripts/                            test.sh, logs.sh, demo.sh
+scripts/                            build.mjs, build.sh, test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, HACS checks and releases
 ```
 
@@ -117,7 +120,7 @@ change one evening. So the card's *History* shows realistic curves at once. The 
 
 | You edit… | To apply your change |
 |---|---|
-| `custom_components/chauffage/frontend/*.js` (the card) | Reload the browser page. |
+| `frontend/src/*.ts` (the card) | Reload the browser page. The `card` service of the development HA builds the card again. |
 | `custom_components/chauffage/*.py`, `*.json` | `docker compose -f dev/compose.yaml restart homeassistant` |
 | `dev/hass/configuration.yaml`, `dev/sim_rooms/*.py`, `dev/sim_climate/*.py` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
@@ -200,6 +203,14 @@ Drive the card through `tests/js/driver.mjs`, never through its private members.
 click a control with `act(card, 'save')`, and check `unsaved(card)` rather than `card._dirty`.
 If the driver lacks a function, add it to the driver. Reach into the card only when no user
 action can do it, and say why in an `Internal:` comment.
+
+### The card's TypeScript
+
+The card tests run the TypeScript sources without a build: Node removes the types. So:
+
+- Write only syntax that Node can remove, for example no `enum` and no parameter properties.
+- Import a module with its `.ts` extension.
+- Check the types with `npm run typecheck`. `scripts/test.sh js` and the CI run it too.
 
 ## Supported Home Assistant versions
 
@@ -462,13 +473,9 @@ add a demo. Don't record anything again when the changes cannot be seen.
 
 ### 3. Set the version
 
-Set the new version in these files:
-
-- `custom_components/chauffage/frontend/chauffage-programme-card.js` (`VERSION`);
-- `package.json`;
-- `custom_components/chauffage/manifest.json`.
-
-`tests/js/release.test.mjs` checks that these versions match.
+Set the new version in `custom_components/chauffage/manifest.json`. The card takes its version
+from the manifest when it is built. `tests/js/release.test.mjs` checks that the changelog has
+the same version.
 
 In `CHANGELOG.md`, move the "Unreleased" entries under the new version, with the date and the
 upgrade steps.
@@ -483,9 +490,12 @@ git push origin main v0.3.0
 ```
 
 The `Release` workflow (`.github/workflows/release.yml`) runs the tests and checks the version.
-Then it publishes the GitHub release, with the changelog entry and `ha-chauffage-v0.3.0.zip`.
-The ZIP holds `custom_components/chauffage/`, to unzip into the Home Assistant configuration
-folder without HACS.
+Then it builds the card and publishes the GitHub release, with the changelog entry and
+`ha-chauffage.zip`.
+
+The ZIP holds the files of `custom_components/chauffage/`, built card included. HACS installs
+this ZIP (`zip_release` in `hacs.json`). Without HACS, unzip it into the
+`custom_components/chauffage/` folder of the Home Assistant configuration.
 
 ### Pre-releases
 
@@ -510,9 +520,8 @@ The card's `language` option can force a language.
 
 ### The card's texts
 
-- Write the texts in the `I18N` object of
-  `custom_components/chauffage/frontend/chauffage-programme-card.js`. `I18N` holds one object per
-  language, with English keys and `{placeholder}` variables.
+- Write the texts in `frontend/src/i18n/`, one file per language, for example `en.ts`. Each
+  file holds one object, with English keys and `{placeholder}` variables.
 - Give every language exactly the same keys and placeholders. `tests/js/i18n.test.mjs` checks
   it.
 - Never write a format by hand. Times, day names and numbers come from the browser's `Intl` APIs,
@@ -529,12 +538,10 @@ such texts: the config flow, the entities, the services, the repairs and the err
 
 ### Add a language
 
-1. Add an object to `I18N`, with the same keys as `en`.
-2. Extend `resolveLanguage`.
-3. Run `scripts/test.sh js`.
-
-Once the card is bundled (see the roadmap), the translations will move to one JSON file per
-language, with ICU MessageFormat for plurals, as in most Home Assistant cards.
+1. Copy `frontend/src/i18n/en.ts` to a file named after the language, and translate its texts.
+2. Add the language to `I18N`, in `frontend/src/i18n/index.ts`.
+3. Extend `resolveLanguage`, in `frontend/src/i18n/locale.ts`.
+4. Run `scripts/test.sh js`.
 
 ## Tests first
 

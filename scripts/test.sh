@@ -2,7 +2,7 @@
 # Runs the project's tests. Uses the installed Node / Python when available,
 # otherwise Docker (nothing to install apart from Docker).
 #   scripts/test.sh               → all tests
-#   scripts/test.sh js            → card (node --test + jsdom)
+#   scripts/test.sh js            → card (tsc, then node --test + jsdom)
 #   scripts/test.sh integration   → Chauffage integration (pytest + in-memory Home Assistant)
 #   scripts/test.sh integration -k ends → extra arguments are passed to pytest
 #   HA=min scripts/test.sh integration → on the minimum supported Home Assistant (hacs.json)
@@ -35,6 +35,8 @@ coverage() {
 }
 
 js_tests() {
+  echo "=== Card types (tsc) ==="
+  node_suite typecheck
   echo "=== Card tests (JavaScript) ==="
   node_suite test
 }

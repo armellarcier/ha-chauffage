@@ -3,7 +3,7 @@ import { fakeHass, createCard, cleanup, typeTime, pressKey } from './helpers.mjs
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { day } from './driver.mjs';
-import { I18N, makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { I18N, makeLocale } from '../../frontend/src/index.ts';
 
 const user = (locale, extra = {}) => ({ locale: { time_format: 'language', number_format: 'language', first_weekday: 'language', ...locale }, ...extra });
 

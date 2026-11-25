@@ -3,7 +3,7 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WEEKDAY, WEEKEND, cleanup } from './helpers.mjs';
-import { CHIP_STYLE, FIELD_BOX, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, STYLE as STYLE_TEXT, derivedCoolColor, normalize, parseDay, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { CHIP_STYLE, FIELD_BOX, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, STYLE as STYLE_TEXT, derivedCoolColor, normalize, parseDay, serializeDay } from '../../frontend/src/index.ts';
 import { $, $$, change, click, icons, rgb, text, week } from './houses/dom.mjs';
 import { day } from './driver.mjs';
 import { openOverride, unsaved } from './driver.mjs';
@@ -665,8 +665,10 @@ afterEach(() => cleanup());
 
   describe('the hint speaks of a finger on a touch screen', () => {
     test('whatever the number of rooms shown: a screen without hover, or with a coarse pointer', async () => {
-      const { readFileSync } = await import('node:fs');
-      const source = readFileSync(new URL('../../custom_components/chauffage/frontend/chauffage-programme-card.js', import.meta.url), 'utf8');
+      const { readFileSync, readdirSync } = await import('node:fs');
+      const sources = new URL('../../frontend/src/', import.meta.url);
+      const source = readdirSync(sources, { recursive: true }).filter((f) => f.endsWith('.ts'))
+        .map((f) => readFileSync(new URL(f.replace(/\\/g, '/'), sources), 'utf8')).join('\n');
       const rules = source.match(/@media \(hover:none\), \(pointer:coarse\) \{[^}]*\.hint \.mouse \{ display:none; \}/g) || [];
       assert.equal(rules.length, 2, 'in the card and in the panel');
       for (const show of [[SALON], 'all']) {

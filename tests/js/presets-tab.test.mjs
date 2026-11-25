@@ -3,7 +3,7 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanup, createCard } from './helpers.mjs';
-import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn, valueOn } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn, valueOn } from '../../frontend/src/index.ts';
 import { $, $$, change, click, icons, text } from './houses/dom.mjs';
 import { openOverride } from './driver.mjs';
 import { applyCell } from './driver.mjs';

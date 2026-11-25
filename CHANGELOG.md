@@ -17,6 +17,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **Read the target of an override in your automations.** The override events and the override
   sensors no longer carry `kind` and `value`, the format before 0.10. Read `target` instead, for
   example `{"temperature": 21.5}`.
+- **Installed without HACS? Unzip `ha-chauffage.zip` into `custom_components/chauffage/`.** The
+  ZIP of a release now holds the files of the integration at its root, with the card built.
+  HACS installs this ZIP by itself.
 - **Update Versatile Thermostat to 10.5 or later first.** Chauffage now requires Versatile
   Thermostat 10.5. An older Versatile Thermostat turned off by itself would be taken for one
   turned off by hand.

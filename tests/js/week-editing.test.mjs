@@ -3,7 +3,7 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WEEKEND, cleanup, typeTime } from './helpers.mjs';
-import { joined, parseDay, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { joined, parseDay, serializeDay } from '../../frontend/src/index.ts';
 import { $, $$, click, copyDay, day, doubleTap, icons, openMenu, rgb, save, selected, settle, text, unsaved } from './driver.mjs';
 import { pasteDay, rows, slotPreset, weekHvac } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';

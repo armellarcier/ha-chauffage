@@ -4,7 +4,7 @@ import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   toMin, toHM, parseDate, parseDay, serializeDay, overridePieces, overrideLabel, parseTime,
-} from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+} from '../../frontend/src/index.ts';
 
 describe('times', () => {
   test('HH:MM ↔ minutes conversion', () => {

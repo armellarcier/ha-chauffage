@@ -3,14 +3,15 @@ import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { VERSION } from '../../frontend/src/index.ts';
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 
-test('card, package.json, integration and CHANGELOG have the same version', () => {
+// The card takes its version from the integration's manifest: one version to set.
+test('card, integration and CHANGELOG have the same version', () => {
   assert.match(VERSION, /^\d+\.\d+\.\d+(-[\w.]+)?$/); // pre-releases: 0.2.0-beta.1
-  assert.equal(JSON.parse(read('package.json')).version, VERSION);
   assert.equal(JSON.parse(read('custom_components/chauffage/manifest.json')).version, VERSION);
+  assert.equal(JSON.parse(read('package.json')).version, undefined, 'package.json has no version of its own');
   // Latest released entry of the changelog (the "Unreleased" section has no number)
   const [, latest] = read('CHANGELOG.md').match(/^## \[(\d+\.\d+\.\d+(?:-[\w.]+)?)\]/m) || [];
   assert.equal(latest, VERSION);
@@ -28,4 +29,15 @@ test('the minimum Home Assistant is the same in hacs.json, the tests, the CI, th
   assert.match(read('README.fr.md'), new RegExp(`Nécessite Home Assistant ${short} ou plus récent`));
   assert.match(read('docs/installation.md'), new RegExp(`Requires Home Assistant ${short} or later`));
   assert.match(read('docs/installation.fr.md'), new RegExp(`Nécessite Home Assistant ${short} ou plus récent`));
+});
+
+// HACS installs the ZIP of the release (hacs.json: zip_release): the release must publish a file of
+// that name, with the integration at its root, built card included.
+test('the release publishes the ZIP that HACS installs', () => {
+  const hacs = JSON.parse(read('hacs.json'));
+  assert.equal(hacs.zip_release, true);
+  const workflow = read('.github/workflows/release.yml');
+  assert.ok(workflow.includes(`gh release create "$GITHUB_REF_NAME" ${hacs.filename} `), 'the asset of the release');
+  assert.ok(workflow.includes(`cd custom_components/chauffage\n          zip -r ../../${hacs.filename} .`), 'the integration at the root of the ZIP');
+  assert.ok(workflow.includes('npm run build'), 'the card built first');
 });

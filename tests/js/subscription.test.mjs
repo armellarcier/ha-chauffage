@@ -3,7 +3,7 @@
 // Chauffage is set up. Home Assistant's websocket library then replays the subscription once,
 // gets "not_loaded", and never tries again.
 import { fakeHass, createCard, cleanup, integrationData } from './helpers.mjs';
-import { INTEGRATION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { INTEGRATION } from '../../frontend/src/index.ts';
 import { test, describe, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 

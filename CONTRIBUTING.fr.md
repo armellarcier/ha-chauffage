@@ -12,15 +12,17 @@ version sur un vrai Home Assistant.
 - [Docker](https://docs.docker.com/get-docker/) pour le HA de développement. Sous Windows et
   macOS, utilisez Docker Desktop.
 
-La carte est un fichier JavaScript servi tel quel : il n'y a rien à compiler. Node et Python ne
-servent qu'aux tests automatisés. Si Node ou Python n'est pas installé, les tests tournent dans
-Docker.
+La carte est écrite en TypeScript, dans `frontend/src/`. esbuild la regroupe en un seul fichier,
+que l'intégration sert. Node construit la carte et lance ses tests, Python lance les tests de
+l'intégration. Si Node ou Python n'est pas installé, les scripts les lancent dans Docker.
 
 ## Structure du dépôt
 
 ```
 custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
-custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
+frontend/src/                       la carte, en TypeScript : cartes Lovelace, panneau, bloc injecté
+                                    dans la fenêtre de détail
+custom_components/chauffage/frontend/  la carte construite, servie par l'intégration (hors de git)
 dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
 dev/sim_rooms/, dev/sim_climate/    dev uniquement : modèle thermique des pièces (et une semaine
                                     d'historique simulée pour un HA de dev neuf), un climate à
@@ -30,7 +32,7 @@ docs/                               le guide utilisateur (une page par sujet, en
                                     français), et le glossaire, les décisions, les cas d'usage et
                                     le style d'écriture (en anglais)
 tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
-scripts/                            test.sh, logs.sh, demo.sh
+scripts/                            build.mjs, build.sh, test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, vérifications HACS et publication
 ```
 
@@ -125,7 +127,7 @@ tout de suite des courbes réalistes. Le recorder garde 10 jours.
 
 | Vous modifiez… | Pour appliquer la modification |
 |---|---|
-| `custom_components/chauffage/frontend/*.js` (la carte) | Rechargez la page du navigateur. |
+| `frontend/src/*.ts` (la carte) | Rechargez la page du navigateur. Le service `card` du HA de développement reconstruit la carte. |
 | `custom_components/chauffage/*.py`, `*.json` | `docker compose -f dev/compose.yaml restart homeassistant` |
 | `dev/hass/configuration.yaml`, `dev/sim_rooms/*.py`, `dev/sim_climate/*.py` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
@@ -213,6 +215,15 @@ cliquez sur un contrôle avec `act(card, 'save')`, et vérifiez `unsaved(card)` 
 `card._dirty`. S'il manque une fonction au driver, ajoutez-la au driver. N'allez dans la carte
 que si aucune action d'un utilisateur ne peut le faire, et dites pourquoi dans un commentaire
 `Internal:`.
+
+### Le TypeScript de la carte
+
+Les tests de la carte lancent les sources TypeScript sans build : Node retire les types. Donc :
+
+- N'écrivez que de la syntaxe que Node sait retirer, par exemple ni `enum` ni propriétés de
+  paramètre.
+- Importez un module avec son extension `.ts`.
+- Vérifiez les types avec `npm run typecheck`. `scripts/test.sh js` et la CI le lancent aussi.
 
 ## Versions de Home Assistant prises en charge
 
@@ -498,13 +509,9 @@ changements ne se voient pas.
 
 ### 3. Changer la version
 
-Indiquez la nouvelle version dans ces fichiers :
-
-- `custom_components/chauffage/frontend/chauffage-programme-card.js` (`VERSION`) ;
-- `package.json` ;
-- `custom_components/chauffage/manifest.json`.
-
-`tests/js/release.test.mjs` vérifie que ces versions concordent.
+Indiquez la nouvelle version dans `custom_components/chauffage/manifest.json`. La carte prend sa
+version dans le manifeste quand elle est construite. `tests/js/release.test.mjs` vérifie que le
+changelog a la même version.
 
 Dans `CHANGELOG.md`, déplacez les entrées « Unreleased » sous la nouvelle version, avec la date
 et les étapes de mise à jour.
@@ -519,9 +526,12 @@ git push origin main v0.3.0
 ```
 
 Le workflow `Release` (`.github/workflows/release.yml`) lance les tests et vérifie la version. Il
-publie ensuite la release GitHub, avec l'entrée du changelog et `ha-chauffage-v0.3.0.zip`. Le ZIP
-contient `custom_components/chauffage/`, à décompresser dans le dossier de configuration de Home
-Assistant, sans HACS.
+construit ensuite la carte et publie la release GitHub, avec l'entrée du changelog et
+`ha-chauffage.zip`.
+
+Le ZIP contient les fichiers de `custom_components/chauffage/`, carte construite comprise. HACS
+installe ce ZIP (`zip_release` dans `hacs.json`). Sans HACS, décompressez-le dans le dossier
+`custom_components/chauffage/` de la configuration de Home Assistant.
 
 ### Préversions
 
@@ -546,9 +556,8 @@ L'option `language` de la carte permet d'imposer une langue.
 
 ### Les textes de la carte
 
-- Écrivez les textes dans l'objet `I18N` de
-  `custom_components/chauffage/frontend/chauffage-programme-card.js`. `I18N` contient un objet par
-  langue, avec des clés en anglais et des variables `{placeholder}`.
+- Écrivez les textes dans `frontend/src/i18n/`, un fichier par langue, par exemple `fr.ts`.
+  Chaque fichier contient un objet, avec des clés en anglais et des variables `{placeholder}`.
 - Donnez à chaque langue exactement les mêmes clés et les mêmes variables.
   `tests/js/i18n.test.mjs` le vérifie.
 - N'écrivez jamais un format à la main. Les heures, les noms des jours et les nombres viennent
@@ -566,13 +575,10 @@ les services, les réparations et les erreurs.
 
 ### Ajouter une langue
 
-1. Ajoutez un objet à `I18N`, avec les mêmes clés que `en`.
-2. Complétez `resolveLanguage`.
-3. Lancez `scripts/test.sh js`.
-
-Quand la carte sera compilée (voir la feuille de route), les traductions passeront à un fichier
-JSON par langue, avec ICU MessageFormat pour les pluriels, comme dans la plupart des cartes Home
-Assistant.
+1. Copiez `frontend/src/i18n/en.ts` dans un fichier au nom de la langue, et traduisez ses textes.
+2. Ajoutez la langue à `I18N`, dans `frontend/src/i18n/index.ts`.
+3. Complétez `resolveLanguage`, dans `frontend/src/i18n/locale.ts`.
+4. Lancez `scripts/test.sh js`.
 
 ## Les tests d'abord
 

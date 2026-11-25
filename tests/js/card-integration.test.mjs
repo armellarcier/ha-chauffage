@@ -4,7 +4,7 @@ import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrat
 import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { compareVersions, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { compareVersions, VERSION } from '../../frontend/src/index.ts';
 import { $, act, day, openOverride, save, selected, settle, tapAt, unsaved } from './driver.mjs';
 import { scheduleShown, watchReloads } from './driver.mjs';
 import { typeTime } from './helpers.mjs';
