@@ -165,8 +165,10 @@ export function timeFieldDone(host, el, apply, refuse = null) {
     el.value = k.format(Number(el.dataset.minutes), host._loc);
     delete el.dataset.moved;
     refuse();
-  } else if (minutes === null) host._redrawLater = true;
-  else {
+  } else if (minutes === null) {
+    el.value = k.format(Number(el.dataset.minutes), host._loc);
+    host._redrawLater = true;
+  } else {
     el.value = k.format(minutes, host._loc);
     if (minutes !== Number(el.dataset.minutes) || Number(el.dataset.moved)) {
       el.dataset.minutes = minutes; // applied once

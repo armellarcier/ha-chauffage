@@ -1,10 +1,9 @@
+import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { sourceNotice } from '../notices.ts';
 import { dataSource, filterActive } from '../client/snapshot.ts';
-import { client } from '../client/chauffage-client.ts';
+import { SnapshotController } from '../controllers/snapshot-controller.ts';
 import { tileColor, tileCss } from './rooms-card.ts';
-import { esc } from '../common.ts';
 import { makeLocale } from '../i18n/locale.ts';
-import { fillCard } from '../override-edit.ts';
 
 // =====================================================================
 //  Summary card (custom:chauffage-summary-card): a floor or the house in one row, drawn like
@@ -37,14 +36,24 @@ const SUMMARY_CARD_STYLE = `${tileCss('sc')}
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
 
-export class ChauffageSummaryCard extends HTMLElement {
-  // The fields of the element, untyped until the rewrite of the card gives them a type
+export class ChauffageSummaryCard extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    _config: { state: true },
+    _menuOpen: { state: true },
+  };
+
+  static styles = unsafeCSS(SUMMARY_CARD_STYLE);
+
+  declare hass: any;
   declare _config: any;
-  declare _hass: any;
-  declare _html: any;
-  declare _menuOpen: any;
-  declare _outside: any;
-  declare _unlisten: any;
+  declare _menuOpen: boolean;
+  // Drawn again when the integration pushes new data
+  _snapshot = new SnapshotController(this);
+  // A tap outside the card closes the menu of the schedules
+  private _outside = (e) => {
+    if (this._menuOpen && !e.composedPath().includes(this)) this._menuOpen = false;
+  };
 
   static getConfigElement() {
     return document.createElement('chauffage-summary-card-editor');
@@ -55,40 +64,18 @@ export class ChauffageSummaryCard extends HTMLElement {
     return {};
   }
 
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
-    this.shadowRoot.addEventListener('keydown', (e) => this._onKey(e));
-    // A tap outside the card closes the menu of the schedules
-    this._outside = (e) => {
-      if (this._menuOpen && !e.composedPath().includes(this)) { this._menuOpen = false; this._render(); }
-    };
-  }
-
   setConfig(config) {
     this._config = config || {};
-    this._html = null;
-    if (this._hass) this._render();
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    if (!this._unlisten && dataSource(hass).available) {
-      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
-    }
-    if (this._config) this._render();
   }
 
   connectedCallback() {
+    super.connectedCallback();
     document.addEventListener('click', this._outside);
-    if (this._hass && !this._unlisten && dataSource(this._hass).available) this.hass = this._hass;
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback();
     document.removeEventListener('click', this._outside);
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
   }
 
   getCardSize() {
@@ -102,61 +89,63 @@ export class ChauffageSummaryCard extends HTMLElement {
   // Its thermostats: the ones listed in the card, else every one Chauffage schedules
   _thermostats() {
     const listed = this._config.thermostats || [];
-    const entities = listed.length ? listed.map((t) => (typeof t === 'string' ? t : t.entity)) : dataSource(this._hass).scheduled();
-    return entities.filter((e) => this._hass.states[e]);
+    const entities = listed.length ? listed.map((t) => (typeof t === 'string' ? t : t.entity)) : dataSource(this.hass).scheduled();
+    return entities.filter((e) => this.hass.states[e]);
   }
 
-  _render() {
-    const hass = this._hass;
+  render() {
+    if (!this.hass || !this._config) return nothing;
+    return html`<ha-card @click=${this._onClick} @keydown=${this._onKey}>${this._content()}</ha-card>`;
+  }
+
+  _content() {
+    const hass = this.hass;
     const loc = makeLocale(hass, this._config.language);
     const t = loc.t;
     const src = dataSource(hass);
     const notice: any = sourceNotice(src);
-    let html;
-    if (notice) html = notice.loading ? '' : `<div class="msg">${esc(t(notice.text))}</div>`;
-    else {
-      const thermostats = this._thermostats();
-      const overrides = filterActive(src.overrides());
-      const doing = (action) => thermostats.filter((e) => hass.states[e].attributes.hvac_action === action).length;
-      const heating = doing('heating');
-      const cooling = doing('cooling');
-      const overridden = thermostats.filter((e) => overrides[e] && !src.paused(e)).length;
-      const paused = thermostats.filter((e) => src.paused(e)).length;
-      const count = (n, one, many) => (n === 1 ? t(one) : t(many, { n }));
-      const status = [heating ? count(heating, 'heatingOne', 'heatingMany') : cooling ? '' : t('heatingNone'),
-        cooling ? count(cooling, 'coolingOne', 'coolingMany') : '',
-        overridden ? count(overridden, 'overridesOne', 'overridesMany') : '',
-        paused ? count(paused, 'pausedOne', 'pausedMany') : ''].filter(Boolean).join(' · ');
-      const action = this._config.tap_action && this._config.tap_action.action !== 'none';
-      const select = src.scheduleSelect();
-      const active = src.activeSchedule();
-      const label = (id) => {
-        const icon = src.scheduleIcon(id);
-        return `${icon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}<span>${esc(src.scheduleName(id))}</span>`;
-      };
-      // One button with the active schedule opens a menu of them: the card keeps one line on a
-      // phone. The admin may hide it (`show_schedules: false`)
-      const ids = select && this._config.show_schedules !== false ? src.schedules() : [];
-      const menu = this._menuOpen
-        ? `<div class="sc-menu" role="menu">${ids.map((id) => `<button type="button" role="menuitemradio" data-schedule="${esc(id)}" aria-checked="${id === active}">${label(id)}</button>`).join('')}</div>`
-        : '';
-      const pick = ids.length
-        ? `<div class="sc-pick"><button type="button" data-schedules-button aria-haspopup="menu" aria-expanded="${!!this._menuOpen}" aria-label="${esc(t('activeSchedule'))}" title="${esc(t('activeSchedule'))}">${active ? label(active) : ''}<ha-icon icon="mdi:menu-down"></ha-icon></button>${menu}</div>`
-        : '';
-      html = `<div class="sc-main${action ? ' action' : ''}"${action ? ' role="button" tabindex="0"' : ''}>
-          <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : cooling ? 'cool' : 'off')}"><ha-icon icon="${esc(this._config.icon || 'mdi:home-thermometer')}"></ha-icon></span>
-          <div class="sc-text">
-            <div class="sc-line"><span class="sc-name">${esc(this._config.name || t('summaryDefaultName'))}</span></div>
-            <div class="sc-state">${esc(status)}</div>
-          </div>
+    if (notice) return notice.loading ? nothing : html`<div class="msg">${t(notice.text)}</div>`;
+    const thermostats = this._thermostats();
+    const overrides = filterActive(src.overrides());
+    const doing = (action) => thermostats.filter((e) => hass.states[e].attributes.hvac_action === action).length;
+    const heating = doing('heating');
+    const cooling = doing('cooling');
+    const overridden = thermostats.filter((e) => overrides[e] && !src.paused(e)).length;
+    const paused = thermostats.filter((e) => src.paused(e)).length;
+    const count = (n, one, many) => (n === 1 ? t(one) : t(many, { n }));
+    const status = [heating ? count(heating, 'heatingOne', 'heatingMany') : cooling ? '' : t('heatingNone'),
+      cooling ? count(cooling, 'coolingOne', 'coolingMany') : '',
+      overridden ? count(overridden, 'overridesOne', 'overridesMany') : '',
+      paused ? count(paused, 'pausedOne', 'pausedMany') : ''].filter(Boolean).join(' · ');
+    const action = this._config.tap_action && this._config.tap_action.action !== 'none';
+    const select = src.scheduleSelect();
+    const active = src.activeSchedule();
+    const label = (id) => {
+      const icon = src.scheduleIcon(id);
+      return html`${icon ? html`<ha-icon icon=${icon}></ha-icon>` : nothing}<span>${src.scheduleName(id)}</span>`;
+    };
+    // One button with the active schedule opens a menu of them: the card keeps one line on a
+    // phone. The admin may hide it (`show_schedules: false`)
+    const ids = select && this._config.show_schedules !== false ? src.schedules() : [];
+    const menu = this._menuOpen
+      ? html`<div class="sc-menu" role="menu">${ids.map((id) => html`<button type="button" role="menuitemradio" data-schedule=${id} aria-checked=${String(id === active)}>${label(id)}</button>`)}</div>`
+      : nothing;
+    const pick = ids.length
+      ? html`<div class="sc-pick"><button type="button" data-schedules-button aria-haspopup="menu" aria-expanded=${String(!!this._menuOpen)} aria-label=${t('activeSchedule')} title=${t('activeSchedule')}>${active ? label(active) : nothing}<ha-icon icon="mdi:menu-down"></ha-icon></button>${menu}</div>`
+      : nothing;
+    return html`<div class="sc-main${action ? ' action' : ''}" role=${action ? 'button' : nothing} tabindex=${action ? '0' : nothing}>
+        <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : cooling ? 'cool' : 'off')}"><ha-icon icon=${this._config.icon || 'mdi:home-thermometer'}></ha-icon></span>
+        <div class="sc-text">
+          <div class="sc-line"><span class="sc-name">${this._config.name || t('summaryDefaultName')}</span></div>
+          <div class="sc-state">${status}</div>
         </div>
-        ${pick}${this._measuresHtml(loc, thermostats)}`;
-    }
-    if (html === this._html && this.shadowRoot.querySelector('ha-card')) return;
-    this._html = html;
-    fillCard(this.shadowRoot, SUMMARY_CARD_STYLE, html);
-    // The menu opens upward when the screen has no room for it below
-    const popover = this.shadowRoot.querySelector('.sc-menu');
+      </div>
+      ${pick}${this._measures(loc, thermostats)}`;
+  }
+
+  // The menu opens upward when the screen has no room for it below
+  updated() {
+    const popover = this.renderRoot.querySelector('.sc-menu');
     if (popover) {
       const r = popover.getBoundingClientRect();
       if (r.bottom > window.innerHeight && r.top - r.height - 48 > 0) popover.classList.add('up');
@@ -165,33 +154,32 @@ export class ChauffageSummaryCard extends HTMLElement {
 
   // What its thermostats measure: the range of their temperatures ("19–20,1°"), and under it the
   // range of their humidity when they report it ("56–61 %"), each with its icon
-  _measuresHtml(loc, thermostats) {
+  _measures(loc, thermostats) {
     const range = (attribute, round, unit) => {
-      const measured = thermostats.map((e) => this._hass.states[e].attributes[attribute])
+      const measured = thermostats.map((e) => this.hass.states[e].attributes[attribute])
         .filter((v) => v != null && v !== '').map(Number).filter(Number.isFinite).map(round);
       if (!measured.length) return '';
       const low = Math.min(...measured);
       const high = Math.max(...measured);
       return low === high ? `${loc.number(low)}${unit}` : `${loc.number(low)}–${loc.number(high)}${unit}`;
     };
-    const line = (cls, icon, value) => (value ? `<div class="${cls}"><ha-icon icon="${icon}"></ha-icon>${esc(value)}</div>` : '');
-    const html = line('sc-temperature sc-name', 'mdi:thermometer', range('current_temperature', (v) => Math.round(v * 10) / 10, '°'))
-      + line('sc-humidity sc-state', 'mdi:water-percent', range('current_humidity', Math.round, ' %'));
-    return html ? `<div class="sc-measures">${html}</div>` : '';
+    const line = (cls, icon, value) => (value ? html`<div class=${cls}><ha-icon icon=${icon}></ha-icon>${value}</div>` : nothing);
+    const temperature = range('current_temperature', (v) => Math.round(v * 10) / 10, '°');
+    const humidity = range('current_humidity', Math.round, ' %');
+    if (!temperature && !humidity) return nothing;
+    return html`<div class="sc-measures">${line('sc-temperature sc-name', 'mdi:thermometer', temperature)}${line('sc-humidity sc-state', 'mdi:water-percent', humidity)}</div>`;
   }
 
   _onClick(e) {
-    const hass = this._hass;
-    if (!hass) return;
     if (e.target.closest('[data-schedules-button]')) {
       this._menuOpen = !this._menuOpen;
-      return this._render();
+      return;
     }
     const chip = e.target.closest('[data-schedule]');
-    if (this._menuOpen) { this._menuOpen = false; this._render(); }
+    this._menuOpen = false;
     if (chip) {
-      const src = dataSource(hass);
-      hass.callService('select', 'select_option', { entity_id: src.scheduleSelect(), option: src.scheduleName(chip.dataset.schedule) });
+      const src = dataSource(this.hass);
+      this.hass.callService('select', 'select_option', { entity_id: src.scheduleSelect(), option: src.scheduleName(chip.dataset.schedule) });
       return;
     }
     if (e.target.closest('.sc-main')) this._tap();

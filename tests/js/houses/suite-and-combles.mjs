@@ -2,7 +2,7 @@
 // and the combles, which only cool. The card shows the salon. It is Monday, 10:00.
 import { afterEach, beforeEach, mock } from 'node:test';
 import { PRESETS, createCard, fakeHass, integrationData } from '../helpers.mjs';
-import { openOverride as openOverrideOf, openSlot } from '../driver.mjs';
+import { openOverride as openOverrideOf, openSlot, settle } from '../driver.mjs';
 import { $, week } from './dom.mjs';
 
 export const SALON = 'climate.salon'; // a heater
@@ -44,12 +44,13 @@ export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: [SA
 export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 export const sent = (hass) => hass.events.at(-1).override;
 export const override = (target, more = {}) => ({ target, start: at('09:30'), end: at('11:30'), ...more });
-export const moreInfo = (hass, entity, embedded = false) => {
+export const moreInfo = async (hass, entity, embedded = false) => {
   const el = document.createElement('chauffage-moreinfo');
   if (embedded) el.setAttribute('embedded', '');
   document.body.appendChild(el);
   el.entity = entity;
   el.hass = hass;
+  await settle();
   return el;
 };
 // One pixel per minute: clientX is a time of day in minutes
@@ -57,11 +58,12 @@ export const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, w
 export const mouse = (el, type, clientX) => el.dispatchEvent(new window.MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
 export const bar = (card, climate, d = 0) => geometry($(card, `.bar[data-climate="${climate}"][data-day="${d}"]`));
 
-export const thermostatCard = (hass, entity) => {
+export const thermostatCard = async (hass, entity) => {
   const card = document.createElement('chauffage-thermostat-card');
   card.setConfig({ entity });
   document.body.appendChild(card);
   card.hass = hass;
+  await settle();
   return card;
 };
 export const block = (card) => card.shadowRoot.querySelector('chauffage-moreinfo').shadowRoot;

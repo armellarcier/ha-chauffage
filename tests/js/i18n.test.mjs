@@ -2,7 +2,7 @@
 import { fakeHass, createCard, cleanup, typeTime, pressKey } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { day } from './driver.mjs';
+import { day, settle } from './driver.mjs';
 import { I18N, makeLocale } from '../../frontend/src/index.ts';
 
 const user = (locale, extra = {}) => ({ locale: { time_format: 'language', number_format: 'language', first_weekday: 'language', ...locale }, ...extra });
@@ -124,23 +124,23 @@ describe('the more-info block in English', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  test('current and next slot, 12 h clock', () => {
+  test('current and next slot, 12 h clock', async () => {
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = fakeHass({ locale: { language: 'en-US', time_format: 'language', number_format: 'language', first_weekday: 'language' },
-      planned: { 'climate.salon': { preset: 'eco', next_preset: 'comfort', next_start: '2026-10-12T17:30:00+02:00' } } });
+      planned: { 'climate.salon': { preset: 'eco', next_preset: 'comfort', next_start: '2026-10-12T17:30:00+02:00' } } }); await settle();
     assert.match(el.shadowRoot.textContent.replace(/\s+/g, ' '), /Follows the schedule: Eco until 5:30\s?PM, then Comfort/);
   });
 
-  test('a next preset on another day, and none all week', () => {
+  test('a next preset on another day, and none all week', async () => {
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     const english = { language: 'en-GB', time_format: 'language', number_format: 'language', first_weekday: 'language' };
-    el.hass = fakeHass({ locale: english, planned: { 'climate.salon': { preset: 'eco', next_preset: 'comfort', next_start: '2026-10-13T06:30:00+02:00' } } });
+    el.hass = fakeHass({ locale: english, planned: { 'climate.salon': { preset: 'eco', next_preset: 'comfort', next_start: '2026-10-13T06:30:00+02:00' } } }); await settle();
     assert.match(el.shadowRoot.textContent.replace(/\s+/g, ' '), /Follows the schedule: Eco until 06:30 \(tomorrow\), then Comfort/);
-    el.hass = fakeHass({ locale: english, planned: { 'climate.salon': { preset: 'eco', next_preset: null, next_start: null } } });
+    el.hass = fakeHass({ locale: english, planned: { 'climate.salon': { preset: 'eco', next_preset: null, next_start: null } } }); await settle();
     assert.match(el.shadowRoot.textContent.replace(/\s+/g, ' '), /Follows the schedule: Eco all week/);
   });
 });
@@ -230,7 +230,7 @@ describe('the time fields follow the profile\'s time format', () => {
     assert.equal(slotEnd(card).inputMode, 'numeric');
   });
 
-  test('the end of an override, in the card\'s popover and in the more-info block', () => {
+  test('the end of an override, in the card\'s popover and in the more-info block', async () => {
     const hass = fakeHass({ locale: english('24'), overrides: { 'climate.salon': override } });
     const card = createCard(hass, { show: ['climate.salon'] });
     card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click();
@@ -238,7 +238,7 @@ describe('the time fields follow the profile\'s time format', () => {
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
     el.entity = 'climate.salon';
-    el.hass = fakeHass({ locale: english('12'), overrides: { 'climate.salon': override } });
+    el.hass = fakeHass({ locale: english('12'), overrides: { 'climate.salon': override } }); await settle();
     assert.match(el.shadowRoot.querySelector('input.time[data-override-end]').value, time12('11:30 AM'));
   });
 

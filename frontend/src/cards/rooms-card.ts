@@ -1,14 +1,15 @@
+import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { sourceNotice } from '../notices.ts';
 import { dataSource, filterActive } from '../client/snapshot.ts';
 import { commands } from '../client/commands.ts';
-import { client } from '../client/chauffage-client.ts';
+import { SnapshotController } from '../controllers/snapshot-controller.ts';
 import { presetColorIn } from '../colors.ts';
-import { DAY_MIN, esc, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, parseDate, SETPOINT_MODES, thermostatName } from '../common.ts';
+import { DAY_MIN, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, parseDate, SETPOINT_MODES, thermostatName } from '../common.ts';
 import { causeText, linksByKeyboard } from '../fields.ts';
-import { OFF_COLOR, OVERRIDE_STRIPES, hasModeRow, hvacColor, hvacIcon, modeName } from '../hvac.ts';
+import { OFF_COLOR, OVERRIDE_STRIPES, hasModeRow, hvacColor, hvacIconTemplate, modeName } from '../hvac.ts';
 import { capitalize, makeLocale } from '../i18n/locale.ts';
 import { openMoreInfo } from '../links.ts';
-import { fillCard, whenText } from '../override-edit.ts';
+import { whenText } from '../override-edit.ts';
 import { overrideLabel, targetKind } from '../override.ts';
 import { fitTemperature, presetOf, presetsOf, stepOf } from '../presets.ts';
 
@@ -106,19 +107,30 @@ const ROOMS_CARD_STYLE = `${tileCss('rc')}
   .rc-value { min-width:2.5em; text-align:center; font-variant-numeric:tabular-nums; font-weight:500; }
   .msg { color:var(--secondary-text-color); font-size:.92em; padding:8px 0; }
 `;
+export class ChauffageRoomsCard extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    _config: { state: true },
+    _modesOpen: { state: true },
+  };
 
-export class ChauffageRoomsCard extends HTMLElement {
-  // The fields of the element, untyped until the rewrite of the card gives them a type
+  static styles = unsafeCSS(ROOMS_CARD_STYLE);
+
+  declare hass: any;
   declare _config: any;
-  declare _hass: any;
-  declare _html: any;
-  declare _iconsAwaited: any;
-  declare _modesOpen: any;
-  declare _outside: any;
-  declare _pending: any;
-  declare _sentFrom: any;
-  declare _timers: any;
-  declare _unlisten: any;
+  declare _modesOpen: string | null;
+  // entity → the setpoint tapped, shown until the thermostat answers
+  _pending: Record<string, number> = {};
+  // entity → the thermostat's setpoint when the one tapped was sent
+  _sentFrom: Record<string, any> = {};
+  _timers: Record<string, any> = {};
+  _iconsAwaited = false;
+  // Drawn again when the integration pushes new data
+  _snapshot = new SnapshotController(this);
+  // A tap outside the card closes the popover of the HVAC modes
+  _outside = (e) => {
+    if (this._modesOpen && !e.composedPath().includes(this)) this._modesOpen = null;
+  };
 
   static getConfigElement() {
     return document.createElement('chauffage-rooms-card-editor');
@@ -129,43 +141,24 @@ export class ChauffageRoomsCard extends HTMLElement {
     return {};
   }
 
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    this._pending = {}; // entity → the setpoint tapped, shown until the thermostat answers
-    this._sentFrom = {}; // entity → the thermostat's setpoint when the one tapped was sent
-    this._timers = {};
-    linksByKeyboard(this.shadowRoot);
-    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
-    // A tap outside the card closes the popover of the HVAC modes
-    this._outside = (e) => {
-      if (this._modesOpen && !e.composedPath().includes(this)) { this._modesOpen = null; this._html = null; this._render(); }
-    };
-  }
-
   setConfig(config) {
     this._config = config || {};
-    this._html = null;
-    if (this._hass) this._render();
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    if (!this._unlisten && dataSource(hass).available) {
-      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
-    }
-    if (this._config) this._render();
+  createRenderRoot() {
+    const root = super.createRenderRoot();
+    linksByKeyboard(root);
+    return root;
   }
 
   connectedCallback() {
+    super.connectedCallback();
     document.addEventListener('click', this._outside);
-    if (this._hass && !this._unlisten && dataSource(this._hass).available) this.hass = this._hass;
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback();
     document.removeEventListener('click', this._outside);
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
   }
 
   getCardSize() {
@@ -180,28 +173,24 @@ export class ChauffageRoomsCard extends HTMLElement {
   _entries() {
     const listed = (this._config && this._config.thermostats) || [];
     if (listed.length) return listed.map((t) => (typeof t === 'string' ? { entity: t } : { ...t }));
-    return this._hass ? dataSource(this._hass).scheduled().map((entity) => ({ entity })) : [];
+    return this.hass ? dataSource(this.hass).scheduled().map((entity) => ({ entity })) : [];
   }
 
-  _render() {
-    const hass = this._hass;
-    const loc = makeLocale(hass, this._config.language);
-    const src = dataSource(hass);
+  render() {
+    if (!this.hass || !this._config) return nothing;
+    const loc = makeLocale(this.hass, this._config.language);
+    const src = dataSource(this.hass);
     const notice: any = sourceNotice(src);
-    const html = notice
-      ? (notice.loading ? '' : `<div class="msg">${esc(loc.t(notice.text))}</div>`)
-      : this._entries().map((e) => this._rowHtml(e, loc, src)).join('');
-    // Drawn again only when a row changes: a thermostat reports every minute
-    if (html === this._html && this.shadowRoot.querySelector('ha-card')) return this._fillIcons();
-    this._html = html;
-    fillCard(this.shadowRoot, ROOMS_CARD_STYLE, html);
-    this._fillIcons();
-    this._placePopover();
+    const content = notice
+      ? (notice.loading ? nothing : html`<div class="msg">${loc.t(notice.text)}</div>`)
+      : this._entries().map((e) => this._row(e, loc, src));
+    return html`<ha-card @click=${this._onClick}>${content}</ha-card>`;
   }
 
-  // The popover of the HVAC modes opens upward when the screen has no room for it below
-  _placePopover() {
-    const popover = this.shadowRoot.querySelector('.rc-menu');
+  updated() {
+    this._fillIcons();
+    // The popover of the HVAC modes opens upward when the screen has no room for it below
+    const popover = this.renderRoot.querySelector('.rc-menu');
     if (!popover) return;
     const r = popover.getBoundingClientRect();
     if (r.bottom > window.innerHeight && r.top - r.height - 48 > 0) popover.classList.add('up');
@@ -214,26 +203,26 @@ export class ChauffageRoomsCard extends HTMLElement {
     if (!customElements.get('ha-state-icon')) {
       if (!this._iconsAwaited) {
         this._iconsAwaited = true;
-        customElements.whenDefined('ha-state-icon').then(() => { this._html = null; if (this._hass) this._render(); });
+        customElements.whenDefined('ha-state-icon').then(() => this.requestUpdate());
       }
       return;
     }
-    this.shadowRoot.querySelectorAll('ha-state-icon.rc-icon:not([icon])').forEach((el: any) => {
-      el.hass = this._hass;
-      el.stateObj = this._hass.states[(el.closest('.rc-row') as any).dataset.entity];
+    this.renderRoot.querySelectorAll('ha-state-icon.rc-icon:not([icon])').forEach((el: any) => {
+      el.hass = this.hass;
+      el.stateObj = this.hass.states[(el.closest('.rc-row') as any).dataset.entity];
     });
   }
 
-  _rowHtml(entry, loc, src) {
-    const hass = this._hass;
+  _row(entry, loc, src) {
+    const hass = this.hass;
     const t = loc.t;
     const entity = entry.entity;
     const st = hass.states[entity];
-    const icon = `<ha-state-icon class="rc-icon"${entry.icon ? ` icon="${esc(entry.icon)}"` : ''}></ha-state-icon>`;
+    const icon = html`<ha-state-icon class="rc-icon" icon=${entry.icon || nothing}></ha-state-icon>`;
     if (!st) {
-      return `<div class="rc-row" data-entity="${esc(entity)}"><div class="rc-main"><span class="rc-badge">${icon}</span><div class="rc-text">
-        <div class="rc-name">${esc(entry.name || entity)}</div>
-        <div class="rc-state">${esc(t('entityMissing', { entity }))}</div></div></div></div>`;
+      return html`<div class="rc-row" data-entity=${entity}><div class="rc-main"><span class="rc-badge">${icon}</span><div class="rc-text">
+        <div class="rc-name">${entry.name || entity}</div>
+        <div class="rc-state">${t('entityMissing', { entity })}</div></div></div></div>`;
     }
     const a = st.attributes;
     const paused = src.paused(entity);
@@ -250,36 +239,36 @@ export class ChauffageRoomsCard extends HTMLElement {
     const setpoint = this._pending[entity] ?? a.temperature;
     // No − and + in fan-only or dry mode: the setpoint does nothing there
     const stepper = !off && !['fan_only', 'dry'].includes(st.state) && typeof a.temperature === 'number'
-      ? `<div class="rc-step">
+      ? html`<div class="rc-step">
           <button type="button" data-delta="-1" aria-label="−">−</button>
-          <span class="rc-value">${esc(loc.number(setpoint))}°</span>
+          <span class="rc-value">${loc.number(setpoint)}°</span>
           <button type="button" data-delta="1" aria-label="+">+</button>
-        </div>` : '';
+        </div>` : nothing;
     // The HVAC mode, in a popover under its button, on a thermostat that has more than one. Not on
     // a thermostat off to protect itself (its window, its auto start/stop): turned on by hand, it
     // would stop protecting itself
     const modes = (a.hvac_modes || []).map(String);
-    let mode = '';
+    let mode: any = nothing;
     if (modes.length > 1 && !(off && src.cause(entity))) {
       // Filled while the thermostat heats or cools, as it says (hvac_action); empty at its setpoint
       const doing = activityMode(st);
       const active = !!a.hvac_action && doing !== 'off';
       const open = this._modesOpen === entity;
       const popover = open
-        ? `<div class="rc-menu" role="menu">${modes.map((m) => `<button type="button" role="menuitemradio" aria-checked="${m === st.state}" data-hvac-mode="${esc(m)}" style="--tile-color:${tileColor(m)}">${hvacIcon(m)}${esc(modeName(loc, m))}</button>`).join('')}</div>`
-        : '';
-      mode = `<div class="rc-mode-wrap"><button type="button" class="rc-mode${active ? ' active' : ''}" data-mode-button aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(t('hvacModeLabel'))}" title="${esc(`${t('hvacModeLabel')} · ${modeName(loc, st.state)}`)}" style="--tile-color:${tileColor(st.state)}">${hvacIcon(st.state)}</button>${popover}</div>`;
+        ? html`<div class="rc-menu" role="menu">${modes.map((m) => html`<button type="button" role="menuitemradio" aria-checked=${String(m === st.state)} data-hvac-mode=${m} style="--tile-color:${tileColor(m)}">${hvacIconTemplate(m)}${modeName(loc, m)}</button>`)}</div>`
+        : nothing;
+      mode = html`<div class="rc-mode-wrap"><button type="button" class="rc-mode${active ? ' active' : ''}" data-mode-button aria-haspopup="menu" aria-expanded=${String(open)} aria-label=${t('hvacModeLabel')} title=${`${t('hvacModeLabel')} · ${modeName(loc, st.state)}`} style="--tile-color:${tileColor(st.state)}">${hvacIconTemplate(st.state)}</button>${popover}</div>`;
     }
     // The room's icon is in color while the thermostat heats or cools, else in the color of the
     // text, never grey
     const doingNow = activityMode(st);
     const badge = a.hvac_action && doingNow !== 'off'
-      ? `<span class="rc-badge" style="--tile-color:${tileColor(doingNow)}">${icon}</span>`
-      : `<span class="rc-badge">${icon}</span>`;
+      ? html`<span class="rc-badge" style="--tile-color:${tileColor(doingNow)}">${icon}</span>`
+      : html`<span class="rc-badge">${icon}</span>`;
     const cls = ['rc-row', d ? 'override' : '', paused ? 'paused' : ''].filter(Boolean).join(' ');
-    return `<div class="${cls}" data-entity="${esc(entity)}">
-      <div class="rc-main" role="link" tabindex="0" title="${esc(t('openThermostat'))}">${badge}<div class="rc-text">
-        <div class="rc-line"><span class="rc-name">${esc(thermostatName(hass, entity, entry.name))}</span>
+    return html`<div class=${cls} data-entity=${entity}>
+      <div class="rc-main" role="link" tabindex="0" title=${t('openThermostat')}>${badge}<div class="rc-text">
+        <div class="rc-line"><span class="rc-name">${thermostatName(hass, entity, entry.name)}</span>
           <span class="rc-temp">${measured}</span></div>
         <div class="rc-sub"><span class="rc-state">${state}</span>${action}</div>
       </div></div>
@@ -290,12 +279,12 @@ export class ChauffageRoomsCard extends HTMLElement {
   // What the thermostat does now, in a few words, and the button that ends it, if any: an override
   // until its end, a pause, a protection (a window), else the preset of its schedule and what comes
   // next
-  _stateOf(entity, st, d, paused, loc, src) {
+  _stateOf(entity, st, d, paused, loc, src): { html: any, action: any } {
     const t = loc.t;
-    const hass = this._hass;
-    const dot = (color) => (color ? `<i style="background:${color}"></i>` : '');
+    const hass = this.hass;
+    const dot = (color) => (color ? html`<i style="background:${color}"></i>` : nothing);
     if (paused) {
-      return { html: esc(t('paused')), action: `<button type="button" class="rc-x" data-resume-control aria-label="${esc(t('resumeShort'))}" title="${esc(t('resumeShort'))}">▶</button>` };
+      return { html: t('paused'), action: html`<button type="button" class="rc-x" data-resume-control aria-label=${t('resumeShort')} title=${t('resumeShort')}>▶</button>` };
     }
     const presets = presetsOf(src, loc);
     if (d) {
@@ -303,18 +292,18 @@ export class ChauffageRoomsCard extends HTMLElement {
       const label = isTemperature ? '' : overrideLabel(d, loc, presets);
       const until = `${t('until')} ${soonText(parseDate(d.end), loc)}`;
       return {
-        html: `<span class="rc-override">${esc(`⏱ ${label ? `${label} ` : ''}${until}`)}</span>`,
-        action: `<button type="button" class="rc-x" data-resume-schedule aria-label="${esc(t('resume'))}" title="${esc(t('resume'))}">✕</button>`,
+        html: html`<span class="rc-override">${`⏱ ${label ? `${label} ` : ''}${until}`}</span>`,
+        action: html`<button type="button" class="rc-x" data-resume-schedule aria-label=${t('resume')} title=${t('resume')}>✕</button>`,
       };
     }
     const cause = causeText(src, entity, loc, null);
-    if (cause) return { html: `${dot(OFF_COLOR)}${esc(capitalize(cause.short))}`, action: '' };
+    if (cause) return { html: html`${dot(OFF_COLOR)}${capitalize(cause.short)}`, action: nothing };
     const plan = src.planned(entity);
-    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return { html: `${dot(OFF_COLOR)}${esc(modeName(loc, 'off'))}`, action: '' };
+    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return { html: html`${dot(OFF_COLOR)}${modeName(loc, 'off')}`, action: nothing };
     if (!plan || (!plan.preset && !NO_PRESET_MODES.includes(plan.hvac_mode))) {
       const a = st.attributes;
       const label = a.preset_mode && !MANUAL_PRESETS.includes(String(a.preset_mode).toLowerCase()) ? loc.preset(a.preset_mode) : '';
-      return { html: esc(label), action: '' };
+      return { html: label, action: nothing };
     }
     const named = hasModeRow(hass, entity);
     const name = (mode, preset) => (NO_PRESET_MODES.includes(mode) ? modeName(loc, mode)
@@ -328,28 +317,24 @@ export class ChauffageRoomsCard extends HTMLElement {
     const next = !start ? '' : plan.next_hvac_mode === plan.hvac_mode && plan.next_preset
       ? presetOf(presets, plan.next_preset, loc).name : name(plan.next_hvac_mode, plan.next_preset);
     const text = next ? t('thenAt', { current, next, time: soonText(start, loc) }) : current;
-    return { html: `${dot(color)}${esc(text)}`, action: '' };
+    return { html: html`${dot(color)}${text}`, action: nothing };
   }
 
   _onClick(e) {
-    const hass = this._hass;
+    const hass = this.hass;
     const rowEl = e.target.closest('.rc-row');
     if (!rowEl || !hass) return;
     const entity = rowEl.dataset.entity;
-    const src = dataSource(hass);
-    const loc = makeLocale(hass, this._config.language);
     const st = hass.states[entity];
-    const redraw = () => { this._html = null; this._render(); };
+    const redraw = () => this.requestUpdate();
     const failed = () => { delete this._pending[entity]; redraw(); };
     const setMode = (mode) => hass.callService('climate', 'set_hvac_mode', { entity_id: entity, hvac_mode: mode }).catch(redraw);
     const step = e.target.closest('[data-delta]');
     if (step) {
       const shown = this._pending[entity] ?? st.attributes.temperature;
-      const value = fitTemperature(hass, entity, shown + Number(step.dataset.delta) * stepOf(hass, entity));
-      this._pending[entity] = value;
+      this._pending[entity] = fitTemperature(hass, entity, shown + Number(step.dataset.delta) * stepOf(hass, entity));
       delete this._sentFrom[entity]; // a new value, not sent yet
-      const field = rowEl.querySelector('.rc-value');
-      if (field) field.textContent = `${loc.number(value)}°`;
+      redraw();
       clearTimeout(this._timers[entity]);
       this._timers[entity] = setTimeout(() => this._sendSetpoint(entity), ROOMS_SEND_DELAY);
       return;
@@ -357,32 +342,30 @@ export class ChauffageRoomsCard extends HTMLElement {
     const chip = e.target.closest('[data-hvac-mode]');
     if (chip) {
       this._modesOpen = null;
-      redraw();
       return setMode(chip.dataset.hvacMode);
     }
     if (e.target.closest('[data-mode-button]')) {
       // Opens its popover, closes it on a second tap; one popover at a time
       this._modesOpen = this._modesOpen === entity ? null : entity;
-      return redraw();
+      return;
     }
     // Any other tap closes the popover, then does what it does
-    if (this._modesOpen) { this._modesOpen = null; redraw(); }
-    if (e.target.closest('[data-resume-schedule]')) return commands(this._hass).setOverride(entity, null).catch(failed);
-    if (e.target.closest('[data-resume-control]')) return commands(this._hass).setPaused(entity, false).catch(failed);
+    this._modesOpen = null;
+    if (e.target.closest('[data-resume-schedule]')) return commands(hass).setOverride(entity, null).catch(failed);
+    if (e.target.closest('[data-resume-control]')) return commands(hass).setPaused(entity, false).catch(failed);
     if (e.target.closest('.rc-main')) openMoreInfo(this, entity);
   }
 
   // The setpoint tapped, set on the thermostat as a change by hand: Chauffage makes it an
   // override, as from the thermostat's own dial
   _sendSetpoint(entity) {
-    const hass = this._hass;
+    const hass = this.hass;
     const value = this._pending[entity];
     if (!hass || value === undefined) return;
     const forget = () => {
       delete this._pending[entity];
       delete this._sentFrom[entity];
-      this._html = null;
-      if (this._hass) this._render();
+      this.requestUpdate();
     };
     const st = hass.states[entity];
     this._sentFrom[entity] = st ? st.attributes.temperature : undefined;

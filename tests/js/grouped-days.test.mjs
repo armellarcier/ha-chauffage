@@ -1,6 +1,6 @@
 // Identical days shown on one row, edited as a whole (#11).
 import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { cutSlot } from './driver.mjs';
+import { cutSlot , settle } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocale } from '../../frontend/src/index.ts';
@@ -18,21 +18,21 @@ beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T
 afterEach(() => { mock.timers.reset(); cleanup(); });
 
 describe('rows of identical days', () => {
-  test('the days with the same slots share a row, named after its days', () => {
+  test('the days with the same slots share a row, named after its days', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
     assert.equal(card.shadowRoot.querySelectorAll('.bar').length, 2);
   });
 
-  test('the same day all week is one row, named from the first day to the last one', () => {
+  test('the same day all week is one row, named from the first day to the last one', async () => {
     const card = createCard(fakeHass({ weeks: RETIRED }), { show: ['climate.salon'] });
     assert.deepEqual(labels(card), ['Lun–Dim']);
     // The menus have the room to say it in words
-    $(card, '[data-act="menu"][data-day="0"]').click();
+    $(card, '[data-act="menu"][data-day="0"]').click(); await settle();
     assert.match($(card, '.menu .mh').textContent, /Tous les jours/);
   });
 
-  test('a day that differs gets its own row; days apart are named one by one', () => {
+  test('a day that differs gets its own row; days apart are named one by one', async () => {
     const week = [WEEKDAY, WEEKDAY, OTHER, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND];
     const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] });
     assert.deepEqual(labels(card), ['Lun, Mar, Jeu, Ven', 'Mer', 'Sam, Dim']);
@@ -41,7 +41,7 @@ describe('rows of identical days', () => {
     assert.deepEqual(labels(other), ['Lun, Mer, Ven', 'Mar, Jeu, Sam, Dim']);
   });
 
-  test('the days of a row follow the first day of the week, across its end', () => {
+  test('the days of a row follow the first day of the week, across its end', async () => {
     const loc = makeLocale(user({ language: 'en', first_weekday: 'sunday' }));
     assert.equal(loc.daysLabel([6, 5]), 'Sat, Sun');
     assert.equal(loc.daysLabel([4, 5, 6]), 'Fri–Sun');
@@ -56,7 +56,7 @@ describe('rows of identical days', () => {
     assert.equal(monday.daysLabel([0, 1, 2, 3, 4, 5, 6], 'long'), 'Every day');
   });
 
-  test('with several thermostats, a row holds the days identical for each of them', () => {
+  test('with several thermostats, a row holds the days identical for each of them', async () => {
     const weeks = {
       'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] },
       'climate.bureau': { Normal: [WEEKDAY, WEEKDAY, OTHER, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] },
@@ -66,7 +66,7 @@ describe('rows of identical days', () => {
     assert.equal($(card, '.dgroup').querySelectorAll('.bar').length, 2);
   });
 
-  test('the column of the days is as wide as the longest name of a row', () => {
+  test('the column of the days is as wide as the longest name of a row', async () => {
     const short = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: [WEEKDAY, OTHER, WEEKDAY, OTHER, WEEKDAY, OTHER, WEEKEND] } } }), { show: ['climate.salon'] });
     const long = createCard(fakeHass(), { show: ['climate.salon'] });
     const width = (card) => Number($(card, '.days').style.getPropertyValue('--day-w').replace('px', ''));
@@ -78,7 +78,7 @@ describe('rows of identical days', () => {
 describe('the width of the card', () => {
   const css = () => $(createCard(fakeHass(), { show: ['climate.salon'] }), 'style').textContent;
   // The block of rules that starts with `at`
-  const block = (at) => {
+  const block = async (at) => {
     const text = css();
     const start = text.indexOf(`${at} {`);
     assert.ok(start >= 0, `no ${at}`);
@@ -90,24 +90,24 @@ describe('the width of the card', () => {
     return '';
   };
 
-  test('the layout follows the width of the card, not of the screen', () => {
+  test('the layout follows the width of the card, not of the screen', async () => {
     assert.match(css(), /\.days \{[^}]*container-type:inline-size/);
     assert.doesNotMatch(css(), /@media \([a-z-]*width/);
   });
 
-  test('a narrow card keeps the column of the days to 56 px, so that the bars keep the width', () => {
-    assert.match(block('@container (max-width:499px)'), /\.dgroup \{ grid-template-columns:min\(var\(--day-w\), 56px\) 1fr; \}/);
+  test('a narrow card keeps the column of the days to 56 px, so that the bars keep the width', async () => {
+    assert.match(await block('@container (max-width:499px)'), /\.dgroup \{ grid-template-columns:min\(var\(--day-w\), 56px\) 1fr; \}/);
   });
 
-  test('with several thermostats, the days are named above their rows, beside them only on a wide card', () => {
-    const header = block('@container (max-width:699px)');
+  test('with several thermostats, the days are named above their rows, beside them only on a wide card', async () => {
+    const header = await block('@container (max-width:699px)');
     assert.match(header, /\.multi \.dgroup \{ grid-template-columns:1fr;/);
     assert.match(header, /\.multi \.scale > div:first-child \{ display:none; \}/);
   });
 });
 
 describe('editing a row', () => {
-  test('editing a row edits each of its days', () => {
+  test('editing a row edits each of its days', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     cutSlot(card, 'climate.salon', 0, 12 * 60);
     const monday = day(card, 'climate.salon', 0);
@@ -117,26 +117,26 @@ describe('editing a row', () => {
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
   });
 
-  test('a slot\'s popover edits the whole row, and names it', () => {
+  test('a slot\'s popover edits the whole row, and names it', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     openSlot(card, 'climate.salon', 1, 5);
     assert.match($(card, '.editor .ed-head strong').textContent, /Sam, Dim/);
-    $(card, '.editor [data-preset="boost"]').click();
+    $(card, '.editor [data-preset="boost"]').click(); await settle();
     assert.deepEqual(day(card, 'climate.salon', 6), ['00:00 eco', '08:00 boost', '23:00 eco']);
   });
 
-  test('a slot edited until its row joins another one stays selected, its popover open', () => {
+  test('a slot edited until its row joins another one stays selected, its popover open', async () => {
     const boosted = ['00:00 eco', '06:30 boost', '08:30 eco', '17:30 comfort', '22:30 eco'];
     const week = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, boosted, boosted];
     const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] });
     openSlot(card, 'climate.salon', 1, 5);
-    $(card, '.editor [data-preset="comfort"]').click(); // the weekend is now the weekdays
+    $(card, '.editor [data-preset="comfort"]').click(); await settle(); // the weekend is now the weekdays
     assert.deepEqual(labels(card), ['Lun–Dim']);
     assert.ok($(card, '.seg.sel'));
     assert.ok($(card, '.editor'));
   });
 
-  test('pasting on a row pastes on each of its days', () => {
+  test('pasting on a row pastes on each of its days', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     copyDay(card, 'climate.salon', 5);
     pasteDay(card, 'climate.salon', 0);
@@ -144,18 +144,18 @@ describe('editing a row', () => {
     assert.deepEqual(labels(card), ['Lun–Dim']);
   });
 
-  test('copying a row to the other thermostats copies each of its days', () => {
+  test('copying a row to the other thermostats copies each of its days', async () => {
     const card = createCard(fakeHass());
     copyDay(card, 'climate.salon', 0, 'others');
     for (const d of [0, 1, 2, 3, 4]) assert.deepEqual(day(card, 'climate.bureau', d), WEEKDAY);
     assert.deepEqual(day(card, 'climate.bureau', 5), ['00:00 eco']);
   });
 
-  test('copying a day onto other days joins their rows', () => {
+  test('copying a day onto other days joins their rows', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    $(card, '[data-act="menu"][data-day="0"]').click();
+    $(card, '[data-act="menu"][data-day="0"]').click(); await settle();
     assert.match($(card, '.menu .mh').textContent, /Lun–Ven/);
-    $(card, '.menu [data-act="fill-all"]').click();
+    $(card, '.menu [data-act="fill-all"]').click(); await settle();
     assert.deepEqual(labels(card), ['Lun–Dim']);
   });
 });
@@ -163,44 +163,44 @@ describe('editing a row', () => {
 describe('grouping the days or not', () => {
   const chip = (card) => $(card, '[data-act="group-days"]');
 
-  test('"Group days" shows each day on its own row, remembered on the device', () => {
+  test('"Group days" shows each day on its own row, remembered on the device', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     assert.ok(chip(card).classList.contains('on'));
-    chip(card).click();
+    chip(card).click(); await settle();
     assert.equal(labels(card).length, 7);
     assert.ok(!chip(card).classList.contains('on'));
     const again = createCard(fakeHass(), { show: ['climate.salon'] });
     assert.equal(labels(again).length, 7);
   });
 
-  test('a day edited on its own keeps its own row once the days are grouped again', () => {
+  test('a day edited on its own keeps its own row once the days are grouped again', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    chip(card).click();
+    chip(card).click(); await settle();
     cutSlot(card, 'climate.salon', 2, 12 * 60); // Wednesday only
     assert.deepEqual(day(card, 'climate.salon', 1), WEEKDAY);
-    chip(card).click();
+    chip(card).click(); await settle();
     assert.deepEqual(labels(card), ['Lun, Mar, Jeu, Ven', 'Mer', 'Sam, Dim']);
   });
 
-  test('the card option `group_days: false` shows each day, until the user groups them', () => {
+  test('the card option `group_days: false` shows each day, until the user groups them', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
     assert.equal(labels(card).length, 7);
-    chip(card).click();
+    chip(card).click(); await settle();
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
   });
 
-  test('the history shows each day: the days are no longer grouped, and grouping them hides it', () => {
+  test('the history shows each day: the days are no longer grouped, and grouping them hides it', async () => {
     const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/history' ? {} : null) });
     const card = createCard(hass, { show: ['climate.salon'] });
-    $(card, '[data-act="history"]').click();
+    $(card, '[data-act="history"]').click(); await settle();
     assert.equal(labels(card).length, 7);
     assert.ok(!chip(card).classList.contains('on'));
-    chip(card).click();
+    chip(card).click(); await settle();
     assert.ok(!historyShown(card));
     assert.ok(!$(card, '[data-act="history"]').classList.contains('on'));
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
-    $(card, '[data-act="history"]').click();
-    $(card, '[data-act="history"]').click(); // hidden again: the days are grouped again
+    $(card, '[data-act="history"]').click(); await settle();
+    $(card, '[data-act="history"]').click(); await settle(); // hidden again: the days are grouped again
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
   });
 });
@@ -210,7 +210,7 @@ describe('today in a row of days', () => {
   const overrides = { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-11T20:00:00+02:00', end: '2026-10-13T01:00:00+02:00' } };
   const weeks = { 'climate.salon': { Normal: [WEEKDAY, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND] } };
 
-  test('the row holding today stands out, with the current time', () => {
+  test('the row holding today stands out, with the current time', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     const today = card.shadowRoot.querySelectorAll('.dgroup.today');
     assert.equal(today.length, 1);
@@ -218,16 +218,16 @@ describe('today in a row of days', () => {
     assert.equal(card.shadowRoot.querySelectorAll('.now').length, 1);
   });
 
-  test('an override on a day in the middle of its row opens its popover', () => {
-    mock.timers.setTime(new Date('2026-10-14T10:00:00+02:00').getTime()); // Wednesday, in Mon–Fri
+  test('an override on a day in the middle of its row opens its popover', async () => {
+    mock.timers.setTime(new Date('2026-10-14T10:00:00+02:00').getTime()); await settle(); // Wednesday, in Mon–Fri
     const midday = { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-14T09:00:00+02:00', end: '2026-10-14T18:00:00+02:00' } };
     const card = createCard(fakeHass({ overrides: midday }), { show: ['climate.salon'] });
-    $(card, '.override').click();
+    $(card, '.override').click(); await settle();
     assert.ok($(card, '.override.sel'));
     assert.ok($(card, '.editor.override-ed'));
   });
 
-  test('its menu sets a temporary setpoint', () => {
+  test('its menu sets a temporary setpoint', async () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     openMenu(card, 'climate.salon', 0);
     assert.ok($(card, '.menu [data-act="override-new"]'));
@@ -236,7 +236,7 @@ describe('today in a row of days', () => {
     assert.equal($(card, '.menu [data-act="override-new"]'), null);
   });
 
-  test('an override shows today, and on another row where it ends', () => {
+  test('an override shows today, and on another row where it ends', async () => {
     const card = createCard(fakeHass({ weeks, overrides }), { show: ['climate.salon'] });
     assert.deepEqual(labels(card), ['Lun', 'Mar–Dim']);
     const pieces = [...card.shadowRoot.querySelectorAll('.override')];
@@ -244,7 +244,7 @@ describe('today in a row of days', () => {
     assert.ok(pieces[1].querySelector('.override-handle'));
   });
 
-  test('an override for the week also shows on a row of the days it covers', () => {
+  test('an override for the week also shows on a row of the days it covers', async () => {
     const week = { 'climate.salon': { target: { temperature: 19 }, start: '2026-10-12T08:00:00+02:00', end: '2026-10-18T01:00:00+02:00' } };
     const three = { 'climate.salon': { Normal: [WEEKDAY, OTHER, OTHER, OTHER, OTHER, WEEKEND, WEEKEND] } };
     const card = createCard(fakeHass({ weeks: three, overrides: week }), { show: ['climate.salon'] });
@@ -257,31 +257,32 @@ describe('today in a row of days', () => {
 });
 
 describe('the week in the more-info block', () => {
-  const block = (hass) => {
+  const block = async (hass) => {
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
     el.entity = 'climate.salon';
     el.hass = hass;
+    await settle();
     return el;
   };
   const rows = (el) => [...el.shadowRoot.querySelectorAll('.row span')].map((s) => s.textContent);
 
-  test('identical days share a row, like in the schedule card', () => {
-    assert.deepEqual(rows(block(fakeHass())), ['Lun–Ven', 'Sam, Dim']);
-    assert.deepEqual(rows(block(fakeHass({ weeks: RETIRED }))), ['Lun–Dim']);
+  test('identical days share a row, like in the schedule card', async () => {
+    assert.deepEqual(rows(await block(fakeHass())), ['Lun–Ven', 'Sam, Dim']);
+    assert.deepEqual(rows(await block(fakeHass({ weeks: RETIRED }))), ['Lun–Dim']);
   });
 
-  test('an override shows today, and on another row where it ends', () => {
+  test('an override shows today, and on another row where it ends', async () => {
     const overrides = { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-11T20:00:00+02:00', end: '2026-10-13T01:00:00+02:00' } };
     const weeks = { 'climate.salon': { Normal: [WEEKDAY, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND] } };
-    const el = block(fakeHass({ weeks, overrides }));
+    const el = await block(fakeHass({ weeks, overrides }));
     assert.deepEqual(rows(el), ['Lun', 'Mar–Dim']);
     const widths = [...el.shadowRoot.querySelectorAll('.row')].map((r) => r.querySelector('.override').style.width);
     assert.deepEqual(widths, ['100%', '4.167%']); // all Monday, Tuesday until 01:00
   });
 
-  test('uses its defaults, not the options of a dashboard card', () => {
+  test('uses its defaults, not the options of a dashboard card', async () => {
     createCard(fakeHass(), { group_days: false, language: 'en' });
-    assert.deepEqual(rows(block(fakeHass())), ['Lun–Ven', 'Sam, Dim']);
+    assert.deepEqual(rows(await block(fakeHass())), ['Lun–Ven', 'Sam, Dim']);
   });
 });
