@@ -268,7 +268,7 @@ test fail.
 | I1 | Value objects (`Slot`, `Week`, `Preset`, `PresetValue`, `Target`, `Override`) under the current functions. `engine.py` and `model.py` become facades. | 4-5 d | Target equality (`same_target`, comparison on the step) |
 | I2 | `ThermostatReader` for VTherm and the rest. The `vtherm` flag leaves the domain. | 2-3 d | VTherm turned off by its window or its auto start/stop (#74, #92) |
 | I3 | `ThermostatGateway`: `send`, `reproduce`, `pending`, contexts, `own_settings` | 3-4 d | Order of the calls and late commands (`test_late_setpoints.py`, `test_traces.py`) |
-| I4 | `OverrideService` and `manual_changes` | 4-5 d | The hardest phase: `test_overrides.py`, `test_override_end.py`, `test_off.py` |
+| I4 | `OverrideService` and `manual_changes`. Until I5 and I6 give the scheduler, the learner and the data their own objects, these services reach the runtime through a back-reference. | 4-5 d | The hardest phase: `test_overrides.py`, `test_override_end.py`, `test_off.py` |
 | I5 | `Scheduler` with `ApplyReason`, `RuleEngine`, `ThermostatRegistry`, `Learner` | 4-5 d | The lock and background tasks, renames that reload the entry |
 | I6 | `Installation` owns the data. `SnapshotBuilder`. Entities, websocket, services and diagnostics stop reading dicts. Add the websocket command that previews what a preset is worth on a thermostat (section 6, item 6). | 3-4 d | The `DATA`, `TICK` and `ENTITIES` notifications |
 | I7 | Remove the facades, freeze the migrations with their helpers, update the docs | 2 d | Low |

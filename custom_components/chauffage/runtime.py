@@ -24,7 +24,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import CoreState, Context, Event, EventStateChangedData, HomeAssistant, State, callback
+from homeassistant.core import CoreState, Context, Event, HomeAssistant, State, callback
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.event import (
     TrackTemplate,
@@ -52,17 +52,9 @@ from .const import (
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
     DOMAIN,
-    DURATION,
-    EVENT_OVERRIDE_ENDED,
-    EVENT_OVERRIDE_END_CHANGED,
-    EVENT_OVERRIDE_STARTED,
     EVENT_SCHEDULE_ACTIVATED,
     MANUAL_OVERRIDE_ENDS,
-    MAX_MANUAL_OVERRIDE,
-    MIN_MANUAL_OVERRIDE,
     NEXT_CHANGE_KEY,
-    NEXT_SLOT,
-    NO_NEXT_SLOT,
     OVERRIDE_DURATION_MAX,
     OVERRIDE_DURATION_MIN,
     OVERRIDE_DURATION_STEP,
