@@ -1,4 +1,5 @@
-import { dataSource, haAtLeast, renamedTo, thermostatName } from './client.ts';
+import { haAtLeast, thermostatName } from './common.ts';
+import { dataSource, renamedTo } from './client/snapshot.ts';
 import { makeLocale } from './i18n/locale.ts';
 
 // =====================================================================

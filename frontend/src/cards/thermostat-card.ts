@@ -1,6 +1,8 @@
-import { INTEGRATION, dataSource, filterActive, haAtLeast, sourceNotice, thermostatName } from '../client.ts';
+import { sourceNotice } from '../notices.ts';
+import { dataSource, filterActive } from '../client/snapshot.ts';
+import { client } from '../client/chauffage-client.ts';
 import { presetColorIn } from '../colors.ts';
-import { MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, esc } from '../common.ts';
+import { esc, haAtLeast, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, thermostatName } from '../common.ts';
 import { causeText, linksByKeyboard } from '../fields.ts';
 import { OFF_COLOR, OVERRIDE_STRIPES, hasModeRow, hvacColor, hvacIconHtml, modeName } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
@@ -69,7 +71,7 @@ export class ChauffageThermostatCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._unlisten && dataSource(hass).available) {
-      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
     }
     if (!this._config) return;
     const src = dataSource(hass);

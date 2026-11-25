@@ -105,3 +105,19 @@ export const noPresetSlot = (seg, mode) => (mode === 'off' ? offSlot(seg) : slot
 export const pieceSettings = (seg) => (isOff(seg) ? null : hasNoPreset(seg) ? airSettings(seg) : seg.settings);
 
 export const minutesOf = (date) => date.getHours() * 60 + date.getMinutes();
+
+// Home Assistant from a given release on ("2025.11.0b3" and "2025.12.0.dev…" count as their
+// release); false when the version is unknown
+export function haAtLeast(hass, year, month) {
+  const m = /^(\d+)\.(\d+)/.exec((hass && hass.config && hass.config.version) || '');
+  return !!m && (Number(m[1]) > year || (Number(m[1]) === year && Number(m[2]) >= month));
+}
+
+// Name shown for a thermostat: the `name` of the card's config (text, or pieces such as the
+// area and the entity, as in HA's own cards) made by HA (from 2025.10); before, a text name or
+// the thermostat's own name
+export function thermostatName(hass, entity, name?) {
+  const st = hass && hass.states[entity];
+  if (st && hass.formatEntityName) return hass.formatEntityName(st, name === '' ? undefined : name) || entity;
+  return (typeof name === 'string' && name) || (st && st.attributes.friendly_name) || entity;
+}

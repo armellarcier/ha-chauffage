@@ -1,4 +1,4 @@
-import { dataSource } from './client.ts';
+import { dataSource } from './client/snapshot.ts';
 import { DARK_TEXT } from './colors.ts';
 import { HVAC_ORDER, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, esc, slotMode, slotSettings, withSettings } from './common.ts';
 

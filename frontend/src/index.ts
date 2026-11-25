@@ -10,7 +10,7 @@ import { ChauffageProgrammeCard } from './cards/programme-card.ts';
 import { ChauffageRoomsCard } from './cards/rooms-card.ts';
 import { ChauffageSummaryCard } from './cards/summary-card.ts';
 import { ChauffageThermostatCard, ChauffageThermostatCardEditor } from './cards/thermostat-card.ts';
-import { dataSource } from './client.ts';
+import { dataSource } from './client/snapshot.ts';
 import { ChauffageProgrammeCardEditor, ChauffageRoomsCardEditor, ChauffageSummaryCardEditor } from './editors.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { ChauffageMoreInfo } from './more-info.ts';
@@ -172,7 +172,10 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads the bundle as a module.
 export { ChauffageProgrammeCard } from './cards/programme-card.ts';
 export { ChauffageThermostatCard } from './cards/thermostat-card.ts';
-export { compareVersions, INTEGRATION, dataSource, reloadPage } from './client.ts';
+export { ChauffageClient, client, resetClient } from './client/chauffage-client.ts';
+export { commands } from './client/commands.ts';
+export { compareVersions, dataSource } from './client/snapshot.ts';
+export { reloadPage } from './notices.ts';
 export { chipTextColor, coolColor, derivedCoolColor } from './colors.ts';
 export { toMin, toHM, parseDate } from './common.ts';
 export { ChauffageProgrammeCardEditor } from './editors.ts';

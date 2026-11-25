@@ -3,7 +3,7 @@
 // Chauffage is set up. Home Assistant's websocket library then replays the subscription once,
 // gets "not_loaded", and never tries again.
 import { fakeHass, createCard, cleanup, integrationData } from './helpers.mjs';
-import { INTEGRATION } from '../../frontend/src/index.ts';
+import { client } from '../../frontend/src/index.ts';
 import { test, describe, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -131,6 +131,6 @@ describe('the subscription to the integration', () => {
     mock.timers.tick(120000);
     await flush();
     assert.equal(conn.subscriptions.length, 1);
-    assert.equal(INTEGRATION.listeners.size, 0);
+    assert.equal(client.listeners.size, 0);
   });
 });

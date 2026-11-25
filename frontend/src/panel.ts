@@ -1,4 +1,7 @@
-import { INTEGRATION, NOTICE_RELOAD, bindReload, dataSource, integrationAvailable, noticeHtml, reloadPage, renamedTo, sourceNotice } from './client.ts';
+import { bindReload, NOTICE_RELOAD, noticeHtml, reloadPage, sourceNotice } from './notices.ts';
+import { dataSource, integrationAvailable, renamedTo } from './client/snapshot.ts';
+import { commands } from './client/commands.ts';
+import { client } from './client/chauffage-client.ts';
 import { LS_GROUP, LS_HISTORY, errorText, esc, setHtml } from './common.ts';
 import { linksByKeyboard, roundDurationText } from './fields.ts';
 import { hvacIcon, isReversible } from './hvac.ts';
@@ -124,8 +127,8 @@ export class ChauffagePanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._unlisten && integrationAvailable(hass)) {
-      INTEGRATION.connect(hass);
-      this._unlisten = INTEGRATION.listen(() => this._update());
+      client.connect(hass);
+      this._unlisten = client.listen(() => this._update());
     }
     this._update();
   }
@@ -148,8 +151,8 @@ export class ChauffagePanel extends HTMLElement {
   // Home Assistant may set the properties before it adds the panel to the page
   connectedCallback() {
     if (!this._unlisten && this._hass && integrationAvailable(this._hass)) {
-      INTEGRATION.connect(this._hass);
-      this._unlisten = INTEGRATION.listen(() => this._update());
+      client.connect(this._hass);
+      this._unlisten = client.listen(() => this._update());
     }
     document.addEventListener('keydown', this._onKey);
     window.addEventListener('beforeunload', this._onUnload);
@@ -448,7 +451,6 @@ export class ChauffagePanel extends HTMLElement {
   // the thermostat's revision. The integration keeps the weeks of the schedules not sent.
   async _saveSheet(climate) {
     const t = this._t;
-    const src = dataSource(this._hass);
     for (const card of Object.values(this._weekCards)) (card as any)._settle(true);
     const dirty = this._dirtyWeeks();
     if (!dirty.length) return;
@@ -456,7 +458,7 @@ export class ChauffagePanel extends HTMLElement {
     const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, (card as any)._week(climate).map(serializeDay)])) };
     const revisions = { [climate]: first._revisions[climate] ?? null };
     try {
-      const result = await src.saveWeeks(weeks, revisions);
+      const result = await commands(this._hass).saveWeeks(weeks, revisions);
       for (const card of Object.values(this._weekCards)) {
         if (result && result.revisions) Object.assign((card as any)._revisions, result.revisions);
         if (result && result.revision != null) (card as any)._revision = result.revision;
@@ -583,7 +585,7 @@ export class ChauffagePanel extends HTMLElement {
       if ('forgetConfirm' in ds) {
         this._pageMenu = false;
         this._fillPageMenu();
-        await src.forget(route.id);
+        await commands(this._hass).forget(route.id);
         return openPanel('thermostats');
       }
       if ('sheetSave' in ds) return this._saveSheet(route.id);
@@ -675,12 +677,12 @@ export class ChauffagePanel extends HTMLElement {
         try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
         seenNewOff(); // a new user has nothing to upgrade from
         seenNewSetting(this._hass); // the next steps say it
-        await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
+        await commands(this._hass).saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
           Object.fromEntries(climates.map((c) => [c, null])));
         this._picked.clear();
         return this._update();
       }
-      if (ds.pause != null) return await src.setPaused(route.id, ds.pause === '1');
+      if (ds.pause != null) return await commands(this._hass).setPaused(route.id, ds.pause === '1');
     } catch (err) {
       this._error = errorText(this._t, err);
       this._update();

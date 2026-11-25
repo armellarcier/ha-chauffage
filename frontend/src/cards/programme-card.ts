@@ -1,6 +1,9 @@
-import { INTEGRATION, bindReload, dataSource, noticeHtml, reloadPage, renamedTo, sourceNotice, thermostatName } from '../client.ts';
+import { bindReload, noticeHtml, reloadPage, sourceNotice } from '../notices.ts';
+import { dataSource, renamedTo } from '../client/snapshot.ts';
+import { commands } from '../client/commands.ts';
+import { client } from '../client/chauffage-client.ts';
 import { chipStyle, coolColor, derivedCoolColor, presetColorIn, slotColor } from '../colors.ts';
-import { DAY_MIN, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, LS_CLIP, LS_GROUP, LS_HISTORY, LS_KEY, MANUAL_PRESETS, NEW_DAY, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, clone, errorText, esc, hasNoPreset, isAdmin, isFan, isOff, minutesOf, noPresetSlot, nowMin, parseDate, pct, pieceSettings, plainRule, sameSlot, slotMode, slotOf, slotSettings, todayIdx, withSettings } from '../common.ts';
+import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, LS_CLIP, LS_GROUP, LS_HISTORY, LS_KEY, MANUAL_PRESETS, minutesOf, NEW_DAY, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, plainRule, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { atMinutes, causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeField, timeFieldDone } from '../fields.ts';
 import { HISTORY_DAYS, HISTORY_MAX_AGE, MEASURE_RAMP, RECORDER_DELAY, SETPOINT_MARGIN, curveValue, historyDays, mergeRows, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, captureButtonHtml, captureState, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacIconHtml, hvacModesOf, hvacSlotStyle, isReversible, listsMode, modeName, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn, stateOf, valueOn } from '../hvac.ts';
@@ -165,7 +168,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     let src = dataSource(hass);
     if (src.available && !src.ready) {
       await new Promise<void>((resolve) => {
-        const stop = INTEGRATION.listen(() => { stop(); resolve(); });
+        const stop = client.listen(() => { stop(); resolve(); });
         setTimeout(() => { stop(); resolve(); }, 2000);
       });
       src = dataSource(hass);
@@ -226,7 +229,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const src = this._source();
     if (src.available && !this._unlisten) {
       // Data pushed by the integration: same checks as a hass update
-      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
     }
     if (src.available !== this._available) {
       this._available = src.available; // the integration deleted or disabled, or back
@@ -426,6 +429,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     return dataSource(this._hass);
   }
 
+  _commands() {
+    return commands(this._hass);
+  }
+
   _reloadPage() {
     reloadPage();
   }
@@ -620,7 +627,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (!override) this._overrideSel = null;
     this._render();
     try {
-      await this._source().setOverride(climate, override, this._changeSource());
+      await this._commands().setOverride(climate, override, this._changeSource());
     } catch (e) {
       delete this._overridePending[climate];
       this._msg = errorText(this._loc.t, e);
@@ -680,7 +687,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const revisions = Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null]));
     try {
       // Edits undone: nothing to send (a save would realign every thermostat)
-      const result = changed.length ? await src.saveWeeks(out, revisions) : null;
+      const result = changed.length ? await this._commands().saveWeeks(out, revisions) : null;
       if (result && result.revision != null) this._revision = result.revision;
       if (result && result.revisions) Object.assign(this._revisions, result.revisions);
       this._loadedWeeks = now;
@@ -1122,7 +1129,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   async _call(change) {
     this._render();
     try {
-      await change(this._source());
+      await change(this._commands());
     } catch (e) {
       this._msg = errorText(this._loc.t, e);
       this._render();
@@ -1130,7 +1137,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _setPaused(climate, paused) {
-    return this._call((src) => src.setPaused(climate, paused));
+    return this._call((cmd) => cmd.setPaused(climate, paused));
   }
 
   _menuHtml() {
@@ -2270,7 +2277,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._render(); // the menu closes at once, not when the integration answers
     if (this._dirty && !(await this._save())) return;
     try {
-      const result = await this._source().setSchedules(list, this._revision);
+      const result = await this._commands().setSchedules(list, this._revision);
       if (result && result.revision != null) this._revision = result.revision;
       if (created && result && result.schedules) {
         this._wantSchedule = result.schedules[result.schedules.length - 1].id;
@@ -2296,7 +2303,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   async _activateSchedule(schedule) {
     try {
-      await this._source().activateSchedule(schedule, this._changeSource());
+      await this._commands().activateSchedule(schedule, this._changeSource());
       this._msg = this._loc.t('scheduleActivated', { schedule: this._scheduleName(schedule) });
     } catch (e) {
       this._msg = errorText(this._loc.t, e);
@@ -2593,7 +2600,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     } else if (act === 'rules-save') {
       const { rules, def } = this._rulesShown();
       try {
-        await this._source().setRules(
+        await this._commands().setRules(
           rules.filter((r) => r.template.trim()).map((r) => plainRule({ ...r, template: r.template.trim() })), def || null);
         this._rulesDraft = null;
         this._msg = this._loc.t('saved');
@@ -2692,7 +2699,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   _forget(climate) {
     this._forgetAsk = null;
-    return this._call((src) => src.forget(climate));
+    return this._call((cmd) => cmd.forget(climate));
   }
 
   // Table: one column per preset (header: the preset, then its default temperature), one row per
@@ -3010,12 +3017,12 @@ export class ChauffageProgrammeCard extends HTMLElement {
         const mapping = { ...src.mapping(sel.climate) };
         if (Object.keys(target).length) mapping[sel.preset] = target; else delete mapping[sel.preset];
         // The same as what is stored (the default kept): nothing to send
-        if (JSON.stringify(mapping) !== JSON.stringify(src.mapping(sel.climate))) await src.setMapping(sel.climate, mapping);
+        if (JSON.stringify(mapping) !== JSON.stringify(src.mapping(sel.climate))) await this._commands().setMapping(sel.climate, mapping);
       } else if (sel.kind === 'new') {
-        await src.setPresets([...presets, edited({})], {});
+        await this._commands().setPresets([...presets, edited({})], {});
       } else if (act === 'cell-delete-confirm') {
         const replacement = value('[data-cell-replacement]');
-        await src.setPresets(presets.filter((l) => l.id !== sel.preset), replacement ? { [sel.preset]: replacement } : {});
+        await this._commands().setPresets(presets.filter((l) => l.id !== sel.preset), replacement ? { [sel.preset]: replacement } : {});
       } else {
         // A temperature that the weeks use stays: its slots would have nothing to send
         const old = presets.find((l) => l.id === sel.preset);
@@ -3026,7 +3033,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
           this._cellError = this._loc.t(lost[0] === 'cool' ? 'presetUsedCooling' : 'presetUsedHeating');
           return this._render();
         }
-        await src.setPresets(presets.map((l) => (l.id === sel.preset ? next : l)), {});
+        await this._commands().setPresets(presets.map((l) => (l.id === sel.preset ? next : l)), {});
       }
       this._cell = null;
       this._msg = this._loc.t('saved');
@@ -3418,7 +3425,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'thermostat-add') {
       // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
       const climate = (this.shadowRoot.querySelector('[data-add-climate]') as any).value;
-      return this._call((src) => src.saveWeeks({ [climate]: {} }, { [climate]: null }));
+      return this._call((cmd) => cmd.saveWeeks({ [climate]: {} }, { [climate]: null }));
     }
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._sel = null;
