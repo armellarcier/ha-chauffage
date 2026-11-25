@@ -1,13 +1,14 @@
+import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { sourceNotice } from '../notices.ts';
 import { dataSource, filterActive } from '../client/snapshot.ts';
 import { client } from '../client/chauffage-client.ts';
 import { presetColorIn } from '../colors.ts';
-import { esc, haAtLeast, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, thermostatName } from '../common.ts';
+import { haAtLeast, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, thermostatName } from '../common.ts';
 import { causeText, linksByKeyboard } from '../fields.ts';
-import { OFF_COLOR, OVERRIDE_STRIPES, hasModeRow, hvacColor, hvacIconHtml, modeName } from '../hvac.ts';
+import { OFF_COLOR, OVERRIDE_STRIPES, hasModeRow, hvacColor, hvacIconTemplate, modeName } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
-import { entityLinkHtml, navigate, openMoreInfo, panelPath } from '../links.ts';
-import { fillCard, overrideSummary } from '../override-edit.ts';
+import { navigate, openMoreInfo, panelPath } from '../links.ts';
+import { overrideSummary } from '../override-edit.ts';
 import { isOffOverride, overrideHvac, overrideLabel, targetKind } from '../override.ts';
 import { presetOf, presetsOf } from '../presets.ts';
 import { LINK_STYLE } from '../styles.ts';
@@ -34,19 +35,17 @@ const THERMOSTAT_CARD_STYLE = `
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
 
-export class ChauffageThermostatCard extends HTMLElement {
-  // The fields of the element, untyped until the rewrite of the card gives them a type
-  declare _config: any;
-  declare _hass: any;
-  declare _key: any;
-  declare _unlisten: any;
+export class ChauffageThermostatCard extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    _config: { state: true },
+  };
 
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    linksByKeyboard(this.shadowRoot);
-    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
-  }
+  static styles = unsafeCSS(THERMOSTAT_CARD_STYLE);
+
+  declare hass: any;
+  declare _config: any;
+  _unlisten: (() => void) | null = null;
 
   static getConfigElement() {
     return document.createElement('chauffage-thermostat-card-editor');
@@ -65,36 +64,34 @@ export class ChauffageThermostatCard extends HTMLElement {
       throw new Error(makeLocale(null, lang).t('entityRequired'));
     }
     this._config = config;
-    if (this._hass) this._render();
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    if (!this._unlisten && dataSource(hass).available) {
-      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
-    }
-    if (!this._config) return;
-    const src = dataSource(hass);
-    // Redrawn when the thermostat, the integration's data or the access level change; the block
-    // follows by itself
-    const key = [hass.states[this._config.entity], src.stamps.weeks, src.stamps.overrides, src.stamps.schedule,
-      src.stamps.thermostats, JSON.stringify(src.planned(this._config.entity)), makeLocale(hass, this._config.language).signature,
-      hass.user && hass.user.is_admin, src.stamps.access, src.ready, src.stale, src.outdated, this._config];
-    if (!this._key || key.some((v, i) => v !== this._key[i])) {
-      this._key = key;
-      this._render();
-    }
-    const block: any = this.shadowRoot.querySelector('chauffage-moreinfo');
-    if (block) block.hass = hass;
+  createRenderRoot() {
+    const root = super.createRenderRoot();
+    linksByKeyboard(root);
+    return root;
   }
 
   connectedCallback() {
-    if (this._hass && !this._unlisten && dataSource(this._hass).available) this.hass = this._hass;
+    super.connectedCallback();
+    this._listen();
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback();
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
+  }
+
+  willUpdate(changed) {
+    if (changed.has('hass')) this._listen();
+  }
+
+  // Data pushed by the integration: drawn again
+  _listen() {
+    if (this.hass && this.isConnected && !this._unlisten && dataSource(this.hass).available) {
+      this._unlisten = client.listen(() => this.requestUpdate());
+    }
   }
 
   getCardSize() {
@@ -105,104 +102,96 @@ export class ChauffageThermostatCard extends HTMLElement {
     return { columns: 12, min_columns: 6 };
   }
 
-  _render() {
-    const hass = this._hass;
+  render() {
+    if (!this.hass || !this._config) return nothing;
+    return html`<ha-card @click=${this._onClick}>${this._content()}</ha-card>`;
+  }
+
+  _content() {
+    const hass = this.hass;
     const loc = makeLocale(hass, this._config.language);
     const t = loc.t;
     const entity = this._config.entity;
     const src = dataSource(hass);
-    const card = (body) => fillCard(this.shadowRoot, THERMOSTAT_CARD_STYLE, body);
     // Without the data yet, the thermostat card already shows the thermostat: no "…"
     const notice: any = sourceNotice(src);
-    if (notice && !notice.loading) {
-      card(`<div class="msg">${esc(t(notice.text))}</div>`);
-      return;
-    }
+    if (notice && !notice.loading) return html`<div class="msg">${t(notice.text)}</div>`;
     const st = hass.states[entity];
     const name = st ? thermostatName(hass, entity, this._config.name) : entity;
     const a = (st && st.attributes) || {};
     const measured = a.current_temperature != null ? `${loc.number(a.current_temperature)}°` : '';
-    const head = `<div class="tc-head">
-        <div class="tc-name">${st ? entityLinkHtml(entity, name, t('openThermostat')) : esc(name)}</div>
+    const head = html`<div class="tc-head">
+        <div class="tc-name">${st
+          ? html`<span class="mi-link" role="link" tabindex="0" data-more-info=${entity} title=${t('openThermostat')}>${name}</span>`
+          : name}</div>
         <div class="tc-temp">${measured}</div>
-        ${st ? this._stateHtml(loc, src, st) : `<span class="msg">${esc(t('entityMissing', { entity }))}</span>`}
+        ${st ? this._state(loc, src, st) : html`<span class="msg">${t('entityMissing', { entity })}</span>`}
       </div>`;
-    if (!src.ready || !st) {
-      card(head);
-      return;
-    }
+    if (!src.ready || !st) return head;
     if (!src.scheduled().includes(entity)) {
       // Scheduling it is setting up (canSetUp): from the panel's Thermostats tab
       const scheduleIt = src.editable
-        ? ` <span class="mi-link" role="link" tabindex="0" data-navigate="${panelPath('thermostats')}">${esc(t('scheduleIt'))}</span>` : '';
-      card(`${head}<div class="msg">${esc(t('notScheduled'))}${scheduleIt}</div>`);
-      return;
+        ? html` <span class="mi-link" role="link" tabindex="0" data-navigate=${panelPath('thermostats')}>${t('scheduleIt')}</span>` : nothing;
+      return html`${head}<div class="msg">${t('notScheduled')}${scheduleIt}</div>`;
     }
-    // The block of the more-info dialog, with its foot: the thermostat's own entities, its device,
-    // Pause or Resume. Kept when it is there: only the header is drawn again (a field being typed
-    // in the block keeps its focus while the thermostat reports)
-    let block: any = this.shadowRoot.querySelector('chauffage-moreinfo');
-    const header = this.shadowRoot.querySelector('.tc-head');
-    if (block && header && block.entity === entity) {
-      header.outerHTML = head;
-    } else {
-      card(`${head}<chauffage-moreinfo embedded></chauffage-moreinfo>`);
-      block = this.shadowRoot.querySelector('chauffage-moreinfo');
-    }
-    block.entity = entity;
-    block.hass = hass;
+    // The block of the more-info dialog, with its foot: Pause or Resume. Lit keeps it from one
+    // drawing to the next: a field being typed in keeps its focus while the thermostat reports
+    return html`${head}<chauffage-moreinfo embedded .entity=${entity} .hass=${hass}></chauffage-moreinfo>`;
   }
 
   // What it does now: its temporary setpoint, or the preset of its schedule (the thermostat's
   // own when paused), with its setpoint
-  _stateHtml(loc, src, st) {
+  _state(loc, src, st) {
     const t = loc.t;
+    const entity = this._config.entity;
     const a = st.attributes;
     const setpoint = a.temperature != null ? `${loc.number(a.temperature)}°` : '';
-    const text = (label) => esc([label, setpoint].filter(Boolean).join(' · '));
+    const text = (label) => [label, setpoint].filter(Boolean).join(' · ');
     const presets = presetsOf(src, loc);
-    const paused = src.paused(this._config.entity);
-    const d = !paused && filterActive(src.overrides())[this._config.entity];
+    const paused = src.paused(entity);
+    const d = !paused && filterActive(src.overrides())[entity];
+    const override = (content) => html`<span class="tc-state override">⏱ ${content}</span>`;
+    const icon = (mode) => (mode ? html`<span class="m">${hvacIconTemplate(mode)}</span>` : nothing);
+    const dot = (color) => html`<i style="background:${color}"></i>`;
     // An off override: "⏱ Off", no setpoint (#91)
-    if (isOffOverride(d)) return `<span class="tc-state override">⏱ ${esc(modeName(loc, 'off'))}</span>`;
+    if (isOffOverride(d)) return override(modeName(loc, 'off'));
     // On a thermostat that lists more than one "on" HVAC mode: "⏱ Cool · Comfort 25°"
-    if (d && hasModeRow(this._hass, this._config.entity)) return `<span class="tc-state override">⏱ ${esc(overrideSummary(d, src, this._config.entity, loc, this._hass))}</span>`;
+    if (d && hasModeRow(this.hass, entity)) return override(overrideSummary(d, src, entity, loc, this.hass));
     // An override at a temperature (not a preset) is that temperature: said once, not "17,5 °C · 17,5°"
     if (d && targetKind(d.target) === 'temperature' && !presets.some((p) => p.id === d.preset)) {
-      return `<span class="tc-state override">⏱ ${hvacIconHtml(overrideHvac(d))}${esc(`${loc.number(d.target.temperature)}°`)}</span>`;
+      return override(html`${icon(overrideHvac(d))}${`${loc.number(d.target.temperature)}°`}`);
     }
-    if (d) return `<span class="tc-state override">⏱ ${hvacIconHtml(overrideHvac(d))}${text(overrideLabel(d, loc, presets))}</span>`;
-    const plan = paused ? null : src.planned(this._config.entity);
+    if (d) return override(html`${icon(overrideHvac(d))}${text(overrideLabel(d, loc, presets))}`);
+    const plan = paused ? null : src.planned(entity);
     // A thermostat that protects itself (a VTherm's window, auto start/stop) says why, and the
     // preset it restarts on, without setpoint, also while its window keeps it heating at the
     // frost setpoint; an off slot, or a thermostat off, reads "Off" without setpoint
     const requested = a.requested_state && a.requested_state.preset;
-    const cause = causeText(src, this._config.entity, loc,
-      requested ? presetOf(presets, String(requested), loc).name : null);
-    if (cause) return `<span class="tc-state"><i style="background:${OFF_COLOR}"></i>${esc(cause.long)}</span>`;
-    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return `<span class="tc-state"><i style="background:${OFF_COLOR}"></i>${esc(modeName(loc, 'off'))}</span>`;
+    const cause = causeText(src, entity, loc, requested ? presetOf(presets, String(requested), loc).name : null);
+    if (cause) return html`<span class="tc-state">${dot(OFF_COLOR)}${cause.long}</span>`;
+    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return html`<span class="tc-state">${dot(OFF_COLOR)}${modeName(loc, 'off')}</span>`;
     // A fan-only, a dry or an auto slot: its HVAC mode, in Home Assistant's color, without setpoint
-    if (plan && NO_PRESET_MODES.includes(plan.hvac_mode)) return `<span class="tc-state"><i style="background:${hvacColor(plan.hvac_mode)}"></i>${esc(modeName(loc, plan.hvac_mode))}</span>`;
+    if (plan && NO_PRESET_MODES.includes(plan.hvac_mode)) return html`<span class="tc-state">${dot(hvacColor(plan.hvac_mode))}${modeName(loc, plan.hvac_mode)}</span>`;
     let label;
     let color = null;
     if (plan && plan.preset) {
       ({ name: label, color } = presetOf(presets, plan.preset, loc));
       // The HVAC mode of the slot, where the thermostat lists more than one: "Cool · Comfort"
-      if (hasModeRow(this._hass, this._config.entity) && SETPOINT_MODES.includes(plan.hvac_mode)) {
+      if (hasModeRow(this.hass, entity) && SETPOINT_MODES.includes(plan.hvac_mode)) {
         label = `${modeName(loc, plan.hvac_mode)} · ${label}`;
         color = presetColorIn(presetOf(presets, plan.preset, loc), plan.hvac_mode);
       }
     }
     else if (a.preset_mode && MANUAL_PRESETS.includes(String(a.preset_mode).toLowerCase())) label = t('manual');
     else label = a.preset_mode ? loc.preset(a.preset_mode) : '';
-    return `<span class="tc-state">${color ? `<i style="background:${color}"></i>` : ''}${text(label)}</span>`;
+    return html`<span class="tc-state">${color ? dot(color) : nothing}${text(label)}</span>`;
   }
 
   _onClick(e) {
     const link = e.target.closest('[data-more-info]');
     if (link) openMoreInfo(this, link.dataset.moreInfo);
     const to = e.target.closest('[data-navigate]');
-    if (to && this.shadowRoot.contains(to)) navigate(to.dataset.navigate);
+    if (to && this.renderRoot.contains(to)) navigate(to.dataset.navigate);
   }
 }
 

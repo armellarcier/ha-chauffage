@@ -220,6 +220,9 @@ Testez un brouillon de `frontend/src/state/` directement, sans la carte, comme l
 `week-draft.test.mjs`. Chaque test a un nouvel abonnement à l'intégration : `fakeHass` appelle
 `resetClient()`.
 
+Un élément Lit se dessine après la tâche en cours, pas tout de suite. Après une action, attendez
+`await settle()` avant de lire l'élément.
+
 ### Le TypeScript de la carte
 
 Les tests de la carte lancent les sources TypeScript sans build : Node retire les types. Donc :
@@ -227,6 +230,8 @@ Les tests de la carte lancent les sources TypeScript sans build : Node retire le
 - N'écrivez que de la syntaxe que Node sait retirer, par exemple ni `enum` ni propriétés de
   paramètre.
 - Importez un module avec son extension `.ts`.
+- Déclarez les propriétés d'un élément Lit dans `static properties`, avec des champs `declare`.
+  Node ne sait pas retirer les décorateurs.
 - Vérifiez les types avec `npm run typecheck`. `scripts/test.sh js` et la CI le lancent aussi.
 
 ## Versions de Home Assistant prises en charge

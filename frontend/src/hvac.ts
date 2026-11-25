@@ -1,3 +1,4 @@
+import { html, nothing } from 'lit';
 import { dataSource } from './client/snapshot.ts';
 import { DARK_TEXT } from './colors.ts';
 import { HVAC_ORDER, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, esc, slotMode, slotSettings, withSettings } from './common.ts';
@@ -125,6 +126,8 @@ export const FAN_STYLE = `
   ${CHIP_STYLE}
 `;
 export const hvacIcon = (mode) => (mode ? `<ha-icon icon="${esc(HVAC_ICONS[mode] || 'mdi:thermostat')}"></ha-icon>` : '');
+// The same icon, in a Lit template
+export const hvacIconTemplate = (mode) => (mode ? html`<ha-icon icon=${HVAC_ICONS[mode] || 'mdi:thermostat'}></ha-icon>` : nothing);
 export const hvacIconHtml = (mode) => (mode ? `<span class="m">${hvacIcon(mode)}</span>` : '');
 // A number typed by hand, with either decimal separator ("20,5" or "20.5"); NaN for anything else
 export const parseDecimal = (text) => (String(text).trim() === '' ? NaN : Number(String(text).trim().replace(',', '.')));

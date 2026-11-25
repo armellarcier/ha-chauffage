@@ -207,12 +207,17 @@ action can do it, and say why in an `Internal:` comment.
 Test a draft of `frontend/src/state/` directly, without the card, as `week-draft.test.mjs` does.
 Each test gets a new subscription to the integration: `fakeHass` calls `resetClient()`.
 
+A Lit element draws after the current task, not at once. After an action, `await settle()` before you
+read the element.
+
 ### The card's TypeScript
 
 The card tests run the TypeScript sources without a build: Node removes the types. So:
 
 - Write only syntax that Node can remove, for example no `enum` and no parameter properties.
 - Import a module with its `.ts` extension.
+- Declare the properties of a Lit element in `static properties`, with `declare` fields. Node
+  can't remove decorators.
 - Check the types with `npm run typecheck`. `scripts/test.sh js` and the CI run it too.
 
 ## Supported Home Assistant versions
