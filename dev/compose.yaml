@@ -19,7 +19,7 @@ services:
     volumes:
       - ..:/app
       - node-modules:/app/node_modules
-    command: sh -c "npm install --no-audit --no-fund --silent && node scripts/build.mjs && exec node scripts/build.mjs --watch"
+    command: sh -c "npm install --no-audit --no-fund --silent && exec node scripts/build.mjs --watch"
     healthcheck:
       test: ["CMD", "test", "-f", "/app/custom_components/chauffage/frontend/chauffage-programme-card.js"]
       interval: 2s

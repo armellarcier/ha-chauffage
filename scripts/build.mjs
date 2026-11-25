@@ -1,6 +1,6 @@
 // Builds the card: esbuild bundles frontend/src into the file that the integration serves.
 //   node scripts/build.mjs           → once (npm run build)
-//   node scripts/build.mjs --watch   → again on every change (npm run watch, the development HA)
+//   node scripts/build.mjs --watch   → once, then again on every change (the development HA)
 import * as esbuild from 'esbuild';
 import { fileURLToPath } from 'node:url';
 

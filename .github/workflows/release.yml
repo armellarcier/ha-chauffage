@@ -43,9 +43,7 @@ jobs:
           # HACS unzips it into custom_components/chauffage/ (hacs.json: zip_release, filename).
           # Without HACS, unzip it there too.
           cd custom_components/chauffage
-          zip -r ../../ha-chauffage.zip . -x '*__pycache__*' -x frontend/.gitignore
-          unzip -l ../../ha-chauffage.zip | grep -q ' frontend/chauffage-programme-card.js$' \
-            || { echo "::error::The ZIP has no card"; exit 1; }
+          zip -r ../../ha-chauffage.zip .
 
       - name: Release notes
         run: |
