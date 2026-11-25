@@ -7,6 +7,8 @@ You set ha-chauffage up from the Home Assistant UI. You don't need to edit any Y
 Requires Home Assistant 2025.1 or later. The [changelog](../CHANGELOG.md) announces when the
 minimum Home Assistant version rises.
 
+If you use Versatile Thermostat, Chauffage requires Versatile Thermostat 10.5 or later.
+
 ## 1. Install the integration from HACS
 
 [![Open ha-chauffage in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=armellarcier&repository=ha-chauffage&category=integration)

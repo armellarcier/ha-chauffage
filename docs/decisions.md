@@ -569,6 +569,9 @@ future contributor might question.
     top-level attribute to `specific_states` (VTherm 10.5), and VTherm publishes no reason right
     after being turned off, so Chauffage leaves the decision to VTherm. Older versions are not
     checked; they are rare, and the risk is accepted.
+    **Removed by the rewrite**: Versatile Thermostat 10.5 is the minimum supported version, and
+    every supported VTherm publishes `requested_state`. The `shown` field, the top-level
+    `hvac_off_reason` and `window_manager`, and the top-level `eco_temp` keys are no longer read.
 - **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
   thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
   `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its

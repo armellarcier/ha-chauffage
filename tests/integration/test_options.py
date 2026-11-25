@@ -87,15 +87,12 @@ async def test_learned_temperatures_are_given_to_the_card(bench: Bench):
 
 
 async def test_the_card_gets_the_temperatures_versatile_thermostat_publishes(bench: Bench):
-    """The ones a manual setpoint is compared with: VTherm 10+ publishes them in
-    preset_temperatures, older versions in eco_temp… attributes; they win over learned ones."""
+    """The ones a manual setpoint is compared with: VTherm publishes them in
+    preset_temperatures; they win over learned ones."""
     await start(bench)
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 16.5, "comfort_temp": 19.0})
     await bench.hass.async_block_till_done()
     assert bench.runtime.snapshot()["preset_temperatures"]["climate.salon"] == {"eco": 16.5, "comfort": 19.0}
-    bench.thermostat("climate.salon", "comfort", boost_temp=22.0)
-    await bench.hass.async_block_till_done()
-    assert bench.runtime.snapshot()["preset_temperatures"]["climate.salon"] == {"eco": 17.0, "comfort": 20.0, "boost": 22.0}
 
 
 async def test_a_preset_temperature_changed_on_the_thermostat_reaches_the_card(bench: Bench):

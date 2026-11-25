@@ -8,6 +8,9 @@ modifier.
 Nécessite Home Assistant 2025.1 ou plus récent. Le [journal des modifications](../CHANGELOG.md)
 (en anglais) annonce quand la version minimale de Home Assistant augmente.
 
+Si vous utilisez Versatile Thermostat, Chauffage nécessite Versatile Thermostat 10.5 ou plus
+récent.
+
 ## 1. Installer l'intégration depuis HACS
 
 [![Ouvrir ha-chauffage dans HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=armellarcier&repository=ha-chauffage&category=integration)

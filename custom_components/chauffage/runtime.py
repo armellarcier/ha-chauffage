@@ -105,16 +105,14 @@ VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
 
 def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat | None:
     """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current). A VTherm is read as
-    it was asked (requested_state, #92): off by its window or its auto start/stop, it is still "on" for Chauffage. A VTherm
-    without requested_state (before VTherm 10.5) that is off is read as on too: it keeps the
-    preset asked while off and starts again on it (#74), so Chauffage neither turns it on nor
-    takes it for turned off by hand, as before #91."""
+    it was asked (requested_state, #92): off by its window or its auto start/stop, it is still
+    "on" for Chauffage."""
     if state is None:
         return None
     attributes = state.attributes
     presets = attributes.get("preset_modes") or ()
     hvac_mode, preset, temperature = engine.asked(attributes, vtherm)
-    current = engine.Thermostat(
+    return engine.Thermostat(
         hvac_mode or state.state,
         preset,
         temperature,
@@ -131,9 +129,6 @@ def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat |
         supports_range=bool(int(attributes.get("supported_features") or 0) & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE),
         **{key: engine.temperature_value(attributes.get(key)) for key in engine.RANGE_KEYS},
     )
-    if vtherm and hvac_mode is None and state.state == engine.OFF:
-        current = dataclasses.replace(current, state=engine.on_mode(current) or "heat", shown=engine.OFF)
-    return current
 
 
 def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
@@ -1258,7 +1253,7 @@ class ChauffageRuntime:
         # preset, says nothing of the one the thermostat will have (#112). The HVAC mode only
         # when it changes
         hvac_mode = target.get("hvac_mode")
-        if current is not None and hvac_mode in (current.state, current.shown):
+        if current is not None and hvac_mode == current.state:
             hvac_mode = None
         attributes = {key: value for key, value in target.items() if key != "hvac_mode"}
         waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)

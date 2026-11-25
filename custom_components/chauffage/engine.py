@@ -43,9 +43,6 @@ class Thermostat:
     fan_mode: str | None = None
     swing_mode: str | None = None
     swing_horizontal_mode: str | None = None
-    # Its HVAC mode as shown when `state` reads otherwise: "off" for a Versatile Thermostat
-    # without requested_state that is off, read as on (#74). An off target is satisfied by it.
-    shown: str | None = None
     # Heat/cool: whether it takes a range of temperatures (TARGET_TEMPERATURE_RANGE), and the
     # range it shows
     supports_range: bool = False
@@ -81,10 +78,10 @@ def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | No
     return hvac_mode, preset, temperature
 
 
-# Why a Versatile Thermostat protects itself, as it says it: hvac_off_reason (moved into
-# specific_states in VTherm 10.5, with values such as "hvac_off_auto_start_stop" or
-# "hvac_off_window") while it is off, and its window manager while it keeps heating at the frost
-# setpoint for an open window. For the card, which then does not read VTherm's attributes.
+# Why a Versatile Thermostat protects itself, as it says it in specific_states: hvac_off_reason
+# (for example "hvac_off_auto_start_stop" or "hvac_off_window") while it is off, and its window
+# manager while it keeps heating at the frost setpoint for an open window. For the card, which
+# then does not read VTherm's attributes.
 OFF_CAUSES = {"window": "window", "window_detection": "window", "auto_start_stop": "auto_start_stop"}
 
 
@@ -92,12 +89,12 @@ def cause(attributes: Mapping[str, Any], state: str) -> str | None:
     """"window" or "auto_start_stop" when the thermostat says it turned itself off for that, or
     "window" while it heats at the frost setpoint for its open window; None otherwise."""
     specific = attributes.get("specific_states") if isinstance(attributes.get("specific_states"), Mapping) else {}
-    window = specific.get("window_manager") if isinstance(specific.get("window_manager"), Mapping) else attributes.get("window_manager")
+    window = specific.get("window_manager")
     if isinstance(window, Mapping) and str(window.get("window_state")) == "on":
         return "window"
     if state != OFF:
         return None
-    reason = specific.get("hvac_off_reason", attributes.get("hvac_off_reason"))
+    reason = specific.get("hvac_off_reason")
     return OFF_CAUSES.get(str(preset_value(reason) or "").removeprefix("hvac_off_"))
 
 
@@ -403,11 +400,10 @@ def fit(target: Target, thermostat: Thermostat | None) -> Target:
 
 
 def hvac_satisfied(target: Target, thermostat: Thermostat) -> bool:
-    """The thermostat is in the target's HVAC mode (as read, or as shown: a VTherm read as on
-    while it shows off satisfies an off target), or on when the target gives none: not off, and
+    """The thermostat is in the target's HVAC mode, or on when the target gives none: not off, and
     not in fan only or dry when the target holds a setpoint."""
     if "hvac_mode" in target:
-        return target["hvac_mode"] in (thermostat.state, thermostat.shown)
+        return target["hvac_mode"] == thermostat.state
     return thermostat.state != OFF and not needs_turning_on(target, thermostat)
 
 
@@ -651,13 +647,13 @@ RESUME = "resume"  # back to what the schedule expects
 def preset_temperature(attributes: dict[str, Any], preset: str, learned: dict[str, Any],
                        cool: bool = False) -> float | None:
     """Temperature a thermostat's own preset gives: Versatile Thermostat publishes them
-    (preset_temperatures: {"eco_temp": …} since its version 10, eco_temp… before), otherwise
+    (preset_temperatures: {"eco_temp": …}), otherwise
     the one last read while the thermostat was on that preset (`learned`). `cool`: the one it
     gives when cooling (a Versatile Thermostat in AC mode: "eco_cool_temp"; `learned` while it
     cooled)."""
     published = attributes.get("preset_temperatures")
     key = f"{preset}_cool_temp" if cool else f"{preset}_temp"
-    value = published.get(key) if isinstance(published, dict) else attributes.get(key)
+    value = published.get(key) if isinstance(published, dict) else None
     return temperature_value(learned.get(preset) if value is None else value)
 
 

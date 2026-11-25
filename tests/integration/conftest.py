@@ -193,10 +193,10 @@ class Bench:
         if presets:
             values |= {"preset_mode": climate_preset, "preset_modes": presets}
         entry = er.async_get(self.hass).async_get(entity_id)
-        if entry is not None and entry.platform == "versatile_thermostat" and state != "off":
-            # A VTherm publishes what it was asked for since its version 8 (#92): here what it
-            # shows, unless a test says otherwise. Off, it may have turned itself off (its
-            # window, its auto start/stop): a test says what it was asked for (#91)
+        if entry is not None and entry.platform == "versatile_thermostat":
+            # A VTherm publishes what it was asked for (#92): here what it shows, unless a test
+            # says otherwise. A test says when it turned itself off, by its window or its auto
+            # start/stop (#91)
             values["requested_state"] = {
                 "hvac_mode": state, "preset": climate_preset,
                 "target_temperature": temperature if climate_preset == "none" else None,

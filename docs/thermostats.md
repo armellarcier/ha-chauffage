@@ -6,7 +6,8 @@ Chauffage works with any `climate` entity that has a target temperature. The tes
 kinds of thermostats:
 
 - **Versatile Thermostat.** Chauffage uses its presets, for example `comfort` or `eco`. You set
-  their temperatures in Versatile Thermostat.
+  their temperatures in Versatile Thermostat. Chauffage requires Versatile Thermostat 10.5 or
+  later.
 - **Thermostats with standard presets**, for example `eco` or `comfort`. Chauffage uses the
   thermostat's preset with the same name, and sets a temperature for the other presets.
 - **Thermostats without presets**, for example `generic_thermostat`. Chauffage sets
