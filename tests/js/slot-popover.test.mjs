@@ -4,7 +4,10 @@ import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WEEKDAY, WEEKEND, cleanup } from './helpers.mjs';
 import { CHIP_STYLE, FIELD_BOX, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, STYLE as STYLE_TEXT, derivedCoolColor, normalize, parseDay, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
-import { $, $$, change, click, day, icons, rgb, text, week } from './houses/dom.mjs';
+import { $, $$, change, click, icons, rgb, text, week } from './houses/dom.mjs';
+import { day } from './driver.mjs';
+import { openOverride, unsaved } from './driver.mjs';
+import { placePopover } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 import * as everyHvacMode from './houses/every-hvac-mode.mjs';
 import * as weeksBefore91 from './houses/weeks-before-91.mjs';
@@ -46,7 +49,7 @@ afterEach(() => cleanup());
       select(card, 'climate.atelier', 0, 1);
       click(card, '.editor [data-act="slot-mode"][data-mode="cool"]');
       assert.equal(day(card, 'climate.atelier', 0)[1], '14:00 comfort {"hvac_mode":"cool","fan_mode":"3","swing_mode":"swing"}');
-      assert.ok(card._dirty);
+      assert.ok(unsaved(card));
       assert.deepEqual(hvac(card), ['Chauffe', 'Clim ✓']);
       assert.equal($(card, '.editor [data-act="preset"][data-preset="comfort"]').style.background, rgb(derivedCoolColor(PRESET_COLORS.comfort)));
       click(card, '.editor [data-act="preset"][data-preset="eco"]'); // another preset keeps the HVAC mode
@@ -151,7 +154,7 @@ afterEach(() => cleanup());
       assert.equal(setpoint(card), '');
       hass.data.cool_preset_temperatures = { 'climate.atelier': { comfort: 25 } };
       hass.push({ ...hass.data });
-      card._render();
+      select(card, 'climate.atelier', 0, 1); // opened again, with Home Assistant's new data
       assert.equal(setpoint(card), 'Consigne : 25 °C (son préréglage Confort)');
       // Frost protection has no value when cooling: a slot stored with it stays, marked, and sends no setpoint
       select(card, 'climate.atelier', 0, 2);
@@ -159,7 +162,7 @@ afterEach(() => cleanup());
       assert.equal(setpoint(card), 'Consigne inchangée en clim');
       hass.data.targets['climate.atelier'].frost = { temperature: 16, cool_temperature: 25.5 };
       hass.push({ ...hass.data });
-      card._render();
+      select(card, 'climate.atelier', 0, 2);
       assert.equal(setpoint(card), 'Consigne : 25,5 °C');
     });
 
@@ -296,7 +299,7 @@ afterEach(() => cleanup());
       assert.equal(setpoint(card), 'Consigne inchangée');
       hass.data.targets[COMBLES].frost = { temperature: 7, cool_temperature: 28 };
       hass.push({ ...hass.data });
-      card._render();
+      select(card, COMBLES, 1); // opened again, with Home Assistant's new data
       assert.equal(setpoint(card), 'Consigne : 28 °C');
     });
 
@@ -337,8 +340,7 @@ afterEach(() => cleanup());
     test('a fan-only or a dry override has no fan setting: an override leaves the fan as it is', () => {
       for (const mode of ['fan_only', 'dry']) {
         const card = cardOf(setup({ overrides: { [SUITE]: override({ hvac_mode: mode }) } }));
-        card._overrideSel = { climate: SUITE };
-        card._render();
+        openOverride(card, SUITE);
         assert.ok($(card, '.override-ed'));
         assert.equal($(card, '.override-ed [data-override-setting]'), null);
       }
@@ -424,7 +426,7 @@ afterEach(() => cleanup());
       const editor = $(card, '.editor');
       Object.defineProperty(editor, 'offsetHeight', { value: height });
       Object.defineProperty(editor, 'offsetWidth', { value: 340 });
-      card._placeEditor();
+      placePopover(card);
       return editor;
     };
     const edited = () => {
@@ -468,9 +470,7 @@ afterEach(() => cleanup());
     });
 
     test('the popovers of an override and of a preset\'s value scroll the same way', () => {
-      const card = cardOf(setup());
-      card._overrideSel = { climate: SALON, day: 0, create: true };
-      card._render();
+      const card = openOverride(setup(), SALON);
       assert.deepEqual(children($(card, '.editor.override-ed')).slice(0, 2), ['ed-head', 'ed-body']);
       const presets = cardOf(setup(), { view: 'presets' });
       click(presets, '[data-act="cell"]');
@@ -504,7 +504,7 @@ afterEach(() => cleanup());
       const card = edited();
       placed(card, 100, 700);
       Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, value: 120 });
-      card._render(); // a preset tapped, or Home Assistant's new data
+      click(card, '.editor [data-act="preset"][data-preset="boost"]'); // a preset tapped: the card is redrawn
       let kept;
       Object.defineProperty($(card, '.ed-body'), 'scrollTop', { configurable: true, get: () => 0, set: (v) => { kept = v; } });
       placed(card, 100, 700);
@@ -521,7 +521,6 @@ afterEach(() => cleanup());
     test('More settings opened in a scrolling body is scrolled into sight', () => {
       const card = cardOf(setup(), { show: [SUITE] });
       select(card, SUITE, 1);
-      card._placeEditor = () => true;
       const body = $(card, '.ed-body');
       const more = $(card, '.editor details.more');
       let top = 40;
@@ -543,12 +542,22 @@ afterEach(() => cleanup());
     test('it is placed again when More settings opens', () => {
       const card = cardOf(setup(), { show: [SUITE] });
       select(card, SUITE, 1);
-      let count = 0;
-      card._placeEditor = () => { count += 1; return true; };
+      // Placed under its row, low in the window; More settings then makes it too tall for the room below
+      let height = 200;
+      const rect = (t, h) => () => ({ left: 0, right: 360, width: 360, top: t, bottom: t + h, height: h });
+      $(card, 'ha-card').getBoundingClientRect = rect(0, 900);
+      $(card, '.seg.sel').parentElement.getBoundingClientRect = rect(500, 38);
+      $(card, '.seg.sel').getBoundingClientRect = rect(500, 38);
+      const editor = $(card, '.editor');
+      Object.defineProperty(editor, 'offsetHeight', { get: () => height });
+      Object.defineProperty(editor, 'offsetWidth', { value: 340 });
+      placePopover(card);
+      assert.ok(!editor.classList.contains('above'));
+      height = 600;
       const more = $(card, '.editor details.more');
       more.open = true;
       more.dispatchEvent(new window.Event('toggle'));
-      assert.equal(count, 1);
+      assert.ok(editor.classList.contains('above'));
     });
   });
 
@@ -569,7 +578,7 @@ afterEach(() => cleanup());
       for (const [width, narrow] of [[360, true], [900, false]]) {
         $(card, 'ha-card').getBoundingClientRect = rect(width);
         $(card, '.seg.sel').parentElement.getBoundingClientRect = rect(width);
-        card._placeEditor();
+        placePopover(card);
         assert.equal($(card, '.editor').classList.contains('narrow'), narrow);
       }
     });
@@ -645,12 +654,12 @@ afterEach(() => cleanup());
       const card = cardOf(setup({ atelier: ['00:00 eco', ['12:00', 'comfort', { hvac_mode: 'heat', fan_mode: 'low' }]] }));
       select(card, ATELIER, 1);
       change($(card, '.editor [data-slot-setting="fan_mode"]'), 'low');
-      assert.equal(card._dirty, false);
+      assert.equal(unsaved(card), false);
       select(card, ATELIER, 0);
       change($(card, '.editor [data-slot-setting="fan_mode"]'), '');
-      assert.equal(card._dirty, false);
+      assert.equal(unsaved(card), false);
       change($(card, '.editor [data-slot-setting="fan_mode"]'), 'high');
-      assert.equal(card._dirty, true);
+      assert.equal(unsaved(card), true);
     });
   });
 

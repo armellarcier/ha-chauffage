@@ -1,9 +1,12 @@
 // Managing schedules from the card, with the drop-down menus of the schedule tabs: "+" creates
 // a schedule (empty or a copy, then its name), "⋮" on the open tab renames it (showing its stable
 // id), moves it, deletes it (docs/decisions.md, "Schedules").
-import { fakeHass, integrationData, createCard, cleanup, cutSlot } from './helpers.mjs';
+import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { redraw, unsaved } from './driver.mjs';
+import { openScheduleMenuFrom, placeTabsAsOnLoad, scheduleShown } from './driver.mjs';
 
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 const click = (card, selector) => $(card, selector).click();
@@ -52,7 +55,7 @@ describe('the "+" menu: a new schedule', () => {
     assert.deepEqual(schedulesSet(hass), [{ type: 'chauffage/schedules/set', revision: 4, schedules: [...ALL, { name: 'Télétravail' }] }]);
     assert.equal(menu(card), null);
     hass.push(withSchedule('teletravail', 'Télétravail'));
-    assert.equal(card._schedule, 'teletravail');
+    assert.equal(scheduleShown(card), 'teletravail');
     assert.ok($(card, '.tab.on[data-schedule="teletravail"]'));
   });
 
@@ -74,7 +77,7 @@ describe('the "+" menu: a new schedule', () => {
     click(card, '[data-act="schedule-pick"][data-copy=""]');
     $(card, 'input[data-sched-name]').value = 'Télé';
     $(card, 'input[data-sched-name]').focus();
-    card._render();
+    redraw(card);
     assert.equal($(card, 'input[data-sched-name]').value, 'Télé');
     assert.equal(card.shadowRoot.activeElement, $(card, 'input[data-sched-name]'));
   });
@@ -98,7 +101,7 @@ describe('the "+" menu: a new schedule', () => {
     await create(card, 'Guests');
     assert.deepEqual(hass.events.map((m) => m.type), ['chauffage/weeks/save', 'chauffage/schedules/set']);
     assert.equal(schedulesSet(hass)[0].revision, 5); // the revision the save produced
-    assert.equal(card._dirty, false);
+    assert.equal(unsaved(card), false);
   });
 
   test('when saving the edits fails, nothing is created', async () => {
@@ -186,7 +189,7 @@ describe('the "⋮" menu of the open schedule', () => {
     data.schedules[1].name = 'Sortis';
     data.revision = 5;
     hass.push(data);
-    assert.equal(card._schedule, 'away');
+    assert.equal(scheduleShown(card), 'away');
     assert.equal($(card, '.tab.on').textContent.trim(), 'Sortis');
   });
 
@@ -204,7 +207,7 @@ describe('the "⋮" menu of the open schedule', () => {
   test('a schedule\'s sheet in the panel shows no tab: its menu, opened by the page\'s ⋮, does not move it', () => {
     const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
     assert.equal($(card, '.tabs'), null);
-    card._scheduleAction('schedule-menu', {}, null);
+    openScheduleMenuFrom(card);
     assert.ok($(card, '[data-act="schedule-rename-open"]'));
     assert.equal($(card, '[data-act="schedule-move"]'), null);
   });
@@ -214,7 +217,7 @@ describe('the "⋮" menu of the open schedule', () => {
     $(card, 'ha-card').getBoundingClientRect = () => ({ left: 100, right: 900, top: 60, bottom: 700, width: 800 });
     const button = document.createElement('button');
     button.getBoundingClientRect = () => ({ left: 860, right: 892, top: 8, bottom: 40, width: 32 });
-    card._scheduleAction('schedule-menu', {}, button);
+    openScheduleMenuFrom(card, button);
     assert.equal(menu(card).style.right, '8px');
     assert.equal(menu(card).style.left, '');
     assert.equal(menu(card).style.top, '-16px');
@@ -343,8 +346,7 @@ test('on load, the tabs show the active schedule, however far it is, with its �
   Object.defineProperty(on, 'offsetWidth', { configurable: true, value: 100 });
   Object.defineProperty(on.nextElementSibling, 'offsetLeft', { configurable: true, value: 800 });
   Object.defineProperty(on.nextElementSibling, 'offsetWidth', { configurable: true, value: 30 });
-  card._tabsShown = undefined; // as on load
-  card._placeTabs(0);
+  placeTabsAsOnLoad(card);
   assert.equal(scroller.scrollLeft, 830 + 32 - 300);
 });
 
@@ -367,7 +369,7 @@ test('a hidden card (no width) measures its tabs once more after drawing, not on
   const raf = globalThis.requestAnimationFrame;
   globalThis.requestAnimationFrame = (f) => { asked += 1; frames.push(f); return asked; };
   try {
-    card._render();
+    redraw(card);
     for (let i = 0; i < 5; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 0));
       for (const f of frames.splice(0)) f(); // a frame passes; the card is still hidden

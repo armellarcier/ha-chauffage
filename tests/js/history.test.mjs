@@ -3,6 +3,8 @@ import { fakeHass, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { historyDays, rowsOfStates } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { openMenu, selected } from './driver.mjs';
+import { measured } from './driver.mjs';
 
 // Monday 12 October 2026, 10:00 (Paris): Monday is "today", Sunday is yesterday, Tuesday was 6 days ago
 const NOW = new Date('2026-10-12T10:00:00+02:00');
@@ -215,19 +217,20 @@ describe('history of the measured temperature', () => {
     const card = createCard(hass);
     toggle(card).click();
     await flush();
-    card._refreshHistory();
+    card.hass = hass; // Home Assistant's next update: too early to load again
+    await flush();
     assert.equal(historyCalls(hass).length, 1);
     mock.timers.setTime(NOW.getTime() + 6 * 60000);
     // The integration answers from the start asked, the state at that time first
     hass.events.length = 0;
     const later = { 'climate.salon': [row('2026-10-12T09:59:00+02:00', 19.6, 20), row('2026-10-12T10:05:00+02:00', 20.1, 20)], 'climate.bureau': [] };
     const reply = (msg) => (msg.type === 'chauffage/history' ? later : null);
-    card._hass = { ...hass, callWS: async (msg) => { hass.events.push(msg); return reply(msg); } };
-    card._refreshHistory();
+    hass.callWS = async (msg) => { hass.events.push(msg); return reply(msg); };
+    card.hass = hass; // Home Assistant's next update
     await flush();
     const [call] = historyCalls(hass);
     assert.equal(new Date(call.start_time).getTime(), new Date('2026-10-12T09:59:00+02:00').getTime());
-    assert.deepEqual(card._history.days['climate.salon'][0].current, [[[0, 18], [390, 18.2], [480, 19.6], [605, 20.1], [606, 20.1]]]);
+    assert.deepEqual(measured(card, 'climate.salon', 0), [[[0, 18], [390, 18.2], [480, 19.6], [605, 20.1], [606, 20.1]]]);
   });
 });
 
@@ -243,7 +246,7 @@ describe('a day shown larger', () => {
     const card = createCard(historyHass(), config);
     toggle(card).click();
     await flush();
-    card._openMenu('climate.salon', 0, 0, 0);
+    openMenu(card, 'climate.salon', 0);
     card.shadowRoot.querySelector('.menu [data-act="zoom"]').click();
     return card;
   }
@@ -261,7 +264,7 @@ describe('a day shown larger', () => {
 
   test('the menu shows it smaller again', async () => {
     const card = await open();
-    card._openMenu('climate.salon', 0, 0, 0);
+    openMenu(card, 'climate.salon', 0);
     const item = card.shadowRoot.querySelector('.menu [data-act="zoom"]');
     assert.match(item.textContent, /Réduire/);
     item.click();
@@ -288,7 +291,7 @@ describe('a day shown larger', () => {
     pointer(bar, 'pointerup', 9 * 60, 'touch');
     // A tap (no slide) still selects the slot
     bar.querySelector('.seg[data-idx="1"]').dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 7 * 60 }));
-    assert.deepEqual(card._sel, { climate: 'climate.salon', day: 0, idx: 1 });
+    assert.deepEqual(selected(card), { climate: 'climate.salon', day: 0, idx: 1 });
     // The bar slides with the finger instead of scrolling the page sideways
     assert.match(card.shadowRoot.querySelector('style').textContent, /\.bar\.zoom \{[^}]*touch-action:pan-y/);
   });

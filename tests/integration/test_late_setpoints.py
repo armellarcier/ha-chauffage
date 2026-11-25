@@ -148,7 +148,7 @@ async def test_a_command_the_thermostat_already_shows_is_not_waited_for(bench: B
     assert await bench.runtime.send("climate.salon", {"preset_mode": "eco"} if bench.kind != "plain" else {"temperature": 17.0}, "test")
     assert bench.applied() == {}
     assert bench.runtime.pending("climate.salon") == []
-    assert "climate.salon" not in bench.runtime.data["pending"]
+    assert "climate.salon" not in (await bench.stored())["pending"]
 
 
 async def test_a_renamed_valve_still_waits_for_its_commands(bench: Bench):

@@ -1,7 +1,9 @@
 // The Chauffage panel (#57): where an admin configures Chauffage, lists then sheets, one address
 // per page (docs/decisions.md, "Chauffage panel and devices"). Dashboard cards link to it.
 import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { ChauffagePanel, leaveMoreInfo, ICONS, serializeDay, reloadPage, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { ChauffagePanel, leaveMoreInfo, ICONS, reloadPage, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { copyDay, cutSlot, day, openMenu, redraw } from './driver.mjs';
+import { historyAsked, scheduleShown, unsavedWeeks, watchReloads, wholeWeek } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -108,7 +110,7 @@ describe('the Chauffage panel', () => {
   });
 
   describe('the Schedules page', () => {
-    const list = (el) => cards(el).find((c) => c._config.view === 'schedules');
+    const list = (el) => cards(el).find((c) => $(c, '.schedules-view'));
     const row = (el, id) => $(list(el), `.th-row[data-schedule="${id}"]`);
 
     test('lists the schedules as the Thermostats tab lists the thermostats: the active one marked, the others activated from their ⋮', () => {
@@ -134,7 +136,7 @@ describe('the Chauffage panel', () => {
     test('its rows fill a card of their own; + New schedule sits under it, as the form to add a thermostat', () => {
       const el = panel(setup(), '/schedules');
       const card = list(el);
-      assert.equal(card._config.flat, true, 'the list is the card: no card around it');
+      assert.ok($(card, 'ha-card').classList.contains('flat'), 'the list is the card: no card around it');
       assert.deepEqual([...$(card, '.th-list').children].map((r) => r.dataset.schedule), ['normal', 'away', 'holiday']);
       assert.equal($(card, '.th-list [data-act="schedule-new"]'), null);
       assert.ok($(card, '.th-add [data-act="schedule-new"]'));
@@ -190,7 +192,7 @@ describe('the Chauffage panel', () => {
 
     test('shows the activation rules below the schedules', () => {
       const el = panel(setup(), '/schedules');
-      const rules = cards(el).find((c) => c._config.view === 'rules');
+      const rules = cards(el).find((c) => $(c, '.rules-view'));
       assert.ok($(rules, '.rule, [data-act="rule-add"]'));
       assert.equal(cards(el).indexOf(rules), 1, 'below the list');
     });
@@ -415,8 +417,8 @@ describe('the Chauffage panel', () => {
     test('shows every thermostat\'s week in this schedule, without tabs: the breadcrumb names it', () => {
       const el = panel(setup(), '/schedules/holiday');
       const [card] = cards(el);
-      assert.equal(card._schedule, 'holiday');
-      assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);
+      assert.equal(scheduleShown(card), 'holiday');
+      assert.deepEqual($$(card, '.chip[data-climate]').map((c) => c.dataset.climate), ['climate.salon', 'climate.bureau']);
       assert.equal($(card, '.tabs'), null);
       assert.equal($(card, '[data-act="schedule-new"]'), null);
       assert.equal($(card, '[data-navigate="/chauffage/presets"]'), null); // in the panel, no link to set the presets
@@ -531,7 +533,7 @@ describe('the Chauffage panel', () => {
     test('its presets first, as the legend of its weeks: a list, one item per preset, not a table of one row', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       const presets = cards(el)[0];
-      assert.equal(presets._config.view, 'presets');
+      assert.ok($(presets, '.presets-view'));
       assert.equal($(presets, 'table'), null, 'not a table of one row');
       assert.equal($(presets, '.pv-add'), null); // the presets themselves are set on the Presets tab
       const items = $$(presets, '.pv-list .pv-item');
@@ -549,7 +551,7 @@ describe('the Chauffage panel', () => {
 
     test('its week in every schedule, each headed by the schedule (a link to its sheet), the active one marked', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
-      assert.deepEqual(weeks(el).map((c) => c._schedule), ['normal', 'away', 'holiday']);
+      assert.deepEqual(weeks(el).map(scheduleShown), ['normal', 'away', 'holiday']);
       const heads = $$(el, 'h3[data-fill-schedule]');
       assert.match(text(heads[0]), /^Normal Actif/);
       assert.doesNotMatch(text(heads[1]), /Actif/);
@@ -576,9 +578,9 @@ describe('the Chauffage panel', () => {
     test('ungrouping the days applies to every week, is remembered, and wins over the choice of the cards', () => {
       localStorage.setItem('chauffage-programme-card:group-days', '1');
       const el = panel(setup(), '/thermostats/climate.salon');
-      assert.deepEqual(weeks(el).map((c) => c._rows.length), [2, 1, 1]); // Mon–Fri, Sat–Sun
+      assert.deepEqual(weeks(el).map((c) => $$(c, '.dgroup').length), [2, 1, 1]); // Mon–Fri, Sat–Sun
       $(el, '[data-group-days]').click();
-      assert.deepEqual(weeks(el).map((c) => c._rows.length), [7, 7, 7]);
+      assert.deepEqual(weeks(el).map((c) => $$(c, '.dgroup').length), [7, 7, 7]);
       assert.equal(localStorage.getItem('chauffage-programme-card:group-days'), '0');
     });
 
@@ -589,13 +591,13 @@ describe('the Chauffage panel', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       assert.ok($(el, '[data-history]').classList.contains('on'));
       assert.ok(!$(el, '[data-group-days]').classList.contains('on'));
-      assert.deepEqual(weeks(el).map((c) => c._history.shown), [true, true, true]);
+      assert.deepEqual(weeks(el).map(historyAsked), [true, true, true]);
       $(el, '[data-group-days]').click();
-      assert.deepEqual(weeks(el).map((c) => c._history.shown), [false, false, false]);
-      assert.deepEqual(weeks(el).map((c) => c._rows.length), [2, 1, 1]);
+      assert.deepEqual(weeks(el).map(historyAsked), [false, false, false]);
+      assert.deepEqual(weeks(el).map((c) => $$(c, '.dgroup').length), [2, 1, 1]);
       assert.equal(localStorage.getItem('chauffage-programme-card:history'), '0');
       $(el, '[data-history]').click();
-      assert.deepEqual(weeks(el).map((c) => c._history.shown), [true, true, true]);
+      assert.deepEqual(weeks(el).map(historyAsked), [true, true, true]);
       assert.equal(localStorage.getItem('chauffage-programme-card:history'), '1');
     });
 
@@ -604,34 +606,34 @@ describe('the Chauffage panel', () => {
       // day once, when created, so the other weeks offered nothing to paste
       const el = panel(setup(), '/thermostats/climate.salon');
       const [normal, away] = weeks(el);
-      normal._action('copy-day', { climate: 'climate.salon', day: '0' }); // the row "Mon–Fri"
-      away._openMenu('climate.salon', 0, 0, 0, 0);
+      copyDay(normal, 'climate.salon', 0); // the row "Mon–Fri"
+      openMenu(away, 'climate.salon', 0);
       const paste = $(away, '.menu [data-act="paste-day"]');
       assert.ok(!paste.disabled, 'the other week offers to paste');
       assert.match(text(paste), /Salon · .* \(Normal\)/);
       paste.click();
-      assert.ok(away._dirty);
-      assert.deepEqual(away._week('climate.salon')[0], normal._week('climate.salon')[0]);
+      assert.ok(unsavedWeeks(el).includes('Absent'));
+      assert.deepEqual(day(away, 'climate.salon', 0), day(normal, 'climate.salon', 0));
     });
 
     test('a second copy replaces the first one: the day pasted is the last one copied', () => {
       // Regression (after alpha.2): a copy wrote back the day already copied, kept in the browser
       const el = panel(setup(), '/thermostats/climate.salon');
       const [normal, away, holiday] = weeks(el);
-      normal._action('copy-day', { climate: 'climate.salon', day: '0' });
-      holiday._action('copy-day', { climate: 'climate.salon', day: '0' });
-      away._openMenu('climate.salon', 0, 0, 0, 0);
+      copyDay(normal, 'climate.salon', 0);
+      copyDay(holiday, 'climate.salon', 0);
+      openMenu(away, 'climate.salon', 0);
       assert.match(text($(away, '.menu [data-act="paste-day"]')), /\(Vacances\)/);
       $(away, '.menu [data-act="paste-day"]').click();
-      assert.deepEqual(away._week('climate.salon')[0], holiday._week('climate.salon')[0]);
+      assert.deepEqual(day(away, 'climate.salon', 0), day(holiday, 'climate.salon', 0));
     });
 
     test('only the day copied last stands out as copied, whatever week it was copied in', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       const [normal, away, holiday] = weeks(el);
-      normal._action('copy-day', { climate: 'climate.salon', day: '0' });
-      holiday._action('copy-day', { climate: 'climate.salon', day: '0' });
-      for (const card of [normal, away, holiday]) card._render();
+      copyDay(normal, 'climate.salon', 0);
+      copyDay(holiday, 'climate.salon', 0);
+      for (const card of [normal, away, holiday]) redraw(card);
       assert.deepEqual([normal, away, holiday].map((c) => $$(c, '.bar.clipsrc').length), [0, 0, 1]);
     });
 
@@ -644,12 +646,12 @@ describe('the Chauffage panel', () => {
       items[0].click();
       assert.equal($(el, '.copy-menu'), null);
       const [normal, away, holiday] = weeks(el);
-      assert.ok(!normal._dirty && !holiday._dirty);
-      assert.ok(away._dirty);
+      assert.ok(!unsavedWeeks(el).includes('Normal') && !unsavedWeeks(el).includes('Vacances'));
+      assert.ok(unsavedWeeks(el).includes('Absent'));
       assert.equal($(away, '.savebar'), null); // the sheet's own bar, below
       assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
       assert.equal(text($(away, '.msg')), 'Semaine Normal copiée ici');
-      assert.deepEqual(away._week('climate.salon'), normal._week('climate.salon'));
+      assert.deepEqual(wholeWeek(away, 'climate.salon'), wholeWeek(normal, 'climate.salon'));
     });
 
     test('the popover of a slot goes over the sheet\'s save bar', () => {
@@ -672,8 +674,8 @@ describe('the Chauffage panel', () => {
       $(el, '.copy-menu [data-week-hvac="cool"]').click();
       assert.equal($(el, '.copy-menu'), null);
       const [normal, away] = weeks(el);
-      assert.ok(away._dirty && !normal._dirty);
-      assert.deepEqual(away._week('climate.salon')[0], [{ start: 0, preset: 'frost', settings: { hvac_mode: 'cool' } }]);
+      assert.ok(unsavedWeeks(el).includes('Absent') && !unsavedWeeks(el).includes('Normal'));
+      assert.deepEqual(day(away, 'climate.salon', 0), ['00:00 frost {"hvac_mode":"cool"}']);
       assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
       // A heater's weeks have no such item
       cleanup();
@@ -690,11 +692,11 @@ describe('the Chauffage panel', () => {
       for (const chip of ['[data-group-days]', '[data-history]']) {
         $(el, chip).click();
         assert.deepEqual(weeks(el), before, `${chip}: the same weeks, not new ones`);
-        assert.ok(before[1]._dirty);
+        assert.ok(unsavedWeeks(el).includes('Absent'));
         assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
       }
-      assert.equal(before[1]._config.group_days, false);
-      assert.equal(before[1]._history.shown, true);
+      assert.equal($$(before[1], '.dgroup').length, 7, 'its days not grouped');
+      assert.equal(historyAsked(before[1]), true);
       assert.equal($(el, '[data-history]').getAttribute('aria-pressed'), 'true');
     });
 
@@ -706,7 +708,7 @@ describe('the Chauffage panel', () => {
       const data = integrationData({ weeks: WEEKS });
       data.schedules = [...data.schedules, { id: 'guests', name: 'Invités' }];
       hass.push(data);
-      assert.ok(weeks(el)[1]._dirty, 'still not saved, still there');
+      assert.ok(unsavedWeeks(el).includes('Absent'), 'still not saved, still there');
       assert.equal(text($(el, '.sheet-savebar .dirty')), 'Non enregistré : Absent');
     });
 
@@ -729,13 +731,13 @@ describe('the Chauffage panel', () => {
         $(el, `.copy-menu [data-copy-to="${target}"]`).click();
       }
       const [normal] = weeks(el);
-      const week = normal._week('climate.salon').map(serializeDay).map((day) => day.map((s) => s.split(' ')));
+      const week = wholeWeek(normal, 'climate.salon').map((day) => day.map((s) => s.split(' ')));
       $(el, '.sheet-savebar [data-sheet-save]').click();
       await tick();
       const saves = hass.events.filter((m) => m.type === 'chauffage/weeks/save');
       assert.equal(saves.length, 1);
       assert.deepEqual(saves[0], { type: 'chauffage/weeks/save', weeks: { 'climate.salon': { away: week, holiday: week } }, revisions: { 'climate.salon': 7 } });
-      assert.ok(weeks(el).every((card) => !card._dirty));
+      assert.deepEqual(unsavedWeeks(el), []);
       assert.equal($(el, '.sheet-savebar'), null);
     });
 
@@ -750,7 +752,7 @@ describe('the Chauffage panel', () => {
       $(el, '.sheet-savebar [data-sheet-save]').click();
       await tick();
       assert.match(text($(el, '.sheet-savebar .error')), /modifiés ailleurs/);
-      assert.ok(weeks(el)[1]._dirty);
+      assert.ok(unsavedWeeks(el).includes('Absent'));
     });
 
     describe('leaving the sheet with weeks not saved yet', () => {
@@ -777,7 +779,7 @@ describe('the Chauffage panel', () => {
         $(el, '.crumbs [data-navigate="/chauffage/thermostats"]').click();
         $(el, '.sheet-savebar [data-leave-stay]').click();
         assert.equal(window.location.pathname, before);
-        assert.ok(weeks(el)[1]._dirty);
+        assert.ok(unsavedWeeks(el).includes('Absent'));
         assert.doesNotMatch(text($(el, '.sheet-savebar')), /pas enregistrées/);
       });
 
@@ -816,11 +818,11 @@ describe('the Chauffage panel', () => {
       const hass = setup();
       const el = panel(hass, '/thermostats/climate.salon');
       const [, away] = weeks(el);
-      const before = away._week('climate.salon').map(serializeDay);
+      const before = wholeWeek(away, 'climate.salon');
       $(el, '[data-copy-menu="normal"]').click();
       $(el, '.copy-menu [data-copy-to="away"]').click();
       $(el, '.sheet-savebar [data-sheet-cancel]').click();
-      assert.deepEqual(away._week('climate.salon').map(serializeDay), before);
+      assert.deepEqual(wholeWeek(away, 'climate.salon'), before);
       assert.equal($(el, '.sheet-savebar'), null);
       assert.equal(hass.events.filter((m) => m.type === 'chauffage/weeks/save').length, 0);
     });
@@ -833,19 +835,19 @@ describe('the Chauffage panel', () => {
       $(el, '[data-copy-menu="normal"]').click();
       document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
       assert.equal($(el, '.copy-menu'), null);
-      assert.ok(weeks(el).every((card) => !card._dirty));
+      assert.deepEqual(unsavedWeeks(el), []);
     });
 
     test('a week with edits not saved yet is copied as shown, and keeps its own edits', () => {
       const el = panel(setup(), '/thermostats/climate.salon');
       const [normal, away] = weeks(el);
-      normal._data['climate.salon'] = { ...(normal._data['climate.salon'] || {}), normal: Array(7).fill([{ start: 0, preset: 'boost' }]) };
-      normal._dirty = true;
-      const shown = normal._week('climate.salon');
+      cutSlot(normal, 'climate.salon', 0, 12 * 60); // an edit not saved yet
+      assert.ok(unsavedWeeks(el).includes('Normal'));
+      const shown = wholeWeek(normal, 'climate.salon');
       $(el, '[data-copy-menu="normal"]').click();
       $(el, '.copy-menu [data-copy-to="away"]').click();
-      assert.deepEqual(away._week('climate.salon'), shown);
-      assert.ok(normal._dirty, 'the source keeps its edits, still to save');
+      assert.deepEqual(wholeWeek(away, 'climate.salon'), shown);
+      assert.ok(unsavedWeeks(el).includes('Normal'), 'the source keeps its edits, still to save');
     });
   });
 });
@@ -860,7 +862,7 @@ describe('the dashboard card and the panel', () => {
     card.hass = setup();
     assert.ok(card.shadowRoot.querySelector('.chips'), 'its chips');
     assert.ok(card.shadowRoot.querySelector('.tabs'), 'its schedule tabs');
-    assert.equal(card._view, 'schedule', 'its weeks');
+    assert.ok(card.shadowRoot.querySelector('.bar'), 'its weeks');
     assert.ok(card.shadowRoot.querySelector('[data-navigate^="/chauffage"]'), 'its link to the panel: it is not the panel');
   });
 
@@ -904,7 +906,7 @@ describe('the dashboard card and the panel', () => {
   test('outside the panel, the choice of grouping kept in the browser wins over the card\'s option', () => {
     localStorage.setItem('chauffage-programme-card:group-days', '1');
     const card = createCard(setup(), { group_days: false });
-    assert.equal(card._grouped(), true);
+    assert.ok(card.shadowRoot.querySelector('[data-act="group-days"]').classList.contains('on'));
   });
 });
 
@@ -1017,9 +1019,9 @@ describe('the Chauffage panel after an update', () => {
   test('the panel\'s button reloads the page', () => {
     const data = { ...integrationData({ weeks: WEEKS }), version: '99.0.0' };
     const el = panel(setup({ data }), '/thermostats');
-    const reload = mock.method(el, '_reloadPage', () => {});
+    const reloads = watchReloads(el);
     $(el, '[data-act="reload-page"]').click();
-    assert.equal(reload.mock.callCount(), 1);
+    assert.equal(reloads(), 1);
   });
 
   // Home Assistant's service worker serves the page from its cache, then updates it: without

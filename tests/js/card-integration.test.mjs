@@ -1,11 +1,14 @@
 // The card's exchanges with the Chauffage integration (websocket API): subscription, saves,
 // overrides, schedules, presets; and the card without the integration.
-import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY, cutSlot } from './helpers.mjs';
+import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay, compareVersions, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { compareVersions, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { $, act, day, openOverride, save, selected, settle, tapAt, unsaved } from './driver.mjs';
+import { scheduleShown, watchReloads } from './driver.mjs';
+import { typeTime } from './helpers.mjs';
 
-const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
 const lastCall = (hass) => hass.events.at(-1);
 
 afterEach(() => cleanup());
@@ -18,7 +21,7 @@ describe('loading from the integration', () => {
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
     const tabs = [...card.shadowRoot.querySelectorAll('.tab')].map((t) => t.textContent.trim());
     assert.deepEqual(tabs, ['Normal', 'Absent', 'Vacances']);
-    assert.equal(card._schedule, 'normal');
+    assert.equal(scheduleShown(card), 'normal');
   });
 
   test('a schedule shows the icon chosen for its switch in Home Assistant, none otherwise', () => {
@@ -92,7 +95,7 @@ describe('writing to the integration', () => {
     const card = createCard(hass);
     assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]'), 'the bureau is shown');
     cutSlot(card, 'climate.salon', 0, 12 * 60);
-    await card._save();
+    await save(card);
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.salon']);
   });
 
@@ -100,7 +103,7 @@ describe('writing to the integration', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
     cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    await save(card);
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
   });
 
@@ -109,14 +112,14 @@ describe('writing to the integration', () => {
     const hass = fakeIntegrationHass({ weeks: both });
     const card = createCard(hass);
     cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    await save(card);
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/weeks/save');
     assert.deepEqual(Object.keys(msg.weeks), ['climate.bureau'], 'the salon was not changed');
     assert.ok(msg.weeks['climate.bureau'].normal[0].some(([start]) => start === '12:00'));
     assert.deepEqual(msg.revisions, { 'climate.bureau': 7 });
     assert.equal(msg.revision, undefined);
-    assert.equal(card._dirty, false);
+    assert.equal(unsaved(card), false);
   });
 
   test('a thermostat of the card that Chauffage does not schedule yet says so, and how to schedule it', () => {
@@ -133,9 +136,9 @@ describe('writing to the integration', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
     cutSlot(card, 'climate.salon', 0, 12 * 60);
-    await card._save();
+    await save(card);
     cutSlot(card, 'climate.salon', 0, 13 * 60);
-    await card._save();
+    await save(card);
     assert.deepEqual(lastCall(hass).revisions, { 'climate.salon': 8 });
   });
 
@@ -143,21 +146,22 @@ describe('writing to the integration', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
     cutSlot(card, 'climate.bureau', 0, 12 * 60); // the bureau gets its default week, so is changed
-    await card._save();
+    await save(card);
     const sent = hass.events.length;
-    const before = structuredClone(card._week('climate.salon'));
+    const before = day(card, 'climate.salon', 0);
     cutSlot(card, 'climate.salon', 0, 12 * 60);
-    card._data['climate.salon'][card._schedule] = before;
-    await card._save();
+    act(card, 'delete'); // the new slot deleted: the day is as before
+    assert.deepEqual(day(card, 'climate.salon', 0), before);
+    await save(card);
     assert.equal(hass.events.length, sent);
-    assert.equal(card._dirty, false);
+    assert.equal(unsaved(card), false);
   });
 
   test('a thermostat new to the integration is sent with no revision', async () => {
     const hass = fakeIntegrationHass(); // only the salon is scheduled
     const card = createCard(hass);
     cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    await save(card);
     assert.deepEqual(lastCall(hass).revisions, { 'climate.bureau': null });
   });
 
@@ -167,8 +171,8 @@ describe('writing to the integration', () => {
     });
     const card = createCard(hass);
     cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
-    assert.equal(card._dirty, true);
+    await save(card);
+    assert.equal(unsaved(card), true);
     assert.match(card.shadowRoot.querySelector('.msg').textContent, /modifiés ailleurs/);
   });
 
@@ -176,7 +180,8 @@ describe('writing to the integration', () => {
     const hass = fakeIntegrationHass();
     const card = createCard(hass);
     card.shadowRoot.querySelector('.tab[data-schedule="holiday"]').click();
-    await card._action('activate-schedule', {});
+    act(card, 'activate-schedule');
+    await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/schedule/activate', schedule: 'holiday' });
   });
 });
@@ -194,7 +199,8 @@ describe('overrides with the integration', () => {
     const hass = fakeIntegrationHass({ data: withOverride() });
     const card = createCard(hass);
     assert.ok(card.shadowRoot.querySelector('.override[data-climate="climate.salon"]'));
-    card._setOverrideEnd('climate.salon', new Date('2026-10-12T12:00:00+02:00'));
+    openOverride(card, 'climate.salon');
+    typeTime($(card, '.override-ed input.time[data-override-end]'), '12:00');
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/override/set');
     assert.equal(msg.entity_id, 'climate.salon');
@@ -206,8 +212,8 @@ describe('overrides with the integration', () => {
   test('"Reprendre le planning" removes the override', () => {
     const hass = fakeIntegrationHass({ data: withOverride() });
     const card = createCard(hass);
-    card._overrideSel = { climate: 'climate.salon', day: 0 };
-    card._action('override-del', {});
+    openOverride(card, 'climate.salon');
+    act(card, 'override-del');
     assert.deepEqual(lastCall(hass), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 
@@ -246,8 +252,8 @@ describe('presets from the integration', () => {
 
   test('the slot editor offers the presets, with their colors', () => {
     const card = createCard(fakeIntegrationHass({ data: withPresets() }), { show: ['climate.salon'] });
-    card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
-    card._render();
+    tapAt(card, 'climate.salon', 7 * 60); // the slot 06:30 → 08:30
+    assert.deepEqual(selected(card), { climate: 'climate.salon', day: 0, idx: 1 });
     const buttons = [...card.shadowRoot.querySelectorAll('.editor [data-act="preset"]')];
     assert.deepEqual(buttons.map((b) => b.textContent), ['Éco', 'Nuit', 'Confort']); // from the coldest to the warmest
     assert.equal(buttons[1].style.background, 'rgb(63, 81, 181)');
@@ -351,7 +357,8 @@ describe('the "Presets" view', () => {
     assert.equal(chosen(card), 'default');
     assert.equal(squash(rowOf(card, 'default')), 'Par défaut (son préréglage Confort, 20,5°)');
     assert.deepEqual(presetOptions(card), ['comfort:Confort ✓', 'eco:Éco', 'away:away', 'boost:Boost']); // its own, the same name first
-    await card._action('cell-apply', {}); // the default: nothing stored
+    act(card, 'cell-apply'); // the default: nothing stored
+    await settle();
     assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false);
   });
 
@@ -387,7 +394,8 @@ describe('the "Presets" view', () => {
     click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.match(card.shadowRoot.querySelector('[data-panel="cell"]').textContent, /Confort · Salon/);
     click(card, '[data-act="cell-step"][data-delta="0.5"]'); // 20.5 → 21, "Temperature" chosen
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.deepEqual(lastCall(hass), {
       type: 'chauffage/mapping/set', entity_id: 'climate.salon',
       mapping: { frost: { temperature: 8 }, comfort: { temperature: 21 } },
@@ -400,12 +408,14 @@ describe('the "Presets" view', () => {
     click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'away';
     choose(card, 'own');
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset_mode: 'away' } });
 
     click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]');
     choose(card, 'default'); // back to the default: OK drops the stored value
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.deepEqual(lastCall(hass).mapping, {});
     assert.equal(card.shadowRoot.querySelector('.cell-ed'), null);
   });
@@ -416,7 +426,8 @@ describe('the "Presets" view', () => {
     click(card, '[data-kind="preset"][data-preset="eco"]');
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Économique';
     card.shadowRoot.querySelector('[data-cell-temp]').value = '16.5';
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.equal(lastCall(hass).type, 'chauffage/presets/set');
     assert.deepEqual(lastCall(hass).presets[1], { id: 'eco', name: 'Économique', color: '#43a047', temperature: 16.5 });
   });
@@ -427,7 +438,8 @@ describe('the "Presets" view', () => {
     assert.match(squash(card.shadowRoot.querySelector('.pv-add')), /Ajouter un préréglage/);
     click(card, '.pv-add');
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Nuit';
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.deepEqual(lastCall(hass).presets.at(-1), { name: 'Nuit', color: '#9e9e9e', temperature: 19 });
   });
 
@@ -439,7 +451,8 @@ describe('the "Presets" view', () => {
     click(card, '[data-act="cell-delete"]');
     assert.match(squash(card.shadowRoot.querySelector('[data-panel="cell"]')), /Supprimer « Confort » \?/);
     card.shadowRoot.querySelector('[data-cell-replacement]').value = 'eco';
-    await card._action('cell-delete-confirm', {});
+    act(card, 'cell-delete-confirm');
+    await settle();
     assert.deepEqual(lastCall(hass).presets.map((l) => l.id), ['eco', 'frost']);
     assert.deepEqual(lastCall(hass).replacements, { comfort: 'eco' });
   });
@@ -503,7 +516,7 @@ describe('a thermostat renamed in Home Assistant', () => {
     const hass = hassOf();
     const card = createCard(hass);
     cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    await save(card);
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
   });
 
@@ -577,9 +590,9 @@ describe('a card left open across an update', () => {
 
   test('a button reloads the page', () => {
     const card = createCard(fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '99.0.0' } }));
-    const reload = mock.method(card, '_reloadPage', () => {});
+    const reloads = watchReloads(card);
     card.shadowRoot.querySelector('.missing button').click();
-    assert.equal(reload.mock.callCount(), 1);
+    assert.equal(reloads(), 1);
   });
 
   test('a card newer than the integration still asks to restart Home Assistant', () => {

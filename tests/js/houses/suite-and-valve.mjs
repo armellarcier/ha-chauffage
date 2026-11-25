@@ -2,6 +2,7 @@
 // and a valve that lists heat and auto. The card shows the suite. It is Monday, 10:00.
 import { afterEach, beforeEach, mock } from 'node:test';
 import { PRESETS, createCard, fakeHass, integrationData } from '../helpers.mjs';
+import { openSlot } from '../driver.mjs';
 import { $$, click, text, week } from './dom.mjs';
 
 export const SALON = 'climate.salon'; // a heater
@@ -38,7 +39,7 @@ export function setup({ suite = DAY, salon = DAY, vanne = DAY, overrides, planne
   return hass;
 }
 export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: [SALON, SUITE, VANNE], show: [SUITE], group_days: false, ...config });
-export const select = (card, climate, idx, d = 0) => { card._sel = { climate, day: d, idx }; card._render(); };
+export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 export const mode = (card, m, scope = '.editor') => click(card, `${scope} .mode-row [data-mode="${m}"]`);
 export const modeRow = (card, scope = '.editor') => $$(card, `${scope} .mode-row button`)
   .map((b) => `${text(b)}${b.getAttribute('aria-pressed') === 'true' ? ' ✓' : ''}${b.classList.contains('default') ? ' (default)' : ''}`);

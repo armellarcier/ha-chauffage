@@ -2,6 +2,7 @@
 // and the combles, which only cool. The presets have a cooling temperature. The card shows the
 // suite.
 import { PRESETS, createCard, fakeHass, integrationData } from '../helpers.mjs';
+import { openSlot } from '../driver.mjs';
 import { $, $$, click, text, week } from './dom.mjs';
 
 export const SALON = 'climate.salon'; // a heater
@@ -39,7 +40,7 @@ export function setup({ suite = DAY, combles = DAY, salon = DAY, overrides, plan
   return hass;
 }
 export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: [SALON, SUITE, COMBLES], show: [SUITE], group_days: false, ...config });
-export const select = (card, climate, idx, d = 0) => { card._sel = { climate, day: d, idx }; card._render(); };
+export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 export const modeRow = (card, scope = '.editor') => $$(card, `${scope} .mode-row button`).map((b) => `${text(b)}${b.getAttribute('aria-pressed') === 'true' ? ' ✓' : ''}`);
 export const presetRow = (card, scope = '.editor') => $$(card, `${scope} .presets button`).map((b) => `${text(b)}${b.classList.contains('on') ? ' ✓' : ''}`);
 export const mode = (card, m, scope = '.editor') => click(card, `${scope} .mode-row [data-mode="${m}"]`);

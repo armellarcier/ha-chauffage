@@ -1,10 +1,12 @@
 // Identical days shown on one row, edited as a whole (#11).
-import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay, makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { copyDay, day, openMenu, openSlot } from './driver.mjs';
+import { historyShown, pasteDay } from './driver.mjs';
 
-const day = (card, climate, d) => serializeDay(card._week(climate)[d]);
 const $ = (card, sel) => card.shadowRoot.querySelector(sel);
 const labels = (card) => [...card.shadowRoot.querySelectorAll('.dgroup .day')].map((el) => el.textContent);
 const RETIRED = { 'climate.salon': { Normal: Array(7).fill(WEEKEND) } };
@@ -117,8 +119,7 @@ describe('editing a row', () => {
 
   test('a slot\'s popover edits the whole row, and names it', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._sel = { climate: 'climate.salon', day: 5, idx: 1 };
-    card._render();
+    openSlot(card, 'climate.salon', 1, 5);
     assert.match($(card, '.editor .ed-head strong').textContent, /Sam, Dim/);
     $(card, '.editor [data-preset="boost"]').click();
     assert.deepEqual(day(card, 'climate.salon', 6), ['00:00 eco', '08:00 boost', '23:00 eco']);
@@ -128,8 +129,7 @@ describe('editing a row', () => {
     const boosted = ['00:00 eco', '06:30 boost', '08:30 eco', '17:30 comfort', '22:30 eco'];
     const week = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, boosted, boosted];
     const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] });
-    card._sel = { climate: 'climate.salon', day: 5, idx: 1 };
-    card._render();
+    openSlot(card, 'climate.salon', 1, 5);
     $(card, '.editor [data-preset="comfort"]').click(); // the weekend is now the weekdays
     assert.deepEqual(labels(card), ['Lun–Dim']);
     assert.ok($(card, '.seg.sel'));
@@ -138,15 +138,15 @@ describe('editing a row', () => {
 
   test('pasting on a row pastes on each of its days', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._copyToClipboard('climate.salon', 5);
-    card._pasteFromClipboard('climate.salon', 0);
+    copyDay(card, 'climate.salon', 5);
+    pasteDay(card, 'climate.salon', 0);
     for (let d = 0; d < 7; d++) assert.deepEqual(day(card, 'climate.salon', d), WEEKEND);
     assert.deepEqual(labels(card), ['Lun–Dim']);
   });
 
   test('copying a row to the other thermostats copies each of its days', () => {
     const card = createCard(fakeHass());
-    card._copyDay('climate.salon', 0, 'others');
+    copyDay(card, 'climate.salon', 0, 'others');
     for (const d of [0, 1, 2, 3, 4]) assert.deepEqual(day(card, 'climate.bureau', d), WEEKDAY);
     assert.deepEqual(day(card, 'climate.bureau', 5), ['00:00 eco']);
   });
@@ -196,7 +196,7 @@ describe('grouping the days or not', () => {
     assert.equal(labels(card).length, 7);
     assert.ok(!chip(card).classList.contains('on'));
     chip(card).click();
-    assert.ok(!card._history.shown);
+    assert.ok(!historyShown(card));
     assert.ok(!$(card, '[data-act="history"]').classList.contains('on'));
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
     $(card, '[data-act="history"]').click();
@@ -229,10 +229,10 @@ describe('today in a row of days', () => {
 
   test('its menu sets a temporary setpoint', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._openMenu('climate.salon', 0, 0, 0);
+    openMenu(card, 'climate.salon', 0);
     assert.ok($(card, '.menu [data-act="override-new"]'));
-    card._openMenu('climate.salon', 0, 0, 0); // closes it
-    card._openMenu('climate.salon', 5, 0, 0);
+    openMenu(card, 'climate.salon', 0); // closes it
+    openMenu(card, 'climate.salon', 5);
     assert.equal($(card, '.menu [data-act="override-new"]'), null);
   });
 

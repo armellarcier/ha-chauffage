@@ -2,7 +2,8 @@
 import { fakeHass, createCard, cleanup, typeTime, pressKey } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { I18N, makeLocale, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { day } from './driver.mjs';
+import { I18N, makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const user = (locale, extra = {}) => ({ locale: { time_format: 'language', number_format: 'language', first_weekday: 'language', ...locale }, ...extra });
 
@@ -169,7 +170,7 @@ describe('the time fields follow the profile\'s time format', () => {
   test('a time typed on a 12 h clock, in the afternoon', () => {
     const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
     typeTime(slotEnd(card), '515p');
-    assert.deepEqual(serializeDay(card._week('climate.salon')[0]).slice(1, 3), ['06:30 comfort', '17:15 eco']);
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(1, 3), ['06:30 comfort', '17:15 eco']);
   });
 
   test('on a 12 h clock, a time typed without AM / PM keeps the period of the field', () => {
@@ -178,14 +179,14 @@ describe('the time fields follow the profile\'s time format', () => {
     const end = card.shadowRoot.querySelector('.editor input.time[data-edge="end"]');
     assert.match(end.value, time12('10:30 PM'));
     typeTime(end, '1100');
-    assert.equal(serializeDay(card._week('climate.salon')[0])[4], '23:00 eco');
+    assert.equal(day(card, 'climate.salon', 0)[4], '23:00 eco');
   });
 
   test('on a 12 h clock, a time typed past 12 is read on 24 h', () => {
     const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
     const end = slotEnd(card);
     typeTime(end, '1715');
-    assert.equal(serializeDay(card._week('climate.salon')[0])[2], '17:15 eco');
+    assert.equal(day(card, 'climate.salon', 0)[2], '17:15 eco');
   });
 
   test('a time is shown again in the profile\'s format once applied', () => {
@@ -206,7 +207,7 @@ describe('the time fields follow the profile\'s time format', () => {
   test('on a 12 h clock, 12 typed without AM / PM is noon', () => {
     const card = createCard(fakeHass({ locale: english('12') }), { show: ['climate.salon'] });
     typeTime(slotEnd(card), '1230'); // in an 8:30 AM field
-    assert.equal(serializeDay(card._week('climate.salon')[0])[2], '12:30 eco');
+    assert.equal(day(card, 'climate.salon', 0)[2], '12:30 eco');
   });
 
   test('in a language that writes 08.30, ↑ on the hours moves an hour', () => {

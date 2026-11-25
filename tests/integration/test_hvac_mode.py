@@ -34,7 +34,7 @@ async def test_a_schedule_has_no_hvac_mode(bench: Bench):
     """The slot chooses it: what a card of a development version sends is not kept."""
     await start_ac(bench)
     await bench.set_schedules([{"id": "normal", "hvac_mode": "cool"}, {"id": "away"}, {"id": "holiday"}])
-    assert bench.runtime.data["schedules"][0] == {"id": "normal", "name": "Normal"}
+    assert bench.snapshot()["schedules"][0] == {"id": "normal", "name": "Normal"}
     response = await bench.hass.services.async_call("chauffage", "get_schedules", {}, blocking=True, return_response=True)
     assert "hvac_mode" not in response["schedules"][0]
     assert bench.powered() == {}

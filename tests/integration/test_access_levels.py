@@ -35,7 +35,7 @@ def commands(bench: Bench) -> dict[str, tuple[str, dict]]:
                                           "schedules": [{"id": i} for i, _ in bench.schedule_list()]}),
         "schedule another thermostat": ("set_up", {"type": "chauffage/weeks/save",
                                                    "weeks": {"climate.cuisine": {"normal": [WEEKDAY] * 7}}}),
-        "set the presets": ("set_up", {"type": "chauffage/presets/set", "presets": bench.runtime.data["presets"]}),
+        "set the presets": ("set_up", {"type": "chauffage/presets/set", "presets": bench.presets()}),
         "set a thermostat's presets": ("set_up", {"type": "chauffage/mapping/set", "entity_id": "climate.salon", "mapping": {}}),
         "write the rules": ("set_up", {"type": "chauffage/rules/set", "rules": [], "default_schedule": None}),
         "try the rules": ("set_up", {"type": "chauffage/rules/preview", "rules": []}),

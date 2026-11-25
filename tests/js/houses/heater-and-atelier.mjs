@@ -1,6 +1,7 @@
 // The salon, a heater (off and heat), and the atelier, a reversible air conditioner with a fan. The
 // salon is off at night, and the atelier has a slot that sets the fan and the vanes.
 import { WEEKEND, createCard, fakeHass, integrationData } from '../helpers.mjs';
+import { openSlot } from '../driver.mjs';
 import { $$, text } from './dom.mjs';
 
 export const OFF = { hvac_mode: 'off' };
@@ -45,7 +46,7 @@ export function setup({ weeks, targets, overrides, planned, thermostats, atelier
   return hass;
 }
 export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config });
-export const select = (card, climate, d, idx) => { card._sel = { climate, day: d, idx }; card._render(); };
+export const select = (card, climate, d, idx) => openSlot(card, climate, idx, d);
 export const thermostatCard = (hass, entity = 'climate.salon') => {
   const tc = document.createElement('chauffage-thermostat-card');
   tc.setConfig({ type: 'custom:chauffage-thermostat-card', entity });

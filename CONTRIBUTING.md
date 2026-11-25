@@ -174,6 +174,33 @@ The behavior tests run on **the three kinds of thermostats**, through the `therm
 fixture: `vtherm`, `standard` and `plain`. If a test only makes sense for some kinds, call
 `bench.needs(...)` in the test.
 
+Read what Chauffage holds through the bench: `bench.presets()`, `bench.overrides()` or
+`bench.snapshot()`, the message the card receives. To read what Chauffage saved, call
+`await bench.stored()`. Never read `runtime.data`. To simulate data stored by an older version,
+call `bench.edit_stored_data(...)`.
+
+### The safety nets of the rewrite
+
+These tests keep the behavior while the code is rewritten (see
+[docs/rewrite-plan.md](docs/rewrite-plan.md)):
+
+| Test | What it checks |
+|---|---|
+| `test_subscribe_golden.py` | The card receives exactly the message of `tests/integration/golden/subscribe.json`. |
+| `test_store.py` | Chauffage saves the stored data back as it read it, from every past format. |
+| `test_pure_domain.py` | The domain imports nothing from Home Assistant. |
+| `tests/shared/cases.json` | The integration (`test_shared_cases.py`) and the card (`shared-cases.test.mjs`) give the same results. |
+
+To change the message of `chauffage/subscribe` on purpose, delete `golden/subscribe.json`, run
+the test once, and review the new file in the diff.
+
+### The card tests
+
+Drive the card through `tests/js/driver.mjs`, never through its private members. For example,
+click a control with `act(card, 'save')`, and check `unsaved(card)` rather than `card._dirty`.
+If the driver lacks a function, add it to the driver. Reach into the card only when no user
+action can do it, and say why in an `Internal:` comment.
+
 ## Supported Home Assistant versions
 
 ha-chauffage supports every Home Assistant version from the minimum version in `hacs.json`

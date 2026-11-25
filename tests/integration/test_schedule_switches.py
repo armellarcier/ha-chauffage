@@ -48,7 +48,7 @@ async def test_each_schedule_has_a_switch_on_for_the_active_one(bench: Bench):
 async def test_turning_a_schedule_switch_on_activates_that_schedule(bench: Bench):
     await start(bench)
     await switch(bench, "turn_on", "switch.chauffage_schedule_away")
-    assert bench.runtime.data["active_schedule"] == "away"
+    assert bench.active_schedule() == "away"
     assert bench.applied() == {"climate.salon": "frost"}
     assert states(bench) == {"switch.chauffage_schedule_normal": "off", "switch.chauffage_schedule_away": "on",
                              "switch.chauffage_schedule_holiday": "off"}
@@ -61,14 +61,14 @@ async def test_turning_the_active_schedule_s_switch_off_says_to_turn_another_one
     with pytest.raises(ServiceValidationError) as err:
         await switch(bench, "turn_off", "switch.chauffage_schedule_normal")
     assert err.value.translation_key == "active_schedule_off"
-    assert bench.runtime.data["active_schedule"] == "normal"
+    assert bench.active_schedule() == "normal"
     assert bench.hass.states.get("switch.chauffage_schedule_normal").state == "on"
 
 
 async def test_turning_an_inactive_schedule_s_switch_off_changes_nothing(bench: Bench):
     await start(bench)
     await switch(bench, "turn_off", "switch.chauffage_schedule_away")
-    assert bench.runtime.data["active_schedule"] == "normal"
+    assert bench.active_schedule() == "normal"
     assert bench.applied() == {}
 
 

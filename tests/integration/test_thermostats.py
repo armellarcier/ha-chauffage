@@ -226,7 +226,7 @@ async def test_a_removed_preset_only_changes_the_revision_of_the_thermostats_tha
     await start(bench)
     await bench.save_weeks({"climate.salon": {"normal": every_day(("00:00", "frost"))}})
     salon, bureau = revision(bench, "climate.salon"), revision(bench, "climate.bureau")
-    presets = [p for p in bench.runtime.data["presets"] if p["id"] != "frost"]
+    presets = [p for p in bench.presets() if p["id"] != "frost"]
     await bench.runtime.set_presets(presets, {"frost": "eco"})
     assert revision(bench, "climate.salon") == salon + 1
     assert revision(bench, "climate.bureau") == bureau

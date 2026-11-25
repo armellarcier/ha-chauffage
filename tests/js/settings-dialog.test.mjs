@@ -4,6 +4,8 @@
 import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { settle } from './driver.mjs';
+import { redrawDialog } from './driver.mjs';
 
 const WEEK = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND];
 const WEEKS = { 'climate.salon': { Normal: WEEK }, 'climate.bureau': { Normal: WEEK } };
@@ -84,12 +86,13 @@ describe('the settings dialog', () => {
     });
 
     test('the end of off overrides: until the next slot by default, sent at once when changed', async () => {
-      const el = settings(withSettings({}));
+      const hass = withSettings({});
+      const el = settings(hass);
       const off = () => $$(el, '.override-settings [data-off-override-end]');
       assert.deepEqual(off().map((c) => `${c.value}${c.checked ? ' ✓' : ''}`), ['duration', 'next_slot_within_duration', 'next_slot ✓']);
       change(off()[0]);
-      await el._settingsSent;
-      assert.deepEqual(el._hass.events.at(-1), { type: 'chauffage/settings/set', off_override_end: 'duration' });
+      await settle();
+      assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', off_override_end: 'duration' });
       assert.equal(off()[0].checked, true);
     });
 
@@ -532,7 +535,7 @@ describe('the settings dialog', () => {
       const subscriptions = former.subscriptions.length;
       setup({ data: null }); // the page now has another connection
       el.hass = former;
-      el._update();
+      redrawDialog(el);
       assert.equal(former.subscriptions.length, subscriptions);
     });
 

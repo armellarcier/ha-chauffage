@@ -27,8 +27,9 @@ COOL_ATTRS = {"hvac_modes": AC_MODES}
 async def without_cooling(bench: Bench, preset_id: str) -> None:
     """The preset has no temperature when cooling: a preset the user created before #91, whose
     weeks cool. Chauffage now refuses to clear a temperature that the weeks use."""
-    bench.runtime.data["presets"] = [{k: v for k, v in p.items() if k != "cool_temperature"} if p["id"] == preset_id else p
-                                     for p in bench.runtime.data["presets"]]
+    without = [{k: v for k, v in p.items() if k != "cool_temperature"} if p["id"] == preset_id else p
+               for p in bench.presets()]
+    await bench.edit_stored_data(lambda data: data.update(presets=without))
     await bench.runtime.apply(force=True)
     await bench.hass.async_block_till_done()
     bench.applied()
@@ -66,9 +67,9 @@ def test_either_temperature_of_a_preset_can_be_empty_not_both():
 async def test_a_preset_s_cooling_temperature_is_set_and_cleared(bench: Bench):
     await start_ac_with_range(bench, [["00:00", "eco"]])
     presets = [{**p, "cool_temperature": 26.5} if p["id"] == "comfort" else
-               {**p, "cool_temperature": None} if p["id"] == "eco" else p for p in bench.runtime.data["presets"]]
+               {**p, "cool_temperature": None} if p["id"] == "eco" else p for p in bench.presets()]
     await bench.runtime.set_presets(presets)
-    stored = {p["id"]: p for p in bench.runtime.data["presets"]}
+    stored = {p["id"]: p for p in bench.presets()}
     assert stored["comfort"]["cool_temperature"] == 26.5 and "cool_temperature" not in stored["eco"]
     assert engine.offered_modes(bench.runtime.targets_of(SALON)["eco"]) == ["heat"]
 
@@ -102,8 +103,8 @@ async def test_a_temperature_set_on_the_thermostat_lets_the_preset_lose_its_own(
 
 async def test_a_preset_does_not_set_an_hvac_mode(bench: Bench):
     await start_ac(bench)
-    await bench.runtime.set_presets([*bench.runtime.data["presets"], {"name": "Away", "temperature": 7, "hvac_mode": "off"}])
-    assert bench.runtime.data["presets"][-1] == {"id": "away", "name": "Away", "color": "#9e9e9e", "temperature": 7.0}
+    await bench.runtime.set_presets([*bench.presets(), {"name": "Away", "temperature": 7, "hvac_mode": "off"}])
+    assert bench.presets()[-1] == {"id": "away", "name": "Away", "color": "#9e9e9e", "temperature": 7.0}
 
 
 @pytest.mark.parametrize("value", [{"temperature": 20, "hvac_mode": "cool"}, {"hvac_mode": "off"},
@@ -356,10 +357,10 @@ def test_in_cool_a_preset_s_temperature_is_never_sent():
 async def test_a_preset_may_have_a_color_for_its_cooling_slots(bench: Bench):
     """Without one, the card derives a cool shade from the preset's color: nothing is stored."""
     await start_ac(bench)
-    presets = bench.runtime.data["presets"]
+    presets = bench.presets()
     assert all("cool_color" not in preset for preset in presets)
     await bench.runtime.set_presets([{**presets[0], "cool_color": "#0288D1"}, *presets[1:]])
-    assert bench.runtime.data["presets"][0]["cool_color"] == "#0288d1"
+    assert bench.presets()[0]["cool_color"] == "#0288d1"
     with pytest.raises(model.InvalidData):
         await bench.runtime.set_presets([{**presets[0], "cool_color": "blue"}, *presets[1:]])
 

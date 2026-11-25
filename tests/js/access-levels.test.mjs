@@ -2,7 +2,10 @@
 // overrides, the pause and the active schedule. Plan: also the weeks and the schedules, from the
 // cards. Set up: also the Chauffage panel. An admin can always do everything
 // (docs/decisions.md, "Who may do what").
-import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
+import { act, copyDay, day, save, unsaved } from './driver.mjs';
+import { escape, trySave } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -68,15 +71,14 @@ describe('the access level in the schedule card', () => {
     bar(c).querySelector('.seg[data-idx="2"]').click();
     assert.equal($(c, '.editor'), null);
     bar(c).querySelector('.seg[data-idx="2"]').click(); // a double tap would cut the slot
-    assert.equal(c._dirty, false);
-    assert.equal(c._week('climate.salon')[0].length, 5);
+    assert.equal(unsaved(c), false);
+    assert.equal(day(c, 'climate.salon', 0).length, 5);
   });
 
   test("with Use, a day's ⋮ only offers a new override, on today", () => {
     const c = card(as('use'));
     assert.deepEqual(dayMenu(c, 0), ['override-new']);
-    c._menu = null;
-    c._render();
+    escape(); // the menu closed
     assert.ok($(c, '[data-act="menu"][data-day="1"]').disabled, 'nothing to offer on another day');
   });
 
@@ -90,10 +92,9 @@ describe('the access level in the schedule card', () => {
     const hass = as('use');
     const c = card(hass);
     assert.ok(dayMenu(c, 0).includes('override-new'));
-    c._action('override-new', { climate: 'climate.salon' });
+    act(c, 'override-new', { climate: 'climate.salon' });
     assert.ok($(c, '.editor'), 'the override popover opens');
-    c._schedule = 'away';
-    c._render();
+    $(c, '.tab[data-schedule="away"]').click();
     $(c, '[data-act="activate-schedule"]').click();
     assert.equal(hass.events.at(-1).type, 'chauffage/schedule/activate');
   });
@@ -106,7 +107,7 @@ describe('the access level in the schedule card', () => {
     assert.ok($(c, '[data-act="schedule-new"]'));
     assert.ok($(c, '[data-act="copyweek-menu"]'));
     assert.deepEqual(dayMenu(c, 0).slice(0, 2), ['copy-day', 'paste-day']);
-    c._menu = null;
+    escape(); // the menu closed
     bar(c).querySelector('.seg[data-idx="2"]').click();
     assert.ok($(c, '.editor'));
   });
@@ -153,7 +154,7 @@ describe('the access level in the schedule card', () => {
     const hass = as('plan', { reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'unauthorized', message: 'Unauthorized' }; return null; } });
     const c = card(hass);
     cutSlot(c, 'climate.salon', 0, 12 * 60);
-    await c._save();
+    await save(c);
     assert.equal(text($(c, '.msg')), 'Votre niveau d’accès ne le permet pas.');
   });
 
@@ -161,7 +162,7 @@ describe('the access level in the schedule card', () => {
     const hass = as('plan', { locale: { language: 'en' }, reply: () => { throw { code: 'unauthorized', message: 'Unauthorized' }; } });
     const c = card(hass);
     cutSlot(c, 'climate.salon', 0, 12 * 60);
-    await c._save();
+    await save(c);
     assert.equal(text($(c, '.msg')), 'Your access level doesn’t allow this.');
   });
 
@@ -180,27 +181,27 @@ describe('the access level in the schedule card', () => {
     const hass = as('plan');
     const c = card(hass);
     cutSlot(c, 'climate.salon', 0, 12 * 60);
-    const edited = c._week('climate.salon')[0].length;
+    const edited = day(c, 'climate.salon', 0).length;
     assert.ok($(c, '[data-act="save"]'));
     changeTo(hass, 'use');
-    assert.equal(c._dirty, true);
-    assert.equal(c._week('climate.salon')[0].length, edited, 'the edit is kept');
+    assert.equal(unsaved(c), true);
+    assert.equal(day(c, 'climate.salon', 0).length, edited, 'the edit is kept');
     assert.equal($(c, '.handle'), null);
     assert.equal($(c, '[data-act="save"]'), null);
     assert.ok($(c, '[data-act="cancel"]'));
     assert.equal(text($(c, '.msg')), 'Votre niveau d’accès ne le permet pas.');
-    assert.equal(await c._save(), false, 'nothing is sent');
+    assert.equal(await trySave(c), false, 'nothing is sent');
     assert.ok(!hass.events.some((m) => m.type === 'chauffage/weeks/save'));
     $(c, '[data-act="cancel"]').click();
-    assert.equal(c._dirty, false);
-    assert.equal(c._week('climate.salon')[0].length, 5);
+    assert.equal(unsaved(c), false);
+    assert.equal(day(c, 'climate.salon', 0).length, 5);
     assert.equal(text($(c, '.msg')), '');
   });
 
   test('the access level drops after a copy: the message says the access level, not the copy', () => {
     const hass = as('plan');
     const c = card(hass);
-    c._copyDay('climate.salon', 0, 'weekend');
+    copyDay(c, 'climate.salon', 0, 'weekend');
     assert.match(text($(c, '.msg')), /copié/);
     changeTo(hass, 'use');
     assert.equal(text($(c, '.msg')), 'Votre niveau d’accès ne le permet pas.');

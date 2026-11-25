@@ -1,12 +1,13 @@
 // Pointer and form interactions of the card and of the more-info block: dragging slots and
 // override ends, row menu, copying a week, time fields, popovers, injection into the dialog,
 // error messages.
-import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, typeTime, pressKey, WEEKDAY, cutSlot } from './helpers.mjs';
+import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, typeTime, pressKey, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { act, day, openMenu, openOverride, openSlot, redraw, save, selected, settle, unsaved } from './driver.mjs';
+import { shown } from './driver.mjs';
 
-const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 // One pixel per minute: clientX is a time of day in minutes
 const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
@@ -28,7 +29,7 @@ describe('dragging a slot boundary', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     drag(card, 7 * 60 + 7);
     assert.equal(day(card, 'climate.salon', 0)[1], '07:00 comfort');
-    assert.equal(card._dirty, true);
+    assert.equal(unsaved(card), true);
   });
 
   test('stays between the neighboring slots', () => {
@@ -43,7 +44,7 @@ describe('dragging a slot boundary', () => {
     pointer(handle, 'pointerdown', 390);
     pointer(handle, 'pointerup', 390);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
-    assert.ok(!card._dirty);
+    assert.ok(!unsaved(card));
   });
 });
 
@@ -63,7 +64,7 @@ describe('scrolling the week with a finger (#67)', () => {
     finger(handle, 'pointermove', 420, 300);
     finger(handle, 'pointerup', 420, 300);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
-    assert.ok(!card._dirty);
+    assert.ok(!unsaved(card));
   });
 
   test('a finger moving a handle sideways still moves its time', () => {
@@ -91,13 +92,12 @@ describe('scrolling the week with a finger (#67)', () => {
     finger(handle, 'pointermove', 420, 102);
     finger(handle, 'pointercancel', 420, 102);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
-    assert.ok(!card._dirty);
+    assert.ok(!unsaved(card));
   });
 
   test('a vertical swipe that starts on the selected slot does not move it', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
-    card._render();
+    openSlot(card, 'climate.salon', 1);
     const seg = salonMonday(card).querySelector('.seg[data-idx="1"]');
     finger(seg, 'pointerdown', 450, 100);
     finger(seg, 'pointermove', 456, 140);
@@ -126,7 +126,7 @@ describe('dragging a whole slot', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     drag(card, 1, 7 * 60, 8 * 60 + 7);
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '07:30 comfort', '09:30 eco', '17:30 comfort', '22:30 eco']);
-    assert.equal(card._dirty, true);
+    assert.equal(unsaved(card), true);
     assert.equal($(card, '.editor'), null); // a move does not open the slot's popover
   });
 
@@ -143,7 +143,7 @@ describe('dragging a whole slot', () => {
     drag(card, 0, 3 * 60, 4 * 60);
     drag(card, 4, 23 * 60, 22 * 60);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
-    assert.ok(!card._dirty);
+    assert.ok(!unsaved(card));
   });
 
   test('a tiny move is still a click: it selects the slot', () => {
@@ -312,7 +312,7 @@ describe('dragging the end of an override', () => {
     const field = popoverEnd(card);
     field.focus();
     field.value = '12:00';
-    card._render(); // every 30 s during an override
+    redraw(card); // every 30 s during an override
     card.hass = thermostatChanged(hass);
     assert.equal(sets(hass), 0, 'nothing sent while typing');
     assert.ok(field.isConnected, 'the field is kept');
@@ -430,8 +430,8 @@ describe('dragging the end of an override', () => {
 
 describe('row menu', () => {
   test('the ⋮ button opens it; "Mon–Fri" copies the day', () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._week('climate.salon')[2] = [{ start: 0, preset: 'frost' }];
+    const weeks = { 'climate.salon': { Normal: [WEEKDAY, WEEKDAY, ['00:00 frost'], WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] } };
+    const card = createCard(fakeHass({ weeks }), { show: ['climate.salon'] });
     $(card, '[data-act="menu"][data-climate="climate.salon"][data-day="0"]').click();
     assert.ok($(card, '.menu'));
     assert.ok($(card, '.menu [data-act="paste-day"]').disabled); // empty clipboard
@@ -464,7 +464,7 @@ describe('row menu', () => {
     document.addEventListener('hass-more-info', intercept);
     try {
       const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
-      card._openMenu('climate.salon', ((new Date().getDay() + 6) % 7 + 1) % 7, 0, 0); // not today
+      openMenu(card, 'climate.salon', ((new Date().getDay() + 6) % 7 + 1) % 7); // not today
       const acts = [...card.shadowRoot.querySelectorAll('.menu [data-act]')].map((b) => b.dataset.act);
       assert.deepEqual(acts, ['copy-day', 'paste-day', 'fill-weekdays', 'fill-weekend', 'fill-all']);
       $(card, '.menu .mh [data-more-info="climate.salon"]').click();
@@ -538,9 +538,9 @@ describe('editing a slot', () => {
   });
 
   test('a time off the step stays in its field, and the small arrows put it back on the step', () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._week('climate.salon')[0][1].start = 6 * 60 + 20; // 06:20, set with another step
-    card._render();
+    const monday = ['00:00 eco', '06:20 comfort', '08:30 eco', '17:30 comfort', '22:30 eco']; // 06:20, set with another step
+    const weeks = { 'climate.salon': { Normal: [monday, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] } };
+    const card = createCard(fakeHass({ weeks }), { show: ['climate.salon'] });
     assert.equal(editor(card).start.value, '06:20');
     $(card, '.editor input.time[data-edge="start"] + .time-spin [data-time-step="-1"]').click();
     assert.equal(day(card, 'climate.salon', 0)[1], '06:15 comfort');
@@ -565,7 +565,7 @@ describe('copying a week', () => {
     menu.querySelector('[data-act="copy-week"][data-climate="climate.bureau"][data-schedule="away"]').click();
     assert.equal($(card, '.copyweek-menu'), null);
     assert.deepEqual(day(card, 'climate.bureau', 0, 'away'), WEEKDAY);
-    assert.equal(card._dirty, true);
+    assert.equal(unsaved(card), true);
   });
 
   test('its menu stays in the window: it opens on the side with more room, no taller than that room', () => {
@@ -599,7 +599,7 @@ describe('copying a week', () => {
     $(card, '[data-act="copyweek-menu"]').click();
     document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
     assert.equal($(card, '.copyweek-menu'), null);
-    assert.equal(card._dirty, false);
+    assert.equal(unsaved(card), false);
   });
 });
 
@@ -647,9 +647,9 @@ describe('the override popover in the card', () => {
   test('without an override, today\'s row menu sets a temporary setpoint, for the override duration', () => {
     const hass = withTargets({});
     const card = createCard(hass, { show: ['climate.salon'], group_days: false });
-    card._openMenu('climate.salon', 1, 0, 0); // Tuesday: not today
+    openMenu(card, 'climate.salon', 1); // Tuesday: not today
     assert.equal($(card, '.menu [data-act="override-new"]'), null);
-    card._openMenu('climate.salon', 0, 0, 0); // Monday: today
+    openMenu(card, 'climate.salon', 0); // Monday: today
     $(card, '.menu [data-act="override-new"]').click();
     $(card, '.override-ed .presets [data-preset="comfort"]').click();
     const sent = hass.events.at(-1);
@@ -711,7 +711,7 @@ describe('the override popover in the card', () => {
     const input = $(card, '.override-ed input[data-override-temperature]');
     input.focus();
     input.value = '2';
-    card._render(); // every 30 s during an override, or another thermostat's override changed
+    redraw(card); // every 30 s during an override, or another thermostat's override changed
     const after = $(card, '.override-ed input[data-override-temperature]');
     assert.equal(after.value, '2');
     assert.equal(card.shadowRoot.activeElement, after);
@@ -733,7 +733,7 @@ describe('thermostat selection', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     $(card, '[data-act="multi-sel"]').click();
     $(card, '.chip[data-climate="climate.bureau"]').click();
-    assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
+    assert.deepEqual(shown(card), ['climate.salon', 'climate.bureau']);
   });
 });
 
@@ -785,16 +785,19 @@ describe('error messages', () => {
     const hass = failing(fakeHass({ overrides: { 'climate.salon': override } }));
     const card = createCard(hass, { show: ['climate.salon'] });
     cutSlot(card, 'climate.salon', 0, 12 * 60);
-    await card._save();
+    await save(card);
     assert.match($(card, '.msg').textContent, /Erreur : boom/);
-    assert.equal(card._dirty, true);
+    assert.equal(unsaved(card), true);
 
-    await card._sendOverride('climate.salon', null);
+    openOverride(card, 'climate.salon');
+    act(card, 'override-del');
+    await settle();
     assert.match($(card, '.msg').textContent, /boom/);
-    assert.ok(card._overrides()['climate.salon'], 'the override is shown again');
+    assert.ok($(card, '.override[data-climate="climate.salon"]'), 'the override is shown again');
 
-    card._schedule = 'away';
-    await card._activateSchedule('away');
+    $(card, '.tab[data-schedule="away"]').click();
+    act(card, 'activate-schedule');
+    await settle();
     assert.match($(card, '.msg').textContent, /boom/);
   });
 
@@ -802,7 +805,8 @@ describe('error messages', () => {
     const hass = failing(fakeIntegrationHass());
     const card = createCard(hass, { view: 'presets' });
     $(card, '[data-kind="preset"][data-preset="eco"]').click();
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.match($(card, '.msg').textContent, /boom/);
     assert.ok($(card, '[data-panel="cell"]'), 'the panel stays open');
   });
@@ -825,7 +829,7 @@ describe('slot editor buttons', () => {
     select(card, 2); // 08:30 → 17:30 eco
     $(card, '.editor [data-act="insert"]').click();
     assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '11:30 eco', '14:30 eco']);
-    assert.equal(card._sel.idx, 3);
+    assert.equal(selected(card).idx, 3);
   });
 
   test('"Delete" removes the slot (the previous one takes its time)', () => {
@@ -837,14 +841,14 @@ describe('slot editor buttons', () => {
   });
 
   test('deleting the first slot: the next one starts at midnight; a single slot cannot be deleted', () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    card._week('climate.salon')[0] = [{ start: 0, preset: 'eco' }, { start: 600, preset: 'comfort' }];
-    card._render();
+    const weeks = { 'climate.salon': { Normal: [['00:00 eco', '10:00 comfort'], WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] } };
+    const card = createCard(fakeHass({ weeks }), { show: ['climate.salon'] });
     select(card, 0);
     $(card, '.editor [data-act="delete"]').click();
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 comfort']);
-    card._lastClick = null; // not a double click
-    select(card, 0);
+    // Elsewhere on the slot: not the second click of a double click
+    $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="0"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, cancelable: true, clientX: 12 * 60 }));
     $(card, '.editor [data-act="delete"]').click();
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 comfort']);
   });
@@ -854,7 +858,7 @@ describe('slot editor buttons', () => {
     select(card, 1);
     $(card, '.editor [data-act="close"]').click();
     assert.equal($(card, '.editor'), null);
-    assert.ok(!card._dirty);
+    assert.ok(!unsaved(card));
   });
 });
 
@@ -866,7 +870,7 @@ describe('double click on a slot', () => {
     const again = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]')).querySelector('.seg[data-idx="2"]');
     again.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 12 * 60 }));
     assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '12:00 eco', '17:30 comfort']);
-    assert.equal(card._sel.idx, 3);
+    assert.equal(selected(card).idx, 3);
   });
 });
 
@@ -879,7 +883,7 @@ describe('edits in progress', () => {
     hass.push({ schedules: [{ id: 'normal', name: 'Normal' }], active_schedule: 'normal',
       weeks: { 'climate.salon': { normal: Array(7).fill([['00:00', 'frost']]) } }, overrides: {}, revision: 9 });
     assert.deepEqual(day(card, 'climate.salon', 0), mine);
-    assert.equal(card._dirty, true);
+    assert.equal(unsaved(card), true);
   });
 
   test('"Cancel" then loads what was saved elsewhere', () => {
@@ -922,13 +926,13 @@ describe('thermostats shown', () => {
     $(card, '.chip[data-climate="climate.bureau"]').click();
     document.body.innerHTML = ''; // page reloaded: localStorage is kept
     const again = createCard(fakeHass(), { show: ['climate.salon'] });
-    assert.deepEqual(again._shown, ['climate.bureau']);
+    assert.deepEqual(shown(again), ['climate.bureau']);
   });
 
   test('"All" shows every thermostat', () => {
     const card = createCard(fakeHass(), { show: ['climate.salon'] });
     $(card, '[data-act="show-all"]').click();
-    assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
+    assert.deepEqual(shown(card), ['climate.salon', 'climate.bureau']);
   });
 });
 

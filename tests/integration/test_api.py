@@ -86,7 +86,7 @@ async def test_the_weeks_are_no_longer_saved_against_the_global_revision(bench: 
     client = await ws_client(bench.hass)
     week = [[["00:00", "comfort"]]] * 7
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}},
-                                    "revision": bench.runtime.data["revision"]})
+                                    "revision": bench.revision()})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
     assert bench.runtime.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
@@ -157,7 +157,7 @@ async def test_an_override_s_new_value_on_a_thermostat_that_does_not_answer(benc
 
     await client.send_json_auto_id({"type": "chauffage/schedule/activate", "schedule": "away"})
     assert (await client.receive_json())["success"]
-    assert bench.runtime.data["active_schedule"] == "away"
+    assert bench.active_schedule() == "away"
 
 
 async def test_writes_need_an_admin(bench: Bench, ws_client):

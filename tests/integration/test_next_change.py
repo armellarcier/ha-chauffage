@@ -79,7 +79,7 @@ async def test_a_slot_that_sends_the_same_thing_is_not_a_change(bench: Bench):
     Chauffage sends 20 °C twice: boost is no change. With presets, it sends boost."""
     await start(bench, {"climate.salon": {"normal": every_day(
         ("00:00", "eco"), ("17:30", "comfort"), ("20:00", "boost"), ("22:30", "eco"))}})
-    presets = [dict(p) for p in bench.runtime.data["presets"]]
+    presets = [dict(p) for p in bench.presets()]
     next(p for p in presets if p["id"] == "boost")["temperature"] = 20.0
     await bench.runtime.set_presets(presets)
     await bench.go_to("18:00")

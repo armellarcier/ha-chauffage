@@ -29,7 +29,7 @@ async def test_the_active_schedule_select_lists_the_schedules_and_shows_the_acti
     assert state.state == "Normal"
     await bench.activate_schedule("Away")
     assert bench.hass.states.get("select.chauffage_schedule").state == "Away"
-    assert bench.runtime.data["active_schedule"] == "away"
+    assert bench.active_schedule() == "away"
 
 
 async def test_the_select_of_an_older_version_becomes_select_chauffage_schedule(bench: Bench):

@@ -128,7 +128,7 @@ def helper(bench: Bench) -> str:
 
 
 def active(bench: Bench) -> str:
-    return bench.runtime.data["active_schedule"]
+    return bench.active_schedule()
 
 
 async def test_an_evening_away_inside_holidays_wins_then_holidays_resume(bench: Bench, calendar: Calendar):

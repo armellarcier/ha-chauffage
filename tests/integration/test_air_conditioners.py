@@ -219,10 +219,11 @@ async def test_a_heater_that_is_off_is_not_turned_on_by_a_slot_without_a_value(b
     """Data stored before the refusal: a heater's slot on a preset without a temperature when
     heating. The slot has nothing to send, so it turns nothing on."""
     await start_ac_with_range(bench, [["00:00", "eco"], ["12:00", "comfort"]])
-    bench.runtime.data["presets"] = presets_without("comfort", "temperature")
+    without = presets_without("comfort", "temperature")
+    await bench.edit_stored_data(lambda data: data.update(presets=without))
     bench.thermostat(BUREAU, "eco", state="off", context=CTX_USER)
     await bench.hass.async_block_till_done()
-    bench.runtime.data["overrides"].clear()
+    await bench.edit_stored_data(lambda data: data["overrides"].clear())
     clear(bench)
     await bench.go_to("12:00")
     assert BUREAU not in bench.powered() and BUREAU not in bench.applied()
