@@ -10043,7 +10043,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 // Exports for the tests (tests/js); no effect on Home Assistant, which loads this file as a module.
 export {
   tagSide,
-  VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, joined, parseDay, serializeDay, parseTime,
+  VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, joined, parseDay, serializeDay, slotToArray, parseTime, fitTemperature,
   overridePieces, overrideLabel, planText, CHIP_STYLE, STYLE, MORE_INFO_STYLE, FIELD_BOX, chipTextColor, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
   ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS, reloadPage,
