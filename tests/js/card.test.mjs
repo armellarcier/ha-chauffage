@@ -1,10 +1,9 @@
 // Behavior of the custom:chauffage-programme-card card.
-import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, PRESETS, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
+import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, PRESETS, WEEKDAY, WEEKEND, cutSlot, typeTime, pressKey } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
-
-const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
+import { $, act, control, copyDay, day, doubleTap, openMenu, openOverride, openSlot, save, selected, settle, unsaved } from './driver.mjs';
+import { rowOf, scheduleShown, shown, thermostats } from './driver.mjs';
 
 afterEach(() => cleanup());
 
@@ -26,13 +25,13 @@ describe('configuration and loading', () => {
 
   test('the tab opened by default is the active schedule', () => {
     const card = createCard(fakeHass({ schedule: 'Absent' }));
-    assert.equal(card._schedule, 'away');
+    assert.equal(scheduleShown(card), 'away');
   });
 
   test('a redraw keeps the same ha-card: a new one has no height until it renders, and the page scrolled back to the top', () => {
     const card = createCard(fakeHass());
     const haCard = card.shadowRoot.querySelector('ha-card');
-    card._openMenu('climate.salon', 1, 0, 0); // a redraw, as most clicks
+    openMenu(card, 'climate.salon', 0); // a redraw, as most clicks
     card.shadowRoot.querySelector('[data-act="group-days"]').click(); // another redraw
     assert.equal(card.shadowRoot.querySelector('ha-card'), haCard);
     assert.equal(card.shadowRoot.querySelectorAll('ha-card').length, 1);
@@ -40,7 +39,7 @@ describe('configuration and loading', () => {
 
   test('a thermostat listed twice is shown once (#39)', () => {
     const card = createCard(fakeHass(), { thermostats: ['climate.salon', 'climate.bureau', { entity: 'climate.salon', name: 'Séjour' }] });
-    assert.deepEqual(card._thermostats.map((t) => t.entity), ['climate.salon', 'climate.bureau']);
+    assert.deepEqual(thermostats(card), ['climate.salon', 'climate.bureau']);
     assert.equal(card.shadowRoot.querySelectorAll('.chip[data-climate="climate.salon"]').length, 1);
   });
 });
@@ -133,14 +132,15 @@ describe('activating a schedule', () => {
     tab(card, 'away').click();
     assert.equal(bar(card).querySelector('[data-more-info]'), null);
     bar(card).querySelector('[data-show-schedule="normal"]').click();
-    assert.equal(card._schedule, 'normal');
+    assert.equal(scheduleShown(card), 'normal');
   });
 
   test('the button activates the schedule in the integration', async () => {
     const hass = fakeHass({ schedule: 'Normal' });
     const card = createCard(hass);
     tab(card, 'holiday').click();
-    await card._action('activate-schedule', {});
+    act(card, 'activate-schedule');
+    await settle();
     assert.deepEqual(hass.events, [{ type: 'chauffage/schedule/activate', schedule: 'holiday' }]);
   });
 
@@ -164,43 +164,44 @@ describe('activating a schedule', () => {
 describe('editing a day', () => {
   test('a cut makes a piece like its slot, selected', () => {
     const card = createCard(fakeHass());
-    card._split('climate.bureau', 0, 12 * 60);
+    doubleTap(card, 'climate.bureau', 12 * 60, 0);
     assert.deepEqual(day(card, 'climate.bureau', 0), ['00:00 eco', '12:00 eco']);
-    assert.deepEqual(card._sel, { climate: 'climate.bureau', day: 0, idx: 1 });
-    assert.equal(card._dirty, true);
+    assert.deepEqual(selected(card), { climate: 'climate.bureau', day: 0, idx: 1 });
+    assert.equal(unsaved(card), true);
   });
 
   test('a cut never moves the next slot', () => {
     const card = createCard(fakeHass());
-    card._split('climate.salon', 0, 12 * 60); // in 08:30 eco, before 17:30 comfort
+    doubleTap(card, 'climate.salon', 12 * 60, 0); // in 08:30 eco, before 17:30 comfort
     assert.deepEqual(day(card, 'climate.salon', 0),
       ['00:00 eco', '06:30 comfort', '08:30 eco', '12:00 eco', '17:30 comfort', '22:30 eco']);
   });
 
   test('a cut a step before the next slot is made', () => {
     const card = createCard(fakeHass());
-    card._split('climate.salon', 0, 17 * 60 + 15); // 15 min before 17:30 comfort
+    doubleTap(card, 'climate.salon', 17 * 60 + 15, 0); // 15 min before 17:30 comfort
     assert.deepEqual(day(card, 'climate.salon', 0).slice(2, 5), ['08:30 eco', '17:15 eco', '17:30 comfort']);
   });
 
   test('a cut too close to an existing slot is refused', () => {
     const card = createCard(fakeHass());
-    card._split('climate.salon', 0, 6 * 60 + 35); // 5 min after 06:30
+    doubleTap(card, 'climate.salon', 6 * 60 + 35, 0); // 5 min after 06:30
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
 
   test('moving a time cannot overlap the neighboring slot', () => {
     const card = createCard(fakeHass());
-    card._setEdge('start', 9 * 60, { climate: 'climate.salon', day: 0, idx: 1 }); // 06:30 → 08:30 comfort
+    openSlot(card, 'climate.salon', 1, 0); // 06:30 → 08:30 comfort
+    typeTime($(card, '.editor input.time[data-edge="start"]'), '09:00');
     assert.deepEqual(day(card, 'climate.salon', 0).slice(0, 3), ['00:00 eco', '08:15 comfort', '08:30 eco']);
   });
 
   test('a slot set to the preset of its neighbors stays a slot, once its popover is closed too', () => {
     const card = createCard(fakeHass());
-    card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
-    card._action('preset', { preset: 'eco' });
+    openSlot(card, 'climate.salon', 1, 0);
+    act(card, 'preset', { preset: 'eco' });
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '06:30 eco', '08:30 eco', '17:30 comfort', '22:30 eco']);
-    card._action('close', {});
+    act(card, 'close');
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '06:30 eco', '08:30 eco', '17:30 comfort', '22:30 eco']);
   });
 });
@@ -210,7 +211,7 @@ describe('copy / paste', () => {
     const card = createCard(fakeHass());
     cutSlot(card, 'climate.salon', 0, 12 * 60); // modified Monday: 12:00 comfort
     const monday = day(card, 'climate.salon', 0);
-    card._copyDay('climate.salon', 0, 'weekdays');
+    copyDay(card, 'climate.salon', 0, 'weekdays');
     for (let d = 1; d < 5; d++) assert.deepEqual(day(card, 'climate.salon', d), monday);
     assert.deepEqual(day(card, 'climate.salon', 5), WEEKEND);
     assert.deepEqual(day(card, 'climate.salon', 6), WEEKEND);
@@ -218,26 +219,30 @@ describe('copy / paste', () => {
 
   test('copying to the other displayed thermostats (same day)', () => {
     const card = createCard(fakeHass(), { group_days: false });
-    card._copyDay('climate.salon', 2, 'others');
+    copyDay(card, 'climate.salon', 2, 'others');
     assert.deepEqual(day(card, 'climate.bureau', 2), WEEKDAY);
     assert.deepEqual(day(card, 'climate.bureau', 3), ['00:00 eco']);
   });
 
   test('pasting a copied day into another schedule and another thermostat', () => {
     const card = createCard(fakeHass());
-    card._copyToClipboard('climate.salon', 0);
-    card._schedule = 'away';
-    card._pasteFromClipboard('climate.bureau', 1);
+    copyDay(card, 'climate.salon', 0);
+    $(card, '.tab[data-schedule="away"]').click();
+    const row = rowOf(card, 'climate.bureau', 1);
+    openMenu(card, 'climate.bureau', row);
+    act(card, 'paste-day', { climate: 'climate.bureau', day: row });
     assert.deepEqual(day(card, 'climate.bureau', 1, 'away'), WEEKDAY);
   });
 
   test('the clipboard survives a page reload', () => {
-    const card = createCard(fakeHass());
-    card._copyToClipboard('climate.salon', 0);
+    copyDay(createCard(fakeHass()), 'climate.salon', 0);
+    const clip = localStorage.getItem('chauffage-programme-card:clip');
     cleanup();
-    localStorage.setItem('chauffage-programme-card:clip', JSON.stringify(card._clip));
+    localStorage.setItem('chauffage-programme-card:clip', clip);
     const other = createCard(fakeHass());
-    assert.equal(other._clip.label, 'Salon · Lun–Ven (Normal)'); // the days of its row
+    openMenu(other, 'climate.bureau', 0);
+    // The item Paste names the day copied
+    assert.equal(control(other, 'paste-day', { climate: 'climate.bureau', day: 0 }).querySelector('small').textContent, 'Salon · Lun–Ven (Normal)'); // the days of its row
   });
 });
 
@@ -246,19 +251,19 @@ describe('saving', () => {
     const hass = fakeHass();
     const card = createCard(hass);
     cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    await save(card);
 
     const [msg] = hass.events;
     assert.equal(msg.type, 'chauffage/weeks/save');
     assert.deepEqual(msg.weeks['climate.bureau'].normal[0], [['00:00', 'eco'], ['12:00', 'comfort']]);
     assert.equal(msg.weeks['climate.salon'], undefined, 'not changed: not sent');
-    assert.equal(card._dirty, false);
+    assert.equal(unsaved(card), false);
   });
 
   test('Cancel goes back to the saved schedules', () => {
     const card = createCard(fakeHass());
     cutSlot(card, 'climate.salon', 0, 12 * 60);
-    card._action('cancel', {});
+    act(card, 'cancel');
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
 });
@@ -270,13 +275,13 @@ describe('choosing the displayed thermostats', () => {
   test('a click shows only that thermostat', () => {
     const card = createCard(fakeHass());
     click(chip(card, 'climate.bureau'));
-    assert.deepEqual(card._shown, ['climate.bureau']);
+    assert.deepEqual(shown(card), ['climate.bureau']);
   });
 
   test('Ctrl+click adds a thermostat', () => {
     const card = createCard(fakeHass(), { show: undefined });
     click(chip(card, 'climate.bureau'), { ctrlKey: true });
-    assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
+    assert.deepEqual(shown(card), ['climate.salon', 'climate.bureau']);
   });
 
   test('a chip only names its thermostat, with a mark when it has a temporary setpoint (#39)', () => {
@@ -328,7 +333,7 @@ describe('thermostat more-info dialog', () => {
     const card = createCard(fakeHass());
     card.shadowRoot.querySelector('.chip[data-climate="climate.bureau"] .chip-open').click();
     assert.equal(received, 'climate.bureau');
-    assert.deepEqual(card._shown, ['climate.salon', 'climate.bureau']);
+    assert.deepEqual(shown(card), ['climate.salon', 'climate.bureau']);
   });
 
   test('the name in a paused notice opens the thermostat (#39)', () => {
@@ -366,15 +371,22 @@ describe('overrides from the card', () => {
   test('shortening before now is clamped to now + 15 min', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass);
-    card._setOverrideEnd('climate.salon', new Date('2026-10-12T09:00:00+02:00'));
+    openOverride(card, 'climate.salon');
+    // The end moved from 11:30 to 09:00 with ↓ on its minutes, before now
+    const end = $(card, '.override-ed input.time[data-override-end]');
+    end.focus();
+    end.setSelectionRange(end.value.length, end.value.length);
+    for (let i = 0; i < 10; i++) pressKey(end, 'ArrowDown');
+    assert.equal(end.value, '09:00');
+    end.blur();
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T08:15:00.000Z');
   });
 
   test('"Reprendre le planning" removes the override', () => {
     const hass = fakeHass({ overrides: { 'climate.salon': override } });
     const card = createCard(hass);
-    card._overrideSel = { climate: 'climate.salon', day: 0 };
-    card._action('override-del', {});
+    openOverride(card, 'climate.salon');
+    act(card, 'override-del');
     assert.deepEqual(hass.events.at(-1), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 });

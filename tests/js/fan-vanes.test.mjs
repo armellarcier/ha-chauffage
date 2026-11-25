@@ -2,9 +2,9 @@
 // value, and "Copy from the thermostat", which fills the popover of a preset's value from the
 // thermostat's current state.
 import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { act, copyDay, day, openSlot, redraw, settle } from './driver.mjs';
 
 const $ = (el, selector) => el.shadowRoot.querySelector(selector);
 const $$ = (el, selector) => [...el.shadowRoot.querySelectorAll(selector)];
@@ -12,7 +12,6 @@ const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
 const click = (el, selector) => $(el, selector).click();
 const change = (el, value) => { el.value = value; el.dispatchEvent(new window.Event('change', { bubbles: true })); };
 const lastCall = (hass) => hass.events.at(-1);
-const day = (card, climate, d) => serializeDay(card._week(climate)[d]);
 const QUIET = ['00:00 eco', ['14:00', 'comfort', { fan_mode: '1', swing_mode: 'swing' }], '20:00 eco'];
 const AC = { friendly_name: 'Atelier', current_temperature: 24, temperature: 20, preset_mode: 'comfort', preset_modes: ['eco', 'comfort', 'away', 'boost'],
   hvac_modes: ['off', 'heat', 'cool', 'fan_only'], fan_modes: ['auto', '1', '2', '3'], swing_modes: ['auto', '1_up', 'swing'], swing_horizontal_modes: ['auto', 'split'],
@@ -35,7 +34,7 @@ function setup({ weeks, mappings, locale, atelier = {} } = {}) {
   return hass;
 }
 const cardOf = (hass, config = {}) => createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config });
-const select = (card, climate, d, idx) => { card._sel = { climate, day: d, idx }; card._render(); };
+const select = (card, climate, d, idx) => openSlot(card, climate, idx, d);
 
 afterEach(() => cleanup());
 
@@ -72,14 +71,16 @@ describe('fan and vanes on a slot', () => {
   });
 
   test('the week shows a mark on the slots that set the fan or the vanes, at any width, and their title says the values', () => {
-    const card = cardOf(setup(), { show: ['climate.atelier'] });
+    const hass = setup();
+    const card = cardOf(hass, { show: ['climate.atelier'] });
     const seg = (idx) => $(card, `.bar[data-climate="climate.atelier"][data-day="0"] .seg[data-idx="${idx}"]`);
     assert.equal(seg(1).querySelector('.t ha-icon.air').getAttribute('icon'), 'mdi:tune-variant');
     assert.match(seg(1).title, /Confort · Chauffe · Ventilateur 1 · Volets Oscillation$/);
     assert.equal(seg(0).querySelector('ha-icon.air'), null);
     // A slot too narrow for its time and its name keeps the marker
-    card._week('climate.atelier')[0] = [{ start: 0, preset: 'eco' }, { start: 840, preset: 'comfort', settings: { fan_mode: '1' } }, { start: 870, preset: 'eco' }];
-    card._render();
+    const NARROW = ['00:00 eco', ['14:00', 'comfort', { fan_mode: '1' }], '14:30 eco'];
+    const { weeks } = integrationData({ weeks: { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.atelier': { Normal: [NARROW, QUIET, QUIET, QUIET, QUIET, WEEKEND, WEEKEND] } } });
+    hass.push({ ...hass.data, weeks, revision: hass.data.revision + 1 });
     assert.equal(text(seg(1)), '');
     assert.ok(seg(1).querySelector('.t.alone ha-icon.air'));
   });
@@ -118,13 +119,13 @@ describe('fan and vanes on a slot', () => {
     const more = $(card, '.editor details.more');
     more.open = true;
     more.dispatchEvent(new window.Event('toggle'));
-    card._render();
+    redraw(card);
     assert.equal($(card, '.editor details.more').open, true);
   });
 
   test('a day copied to a thermostat that lists no fan loses the fan setting', () => {
     const card = cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
-    card._copyDay('climate.atelier', 0, 'others');
+    copyDay(card, 'climate.atelier', 0, 'others');
     assert.equal(day(card, 'climate.salon', 0)[1], '14:00 comfort');
     assert.match(text($(card, '.msg')), /non repris : Ventilateur, Volets$/);
   });
@@ -147,7 +148,8 @@ describe('fan and vanes on a preset\'s value', () => {
     assert.equal($(card, '.cell-ed [data-cell-setting="fan_mode"]').value, '3');
     assert.equal($(card, '.cell-ed [data-cell-setting="swing_mode"] option').textContent, 'Celui du thermostat (Oscillation)');
     change($(card, '.cell-ed [data-cell-setting="swing_mode"]'), '1_up');
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.deepEqual(lastCall(hass).mapping, { comfort: { fan_mode: '3', swing_mode: '1_up' } }, 'with the default setpoint');
     // Folded when nothing is set
     cell(card, 'eco', 'climate.atelier').click();
@@ -183,7 +185,8 @@ describe('Copy from the thermostat, in the popover of a preset\'s value', () => 
     assert.equal($(card, '.cell-ed [data-cell-setting="fan_mode"]').value, '2');
     assert.equal($(card, '.cell-ed details.more').open, true);
     assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false);
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply');
+    await settle();
     assert.deepEqual(lastCall(hass).mapping, { eco: { cool_temperature: 20, fan_mode: '2', swing_mode: 'swing', swing_horizontal_mode: 'auto' } });
   });
 

@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { cleanup, createCard } from './helpers.mjs';
 import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn, valueOn } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { $, $$, change, click, icons, text } from './houses/dom.mjs';
+import { openOverride } from './driver.mjs';
+import { applyCell } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 import * as everyHvacMode from './houses/every-hvac-mode.mjs';
 import * as suiteAndValve from './houses/suite-and-valve.mjs';
@@ -32,7 +34,7 @@ afterEach(() => cleanup());
       click(card, '[data-kind="preset"][data-preset="eco"]');
       assert.equal($(card, '.cell-ed .power'), null);
       assert.doesNotMatch(text($(card, '.cell-ed')), /Marche|Éteint|Fonctionnement/);
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).presets.find((p) => p.id === 'eco'), { id: 'eco', name: 'Éco', color: '#43a047', temperature: 17, cool_temperature: 27 });
     });
 
@@ -46,14 +48,14 @@ afterEach(() => cleanup());
       // The color changed: the cool color follows, and nothing more is stored
       change($(card, '.cell-ed [data-cell-color]'), '#ff0000');
       assert.equal(cool().value, derivedCoolColor('#ff0000'));
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).presets.find((p) => p.id === 'eco'), { id: 'eco', name: 'Éco', color: '#ff0000', temperature: 17, cool_temperature: 27 });
       // A cool color of the user's own is stored, and no longer follows the color
       click(card, '[data-kind="preset"][data-preset="eco"]');
       change(cool(), '#004488');
       change($(card, '.cell-ed [data-cell-color]'), '#00ff00');
       assert.equal(cool().value, '#004488');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).presets.find((p) => p.id === 'eco'), { id: 'eco', name: 'Éco', color: '#00ff00', temperature: 17, cool_temperature: 27, cool_color: '#004488' });
     });
 
@@ -62,12 +64,12 @@ afterEach(() => cleanup());
       hass.data.presets = hass.data.presets.map((p) => (p.id === 'eco' ? { ...p, cool_color: '#004488' } : p));
       const card = open(hass);
       click(card, '[data-kind="preset"][data-preset="comfort"]');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal(lastCall(hass).presets.find((p) => p.id === 'eco').cool_color, '#004488');
       click(card, '[data-kind="preset"][data-preset="eco"]');
       assert.equal($(card, '.cell-ed [data-cell-cool-color]').value, '#004488');
       change($(card, '.cell-ed [data-cell-cool-color]'), derivedCoolColor('#43a047'));
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal('cool_color' in lastCall(hass).presets.find((p) => p.id === 'eco'), false);
     });
 
@@ -86,7 +88,7 @@ afterEach(() => cleanup());
       assert.equal($(card, '.cell-ed [data-cell-hvac]'), null);
       assert.doesNotMatch(text($(card, '.cell-ed')), /Personnalisé|Cochez|Fonctionnement|En chauffe|En clim/);
       assert.ok($(card, '.cell-ed [data-act="capture"]'), 'Copy from the thermostat stays here');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false, 'the default: nothing stored');
     });
 
@@ -96,18 +98,18 @@ afterEach(() => cleanup());
       cell(card, 'comfort', 'climate.salon').click();
       change($(card, '.cell-ed [data-cell-preset]'), 'boost');
       assert.deepEqual(rows(card), ['Par défaut (son préréglage Confort, 20°)', 'Son préréglage ✓', 'Température']);
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass), { type: 'chauffage/mapping/set', entity_id: 'climate.salon', mapping: { comfort: { preset_mode: 'boost' } } });
       cell(card, 'comfort', 'climate.salon').click();
       click(card, '.cell-ed [data-act="cell-step"][data-delta="0.5"]');
       assert.deepEqual(rows(card), ['Par défaut (son préréglage Confort, 20°)', 'Son préréglage', 'Température ✓']);
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).mapping, { comfort: { temperature: 20.5 } }, 'a temperature, not a preset and a temperature');
       // Its own preset of the same name, chosen by hand, is the default
       cell(card, 'comfort', 'climate.salon').click();
       choose(card, 'own');
       hass.events.length = 0;
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal(hass.events.length, 0);
     });
 
@@ -123,7 +125,7 @@ afterEach(() => cleanup());
       assert.deepEqual(rows(card).map((r) => r.endsWith('✓')), [false, false, true]);
       assert.equal($(card, '.cell-ed [data-cell-temp]').value, '19,5');
       choose(card, 'default');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).mapping, { eco: { preset_mode: 'frost' } });
       assert.equal($(card, '.cell-ed'), null);
     });
@@ -137,18 +139,19 @@ afterEach(() => cleanup());
       assert.equal($(card, '.cell-ed [data-cell-cool]').value, '');
       // A cooling temperature with the default when heating
       type(card, '[data-cell-cool]', '25,5');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).mapping, { comfort: { cool_temperature: 25.5 } });
       // And with a temperature when heating
       cell(card, 'comfort', 'climate.atelier').click();
       type(card, '[data-cell-temp]', '20');
       click(card, '.cell-ed .pv-cool [data-act="cell-step"][data-delta="0.5"]'); // an empty field starts from 25°, never from the heating temperature
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).mapping, { comfort: { temperature: 20, cool_temperature: 25.5 } });
     });
 
     test('an empty cooling field says what the thermostat gets when cooling', () => {
-      const card = open(setup());
+      const hass = setup();
+      const card = open(hass);
       const note = () => $(card, '.cell-ed .pv-cooldefault');
       cell(card, 'comfort', 'climate.atelier').click(); // the default is its own preset: sent when cooling too
       assert.equal(text(note()), 'Par défaut (son préréglage Confort)');
@@ -163,7 +166,7 @@ afterEach(() => cleanup());
       cell(card, 'frost', 'climate.atelier').click(); // frost protection has no temperature when cooling
       assert.equal(text(note()), 'Pas utilisé en clim');
       // A thermostat without a preset of its own: the preset's temperature when cooling
-      card._hass.states['climate.atelier'].attributes.preset_modes = [];
+      hass.states['climate.atelier'].attributes.preset_modes = [];
       cell(card, 'comfort', 'climate.atelier').click();
       assert.equal(text(note()), 'Par défaut (25°)');
     });
@@ -180,7 +183,7 @@ afterEach(() => cleanup());
       assert.equal($(card, '.cell-ed [data-cell-cool]').value, '25');
       assert.equal($(card, '.cell-ed input[name="cell-cool-choice"]:checked').value, 'temperature');
       click(card, '.cell-ed input[name="cell-cool-choice"][value="default"]');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).mapping, { comfort: { temperature: 20 } });
     });
 
@@ -189,7 +192,7 @@ afterEach(() => cleanup());
       const card = open(hass);
       cell(card, 'comfort', 'climate.salon').click();
       type(card, '[data-cell-temp]', 'chaud');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal(hass.events.length, 0);
       assert.ok($(card, '.cell-ed'));
     });
@@ -203,11 +206,11 @@ afterEach(() => cleanup());
       assert.equal(field.value, '8,5');
       assert.equal(field.getAttribute('inputmode'), 'decimal');
       field.value = '9,5';
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 9.5 } });
       cell(card, 'frost', 'climate.salon').click();
       $(card, '.cell-ed [data-cell-temp]').value = '10.5';
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 10.5 } });
     });
 
@@ -241,14 +244,14 @@ afterEach(() => cleanup());
       const cool = $(card, '.cell-ed [data-cell-cool]');
       assert.equal(cool.value, '25');
       cool.value = '26,5';
-      await card._action('cell-apply', {});
+      await applyCell(card);
       const saved = () => Object.fromEntries(hass.events.at(-1).presets.map((p) => [p.id, p]));
       assert.equal(saved().comfort.cool_temperature, 26.5);
       assert.equal(saved().frost.cool_temperature, undefined);
       // Boost is in no week: its temperature when cooling can be cleared
       click(card, '[data-kind="preset"][data-preset="boost"]');
       $(card, '.cell-ed [data-cell-cool]').value = '';
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal('cool_temperature' in saved().boost, false);
       assert.equal(saved().boost.temperature, 21);
     });
@@ -258,7 +261,7 @@ afterEach(() => cleanup());
       const card = panel(hass);
       click(card, '[data-kind="preset"][data-preset="boost"]');
       $(card, '.cell-ed [data-cell-temp]').value = '';
-      await card._action('cell-apply', {});
+      await applyCell(card);
       const boost = hass.events.at(-1).presets.find((p) => p.id === 'boost');
       assert.deepEqual([boost.temperature, boost.cool_temperature], [null, 23]);
     });
@@ -355,7 +358,7 @@ afterEach(() => cleanup());
       click(card, '.cell-ed .pv-cool [data-act="cell-step"][data-dir="1"]');
       assert.equal($(card, '.cell-ed [data-cell-cool]').value, '26');
       assert.deepEqual(coolRows(card).map((r) => r.endsWith('✓')), [false, true]);
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(hass.events.at(-1).mapping, { comfort: { cool_temperature: 26 } });
     });
 
@@ -374,7 +377,7 @@ afterEach(() => cleanup());
       const field = $(card, '.cell-ed [data-cell-temp]');
       field.value = '19,4';
       field.dispatchEvent(new window.Event('input', { bubbles: true }));
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(hass.events.at(-1).mapping, { comfort: { temperature: 19 } });
     });
 
@@ -385,7 +388,7 @@ afterEach(() => cleanup());
       cell(card, SUITE, 'comfort');
       assert.deepEqual(coolRows(card).map((r) => r.endsWith('✓')), [false, true]);
       click(card, '.cell-ed input[name="cell-cool-choice"][value="default"]');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(hass.events.at(-1).mapping, {});
     });
 
@@ -407,13 +410,13 @@ afterEach(() => cleanup());
       const before = hass.events.length;
       click(card, '[data-kind="preset"][data-preset="comfort"]');
       $(card, '.cell-ed [data-cell-cool]').value = '';
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal(hass.events.length, before, 'nothing is sent');
       assert.equal(text($(card, '.cell-ed .pv-error')), 'Utilisé en clim dans un planning : gardez une température.');
       // Boost is in no week
       click(card, '[data-kind="preset"][data-preset="boost"]');
       $(card, '.cell-ed [data-cell-cool]').value = '';
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.equal(hass.events.at(-1).type, 'chauffage/presets/set');
     });
 
@@ -441,7 +444,7 @@ afterEach(() => cleanup());
     const clear = async (card, field) => {
       if (!$(card, '.cell-ed')) click(card, '[data-kind="preset"][data-preset="eco"]');
       $(card, `.cell-ed [${field}]`).value = '';
-      await card._action('cell-apply', {});
+      await applyCell(card);
     };
 
     test('with one of the thermostat\'s own presets as the value: a range needs both temperatures', async () => {
@@ -473,9 +476,7 @@ afterEach(() => cleanup());
       const offered = (climate) => { select(card, climate, 0); return $$(card, '.editor .presets [data-act="preset"]').map((b) => b.dataset.preset); };
       assert.ok(offered(COMBLES).includes('frost'));
       assert.ok(!offered(SUITE).includes('frost'));
-      card._overrideSel = { climate: COMBLES, create: true };
-      card._sel = null;
-      card._render();
+      openOverride(card, COMBLES);
       assert.ok($(card, '.override-ed [data-act="override-preset"][data-preset="frost"]'));
     });
   });
@@ -617,7 +618,7 @@ afterEach(() => cleanup());
       field.value = '28';
       field.dispatchEvent(new window.Event('input', { bubbles: true }));
       assert.equal($(card, '.cell-ed input[name="cell-choice"]:checked').value, 'cool', 'typing a temperature chooses its row');
-      await card._action('cell-apply', {});
+      await applyCell(card);
       assert.deepEqual(hass.events.at(-1).mapping, { comfort: { cool_temperature: 26 }, frost: { cool_temperature: 28 } });
     });
 
@@ -648,7 +649,7 @@ afterEach(() => cleanup());
       const wrap = $(card, '.table-wrap');
       Object.defineProperty(wrap, 'scrollWidth', { value: 600, configurable: true });
       Object.defineProperty(wrap, 'clientWidth', { value: 340, configurable: true });
-      card._tableCue();
+      wrap.dispatchEvent(new window.Event('scroll'));
       assert.ok(wrap.parentElement.classList.contains('more-right') && !wrap.parentElement.classList.contains('more-left'));
       wrap.scrollLeft = 260;
       wrap.dispatchEvent(new window.Event('scroll'));

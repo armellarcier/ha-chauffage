@@ -3,6 +3,8 @@
 import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { redraw } from './driver.mjs';
+import { saveRules, tryRulesAtOnce } from './driver.mjs';
 
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 const $$ = (card, selector) => [...card.shadowRoot.querySelectorAll(selector)];
@@ -15,9 +17,7 @@ function withRules({ rules = [RED, WHITE], results = [false, true], def = 'norma
 
 function openRules(hass) {
   const card = createCard(hass, { view: 'rules' }); // the page of the Chauffage panel
-  card._previewDelay = 0; // rules being typed are tried at once
-  card._previewKey = null; // the first try again, without its delay
-  card._render();
+  tryRulesAtOnce(card); // rules being typed are tried at once
   return card;
 }
 
@@ -84,7 +84,7 @@ describe('editing the rules', () => {
     type($(card, '.rule textarea'), RED.template);
     pick($(card, '.rule select[data-rule-schedule]'), 'away');
     pick($(card, 'select[data-rules-default]'), 'normal');
-    await card._action('rules-save', {});
+    await saveRules(card);
     assert.deepEqual(sent(hass), [{ type: 'chauffage/rules/set', rules: [RED], default_schedule: 'normal' }]);
   });
 
@@ -92,7 +92,7 @@ describe('editing the rules', () => {
     const hass = fakeHass({ data: withRules() });
     const card = openRules(hass);
     pick($(card, 'select[data-rules-default]'), '');
-    await card._action('rules-save', {});
+    await saveRules(card);
     assert.equal(sent(hass)[0].default_schedule, null);
   });
 
@@ -102,7 +102,7 @@ describe('editing the rules', () => {
     $$(card, '[data-act="rule-up"]')[1].click();
     assert.equal($$(card, '.rule textarea')[0].value, WHITE.template);
     $$(card, '[data-act="rule-delete"]')[1].click();
-    await card._action('rules-save', {});
+    await saveRules(card);
     assert.deepEqual(sent(hass)[0].rules, [WHITE]);
   });
 
@@ -110,7 +110,7 @@ describe('editing the rules', () => {
     const hass = fakeHass({ data: withRules() });
     const card = openRules(hass);
     $(card, '[data-act="rule-add"]').click();
-    await card._action('rules-save', {});
+    await saveRules(card);
     assert.deepEqual(sent(hass)[0].rules, [RED, WHITE]);
   });
 
@@ -134,7 +134,7 @@ describe('editing the rules', () => {
     const hass = fakeHass({ data: withRules(), reply: () => { throw { message: 'invalid template: oops' }; } });
     const card = openRules(hass);
     type($$(card, '.rule textarea')[0], '{{ oops');
-    await card._action('rules-save', {});
+    await saveRules(card);
     assert.match($(card, '.msg').textContent, /oops/);
     assert.equal($$(card, '.rule textarea')[0].value, '{{ oops');
   });
@@ -143,7 +143,7 @@ describe('editing the rules', () => {
     const hass = fakeHass({ data: withRules() });
     const card = openRules(hass);
     type($$(card, '.rule textarea')[0], '{{ true }}');
-    await card._action('rules-save', {});
+    await saveRules(card);
     hass.push(withRules({ rules: [{ template: '{{ true }}', schedule: 'away' }, WHITE], results: [true, true] }));
     assert.match($$(card, '.rule-state')[0].textContent, /vrai/i);
     assert.ok(!$(card, '[data-act="rules-cancel"]'), 'nothing left to cancel');
@@ -169,7 +169,7 @@ describe('editing the rules', () => {
   test('once saved, the save button says there is nothing left to save (#16)', async () => {
     const card = openRules(fakeHass({ data: withRules() }));
     type($$(card, '.rule textarea')[0], '{{ true }}');
-    await card._action('rules-save', {});
+    await saveRules(card);
     assert.ok($(card, '[data-act="rules-save"]').disabled);
     assert.match($(card, '.msg').textContent, /Enregistré/);
   });
@@ -258,7 +258,7 @@ describe('a template that gives the schedule', () => {
     const select = $(card, '.rule select[data-rule-schedule]');
     assert.match(select.options[0].textContent, /donné par le template/);
     pick(select, '');
-    await card._action('rules-save', {});
+    await saveRules(card);
     assert.deepEqual(sent(hass)[0].rules, [{ template: TEMPO, schedule: null }]);
   });
 
@@ -310,7 +310,7 @@ describe('in Home Assistant, where ha-card shows its content asynchronously', ()
       const area = $$(card, '.rule textarea')[1];
       area.focus();
       area.setSelectionRange(4, 4);
-      card._render();
+      redraw(card);
       await new Promise((resolve) => setTimeout(resolve, 5));
       const now = card.shadowRoot.activeElement;
       assert.equal(now && now.dataset.ruleTemplate, '1');

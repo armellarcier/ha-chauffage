@@ -150,3 +150,167 @@ export async function save(card) {
  */
 export const redraw = (card) => card._render();
 
+// ----- more of the week -----
+
+/** The row of a thermostat that shows a day of the week: its first day, as the days may be grouped. */
+export const rowOf = (card, climate, d) => Math.max(...$$(card, `.bar[data-climate="${climate}"]`)
+  .map((bar) => Number(bar.dataset.day)).filter((first) => first <= d));
+
+/** The rows of the week, by the names of their days, for example `['Lun–Ven', 'Sam, Dim']`. */
+export const rows = (card) => $$(card, '.dgroup .day').map((el) => el.textContent);
+
+/** A thermostat's whole week, as the card would save it: its 7 days (see `day()`). */
+export const wholeWeek = (card, climate, schedule) => [0, 1, 2, 3, 4, 5, 6].map((d) => day(card, climate, d, schedule));
+
+/**
+ * Gives the slot whose popover is open a preset: a tap on the preset in the popover.
+ * Internal: the popover of an air conditioner's off or fan-only slot shows no presets, and the
+ * card still gives such a slot a preset, in the HVAC mode of the slot before it.
+ */
+export function slotPreset(card, preset) {
+  const chip = $(card, `.editor [data-act="preset"][data-preset="${preset}"]`);
+  if (chip) chip.click();
+  else card._action('preset', { preset });
+}
+
+/** Pastes the day copied (see `copyDay`) on a row, from the row's menu. */
+export function pasteDay(card, climate, d) {
+  openMenu(card, climate, d);
+  act(card, 'paste-day', { climate, day: d });
+}
+
+/**
+ * Sets every slot of a thermostat's week to heat or to cool (`mode`), with "All heat" or
+ * "All cool" in the menu of its first row.
+ */
+export function weekHvac(card, climate, mode) {
+  const first = Number($$(card, `.bar[data-climate="${climate}"]`)[0].dataset.day);
+  openMenu(card, climate, first);
+  act(card, 'week-hvac', { climate, mode });
+}
+
+/**
+ * Places the open popover, as the card does a frame after it draws, from the sizes the test gave
+ * to the card, the row and the popover.
+ * Internal: the card waits for frames the simulated browser doesn't paint, and jsdom measures nothing.
+ */
+export const placePopover = (card) => card._placeEditor();
+
+/**
+ * Asks the card to save its weeks, as its Save button does, even when the card shows no Save
+ * button. Resolves to true once saved.
+ * Internal: checks that the card refuses a save that the access level forbids, without a button.
+ */
+export const trySave = (card) => card._save();
+
+// ----- the thermostats and the schedules shown -----
+
+/** The thermostats of the card, in the order of their chips. */
+export const thermostats = (card) => $$(card, '.chip[data-climate]').map((chip) => chip.dataset.climate);
+
+/** The thermostats shown: their chips are on. */
+export const shown = (card) => $$(card, '.chip.on[data-climate]').map((chip) => chip.dataset.climate);
+
+/**
+ * The schedule a card shows: the id of its tab selected.
+ * Internal: a week alone (a page of the panel) shows no tab, and names its schedule only in the
+ * panel's heading.
+ */
+export function scheduleShown(card) {
+  const tab = $(card, '.tab.on[data-schedule]');
+  return tab ? tab.dataset.schedule : card._schedule;
+}
+
+/**
+ * Opens the menu of the schedule shown, as the panel's ⋮ above the card does, under `button`.
+ * Internal: the button is the panel's, outside the card.
+ */
+export const openScheduleMenuFrom = (card, button = null) => card._scheduleAction('schedule-menu', {}, button);
+
+/**
+ * Scrolls the tabs to the schedule shown, as the card does once on load.
+ * Internal: jsdom has no layout, so a test lays the tabs out by hand after the card is drawn,
+ * then asks for what the card does on load.
+ */
+export function placeTabsAsOnLoad(card) {
+  card._tabsShown = undefined;
+  card._placeTabs(0);
+}
+
+/**
+ * The names of the schedules whose week has changes not saved yet, as the save bar of a
+ * thermostat's sheet lists them: [] when the sheet has no save bar.
+ */
+export function unsavedWeeks(panel) {
+  const bar = $(panel, '.sheet-savebar .dirty');
+  if (!bar) return [];
+  const names = bar.textContent.replace(/\s+/g, ' ').split(':').slice(1).join(':').trim();
+  return names ? names.split(', ') : [];
+}
+
+// ----- the history -----
+
+/** The history is shown: its button is on. */
+export const historyShown = (card) => $$(card, '[data-act="history"].on').length > 0;
+
+/**
+ * A week of the panel shows the history of its days, as the panel's switch asks.
+ * Internal: a week of the panel has no History button, and it draws the history only once the
+ * recorder has answered.
+ */
+export const historyAsked = (card) => card._history.shown;
+
+/**
+ * The measured temperature of a thermostat's day, as the history drew it: pieces of
+ * [minute, temperature] points.
+ * Internal: the DOM draws the curve smoothed, not the temperatures it was drawn from.
+ */
+export const measured = (card, climate, d) => card._history.days[climate][d].current;
+
+// ----- the presets tab and the rules -----
+
+/** Clicks Apply in the popover of a preset or a cell, and waits for the answer of the integration. */
+export async function applyCell(card) {
+  act(card, 'cell-apply');
+  await settle();
+}
+
+/** Clicks Save under the rules, and waits for the answer of the integration. */
+export async function saveRules(card) {
+  act(card, 'rules-save');
+  await settle();
+}
+
+/**
+ * Rules being typed are tried at once, and the rules shown are tried again now.
+ * Internal: the card waits for a pause of 400 ms in the typing, on the real clock.
+ */
+export function tryRulesAtOnce(card) {
+  card._previewDelay = 0;
+  card._previewKey = null;
+  card._render();
+}
+
+// ----- the page and the settings dialog -----
+
+/** Presses Escape: the cards close their menus and popovers. */
+export const escape = () => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+
+/**
+ * Counts the reloads of the page that a card or the panel asks for, from now on: returns a
+ * function that gives the count. The page is not reloaded.
+ * Internal: jsdom can't reload a page.
+ */
+export function watchReloads(el) {
+  let count = 0;
+  el._reloadPage = () => { count += 1; };
+  return () => count;
+}
+
+/**
+ * Draws the settings dialog again, as its timer does 3 seconds after a setting is saved, to take
+ * the "saved" mark away.
+ * Internal: the timer runs on the real clock.
+ */
+export const redrawDialog = (dialog) => dialog._update();
+

@@ -2,9 +2,10 @@
 // that stay apart, and the menus that set every slot to heat or to cool.
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WEEKEND, cleanup } from './helpers.mjs';
+import { WEEKEND, cleanup, typeTime } from './helpers.mjs';
 import { joined, parseDay, serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
-import { $, $$, click, day, icons, rgb, text } from './houses/dom.mjs';
+import { $, $$, click, copyDay, day, doubleTap, icons, openMenu, rgb, save, selected, settle, text, unsaved } from './driver.mjs';
+import { pasteDay, rows, slotPreset, weekHvac } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 import * as weeksBefore91 from './houses/weeks-before-91.mjs';
 import * as suiteAndValve from './houses/suite-and-valve.mjs';
@@ -49,7 +50,7 @@ afterEach(() => cleanup());
     test('days are grouped on one row only when their slots match in full, settings included', () => {
       const plain = ['00:00 eco', '06:30 comfort', '08:30 eco', '17:30 comfort', '21:00 eco'];
       const card = cardOf(setup({ weeks: { 'climate.salon': { Normal: [NIGHT, plain, NIGHT, NIGHT, NIGHT, WEEKEND, WEEKEND] } } }), { show: ['climate.salon'] });
-      assert.deepEqual(card._rows, [[0, 2, 3, 4], [1], [5, 6]]);
+      assert.deepEqual(rows(card), ['Lun, Mer–Ven', 'Mar', 'Sam, Dim']);
     });
 
     test('Save sends a slot with its settings as a third element, and no preset for an off slot', async () => {
@@ -57,38 +58,39 @@ afterEach(() => cleanup());
       const card = cardOf(hass, { show: ['climate.salon'] });
       select(card, 'climate.salon', 0, 1);
       click(card, '.editor [data-act="preset"][data-preset="boost"]');
-      await card._action('save', {});
+      await save(card);
       const sent = hass.events.find((e) => e.type === 'chauffage/weeks/save');
       assert.deepEqual(sent.weeks['climate.salon'].normal[0], [['00:00', 'eco'], ['06:30', 'boost'], ['08:30', 'eco'], ['17:30', 'comfort'], ['21:00', null, OFF]]);
     });
 
     test('a piece cut out of a slot is like it; given a preset, a piece cut out of an off slot or of a fan-only slot takes the HVAC mode of the slot before it', () => {
       const card = cardOf(setup({ atelier: SUMMER }));
-      card._split('climate.salon', 0, 23 * 60); // in 21:00, off
+      doubleTap(card, 'climate.salon', 23 * 60); // in 21:00, off
       assert.deepEqual(day(card, 'climate.salon', 0).slice(4), [`21:00${OFF_SLOT}`, `23:00${OFF_SLOT}`]);
-      card._action('preset', { preset: 'comfort' });
+      click(card, '.editor [data-act="preset"][data-preset="comfort"]');
       assert.deepEqual(day(card, 'climate.salon', 0).slice(4), [`21:00${OFF_SLOT}`, '23:00 comfort']);
-      card._split('climate.atelier', 0, 16 * 60); // in 14:00 comfort, cool
+      doubleTap(card, 'climate.atelier', 16 * 60); // in 14:00 comfort, cool
       assert.deepEqual(day(card, 'climate.atelier', 0).slice(1, 3), ['14:00 comfort {"hvac_mode":"cool"}', '16:00 comfort {"hvac_mode":"cool"}']);
-      card._action('preset', { preset: 'eco' });
-      card._split('climate.atelier', 0, 21 * 60); // in 20:00 fan only, fan 3
+      click(card, '.editor [data-act="preset"][data-preset="eco"]');
+      doubleTap(card, 'climate.atelier', 21 * 60); // in 20:00 fan only, fan 3
       assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 - {"hvac_mode":"fan_only","fan_mode":"3"}']);
-      card._action('preset', { preset: 'comfort' });
+      slotPreset(card, 'comfort');
       assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 comfort {"hvac_mode":"cool","fan_mode":"3"}'],
         'on a preset, in the HVAC mode of the slot before it');
     });
 
     test('a day copied to a thermostat that cannot be turned off loses its off slot, and the message says so', () => {
-      const card = cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
-      card._hass.states['climate.atelier'].attributes.hvac_modes = ['heat', 'cool'];
-      card._copyDay('climate.salon', 0, 'others');
+      const hass = setup();
+      hass.states['climate.atelier'].attributes.hvac_modes = ['heat', 'cool'];
+      const card = cardOf(hass, { show: ['climate.salon', 'climate.atelier'] });
+      copyDay(card, 'climate.salon', 0, 'others');
       assert.deepEqual(day(card, 'climate.atelier', 0).at(-1), '17:30 comfort {"hvac_mode":"heat"}', 'the slot before it goes on');
       assert.match(text($(card, '.msg')), /non repris : Éteint$/);
     });
 
     test('a day copied to a heater loses its cool and its fan-only slots', () => {
       const card = cardOf(setup({ atelier: SUMMER }), { show: ['climate.salon', 'climate.atelier'] });
-      card._copyDay('climate.atelier', 0, 'others');
+      copyDay(card, 'climate.atelier', 0, 'others');
       assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 eco', '14:00 comfort', `23:00${OFF_SLOT}`]);
     });
   });
@@ -102,7 +104,8 @@ afterEach(() => cleanup());
       click(card, '.tab-tool[data-act="schedule-menu"]');
       assert.equal($(card, '.sched-menu [data-act="schedule-hvac"]'), null);
       assert.doesNotMatch(text($(card, '.sched-menu')), /Clims|Celui du thermostat/);
-      await card._action('schedule-move', { dir: '1' });
+      click(card, '.sched-menu [data-act="schedule-move"][data-dir="1"]');
+      await settle();
       assert.deepEqual(lastCall(hass).schedules, [{ id: 'away' }, { id: 'normal' }, { id: 'holiday' }]);
     });
   });
@@ -127,7 +130,7 @@ afterEach(() => cleanup());
       assert.deepEqual(hvacRow(card), ['Chauffe', 'Clim ✓']);
       click(card, '.editor [data-act="slot-mode"][data-mode="cool"]');
       assert.deepEqual(hvacRow(card), ['Chauffe', 'Clim ✓']);
-      assert.equal(card._dirty, false);
+      assert.equal(unsaved(card), false);
       click(card, '.editor [data-act="slot-mode"][data-mode="heat"]');
       assert.deepEqual(hvacRow(card), ['Chauffe ✓', 'Clim']);
       assert.equal(day(card, ATELIER)[1], '14:00 comfort {"hvac_mode":"heat"}');
@@ -164,7 +167,7 @@ afterEach(() => cleanup());
       const hass = setup();
       hass.data.weeks[ATELIER].normal = mixed.map((d) => d.map((s) => (Array.isArray(s) ? s : s.split(' '))));
       const card = cardOf(hass, { group_days: true });
-      assert.deepEqual(card._rows, [[0, 1, 2, 3, 4, 5, 6]]);
+      assert.deepEqual(rows(card), ['Lun–Dim']);
     });
 
     test('an edit writes no HVAC mode on a slot that says none: the slot keeps the one it runs in', () => {
@@ -192,7 +195,7 @@ afterEach(() => cleanup());
 
     test('a cut made in a cooling slot gives two cooling slots', () => {
       const card = cardOf(setup({ atelier: SUMMER }));
-      card._split(ATELIER, 0, 15 * 60);
+      doubleTap(card, ATELIER, 15 * 60);
       assert.deepEqual(day(card, ATELIER).slice(1, 3), ['12:00 comfort {"hvac_mode":"cool"}', '15:00 comfort {"hvac_mode":"cool"}']);
     });
 
@@ -201,7 +204,7 @@ afterEach(() => cleanup());
       select(card, ATELIER, 2);
       click(card, '.editor [data-act="insert"]');
       assert.equal(day(card, ATELIER)[3], '21:15 - {"hvac_mode":"off"}');
-      card._action('preset', { preset: 'comfort' });
+      slotPreset(card, 'comfort');
       assert.equal(day(card, ATELIER)[3], '21:15 comfort {"hvac_mode":"cool"}');
     });
 
@@ -209,7 +212,7 @@ afterEach(() => cleanup());
       const card = cardOf(setup({ atelier: [['00:00', null, OFF], ['12:00', null, FAN]] }));
       select(card, ATELIER, 0);
       click(card, '.editor [data-act="insert"]');
-      card._action('preset', { preset: 'eco' });
+      slotPreset(card, 'eco');
       assert.equal(day(card, ATELIER)[1], '04:00 eco');
       assert.deepEqual(icons(seg(card, ATELIER, 1)), ['mdi:fire']);
     });
@@ -228,29 +231,29 @@ afterEach(() => cleanup());
     test('All cool sets every slot on a preset of the thermostat\'s week, in the schedule shown, and waits for Save', () => {
       const hass = setup({ atelier: MIXED });
       const card = cardOf(hass);
-      card._action('menu', { climate: ATELIER, day: '0' }, $(card, `[data-act="menu"][data-climate="${ATELIER}"]`));
+      openMenu(card, ATELIER, 0);
       assert.deepEqual($$(card, '.menu [data-act^="week-hvac"]').map(text), ['Tout en chauffe', 'Tout en clim']);
       click(card, '.menu [data-act="week-hvac"][data-mode="cool"]');
       for (let d = 0; d < 7; d += 1) {
         assert.deepEqual(day(card, ATELIER, d), ['00:00 eco {"hvac_mode":"cool"}', '12:00 comfort {"hvac_mode":"cool"}',
           '18:00 - {"hvac_mode":"fan_only"}', '20:00 - {"hvac_mode":"off"}']);
       }
-      assert.equal(card._dirty, true);
+      assert.equal(unsaved(card), true);
       assert.equal(hass.events.some((e) => e.type === 'chauffage/weeks/save'), false);
       assert.equal(day(card, SALON)[1], '14:00 comfort');
     });
 
     test('All heat does the opposite', () => {
       const card = cardOf(setup({ atelier: MIXED }));
-      card._action('week-hvac', { climate: ATELIER, mode: 'heat' });
+      weekHvac(card, ATELIER, 'heat');
       assert.equal(day(card, ATELIER, 3)[1], '12:00 comfort {"hvac_mode":"heat"}');
     });
 
     test('the menu of a heater, and of a unit that only cools, has no such item', () => {
       const card = cardOf(setup(), { show: [SALON, COMBLES] });
       for (const climate of [SALON, COMBLES]) {
-        card._menu = null;
-        card._action('menu', { climate, day: '0' }, $(card, `[data-act="menu"][data-climate="${climate}"]`));
+        openMenu(card, climate, 0);
+        assert.ok($(card, `.menu [data-act="copy-day"][data-climate="${climate}"]`), 'the menu of this thermostat is open');
         assert.equal($$(card, '.menu [data-act="week-hvac"]').length, 0);
       }
     });
@@ -260,7 +263,7 @@ afterEach(() => cleanup());
       hass.locale = { ...hass.locale, language: 'en' };
       hass.language = 'en';
       const card = cardOf(hass);
-      card._action('menu', { climate: ATELIER, day: '0' }, $(card, `[data-act="menu"][data-climate="${ATELIER}"]`));
+      openMenu(card, ATELIER, 0);
       assert.deepEqual($$(card, '.menu [data-act="week-hvac"]').map(text), ['All heat', 'All cool']);
       select(card, ATELIER, 1);
       assert.deepEqual(hvacRow(card), ['Heat ✓', 'Cool']);
@@ -284,7 +287,7 @@ afterEach(() => cleanup());
       select(card, SUITE, 2, 3);
       mode(card, 'fan_only');
       assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`, `20:30 ${FAN}`]);
-      assert.deepEqual(card._sel, { climate: SUITE, day: 3, idx: 2 });
+      assert.deepEqual(selected(card), { climate: SUITE, day: 3, idx: 2 });
       assert.equal($$(card, `.bar[data-climate="${SUITE}"][data-day="3"] .seg`).length, 3);
       mode(card, 'cool');
       assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`, '20:30 comfort {"hvac_mode":"cool"}']);
@@ -304,8 +307,11 @@ afterEach(() => cleanup());
       mode(card, 'fan_only');
       select(card, SUITE, 0, 3);
       assert.deepEqual(day(card, SUITE, 3).slice(1), [`17:00 ${FAN}`, `20:30 ${FAN}`]);
-      assert.deepEqual(card._sel, { climate: SUITE, day: 3, idx: 0 });
-      assert.equal(card._trial, null);
+      assert.deepEqual(selected(card), { climate: SUITE, day: 3, idx: 0 });
+      // Opened again, the slot set to Cool takes the preset of a slot near it, not Comfort
+      select(card, SUITE, 2, 3);
+      mode(card, 'cool');
+      assert.equal(day(card, SUITE, 3)[2], '20:30 eco {"hvac_mode":"cool"}');
     });
 
     test('the two slots are saved as two', async () => {
@@ -313,7 +319,7 @@ afterEach(() => cleanup());
       const card = cardOf(hass);
       select(card, SUITE, 2, 3);
       mode(card, 'fan_only');
-      await card._save();
+      await save(card);
       assert.equal(hass.events.at(-1).weeks[SUITE].normal[3].length, 3);
       assert.equal(day(card, SUITE, 3).length, 3);
     });
@@ -350,7 +356,7 @@ afterEach(() => cleanup());
       const card = cardOf(hass);
       select(card, SALON, 1);
       click(card, '.editor [data-act="preset"][data-preset="eco"]');
-      await card._save();
+      await save(card);
       assert.deepEqual(hass.events.at(-1).weeks[SALON].normal[0], [['00:00', 'eco'], ['14:00', 'eco'], ['20:00', 'frost']]);
       assert.equal(day(card, SALON).length, 3);
     });
@@ -378,7 +384,7 @@ afterEach(() => cleanup());
 
     test('a day copied to a thermostat that cannot follow its slots joins the slots that end up alike', () => {
       const card = cardOf(setup({ suite: ['00:00 eco', ['14:00', 'eco', { hvac_mode: 'cool' }]] }), { show: [SALON, SUITE] });
-      card._copyDay(SUITE, 0, 'others');
+      copyDay(card, SUITE, 0, 'others');
       assert.deepEqual(day(card, SALON), ['00:00 eco']);
     });
   });
@@ -389,7 +395,7 @@ afterEach(() => cleanup());
       const card = cardOf(setup());
       doubleTap(card, SALON, 6 * 60);
       assert.deepEqual(day(card, SALON), ['00:00 eco', '06:00 eco', '14:00 comfort', '20:00 frost']);
-      assert.deepEqual(card._sel, { climate: SALON, day: 0, idx: 1 });
+      assert.deepEqual(selected(card), { climate: SALON, day: 0, idx: 1 });
       assert.ok($(card, '.editor [data-act="preset"][data-preset="eco"].on'));
     });
 
@@ -412,7 +418,7 @@ afterEach(() => cleanup());
       doubleTap(card, SALON, 6 * 60);
       select(card, SALON, 3);
       assert.deepEqual(day(card, SALON), DAY);
-      assert.deepEqual(card._sel, { climate: SALON, day: 0, idx: 2 });
+      assert.deepEqual(selected(card), { climate: SALON, day: 0, idx: 2 });
     });
 
     test('the piece given a preset stays', () => {
@@ -428,7 +434,7 @@ afterEach(() => cleanup());
       const card = cardOf(hass);
       doubleTap(card, SALON, 6 * 60);
       const before = hass.events.length;
-      await card._save();
+      await save(card);
       assert.equal(hass.events.length, before, 'nothing changed: nothing is sent');
       assert.deepEqual(day(card, SALON), DAY);
     });
@@ -438,7 +444,7 @@ afterEach(() => cleanup());
       select(card, SALON, 0); // 00:00 → 14:00 eco
       click(card, '.editor [data-act="insert"]');
       assert.deepEqual(day(card, SALON).slice(0, 4), ['00:00 eco', '04:45 eco', '09:15 eco', '14:00 comfort']);
-      assert.equal(card._sel.idx, 1);
+      assert.equal(selected(card).idx, 1);
       click(card, '.editor [data-act="preset"][data-preset="comfort"]');
       click(card, '.editor [data-act="close"]');
       assert.deepEqual(day(card, SALON).slice(0, 4), ['00:00 eco', '04:45 comfort', '09:15 eco', '14:00 comfort']);
@@ -480,9 +486,7 @@ afterEach(() => cleanup());
       doubleTap(card, SALON, 6 * 60);
       click(card, '.tab[data-schedule="away"]');
       for (let d = 0; d < 7; d += 1) assert.deepEqual(day(card, SALON, d, 'normal'), DAY);
-      const before = hass.events.length;
-      await card._save();
-      assert.equal(hass.events.length, before, 'no day was left cut: nothing to save');
+      assert.equal(unsaved(card), false, 'no day was left cut: nothing to save');
     });
 
     test('a slot tried in another schedule keeps its change on every day of its row', async () => {
@@ -491,7 +495,7 @@ afterEach(() => cleanup());
       select(card, SALON, 1);
       click(card, '.editor [data-act="preset"][data-preset="eco"]');
       click(card, '.tab[data-schedule="away"]');
-      await card._save();
+      await save(card);
       const saved = hass.events.at(-1).weeks[SALON].normal;
       for (let d = 0; d < 7; d += 1) assert.deepEqual(saved[d], [['00:00', 'eco'], ['14:00', 'eco'], ['20:00', 'frost']]);
     });
@@ -546,7 +550,7 @@ afterEach(() => cleanup());
     test('joins its slot again when it is left like its slot: a start typed', () => {
       const card = cardOf(setup());
       doubleTap(card, SALON, 6 * 60);
-      card._setEdge('start', 7 * 60, { climate: SALON, day: 0, idx: 1 });
+      typeTime($(card, '.editor input.time[data-edge="start"]'), '07:00');
       assert.deepEqual(day(card, SALON), ['00:00 eco', '07:00 eco', '14:00 comfort', '20:00 frost']);
       click(card, '.editor [data-act="close"]');
       assert.deepEqual(day(card, SALON), DAY);
@@ -575,10 +579,10 @@ afterEach(() => cleanup());
 
     test('switch the heating and the cooling slots, and leave the others as they are', () => {
       const card = cardOf(setup({ suite: MIXED }), { show: [SUITE] });
-      card._setWeekHvac(SUITE, 'cool');
+      weekHvac(card, SUITE, 'cool');
       assert.deepEqual(day(card, SUITE), ['00:00 eco {"hvac_mode":"cool"}', '06:00 comfort {"hvac_mode":"heat_cool"}', '09:00 - {"hvac_mode":"dry"}',
         '12:00 comfort {"hvac_mode":"cool"}', '18:00 - {"hvac_mode":"auto"}', '20:00 - {"hvac_mode":"fan_only"}', '22:00 - {"hvac_mode":"off"}']);
-      card._setWeekHvac(SUITE, 'heat');
+      weekHvac(card, SUITE, 'heat');
       assert.equal(day(card, SUITE)[1], '06:00 comfort {"hvac_mode":"heat_cool"}');
       assert.equal(day(card, SUITE)[3], '12:00 comfort {"hvac_mode":"heat"}');
     });
@@ -595,22 +599,22 @@ afterEach(() => cleanup());
 
     test('the message names what was left out', () => {
       const card = cardOf(setup({ atelier: SUMMER }), { show: [ATELIER, SALON] });
-      card._action('copy-day', { climate: ATELIER, day: '0' });
-      card._action('paste-day', { climate: SALON, day: '0' });
+      copyDay(card, ATELIER, 0);
+      pasteDay(card, SALON, 0);
       assert.deepEqual(day(card, SALON), ['00:00 eco', '12:00 comfort', '22:00 - {"hvac_mode":"off"}']);
       assert.match(text($(card, '.msg')), / · non repris : Clim, Ventilation, Ventilateur$/);
     });
 
     test('a heating slot pasted to a unit that only cools cools, and the message says so', () => {
       const card = cardOf(setup({ atelier: ['00:00 eco', ['12:00', 'comfort', { hvac_mode: 'heat' }]] }), { show: [ATELIER, COMBLES] });
-      card._copyDay(ATELIER, 0, 'others');
+      copyDay(card, ATELIER, 0, 'others');
       assert.deepEqual(day(card, COMBLES), ['00:00 eco {"hvac_mode":"cool"}', '12:00 comfort {"hvac_mode":"cool"}']);
       assert.match(text($(card, '.msg')), / · non repris : Chauffe$/);
     });
 
     test('nothing left out: nothing said', () => {
       const card = cardOf(setup(), { show: [ATELIER, SALON] });
-      card._copyDay(SALON, 0, 'others');
+      copyDay(card, SALON, 0, 'others');
       assert.doesNotMatch(text($(card, '.msg')), /non repris/);
     });
   });

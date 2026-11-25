@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { cleanup } from './helpers.mjs';
 import { CHIP_STYLE, derivedCoolColor } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 import { $, $$, change, click, rgb, text } from './houses/dom.mjs';
+import { openOverride as showOverride, redraw } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 import * as everyHvacMode from './houses/every-hvac-mode.mjs';
 import * as weeksBefore91 from './houses/weeks-before-91.mjs';
@@ -237,7 +238,8 @@ afterEach(() => cleanup());
       // Unfolded, it stays so when the block is drawn again
       fold.open = true;
       fold.dispatchEvent(new window.Event('toggle'));
-      block._render();
+      hass.states['climate.salon'] = { ...hass.states['climate.salon'], last_updated: '2' }; // a new state from Home Assistant
+      tc.hass = hass;
       assert.equal($(block, '.status details.change').open, true);
       // In the more-info dialog, everything shows
       assert.equal($(moreInfo(hass), '.status details.change'), null);
@@ -261,8 +263,7 @@ afterEach(() => cleanup());
       const hass = setup({ planned: { 'climate.salon': planned } });
       const card = cardOf(hass, { show: ['climate.salon'] });
       hass.push({ ...hass.data, ...settings });
-      card._overrideSel = { climate: 'climate.salon', create: true };
-      card._render();
+      showOverride(card, 'climate.salon');
       click(card, '.override-ed [data-act="override-off"]');
       return lastCall(hass).override;
     };
@@ -299,10 +300,11 @@ afterEach(() => cleanup());
   });
 
   describe('the end "until tomorrow" of an off override is the next morning', () => {
+    let hass;
     const offOverride = { target: OFF, start: '2026-10-18T01:00:00+02:00', end: '2026-10-18T03:00:00+02:00' };
     const open = (planned, at, override = offOverride) => {
       mock.timers.enable({ apis: ['Date'], now: new Date(at) });
-      const hass = setup({ overrides: { 'climate.salon': override }, planned: { 'climate.salon': { preset: 'eco', hvac_mode: null, next_preset: 'comfort', ...planned } } });
+      hass = setup({ overrides: { 'climate.salon': override }, planned: { 'climate.salon': { preset: 'eco', hvac_mode: null, next_preset: 'comfort', ...planned } } });
       const card = cardOf(hass, { show: ['climate.salon'] });
       click(card, '.override[data-climate="climate.salon"]');
       return card;
@@ -315,8 +317,8 @@ afterEach(() => cleanup());
       const button = $(card, '.override-ed [data-act="override-tomorrow"]');
       assert.equal(text(button), 'Jusqu\'à demain 06:30');
       button.click();
-      assert.equal(lastCall(card._hass).override.end, '2026-10-13T06:30:00+02:00');
-      assert.equal(lastCall(card._hass).override.ends_at, undefined);
+      assert.equal(lastCall(hass).override.end, '2026-10-13T06:30:00+02:00');
+      assert.equal(lastCall(hass).override.ends_at, undefined);
     });
 
     test('not on an override that heats, nor when the override already ends then', () => {
@@ -352,7 +354,7 @@ afterEach(() => cleanup());
 
   describe('an override has the same two rows', () => {
     const sent = (hass) => hass.events.at(-1).override;
-    const open = (hass) => { const card = cardOf(hass); card._overrideSel = { climate: SUITE, create: true }; card._render(); return card; };
+    const open = (hass) => { const card = cardOf(hass); showOverride(card, SUITE); return card; };
     const PLANNED = { [SUITE]: { preset: 'comfort', hvac_mode: 'heat' } };
 
     test('a new override starts on the HVAC mode planned, with the presets it can use', () => {
@@ -383,8 +385,7 @@ afterEach(() => cleanup());
       const now = Date.now();
       const overrides = { [SUITE]: { target: { hvac_mode: 'dry' }, start: new Date(now - 60000).toISOString(), end: new Date(now + 3600000).toISOString() } };
       const card = cardOf(setup({ overrides, planned: PLANNED }));
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       assert.deepEqual(modeRow(card, '.override-ed').filter((m) => m.endsWith('✓')), ['Déshum. ✓']);
       assert.equal($(card, '.override-ed .presets'), null);
       assert.equal($(card, '.override-ed [data-override-temperature]'), null);
@@ -396,8 +397,7 @@ afterEach(() => cleanup());
       const overrides = { [SUITE]: { target: { hvac_mode: 'heat_cool', target_temp_low: 19, target_temp_high: 24.5 },
         start: new Date(now - 60000).toISOString(), end: new Date(now + 3600000).toISOString() } };
       const card = cardOf(setup({ overrides, planned: PLANNED }));
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       assert.equal(text($(card, '.override-ed .override-value')), 'Chauffe/Clim · 19–24,5 °C');
       assert.equal($(card, '.override-ed [data-override-temperature]'), null);
     });
@@ -409,15 +409,13 @@ afterEach(() => cleanup());
       const hass = setup({ overrides, planned: PLANNED, targets: summer });
       hass.data.presets.push({ id: 'summer', name: 'Été', color: '#123456', temperature: null, cool_temperature: 26 });
       const card = cardOf(hass);
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       assert.deepEqual(presetRow(card, '.override-ed'), ['Éco', 'Confort', 'Boost', 'Été']);
     });
 
     test('a heater keeps one row', () => {
       const card = cardOf(setup(), { show: [SALON] });
-      card._overrideSel = { climate: SALON, create: true };
-      card._render();
+      showOverride(card, SALON);
       assert.equal($(card, '.override-ed .mode-row'), null);
       assert.equal(presetRow(card, '.override-ed')[0], 'Éteint');
     });
@@ -435,7 +433,7 @@ afterEach(() => cleanup());
     const planned = (mode) => ({ [ATELIER]: { preset: 'comfort', hvac_mode: mode }, [COMBLES]: { preset: 'eco', hvac_mode: 'cool' }, [SALON]: { preset: 'eco', hvac_mode: null } });
     const row = (card) => $$(card, '.override-ed .mode-row [data-mode="heat"], .override-ed .mode-row [data-mode="cool"]').map((b) => `${text(b)}${b.getAttribute('aria-pressed') === 'true' || b.classList.contains('default') ? ' ✓' : ''}`); // chosen, or the default of a new override
     const sent = (hass) => hass.events.at(-1).override;
-    const open = (card, climate) => { card._action('override-new', { climate }); };
+    const open = (card, climate) => showOverride(card, climate);
     const change = (el, value) => { el.value = value; el.dispatchEvent(new window.Event('change', { bubbles: true })); };
     beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
     afterEach(() => mock.timers.reset());
@@ -483,8 +481,9 @@ afterEach(() => cleanup());
       const card = cardOf(hass);
       open(card, ATELIER);
       assert.deepEqual(row(card), ['Chauffe', 'Clim ✓']);
-      hass.states[ATELIER].state = 'off';
-      card._render();
+      hass.states[ATELIER] = { ...hass.states[ATELIER], state: 'off' }; // Home Assistant gives a new state
+      card.hass = hass;
+      redraw(card); // the popover follows it on the next full redraw
       assert.deepEqual(row(card), ['Chauffe ✓', 'Clim']);
     });
 
@@ -573,7 +572,7 @@ afterEach(() => cleanup());
   describe('a new override', () => {
     onMondayAtTen();
     const PLANNED = { [SUITE]: { preset: 'comfort', hvac_mode: 'cool', next_slot_end: at('17:30') } };
-    const open = (hass, climate = SUITE) => { const card = cardOf(hass, { show: [climate] }); card._overrideSel = { climate, create: true }; card._render(); return card; };
+    const open = (hass, climate = SUITE) => { const card = cardOf(hass, { show: [climate] }); showOverride(card, climate); return card; };
 
     test('shows the HVAC mode planned as the default, not as chosen', () => {
       const card = open(setup({ planned: PLANNED }));
@@ -601,29 +600,31 @@ afterEach(() => cleanup());
       click(card, '.override-ed [data-act="override-preset"][data-preset="comfort"]');
       assert.deepEqual(sent(hass).target, { temperature: 20 });
       // The temperature typed says none either
-      const typed = open(setup({ planned: { [VANNE]: { preset: 'eco' } } }), VANNE);
+      const typedHass = setup({ planned: { [VANNE]: { preset: 'eco' } } });
+      const typed = open(typedHass, VANNE);
       const field = $(typed, '.override-ed [data-override-temperature]');
       field.value = '21';
       field.dispatchEvent(new window.Event('change', { bubbles: true }));
-      assert.deepEqual(sent(typed._hass).target, { temperature: 21 });
+      assert.deepEqual(sent(typedHass).target, { temperature: 21 });
       // Heat tapped says heat
-      const tapped = open(setup({ planned: { [VANNE]: { preset: 'eco' } } }), VANNE);
+      const tappedHass = setup({ planned: { [VANNE]: { preset: 'eco' } } });
+      const tapped = open(tappedHass, VANNE);
       mode(tapped, 'heat', '.override-ed');
-      assert.equal(sent(tapped._hass).target.hvac_mode, 'heat');
+      assert.equal(sent(tappedHass).target.hvac_mode, 'heat');
     });
 
     test('on a valve running in auto on its schedule, Chauffe tapped takes the preset planned now, not the setpoint shown (#112)', () => {
-      const card = open(setup({ planned: { [VANNE]: { preset: 'eco' } } }), VANNE);
+      const hass = setup({ planned: { [VANNE]: { preset: 'eco' } } });
+      const card = open(hass, VANNE);
       mode(card, 'heat', '.override-ed');
-      assert.deepEqual(sent(card._hass).target, { temperature: 17, hvac_mode: 'heat' });
-      assert.equal(sent(card._hass).preset, 'eco');
+      assert.deepEqual(sent(hass).target, { temperature: 17, hvac_mode: 'heat' });
+      assert.equal(sent(hass).preset, 'eco');
     });
 
     test('an override without an HVAC mode on the valve shows the HVAC mode it runs in', () => {
       const hass = setup({ planned: { [VANNE]: { preset: 'eco' } }, overrides: { [VANNE]: override({ temperature: 20 }, { preset: 'comfort' }) } });
       const card = cardOf(hass, { show: [VANNE] });
-      card._overrideSel = { climate: VANNE };
-      card._render();
+      showOverride(card, VANNE);
       assert.deepEqual(modeRow(card, '.override-ed'), ['Éteint', 'Chauffe', 'Auto ✓']);
       assert.ok($(card, '.override-ed [data-act="override-preset"][data-preset="comfort"].on'));
     });
@@ -637,8 +638,7 @@ afterEach(() => cleanup());
 
     test('in the card: the HVAC mode, the preset, the temperature, then one block for the end', () => {
       const card = cardOf(setup({ planned: PLANNED, overrides: COOL }));
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       const editor = $(card, '.override-ed');
       assert.ok(ascending(order(editor, PARTS)), `${order(editor, PARTS)}`);
       const end = $(card, '.override-ed .end-block');
@@ -657,14 +657,14 @@ afterEach(() => cleanup());
     test('the temperature has a − and a +, on the thermostat\'s step', () => {
       const hass = setup({ planned: PLANNED, overrides: { [SUITE]: override({ temperature: 21, hvac_mode: 'heat' }) }, step: 1 });
       const card = cardOf(hass);
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       assert.equal($(card, '.override-ed .pv-temp [data-override-temperature]').value, '21');
       click(card, '.override-ed .pv-temp [data-act="override-step"][data-dir="1"]');
       assert.deepEqual(sent(hass).target, { temperature: 22, hvac_mode: 'heat' });
-      const el = moreInfo(setup({ planned: PLANNED, overrides: { [SUITE]: override({ temperature: 21, hvac_mode: 'heat' }) } }), SUITE);
+      const blockHass = setup({ planned: PLANNED, overrides: { [SUITE]: override({ temperature: 21, hvac_mode: 'heat' }) } });
+      const el = moreInfo(blockHass, SUITE);
       el.shadowRoot.querySelector('.pv-temp [data-dir="-1"]').click();
-      assert.deepEqual(sent(el._hass).target, { temperature: 20.5, hvac_mode: 'heat' });
+      assert.deepEqual(sent(blockHass).target, { temperature: 20.5, hvac_mode: 'heat' });
     });
   });
 
@@ -741,7 +741,7 @@ afterEach(() => cleanup());
     // Off since 09:30, until the next slot at 14:00 (the setting Turned off)
     const off = override({ hvac_mode: 'off' }, { end: at('14:00'), ends_at: 'next_slot' });
     const planned = { [SUITE]: { preset: 'eco', hvac_mode: 'heat', next_slot_end: at('14:00') } };
-    const open = (hass) => { const card = cardOf(hass, { show: [SUITE] }); card._overrideSel = { climate: SUITE }; card._render(); return card; };
+    const open = (hass) => { const card = cardOf(hass, { show: [SUITE] }); showOverride(card, SUITE); return card; };
 
     test('an off override set to Cool lasts the override duration from now', () => {
       const hass = setup({ overrides: { [SUITE]: off }, planned });
@@ -757,8 +757,7 @@ afterEach(() => cleanup());
     test('an off override set to a preset or to a temperature too', () => {
       const hass = setup({ overrides: { [SALON]: off }, planned: { [SALON]: { preset: 'eco', next_slot_end: at('14:00') } } });
       const card = cardOf(hass);
-      card._overrideSel = { climate: SALON };
-      card._render();
+      showOverride(card, SALON);
       click(card, '.override-ed [data-act="override-preset"][data-preset="comfort"]');
       assert.equal(new Date(sent(hass).end).toISOString(), new Date(at('12:00')).toISOString());
       assert.equal(sent(hass).ends_at, undefined);
@@ -794,8 +793,7 @@ afterEach(() => cleanup());
     onMondayAtTen();
     test('is outlined in a neutral color, not in the color of a chosen HVAC mode', () => {
       const card = cardOf(setup({ planned: { [SUITE]: { preset: 'eco', hvac_mode: 'heat' } } }), { show: [SUITE] });
-      card._overrideSel = { climate: SUITE, create: true };
-      card._render();
+      showOverride(card, SUITE);
       const preselected = $(card, '.override-ed .mode-row .mode.default');
       assert.equal(preselected.dataset.mode, 'heat');
       assert.equal(preselected.getAttribute('style'), null, 'no HVAC color');
@@ -848,8 +846,7 @@ afterEach(() => cleanup());
 
     test('the schedule card keeps the short names', () => {
       const card = cardOf(setup({ overrides: cooling, planned }), { show: [SUITE] });
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       assert.match(text($(card, '.override-ed .override-value')), /^Clim · 24/);
     });
 
@@ -857,8 +854,7 @@ afterEach(() => cleanup());
       const hass = setup({ overrides: cooling, planned });
       hass.formatEntityState = (st, state) => ({ off: 'Éteint', heat: 'Chaleur', cool: 'Refroidissement' })[state] || state;
       const card = cardOf(hass, { show: [SUITE] });
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       assert.match(text($(card, '.override-ed')), /puis Chaleur · Éco \(planning\)/);
       assert.doesNotMatch(text($(card, '.override-ed')), /puis Chauffe ·/);
       assert.match(text(moreInfo(hass, SUITE).shadowRoot), /puis Chaleur · Éco \(planning\)/);
@@ -882,8 +878,7 @@ afterEach(() => cleanup());
       const hass = setup();
       hass.user = { is_admin: false };
       const card = cardOf(hass, { show: [SUITE] });
-      card._sel = { climate: SUITE, day: 0, idx: 1 };
-      card._render();
+      select(card, SUITE, 1);
       const line = $(card, '.editor .setpoint-line');
       if (line) {
         assert.equal(text(line), 'Consigne : 20 °C');
@@ -894,8 +889,7 @@ afterEach(() => cleanup());
     test('the range of a heat/cool override is the same line', () => {
       const hass = setup({ overrides: { [SUITE]: override({ ...TARGETS[SUITE].comfort, hvac_mode: 'heat_cool' }, { preset: 'comfort' }) } });
       const card = cardOf(hass, { show: [SUITE] });
-      card._overrideSel = { climate: SUITE };
-      card._render();
+      showOverride(card, SUITE);
       assert.equal(text($(card, '.override-ed .setpoint-line')), 'Consigne : 20–25 °C');
     });
   });
@@ -1034,8 +1028,7 @@ afterEach(() => cleanup());
       const hass = setup({ targets });
       hass.user = { is_admin: false };
       const card = cardOf(hass, { show: [SUITE] });
-      card._sel = { climate: SUITE, day: 0, idx: 1 };
-      card._render();
+      select(card, SUITE, 1);
       assert.equal($(card, '.editor .setpoint-line'), null);
     });
   });
