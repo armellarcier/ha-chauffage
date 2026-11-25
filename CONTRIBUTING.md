@@ -621,9 +621,9 @@ point here.
 - **Say why Chauffage does something to a thermostat** (#49):
   - Send every command through `gateway.send()` (`thermostats/gateway.py`), with its reason.
     `gateway.send()` logs the command at INFO.
-  - Start and end every override through `_keep_override()` and `_drop_override()`, with its
-    source or its reason. These functions log the override, fire the event, and describe it in
-    the logbook.
+  - Start and end every override through `overrides.keep()` and `overrides.drop()`
+    (`app/overrides.py`), with its source or its reason. These functions log the override, fire
+    the event, and describe it in the logbook.
   - Give a new source or reason its text in every language of `logbook.py`. `test_traces.py`
     checks it.
   - Give a new trace its test in `test_traces.py`.

@@ -667,9 +667,9 @@ et `CLAUDE.md` renvoient ici.
 - **Dites pourquoi Chauffage agit sur un thermostat** (#49) :
   - Envoyez chaque commande par `gateway.send()` (`thermostats/gateway.py`), avec sa raison.
     `gateway.send()` journalise la commande au niveau INFO.
-  - Commencez et terminez chaque dérogation par `_keep_override()` et `_drop_override()`, avec sa
-    source ou sa raison. Ces fonctions journalisent la dérogation, émettent l'événement, et la
-    décrivent dans le journal de bord.
+  - Commencez et terminez chaque dérogation par `overrides.keep()` et `overrides.drop()`
+    (`app/overrides.py`), avec sa source ou sa raison. Ces fonctions journalisent la dérogation,
+    émettent l'événement, et la décrivent dans le journal de bord.
   - Donnez à une nouvelle source ou raison son texte dans chaque langue de `logbook.py`.
     `test_traces.py` le vérifie.
   - Donnez à une nouvelle trace son test dans `test_traces.py`.
