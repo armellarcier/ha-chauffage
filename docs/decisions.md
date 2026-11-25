@@ -850,6 +850,9 @@ future contributor might question.
   renamed): the cards open in the page follow the new runtime and get its data at once.
 - **Saves send the weeks of the thermostats edited**, each with its own revision: two cards
   showing the same thermostat cannot overwrite each other, and do not block the others.
+  **Amended by the rewrite**: the weeks are saved against these revisions only. The global
+  revision of `chauffage/weeks/save`, kept for older cards, is gone. The global revision stays
+  for the list of schedules.
 - **Stored per thermostat** (`thermostats: {climate: {paused, weeks, mapping,
   preset_temperatures, revision}}`). The overrides stay apart: short-lived, a release may drop
   them. Migrated from the current keys, nothing changing on upgrade: a thermostat with weeks is

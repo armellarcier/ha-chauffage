@@ -78,23 +78,17 @@ async def test_the_card_is_told_when_the_planned_preset_changes_not_every_minute
     assert [(p["preset"], p["next_preset"]) for p in card.sent] == [("eco", "comfort"), ("comfort", "eco")]
 
 
-async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_client):
+async def test_the_weeks_are_no_longer_saved_against_the_global_revision(bench: Bench, ws_client):
+    """The weeks are saved against the revision of each thermostat only (see
+    test_thermostats.py, "revisions per thermostat"). The global revision is for the list of
+    schedules."""
     await start(bench)
     client = await ws_client(bench.hass)
     week = [[["00:00", "comfort"]]] * 7
-    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}}, "revision": 1})
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}},
+                                    "revision": bench.runtime.data["revision"]})
     reply = await client.receive_json()
-    assert reply["success"] and reply["result"]["revision"] == 2
-    await bench.hass.async_block_till_done()
-    assert bench.applied() == {"climate.salon": "comfort"}
-
-
-async def test_saving_from_an_outdated_copy_is_refused(bench: Bench, ws_client):
-    await start(bench)
-    client = await ws_client(bench.hass)
-    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}, "revision": 0})
-    reply = await client.receive_json()
-    assert not reply["success"] and reply["error"]["code"] == "stale"
+    assert not reply["success"] and reply["error"]["code"] == "invalid_format"
     assert bench.runtime.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
 
 

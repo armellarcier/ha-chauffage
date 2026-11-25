@@ -187,10 +187,10 @@ async def test_a_copy_of_the_weeks_made_before_a_rename_must_be_reloaded(bench: 
     from custom_components.chauffage.runtime import StaleRevision
 
     await start(bench)
-    revision = bench.runtime.data["revision"]
+    revision = bench.runtime.snapshot()["thermostats"]["climate.salon"]["revision"]
     await rename(bench)
     with pytest.raises(StaleRevision):
-        await bench.runtime.save_weeks({"climate.salon": SALON}, revision)
+        await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": revision})
 
 
 async def test_saving_weeks_under_a_former_id_is_refused(bench: Bench):

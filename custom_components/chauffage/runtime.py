@@ -706,16 +706,13 @@ class ChauffageRuntime:
         it has weeks."""
         return self.thermostats.setdefault(entity_id, model.new_thermostat())
 
-    async def save_weeks(self, weeks: Any, revision: int | None = None,
-                         revisions: dict[str, int | None] | None = None) -> None:
+    async def save_weeks(self, weeks: Any, revisions: dict[str, int | None] | None = None) -> None:
         """The weeks of the thermostats sent; the others keep theirs: a thermostat a card does
         not show stays scheduled (#27), only forget() drops it. A thermostat keeps its weeks in
         the schedules not sent, and gets the week of a new schedule in those it had none in: a
         scheduled thermostat has a week in every schedule. Saved against the revision of each
-        thermostat sent (`revisions`; None: not scheduled when the copy was made), or the global
-        one (`revision`, older cards). StaleRevision if one of them changed."""
-        if revision is not None and revision != self.data["revision"]:
-            raise StaleRevision
+        thermostat sent (`revisions`; None: not scheduled when the copy was made). StaleRevision
+        if one of them changed."""
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
         if any(self._renamed_to(entity_id) for entity_id in normalized):
             raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside

@@ -86,10 +86,10 @@ async def test_a_forgotten_thermostat_is_no_longer_scheduled_nor_watched(bench: 
 async def test_a_copy_of_the_weeks_made_before_a_thermostat_was_forgotten_cannot_bring_it_back(bench: Bench):
     """Another card still holding the forgotten thermostat's weeks must reload first."""
     await start(bench)
-    revision = bench.runtime.data["revision"]
+    revisions = {e: t["revision"] for e, t in bench.runtime.snapshot()["thermostats"].items()}
     await forget(bench, "climate.salon")
     with pytest.raises(StaleRevision):
-        await bench.runtime.save_weeks({"climate.salon": SALON, "climate.bureau": BUREAU}, revision)
+        await bench.runtime.save_weeks({"climate.salon": SALON, "climate.bureau": BUREAU}, revisions=revisions)
     assert "climate.salon" not in bench.runtime.thermostats
 
 

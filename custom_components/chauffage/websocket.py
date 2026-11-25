@@ -15,10 +15,9 @@ chauffage/subscribe          everything the card needs, then again after every c
                              next_hvac_mode, next_start, next_slot_end and next_day_slot_end;
                              `thermostats` says why a VTherm protects itself (cause: window, auto_start_stop);
                              `cool_preset_temperatures`, what a thermostat's own presets give when it cools
-chauffage/weeks/save         {weeks, revisions | revision}: the weeks of the thermostats sent (slots with
+chauffage/weeks/save         {weeks, revisions}: the weeks of the thermostats sent (slots with
                              optional settings, see above), against
-                             the revision of each ({climate: revision | null}), or the global one
-                             (older cards); refused ("stale") if edited elsewhere meanwhile
+                             the revision of each ({climate: revision | null}); refused ("stale") if edited elsewhere meanwhile
 chauffage/override/set       {entity_id, override | null, source?}: change (target, end) or remove an override;
                              a new value is sent to the thermostat; a single temperature in
                              heat_cool is refused on a thermostat that takes a range there. Any
@@ -242,14 +241,13 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 @websocket_api.websocket_command({
     vol.Required("type"): "chauffage/weeks/save",
     vol.Required("weeks"): dict,
-    vol.Optional("revision"): int,
     vol.Optional("revisions"): {str: vol.Any(None, int)},
 })
 @require_access(_weeks_needs)
 @websocket_api.async_response
 async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     async def save(runtime: ChauffageRuntime) -> dict[str, Any]:
-        await runtime.save_weeks(msg["weeks"], msg.get("revision"), msg.get("revisions"))
+        await runtime.save_weeks(msg["weeks"], msg.get("revisions"))
         return {"revision": runtime.data["revision"],
                 "revisions": {e: t["revision"] for e, t in runtime.scheduled.items() if e in msg["weeks"]}}
 
