@@ -1,7 +1,5 @@
 """Config flow: a single "Chauffage" entry, created from Settings → Devices & services.
 
-If the package (v0.1) is installed, the form says what will be imported (schedules, overrides,
-active schedule); the import itself happens when the entry is set up (see importer.py).
 Options: default settings (override duration, when a change by hand ends, use of the
 thermostats' climate presets) and the Chauffage panel's entry in the sidebar, with its name.
 Presets and what they mean per thermostat are set in the panel.
@@ -17,7 +15,6 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from . import importer
 from .const import (
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
@@ -51,21 +48,9 @@ class ChauffageConfigFlow(ConfigFlow, domain=DOMAIN):
     MINOR_VERSION = 2  # 2: the planned preset sensors enabled (__init__.async_migrate_entry)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        try:
-            summary = importer.package_summary(self.hass)
-        except importer.PackageTooNew:
-            return self.async_abort(reason="package_too_new")
         if user_input is not None:
             return self.async_create_entry(title=TITLE, data={})
-        if summary is None:
-            return self.async_show_form(step_id="user")
-        return self.async_show_form(
-            step_id="import_package",
-            description_placeholders={k: str(v) for k, v in summary.items()},
-        )
-
-    async def async_step_import_package(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return await self.async_step_user(user_input or {})
+        return self.async_show_form(step_id="user")
 
     @staticmethod
     @callback

@@ -172,7 +172,7 @@ et à chaque pull request (`.github/workflows/tests.yml`).
 
 | Suite | Outil | Ce qui est couvert |
 |---|---|---|
-| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée, `custom_components/` chargé | créneaux appliqués au bon moment, plannings, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin, les règles d'activation, la logique pure (`engine.py`), le stockage et ses migrations, les entités, les services, l'API websocket, l'historique lu dans le recorder, les flux de configuration et d'options, l'import depuis le package v0.1 |
+| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée, `custom_components/` chargé | créneaux appliqués au bon moment, plannings, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin, les règles d'activation, la logique pure (`engine.py`), le stockage et ses migrations, les entités, les services, l'API websocket, l'historique lu dans le recorder, les flux de configuration et d'options |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé), avec un faux HA et une fausse intégration (`tests/js/helpers.mjs`) | la carte : calculs, édition des semaines, copier / coller, enregistrement, plannings, préréglages, règles d'activation, dérogations, historique et journée en grand, fenêtre de détail |
 
 ### Les tests de l'intégration
@@ -450,12 +450,6 @@ de les migrer. Les thermostats reprennent alors leur planning. Indiquez-le dans 
 
 La carte ne voit que l'API websocket. Le format de l'API websocket évolue avec l'intégration :
 la carte n'a donc besoin d'aucune migration.
-
-### Les données du package v0.1
-
-L'intégration importe les données du package v0.1 (`sensor.programmes_chauffage`) quand on
-l'ajoute. L'import se trouve dans `importer.py`, et `tests/fixtures/schedules-v1.json` contient
-le format du package.
 
 ## Publier une version
 

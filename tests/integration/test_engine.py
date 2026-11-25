@@ -139,8 +139,7 @@ def test_a_thermostat_that_is_not_ready_is_ignored():
 
 def test_a_vtherm_turned_off_is_turned_on_like_any_thermostat():
     """A VTherm asked to be off (requested_state, #91) comes back on at the next slot, as any
-    thermostat. Before #91 it got its slots while off and stayed off (#74): that reading stays
-    for a VTherm without requested_state, see runtime.thermostat."""
+    thermostat."""
     vtherm = Thermostat("off", "eco", 17.0, VTHERM, 5.0, 30.0, 0.5, vtherm=True, hvac_modes=("off", "heat"))
     plan = engine.Plan(WEEKS, "normal", PRESETS, {}, {})
     assert engine.targets(plan, at("10:00"), {"climate.bureau": vtherm}, force=True) == [
@@ -383,10 +382,9 @@ def test_an_override_already_at_what_a_slot_with_a_fan_gives_is_kept():
 
 
 def test_the_temperature_of_a_thermostat_s_own_preset():
-    """Versatile Thermostat publishes them (preset_temperatures since its version 10, eco_temp…
-    before); otherwise the one last read while the thermostat was on that preset."""
+    """Versatile Thermostat publishes them (preset_temperatures); otherwise the one last read
+    while the thermostat was on that preset."""
     assert engine.preset_temperature({"preset_temperatures": {"eco_temp": 16.0}}, "eco", {"eco": 17.0}) == 16.0
-    assert engine.preset_temperature({"eco_temp": 16.5}, "eco", {}) == 16.5
     assert engine.preset_temperature({}, "eco", {"eco": 17.0}) == 17.0
     assert engine.preset_temperature({}, "eco", {}) is None
 
@@ -559,19 +557,17 @@ def test_a_vtherm_on_a_preset_keeps_the_setpoint_it_shows():
 
 
 def test_a_vtherm_without_requested_state_is_read_as_it_shows():
-    """VTherm before its state manager, or a state without it."""
+    """A state without requested_state: the attributes as they are."""
     assert engine.asked({"preset_mode": "eco", "temperature": 17.0}, vtherm=True) == (None, "eco", 17.0)
     assert engine.asked({"preset_mode": "eco", "temperature": 17.0, "requested_state": {}}, vtherm=True) \
         == (None, "eco", 17.0)
 
 
 def test_why_a_vtherm_protects_itself():
-    """For the card: VTherm says why it turned itself off (hvac_off_reason, moved into
-    specific_states in VTherm 10.5), and whether its window is open while it keeps heating at
-    the frost setpoint (window_manager, C8)."""
-    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_window"}}, "off") == "window"  # VTherm 10.5
+    """For the card: VTherm says why it turned itself off (hvac_off_reason in its
+    specific_states), and whether its window is open while it keeps heating at the frost setpoint (window_manager, C8)."""
+    assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_window"}}, "off") == "window"
     assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}, "off") == "auto_start_stop"
-    assert engine.cause({"hvac_off_reason": "auto_start_stop"}, "off") == "auto_start_stop"
     assert engine.cause({"specific_states": {"hvac_off_reason": "hvac_off_manual"}}, "off") is None
     # The window action "frost": the VTherm stays on
     assert engine.cause({"specific_states": {"window_manager": {"window_state": "on"}, "hvac_mode_reason": "hvac_off_window_detection"}}, "heat") == "window"

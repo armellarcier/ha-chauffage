@@ -8,6 +8,9 @@ modifier.
 Nécessite Home Assistant 2025.1 ou plus récent. Le [journal des modifications](../CHANGELOG.md)
 (en anglais) annonce quand la version minimale de Home Assistant augmente.
 
+Si vous utilisez Versatile Thermostat, Chauffage nécessite Versatile Thermostat 10.5 ou plus
+récent.
+
 ## 1. Installer l'intégration depuis HACS
 
 [![Ouvrir ha-chauffage dans HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=armellarcier&repository=ha-chauffage&category=integration)
@@ -116,19 +119,10 @@ version antérieure.
 
 ## Mise à jour depuis le package (v0.1)
 
-La version 0.1 d'ha-chauffage était un package YAML. L'intégration importe les données du
-package.
-
-1. Installez l'intégration (étapes 1 et 2 ci-dessus). **Ne retirez pas encore le package.** La
-   configuration vous indique ce qu'elle importe, par exemple les semaines du package et son
-   planning actif. Validez la configuration pour les importer. Puis la configuration désactive
-   les deux automatisations du package.
-2. Vérifiez la carte et les thermostats. Pour revenir au package, supprimez l'intégration et
-   réactivez les deux automatisations `automation.chauffage_*`.
-3. Suivez la réparation que Home Assistant affiche dans Paramètres. La réparation vous dit quels
-   fichiers et quelles lignes retirer, puis vous demande de redémarrer Home Assistant.
-4. Dans vos automatisations, remplacez `input_select.mode_chauffage` par
-   `select.chauffage_schedule`.
+La version 0.1 d'ha-chauffage était un package YAML. Pour quitter le package, installez
+d'abord ha-chauffage 0.10.0, la dernière version qui importe les données du package. Suivez les
+étapes de [son guide d'installation](https://github.com/armellarcier/ha-chauffage/blob/v0.10.0/docs/installation.fr.md#mise-%C3%A0-jour-depuis-le-package-v01).
+Puis mettez à jour vers la dernière version.
 
 Le package n'est plus maintenu. La
 [version v0.1.0](https://github.com/armellarcier/ha-chauffage/releases/tag/v0.1.0) le contient

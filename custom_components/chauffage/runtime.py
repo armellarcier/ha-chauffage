@@ -105,16 +105,14 @@ VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
 
 def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat | None:
     """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current). A VTherm is read as
-    it was asked (requested_state, #92): off by its window or its auto start/stop, it is still "on" for Chauffage. A VTherm
-    without requested_state (before VTherm 10.5) that is off is read as on too: it keeps the
-    preset asked while off and starts again on it (#74), so Chauffage neither turns it on nor
-    takes it for turned off by hand, as before #91."""
+    it was asked (requested_state, #92): off by its window or its auto start/stop, it is still
+    "on" for Chauffage."""
     if state is None:
         return None
     attributes = state.attributes
     presets = attributes.get("preset_modes") or ()
     hvac_mode, preset, temperature = engine.asked(attributes, vtherm)
-    current = engine.Thermostat(
+    return engine.Thermostat(
         hvac_mode or state.state,
         preset,
         temperature,
@@ -131,9 +129,6 @@ def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat |
         supports_range=bool(int(attributes.get("supported_features") or 0) & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE),
         **{key: engine.temperature_value(attributes.get(key)) for key in engine.RANGE_KEYS},
     )
-    if vtherm and hvac_mode is None and state.state == engine.OFF:
-        current = dataclasses.replace(current, state=engine.on_mode(current) or "heat", shown=engine.OFF)
-    return current
 
 
 def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
@@ -151,17 +146,6 @@ def _describe(command: engine.Target | dict[str, Any]) -> str:
     "temperature 21.5"."""
     target = command["target"] if "target" in command else command
     return ", ".join(f"{key} {value}" for key, value in target.items())
-
-
-def _kind_and_value(target: engine.Target | None) -> dict[str, Any]:
-    """An override's kind and value as the events and the sensors told them before #91, from its
-    target: existing automations keep reading them. "preset" or "temperature" as before; an
-    override that only sets the HVAC mode says "hvac_mode"; one that sets none of them (the fan,
-    the cooling setpoint) says nothing."""
-    key = next((key for key in ("preset_mode", "temperature", "hvac_mode") if key in (target or {})), None)
-    if key is None:
-        return {"kind": None, "value": None}
-    return {"kind": "preset" if key == "preset_mode" else key, "value": target[key]}
 
 
 def _cause(state: State | None) -> str | None:
@@ -298,11 +282,6 @@ class ChauffageRuntime:
         NEXT_SLOT_WITHIN_DURATION or NEXT_SLOT (an unknown value: the default)."""
         end = self.entry.options.get(CONF_MANUAL_OVERRIDE_END)
         return end if end in MANUAL_OVERRIDE_ENDS else DEFAULT_MANUAL_OVERRIDE_END
-
-    def manual_override_end_of(self, entity_id: str) -> str:
-        """How a change by hand ends on this thermostat. The same setting for every thermostat
-        today: a setting per thermostat would be read here (#83)."""
-        return self.manual_override_end
 
     @property
     def off_override_end(self) -> str:
@@ -711,16 +690,13 @@ class ChauffageRuntime:
         it has weeks."""
         return self.thermostats.setdefault(entity_id, model.new_thermostat())
 
-    async def save_weeks(self, weeks: Any, revision: int | None = None,
-                         revisions: dict[str, int | None] | None = None) -> None:
+    async def save_weeks(self, weeks: Any, revisions: dict[str, int | None] | None = None) -> None:
         """The weeks of the thermostats sent; the others keep theirs: a thermostat a card does
         not show stays scheduled (#27), only forget() drops it. A thermostat keeps its weeks in
         the schedules not sent, and gets the week of a new schedule in those it had none in: a
         scheduled thermostat has a week in every schedule. Saved against the revision of each
-        thermostat sent (`revisions`; None: not scheduled when the copy was made), or the global
-        one (`revision`, older cards). StaleRevision if one of them changed."""
-        if revision is not None and revision != self.data["revision"]:
-            raise StaleRevision
+        thermostat sent (`revisions`; None: not scheduled when the copy was made). StaleRevision
+        if one of them changed."""
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
         if any(self._renamed_to(entity_id) for entity_id in normalized):
             raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
@@ -1088,17 +1064,8 @@ class ChauffageRuntime:
         current = self.current(self.hass.states.get(entity_id))
         target = override["target"] = engine.fit(override["target"], current)
         before = self.data["overrides"].get(entity_id)
-        # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
-        # Compared as instants: the card sends the same end in UTC. A new start makes a new
-        # override: a duration counted from the former start would be wrong.
-        same_end = before is not None and all(
-            engine.parse_datetime(before.get(key)) == engine.parse_datetime(override.get(key)) for key in ("start", "end"))
-        if override.get("ends_at") == NEXT_SLOT and self.is_next_slot(entity_id, override["end"], current):
-            pass  # "Until the next slot" on the card: checked here, not taken on trust
-        elif same_end and "ends_at" in before:
-            override["ends_at"] = before["ends_at"]
-        else:
-            override.pop("ends_at", None)
+        # Only a change by hand says why it ends then (record_override): not the card, not a service
+        override.pop("ends_at", None)
         new_value = before is None or before["target"] != target
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
         to_send = None
@@ -1134,11 +1101,6 @@ class ChauffageRuntime:
         until = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MAX_MANUAL_OVERRIDE))
         return plan.next_change(entity_id, now, current, not_before=not_before, until=until)
 
-    def is_next_slot(self, entity_id: str, end: str, current: engine.Thermostat | None) -> bool:
-        """Whether `end` is the next slot a change made now would end at (next_slot_end)."""
-        slot = self.next_slot_end(entity_id, current)
-        return slot is not None and slot == engine.parse_datetime(end)
-
     @callback
     def record_override(self, entity_id: str, override: dict[str, Any], context: Context | None = None) -> None:
         """The override of a change by hand, only recorded: the thermostat set it itself, and
@@ -1148,11 +1110,10 @@ class ChauffageRuntime:
 
     def override_info(self, entity_id: str) -> dict[str, Any]:
         """A thermostat's override as automations see it (sensor, event): its target, the preset
-        it was set to, its end in local time (None without override). Also its kind and value, as
-        before #91: "preset" and the climate preset, or "temperature" and the temperature."""
+        it was set to, its end in local time (None without override)."""
         override = self.data["overrides"].get(entity_id) or {}
         end = engine.parse_datetime(override.get("end"))
-        return {"target": override.get("target"), "preset": override.get("preset"), **_kind_and_value(override.get("target")),
+        return {"target": override.get("target"), "preset": override.get("preset"),
                 "end": dt_util.as_local(end).isoformat() if end else None}
 
     @callback
@@ -1198,7 +1159,7 @@ class ChauffageRuntime:
         MIN_MANUAL_OVERRIDE minutes after the change does not count. Computed once, now: a
         schedule activated or a setting changed later does not move the end."""
         off = target.get("hvac_mode") == engine.OFF
-        setting = self.off_override_end if off else self.manual_override_end_of(entity_id)
+        setting = self.off_override_end if off else self.manual_override_end
         unbounded = setting == NEXT_SLOT
         override = self.new_override(target, MAX_MANUAL_OVERRIDE if unbounded else None)
         if setting == DURATION:
@@ -1258,7 +1219,7 @@ class ChauffageRuntime:
         # preset, says nothing of the one the thermostat will have (#112). The HVAC mode only
         # when it changes
         hvac_mode = target.get("hvac_mode")
-        if current is not None and hvac_mode in (current.state, current.shown):
+        if current is not None and hvac_mode == current.state:
             hvac_mode = None
         attributes = {key: value for key, value in target.items() if key != "hvac_mode"}
         waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)

@@ -395,10 +395,11 @@ async def test_an_off_override_without_a_next_slot_lasts_a_week(bench: Bench):
 
 
 async def test_a_script_that_turns_a_thermostat_off_without_an_end_follows_the_setting(bench: Bench):
+    """The end follows the setting *Turned off*. Only a change by hand says why it ends then."""
     await start_ac(bench)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": SALON, "hvac_mode": "off"}, blocking=True)
     override = bench.overrides()[SALON]
-    assert (override["end"], override["ends_at"]) == ("2026-10-12T17:30:00+02:00", "next_slot")
+    assert override["end"] == "2026-10-12T17:30:00+02:00" and "ends_at" not in override
     await bench.hass.services.async_call(
         "chauffage", "set_override", {"entity_id": SALON, "hvac_mode": "off", "duration": 60}, blocking=True)
     assert bench.overrides()[SALON]["end"] == "2026-10-12T11:00:00+02:00"
@@ -488,36 +489,6 @@ async def test_a_vtherm_turned_off_by_hand_is_an_off_override(bench: Bench):
     assert bench.overrides()["climate.salon"]["target"] == OFF
     await bench.go_to("17:30")
     assert bench.powered() == {"climate.salon": "heat"}
-
-
-async def test_a_vtherm_without_requested_state_is_read_as_before(bench: Bench):
-    """Before VTherm 10.5: a VTherm turned off, by hand or by itself, keeps the preset asked and
-    starts again on it (#74). Chauffage neither turns it on nor makes an off override."""
-    await start_vtherm(bench, "17:00")
-    bench.thermostat("climate.salon", "eco", state="off", context=CTX_USER)
-    await bench.hass.async_block_till_done()
-    assert bench.overrides() == {}
-    await bench.go_to("17:30")
-    assert bench.powered() == {}
-    assert bench.applied() == {"climate.salon": "comfort"}
-
-
-async def test_an_off_slot_is_satisfied_by_a_vtherm_without_requested_state_that_shows_off(bench: Bench):
-    """Such a VTherm is read as on (#74), but it is off: the off slot is done, the command is not
-    waited for, and a realignment does not send off again."""
-    await start_vtherm(bench, "22:00", NIGHT_OFF)
-    await bench.go_to("22:30")
-    assert bench.powered() == {"climate.salon": "off"}
-    assert bench.applied() == {}
-    bench.thermostat("climate.salon", "eco", state="off", context=Context())  # the VTherm is off
-    await bench.hass.async_block_till_done()
-    assert bench.runtime.pending("climate.salon") == []
-    await bench.save_weeks({"climate.salon": {"normal": [NIGHT_OFF] * 7}})
-    assert bench.powered() == {} and bench.applied() == {}
-    # #74 kept: not turned on, no override
-    assert bench.overrides() == {}
-    await bench.go_to("23:00")
-    assert bench.powered() == {}
 
 
 async def test_a_vtherm_heating_at_the_frost_setpoint_for_its_window_says_so(bench: Bench):

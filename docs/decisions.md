@@ -9,14 +9,16 @@ future contributor might question.
 
 - **An integration, not a YAML package** (v0.2). The v0.1 package (template sensors holding the
   data, automations, events from the card) hit its limits: attribute size, no real services, no
-  configuration UI, no HACS, YAML to edit by hand. Its data is still imported when the
-  integration is added (`importer.py`).
+  configuration UI, no HACS, YAML to edit by hand.
+  **Amended by the rewrite**: the integration no longer imports the package's data. A v0.1 user
+  upgrades through 0.10.0, the last release that imports.
 - **Domain `chauffage`, a single config entry.** One installation per Home Assistant; entity
   ids do not depend on the language (`select.chauffage_schedule`), their names are translated.
 - **Data in a versioned `Store`** (`.storage/chauffage`), migrated automatically, each migration
   tested with a fixture of the former format. Going back to an older version is not supported.
 - **A first setup waits for Home Assistant to be running** (retried automatically): during
   startup, the package's restored states and automations may not exist yet.
+  **Removed by the rewrite**, with the import of the package: a first setup no longer waits.
 - **Settings in the card, not in the options flow.** HA's option forms (generated fields, no
   layout, no preview) proved impractical for setting temperatures room by room. The options
   keep a single form of defaults (override duration, use of the thermostats' own presets).
@@ -123,10 +125,14 @@ future contributor might question.
     (`manual_override_end_of`). Some users will want a setting per room, for example 30 minutes
     for the bathroom. A setting per thermostat can then come without changing the rule. Not
     before a request: a choice per thermostat is one more thing to understand.
+    **Amended by the rewrite**: the function that takes the thermostat is gone. A setting per
+    thermostat would add it back.
   - **The override says why it ends then**, in an optional `ends_at` key: `duration`,
     `next_slot` or `no_next_slot`. The key is optional, so the stored format needs no migration:
     an override stored before #83 simply shows no reason. An end changed on the card drops the
     key, because the end is then the user's choice. A new value keeps it, with the same end.
+    **Amended by the rewrite**: only a change by hand sets `ends_at`. Any change of the override
+    from the card or a service removes it, and the logbook then gives the end time alone.
   - **The reason is part of the end, in words**: "today, at the next slot", "today, 2 h after the
     change", "in a week, no slot ahead". A first version listed "today · after 2 h · 2 h 00 left":
     three fragments, and the duration twice. "then Eco (schedule)" keeps one form, with or
@@ -147,6 +153,8 @@ future contributor might question.
     slot in the browser, so a phone in another time zone sent a wrong instant. The integration
     keeps the reason only if the end really is the next slot: the reason is never taken on trust
     from the card.
+    **Amended by the rewrite**: the integration no longer keeps the reason. The override gives
+    its end time alone, for example "until 22:00".
   - **The logbook and the events say why.** The started line ends with "(changed by hand, until
     the next slot)", and an expired change by hand ends with "override ended at the next slot"
     rather than "(expired)". The events carry `start` and `ends_at`, so the logbook can say "after
@@ -567,6 +575,9 @@ future contributor might question.
     top-level attribute to `specific_states` (VTherm 10.5), and VTherm publishes no reason right
     after being turned off, so Chauffage leaves the decision to VTherm. Older versions are not
     checked; they are rare, and the risk is accepted.
+    **Removed by the rewrite**: Versatile Thermostat 10.5 is the minimum supported version, and
+    every supported VTherm publishes `requested_state`. The `shown` field, the top-level
+    `hvac_off_reason` and `window_manager`, and the top-level `eco_temp` keys are no longer read.
 - **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
   thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
   `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its
@@ -623,8 +634,8 @@ future contributor might question.
   - **What Chauffage reads.** For a VTherm with `requested_state`, Chauffage reads the preset
     from `requested_state`. On the manual preset (`none`), it also reads the setpoint from
     `requested_state`. On another preset, `requested_state` keeps the last manual setpoint, not
-    the preset's: Chauffage reads the setpoint VTherm shows. Without `requested_state`, for
-    example a VTherm older than version 8, Chauffage reads the attributes as before.
+    the preset's: Chauffage reads the setpoint VTherm shows. For a state without
+    `requested_state`, Chauffage reads the attributes as they are.
   - **What Chauffage learns.** A VTherm can show another preset than the one asked, for example
     *frost* while its central mode is in frost protection. Chauffage then learns no preset
     temperature: the setpoint shown is not the asked preset's.
@@ -660,6 +671,8 @@ future contributor might question.
   applied the same way. The events and the sensors keep `kind` and `value` next to the target,
   read from its first attribute, so existing automations keep working. An override that sets
   none of them (the fan, a cooling setpoint) has no kind and no value.
+  **Amended by the rewrite**: the events and the sensors no longer carry `kind` and `value`.
+  Automations read the target.
 - **A preset's value on a thermostat is a climate preset or a temperature, not both, and never
   an HVAC mode.** A first version stored any mix, as a scene does, and let the device decide
   what to do with a preset and a temperature together. The user could not tell what the room
@@ -845,6 +858,9 @@ future contributor might question.
   renamed): the cards open in the page follow the new runtime and get its data at once.
 - **Saves send the weeks of the thermostats edited**, each with its own revision: two cards
   showing the same thermostat cannot overwrite each other, and do not block the others.
+  **Amended by the rewrite**: the weeks are saved against these revisions only. The global
+  revision of `chauffage/weeks/save`, kept for older cards, is gone. The global revision stays
+  for the list of schedules.
 - **Stored per thermostat** (`thermostats: {climate: {paused, weeks, mapping,
   preset_temperatures, revision}}`). The overrides stay apart: short-lived, a release may drop
   them. Migrated from the current keys, nothing changing on upgrade: a thermostat with weeks is
@@ -1080,6 +1096,9 @@ dashboards, automations, scripts and by voice without the card
 - **`language` is only set in YAML**: the card follows the user's profile (language and
   formats), like every HA card, none of which offers that option. It also forces the more-info
   block of every card. It stays readable for the configurations that use it.
+  **Amended by the rewrite**: the more-info block uses its defaults, the language of the Home
+  Assistant profile and identical days grouped. It no longer takes the options of the last
+  configured card.
 - **A preview shows what its config says**, not the thermostats last chosen on the device
   (kept for the next visit, shared by the cards): in the *Add card* dialog every thermostat is
   there but only the first is shown, and in the card editor the *show every thermostat* switch

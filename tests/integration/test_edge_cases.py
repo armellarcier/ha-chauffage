@@ -1,12 +1,11 @@
 """Edge cases and error paths (found by the coverage report): startup, removal, unreachable
-thermostats, invalid requests, partial package data."""
+thermostats, invalid requests."""
 
 import json
 from datetime import datetime
 from pathlib import Path
 
 import pytest
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState
 from homeassistant.exceptions import ServiceValidationError
@@ -189,31 +188,6 @@ async def test_invalid_requests_are_refused(bench: Bench, ws_client, command):
     await client.send_json_auto_id(command)
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
-
-
-# ----- package import: partial or newer data -----
-
-async def test_a_package_too_new_found_at_setup_is_an_error(bench: Bench):
-    bench.hass.states.async_set("sensor.programmes_chauffage", "x", {"programmes": {}, "version": 9})
-    entry = MockConfigEntry(domain="chauffage")
-    entry.add_to_hass(bench.hass)
-    await bench.hass.config_entries.async_setup(entry.entry_id)
-    assert entry.state is ConfigEntryState.SETUP_ERROR
-
-
-async def test_unreadable_package_parts_are_skipped(bench: Bench):
-    """Not a climate, a malformed override: the rest is imported."""
-    hass = bench.hass
-    week = [["00:00 eco"]] * 7
-    hass.states.async_set("sensor.programmes_chauffage", "x",
-                          {"programmes": {"climate.salon": {"Normal": week}, "light.kitchen": {"Normal": week}}})
-    hass.states.async_set("sensor.derogations_chauffage", "x",
-                          {"derogations": {"climate.salon": {"type": "temp", "valeur": "hot", "debut": "a", "fin": "b"},
-                                           "climate.bureau": "nonsense"}})
-    hass.states.async_set("input_select.mode_chauffage", "Normal", {"options": ["Normal"]})
-    await bench.setup(schedules=None)  # no automation service: the package automations cannot be turned off (logged)
-    assert list(bench.runtime.weeks) == ["climate.salon"]
-    assert bench.runtime.data["overrides"] == {}
 
 
 # ----- data validation -----

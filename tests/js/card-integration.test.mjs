@@ -161,19 +161,6 @@ describe('writing to the integration', () => {
     assert.deepEqual(lastCall(hass).revisions, { 'climate.bureau': null });
   });
 
-  test('an integration without revisions per thermostat gets every week and the global revision', async () => {
-    const data = INTEGRATION_DATA();
-    delete data.thermostats;
-    const hass = fakeIntegrationHass({ data });
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
-    const msg = lastCall(hass);
-    assert.equal(msg.revision, 4);
-    assert.equal(msg.revisions, undefined);
-    assert.deepEqual(Object.keys(msg.weeks).sort(), ['climate.bureau', 'climate.salon']);
-  });
-
   test('a save refused because the schedules changed elsewhere says so', async () => {
     const hass = fakeIntegrationHass({
       reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'stale', message: 'stale' }; },

@@ -9,6 +9,32 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Upgrading
+
+- **From the v0.1 package, install 0.10.0 first.** Chauffage no longer imports the data of the
+  v0.1 package. Version 0.10.0 is the last release that imports it. Install 0.10.0, follow its
+  upgrade steps, then update to this release.
+- **Read the target of an override in your automations.** The override events and the override
+  sensors no longer carry `kind` and `value`, the format before 0.10. Read `target` instead, for
+  example `{"temperature": 21.5}`.
+- **Update Versatile Thermostat to 10.5 or later first.** Chauffage now requires Versatile
+  Thermostat 10.5. An older Versatile Thermostat turned off by itself would be taken for one
+  turned off by hand.
+
+### Changed
+
+- **The more-info dialog follows your Home Assistant profile.** Its week uses the language of
+  your profile and groups identical days, whatever the options of your dashboard cards.
+- **Only a change by hand says why its override ends.** When you change an override from the
+  card or a service, the logbook gives its end time alone, for example "until 22:00". The
+  events of such an override no longer carry `ends_at`.
+
+### Removed
+
+- **The import of the v0.1 package.** The setup no longer offers to import the package, and the
+  repair that explains how to remove the package is gone.
+- **The support of Versatile Thermostat before 10.5.**
+
 ## [0.10.0] - 2026-11-25
 
 **A slot says what the device does, not only how warm.** A slot can turn a thermostat off, and on

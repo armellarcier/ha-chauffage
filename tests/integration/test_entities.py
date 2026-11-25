@@ -111,7 +111,7 @@ async def test_the_override_sensor_is_on_while_the_thermostat_has_an_override(be
     state = bench.hass.states.get("binary_sensor.salon_override")
     assert state.state == "on"
     assert state.attributes["target"] == {"temperature": 21.5}
-    assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)  # as before #91
+    assert "kind" not in state.attributes and "value" not in state.attributes  # the fields of before #91 are gone
     assert state.attributes["end"] == "2026-10-12T12:00:00+02:00"
     await bench.go_to("12:00")
     assert bench.hass.states.get("binary_sensor.salon_override").state == "off"
@@ -138,7 +138,8 @@ async def test_the_override_end_sensor(bench: Bench, entity_registry_enabled_by_
     await bench.manual_setpoint("climate.salon", 21.5)
     state = bench.hass.states.get("sensor.salon_override_end")
     assert state.state == "2026-10-12T10:00:00+00:00"  # 12:00 in Paris
-    assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)
+    assert state.attributes["target"] == {"temperature": 21.5}
+    assert "kind" not in state.attributes and "value" not in state.attributes
 
 
 async def test_the_planned_preset_sensor_of_an_existing_installation_keeps_its_id_and_is_enabled(bench: Bench):

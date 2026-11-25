@@ -2171,11 +2171,9 @@ function makeDataSource(hass, available) {
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
     renamed: () => (d && d.renamed) || {},
-    // Saves against the revision of each thermostat sent (null: not scheduled when loaded);
-    // an older integration only has the global one
-    perThermostat: !!(d && d.thermostats),
+    // Saves against the revision of each thermostat sent (null: not scheduled when loaded)
     revisionOf: (climate) => (d && d.thermostats && d.thermostats[climate] ? d.thermostats[climate].revision : null),
-    saveWeeks: (weeks, revision, revisions) => {
+    saveWeeks: (weeks, revisions) => {
       const out = {};
       for (const [climate, bySchedule] of Object.entries(weeks)) {
         out[climate] = {};
@@ -2183,8 +2181,7 @@ function makeDataSource(hass, available) {
           if (ids.has(id)) out[climate][id] = week.map((day) => day.map((s) => slotToArray(parseSlot(s))));
         }
       }
-      const against = revisions ? { revisions } : (revision != null ? { revision } : {});
-      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, ...against });
+      return hass.callWS({ type: 'chauffage/weeks/save', weeks: out, revisions });
     },
     // `source`: 'panel' from the panel, told in the logbook; none from a card (older integrations)
     setOverride: (climate, override, source) => hass.callWS({ type: 'chauffage/override/set', entity_id: climate, override, ...(source ? { source } : {}) }),
@@ -3165,8 +3162,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Without the thermostats renamed in Home Assistant (see _setAside)
     this._thermostats = this._configured;
     this._asideKey = '';
-    // The more-info block uses the options of the dashboard cards, not those of the panel's pages
-    if (!config.panel) for (const k of Object.keys(MORE_INFO_CFG)) MORE_INFO_CFG[k] = this._config[k];
     this._shown = this._initialShown();
     this._schedule = null;
     // The schedule shown first (the Chauffage panel's ?schedule=), else the active schedule
@@ -3644,12 +3639,12 @@ class ChauffageProgrammeCard extends HTMLElement {
     const now = this._serialized();
     // Only the thermostats changed, each against its revision (another card may edit the others)
     const loaded = this._loadedWeeks || {};
-    const changed = Object.keys(now).filter((c) => !src.perThermostat || now[c] !== loaded[c]);
+    const changed = Object.keys(now).filter((c) => now[c] !== loaded[c]);
     const out = Object.fromEntries(changed.map((c) => [c, JSON.parse(now[c])]));
-    const revisions = src.perThermostat ? Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null])) : null;
+    const revisions = Object.fromEntries(changed.map((c) => [c, this._revisions[c] ?? null]));
     try {
       // Edits undone: nothing to send (a save would realign every thermostat)
-      const result = changed.length ? await src.saveWeeks(out, this._revision, revisions) : null;
+      const result = changed.length ? await src.saveWeeks(out, revisions) : null;
       if (result && result.revision != null) this._revision = result.revision;
       if (result && result.revisions) Object.assign(this._revisions, result.revisions);
       this._loadedWeeks = now;
@@ -6387,7 +6382,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     if (act === 'thermostat-add') {
       // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
       const climate = this.shadowRoot.querySelector('[data-add-climate]').value;
-      return this._call((src) => src.saveWeeks({ [climate]: {} }, null, { [climate]: null }));
+      return this._call((src) => src.saveWeeks({ [climate]: {} }, { [climate]: null }));
     }
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._sel = null;
@@ -7027,12 +7022,9 @@ const STYLE = `
 //  other consequence.
 // =====================================================================
 
-// Options of the block (updated by the last configured card)
-const MORE_INFO_CFG = {
-  language: undefined, // card option: forces the UI language
-  step: 15,
-  group_days: undefined, // card option: false shows every day on its own row
-};
+// The block uses its defaults: the language of the Home Assistant profile, identical days grouped,
+// and this step for the end of an override, in minutes
+const MORE_INFO_STEP = 15;
 
 class ChauffageMoreInfo extends HTMLElement {
   constructor() {
@@ -7060,9 +7052,8 @@ class ChauffageMoreInfo extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    const c = MORE_INFO_CFG;
     const s = hass.states;
-    this._loc = makeLocale(hass, c.language);
+    this._loc = makeLocale(hass);
     const src = dataSource(hass);
     if (src.available && !this._unlisten) {
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
@@ -7109,7 +7100,7 @@ class ChauffageMoreInfo extends HTMLElement {
   _setEnd(endsAt) {
     const d = this._currentOverride();
     if (!d) return;
-    const min = new Date(Date.now() + MORE_INFO_CFG.step * 60000);
+    const min = new Date(Date.now() + MORE_INFO_STEP * 60000);
     const { ends_at: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
     this._send({ ...chosen, end: (endsAt < min ? min : endsAt).toISOString() });
   }
@@ -7175,7 +7166,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const src = dataSource(this._hass);
     // What changes an override, or sets one: the same controls as in the card's popover
     const body = (override) => overrideBodyHtml(override, src, this._entity, this._hass, this._loc,
-      { step: MORE_INFO_CFG.step, line: 'line', actions: 'btns', endLoc: names });
+      { step: MORE_INFO_STEP, line: 'line', actions: 'btns', endLoc: names });
     if (d) {
       this._creating = false;
       const lastPiece = pieces.find((p) => p.isLast);
@@ -7214,9 +7205,9 @@ class ChauffageMoreInfo extends HTMLElement {
       </div>`;
     }
 
-    // Identical days on one row (card option `group_days`), like the schedule card
+    // Identical days on one row, like the schedule card
     const order = this._loc.dayOrder;
-    const rows = (MORE_INFO_CFG.group_days === false ? order.map((d) => [d]) : rowsOfDays(order, (d) => serializeDay(dayOn(this._hass, this._entity, week[d])).join(',')))
+    const rows = rowsOfDays(order, (d) => serializeDay(dayOn(this._hass, this._entity, week[d])).join(','))
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
         <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
@@ -7345,7 +7336,7 @@ class ChauffageMoreInfo extends HTMLElement {
   _onMove(e) {
     const dr = this._drag;
     if (!dr) return;
-    const step = MORE_INFO_CFG.step;
+    const step = MORE_INFO_STEP;
     const p = dr.piece;
     const r = dr.bar.getBoundingClientRect();
     const raw = Math.max(0, Math.min(DAY_MIN, ((e.clientX - r.left) / r.width) * DAY_MIN));
@@ -9537,9 +9528,9 @@ class ChauffagePanel extends HTMLElement {
     if (!dirty.length) return;
     const first = dirty[0][1];
     const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, card._week(climate).map(serializeDay)])) };
-    const revisions = src.perThermostat ? { [climate]: first._revisions[climate] ?? null } : null;
+    const revisions = { [climate]: first._revisions[climate] ?? null };
     try {
-      const result = await src.saveWeeks(weeks, first._revision, revisions);
+      const result = await src.saveWeeks(weeks, revisions);
       for (const card of Object.values(this._weekCards)) {
         if (result && result.revisions) Object.assign(card._revisions, result.revisions);
         if (result && result.revision != null) card._revision = result.revision;
@@ -9758,7 +9749,7 @@ class ChauffagePanel extends HTMLElement {
         try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
         seenNewOff(); // a new user has nothing to upgrade from
         seenNewSetting(this._hass); // the next steps say it
-        await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])), null,
+        await src.saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
           Object.fromEntries(climates.map((c) => [c, null])));
         this._picked.clear();
         return this._update();
@@ -10053,7 +10044,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 export {
   tagSide,
   VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, joined, parseDay, serializeDay, parseTime,
-  overridePieces, overrideLabel, planText, CHIP_STYLE, STYLE, MORE_INFO_STYLE, FIELD_BOX, chipTextColor, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
+  overridePieces, overrideLabel, planText, CHIP_STYLE, STYLE, MORE_INFO_STYLE, FIELD_BOX, chipTextColor, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
   ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS, reloadPage,
 };

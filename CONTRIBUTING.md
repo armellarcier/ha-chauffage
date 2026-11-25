@@ -161,7 +161,7 @@ pull request (`.github/workflows/tests.yml`).
 
 | Suite | Tool | What it covers |
 |---|---|---|
-| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, schedules, thermostats turned off or unreachable, manual-change detection, overrides and their end, activation rules, the pure logic (`engine.py`), storage and migrations, entities, services, websocket API, the history read from the recorder, config / options flows, import from the v0.1 package |
+| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, schedules, thermostats turned off or unreachable, manual-change detection, overrides and their end, activation rules, the pure logic (`engine.py`), storage and migrations, entities, services, websocket API, the history read from the recorder, config / options flows |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser), with a fake HA and integration (`tests/js/helpers.mjs`) | the card: calculations, editing the weeks, copy / paste, saving, schedules, presets, activation rules, overrides, history and a day shown larger, more-info |
 
 ### The integration tests
@@ -417,12 +417,6 @@ migrating them. The thermostats then go back to their schedule. Say so in the ch
 
 The card only sees the websocket API. The format of the websocket API changes with the
 integration, so the card needs no migration.
-
-### The data of the v0.1 package
-
-The integration imports the data of the v0.1 package (`sensor.programmes_chauffage`) when it is
-set up. The import lives in `importer.py`, and `tests/fixtures/schedules-v1.json` holds the
-package's format.
 
 ## Releasing
 

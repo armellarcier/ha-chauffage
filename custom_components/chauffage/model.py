@@ -44,8 +44,6 @@ Vocabulary: docs/glossary.md.
         own_settings:        {"fan_mode": "auto", …}: the fan and the vanes the thermostat had
                              before a slot or an override chose others, to give back by the next
                              one that chooses none (optional: none to give back)
-        hvac_mode:           the HVAC mode the thermostat last heated or cooled in (None: not
-                             seen on yet): what an off thermostat without heat is turned on in
         revision:            increases on every change of its weeks: a card saves against it, so
                              that two cards cannot overwrite each other's changes
     renamed:         {former climate entity id: current one}: a thermostat renamed in Home
@@ -61,14 +59,14 @@ Vocabulary: docs/glossary.md.
                      (card, service), which the target means on this thermostat (none for a change
                      by hand); "ends_at", why a change by hand ends then: after the override
                      duration, at the next slot, or a week later as no slot changes its target
-                     (none once its end is chosen on the card, nor before #83: an optional key,
-                     no migration)
+                     (none for an override set or changed on the card or by a service, nor
+                     before #83: an optional key, no migration)
     pending:         {climate entity id: [{"target": {"temperature": 20.0} | {"preset_mode": "comfort"},
                                            "sent": ISO datetime}, …]}: commands sent that the
                      thermostat does not show yet, oldest first (a battery valve applies them
                      late); dropped once shown, or after a day
-    revision:        increases on every change of the schedules or weeks; the card saves against
-                     a revision so that two editors cannot overwrite each other
+    revision:        increases on every change of the schedules or weeks; the card saves the
+                     list of schedules against it so that two editors cannot overwrite each other
     rules:           [{"template": "{{ … }}", "schedule": "away" | None}, …]   activation rules, in
                      order: the first that applies gives the schedule; with a schedule, the rule
                      applies while its template is true; without (None), its template gives the
