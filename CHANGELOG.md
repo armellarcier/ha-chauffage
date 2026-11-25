@@ -18,6 +18,12 @@ Each entry says whether the release **migrates stored data** and what to do when
   Thermostat 10.5. An older Versatile Thermostat turned off by itself would be taken for one
   turned off by hand.
 
+### Changed
+
+- **Only a change by hand says why its override ends.** When you change an override from the
+  card or a service, the logbook gives its end time alone, for example "until 22:00". The
+  events of such an override no longer carry `ends_at`.
+
 ### Removed
 
 - **The import of the v0.1 package.** The setup no longer offers to import the package, and the

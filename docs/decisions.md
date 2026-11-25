@@ -129,6 +129,8 @@ future contributor might question.
     `next_slot` or `no_next_slot`. The key is optional, so the stored format needs no migration:
     an override stored before #83 simply shows no reason. An end changed on the card drops the
     key, because the end is then the user's choice. A new value keeps it, with the same end.
+    **Amended by the rewrite**: only a change by hand sets `ends_at`. Any change of the override
+    from the card or a service removes it, and the logbook then gives the end time alone.
   - **The reason is part of the end, in words**: "today, at the next slot", "today, 2 h after the
     change", "in a week, no slot ahead". A first version listed "today · after 2 h · 2 h 00 left":
     three fragments, and the duration twice. "then Eco (schedule)" keeps one form, with or
@@ -149,6 +151,8 @@ future contributor might question.
     slot in the browser, so a phone in another time zone sent a wrong instant. The integration
     keeps the reason only if the end really is the next slot: the reason is never taken on trust
     from the card.
+    **Amended by the rewrite**: the integration no longer keeps the reason. The override gives
+    its end time alone, for example "until 22:00".
   - **The logbook and the events say why.** The started line ends with "(changed by hand, until
     the next slot)", and an expired change by hand ends with "override ended at the next slot"
     rather than "(expired)". The events carry `start` and `ends_at`, so the logbook can say "after

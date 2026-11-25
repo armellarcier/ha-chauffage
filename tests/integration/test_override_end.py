@@ -378,22 +378,22 @@ async def test_an_end_changed_from_the_card_no_longer_says_why(bench: Bench):
     assert "ends_at" not in o
 
 
-async def test_the_same_end_sent_again_from_the_card_keeps_why_the_override_ends(bench: Bench):
-    """The card sends the end in UTC: the same instant, written another way."""
+async def test_the_same_end_sent_again_from_the_card_no_longer_says_why(bench: Bench):
+    """Only a change by hand says why it ends then: any change from the card drops the reason."""
     await start(bench, WITHIN, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     utc_end = dt_util.as_utc(end_of(o)).isoformat().replace("+00:00", "Z")
     await bench.set_override("climate.salon", {**o, "end": utc_end})
-    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
+    assert "ends_at" not in bench.overrides()["climate.salon"]
 
 
-async def test_a_value_changed_from_the_card_keeps_why_the_override_ends(bench: Bench):
+async def test_a_value_changed_from_the_card_no_longer_says_why(bench: Bench):
     await start(bench, WITHIN, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     await bench.set_override("climate.salon", {**o, "target": {"temperature": 23}})
-    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
+    assert "ends_at" not in bench.overrides()["climate.salon"]
 
 
 async def test_the_set_override_service_keeps_its_end(bench: Bench):
@@ -485,41 +485,24 @@ async def test_the_card_is_told_when_the_next_slot_moves_on(bench: Bench):
     assert [dt_util.parse_datetime(end) for end in card.sent] == [at("22:30"), at("20:00", day=1)]
 
 
-async def test_the_next_slot_published_is_accepted_as_the_next_slot(bench: Bench):
-    await start(bench, hhmm="21:30")
-    await bench.manual_setpoint("climate.salon", 22)
-    o = bench.overrides()["climate.salon"]
-    end = bench.runtime.snapshot()["planned"]["climate.salon"]["next_slot_end"]
-    await bench.set_override("climate.salon", {**o, "end": end, "ends_at": "next_slot"})
-    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
-
-
 # ----- the end set to the next slot from the card (#83, iteration 1) -----
 
-async def test_an_end_set_to_the_next_slot_on_the_card_says_next_slot(bench: Bench):
-    """By default the change lasts until 23:30; "Until the next slot" on the card sets 22:30."""
+async def test_an_end_set_to_the_next_slot_on_the_card_gives_the_end_time_alone(bench: Bench):
+    """By default the change lasts until 23:30; "Until the next slot" on the card sets 22:30. Only
+    a change by hand says why it ends then: the logbook gives the end time alone."""
     await start(bench, hhmm="21:30")
     await bench.manual_setpoint("climate.salon", 22)
     o = bench.overrides()["climate.salon"]
     await bench.set_override("climate.salon", {**o, "end": at("22:30").isoformat(), "ends_at": "next_slot"})
     o = bench.overrides()["climate.salon"]
     assert end_of(o) == at("22:30")
-    assert o["ends_at"] == "next_slot"
+    assert "ends_at" not in o
 
 
-async def test_a_new_override_from_the_card_until_the_next_slot_says_next_slot(bench: Bench):
+async def test_a_new_override_from_the_card_until_the_next_slot_gives_the_end_time_alone(bench: Bench):
     await start(bench, hhmm="21:30")
     override = bench.runtime.new_override({"temperature": 22}, end=at("22:30"))
     await bench.set_override("climate.salon", override | {"ends_at": "next_slot"})
-    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
-
-
-async def test_an_end_said_to_be_the_next_slot_that_is_not_says_nothing(bench: Bench):
-    """The integration checks the next slot itself: 23:00 is no slot."""
-    await start(bench, hhmm="21:30")
-    await bench.manual_setpoint("climate.salon", 22)
-    o = bench.overrides()["climate.salon"]
-    await bench.set_override("climate.salon", {**o, "end": at("23:00").isoformat(), "ends_at": "next_slot"})
     assert "ends_at" not in bench.overrides()["climate.salon"]
 
 

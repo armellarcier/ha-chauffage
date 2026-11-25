@@ -395,10 +395,11 @@ async def test_an_off_override_without_a_next_slot_lasts_a_week(bench: Bench):
 
 
 async def test_a_script_that_turns_a_thermostat_off_without_an_end_follows_the_setting(bench: Bench):
+    """The end follows the setting *Turned off*. Only a change by hand says why it ends then."""
     await start_ac(bench)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": SALON, "hvac_mode": "off"}, blocking=True)
     override = bench.overrides()[SALON]
-    assert (override["end"], override["ends_at"]) == ("2026-10-12T17:30:00+02:00", "next_slot")
+    assert override["end"] == "2026-10-12T17:30:00+02:00" and "ends_at" not in override
     await bench.hass.services.async_call(
         "chauffage", "set_override", {"entity_id": SALON, "hvac_mode": "off", "duration": 60}, blocking=True)
     assert bench.overrides()[SALON]["end"] == "2026-10-12T11:00:00+02:00"

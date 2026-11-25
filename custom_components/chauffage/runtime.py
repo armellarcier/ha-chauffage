@@ -1080,17 +1080,8 @@ class ChauffageRuntime:
         current = self.current(self.hass.states.get(entity_id))
         target = override["target"] = engine.fit(override["target"], current)
         before = self.data["overrides"].get(entity_id)
-        # Why a change by hand ends then: kept with its end, dropped once the end is chosen here
-        # Compared as instants: the card sends the same end in UTC. A new start makes a new
-        # override: a duration counted from the former start would be wrong.
-        same_end = before is not None and all(
-            engine.parse_datetime(before.get(key)) == engine.parse_datetime(override.get(key)) for key in ("start", "end"))
-        if override.get("ends_at") == NEXT_SLOT and self.is_next_slot(entity_id, override["end"], current):
-            pass  # "Until the next slot" on the card: checked here, not taken on trust
-        elif same_end and "ends_at" in before:
-            override["ends_at"] = before["ends_at"]
-        else:
-            override.pop("ends_at", None)
+        # Only a change by hand says why it ends then (record_override): not the card, not a service
+        override.pop("ends_at", None)
         new_value = before is None or before["target"] != target
         left_alone = current is not None and engine.ignored(current)  # sent when it is back
         to_send = None
@@ -1125,11 +1116,6 @@ class ChauffageRuntime:
         not_before = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
         until = dt_util.as_local(dt_util.as_utc(now) + timedelta(minutes=MAX_MANUAL_OVERRIDE))
         return plan.next_change(entity_id, now, current, not_before=not_before, until=until)
-
-    def is_next_slot(self, entity_id: str, end: str, current: engine.Thermostat | None) -> bool:
-        """Whether `end` is the next slot a change made now would end at (next_slot_end)."""
-        slot = self.next_slot_end(entity_id, current)
-        return slot is not None and slot == engine.parse_datetime(end)
 
     @callback
     def record_override(self, entity_id: str, override: dict[str, Any], context: Context | None = None) -> None:

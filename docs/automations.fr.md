@@ -168,8 +168,9 @@ Les trois événements des dérogations portent `entity_id`, `start` et `end`.
 son planning à la main) ou `card`. Les autres raisons sont `panel`, `service`, `paused` et
 `forgotten`.
 
-Quand Chauffage sait pourquoi la dérogation s'arrête à ce moment, les événements portent
-`ends_at` : `duration`, `next_slot` ou `no_next_slot`.
+Pour un changement à la main, les événements disent pourquoi la dérogation s'arrête à ce
+moment, dans `ends_at` : `duration`, `next_slot` ou `no_next_slot`. Une dérogation venue de la
+carte ou d'un service n'a pas de `ends_at`.
 
 ### Événement du planning
 
