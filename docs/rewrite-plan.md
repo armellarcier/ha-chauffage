@@ -366,7 +366,8 @@ first step, on the current code. Item 3 moves with phase I3, and item 6 with pha
    logbook says "until 22:00".
 3. **The three resend mechanisms stay**: the retry after a failed call, the commands pending
    for 24 hours, and the forced apply of a thermostat. Each one has its own job. Phase I3 moves
-   all three into `ThermostatGateway`.
+   the pending commands into `ThermostatGateway`. The retry and the forced apply choose what to
+   send, so they go to `app/scheduler.py` in phase I5, as section 2 lays it out.
 4. **The legacy `kind` and `value` fields of the override events go** in the release of the
    rewrite (`_kind_and_value`, `runtime.py:156-164`). Say it in the changelog, under
    "Upgrading". The deprecated *Planned preset* sensor (#125) still goes in 0.12, as announced.

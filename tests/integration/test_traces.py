@@ -12,7 +12,7 @@ from homeassistant.core import Context, Event, callback
 from conftest import CTX_USER, KINDS, WEEKDAY, Bench, every_day
 from custom_components.chauffage import diagnostics, logbook, websocket
 
-LOGGER = "custom_components.chauffage.runtime"
+LOGGER = "custom_components.chauffage"  # the runtime and the gateway
 COMPONENT = Path(__file__).parents[2] / "custom_components" / "chauffage"
 WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": every_day(("00:00", "frost"))}}
 
@@ -28,7 +28,7 @@ def log(caplog):
     caplog.set_level(logging.INFO, logger=LOGGER)
 
     def read() -> list[str]:
-        messages = [r.getMessage() for r in caplog.records if r.name == LOGGER and r.levelno == logging.INFO]
+        messages = [r.getMessage() for r in caplog.records if r.name.startswith(LOGGER) and r.levelno == logging.INFO]
         caplog.clear()
         return messages
     return read

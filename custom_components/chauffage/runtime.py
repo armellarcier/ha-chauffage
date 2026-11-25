@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import copy
 import dataclasses
-from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta
 import logging
@@ -35,7 +34,6 @@ from homeassistant.helpers.event import (
     async_track_time_change,
 )
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers.state import async_reproduce_state
 from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
@@ -77,6 +75,7 @@ from .const import (
     thermostat_unique_id,
 )
 from .store import SAVE_DELAY, ChauffageStore
+from .thermostats.gateway import ThermostatGateway, describe as _describe, local_time as _time
 from .thermostats.reader import ThermostatReader, reader_for
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,13 +109,6 @@ def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tu
     return registry.async_get_device(identifiers={identifier})
 
 
-def _describe(command: engine.Target | dict[str, Any]) -> str:
-    """A target, or an override or a command holding one, for the log: "preset_mode eco",
-    "temperature 21.5"."""
-    target = command["target"] if "target" in command else command
-    return ", ".join(f"{key} {value}" for key, value in target.items())
-
-
 def _end_data(override: dict[str, Any]) -> dict[str, Any]:
     """An override's start and end in local time, and why it ends then if known (a change by
     hand, #83), for the events and the logbook."""
@@ -127,12 +119,6 @@ def _end_data(override: dict[str, Any]) -> dict[str, Any]:
     if override.get("ends_at"):
         out["ends_at"] = override["ends_at"]
     return out
-
-
-def _time(iso: str) -> str:
-    """Local time of an ISO date, for the log."""
-    when = engine.parse_datetime(iso)
-    return dt_util.as_local(when).strftime("%H:%M:%S") if when else str(iso)
 
 
 def _change(before: engine.Thermostat, after: engine.Thermostat) -> str:
@@ -154,13 +140,13 @@ class ChauffageRuntime:
         self.data = data
         self.version = version  # of the integration: a card older than it asks to reload the page
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
-        self._own_contexts: deque[str] = deque(maxlen=500)
+        self.gateway = ThermostatGateway(hass, data, self.current, self._save)
+        self._retry: set[str] = set()  # thermostats whose last command failed
         self._lock = asyncio.Lock()
         self._listeners: set[Callable[[str], None]] = set()
         self._unsubs: list[Callable[[], None]] = []
         self._unsub_states: Callable[[], None] | None = None
         self._last_tick: datetime | None = None
-        self._retry: set[str] = set()  # thermostats whose last command failed
         self._planned_presets: set[str] = set()  # the deprecated sensors, seen at the last check
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
         self._unsub_rules: Callable[[], None] | None = None
@@ -393,13 +379,7 @@ class ChauffageRuntime:
         )
 
     def own_settings(self, entity_id: str) -> dict[str, str]:
-        """The fan and the vanes to give back to a thermostat: what it had before a slot or an
-        override chose others (docs/decisions.md, "Scheduling"). Only the values it still lists."""
-        kept = self.thermostats.get(entity_id, {}).get("own_settings") or {}
-        state = self.hass.states.get(entity_id)
-        attributes = state.attributes if state is not None else {}
-        return {key: value for key, value in kept.items()
-                if value in [engine.preset_value(v) for v in attributes.get(f"{key}s") or [value]]}
+        return self.gateway.own_settings(entity_id)
 
     def _to_send(self, entity_id: str, target: engine.Target, current: engine.Thermostat, by_user: bool = False) -> engine.Target:
         """An override's target as it is sent (engine.complete). Without an HVAC mode, a thermostat
@@ -408,37 +388,6 @@ class ChauffageRuntime:
         slot, _ = plan.slot_at(entity_id, dt_util.now())
         planned = plan.target_of(entity_id, slot, current) or {}
         return engine.complete(target, current, by_user, planned.get("hvac_mode"))
-
-    @callback
-    def _remember_settings(self, entity_id: str, target: engine.Target) -> None:
-        """Before a command changes the fan or the vanes: what the thermostat shows is kept, to
-        be given back by the next slot or override that chooses none."""
-        t, state = self.thermostats.get(entity_id), self.hass.states.get(entity_id)
-        if t is None or state is None:
-            return
-        kept = t.get("own_settings") or {}
-        for key in engine.EQUAL_KEYS:
-            shown = engine.preset_value(state.attributes.get(key))
-            if key in target and key not in kept and shown not in (None, target[key]):
-                t["own_settings"] = kept = {**kept, key: shown}
-
-    @callback
-    def _forget_settings(self, entity_id: str, before: engine.Thermostat, after: engine.Thermostat, given_back: bool) -> None:
-        """The fan or the vanes changed. Given back by Chauffage (`given_back`): done once the
-        thermostat shows them. Changed by hand: they are the user's choice, kept from now on.
-        A thermostat that goes offline, or comes back, shows no fan or another one: nothing is
-        forgotten then."""
-        if engine.ignored(before) or engine.ignored(after):
-            return
-        t = self.thermostats.get(entity_id) or {}
-        kept = dict(t.get("own_settings") or {})
-        for key in engine.EQUAL_KEYS:
-            shown = getattr(after, key)
-            if key in kept and shown != getattr(before, key) and (not given_back or shown == kept[key]):
-                del kept[key]
-        if kept != (t.get("own_settings") or {}):
-            t["own_settings"] = kept
-            self._save()
 
     @property
     def use_presets(self) -> bool:
@@ -708,7 +657,7 @@ class ChauffageRuntime:
         if paused:
             self._drop_override(entity_id, "paused")
             self._retry.discard(entity_id)
-            self._drop_pending(entity_id)
+            self.gateway.drop_pending(entity_id)
         self._track_thermostats()
         self._changed()
         if not paused:
@@ -722,7 +671,7 @@ class ChauffageRuntime:
             raise model.InvalidData(f"not scheduled: {entity_id}")
         self._drop_override(entity_id, "forgotten")
         self._retry.discard(entity_id)
-        self._drop_pending(entity_id)
+        self.gateway.drop_pending(entity_id)
         self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
         repairs.close_missing(self.hass, entity_id)
         self.data["revision"] += 1
@@ -783,13 +732,11 @@ class ChauffageRuntime:
                     registry.async_remove(entity_id)
             repairs.close_missing(self.hass, new)
         self._drop_override(new, "forgotten")
-        self.data["pending"].pop(new, None)
+        self.gateway.renamed(old, new)
         self.thermostats[new] = self.thermostats.pop(old)
         self._weeks_changed([new])
         if old in self.data["overrides"]:
             self.data["overrides"][new] = self.data["overrides"].pop(old)
-        if old in self.data["pending"]:
-            self.data["pending"][new] = self.data["pending"].pop(old)
         renamed = self.data["renamed"]
         for former, current in list(renamed.items()):
             if current == old:
@@ -1043,7 +990,7 @@ class ChauffageRuntime:
         to_send = None
         if (new_value or resend) and not left_alone:
             to_send = self.needs(entity_id, target, current, by_user=not override.get("preset"))
-        if to_send is not None and not await self.send(entity_id, to_send, f"override set by {source}"):
+        if to_send is not None and not await self.gateway.send(entity_id, to_send, f"override set by {source}"):
             raise ThermostatFailed(entity_id)
         self._keep_override(entity_id, override, source, context)
         self._changed()
@@ -1145,114 +1092,23 @@ class ChauffageRuntime:
             return override | {"end": slot.isoformat(), "ends_at": NEXT_SLOT}
         return override | {"ends_at": NO_NEXT_SLOT if unbounded else DURATION}
 
-    async def reproduce(self, entity_id: str, hvac_mode: str | None, attributes: dict[str, Any]) -> bool:
-        """Sets a thermostat to an HVAC mode (None: keeps its own) and attributes, as a scene
-        does (Home Assistant's reproduce_state: the HVAC mode, the setpoint, then the preset, the
-        swing and the fan), with the integration's own context; False if a call failed."""
-        context = Context()
-        self._own_contexts.append(context.id)
-        # Not in HVAC_MODES, so reproduce_state sends no HVAC mode: the thermostat keeps its own
-        state = State(entity_id, hvac_mode or "", attributes)
-        try:
-            await async_reproduce_state(self.hass, [state], context=context)
-        except Exception as err:  # noqa: BLE001 — one unreachable valve must not stop the others
-            _LOGGER.warning("%s: %s failed: %s", entity_id, _describe({**attributes, **({"hvac_mode": hvac_mode} if hvac_mode else {})}), err)
-            return False
-        return True
-
-    # ----- commands applied late (docs/decisions.md, "Commands applied late") -----
+    # ----- commands (thermostats/gateway.py) -----
 
     async def send(self, entity_id: str, target: engine.Target, why: str) -> bool:
-        """Sets a thermostat to a target, as a scene does (#91): Home Assistant's reproduce_state
-        sends the HVAC mode when it changes, the setpoint, then the preset, the vanes and the fan.
-        A thermostat that shows the whole target (a VTherm: as it was asked) gets nothing;
-        otherwise it gets the whole target (#112). Before a setpoint, a thermostat that
-        lists the preset "none" leaves the preset it shows (engine.preset_to_leave), even when it
-        already shows the setpoint. A thermostat that refuses to leave its preset gets the
-        setpoint anyway (docs/decisions.md, "Scheduling"). Logged with
-        `why`; False if a call failed. The command is pending until the thermostat takes it: a battery valve may apply
-        it hours later, even after a failed call (the Zigbee message waits for it). A target the
-        thermostat already shows in full sends nothing, and nothing is pending: a change by hand
-        to that value later must not pass for a command applied late."""
-        self._remember_settings(entity_id, target)
-        commands = self.data["pending"].get(entity_id, [])
-        # Not what the thermostat already shows, unless it may still apply an older command:
-        # then everything, or what it shows now could be undone later
-        state = self.hass.states.get(entity_id)
-        actual = self.current(state)
-        current = None if commands else actual
-        shown = current is not None and engine.satisfied(target, current)
-        # A thermostat that keeps its preset when it gets a setpoint leaves the preset first
-        leave = engine.preset_to_leave(target, actual)
-        if shown and leave is None:
-            _LOGGER.debug("%s: %s already shown, nothing sent (%s)", entity_id, _describe(target), why)
-            return True
-        # Otherwise the whole target, as a scene: a setpoint read in another HVAC mode, or on a
-        # preset, says nothing of the one the thermostat will have (#112). The HVAC mode only
-        # when it changes
-        hvac_mode = target.get("hvac_mode")
-        if current is not None and hvac_mode == current.state:
-            hvac_mode = None
-        attributes = {key: value for key, value in target.items() if key != "hvac_mode"}
-        waiting = "".join(f"; not applied yet: {_describe(c)} sent at {_time(c['sent'])}" for c in commands)
-        _LOGGER.info("%s: %s sent (%s)%s", entity_id, _describe(target), why, waiting)
-        # Only the preset to leave: the thermostat shows the rest, so nothing will be pending
-        if not shown:
-            if commands and commands[-1]["target"] == target:
-                commands.pop()  # sent again: waited for from now
-            commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
-            self.data["pending"][entity_id] = commands
-            self._save()
-        if leave is not None:
-            kept = engine.preset_value(state.attributes.get("preset_mode"))
-            if await self.reproduce(entity_id, hvac_mode, {"preset_mode": leave}):
-                hvac_mode = None
-            else:
-                _LOGGER.warning("%s: could not leave its preset %s, the setpoint is sent anyway", entity_id, kept)
-        return await self.reproduce(entity_id, hvac_mode, attributes)
+        return await self.gateway.send(entity_id, target, why)
+
+    async def reproduce(self, entity_id: str, hvac_mode: str | None, attributes: dict[str, Any]) -> bool:
+        return await self.gateway.reproduce(entity_id, hvac_mode, attributes)
 
     def pending(self, entity_id: str) -> list[engine.Target]:
-        """The commands sent to a thermostat that it does not show yet, oldest first."""
-        return [c["target"] for c in self.data["pending"].get(entity_id, [])]
+        return self.gateway.pending(entity_id)
 
     def needs(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None,
               by_user: bool = False) -> engine.Target | None:
-        """The target to send (_to_send) when the thermostat needs it: the thermostat does not
-        show it, or would apply another command later. None when there is nothing to send.
+        """The target to send (_to_send) when the thermostat needs it (ThermostatGateway.needs).
         `by_user`: an override without a Chauffage preset (in cool, a temperature the user typed
         is sent, a preset's heating temperature is not)."""
-        sent = self._to_send(entity_id, target, current, by_user)
-        if current is None:
-            return sent
-        # A device preset left on at the target's temperature would still fight the setpoint
-        if not engine.satisfied(sent, current) or engine.preset_to_leave(sent, current) is not None:
-            return sent
-        commands = self.pending(entity_id)
-        return sent if commands and commands[-1] != sent else None
-
-    @callback
-    def _applied(self, entity_id: str, before: engine.Thermostat | None,
-                 after: engine.Thermostat | None) -> dict[str, Any] | None:
-        """The command not applied yet that the thermostat has just taken (None: none): that one
-        and the older ones are done."""
-        commands = self.pending(entity_id)
-        index = engine.applied_command(commands, before, after) if after and commands else None
-        if index is None:
-            return None
-        command = self.data["pending"][entity_id][index]
-        self._drop_pending(entity_id, index + 1)
-        return command
-
-    @callback
-    def _drop_pending(self, entity_id: str, count: int | None = None) -> None:
-        """Forgets a thermostat's oldest commands not applied yet (all of them by default)."""
-        commands = self.data["pending"].get(entity_id)
-        if not commands:
-            return
-        del commands[:count]
-        if not commands:
-            del self.data["pending"][entity_id]
-        self._save()
+        return self.gateway.needs(entity_id, self._to_send(entity_id, target, current, by_user), current)
 
     async def _realign(self, entity_id: str, reason: str = "command applied late") -> None:
         """A command applied late, after the thermostat was meant to do something else, or a
@@ -1267,7 +1123,7 @@ class ChauffageRuntime:
                 return
             to_send = self.needs(entity_id, override["target"], current, by_user=not override.get("preset"))
             if to_send is not None:
-                await self.send(entity_id, to_send, f"{reason}, back to the override")
+                await self.gateway.send(entity_id, to_send, f"{reason}, back to the override")
 
     # ----- scheduling -----
 
@@ -1287,7 +1143,7 @@ class ChauffageRuntime:
                 ended=ended or (),
                 since=since,
                 include=frozenset(include or ()) | frozenset(self._retry),
-                pending={e: commands[-1] for e in self.data["pending"] if (commands := self.pending(e))},
+                pending=self.gateway.last_pending(),
             )
             # A thermostat to retry that needs nothing anymore (already right, override, off…)
             self._retry &= {entity_id for entity_id, _ in todo}
@@ -1301,7 +1157,7 @@ class ChauffageRuntime:
                        else reason or "new slot")
                 slot, _ = plan.slot_at(entity_id, now)
                 what = slot.preset or slot.settings.get("hvac_mode")  # an off or a fan-only slot has no preset
-                done = await self.send(entity_id, target, f"{why}, {what} of schedule {self.data['active_schedule']}")
+                done = await self.gateway.send(entity_id, target, f"{why}, {what} of schedule {self.data['active_schedule']}")
                 # Not delivered (unreachable valve…): sent again at the next minutes
                 if done:
                     self._retry.discard(entity_id)
@@ -1317,9 +1173,7 @@ class ChauffageRuntime:
             self._drop_override(entity_id, "expired")
         if ended:
             self._changed()
-        for entity_id, commands in list(self.data["pending"].items()):
-            if expired := engine.expired_commands([c["sent"] for c in commands], dt_util.now()):
-                self._drop_pending(entity_id, expired)
+        self.gateway.expire_pending(dt_util.now())
         await self.apply(ended=ended, since=since)
         self._notify(TICK)
 
@@ -1371,8 +1225,8 @@ class ChauffageRuntime:
         if old is None or new is None or self.is_paused(new.entity_id):
             return
         before, after = self.current(old), self.current(new)
-        self._forget_settings(new.entity_id, before, after, given_back=new.context.id in self._own_contexts)
-        applied = self._applied(new.entity_id, before, after)
+        self.gateway.forget_settings(new.entity_id, before, after, given_back=self.gateway.is_own(new.context))
+        applied = self.gateway.applied(new.entity_id, before, after)
         if engine.ignored(before) and not engine.ignored(after):
             # Turned back on, back online, or ready after a restart: the thermostat may have
             # missed slot changes, and never got the override set while it was away
@@ -1383,12 +1237,12 @@ class ChauffageRuntime:
             return
         context = new.context
         # Changes made by the schedule, or by any automation / script, are not overrides
-        if context.id in self._own_contexts or context.parent_id is not None:
+        if self.gateway.is_own(context) or context.parent_id is not None:
             return
         # On the device, a command sent earlier and applied late: not a change by hand (in doubt,
         # no override). Set back once the thermostat has no newer command to apply.
         if applied and context.user_id is None:
-            if self.data["pending"].get(new.entity_id):
+            if self.gateway.pending(new.entity_id):
                 then = "a newer command is not applied yet"
             else:
                 then = "set back to its " + ("override" if new.entity_id in self.data["overrides"] else "slot")

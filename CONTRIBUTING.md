@@ -619,7 +619,8 @@ point here.
 - **Convert Enums to plain values.** Data read from thermostats may hold Enums, for example a ZHA
   `preset_mode`. Convert them with `.value` before you store them or put them in an attribute.
 - **Say why Chauffage does something to a thermostat** (#49):
-  - Send every command through `send()`, with its reason. `send()` logs the command at INFO.
+  - Send every command through `gateway.send()` (`thermostats/gateway.py`), with its reason.
+    `gateway.send()` logs the command at INFO.
   - Start and end every override through `_keep_override()` and `_drop_override()`, with its
     source or its reason. These functions log the override, fire the event, and describe it in
     the logbook.
