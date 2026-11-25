@@ -6,11 +6,26 @@
 # configuration folder (a copy of the versioned files of dev/hass) and port (scripts/demo.sh
 # starts the demo HA this way, with dev/demo/compose.yaml):
 #   DEV_HASS=<folder> DEV_PORT=8125 docker compose -p <name> -f dev/compose.yaml up -d
-# The repository is mounted live: custom_components/chauffage/ (integration + card) is seen
-# immediately (Python changes need a restart).
+# The repository is mounted live: custom_components/chauffage/ is seen immediately (Python
+# changes need a restart). The `card` service builds the card from frontend/src, then builds it
+# again on every change: reload the browser page.
 name: ha-chauffage-dev
 
 services:
+  # Builds the card (scripts/build.mjs), then again on every change of frontend/src
+  card:
+    image: node:24-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+      - node-modules:/app/node_modules
+    command: sh -c "npm install --no-audit --no-fund --silent && node scripts/build.mjs && exec node scripts/build.mjs --watch"
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/custom_components/chauffage/frontend/chauffage-programme-card.js"]
+      interval: 2s
+      start_period: 5m
+    restart: unless-stopped
+
   # Installs Versatile Thermostat into dev/hass/custom_components (once per version)
   vtherm:
     image: alpine:3.20
@@ -38,6 +53,8 @@ services:
     depends_on:
       vtherm:
         condition: service_completed_successfully
+      card:
+        condition: service_healthy
     ports:
       - "${DEV_PORT:-8124}:8123"
     environment:
@@ -70,3 +87,7 @@ services:
       - ./setup:/setup:ro
       - ${DEV_HASS:-./hass}:/config
     restart: "no"
+
+volumes:
+  # The Node packages of the card service, apart from the repository
+  node-modules:

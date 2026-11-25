@@ -7,9 +7,13 @@ from unittest.mock import patch
 from conftest import Bench
 
 
-async def test_the_card_is_served_and_added_to_every_page(bench: Bench, hass_client):
+async def test_the_card_is_served_and_added_to_every_page(bench: Bench, hass_client, tmp_path):
     bench.hass.config.components.add("frontend")  # the real frontend needs the built UI
-    with patch("custom_components.chauffage.frontend.add_extra_js_url") as add_extra_js_url:
+    # The card is built from frontend/src (tests/js/bundle.test.mjs); a stand-in here
+    (tmp_path / "chauffage-programme-card.js").write_text(
+        "customElements.define('chauffage-programme-card', class extends HTMLElement {});\n", encoding="utf-8")
+    with (patch("custom_components.chauffage.frontend.add_extra_js_url") as add_extra_js_url,
+          patch("custom_components.chauffage.frontend.FRONTEND_DIR", tmp_path)):
         await bench.setup()
     url = add_extra_js_url.call_args.args[1]
     manifest = Path(__file__).parents[2] / "custom_components" / "chauffage" / "manifest.json"

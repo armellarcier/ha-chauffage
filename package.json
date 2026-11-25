@@ -8,8 +8,8 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "build": "esbuild frontend/src/index.ts --bundle --format=esm --target=es2022 --outfile=custom_components/chauffage/frontend/chauffage-programme-card.js",
-    "watch": "npm run build -- --watch=forever",
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc",
     "test": "node --test \"tests/js/**/*.test.mjs\"",
     "coverage": "node --test --experimental-test-coverage --test-coverage-include=\"frontend/**\" --test-coverage-lines=95 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info \"tests/js/**/*.test.mjs\""

@@ -30,3 +30,14 @@ test('the minimum Home Assistant is the same in hacs.json, the tests, the CI, th
   assert.match(read('docs/installation.md'), new RegExp(`Requires Home Assistant ${short} or later`));
   assert.match(read('docs/installation.fr.md'), new RegExp(`Nécessite Home Assistant ${short} ou plus récent`));
 });
+
+// HACS installs the ZIP of the release (hacs.json: zip_release): the release must publish a file of
+// that name, with the integration at its root, built card included.
+test('the release publishes the ZIP that HACS installs', () => {
+  const hacs = JSON.parse(read('hacs.json'));
+  assert.equal(hacs.zip_release, true);
+  const workflow = read('.github/workflows/release.yml');
+  assert.ok(workflow.includes(`gh release create "$GITHUB_REF_NAME" ${hacs.filename} `), 'the asset of the release');
+  assert.ok(workflow.includes(`cd custom_components/chauffage\n          zip -r ../../${hacs.filename} .`), 'the integration at the root of the ZIP');
+  assert.ok(workflow.includes('npm run build'), 'the card built first');
+});

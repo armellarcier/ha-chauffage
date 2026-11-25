@@ -4,7 +4,8 @@ No Lovelace resource and no `extra_module_url` to configure: the integration reg
 `frontend/` folder and adds the card to the modules loaded by the frontend. The URL carries the
 integration version, so browsers fetch the card again after an update.
 
-The card lives in `frontend/` (the package release, until v0.2.0, copies it next to its loader).
+The card lives in `frontend/`. esbuild builds it there from the repository's `frontend/src`, and
+the release ZIP ships it.
 """
 
 from __future__ import annotations
