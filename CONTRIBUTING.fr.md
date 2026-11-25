@@ -660,8 +660,8 @@ et `CLAUDE.md` renvoient ici.
   contenir des Enum, par exemple un `preset_mode` ZHA. Convertissez-les avec `.value` avant de
   les stocker ou de les mettre dans un attribut.
 - **Dites pourquoi Chauffage agit sur un thermostat** (#49) :
-  - Envoyez chaque commande par `send()`, avec sa raison. `send()` journalise la commande au
-    niveau INFO.
+  - Envoyez chaque commande par `gateway.send()` (`thermostats/gateway.py`), avec sa raison.
+    `gateway.send()` journalise la commande au niveau INFO.
   - Commencez et terminez chaque dérogation par `_keep_override()` et `_drop_override()`, avec sa
     source ou sa raison. Ces fonctions journalisent la dérogation, émettent l'événement, et la
     décrivent dans le journal de bord.
