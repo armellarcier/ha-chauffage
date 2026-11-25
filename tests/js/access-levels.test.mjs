@@ -2,7 +2,8 @@
 // overrides, the pause and the active schedule. Plan: also the weeks and the schedules, from the
 // cards. Set up: also the Chauffage panel. An admin can always do everything
 // (docs/decisions.md, "Who may do what").
-import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { act, copyDay, day, save, unsaved } from './driver.mjs';
 import { escape, trySave } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';

@@ -2,7 +2,7 @@
 // and the combles, which only cool. The card shows the salon. It is Monday, 10:00.
 import { afterEach, beforeEach, mock } from 'node:test';
 import { PRESETS, createCard, fakeHass, integrationData } from '../helpers.mjs';
-import { doubleTap, openOverride as openOverrideOf, openSlot } from '../driver.mjs';
+import { openOverride as openOverrideOf, openSlot } from '../driver.mjs';
 import { $, week } from './dom.mjs';
 
 export const SALON = 'climate.salon'; // a heater
@@ -56,7 +56,6 @@ export const moreInfo = (hass, entity, embedded = false) => {
 export const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
 export const mouse = (el, type, clientX) => el.dispatchEvent(new window.MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
 export const bar = (card, climate, d = 0) => geometry($(card, `.bar[data-climate="${climate}"][data-day="${d}"]`));
-export { doubleTap };
 
 export const thermostatCard = (hass, entity) => {
   const card = document.createElement('chauffage-thermostat-card');

@@ -338,7 +338,7 @@ afterEach(() => cleanup());
 // The salon, a heater, the suite, a reversible unit that lists every HVAC mode and takes a range,
 // and the combles, which only cool. The card shows the salon. It is Monday, 10:00.
 {
-  const { DAY, SALON, SUITE, bar, cardOf, doubleTap, onMondayAtTen, select, setup } = suiteAndCombles;
+  const { DAY, SALON, SUITE, bar, cardOf, onMondayAtTen, select, setup } = suiteAndCombles;
 
   describe('two slots that become the same stay two slots', () => {
     onMondayAtTen();

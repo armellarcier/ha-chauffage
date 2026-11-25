@@ -1,5 +1,6 @@
 // Identical days shown on one row, edited as a whole (#11).
-import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';

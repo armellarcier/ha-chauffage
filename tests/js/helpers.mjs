@@ -156,7 +156,6 @@ export function createCard(hass, config = {}) {
   return card;
 }
 
-export { cutSlot } from './driver.mjs';
 
 /** Types a time in one of the cards' time fields, then leaves the field: the time is applied then. */
 export function typeTime(field, value) {

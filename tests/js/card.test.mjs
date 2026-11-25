@@ -1,5 +1,6 @@
 // Behavior of the custom:chauffage-programme-card card.
-import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, PRESETS, WEEKDAY, WEEKEND, cutSlot, typeTime, pressKey } from './helpers.mjs';
+import { fakeHass, integrationData, createCard, cleanup, ChauffageProgrammeCard, PRESETS, WEEKDAY, WEEKEND, typeTime, pressKey } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { $, act, control, copyDay, day, doubleTap, openMenu, openOverride, openSlot, save, selected, settle, unsaved } from './driver.mjs';

@@ -15,7 +15,7 @@ export { $, $$, change, click, icons, rgb, text, week } from './houses/dom.mjs';
 // ----- clicking -----
 
 const selector = (act, data) => `[data-act="${act}"]${Object.entries(data)
-  .map(([key, value]) => `[data-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}="${value}"]`).join('')}`;
+  .map(([key, value]) => `[data-${key}="${value}"]`).join('')}`;
 
 /** The control `[data-act="act"]` with these `data-*` attributes, or null. */
 export const control = (card, act, data = {}) => $(card, selector(act, data));

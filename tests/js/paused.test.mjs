@@ -1,6 +1,7 @@
 // A paused thermostat in the card and its more-info block: shown as paused, Chauffage does not
 // drive it, its weeks stay editable (docs/decisions.md, "Scheduled thermostats").
-import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
+import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { save } from './driver.mjs';
