@@ -186,6 +186,34 @@ Les tests de comportement tournent sur **les trois types de thermostats**, grâc
 `thermostat_kind` : `vtherm`, `standard` et `plain`. Si un test n'a de sens que pour certains
 types, appelez `bench.needs(...)` dans le test.
 
+Lisez ce que Chauffage garde à travers le banc : `bench.presets()`, `bench.overrides()` ou
+`bench.snapshot()`, le message que reçoit la carte. Pour lire ce que Chauffage a enregistré,
+appelez `await bench.stored()`. Ne lisez jamais `runtime.data`. Pour simuler des données
+enregistrées par une ancienne version, appelez `bench.edit_stored_data(...)`.
+
+### Les filets de sécurité de la réécriture
+
+Ces tests gardent le comportement pendant la réécriture du code (voir
+[docs/rewrite-plan.md](docs/rewrite-plan.md)) :
+
+| Test | Ce qu'il vérifie |
+|---|---|
+| `test_subscribe_golden.py` | La carte reçoit exactement le message de `tests/integration/golden/subscribe.json`. |
+| `test_store.py` | Chauffage réenregistre les données stockées telles qu'il les a lues, depuis chaque ancien format. |
+| `test_pure_domain.py` | Le domaine n'importe rien de Home Assistant. |
+| `tests/shared/cases.json` | L'intégration (`test_shared_cases.py`) et la carte (`shared-cases.test.mjs`) donnent les mêmes résultats. |
+
+Pour changer exprès le message de `chauffage/subscribe`, supprimez `golden/subscribe.json`,
+lancez le test une fois, et relisez le nouveau fichier dans le diff.
+
+### Les tests de la carte
+
+Pilotez la carte avec `tests/js/driver.mjs`, jamais avec ses membres privés. Par exemple,
+cliquez sur un contrôle avec `act(card, 'save')`, et vérifiez `unsaved(card)` plutôt que
+`card._dirty`. S'il manque une fonction au driver, ajoutez-la au driver. N'allez dans la carte
+que si aucune action d'un utilisateur ne peut le faire, et dites pourquoi dans un commentaire
+`Internal:`.
+
 ## Versions de Home Assistant prises en charge
 
 ha-chauffage fonctionne avec toutes les versions de Home Assistant, de la version minimale
