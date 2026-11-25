@@ -69,7 +69,7 @@ détail du thermostat.
 
 ## 5. Ajouter une liste des pièces et un résumé (facultatif)
 
-![Sur un téléphone, le résumé d'un étage, puis la liste de ses pièces : le salon a une dérogation jusqu'à 01:34](media/rooms-summary.png)
+![Sur un téléphone, le résumé d'un étage, puis la liste de ses pièces : le salon a une dérogation jusqu'à 15:35](media/rooms-summary.png)
 
 Ces deux cartes sont des prototypes. Elles conviennent aux tableaux de bord qui ont beaucoup de
 pièces, par exemple une tuile par étage qui ouvre une fenêtre avec ses pièces.

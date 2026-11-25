@@ -65,7 +65,7 @@ To edit the thermostat's week, click *Edit its week* in the more-info dialog.
 
 ## 5. Add a list of rooms and a summary (optional)
 
-![On a phone, the summary of a floor, then a list of its rooms: the living room has an override until 01:34](media/rooms-summary.png)
+![On a phone, the summary of a floor, then a list of its rooms: the living room has an override until 15:35](media/rooms-summary.png)
 
 These two cards are prototypes. They suit dashboards with many rooms, for example a tile per
 floor that opens a pop-up of its rooms.
