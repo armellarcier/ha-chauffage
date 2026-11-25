@@ -5,6 +5,9 @@ a target: a partial state of the thermostat, as a scene holds it (#91), with one
 presets or a target temperature (a mapping set by hand, otherwise the default from its
 capabilities). Vocabulary: docs/glossary.md.
 See tests/integration/test_engine.py.
+
+The value objects live in domain/. The functions here that take and return plain dictionaries
+are facades over them, until their callers use the value objects (rewrite phase I7).
 """
 
 from __future__ import annotations
@@ -12,49 +15,42 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from enum import Enum
-from typing import Any, NamedTuple
+from typing import Any
 
-from .const import AIR_KEYS, AUTO, DRY, FAN_ONLY, HEAT_COOL, MANUAL_PRESETS, NO_PRESET_MODES, OFF, SETPOINT_MODES
+from .const import AUTO, DRY, FAN_ONLY, HEAT_COOL, NO_PRESET_MODES, OFF, SETPOINT_MODES
+from .domain.preset import Preset, PresetValue
+from .domain.slot import Day, Slot, Week, slot_hvac_mode, target_of
+from .domain.target import (
+    COOL_KEYS,
+    EQUAL_KEYS,
+    RANGE_KEYS,
+    SETPOINT_KEYS,
+    SETPOINT_TARGET_KEYS,
+    TEMPERATURE_KEYS,
+    Target,
+)
+from .domain.thermostat import (
+    DEFAULT_STEP,
+    IDLE,
+    IGNORED_STATES,
+    SETPOINTS,
+    Thermostat,
+    fit_temperature,
+    ignored,
+    is_manual_preset,
+    on_mode,
+    preset_value,
+    same_temperature,
+    setpoint_modes,
+    temperature_value,
+)
 
-IGNORED_STATES = frozenset({"unavailable", "unknown"})
-DEFAULT_STEP = 0.5
-# The HVAC modes that take no setpoint: a target that holds one and says no HVAC mode turns the
-# thermostat on from them. Not auto: a valve in auto takes a setpoint, and keeps auto
-IDLE = (OFF, FAN_ONLY, DRY)
-
-
-@dataclass(frozen=True)
-class Thermostat:
-    """What the scheduler needs to know about a climate entity. `state` is its HVAC mode as
-    asked: for a Versatile Thermostat that turned itself off, the one it was asked (#91)."""
-
-    state: str
-    preset: str | None
-    temperature: float | None
-    presets: tuple[str, ...] = field(default=())
-    min_temp: float | None = None
-    max_temp: float | None = None
-    step: float | None = None
-    vtherm: bool = False  # Versatile Thermostat
-    ready: bool = True  # it shows a known state (see ready)
-    hvac_modes: tuple[str, ...] = field(default=())
-    # The fan and the vanes of an air conditioner, as shown (#91)
-    fan_mode: str | None = None
-    swing_mode: str | None = None
-    swing_horizontal_mode: str | None = None
-    # Heat/cool: whether it takes a range of temperatures (TARGET_TEMPERATURE_RANGE), and the
-    # range it shows
-    supports_range: bool = False
-    target_temp_low: float | None = None
-    target_temp_high: float | None = None
-
-
-# The attributes of a target compared as they are, with the thermostat's field of the same name
-EQUAL_KEYS = AIR_KEYS
-
-
-SETPOINTS = ("temperature", "target_temp_low", "target_temp_high")
+__all__ = [
+    "AUTO", "COOL_KEYS", "DEFAULT_STEP", "DRY", "EQUAL_KEYS", "FAN_ONLY", "HEAT_COOL", "IDLE", "IGNORED_STATES",
+    "NO_PRESET_MODES", "OFF", "RANGE_KEYS", "SETPOINTS", "SETPOINT_KEYS", "SETPOINT_MODES", "SETPOINT_TARGET_KEYS",
+    "TEMPERATURE_KEYS", "Slot", "Target", "Thermostat", "fit_temperature", "ignored", "is_manual_preset", "on_mode",
+    "preset_value", "same_temperature", "setpoint_modes", "slot_hvac_mode", "temperature_value",
+]
 
 
 def asked(attributes: Mapping[str, Any], vtherm: bool = False) -> tuple[str | None, str | None, float | None]:
@@ -109,176 +105,6 @@ def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
     return any(attributes.get(key) is not None for key in (*SETPOINTS, "preset_mode"))
 
 
-def ignored(thermostat: Thermostat) -> bool:
-    """A thermostat left alone: unavailable or unknown, or not ready yet. Not one turned off:
-    the schedule decides whether a thermostat is off (#91)."""
-    return not thermostat.ready or thermostat.state in IGNORED_STATES
-
-
-# What a thermostat should be set to: a partial state of the climate entity, as a scene holds it.
-# Its keys are the climate attributes: "preset_mode" (one of its climate presets), "temperature"
-# (a target temperature), "target_temp_low" and "target_temp_high" (heat/cool), "hvac_mode". A
-# slot's target says the slot's HVAC mode on this thermostat (`slot_hvac_mode`). The target of a
-# preset holds its value for each HVAC mode (`value_on`): `complete` keeps the one of the HVAC
-# mode it is sent in. A target without an HVAC mode (a heater's slot, an override to a preset)
-# leaves the thermostat in the HVAC mode it has, or gets the one `on_mode` gives if it is off, in
-# fan only or in dry (docs/decisions.md, "Scheduling").
-Target = dict[str, Any]
-SETPOINT_KEYS = ("preset_mode", "temperature")
-# A preset's value when cooling, and in heat/cool: never sent as they are (see complete)
-COOL_KEYS = ("cool_preset_mode", "cool_temperature")
-RANGE_KEYS = ("target_temp_low", "target_temp_high")
-TEMPERATURE_KEYS = ("temperature", "cool_temperature", *RANGE_KEYS)
-
-
-def setpoint_modes(thermostat: Thermostat) -> list[str]:
-    """The HVAC modes a slot on a preset may choose on a thermostat: heat, cool and heat/cool,
-    the ones it lists. Heat/cool only when it takes a range of temperatures."""
-    return [mode for mode in SETPOINT_MODES
-            if mode in thermostat.hvac_modes and (mode != HEAT_COOL or thermostat.supports_range)]
-
-
-def slot_hvac_mode(settings: Mapping[str, Any], thermostat: Thermostat | None) -> str | None:
-    """The HVAC mode of a slot on a thermostat. Off, fan only, dry and auto are the slot's own.
-    A slot on a preset keeps its HVAC mode when the thermostat can follow it (`setpoint_modes`).
-    Otherwise, on a thermostat that cools, the slot heats, or cools when the thermostat does not
-    heat: a week stored before #91 says no HVAC mode, and a day pasted from another thermostat
-    may say one this thermostat does not list. A thermostat that only heats carries no HVAC
-    mode: a heater with one HVAC mode never does, and a valve that also lists auto is left in
-    the HVAC mode it has by a slot that says none. A thermostat whose HVAC modes are not known:
-    as stored."""
-    mode = settings.get("hvac_mode")
-    if mode in NO_PRESET_MODES or thermostat is None or not thermostat.hvac_modes:
-        return mode
-    choices = setpoint_modes(thermostat)
-    if mode in choices:
-        several = len([m for m in thermostat.hvac_modes if m != OFF]) > 1
-        return mode if several or mode != "heat" else None
-    if choices in ([], ["heat"]):
-        return None
-    return "heat" if "heat" in choices else choices[0]
-
-
-def week_on(week: list[list[list[Any]]], thermostat: Thermostat | None) -> list[list[list[Any]]]:
-    """A week as it runs on a thermostat: each slot with its HVAC mode there (`slot_hvac_mode`).
-    A slot that says heat and one that says nothing are then the same slot on an air
-    conditioner: what compares two slots (the next different slot) reads this week."""
-    def on(raw: list[Any]) -> list[Any]:
-        settings = slot_on(slot_of(raw), thermostat).settings
-        return [raw[0], raw[1], settings] if settings else [raw[0], raw[1]]
-
-    return [[on(raw) for raw in day] for day in week]
-
-
-def slot_on(slot: Slot | None, thermostat: Thermostat | None) -> Slot | None:
-    """A slot as it runs on a thermostat: with its HVAC mode there (`slot_hvac_mode`)."""
-    if slot is None:
-        return None
-    settings = {key: value for key, value in slot.settings.items() if key != "hvac_mode"}
-    mode = slot_hvac_mode(slot.settings, thermostat)
-    return Slot(slot.preset, {"hvac_mode": mode, **settings} if mode else settings)
-
-
-def on_mode(thermostat: Thermostat, planned: str | None = None) -> str | None:
-    """The HVAC mode to turn a thermostat on in, for a setpoint that says none (an override to a
-    preset), as the card chooses the HVAC mode of an override: among the HVAC modes that take a
-    setpoint (`setpoint_modes`), the one of the slot planned now (`planned`), else the one it
-    runs in, else the first. In summer, an override to Comfort set by an automation during a
-    cooling slot turns an air conditioner on in cool. Without one of them, its first HVAC mode
-    but off, fan only and dry, for example auto. None when it lists none: a thermostat that
-    only lists off and fan only is not turned on for a setpoint."""
-    choices = setpoint_modes(thermostat)
-    if planned in choices:
-        return planned
-    if thermostat.state in choices:
-        return thermostat.state
-    others = [mode for mode in thermostat.hvac_modes if mode not in IDLE]
-    return (choices or others or [None])[0]
-
-
-def needs_turning_on(target: Target, thermostat: Thermostat | None, planned: str | None = None) -> bool:
-    """A target without an HVAC mode, on a thermostat that cannot follow it as it is: off, or in
-    fan only or dry, while the target holds a setpoint (fan only and dry take none). A target
-    without a setpoint turns nothing on: the slot of a preset that has no value on this
-    thermostat has nothing to send. Not when the thermostat has no HVAC mode to be turned on
-    in, nor when its state is not known yet."""
-    if thermostat is None or not any(key in target for key in (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)):
-        return False
-    return thermostat.state in IDLE and on_mode(thermostat, planned) not in (None, thermostat.state)
-
-
-def complete(target: Target, thermostat: Thermostat | None, by_user: bool = False,
-             planned: str | None = None) -> Target:
-    """The target to send. An off target is sent alone: no setpoint, so a thermostat turned on
-    by hand keeps its own. A target without an HVAC mode gets the one to turn the thermostat on
-    in when it is off, in fan only or in dry (see on_mode; `planned`: the HVAC mode of the slot
-    planned now). A thermostat that heats or cools keeps its HVAC mode when the target says
-    none: never a cooling air conditioner switched to heat.
-
-    A preset's target holds its value for each HVAC mode (`value_on`). The one of the HVAC mode
-    the target is sent in is kept. In cool, its cooling value replaces its heating one. In
-    heat/cool, its range does. Without a value for that HVAC mode, no setpoint is sent: a
-    heating temperature is never sent in cool (never 7 °C to an air conditioner, one that only
-    cools included). A setpoint the user chose (`by_user`: an override without a Chauffage
-    preset) is their target in any HVAC mode: sent (docs/decisions.md, "Presets")."""
-    if target.get("hvac_mode") == OFF:
-        return {"hvac_mode": OFF}
-    out = {key: value for key, value in target.items() if key not in (*COOL_KEYS, *RANGE_KEYS)}
-    if "hvac_mode" not in out and needs_turning_on(target, thermostat, planned):
-        out["hvac_mode"] = on_mode(thermostat, planned)
-    # A thermostat with no state yet, at a restart: the target is sent in the HVAC mode it says
-    mode = out.get("hvac_mode") or (thermostat.state if thermostat is not None else None)
-    value = None
-    if mode == "cool":
-        if "cool_temperature" in target:
-            value = {"temperature": target["cool_temperature"]}
-        elif "cool_preset_mode" in target:
-            value = {"preset_mode": target["cool_preset_mode"]}
-    elif mode == HEAT_COOL and all(key in target for key in RANGE_KEYS):
-        value = {key: target[key] for key in RANGE_KEYS}
-    if mode in ("cool", HEAT_COOL) and (value is not None or not by_user):
-        out = {key: v for key, v in out.items() if key not in SETPOINT_KEYS}
-    return {**out, **(value or {})}
-
-
-def preset_to_leave(attributes: Target, thermostat: Thermostat | None) -> str | None:
-    """The preset "none" to set before a setpoint is sent (`attributes`: what is sent), on a
-    thermostat that lists it and shows another preset; None otherwise. A Daikin keeps its
-    preset when it gets a setpoint: its eco preset would go on against the temperature asked.
-    Set before the setpoint: a thermostat may give back an older setpoint when it leaves a
-    preset. Not on a Versatile Thermostat, which goes to its manual preset by itself."""
-    if thermostat is None or thermostat.vtherm or is_manual_preset(thermostat.preset):
-        return None
-    if "preset_mode" in attributes or not any(key in attributes for key in SETPOINTS):
-        return None
-    return next((preset for preset in thermostat.presets if preset.lower() == "none"), None)
-
-
-def restored(target: Target | None, own: Mapping[str, str] | None) -> Target | None:
-    """The target with the fan and the vanes to give back to the thermostat (`own`: what it had
-    before a slot or an override chose others), for those the target does not choose. An off
-    target is sent alone."""
-    if target is None or not own or target.get("hvac_mode") == OFF:
-        return target
-    return {**{key: value for key, value in own.items() if key not in target}, **target}
-
-
-def preset_value(raw: Any) -> str | None:
-    """preset_mode as text: some integrations (ZHA…) expose an Enum (<Preset.ECO: 'eco'>)."""
-    if raw is None:
-        return None
-    if isinstance(raw, Enum):
-        raw = raw.value
-    return str(raw)
-
-
-def temperature_value(raw: Any) -> float | None:
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
-
-
 def parse_datetime(value: Any) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value))
@@ -287,162 +113,77 @@ def parse_datetime(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo else None
 
 
-def is_manual_preset(preset: str | None) -> bool:
-    return preset is None or preset.lower() in MANUAL_PRESETS
+# ----- facades over domain/ -----
+
+def week_on(week: list[list[list[Any]]], thermostat: Thermostat | None) -> list[list[list[Any]]]:
+    """A week as it runs on a thermostat (Week.on)."""
+    return Week.from_stored(week).on(thermostat).to_stored()
 
 
-# ----- presets → targets -----
-
-def fit_temperature(value: float, thermostat: Thermostat | None) -> float:
-    """A temperature the thermostat accepts: within its limits, on its step."""
-    step = (thermostat.step if thermostat else None) or DEFAULT_STEP
-    value = round(round(value / step) * step, 2)
-    if thermostat and thermostat.min_temp is not None:
-        value = max(value, thermostat.min_temp)
-    if thermostat and thermostat.max_temp is not None:
-        value = min(value, thermostat.max_temp)
-    return value
+def slot_on(slot: Slot | None, thermostat: Thermostat | None) -> Slot | None:
+    """A slot as it runs on a thermostat (Slot.on)."""
+    return None if slot is None else slot.on(thermostat)
 
 
-def value_on(preset: dict[str, Any], cell: Mapping[str, Any] | None, thermostat: Thermostat | None,
-             use_presets: bool = True) -> Target:
-    """What a preset means on a thermostat, for each HVAC mode. The one place that says which
-    HVAC modes a preset can be used in on a thermostat (`offered_modes` reads the result; the
-    card reads it too, `presetModesOn`).
-
-    - When heating ("preset_mode" or "temperature"): the value set by hand for this thermostat
-      (`cell`), else the preset's default: the thermostat's climate preset named like the preset
-      if it has one (and climate presets are used), else the preset's temperature. Nothing when
-      the preset has no temperature when heating.
-    - When cooling ("cool_temperature" or "cool_preset_mode"), on a thermostat that cools: the
-      cooling temperature set by hand, else the climate preset set by hand (the thermostat reads
-      it for the HVAC mode it runs in), else the preset's default, as when heating. Nothing when
-      the preset has no temperature when cooling: frost protection never cools.
-    - In heat/cool ("target_temp_low" and "target_temp_high"), on a thermostat that takes a
-      range: the two temperatures, each one set by hand or the preset's, when it has both and
-      the low one is under the high one once fitted to the thermostat. A climate preset is not
-      used: the range needs numbers.
-    Then the fan and the vanes set by hand. Temperatures are fitted to the thermostat."""
-    cell = cell or {}
-    own = preset["id"] if use_presets and thermostat and preset["id"] in thermostat.presets else None
-    heat, cool = preset.get("temperature"), preset.get("cool_temperature")
-    out: Target = {key: cell[key] for key in SETPOINT_KEYS if key in cell}
-    if not out and heat is not None:
-        out = {"preset_mode": own} if own else {"temperature": heat}
-    if thermostat and "cool" in thermostat.hvac_modes:
-        if "cool_temperature" in cell:
-            out["cool_temperature"] = cell["cool_temperature"]
-        elif "preset_mode" in cell:
-            out["cool_preset_mode"] = cell["preset_mode"]
-        elif cool is not None:
-            out |= {"cool_preset_mode": own} if own else {"cool_temperature": cool}
-    low, high = cell.get("temperature", heat), cell.get("cool_temperature", cool)
-    if thermostat and HEAT_COOL in setpoint_modes(thermostat) and low is not None and high is not None:
-        # Compared once fitted: two temperatures above the thermostat's maximum are not a range
-        low, high = fit_temperature(low, thermostat), fit_temperature(high, thermostat)
-        if low < high:
-            out |= {"target_temp_low": low, "target_temp_high": high}
-    out |= {key: value for key, value in cell.items() if key in EQUAL_KEYS}
-    return fit(out, thermostat)
+def complete(target: Mapping[str, Any], thermostat: Thermostat | None, by_user: bool = False,
+             planned: str | None = None) -> dict[str, Any]:
+    """The target to send (Target.completed_for)."""
+    return dict(Target(target).completed_for(thermostat, by_user, planned))
 
 
-def offered_modes(value: Target) -> list[str]:
-    """The HVAC modes a preset can be used in, from its value on a thermostat (`value_on`):
-    those it has a value for."""
-    has = {"heat": SETPOINT_KEYS, "cool": COOL_KEYS}
-    modes = [mode for mode, keys in has.items() if any(key in value for key in keys)]
-    return [*modes, HEAT_COOL] if all(key in value for key in RANGE_KEYS) else modes
+def preset_to_leave(attributes: Mapping[str, Any], thermostat: Thermostat | None) -> str | None:
+    return Target(attributes).preset_to_leave(thermostat)
 
 
-def resolve(
-    preset_id: str | None,
-    presets: dict[str, dict[str, Any]],
-    mapping: dict[str, Any] | None,
-    thermostat: Thermostat | None,
-    use_presets: bool = True,
-    settings: dict[str, Any] | None = None,
-) -> Target | None:
-    """Target of a slot (its preset and its settings) for one thermostat, or of a preset alone
-    (`settings` None: an override to a preset, which says no HVAC mode). The slot chooses the
-    HVAC mode (`slot_hvac_mode`). Off: off, and nothing else. Fan only, dry and auto: the HVAC
-    mode, with the slot's fan and vanes; nothing on a thermostat that does not list it (it is
-    left as it is). Otherwise the preset says how warm, for each HVAC mode (`value_on`), then
-    the slot's fan and vanes. The target says the slot's HVAC mode when the thermostat carries
-    one."""
-    mode = slot_hvac_mode(settings, thermostat) if settings is not None else None
-    air = {key: value for key, value in (settings or {}).items() if key != "hvac_mode"}
-    if mode == OFF:
-        return {"hvac_mode": OFF}
-    if mode in NO_PRESET_MODES:
-        if thermostat is not None and mode not in thermostat.hvac_modes:
-            return None
-        return {"hvac_mode": mode, **air}
-    preset = presets.get(preset_id) if preset_id else None
-    if preset is None:
-        return None
-    target = {**value_on(preset, (mapping or {}).get(preset_id), thermostat, use_presets), **air}
-    if mode and thermostat is not None and mode in thermostat.hvac_modes:
-        target["hvac_mode"] = mode
-    return target
+def restored(target: Mapping[str, Any] | None, own: Mapping[str, str] | None) -> dict[str, Any] | None:
+    return None if target is None else dict(Target(target).with_own_settings(own))
 
 
-def same_temperature(a: float | None, b: float | None, thermostat: Thermostat | None = None) -> bool:
-    if a is None or b is None:
-        return False
-    step = (thermostat.step if thermostat else None) or DEFAULT_STEP
-    return abs(a - b) < step / 2
+def value_on(preset: Mapping[str, Any], cell: Mapping[str, Any] | None, thermostat: Thermostat | None,
+             use_presets: bool = True) -> dict[str, Any]:
+    """What a preset means on a thermostat, for each HVAC mode (Preset.value_on)."""
+    return dict(Preset.from_stored(preset).value_on(cell, thermostat, use_presets).as_target())
 
 
-def fit(target: Target, thermostat: Thermostat | None) -> Target:
-    """The target with its temperatures fitted to the thermostat (limits, step)."""
-    return {key: fit_temperature(value, thermostat) if key in TEMPERATURE_KEYS else value
-            for key, value in target.items()}
+def offered_modes(value: Mapping[str, Any]) -> list[str]:
+    """The HVAC modes a preset can be used in, from its value on a thermostat (`value_on`)."""
+    return PresetValue.from_target(value).offered_modes()
 
 
-def hvac_satisfied(target: Target, thermostat: Thermostat) -> bool:
-    """The thermostat is in the target's HVAC mode, or on when the target gives none: not off, and
-    not in fan only or dry when the target holds a setpoint."""
-    if "hvac_mode" in target:
-        return target["hvac_mode"] == thermostat.state
-    return thermostat.state != OFF and not needs_turning_on(target, thermostat)
+def resolve(preset_id: str | None, presets: Mapping[str, Mapping[str, Any]], mapping: Mapping[str, Any] | None,
+            thermostat: Thermostat | None, use_presets: bool = True,
+            settings: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+    """Target of a slot for one thermostat, or of a preset alone (slot.target_of)."""
+    target = target_of(preset_id, presets, mapping, thermostat, use_presets, settings)
+    return None if target is None else dict(target)
 
 
-def satisfied(target: Target, thermostat: Thermostat) -> bool:
-    """The thermostat shows every part of the target."""
-    if not hvac_satisfied(target, thermostat):
-        return False
-    if "preset_mode" in target and thermostat.preset != target["preset_mode"]:
-        return False
-    if "temperature" in target and not same_temperature(thermostat.temperature, target["temperature"], thermostat):
-        return False
-    if any(key in target and not same_temperature(getattr(thermostat, key), target[key], thermostat) for key in RANGE_KEYS):
-        return False
-    return all(getattr(thermostat, key) == target[key] for key in EQUAL_KEYS if key in target)
+def fit(target: Mapping[str, Any], thermostat: Thermostat | None) -> dict[str, Any]:
+    return dict(Target(target).fitted_to(thermostat))
 
 
-# ----- slots -----
+def hvac_satisfied(target: Mapping[str, Any], thermostat: Thermostat) -> bool:
+    return Target(target).hvac_satisfied_by(thermostat)
 
-class Slot(NamedTuple):
-    """What a slot asks for: a preset, and optional settings: its HVAC mode, the fan and the
-    vanes of an air conditioner (#91). An off slot and a fan-only slot have no preset. Stored as
-    [start, preset] or [start, preset, settings]."""
 
-    preset: str | None
-    settings: dict[str, Any]
+def satisfied(target: Mapping[str, Any], thermostat: Thermostat) -> bool:
+    return Target(target).satisfied_by(thermostat)
+
+
+def same_target(a: Mapping[str, Any], b: Mapping[str, Any], thermostat: Thermostat | None = None) -> bool:
+    return Target(a).same_as(b, thermostat)
 
 
 def slot_of(raw: list[Any]) -> Slot:
-    return Slot(raw[1], raw[2] if len(raw) > 2 else {})
+    return Slot.from_stored(raw)
 
 
 def slot_at(day: list[list[Any]], hhmm: str) -> tuple[Slot | None, bool]:
-    """The slot running at HH:MM, and whether it starts exactly then."""
-    slot, starts_now = None, False
-    for raw in day:
-        if raw[0] <= hhmm:
-            slot, starts_now = slot_of(raw), raw[0] == hhmm
-    return slot, starts_now
+    """The slot running at HH:MM, and whether it starts exactly then (Day.slot_at)."""
+    return Day.from_stored(day).slot_at(hhmm)
 
+
+# ----- slots -----
 
 def slots_after(week: list[list[list[Any]]], now: datetime) -> Iterator[tuple[datetime, Slot]]:
     """(start, slot) of the slots starting after now, for 7 days, in order. Every start is an
@@ -666,17 +407,6 @@ def back_to(expected: Target, thermostat: Thermostat, preset_temperature: float 
         hvac_satisfied(expected, thermostat) and "preset_mode" in expected and is_manual_preset(thermostat.preset)
         and same_temperature(thermostat.temperature, preset_temperature, thermostat)
     )
-
-
-def same_target(a: Target, b: Target, thermostat: Thermostat | None = None) -> bool:
-    """Two targets that set the thermostat alike (temperatures compared on its step)."""
-    if set(a) != set(b):
-        return False
-    return all(same_temperature(a[key], b[key], thermostat) if key in TEMPERATURE_KEYS else a[key] == b[key] for key in a)
-
-
-# The keys of a target that hold its setpoint: a preset, a temperature or a range
-SETPOINT_TARGET_KEYS = (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)
 
 
 def setpoint_changed(before: Thermostat, after: Thermostat, by_user: bool) -> Target | None:
