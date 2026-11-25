@@ -7708,7 +7708,7 @@ const tileCss = (p) => `
   .${p}-badge::before { content:''; position:absolute; inset:0; background:var(--tile-color, var(--state-inactive-color)); opacity:.2;
     transition:opacity .18s ease-in-out; }
   .${p}-badge > * { position:relative; }
-  .${p}-name { font-size:var(--ha-font-size-m, 14px); font-weight:var(--ha-font-weight-medium, 500); line-height:20px;
+  .${p}-name { display:block; font-size:var(--ha-font-size-m, 14px); font-weight:var(--ha-font-weight-medium, 500); line-height:20px;
     letter-spacing:.1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .${p}-state { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; color:var(--primary-text-color);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

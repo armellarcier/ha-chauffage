@@ -60,6 +60,11 @@ describe('the summary card', () => {
     assert.equal($(card, '.sc-humidity ha-icon').getAttribute('icon'), 'mdi:water-percent');
   });
 
+  test('a long name is cut with an ellipsis, not run under the button of the schedules', () => {
+    const style = $(cardFor(setup()), 'style').textContent;
+    assert.match(style, /\.sc-name \{[^}]*display:block;[^}]*text-overflow:ellipsis/);
+  });
+
   test('its measures at its right end, after the button of the schedules', () => {
     const card = cardFor(setup());
     assert.deepEqual([...$(card, 'ha-card').children].map((el) => el.className), ['sc-main', 'sc-pick', 'sc-measures']);
