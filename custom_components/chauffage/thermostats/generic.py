@@ -66,7 +66,9 @@ class GenericReader:
         or "window" while it heats at the frost setpoint for its open window; None otherwise."""
         attributes = state.attributes
         specific = attributes.get("specific_states") if isinstance(attributes.get("specific_states"), Mapping) else {}
-        window = specific.get("window_manager")
+        # VTherm 10.5 publishes its window manager as a top-level attribute
+        window = specific.get("window_manager") if isinstance(specific.get("window_manager"), Mapping) \
+            else attributes.get("window_manager")
         if isinstance(window, Mapping) and str(window.get("window_state")) == "on":
             return "window"
         if state.state != OFF:

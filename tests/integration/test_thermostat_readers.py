@@ -81,4 +81,5 @@ def test_why_a_vtherm_protects_itself():
     assert cause({"specific_states": {"window_manager": {"window_state": "on"}, "hvac_mode_reason": "hvac_off_window_detection"}}, "heat") == "window"
     assert cause({"specific_states": {"window_manager": {"window_state": "off"}, "hvac_mode_reason": "hvac_off_window_detection"}}, "heat") is None
     assert cause({"specific_states": {"hvac_off_reason": "hvac_off_auto_start_stop"}}, "heat") is None  # started again
+    assert cause({"window_manager": {"window_state": "on"}}, "heat") == "window"  # VTherm 10.5
     assert cause({}, "heat") is None

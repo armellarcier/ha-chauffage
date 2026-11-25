@@ -577,7 +577,9 @@ future contributor might question.
     checked; they are rare, and the risk is accepted.
     **Removed by the rewrite**: Versatile Thermostat 10.5 is the minimum supported version, and
     every supported VTherm publishes `requested_state`. The `shown` field, the top-level
-    `hvac_off_reason` and `window_manager`, and the top-level `eco_temp` keys are no longer read.
+    `hvac_off_reason` and the top-level `eco_temp` keys are no longer read. The top-level
+    `window_manager` stays: VTherm 10.5.0 still publishes it there, not in `specific_states`
+    (phase I2 of the rewrite found it in a development HA).
 - **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
   thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
   `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its
