@@ -197,6 +197,22 @@ const I18N = {
     accessSidebarNote: 'Each user can hide Chauffage from their sidebar, in their profile.',
     thermostatCardName: 'Scheduled thermostat',
     thermostatCardDescription: 'One thermostat scheduled by Chauffage: what it does now, why and until when, an override',
+    hvacModeLabel: 'Mode',
+    roomsCardName: 'Rooms',
+    roomsCardDescription: 'One row per scheduled thermostat: what it does now, what comes next, − and +',
+    summaryCardName: 'Heating summary',
+    summaryCardDescription: 'A floor or the house in one row: its temperature, what heats, the overrides, the schedules',
+    summaryDefaultName: 'Heating',
+    heatingNone: 'Nothing heating',
+    heatingOne: '1 heating',
+    heatingMany: '{n} heating',
+    coolingOne: '1 cooling',
+    coolingMany: '{n} cooling',
+    overridesOne: '1 override',
+    overridesMany: '{n} overrides',
+    pausedOne: '1 paused',
+    pausedMany: '{n} paused',
+    thenAt: '{current} → {next} {time}',
     thermostatsHint: 'Chauffage controls the scheduled thermostats. A thermostat whose control is paused stays scheduled: it keeps its weeks, but Chauffage leaves it alone.',
     pauseShort: 'Pause control',
     forget: 'Forget…',
@@ -342,6 +358,11 @@ const I18N = {
     editorNameDefault: 'Leave empty to use “{name}”',
     editorShowAll: 'Show every thermostat at first',
     editorStep: 'Time step (minutes)',
+    editorThermostatsOptional: 'Thermostats (optional)',
+    editorAllScheduled: 'Every thermostat Chauffage schedules is shown. Add one to choose the list.',
+    editorIcon: 'Icon (optional)',
+    editorTapAction: 'Tap action (optional)',
+    editorShowSchedules: 'Schedule menu',
   },
   fr: {
     presets: { comfort: 'Confort', eco: 'Éco', boost: 'Boost', frost: 'Hors-gel' },
@@ -517,6 +538,22 @@ const I18N = {
     accessSidebarNote: 'Chacun peut masquer Chauffage de sa barre latérale, dans son profil.',
     thermostatCardName: 'Thermostat programmé',
     thermostatCardDescription: 'Un thermostat programmé par Chauffage : ce qu’il fait, pourquoi et jusqu’à quand, une dérogation',
+    hvacModeLabel: 'Mode',
+    roomsCardName: 'Pièces',
+    roomsCardDescription: 'Une ligne par thermostat programmé : ce qu’il fait, ce qui suit, − et +',
+    summaryCardName: 'Résumé du chauffage',
+    summaryCardDescription: 'Un étage ou la maison en une ligne : sa température, ce qui chauffe, les dérogations, les plannings',
+    summaryDefaultName: 'Chauffage',
+    heatingNone: 'Rien ne chauffe',
+    heatingOne: '1 chauffe',
+    heatingMany: '{n} chauffent',
+    coolingOne: '1 refroidit',
+    coolingMany: '{n} refroidissent',
+    overridesOne: '1 dérogation',
+    overridesMany: '{n} dérogations',
+    pausedOne: '1 en pause',
+    pausedMany: '{n} en pause',
+    thenAt: '{current} → {next} {time}',
     thermostatsHint: 'Chauffage pilote les thermostats programmés. Un thermostat au pilotage suspendu reste programmé : il garde ses semaines, mais Chauffage n\'y touche plus.',
     pauseShort: 'Suspendre le pilotage',
     forget: 'Oublier…',
@@ -662,6 +699,11 @@ const I18N = {
     editorNameDefault: 'Laisser vide pour « {name} »',
     editorShowAll: 'Afficher tous les thermostats au départ',
     editorStep: 'Pas des horaires (minutes)',
+    editorThermostatsOptional: 'Thermostats (facultatif)',
+    editorAllScheduled: 'Tous les thermostats programmés sont affichés. Ajoutez-en un pour choisir la liste.',
+    editorIcon: 'Icône (facultatif)',
+    editorTapAction: 'Action au tap (facultatif)',
+    editorShowSchedules: 'Menu des plannings',
   },
 };
 
@@ -1026,6 +1068,9 @@ const HVAC_ICONS = { off: 'mdi:power', heat: 'mdi:fire', cool: 'mdi:snowflake', 
 // Home Assistant's color of each HVAC mode (its state color), with the color it is by default.
 // Off is grey, as an off slot
 const OFF_COLOR = '#616161';
+// The stripes of an override, everywhere Chauffage draws one (the schedule card, the thermostat
+// card's chip, a row of the rooms card), with a white text
+const OVERRIDE_STRIPES = 'repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px)';
 const HVAC_COLORS = {
   off: OFF_COLOR,
   heat: 'var(--state-climate-heat-color, #ff5722)',
@@ -4185,11 +4230,13 @@ class ChauffageProgrammeCard extends HTMLElement {
         <span class="ed-times"><label>${esc(t('from'))} ${from}</label><label>${esc(t('to'))} ${to}</label></span>
         <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
       </div>
-      ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
-      ${modeRow}
-      ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
-      ${setpointLine}
-      ${more}
+      <div class="ed-body">
+        ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
+        ${modeRow}
+        ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
+        ${setpointLine}
+        ${more}
+      </div>
       <div class="ed-actions">
         <button class="btn" data-act="insert" ${end - s.start < 2 * this._config.step ? 'disabled' : ''}>${esc(t('insertSlot'))}</button>
         <button class="btn" data-act="delete" ${segs.length === 1 ? 'disabled' : ''}>${esc(t('delete'))}</button>
@@ -4211,7 +4258,7 @@ class ChauffageProgrammeCard extends HTMLElement {
         ${d ? `<span class="override-value">${esc(overrideSummary(d, this._source(), climate, this._loc, this._hass))}</span>` : ''}
         <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
       </div>
-      ${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}
+      <div class="ed-body">${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}</div>
       ${d ? `<div class="ed-actions"><button class="btn danger" data-act="override-del">${esc(t('resume'))}</button></div>` : ''}
     </div>`;
   }
@@ -4305,6 +4352,7 @@ class ChauffageProgrammeCard extends HTMLElement {
     // On a narrow card (a phone), the popover takes the card's width: centred, whatever it holds
     ed.style.width = card.width <= 516 ? `${card.width - 16}px` : '';
     ed.classList.toggle('narrow', card.width <= 516); // its HVAC modes in three columns
+    ed.style.maxHeight = ''; // its whole height first
     const w = ed.offsetWidth;
     const h = ed.offsetHeight;
     // The popover is placed from inside the card's border: centred between its two borders
@@ -4313,19 +4361,38 @@ class ChauffageProgrammeCard extends HTMLElement {
     const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2)) - border;
     let top = row.bottom - card.top + 9;
     let above = false;
-    // The save bar stays at the bottom of the window: the popover does not go under it
-    const save = root.querySelector('.savebar');
-    const floor = window.innerHeight - (save ? save.getBoundingClientRect().height : 0);
-    if (row.bottom + 9 + h > floor && row.top - 9 - h > 0) {
-      top = row.top - card.top - h - 9;
-      above = true;
+    // The popover goes over the save bar, but stays in the window, under Home Assistant's top bar
+    const topBar = parseFloat(getComputedStyle(this).getPropertyValue('--header-height')) || 0;
+    let max = 0;
+    if (row.bottom + 9 + h > window.innerHeight) {
+      const roomBelow = window.innerHeight - row.bottom - 9 - 8;
+      const roomAbove = row.top - 9 - 8 - topBar;
+      // No room on either side: it takes the larger one, and its body scrolls
+      if (row.top - 9 - h <= topBar) max = Math.max(roomBelow, roomAbove);
+      if (max !== roomBelow) {
+        top = row.top - card.top - (max || h) - 9;
+        above = true;
+      }
     }
+    ed.style.maxHeight = max ? `${max}px` : '';
+    // A redraw (a preset tapped, Home Assistant's new data) keeps where the body was scrolled
+    const kept = this._bodyScroll;
+    this._bodyScroll = null;
+    this._placedKey = this._editorKey();
+    const body = ed.querySelector('.ed-body');
+    if (kept && body && kept.key === this._placedKey) body.scrollTop = kept.top;
     ed.style.left = `${left}px`;
     ed.style.top = `${top}px`;
     ed.style.setProperty('--caret', `${Math.max(14, Math.min(w - 14, cx - left))}px`);
     ed.classList.toggle('above', above);
     ed.classList.add('placed');
     return true;
+  }
+
+  // Which popover is open: a slot, an override or a preset's value
+  _editorKey() {
+    const cell = this._cell && [this._cell.kind, this._cell.preset, this._cell.climate];
+    return JSON.stringify([this._sel, this._overrideSel && this._overrideSel.climate, cell]);
   }
 
   // Redraws the card, keeping a schedule name being typed in a menu, and the caret of a rule's
@@ -4345,6 +4412,9 @@ class ChauffageProgrammeCard extends HTMLElement {
     // The presets table keeps where it was scrolled sideways: a tap on a cell redraws it
     const table = this.shadowRoot.querySelector('.table-wrap');
     if (table) this._tableLeft = table.scrollLeft;
+    // A popover's body scrolled: put back by _placeEditor(), if the same popover is still open
+    const body = this.shadowRoot.querySelector('.editor .ed-body');
+    this._bodyScroll = body && body.scrollTop ? { key: this._placedKey, top: body.scrollTop } : null;
     this._draw();
     this._keepTable();
     this._showTargetRow();
@@ -5007,7 +5077,19 @@ class ChauffageProgrammeCard extends HTMLElement {
     });
     // "More settings" of a slot stays open or closed across redraws (toggle does not bubble)
     root.addEventListener('toggle', (e) => {
-      if (e.target.matches && e.target.matches('.editor:not(.cell-ed) details.more')) this._moreOpen = e.target.open;
+      if (!e.target.matches || !e.target.matches('.editor details.more')) return;
+      if (!e.target.matches('.cell-ed details.more')) this._moreOpen = e.target.open;
+      this._placeEditor(); // taller or shorter: it may no longer fit where it is
+      // Opened by the user (a redraw opens it again too): what it holds comes into sight
+      const tapped = this._moreTapped;
+      this._moreTapped = false;
+      const body = e.target.closest('.ed-body');
+      if (!tapped || !e.target.open || !body) return;
+      const below = e.target.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+      if (below > 0) body.scrollTop += Math.min(below, e.target.getBoundingClientRect().top - body.getBoundingClientRect().top);
+    }, true);
+    root.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('.editor details.more > summary')) this._moreTapped = true;
     }, true);
   }
 
@@ -5814,8 +5896,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     return `<div class="editor cell-ed" data-panel="cell">
       <div class="ed-head"><strong>${dot}${heading}</strong>
         <button class="btn icon close" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
-      ${body}
-      ${this._cellError ? `<div class="pv-error">${esc(this._cellError)}</div>` : ''}
+      <div class="ed-body">${body}
+        ${this._cellError ? `<div class="pv-error">${esc(this._cellError)}</div>` : ''}</div>
       <div class="ed-actions pv-foot">${buttons}</div>
     </div>`;
   }
@@ -6701,7 +6783,7 @@ const STYLE = `
   /* A day with nothing to offer keeps its place in the grid */
   .ibtn.none { visibility:hidden; }
   .bar.clipsrc { outline:2px dashed var(--primary-color); outline-offset:2px; }
-  .menu { position:absolute; z-index:10; min-width:230px; padding:6px 0; border-radius:10px;
+  .menu { position:absolute; z-index:12; min-width:230px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color);
     box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .mh { padding:4px 14px 6px; font-size:.78em; color:var(--secondary-text-color); }
@@ -6714,10 +6796,21 @@ const STYLE = `
   .mi small { display:block; font-size:.8em; color:var(--secondary-text-color); }
   .sep { height:1px; margin:5px 0; background:var(--divider-color); }
   .hint { margin-top:10px; font-size:.8em; color:var(--secondary-text-color); }
-  .editor { position:absolute; z-index:9; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
+  .editor { position:absolute; z-index:11; visibility:hidden; box-sizing:border-box; width:max-content; max-width:min(500px, calc(100% - 16px));
     padding:10px 12px; border-radius:10px; background:var(--card-background-color);
     border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25);
     display:flex; flex-direction:column; gap:var(--chauffage-row-gap); }
+  /* No room above nor below its row: only the body scrolls. Its head and its buttons stay in
+     sight, and the popover does not clip its caret. Its padding leaves room for the ring of a
+     chip at its edges. A shadow shows on the side where there is more: the covers scroll with
+     the content (local), the shadows stay with the view (scroll) */
+  .ed-body { display:flex; flex-direction:column; gap:var(--chauffage-row-gap); min-height:0; overflow-y:auto;
+    overscroll-behavior:contain; padding:4px; margin:-4px;
+    background:linear-gradient(var(--card-background-color) 30%, transparent) top / 100% 24px no-repeat local,
+      linear-gradient(transparent, var(--card-background-color) 70%) bottom / 100% 24px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, rgba(0,0,0,.3), transparent) top / 100% 10px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.3), transparent) bottom / 100% 10px no-repeat scroll; }
+  .editor > .ed-head, .editor > .ed-actions { flex:none; }
   .editor.placed { visibility:visible; }
   .editor::before { content:''; position:absolute; top:-7px; left:var(--caret,50%); width:12px; height:12px;
     margin-left:-6px; transform:rotate(45deg); background:var(--card-background-color);
@@ -7364,7 +7457,7 @@ const THERMOSTAT_CARD_STYLE = `
     font-size:.88em; font-weight:500; white-space:nowrap; background:var(--secondary-background-color); }
   .tc-state i { width:10px; height:10px; border-radius:3px; flex:none; }
   .tc-state .m ha-icon { --mdc-icon-size:12px; width:12px; height:12px; }
-  .tc-state.override { color:#fff; background:repeating-linear-gradient(135deg, #7b1fa2 0 6px, #9c4dcc 6px 12px); }
+  .tc-state.override { color:#fff; background:${OVERRIDE_STRIPES}; }
   ${LINK_STYLE}
   .msg { color:var(--secondary-text-color); font-size:.92em; }
 `;
@@ -7583,6 +7676,572 @@ class ChauffageThermostatCardEditor extends HTMLElement {
 }
 
 // =====================================================================
+//  Rooms card (custom:chauffage-rooms-card): one dense row per scheduled thermostat, for one's own
+//  dashboard or a pop-up, drawn like Home Assistant's Tile card. A row says what the thermostat
+//  does now and what comes next. Its controls are Home Assistant's own commands (setpoint, HVAC
+//  mode), as from the thermostat: Chauffage makes them an override. The row opens the thermostat.
+// =====================================================================
+
+// How long the − and + wait for another tap before they set the setpoint, in milliseconds
+const ROOMS_SEND_DELAY = 1500;
+// How long a row waits for the thermostat to answer a setpoint before it shows its own again
+const ROOMS_ANSWER_DELAY = 10000;
+// The color of an HVAC mode, as Home Assistant's Tile card draws it
+const tileColor = (mode) => (mode === 'off'
+  ? 'var(--state-climate-off-color, var(--state-inactive-color))'
+  : `var(--state-climate-${mode === 'heat_cool' ? 'heat-cool' : mode}-color, var(--state-active-color))`);
+// What a thermostat does, as the HVAC mode whose color HA's Tile card gives it: a thermostat that
+// reached its setpoint (idle) is grey, as off; one that does not say is in the color of its mode
+const ACTION_MODES = { heating: 'heat', preheating: 'heat', defrosting: 'heat', cooling: 'cool', drying: 'dry', fan: 'fan_only', idle: 'off', off: 'off' };
+const activityMode = (st) => ACTION_MODES[st.attributes.hvac_action] || st.state;
+// An instant to come, in a row: its time alone within a day ("→ Comfort 06:30" in the evening is
+// tomorrow), else its day too
+const soonText = (at, loc) => (at - Date.now() < DAY_MIN * 60000 ? loc.time(minutesOf(at)) : whenText(at, loc));
+
+// What the rooms card and the summary card draw alike, as HA's Tile card does (`p`: the class
+// prefix of the card): the icon, a 36px pill in its color (--tile-color), its background at 20 %;
+// the name; the state; the popover menu under a button, its item checked in its color
+const tileCss = (p) => `
+  .${p}-badge { position:relative; flex:none; width:36px; height:36px; padding:0; border:0; overflow:hidden; background:none;
+    border-radius:var(--ha-tile-icon-border-radius, 18px); display:flex; align-items:center; justify-content:center;
+    color:var(--tile-color, var(--state-inactive-color)); font:inherit; --mdc-icon-size:24px; }
+  .${p}-badge::before { content:''; position:absolute; inset:0; background:var(--tile-color, var(--state-inactive-color)); opacity:.2;
+    transition:opacity .18s ease-in-out; }
+  .${p}-badge > * { position:relative; }
+  .${p}-name { display:block; font-size:var(--ha-font-size-m, 14px); font-weight:var(--ha-font-weight-medium, 500); line-height:20px;
+    letter-spacing:.1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .${p}-state { font-size:var(--ha-font-size-s, 12px); line-height:16px; letter-spacing:.4px; color:var(--primary-text-color);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .${p}-menu { position:absolute; top:calc(100% + 4px); right:0; z-index:5; display:flex; flex-direction:column; min-width:170px;
+    padding:4px 0; border-radius:var(--ha-card-border-radius, 12px); background:var(--card-background-color, #fff);
+    box-shadow:0 4px 16px rgba(0,0,0,.25); }
+  .${p}-menu.up { top:auto; bottom:calc(100% + 4px); }
+  .${p}-menu button { position:relative; display:flex; align-items:center; gap:12px; height:44px; padding:0 16px; border:0;
+    background:none; color:var(--primary-text-color); cursor:pointer; font:inherit; font-size:var(--ha-font-size-m, 14px);
+    text-align:start; white-space:nowrap; --mdc-icon-size:20px; }
+  .${p}-menu button:hover { background:var(--secondary-background-color); }
+  .${p}-menu button > * { position:relative; }
+  .${p}-menu button ha-icon { color:var(--tile-color); }
+  .${p}-menu button[aria-checked="true"] { font-weight:var(--ha-font-weight-medium, 500); }
+  .${p}-menu button[aria-checked="true"]::before { content:''; position:absolute; inset:0; background:var(--tile-color); opacity:.15; }
+`;
+
+const ROOMS_CARD_STYLE = `${tileCss('rc')}
+  :host { display:block; }
+  ha-card { display:block; padding:4px 10px; }
+  .rc-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:6px 0; }
+  .rc-ctrl { display:flex; align-items:center; gap:4px; }
+  .rc-row + .rc-row { border-top:1px solid var(--divider-color); }
+  .rc-main { display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px; cursor:pointer;
+    min-width:0; -webkit-tap-highlight-color:transparent; }
+  .rc-main:hover .rc-badge::before { opacity:.35; }
+  .rc-text { min-width:0; }
+  .rc-line { display:flex; align-items:baseline; gap:6px; min-width:0; }
+  .rc-temp { font-size:var(--ha-font-size-m, 14px); color:var(--secondary-text-color); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  /* One height for every row: the cross of an override must not make its row taller */
+  .rc-sub { display:flex; align-items:center; gap:4px; min-width:0; height:20px; }
+  /* The HVAC mode: a round button in the color of the mode, its popover under it */
+  .rc-mode-wrap { position:relative; }
+  .rc-mode { position:relative; width:34px; height:34px; padding:0; border:1px solid var(--divider-color); border-radius:18px;
+    background:none; color:var(--tile-color); cursor:pointer; display:flex; align-items:center; justify-content:center;
+    --mdc-icon-size:20px; }
+  .rc-mode:hover, .rc-mode[aria-expanded="true"] { background:var(--secondary-background-color); }
+  /* Heating or cooling: the button filled with the color of its mode, its icon white */
+  .rc-mode.active { background:var(--tile-color); border-color:var(--tile-color); color:var(--text-primary-color, #fff); }
+  .rc-mode.active:hover, .rc-mode.active[aria-expanded="true"] { background:var(--tile-color); filter:brightness(1.1); }
+  /* At rest, the room's icon is in the color of the text: HA's icon color is a bluish grey */
+  .rc-badge:not([style]) { color:var(--primary-text-color); }
+  .rc-badge:not([style])::before { background:var(--primary-text-color); opacity:.08; }
+  .rc-state i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:0; }
+  .rc-override { display:inline-block; max-width:100%; box-sizing:border-box; padding:0 6px; border-radius:8px;
+    color:#fff; font-weight:var(--ha-font-weight-medium, 500); overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
+    background:${OVERRIDE_STRIPES}; }
+  .rc-row.paused .rc-name, .rc-row.paused .rc-temp { color:var(--disabled-text-color, var(--secondary-text-color)); }
+  /* 20px drawn, 36px to tap: the rest of its target overflows the line */
+  .rc-x { position:relative; flex:none; width:20px; height:20px; padding:0; border:0; border-radius:50%; background:none;
+    color:var(--secondary-text-color); cursor:pointer; font:inherit; font-size:13px; line-height:20px; }
+  .rc-x::after { content:''; position:absolute; inset:-8px; }
+  .rc-x:hover { background:var(--secondary-background-color); }
+  .rc-step { display:flex; align-items:center; border:1px solid var(--divider-color); border-radius:18px; }
+  .rc-step button { width:32px; height:34px; padding:0; border:0; border-radius:50%; background:none; cursor:pointer;
+    color:var(--primary-text-color); font:inherit; font-size:18px; line-height:34px; }
+  .rc-step button:hover { background:var(--secondary-background-color); }
+  .rc-value { min-width:2.5em; text-align:center; font-variant-numeric:tabular-nums; font-weight:500; }
+  .msg { color:var(--secondary-text-color); font-size:.92em; padding:8px 0; }
+`;
+
+class ChauffageRoomsCard extends HTMLElement {
+  static getConfigElement() {
+    return document.createElement('chauffage-rooms-card-editor');
+  }
+
+  // A new card: every scheduled thermostat
+  static async getStubConfig() {
+    return {};
+  }
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._pending = {}; // entity → the setpoint tapped, shown until the thermostat answers
+    this._sentFrom = {}; // entity → the thermostat's setpoint when the one tapped was sent
+    this._timers = {};
+    linksByKeyboard(this.shadowRoot);
+    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
+    // A tap outside the card closes the popover of the HVAC modes
+    this._outside = (e) => {
+      if (this._modesOpen && !e.composedPath().includes(this)) { this._modesOpen = null; this._html = null; this._render(); }
+    };
+  }
+
+  setConfig(config) {
+    this._config = config || {};
+    this._html = null;
+    if (this._hass) this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (!this._unlisten && dataSource(hass).available) {
+      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+    }
+    if (this._config) this._render();
+  }
+
+  connectedCallback() {
+    document.addEventListener('click', this._outside);
+    if (this._hass && !this._unlisten && dataSource(this._hass).available) this.hass = this._hass;
+  }
+
+  disconnectedCallback() {
+    document.removeEventListener('click', this._outside);
+    if (this._unlisten) this._unlisten();
+    this._unlisten = null;
+  }
+
+  getCardSize() {
+    return 1 + this._entries().length;
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 6 };
+  }
+
+  // The thermostats of its rows: the ones listed in the card, else every one Chauffage schedules
+  _entries() {
+    const listed = (this._config && this._config.thermostats) || [];
+    if (listed.length) return listed.map((t) => (typeof t === 'string' ? { entity: t } : { ...t }));
+    return this._hass ? dataSource(this._hass).scheduled().map((entity) => ({ entity })) : [];
+  }
+
+  _render() {
+    const hass = this._hass;
+    const loc = makeLocale(hass, this._config.language);
+    const src = dataSource(hass);
+    const notice = sourceNotice(src);
+    const html = notice
+      ? (notice.loading ? '' : `<div class="msg">${esc(loc.t(notice.text))}</div>`)
+      : this._entries().map((e) => this._rowHtml(e, loc, src)).join('');
+    // Drawn again only when a row changes: a thermostat reports every minute
+    if (html === this._html && this.shadowRoot.querySelector('ha-card')) return this._fillIcons();
+    this._html = html;
+    fillCard(this.shadowRoot, ROOMS_CARD_STYLE, html);
+    this._fillIcons();
+    this._placePopover();
+  }
+
+  // The popover of the HVAC modes opens upward when the screen has no room for it below
+  _placePopover() {
+    const popover = this.shadowRoot.querySelector('.rc-menu');
+    if (!popover) return;
+    const r = popover.getBoundingClientRect();
+    if (r.bottom > window.innerHeight && r.top - r.height - 48 > 0) popover.classList.add('up');
+  }
+
+  // The icon of a thermostat: the one given in the card, else Home Assistant's for its state
+  _fillIcons() {
+    // Before Home Assistant defines ha-state-icon, a property set on it would hide its own: drawn
+    // again once it is defined
+    if (!customElements.get('ha-state-icon')) {
+      if (!this._iconsAwaited) {
+        this._iconsAwaited = true;
+        customElements.whenDefined('ha-state-icon').then(() => { this._html = null; if (this._hass) this._render(); });
+      }
+      return;
+    }
+    this.shadowRoot.querySelectorAll('ha-state-icon.rc-icon:not([icon])').forEach((el) => {
+      el.hass = this._hass;
+      el.stateObj = this._hass.states[el.closest('.rc-row').dataset.entity];
+    });
+  }
+
+  _rowHtml(entry, loc, src) {
+    const hass = this._hass;
+    const t = loc.t;
+    const entity = entry.entity;
+    const st = hass.states[entity];
+    const icon = `<ha-state-icon class="rc-icon"${entry.icon ? ` icon="${esc(entry.icon)}"` : ''}></ha-state-icon>`;
+    if (!st) {
+      return `<div class="rc-row" data-entity="${esc(entity)}"><div class="rc-main"><span class="rc-badge">${icon}</span><div class="rc-text">
+        <div class="rc-name">${esc(entry.name || entity)}</div>
+        <div class="rc-state">${esc(t('entityMissing', { entity }))}</div></div></div></div>`;
+    }
+    const a = st.attributes;
+    const paused = src.paused(entity);
+    const d = !paused ? filterActive(src.overrides())[entity] : null;
+    // The setpoint tapped is shown until the thermostat answers: with that setpoint, or with
+    // another one (rounded, or set back), which it then shows
+    if (entity in this._sentFrom && (a.temperature === this._pending[entity] || a.temperature !== this._sentFrom[entity])) {
+      delete this._pending[entity];
+      delete this._sentFrom[entity];
+    }
+    const off = st.state === 'off';
+    const measured = a.current_temperature != null ? `${loc.number(a.current_temperature)}°` : '';
+    const { html: state, action } = this._stateOf(entity, st, d, paused, loc, src);
+    const setpoint = this._pending[entity] ?? a.temperature;
+    // No − and + in fan-only or dry mode: the setpoint does nothing there
+    const stepper = !off && !['fan_only', 'dry'].includes(st.state) && typeof a.temperature === 'number'
+      ? `<div class="rc-step">
+          <button type="button" data-delta="-1" aria-label="−">−</button>
+          <span class="rc-value">${esc(loc.number(setpoint))}°</span>
+          <button type="button" data-delta="1" aria-label="+">+</button>
+        </div>` : '';
+    // The HVAC mode, in a popover under its button, on a thermostat that has more than one. Not on
+    // a thermostat off to protect itself (its window, its auto start/stop): turned on by hand, it
+    // would stop protecting itself
+    const modes = (a.hvac_modes || []).map(String);
+    let mode = '';
+    if (modes.length > 1 && !(off && src.cause(entity))) {
+      // Filled while the thermostat heats or cools, as it says (hvac_action); empty at its setpoint
+      const doing = activityMode(st);
+      const active = !!a.hvac_action && doing !== 'off';
+      const open = this._modesOpen === entity;
+      const popover = open
+        ? `<div class="rc-menu" role="menu">${modes.map((m) => `<button type="button" role="menuitemradio" aria-checked="${m === st.state}" data-hvac-mode="${esc(m)}" style="--tile-color:${tileColor(m)}">${hvacIcon(m)}${esc(modeName(loc, m))}</button>`).join('')}</div>`
+        : '';
+      mode = `<div class="rc-mode-wrap"><button type="button" class="rc-mode${active ? ' active' : ''}" data-mode-button aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(t('hvacModeLabel'))}" title="${esc(`${t('hvacModeLabel')} · ${modeName(loc, st.state)}`)}" style="--tile-color:${tileColor(st.state)}">${hvacIcon(st.state)}</button>${popover}</div>`;
+    }
+    // The room's icon is in color while the thermostat heats or cools, else in the color of the
+    // text, never grey
+    const doingNow = activityMode(st);
+    const badge = a.hvac_action && doingNow !== 'off'
+      ? `<span class="rc-badge" style="--tile-color:${tileColor(doingNow)}">${icon}</span>`
+      : `<span class="rc-badge">${icon}</span>`;
+    const cls = ['rc-row', d ? 'override' : '', paused ? 'paused' : ''].filter(Boolean).join(' ');
+    return `<div class="${cls}" data-entity="${esc(entity)}">
+      <div class="rc-main" role="link" tabindex="0" title="${esc(t('openThermostat'))}">${badge}<div class="rc-text">
+        <div class="rc-line"><span class="rc-name">${esc(thermostatName(hass, entity, entry.name))}</span>
+          <span class="rc-temp">${measured}</span></div>
+        <div class="rc-sub"><span class="rc-state">${state}</span>${action}</div>
+      </div></div>
+      <div class="rc-ctrl">${mode}${stepper}</div>
+    </div>`;
+  }
+
+  // What the thermostat does now, in a few words, and the button that ends it, if any: an override
+  // until its end, a pause, a protection (a window), else the preset of its schedule and what comes
+  // next
+  _stateOf(entity, st, d, paused, loc, src) {
+    const t = loc.t;
+    const hass = this._hass;
+    const dot = (color) => (color ? `<i style="background:${color}"></i>` : '');
+    if (paused) {
+      return { html: esc(t('paused')), action: `<button type="button" class="rc-x" data-resume-control aria-label="${esc(t('resumeShort'))}" title="${esc(t('resumeShort'))}">▶</button>` };
+    }
+    const presets = presetsOf(src, loc);
+    if (d) {
+      const isTemperature = d.target && targetKind(d.target) === 'temperature' && !presets.some((p) => p.id === d.preset);
+      const label = isTemperature ? '' : overrideLabel(d, loc, presets);
+      const until = `${t('until')} ${soonText(parseDate(d.end), loc)}`;
+      return {
+        html: `<span class="rc-override">${esc(`⏱ ${label ? `${label} ` : ''}${until}`)}</span>`,
+        action: `<button type="button" class="rc-x" data-resume-schedule aria-label="${esc(t('resume'))}" title="${esc(t('resume'))}">✕</button>`,
+      };
+    }
+    const cause = causeText(src, entity, loc, null);
+    if (cause) return { html: `${dot(OFF_COLOR)}${esc(capitalize(cause.short))}`, action: '' };
+    const plan = src.planned(entity);
+    if (st.state === 'off' || (plan && plan.hvac_mode === 'off')) return { html: `${dot(OFF_COLOR)}${esc(modeName(loc, 'off'))}`, action: '' };
+    if (!plan || (!plan.preset && !NO_PRESET_MODES.includes(plan.hvac_mode))) {
+      const a = st.attributes;
+      const label = a.preset_mode && !MANUAL_PRESETS.includes(String(a.preset_mode).toLowerCase()) ? loc.preset(a.preset_mode) : '';
+      return { html: esc(label), action: '' };
+    }
+    const named = hasModeRow(hass, entity);
+    const name = (mode, preset) => (NO_PRESET_MODES.includes(mode) ? modeName(loc, mode)
+      : preset ? `${named && SETPOINT_MODES.includes(mode) ? `${modeName(loc, mode)} · ` : ''}${presetOf(presets, preset, loc).name}` : '');
+    const color = NO_PRESET_MODES.includes(plan.hvac_mode) ? hvacColor(plan.hvac_mode)
+      : named && SETPOINT_MODES.includes(plan.hvac_mode) ? presetColorIn(presetOf(presets, plan.preset, loc), plan.hvac_mode)
+        : presetOf(presets, plan.preset, loc).color;
+    const current = name(plan.hvac_mode, plan.preset);
+    const start = plan.next_start ? parseDate(plan.next_start) : null;
+    // The mode is said once when it does not change: "Heat · Eco → Comfort 17:30"
+    const next = !start ? '' : plan.next_hvac_mode === plan.hvac_mode && plan.next_preset
+      ? presetOf(presets, plan.next_preset, loc).name : name(plan.next_hvac_mode, plan.next_preset);
+    const text = next ? t('thenAt', { current, next, time: soonText(start, loc) }) : current;
+    return { html: `${dot(color)}${esc(text)}`, action: '' };
+  }
+
+  _onClick(e) {
+    const hass = this._hass;
+    const rowEl = e.target.closest('.rc-row');
+    if (!rowEl || !hass) return;
+    const entity = rowEl.dataset.entity;
+    const src = dataSource(hass);
+    const loc = makeLocale(hass, this._config.language);
+    const st = hass.states[entity];
+    const redraw = () => { this._html = null; this._render(); };
+    const failed = () => { delete this._pending[entity]; redraw(); };
+    const setMode = (mode) => hass.callService('climate', 'set_hvac_mode', { entity_id: entity, hvac_mode: mode }).catch(redraw);
+    const step = e.target.closest('[data-delta]');
+    if (step) {
+      const shown = this._pending[entity] ?? st.attributes.temperature;
+      const value = fitTemperature(hass, entity, shown + Number(step.dataset.delta) * stepOf(hass, entity));
+      this._pending[entity] = value;
+      delete this._sentFrom[entity]; // a new value, not sent yet
+      const field = rowEl.querySelector('.rc-value');
+      if (field) field.textContent = `${loc.number(value)}°`;
+      clearTimeout(this._timers[entity]);
+      this._timers[entity] = setTimeout(() => this._sendSetpoint(entity), ROOMS_SEND_DELAY);
+      return;
+    }
+    const chip = e.target.closest('[data-hvac-mode]');
+    if (chip) {
+      this._modesOpen = null;
+      redraw();
+      return setMode(chip.dataset.hvacMode);
+    }
+    if (e.target.closest('[data-mode-button]')) {
+      // Opens its popover, closes it on a second tap; one popover at a time
+      this._modesOpen = this._modesOpen === entity ? null : entity;
+      return redraw();
+    }
+    // Any other tap closes the popover, then does what it does
+    if (this._modesOpen) { this._modesOpen = null; redraw(); }
+    if (e.target.closest('[data-resume-schedule]')) return src.setOverride(entity, null).catch(failed);
+    if (e.target.closest('[data-resume-control]')) return src.setPaused(entity, false).catch(failed);
+    if (e.target.closest('.rc-main')) openMoreInfo(this, entity);
+  }
+
+  // The setpoint tapped, set on the thermostat as a change by hand: Chauffage makes it an
+  // override, as from the thermostat's own dial
+  _sendSetpoint(entity) {
+    const hass = this._hass;
+    const value = this._pending[entity];
+    if (!hass || value === undefined) return;
+    const forget = () => {
+      delete this._pending[entity];
+      delete this._sentFrom[entity];
+      this._html = null;
+      if (this._hass) this._render();
+    };
+    const st = hass.states[entity];
+    this._sentFrom[entity] = st ? st.attributes.temperature : undefined;
+    hass.callService('climate', 'set_temperature', { entity_id: entity, temperature: value }).catch(forget);
+    // A thermostat that never answers: its own setpoint again after a while
+    this._timers[entity] = setTimeout(() => { if (this._pending[entity] === value && entity in this._sentFrom) forget(); }, ROOMS_ANSWER_DELAY);
+  }
+}
+
+// =====================================================================
+//  Summary card (custom:chauffage-summary-card): a floor or the house in one row, drawn like
+//  Home Assistant's Tile card. Its temperature, how many thermostats heat, the overrides and the
+//  thermostats paused; the schedules, activated through the select of the active schedule. A tap
+//  elsewhere does the card's action (`tap_action`), a pop-up of the rooms for example.
+// =====================================================================
+
+const SUMMARY_CARD_STYLE = `${tileCss('sc')}
+  :host { display:block; }
+  ha-card { display:flex; align-items:center; gap:8px; padding:10px 12px; }
+  .sc-main { flex:1 1 0; display:grid; grid-template-columns:36px minmax(0,1fr); align-items:center; gap:0 10px;
+    min-width:0; -webkit-tap-highlight-color:transparent; }
+  .sc-main.action { cursor:pointer; }
+  .sc-text { min-width:0; }
+  /* One button with the active schedule, outlined like the HVAC mode button of the rooms card */
+  .sc-pick { position:relative; flex:none; max-width:45%; margin-left:auto; }
+  .sc-pick > button { display:flex; align-items:center; gap:4px; max-width:100%; height:34px; padding:0 4px 0 10px;
+    border:1px solid var(--divider-color); border-radius:18px; background:none; color:var(--primary-text-color); cursor:pointer;
+    font:inherit; font-size:var(--ha-font-size-s, 12px); --mdc-icon-size:18px; }
+  .sc-pick > button:hover, .sc-pick > button[aria-expanded="true"] { background:var(--secondary-background-color); }
+  .sc-pick > button > * { flex:none; }
+  .sc-pick > button > span { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sc-menu { --tile-color:var(--primary-color); }
+  /* What its thermostats measure, at its right end: the temperatures as a name, the humidity as a state */
+  .sc-measures { flex:none; display:flex; flex-direction:column; align-items:flex-end; font-variant-numeric:tabular-nums; }
+  .sc-measures > div { display:flex; align-items:center; gap:2px; }
+  .sc-measures ha-icon { color:var(--secondary-text-color); --mdc-icon-size:16px; }
+  .sc-humidity { color:var(--secondary-text-color); }
+  .msg { color:var(--secondary-text-color); font-size:.92em; }
+`;
+
+class ChauffageSummaryCard extends HTMLElement {
+  static getConfigElement() {
+    return document.createElement('chauffage-summary-card-editor');
+  }
+
+  // A new card: the whole house, every scheduled thermostat
+  static async getStubConfig() {
+    return {};
+  }
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
+    this.shadowRoot.addEventListener('keydown', (e) => this._onKey(e));
+    // A tap outside the card closes the menu of the schedules
+    this._outside = (e) => {
+      if (this._menuOpen && !e.composedPath().includes(this)) { this._menuOpen = false; this._render(); }
+    };
+  }
+
+  setConfig(config) {
+    this._config = config || {};
+    this._html = null;
+    if (this._hass) this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (!this._unlisten && dataSource(hass).available) {
+      this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
+    }
+    if (this._config) this._render();
+  }
+
+  connectedCallback() {
+    document.addEventListener('click', this._outside);
+    if (this._hass && !this._unlisten && dataSource(this._hass).available) this.hass = this._hass;
+  }
+
+  disconnectedCallback() {
+    document.removeEventListener('click', this._outside);
+    if (this._unlisten) this._unlisten();
+    this._unlisten = null;
+  }
+
+  getCardSize() {
+    return 1;
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
+  }
+
+  // Its thermostats: the ones listed in the card, else every one Chauffage schedules
+  _thermostats() {
+    const listed = this._config.thermostats || [];
+    const entities = listed.length ? listed.map((t) => (typeof t === 'string' ? t : t.entity)) : dataSource(this._hass).scheduled();
+    return entities.filter((e) => this._hass.states[e]);
+  }
+
+  _render() {
+    const hass = this._hass;
+    const loc = makeLocale(hass, this._config.language);
+    const t = loc.t;
+    const src = dataSource(hass);
+    const notice = sourceNotice(src);
+    let html;
+    if (notice) html = notice.loading ? '' : `<div class="msg">${esc(t(notice.text))}</div>`;
+    else {
+      const thermostats = this._thermostats();
+      const overrides = filterActive(src.overrides());
+      const doing = (action) => thermostats.filter((e) => hass.states[e].attributes.hvac_action === action).length;
+      const heating = doing('heating');
+      const cooling = doing('cooling');
+      const overridden = thermostats.filter((e) => overrides[e] && !src.paused(e)).length;
+      const paused = thermostats.filter((e) => src.paused(e)).length;
+      const count = (n, one, many) => (n === 1 ? t(one) : t(many, { n }));
+      const status = [heating ? count(heating, 'heatingOne', 'heatingMany') : cooling ? '' : t('heatingNone'),
+        cooling ? count(cooling, 'coolingOne', 'coolingMany') : '',
+        overridden ? count(overridden, 'overridesOne', 'overridesMany') : '',
+        paused ? count(paused, 'pausedOne', 'pausedMany') : ''].filter(Boolean).join(' · ');
+      const action = this._config.tap_action && this._config.tap_action.action !== 'none';
+      const select = src.scheduleSelect();
+      const active = src.activeSchedule();
+      const label = (id) => {
+        const icon = src.scheduleIcon(id);
+        return `${icon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}<span>${esc(src.scheduleName(id))}</span>`;
+      };
+      // One button with the active schedule opens a menu of them: the card keeps one line on a
+      // phone. The admin may hide it (`show_schedules: false`)
+      const ids = select && this._config.show_schedules !== false ? src.schedules() : [];
+      const menu = this._menuOpen
+        ? `<div class="sc-menu" role="menu">${ids.map((id) => `<button type="button" role="menuitemradio" data-schedule="${esc(id)}" aria-checked="${id === active}">${label(id)}</button>`).join('')}</div>`
+        : '';
+      const pick = ids.length
+        ? `<div class="sc-pick"><button type="button" data-schedules-button aria-haspopup="menu" aria-expanded="${!!this._menuOpen}" aria-label="${esc(t('activeSchedule'))}" title="${esc(t('activeSchedule'))}">${active ? label(active) : ''}<ha-icon icon="mdi:menu-down"></ha-icon></button>${menu}</div>`
+        : '';
+      html = `<div class="sc-main${action ? ' action' : ''}"${action ? ' role="button" tabindex="0"' : ''}>
+          <span class="sc-badge" style="--tile-color:${tileColor(heating ? 'heat' : cooling ? 'cool' : 'off')}"><ha-icon icon="${esc(this._config.icon || 'mdi:home-thermometer')}"></ha-icon></span>
+          <div class="sc-text">
+            <div class="sc-line"><span class="sc-name">${esc(this._config.name || t('summaryDefaultName'))}</span></div>
+            <div class="sc-state">${esc(status)}</div>
+          </div>
+        </div>
+        ${pick}${this._measuresHtml(loc, thermostats)}`;
+    }
+    if (html === this._html && this.shadowRoot.querySelector('ha-card')) return;
+    this._html = html;
+    fillCard(this.shadowRoot, SUMMARY_CARD_STYLE, html);
+    // The menu opens upward when the screen has no room for it below
+    const popover = this.shadowRoot.querySelector('.sc-menu');
+    if (popover) {
+      const r = popover.getBoundingClientRect();
+      if (r.bottom > window.innerHeight && r.top - r.height - 48 > 0) popover.classList.add('up');
+    }
+  }
+
+  // What its thermostats measure: the range of their temperatures ("19–20,1°"), and under it the
+  // range of their humidity when they report it ("56–61 %"), each with its icon
+  _measuresHtml(loc, thermostats) {
+    const range = (attribute, round, unit) => {
+      const measured = thermostats.map((e) => this._hass.states[e].attributes[attribute])
+        .filter((v) => v != null && v !== '').map(Number).filter(Number.isFinite).map(round);
+      if (!measured.length) return '';
+      const low = Math.min(...measured);
+      const high = Math.max(...measured);
+      return low === high ? `${loc.number(low)}${unit}` : `${loc.number(low)}–${loc.number(high)}${unit}`;
+    };
+    const line = (cls, icon, value) => (value ? `<div class="${cls}"><ha-icon icon="${icon}"></ha-icon>${esc(value)}</div>` : '');
+    const html = line('sc-temperature sc-name', 'mdi:thermometer', range('current_temperature', (v) => Math.round(v * 10) / 10, '°'))
+      + line('sc-humidity sc-state', 'mdi:water-percent', range('current_humidity', Math.round, ' %'));
+    return html ? `<div class="sc-measures">${html}</div>` : '';
+  }
+
+  _onClick(e) {
+    const hass = this._hass;
+    if (!hass) return;
+    if (e.target.closest('[data-schedules-button]')) {
+      this._menuOpen = !this._menuOpen;
+      return this._render();
+    }
+    const chip = e.target.closest('[data-schedule]');
+    if (this._menuOpen) { this._menuOpen = false; this._render(); }
+    if (chip) {
+      const src = dataSource(hass);
+      hass.callService('select', 'select_option', { entity_id: src.scheduleSelect(), option: src.scheduleName(chip.dataset.schedule) });
+      return;
+    }
+    if (e.target.closest('.sc-main')) this._tap();
+  }
+
+  // Enter or Space on the card does its action, as a tap
+  _onKey(e) {
+    if ((e.key !== 'Enter' && e.key !== ' ') || !e.target.closest || !e.target.closest('.sc-main')) return;
+    e.preventDefault();
+    this._tap();
+  }
+
+  // The card's action (`tap_action`), through Home Assistant's own handler of card actions
+  _tap() {
+    const tap = this._config.tap_action;
+    if (!tap || tap.action === 'none') return;
+    this.dispatchEvent(new CustomEvent('hass-action', { detail: { config: { tap_action: tap }, action: 'tap' }, bubbles: true, composed: true }));
+  }
+}
+
+// =====================================================================
 //  Visual editor of the card (dashboard → edit card), laid out like Home Assistant's own card
 //  editors (Entities, Tile…): one row per thermostat (drag handle, picker, remove, edit); the
 //  edit button opens the thermostat's page, with its optional name. Built on HA's elements
@@ -7672,15 +8331,58 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
       else this._buildList(loc, thermostats);
     }
     for (const el of this.shadowRoot.querySelectorAll('ha-entity-picker, ha-form')) el.hass = this._hass;
-    if (this._editing !== null) {
-      const t = thermostats[this._editing];
-      this._page.data = this._haNameField()
-        ? { entity: t.entity, ...(t.name !== undefined ? { name: t.name } : {}) }
-        : { entity: t.entity, name: typeof t.name === 'string' ? t.name : '' };
-    } else {
+    if (this._editing !== null) this._page.data = this._pageData(thermostats[this._editing]);
+    else if (this._options) {
       const c = this._config;
       this._options.data = { show_all: c.show === 'all', step: String(c.step || 15) };
     }
+  }
+
+  // What a thermostat's page shows: its entity and its optional name
+  _pageData(t) {
+    return this._haNameField()
+      ? { entity: t.entity, ...(t.name !== undefined ? { name: t.name } : {}) }
+      : { entity: t.entity, name: typeof t.name === 'string' ? t.name : '' };
+  }
+
+  _pageSchema() {
+    return [
+      { name: 'entity', required: true, selector: { entity: { domain: 'climate' } } },
+      this._haNameField()
+        ? { name: 'name', selector: { entity_name: {} }, context: { entity: 'entity' } }
+        : { name: 'name', selector: { text: {} } },
+    ];
+  }
+
+  _listTitle(loc) {
+    return loc.t('editorThermostats');
+  }
+
+  // A note under the list, if any
+  _listNote() {
+    return null;
+  }
+
+  // The card's options under the list: whether every thermostat shows at first, the time step
+  _buildOptions(loc) {
+    const options = document.createElement('ha-form');
+    options.className = 'options';
+    options.schema = [
+      { name: 'show_all', selector: { boolean: {} } },
+      { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) })) } } },
+    ];
+    options.computeLabel = (s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name]);
+    options.addEventListener('value-changed', (e) => {
+      e.stopPropagation();
+      const config = { ...this._config };
+      if (e.detail.value.show_all) config.show = 'all';
+      else if (config.show === 'all') delete config.show;
+      const step = Number(e.detail.value.step);
+      if (step && step !== 15) config.step = step;
+      else delete config.step;
+      this._emit(config);
+    });
+    return options;
   }
 
   _button(cls, label, path, onClick) {
@@ -7718,7 +8420,7 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
 
   _buildList(loc, thermostats) {
     const title = document.createElement('h3');
-    title.textContent = loc.t('editorThermostats');
+    title.textContent = this._listTitle(loc);
     const sortable = document.createElement('ha-sortable');
     sortable.setAttribute('handle-selector', '.handle');
     sortable.addEventListener('item-moved', (e) => {
@@ -7795,25 +8497,9 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
       this._setThermostats([...this._thermostats(), { entity }]);
     });
     add.setAttribute('add-button', '');
-    const options = document.createElement('ha-form');
-    options.className = 'options';
-    options.schema = [
-      { name: 'show_all', selector: { boolean: {} } },
-      { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) })) } } },
-    ];
-    options.computeLabel = (s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name]);
-    options.addEventListener('value-changed', (e) => {
-      e.stopPropagation();
-      const config = { ...this._config };
-      if (e.detail.value.show_all) config.show = 'all';
-      else if (config.show === 'all') delete config.show;
-      const step = Number(e.detail.value.step);
-      if (step && step !== 15) config.step = step;
-      else delete config.step;
-      this._emit(config);
-    });
-    this._options = options;
-    this.shadowRoot.append(title, sortable, ...removed, add, options);
+    this._options = this._buildOptions(loc);
+    const note = this._listNote(loc, thermostats);
+    this.shadowRoot.append(title, sortable, ...(note ? [note] : []), ...removed, add, ...(this._options ? [this._options] : []));
   }
 
   _buildPage(loc) {
@@ -7829,22 +8515,20 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     title.textContent = loc.t('editorThermostat');
     header.append(back, title);
     const form = document.createElement('ha-form');
-    form.schema = [
-      { name: 'entity', required: true, selector: { entity: { domain: 'climate' } } },
-      this._haNameField()
-        ? { name: 'name', selector: { entity_name: {} }, context: { entity: 'entity' } }
-        : { name: 'name', selector: { text: {} } },
-    ];
-    form.computeLabel = (s) => loc.t(s.name === 'name' ? 'editorName' : 'editorThermostat');
+    form.schema = this._pageSchema();
+    form.computeLabel = (s) => loc.t({ name: 'editorName', icon: 'editorIcon' }[s.name] || 'editorThermostat');
     form.computeHelper = (s) => (s.name === 'name' && !this._haNameField() ? loc.t('editorNameDefault', { name: this._defaultName(form.data && form.data.entity) }) : undefined);
     form.addEventListener('value-changed', (e) => {
       e.stopPropagation();
       const list = this._thermostats();
       const t = list[this._editing];
       if (e.detail.value.entity) t.entity = e.detail.value.entity;
-      const name = e.detail.value.name;
-      if (name === undefined || name === '' || (Array.isArray(name) && !name.length)) delete t.name;
-      else t.name = name;
+      // An option emptied is left out: the thermostat's own name or icon
+      for (const { name: key } of form.schema.filter((s) => s.name !== 'entity')) {
+        const v = e.detail.value[key];
+        if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) delete t[key];
+        else t[key] = v;
+      }
       this._setThermostats(list);
     });
     this._page = form;
@@ -7860,6 +8544,96 @@ class ChauffageProgrammeCardEditor extends HTMLElement {
     this._config = config;
     this._render();
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
+  }
+}
+
+// The rooms card's editor: the schedule card's list of thermostats, a thermostat's page with its
+// icon too, and no option of the schedule card. An empty list shows every scheduled thermostat
+class ChauffageRoomsCardEditor extends ChauffageProgrammeCardEditor {
+  _listTitle(loc) {
+    return loc.t('editorThermostatsOptional');
+  }
+
+  _listNote(loc, thermostats) {
+    if (thermostats.length) return null;
+    const note = document.createElement('div');
+    note.className = 'all-note custom-name';
+    note.textContent = loc.t('editorAllScheduled');
+    return note;
+  }
+
+  _buildOptions() {
+    return null;
+  }
+
+  _removedScheduled() {
+    return [];
+  }
+
+  _pageSchema() {
+    return [...super._pageSchema(), { name: 'icon', selector: { icon: {} } }];
+  }
+
+  _pageData(t) {
+    return { ...super._pageData(t), icon: t.icon || '' };
+  }
+}
+
+// The summary card's editor: one form, as Home Assistant's own card editors. Options written in
+// YAML that it does not show (`language`) are kept; an option emptied is left out
+const SUMMARY_FIELDS = ['name', 'icon', 'thermostats', 'show_schedules', 'tap_action'];
+class ChauffageSummaryCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  setConfig(config) {
+    this._config = config;
+    this._render();
+  }
+
+  _render() {
+    if (!this._config) return;
+    const loc = makeLocale(this._hass);
+    if (!this._form) {
+      this._form = document.createElement('ha-form');
+      this._form.addEventListener('value-changed', (e) => {
+        e.stopPropagation();
+        const config = { ...this._config };
+        for (const key of SUMMARY_FIELDS) {
+          const v = e.detail.value[key];
+          // The menu of the schedules is shown by default: written only when hidden
+          if (v === undefined || v === '' || v === null || (Array.isArray(v) && !v.length) || (key === 'show_schedules' && v === true)) delete config[key];
+          else config[key] = v;
+        }
+        this._config = config;
+        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
+      });
+      this.shadowRoot.appendChild(this._form);
+    }
+    const form = this._form;
+    form.hass = this._hass;
+    form.schema = [
+      { name: 'name', selector: { text: {} } },
+      { name: 'icon', selector: { icon: {} } },
+      { name: 'thermostats', selector: { entity: { domain: 'climate', multiple: true } } },
+      { name: 'show_schedules', selector: { boolean: {} } },
+      { name: 'tap_action', selector: { ui_action: { default_action: 'none' } } },
+    ];
+    const labels = { name: 'editorName', icon: 'editorIcon', thermostats: 'editorThermostatsOptional', show_schedules: 'editorShowSchedules', tap_action: 'editorTapAction' };
+    form.computeLabel = (s) => loc.t(labels[s.name]);
+    form.computeHelper = (s) => (s.name === 'thermostats' && !(this._config.thermostats || []).length ? loc.t('editorAllScheduled') : undefined);
+    // The thermostats as entity ids: a name given in YAML is not used by this card
+    const c = this._config;
+    form.data = { ...Object.fromEntries(SUMMARY_FIELDS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])),
+      ...(c.thermostats ? { thermostats: c.thermostats.map((t) => (typeof t === 'string' ? t : t.entity)) } : {}),
+      show_schedules: c.show_schedules !== false };
   }
 }
 
@@ -9106,7 +9880,7 @@ const PANEL_CSS = `
   .mi.danger { color:var(--error-color, #db4437); }
   .menu-btns { display:flex; gap:8px; padding:6px 14px 8px; }
   .menu .sep { height:1px; margin:5px 0; background:var(--divider-color); }
-  .menu { position:absolute; top:100%; right:0; z-index:10; min-width:200px; padding:6px 0; border-radius:10px;
+  .menu { position:absolute; top:100%; right:0; z-index:12; min-width:200px; padding:6px 0; border-radius:10px;
     background:var(--card-background-color); border:1px solid var(--divider-color); box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .mh { padding:4px 14px 6px; font-size:12px; color:var(--secondary-text-color); }
   .mi { display:block; width:100%; padding:8px 14px; border:0; background:transparent; text-align:left; cursor:pointer;
@@ -9147,6 +9921,10 @@ function defineElements() {
   if (!customElements.get('chauffage-programme-card-editor')) customElements.define('chauffage-programme-card-editor', ChauffageProgrammeCardEditor);
   if (!customElements.get('chauffage-thermostat-card')) customElements.define('chauffage-thermostat-card', ChauffageThermostatCard);
   if (!customElements.get('chauffage-thermostat-card-editor')) customElements.define('chauffage-thermostat-card-editor', ChauffageThermostatCardEditor);
+  if (!customElements.get('chauffage-rooms-card')) customElements.define('chauffage-rooms-card', ChauffageRoomsCard);
+  if (!customElements.get('chauffage-summary-card')) customElements.define('chauffage-summary-card', ChauffageSummaryCard);
+  if (!customElements.get('chauffage-rooms-card-editor')) customElements.define('chauffage-rooms-card-editor', ChauffageRoomsCardEditor);
+  if (!customElements.get('chauffage-summary-card-editor')) customElements.define('chauffage-summary-card-editor', ChauffageSummaryCardEditor);
   if (!customElements.get('chauffage-panel')) customElements.define('chauffage-panel', ChauffagePanel);
   if (!customElements.get(SETTINGS_DIALOG)) customElements.define(SETTINGS_DIALOG, ChauffageSettingsDialog);
 }
@@ -9251,6 +10029,22 @@ if (!window.customCards.some((c) => c.type === 'chauffage-thermostat-card')) win
   getEntitySuggestion: (hass, entityId) => (entityId.startsWith('climate.')
     ? { config: { type: 'custom:chauffage-thermostat-card', entity: entityId } }
     : null),
+});
+
+if (!window.customCards.some((c) => c.type === 'chauffage-rooms-card')) window.customCards.push({
+  type: 'chauffage-rooms-card',
+  get name() { return pickerLocale().t('roomsCardName'); },
+  get description() { return pickerLocale().t('roomsCardDescription'); },
+  preview: true,
+  documentationURL: 'https://github.com/armellarcier/ha-chauffage#readme',
+});
+
+if (!window.customCards.some((c) => c.type === 'chauffage-summary-card')) window.customCards.push({
+  type: 'chauffage-summary-card',
+  get name() { return pickerLocale().t('summaryCardName'); },
+  get description() { return pickerLocale().t('summaryCardDescription'); },
+  preview: true,
+  documentationURL: 'https://github.com/armellarcier/ha-chauffage#readme',
 });
 
 console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;border-radius:3px 0 0 3px', 'background:#555;color:#fff;border-radius:0 3px 3px 0');

@@ -97,7 +97,8 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A new override says its end, and the end of Off when Off ends at another time; an override that is on says the end Off would give it, under the button Off; the setpoint line keeps only its button when the temperature of a device preset is not known; the more-info dialog says the end of an override once, a thermostat card names the override once; a fan-only override names its HVAC mode alone (#91) | `C/override-block.test.mjs` ("the end a new override will have", "the line of the setpoint, when the temperature of a device preset is not known", "an override is said once") |
 | Two slots alike in a row have a faded handle between them (#91) | `C/week-view.test.mjs` ("two slots alike in a row") |
 | An override on the week reads "⏱ icon → end" inside its block and next to it, with the off icon, the day of an end that is not today, and the date of an end a week away; the tag goes after the block, before it or above the bar, where it covers no slot's name (#91) | `C/week-view.test.mjs` ("an override on the week says its HVAC mode and its end in one format"), `C/short-slots.test.mjs` ("where the tag of a short override goes") |
-| A slot's popover opens above its row when it would cover the save bar, and the save bar stays over a popover (#91) | `C/slot-popover.test.mjs` ("the popover of a slot leaves the save bar free") |
+| A popover goes over the save bar, the card's and the one of a thermostat's page; a row menu opened meanwhile shows over the popover (#127) | `C/slot-popover.test.mjs` ("a popover goes over the save bar", "a menu opened"), `C/panel.test.mjs` ("goes over the sheet's save bar") |
+| A popover with no room above or below its row takes the larger side, under Home Assistant's top bar, and scrolls its body: its head, its caret and its buttons (*Delete*) stay in place, a shadow shows there is more, and a redraw keeps where it was scrolled; it is placed again when *More settings* opens, and a tap on *More settings* scrolls it into sight (#127) | `C/slot-popover.test.mjs` ("no room above either", "either side", "top bar", "head and its buttons stay in sight", "scroll the same way", "clips no ring", "keeps where", "into sight", "More settings opens") |
 | Three columns of HVAC modes on a narrow block only; the HVAC mode a new override would take is outlined, not filled; a time field has a − and a + on a touch screen; an empty cooling field of the presets tab shows the preset's cooling temperature as a hint (#91) | `C/slot-popover.test.mjs` ("the first row on a narrow block", "fields and buttons for a finger"), `C/presets-tab.test.mjs` ("the presets tab") |
 | A thermostat that goes offline and comes back still gets its fan back from the next slot that chooses none (#91) — ×3 | `I/test_fan_and_vanes.py::a_thermostat_back_online_still_gets_its_fan_back` |
 | A Versatile Thermostat's window that sets the frost setpoint teaches no preset temperature (#92) | `I/test_presets_when_cooling.py::a_window_that_sets_the_frost_setpoint_teaches_no_preset_temperature` |
@@ -285,6 +286,29 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | From it, open the thermostat and its schedule's switch; an admin opens the thermostat's page in the panel | `C/thermostat-card.test.mjs`, `I/test_entities.py::the_card_is_told_*` |
 | A thermostat Chauffage does not schedule says how to schedule it; the integration missing, or a card older or newer than it, says so | `C/thermostat-card.test.mjs` |
 | In the *Add card* dialog (name in HA's language, preview), suggested for a thermostat (*By entity*), starting with a scheduled thermostat; a visual editor for the thermostat and its name | `C/thermostat-card.test.mjs` (in Home Assistant) |
+
+## Rooms card
+
+| Use case | Test |
+|---|---|
+| List the thermostats in one's own dashboard or a pop-up (`custom:chauffage-rooms-card`), one row each: every scheduled thermostat, or a list given in the card, in its order, with a name and an icon | `C/rooms-card.test.mjs` |
+| A row says the name, the measured temperature, a flame while it heats, the preset now and what comes next ("Éco → Confort 17:30"); the time alone within a day, the day too further ahead; the mode once on a thermostat with several modes; a thermostat that protects itself, or off, says so | `C/rooms-card.test.mjs` |
+| − and + show the new setpoint at once, follow the thermostat's step and limits, and set it on the thermostat once the taps stop, as a change by hand; the value tapped stays shown until the thermostat answers, then the thermostat's setpoint (rounded or set back), or after 10 s without an answer; Enter on a row opens the thermostat | `C/rooms-card.test.mjs` |
+| The icon opens the thermostat, in color while it heats or cools, else in the color of the text, never grey; an override in the striped chip of the thermostat card, − and + plain; the mode button is filled while the thermostat heats or cools, empty at its setpoint | `C/rooms-card.test.mjs` |
+| The mode button shows the current mode and opens a popover of the HVAC modes; a tap on a mode sets it and closes it, a tap elsewhere or on another mode button closes it; a thermostat off has no − and +, and turns on from the popover; no mode button on a thermostat with a single mode, or off to protect itself | `C/rooms-card.test.mjs` |
+| An override says until when, and its cross resumes the schedule; a paused thermostat says so, keeps − and +, and resumes control from its row; no − and + on a thermostat without a setpoint, or in fan-only or dry mode | `C/rooms-card.test.mjs` |
+| A row opens the thermostat; a thermostat that does not exist, or the integration missing, says so; in the *Add card* dialog, with a preview | `C/rooms-card.test.mjs` |
+| Set up the card from its visual editor, as the schedule card: thermostats added, removed, reordered, a name and an icon on each thermostat's page; without a list, every scheduled thermostat, which the editor says; no option of the schedule card | `C/cards-editors.test.mjs` |
+
+## Summary card
+
+| Use case | Test |
+|---|---|
+| Show a floor or the house in one row (`custom:chauffage-summary-card`): its name; at its right end, the range of the temperatures its thermostats measure, and under it the range of their humidity when they report it, each with its icon; every scheduled thermostat, or the ones listed in the card | `C/summary-card.test.mjs` |
+| It says how many thermostats heat ("Rien ne chauffe", "1 chauffe", "2 chauffent") and cool ("1 refroidit"), the overrides and the paused thermostats; its icon is in color while one heats or cools; Enter or Space does its action, as a tap | `C/summary-card.test.mjs` |
+| One button with the active schedule opens a menu of the schedules, with the icon of their switch, so that the card keeps one line on a phone; a tap activates one through the select of the active schedule; a second tap or a tap outside closes it, without the card's action; the admin can hide it (`show_schedules: false`, in the visual editor)| `C/summary-card.test.mjs`, `C/cards-editors.test.mjs` |
+| A tap elsewhere does the card's `tap_action` (a pop-up of the rooms, another view), nothing without one; the integration missing says so; in the *Add card* dialog, with a preview | `C/summary-card.test.mjs` |
+| Set up the card from its visual editor, one form: its name, its icon, its thermostats and its tap action (HA's own field, "do nothing" by default); an option emptied is left out, options written in YAML are kept | `C/cards-editors.test.mjs` |
 
 ## More-info dialog of a thermostat
 
