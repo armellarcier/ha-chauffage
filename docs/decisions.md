@@ -2078,10 +2078,26 @@ The owner wants a clean and maintainable codebase, and considers the procedural 
 runtime and the card unmaintainable. [rewrite-plan.md](rewrite-plan.md) plans a rewrite in
 phases. The owner decided these points on 2026-11-25:
 
-- **Step by step, not in one go.** Each phase ships with the tests green, so `main` keeps
-  shipping fixes during the rewrite.
-- **The rewrite changes the structure, not the behavior.** A behavior rule to simplify goes
-  through its own review, outside the rewrite.
+- **Step by step, not in one go.** Each phase ships with the tests green.
+- **The rewrite happens on the `rewrite` branch.** Claude merges each phase into `rewrite` once
+  the CI is green and an independent agent has reviewed it. Nothing goes into `main` before the
+  end, and `main` only gets fixes meanwhile.
+- **One alpha at the end.** The alpha is published from `rewrite` and installed on a real Home
+  Assistant. The owner decides when `rewrite` goes into `main`.
+- **A review of the rewrite only reports three things**: a behavior that differs from `main`,
+  proved by a test, a breach of a design decision, and code more complex than needed. A fix
+  restores the behavior of `main` or removes code. A fix that would add a rule, a flag or a
+  stored state goes to the owner. Agent reviews tend to ask for more cases, and the coding agent
+  then adds complexity, while the goal is simple rules and simple code.
+- **The rewrite changes the structure, not the behavior.** The behavior rules the owner chose
+  to simplify are applied in the first step, on the current code:
+  - weeks are saved against the revision of each thermostat only;
+  - only a change by hand sets `ends_at`, and any later change of the override removes it;
+  - the legacy `kind` and `value` fields of the override events go with the release of the
+    rewrite, and the *Planned preset* sensor still goes in 0.12;
+  - the more-info block uses its defaults, not the options of the last configured card;
+  - the integration alone computes what a preset is worth on a thermostat, and the card asks
+    for it (phases I6 and C5).
 - **The card is built now, in TypeScript, with Lit and esbuild.** The tests run on the
   TypeScript sources through Node's type stripping, so the sources use erasable syntax only.
 - **HACS installs a ZIP built by the CI** (`zip_release`). The repository holds no built file.

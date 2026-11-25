@@ -30,6 +30,9 @@ The owner answered the open questions of the plan on 2026-11-25:
 | Do we freeze the week editor during phase C5? | Yes. |
 | Which Versatile Thermostat versions do we support? | 10.5 and later. |
 | How long do we keep the v0.1 import? | The rewrite removes it, in its first step. |
+| Where does the rewrite happen? | On the `rewrite` branch. Nothing goes into `main` before the end of the rewrite. |
+| How do we try the rewrite on a real Home Assistant? | With one alpha at the end, published from the `rewrite` branch. |
+| Which behavior rules do we simplify? | The eight proposals of section 6, answered on 2026-11-25. |
 
 ## 1. What makes the code hard to maintain
 
@@ -208,8 +211,9 @@ release. The touch rules of #67 live in `slot-drag.js`.
 
 **The panel uses the views directly.** `PANEL_OPTIONS` disappears.
 
-**Shared rules get shared cases.** `domain/preset-value.js` still copies `value_on`, but a JSON
-file of cases runs in both pytest and node.
+**The card stops copying `value_on`.** The integration computes what a preset is worth on a
+thermostat, and the card asks for it through a websocket command. The other shared rules, such
+as `fitTemperature`, get a JSON file of cases that runs in both pytest and node.
 
 **Translations get one file per language** from phase C0. ICU MessageFormat stays on the
 roadmap.
@@ -219,7 +223,7 @@ roadmap.
 Each phase ships with the tests green and the coverage above its floor. The sizes are orders of
 magnitude, in days of focused work.
 
-### First step: less code to rewrite (3 to 4 days)
+### First step: less code to rewrite (4 to 6 days)
 
 The first step removes code that the rewrite would otherwise carry over.
 
@@ -239,6 +243,8 @@ The first step removes code that the rewrite would otherwise carry over.
    - the top-level `eco_temp` keys in `preset_temperature` (`engine.py:658-660`);
    - the tests of these cases, and their entries in [decisions.md](decisions.md), marked as
      removed.
+4. **Apply the simplified behavior rules** of section 6, on the current code, with their tests
+   first. So the phases that follow change no behavior.
 
 ### Phase 0: the safety nets (4 to 6 days)
 
@@ -263,7 +269,7 @@ test fail.
 | I3 | `ThermostatGateway`: `send`, `reproduce`, `pending`, contexts, `own_settings` | 3-4 d | Order of the calls and late commands (`test_late_setpoints.py`, `test_traces.py`) |
 | I4 | `OverrideService` and `manual_changes` | 4-5 d | The hardest phase: `test_overrides.py`, `test_override_end.py`, `test_off.py` |
 | I5 | `Scheduler` with `ApplyReason`, `RuleEngine`, `ThermostatRegistry`, `Learner` | 4-5 d | The lock and background tasks, renames that reload the entry |
-| I6 | `Installation` owns the data. `SnapshotBuilder`. Entities, websocket, services and diagnostics stop reading dicts. | 3-4 d | The `DATA`, `TICK` and `ENTITIES` notifications |
+| I6 | `Installation` owns the data. `SnapshotBuilder`. Entities, websocket, services and diagnostics stop reading dicts. Add the websocket command that previews what a preset is worth on a thermostat (section 6, item 6). | 3-4 d | The `DATA`, `TICK` and `ENTITIES` notifications |
 | I7 | Remove the facades, freeze the migrations with their helpers, update the docs | 2 d | Low |
 
 From I1 to I6, `entry.runtime_data` keeps today's public method names, which delegate.
@@ -277,13 +283,28 @@ From I1 to I6, `entry.runtime_data` keeps today's public method names, which del
 | C2 | Lit on the leaf elements: summary, rooms, thermostat card, more-info block | 4-6 d | Async rendering in jsdom: the driver waits for `updateComplete` |
 | C3 | Settings dialog, editors, panel shell and routing | 5-6 d | `leaveMoreInfo`, browser history |
 | C4 | Presets, schedules, thermostats and rules views as their own elements | 6-8 d | The cell popover, the caret of the rules |
-| C5 | The week editor: grid, bars, popovers, drag, copy and paste, history | 10-14 d | The biggest phase. Freeze changes to the week editor during C5. |
+| C5 | The week editor: grid, bars, popovers, drag, copy and paste, history. The popovers ask the integration what a preset is worth, and the card's copy of `valueOn` goes. | 10-14 d | The biggest phase. Freeze changes to the week editor during C5. |
 | C6 | Clean up: remove `setHtml`, `fillCard`, `PANEL_OPTIONS` and the stamps | 2 d | Low |
 
 In total, about 22 to 28 days for the integration and 36 to 48 days for the card, plus the first step and phase 0.
 Once the websocket contract is frozen, the two tracks are independent.
 
 Order: the first step, phase 0, then C0, then I1 to I7 alongside C1 and C2, then C3 to C6.
+
+### How a phase is delivered
+
+Claude delivers each phase on its own, with the `/rewrite-phase` skill
+(`.claude/skills/rewrite-phase/`):
+
+1. Branch from `rewrite`, and open a pull request against `rewrite`.
+2. Get the CI green, then a scoped review by an independent agent.
+3. Merge into `rewrite`. Nothing goes into `main`.
+
+A fix on `main` during the rewrite comes into `rewrite` by a merge of `main`. Its regression
+test carries the fix: the rewritten code passes the test, it doesn't copy the fix.
+
+At the end, publish an alpha from `rewrite` and install it on a real Home Assistant. The owner
+decides when `rewrite` goes into `main`.
 
 ## 5. The tests
 
@@ -320,8 +341,8 @@ the TypeScript sources of `frontend/src/**`, not on the bundle. Remove a facade 
   `adoptedStyleSheets`. Phase C2 tries Lit on the cheapest cards. If it fails, review the choice
   of Lit before C4.
 - **The switch to `zip_release` can break an update.** HACS installs the content of the
-  repository today. Publish the first `zip_release` version as a pre-release, and install it
-  from HACS on a real Home Assistant before the release.
+  repository today. The alpha at the end of the rewrite is the first `zip_release` version:
+  install it from HACS on a real Home Assistant before the release.
 - **Reloading the page is no longer enough in development.** The development HA mounts the
   repository live, but the card now needs a build. Contributors run `esbuild --watch`. Update
   `CONTRIBUTING.md` and `CONTRIBUTING.fr.md`.
@@ -329,23 +350,32 @@ the TypeScript sources of `frontend/src/**`, not on the bundle. Remove a facade 
   version of the CI and of the Docker fallback of `scripts/test.sh`.
 - **The #49 convention moves with the code.** Move `test_traces.py` in the same commit.
 
-### Behavior rules we could simplify
+### Behavior rules we simplify
 
-These are proposals, outside the rewrite. Review them one by one with the
-`simplify-behavior-rules` skill.
+The owner answered these eight proposals on 2026-11-25. Apply items 1, 2, 4, 5, 7 and 8 in the
+first step, on the current code. Item 3 moves with phase I3, and item 6 with phases I6 and C5.
 
-1. **Two revision systems**, global and per thermostat (`runtime.py:714-738`, card line 2176).
-   The integration serves the card and checks its version, so the path for old cards seems
-   removable.
-2. **`ends_at` is kept, taken back or removed** depending on three branches
-   (`runtime.py:1094-1101`).
-3. **Three resend mechanisms**: `_retry`, `pending` over 24 hours, and `include`.
-4. **Legacy event fields** (`_kind_and_value`, `runtime.py:156-164`) and the deprecated *Planned
-   preset* sensor (#125). Set a removal version.
-5. **`manual_override_end_of(entity_id)`** (`runtime.py:302-305`) is a hook for a per-thermostat
-   setting that doesn't exist.
-6. **`valueOn` in the card.** Let the integration alone compute it, with a websocket preview
-   command. Settle the `low < high` difference first.
-7. **`MORE_INFO_CFG`.** The more-info block takes the options of the last configured card. A
-   setting of the integration would be deterministic.
-8. **The `hvac_mode` key per thermostat** is documented in `model.py:47` and seems unused.
+1. **Weeks are saved against the revision of each thermostat only.** Remove the global
+   `revision` of `chauffage/weeks/save` (`runtime.py:722`), kept for old cards. The card
+   served by the integration already sends `revisions`. The global revision stays for the list
+   of schedules.
+2. **Only a change by hand sets `ends_at`.** Any change of the override from the card or a
+   service removes `ends_at`, and the logbook then gives the end time alone
+   (`runtime.py:1094-1101`). Example: you drag the end of an override to the next slot, and the
+   logbook says "until 22:00".
+3. **The three resend mechanisms stay**: the retry after a failed call, the commands pending
+   for 24 hours, and the forced apply of a thermostat. Each one has its own job. Phase I3 moves
+   all three into `ThermostatGateway`.
+4. **The legacy `kind` and `value` fields of the override events go** in the release of the
+   rewrite (`_kind_and_value`, `runtime.py:156-164`). Say it in the changelog, under
+   "Upgrading". The deprecated *Planned preset* sensor (#125) still goes in 0.12, as announced.
+5. **Remove `manual_override_end_of(entity_id)`** (`runtime.py:302-305`), a hook for a
+   per-thermostat setting (#83) that doesn't exist.
+6. **The integration alone computes what a preset is worth on a thermostat.** Phase I6 adds a
+   websocket preview command, and phase C5 removes the card's `valueOn`. The `low < high`
+   difference disappears with the copy.
+7. **The more-info block uses its defaults**: the language of the Home Assistant profile, and
+   identical days grouped. It no longer takes the options of the last configured card
+   (`MORE_INFO_CFG`, card line 3169).
+8. **Remove the `hvac_mode` key per thermostat from the docs of `model.py:47`.** No code reads
+   or writes this key.
