@@ -81,9 +81,9 @@ export function parseTime(text, periods = [], { hours = 23, ampm = true } = {}) 
   const compact = (s) => String(s).toLowerCase().replace(/[\s.]/g, '');
   let rest = compact(text);
   let pm = null;
-  const words = (ampm ? [...periods.map((w, i) => [compact(w), i === 1]), ['am', false], ['pm', true], ['a', false], ['p', true]] : [])
+  const words: any[] = (ampm ? [...periods.map((w, i) => [compact(w), i === 1]), ['am', false], ['pm', true], ['a', false], ['p', true]] : [])
     .filter(([w]) => w)
-    .sort((a, b) => b[0].length - a[0].length);
+    .sort((a: any, b: any) => b[0].length - a[0].length);
   for (const [w, isPm] of words) {
     if (rest.endsWith(w)) rest = rest.slice(0, -w.length);
     else if (rest.startsWith(w)) rest = rest.slice(w.length);
@@ -193,7 +193,7 @@ export const endMovedBy = (end, min) => new Date(parseDate(end).getTime() + min 
 // Why a thermostat protects itself (a Versatile Thermostat's window or auto start/stop), as the
 // integration says it (#91): { short, long } texts, or null. `requested`: the name of the preset
 // it restarts on, after the cause. Also while the window keeps it heating at its frost setpoint
-export function causeText(src, climate, loc, requested) {
+export function causeText(src, climate, loc, requested?) {
   const cause = src.cause(climate);
   if (!cause) return null;
   const key = cause === 'window' ? 'offWindow' : 'offAutoStop';
@@ -280,6 +280,6 @@ export function endReasonText(d, loc) {
   if (d.ends_at === 'next_slot') return loc.t('endsNextSlot');
   if (d.ends_at === 'no_next_slot') return loc.t('endsNoNextSlot');
   if (d.ends_at !== 'duration') return '';
-  const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
+  const minutes = Math.round((+parseDate(d.end) - +parseDate(d.start)) / 60000);
   return loc.t('endsAfter', { duration: roundDurationText(minutes, loc) });
 }

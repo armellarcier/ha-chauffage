@@ -54,7 +54,7 @@ export function openSettings(from, hass, section = null) {
     }));
     return;
   }
-  const dialog = document.querySelector(SETTINGS_DIALOG) || document.body.appendChild(document.createElement(SETTINGS_DIALOG));
+  const dialog: any = document.querySelector(SETTINGS_DIALOG) || document.body.appendChild(document.createElement(SETTINGS_DIALOG));
   dialog.hass = hass;
   dialog.showDialog({ history: true, moreInfo, section });
 }
@@ -118,6 +118,27 @@ const SETTINGS_CSS = `
 `;
 
 export class ChauffageSettingsDialog extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _frame: any;
+  declare _hass: any;
+  declare _moreInfo: any;
+  declare _onEscape: any;
+  declare _onPop: any;
+  declare _open: any;
+  declare _ownHistory: any;
+  declare _popped: any;
+  declare _savedKey: any;
+  declare _savedTimer: any;
+  declare _scrollTo: any;
+  declare _settingsBusy: any;
+  declare _settingsError: any;
+  declare _settingsErrorAt: any;
+  declare _settingsPending: any;
+  declare _settingsSaved: any;
+  declare _settingsSent: any;
+  declare _stopLeave: any;
+  declare _unlisten: any;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -126,13 +147,13 @@ export class ChauffageSettingsDialog extends HTMLElement {
     // The duration of a change by hand: a stepped field, as the cards' time fields
     listenTimeFields(this, (el) => this._durationDone(el));
     // The settings: sent at once, as Home Assistant's own settings
-    this.shadowRoot.addEventListener('change', (e) => {
+    this.shadowRoot.addEventListener('change', (e: any) => {
       if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
       if (e.target.matches('[data-off-override-end]')) this._setSettings({ off_override_end: e.target.value });
       if (e.target.matches('[data-access-level]')) this._setSettings({ access_level: e.target.value });
     });
     // Its ✕, and a tap outside the browser's dialog (on its backdrop: the dialog element itself)
-    this.shadowRoot.addEventListener('click', (e) => {
+    this.shadowRoot.addEventListener('click', (e: any) => {
       const other = e.target.closest('[data-other-options]');
       if (other) {
         e.preventDefault();
@@ -177,11 +198,11 @@ export class ChauffageSettingsDialog extends HTMLElement {
     if (this._open) return;
     this._cancelLeave(); // opened again before a page left for: that page stays closed
     this._open = true;
-    this._ownHistory = !!(params && params.history);
-    this._moreInfo = !!(params && params.moreInfo); // opened from the more-info block
+    this._ownHistory = !!(params && (params as any).history);
+    this._moreInfo = !!(params && (params as any).moreInfo); // opened from the more-info block
     this._popped = false;
     // Opened from the notice of the access level: scrolled to its section, once filled (_update)
-    this._scrollTo = params && params.section === 'access' ? '.access-settings' : null;
+    this._scrollTo = params && (params as any).section === 'access' ? '.access-settings' : null;
     seenNewSetting(this._hass);
     this._unlisten = INTEGRATION.listen(() => this._update());
     this._build();

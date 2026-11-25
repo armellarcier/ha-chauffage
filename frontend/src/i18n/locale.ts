@@ -44,7 +44,7 @@ function firstWeekday(setting, intlLocale) {
   const i = WEEKDAY_KEYS.indexOf(setting);
   if (i >= 0) return i;
   try {
-    const loc = new Intl.Locale(setting === 'system' ? Intl.DateTimeFormat().resolvedOptions().locale : intlLocale);
+    const loc: any = new Intl.Locale(setting === 'system' ? Intl.DateTimeFormat().resolvedOptions().locale : intlLocale);
     const info = typeof loc.getWeekInfo === 'function' ? loc.getWeekInfo() : loc.weekInfo;
     if (info && info.firstDay) return (info.firstDay + 6) % 7; // Intl: 1 = Monday … 7 = Sunday
   } catch (e) { /* older browsers */ }
@@ -55,7 +55,7 @@ export const capitalize = (s) => s.charAt(0).toLocaleUpperCase() + s.slice(1);
 const REFERENCE_MONDAY = new Date(2024, 0, 1); // Monday, January 1, 2024
 
 // Everything the UI needs to speak the user's language, following hass.locale
-export function makeLocale(hass, configured) {
+export function makeLocale(hass, configured?) {
   const prefs = (hass && hass.locale) || {};
   const lang = resolveLanguage(hass, configured);
   const strings = I18N[lang];

@@ -67,7 +67,7 @@ export function thermostatDevices(hass, src, climate) {
 // that cancels the page not opened yet.
 export function leaveMoreInfo(el, open) {
   const ha = document.querySelector('home-assistant');
-  const dialog = ha && ha.shadowRoot && ha.shadowRoot.querySelector('ha-more-info-dialog');
+  const dialog: any = ha && ha.shadowRoot && ha.shadowRoot.querySelector('ha-more-info-dialog');
   const inAddress = () => window.location.search.includes('more-info-entity-id');
   if (!inAddress()) {
     openMoreInfo(el, null);
@@ -110,7 +110,7 @@ export function afterHistoryBack(gone, then) {
 }
 
 // view: 'settings' opens the entity's settings (its name, its icon), as Home Assistant's own pages do
-export function openMoreInfo(el, entityId, view) {
+export function openMoreInfo(el, entityId, view?) {
   const detail = view ? { entityId, view } : { entityId };
   el.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail }));
 }
@@ -129,7 +129,7 @@ export function openDevice(id) {
 // The address of a page of the Chauffage panel ("" for the panel itself)
 export const panelPath = (page) => (page ? `/chauffage/${page}` : '/chauffage');
 // A thermostat's page, scrolled to its week in a schedule (see ChauffagePanel._scrollToWeek)
-export const weeksPath = (climate, week) => panelPath(`thermostats/${climate}${week ? `?week=${encodeURIComponent(week)}` : ''}`);
+export const weeksPath = (climate, week?) => panelPath(`thermostats/${climate}${week ? `?week=${encodeURIComponent(week)}` : ''}`);
 
 export function openPanel(page) {
   navigate(panelPath(page));

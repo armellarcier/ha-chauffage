@@ -34,6 +34,15 @@ const EDITOR_CSS = `
 `;
 
 export class ChauffageProgrammeCardEditor extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _built: any;
+  declare _config: any;
+  declare _editing: any;
+  declare _hass: any;
+  declare _initial: any;
+  declare _options: any;
+  declare _page: any;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -90,7 +99,7 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
       if (this._editing !== null) this._buildPage(loc);
       else this._buildList(loc, thermostats);
     }
-    for (const el of this.shadowRoot.querySelectorAll('ha-entity-picker, ha-form')) el.hass = this._hass;
+    for (const el of this.shadowRoot.querySelectorAll('ha-entity-picker, ha-form')) (el as any).hass = this._hass;
     if (this._editing !== null) this._page.data = this._pageData(thermostats[this._editing]);
     else if (this._options) {
       const c = this._config;
@@ -105,7 +114,7 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
       : { entity: t.entity, name: typeof t.name === 'string' ? t.name : '' };
   }
 
-  _pageSchema() {
+  _pageSchema(): any[] {
     return [
       { name: 'entity', required: true, selector: { entity: { domain: 'climate' } } },
       this._haNameField()
@@ -119,20 +128,20 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
   }
 
   // A note under the list, if any
-  _listNote() {
+  _listNote(_loc?, _thermostats?): HTMLElement | null {
     return null;
   }
 
   // The card's options under the list: whether every thermostat shows at first, the time step
   _buildOptions(loc) {
-    const options = document.createElement('ha-form');
+    const options: any = document.createElement('ha-form');
     options.className = 'options';
     options.schema = [
       { name: 'show_all', selector: { boolean: {} } },
       { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) })) } } },
     ];
     options.computeLabel = (s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name]);
-    options.addEventListener('value-changed', (e) => {
+    options.addEventListener('value-changed', (e: any) => {
       e.stopPropagation();
       const config = { ...this._config };
       if (e.detail.value.show_all) config.show = 'all';
@@ -146,7 +155,7 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
   }
 
   _button(cls, label, path, onClick) {
-    const b = document.createElement('ha-icon-button');
+    const b: any = document.createElement('ha-icon-button');
     b.className = cls;
     b.label = label;
     b.path = path;
@@ -155,10 +164,10 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
   }
 
   _picker(cls, onChange) {
-    const p = document.createElement('ha-entity-picker');
+    const p: any = document.createElement('ha-entity-picker');
     p.className = cls;
     p.includeDomains = ['climate'];
-    p.addEventListener('value-changed', (e) => {
+    p.addEventListener('value-changed', (e: any) => {
       e.stopPropagation();
       onChange(e.detail.value);
     });
@@ -183,7 +192,7 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
     title.textContent = this._listTitle(loc);
     const sortable = document.createElement('ha-sortable');
     sortable.setAttribute('handle-selector', '.handle');
-    sortable.addEventListener('item-moved', (e) => {
+    sortable.addEventListener('item-moved', (e: any) => {
       e.stopPropagation();
       const list = this._thermostats();
       list.splice(e.detail.newIndex, 0, list.splice(e.detail.oldIndex, 1)[0]);
@@ -195,12 +204,12 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
       row.className = 'thermostat';
       const handle = document.createElement('div');
       handle.className = 'handle';
-      const icon = document.createElement('ha-svg-icon');
+      const icon: any = document.createElement('ha-svg-icon');
       icon.path = MDI.drag;
       handle.appendChild(icon);
       const cell = document.createElement('div');
       cell.className = 'picker';
-      const picker = this._picker('', (entity) => {
+      const picker: any = this._picker('', (entity) => {
         const list = this._thermostats();
         if (entity) list[i].entity = entity;
         else list.splice(i, 1);
@@ -251,7 +260,7 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
       note.textContent = loc.t('editorRemovedScheduled', { name: this._defaultName(entity) });
       return note;
     });
-    const add = this._picker('add', (entity) => {
+    const add: any = this._picker('add', (entity) => {
       if (!entity) return;
       add.value = '';
       this._setThermostats([...this._thermostats(), { entity }]);
@@ -265,7 +274,7 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
   _buildPage(loc) {
     const header = document.createElement('div');
     header.className = 'header';
-    const back = document.createElement('ha-icon-button-prev');
+    const back: any = document.createElement('ha-icon-button-prev');
     back.label = loc.t('editorBack');
     back.addEventListener('click', () => {
       this._editing = null;
@@ -274,11 +283,11 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
     const title = document.createElement('span');
     title.textContent = loc.t('editorThermostat');
     header.append(back, title);
-    const form = document.createElement('ha-form');
+    const form: any = document.createElement('ha-form');
     form.schema = this._pageSchema();
     form.computeLabel = (s) => loc.t({ name: 'editorName', icon: 'editorIcon' }[s.name] || 'editorThermostat');
     form.computeHelper = (s) => (s.name === 'name' && !this._haNameField() ? loc.t('editorNameDefault', { name: this._defaultName(form.data && form.data.entity) }) : undefined);
-    form.addEventListener('value-changed', (e) => {
+    form.addEventListener('value-changed', (e: any) => {
       e.stopPropagation();
       const list = this._thermostats();
       const t = list[this._editing];
@@ -343,6 +352,11 @@ export class ChauffageRoomsCardEditor extends ChauffageProgrammeCardEditor {
 // YAML that it does not show (`language`) are kept; an option emptied is left out
 const SUMMARY_FIELDS = ['name', 'icon', 'thermostats', 'show_schedules', 'tap_action'];
 export class ChauffageSummaryCardEditor extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _config: any;
+  declare _form: any;
+  declare _hass: any;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });

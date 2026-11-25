@@ -81,7 +81,7 @@ function slotCools(hass, climate, seg) {
 // cools either. In heat/cool, the range: "20–25 °C".
 // `temperatureOf`: the temperature a device preset gives when heating; `coolTemperatureOf`:
 // when cooling
-export function slotSetpointText(hass, climate, seg, target, loc, { temperatureOf = () => null, coolTemperatureOf = () => null } = {}) {
+export function slotSetpointText(hass, climate, seg, target, loc, { temperatureOf = () => null, coolTemperatureOf = () => null }: any = {}) {
   const t = loc.t;
   if (hasNoPreset(seg) || !target) return '';
   const degrees = (value) => `${loc.number(value)} ${loc.unit}`;
@@ -192,8 +192,8 @@ function thenText(src, climate, d, loc, hass) {
 // else its date ("19 octobre"). 7 days away, the day name would read as today.
 function dayText(at, loc) {
   const now = new Date();
-  const days = Math.round((new Date(at.getFullYear(), at.getMonth(), at.getDate())
-    - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  const days = Math.round((+new Date(at.getFullYear(), at.getMonth(), at.getDate())
+    - +new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
   return days >= 7 ? loc.date(at) : loc.days[(at.getDay() + 6) % 7].toLowerCase();
 }
 // An instant to come: its time today ("17:30"), else its day too ("monday 06:30")
@@ -212,7 +212,7 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const day = endsAt.toDateString() === now.toDateString() ? t('today')
     : endsAt.toDateString() === tomorrow.toDateString() ? t('tomorrow') : dayText(endsAt, loc);
-  const remaining = Math.max(0, Math.round((endsAt - now) / 60000));
+  const remaining = Math.max(0, Math.round((+endsAt - +now) / 60000));
   const reason = endReasonText(d, loc);
   const why = reason && src.editable
     ? `<span class="mi-link" role="link" tabindex="0" data-open-settings title="${esc(t('endsChoose'))}">${esc(reason)} <span aria-hidden="true">⚙</span></span>`
@@ -238,7 +238,7 @@ function remainingText(min, loc) {
 function nextSlotButton(src, climate, d, loc) {
   const iso = (src.planned(climate) || {}).next_slot_end;
   const at = iso ? parseDate(iso) : null;
-  if (!at || d.ends_at === 'next_slot' || Math.floor(at / 60000) === Math.floor(parseDate(d.end) / 60000)) return '';
+  if (!at || d.ends_at === 'next_slot' || Math.floor(+at / 60000) === Math.floor(+parseDate(d.end) / 60000)) return '';
   return `<button class="btn" data-act="override-next-slot" data-at="${esc(iso)}">${esc(loc.t('untilNextSlot', { time: whenText(at, loc) }))}</button>`;
 }
 
@@ -333,7 +333,7 @@ function newOverrideEndText(src, climate, hass, loc) {
   // The end of the HVAC mode the override would take, and the end of Off when it differs: the
   // setting *Turned off* ends it at the next slot by default
   const d = newOverride(src, {});
-  const minutes = Math.round((parseDate(d.end) - parseDate(d.start)) / 60000);
+  const minutes = Math.round((+parseDate(d.end) - +parseDate(d.start)) / 60000);
   const end = `${minutes < DAY_MIN ? roundDurationText(minutes, loc) : remainingText(minutes, loc)} (${loc.t('until')} ${whenText(parseDate(d.end), loc)})`;
   const off = offEndText(null, src, climate, hass, loc, d.end);
   return off ? `${end} · ${off}` : end;
@@ -346,7 +346,7 @@ function offEndText(d, src, climate, hass, loc, end) {
   if ((modes && !modes.includes('off')) || isOffOverride(d)) return '';
   const off = overrideOff(d, src, climate, hass);
   // Compared to the minute: the two ends are computed a few milliseconds apart
-  if (!off || off === RESUME || Math.round(parseDate(off.end) / 60000) === Math.round(parseDate(end) / 60000)) return '';
+  if (!off || off === RESUME || Math.round(+parseDate(off.end) / 60000) === Math.round(+parseDate(end) / 60000)) return '';
   // On an override, the button of the next slot says its time just below: said in words
   if (d && off.ends_at === 'next_slot') return loc.t('offUntilNextSlot', { off: modeName(loc, 'off') });
   return loc.t('offUntil', { off: modeName(loc, 'off'), when: whenText(parseDate(off.end), loc) });

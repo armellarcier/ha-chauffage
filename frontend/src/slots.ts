@@ -27,7 +27,7 @@ export function joinAt(segs, idx) {
 export function parseSlot(raw) {
   // An off slot and a fan-only slot have no preset, whatever was written with them
   const slot = (start, preset, settings) => {
-    const set = slotSettings(settings);
+    const set: any = slotSettings(settings);
     const none = set && NO_PRESET_MODES.includes(set.hvac_mode);
     return withSettings({ start, preset: none ? null : preset }, set);
   };

@@ -76,7 +76,7 @@ function watchMoreInfo(entityId) {
   let injected = false;
   const tick = () => {
     tries += 1;
-    const ha = document.querySelector('home-assistant');
+    const ha: any = document.querySelector('home-assistant');
     const hass = ha && ha.hass;
     const dialog = ha && ha.shadowRoot && ha.shadowRoot.querySelector('ha-more-info-dialog');
     // Displayed entity: the dialog's internal property when available, otherwise the event's
@@ -114,7 +114,7 @@ function watchMoreInfo(entityId) {
 
 if (!window.__chauffageMoreInfoListener) {
   window.__chauffageMoreInfoListener = true;
-  window.addEventListener('hass-more-info', (e) => {
+  window.addEventListener('hass-more-info', (e: any) => {
     const id = e.detail && e.detail.entityId;
     if (id) watchMoreInfo(id);
   });

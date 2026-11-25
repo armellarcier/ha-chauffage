@@ -50,6 +50,30 @@ export function panelRoute(path, src, hass) {
 }
 
 export class ChauffagePanel extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _cards: any;
+  declare _copyMenu: any;
+  declare _error: any;
+  declare _groupDays: any;
+  declare _hass: any;
+  declare _historyOn: any;
+  declare _key: any;
+  declare _leave: any;
+  declare _narrow: any;
+  declare _notice: any;
+  declare _onKey: any;
+  declare _onUnload: any;
+  declare _pageForget: any;
+  declare _pageMenu: any;
+  declare _panel: any;
+  declare _picked: any;
+  declare _placements: any;
+  declare _route: any;
+  declare _saveError: any;
+  declare _settingsFor: any;
+  declare _unlisten: any;
+  declare _weekCards: any;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -69,7 +93,7 @@ export class ChauffagePanel extends HTMLElement {
     this._picked = new Set(); // the welcome: the thermostats ticked
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
-    this.shadowRoot.addEventListener('change', (e) => {
+    this.shadowRoot.addEventListener('change', (e: any) => {
       const box = e.target.closest('[data-pick]');
       if (!box) return;
       if (box.checked) this._picked.add(box.dataset.pick);
@@ -156,7 +180,7 @@ export class ChauffagePanel extends HTMLElement {
     // Under its tabs, the panel shows what the cards show while the data can't be used. Also when
     // the page loaded a former card first: the panel's cards would not work, so the panel asks to
     // reload the page. A second copy of the same version works: compared by version, not by class.
-    const card = customElements.get('chauffage-programme-card');
+    const card: any = customElements.get('chauffage-programme-card');
     const notice = card && card.version !== VERSION ? NOTICE_RELOAD : sourceNotice(src);
     const route = panelRoute(this._route && this._route.path, src, hass);
     if (route.redirect) {
@@ -178,7 +202,7 @@ export class ChauffagePanel extends HTMLElement {
       this._key = key;
       this._build(route, src, notice);
     }
-    const menu = this.shadowRoot.querySelector('ha-menu-button');
+    const menu: any = this.shadowRoot.querySelector('ha-menu-button');
     if (menu) {
       menu.hass = hass;
       menu.narrow = this._narrow;
@@ -194,7 +218,7 @@ export class ChauffagePanel extends HTMLElement {
   _scrollToWeek() {
     const week = new URLSearchParams(window.location.search).get('week');
     const heading = week && [...this.shadowRoot.querySelectorAll('h3[data-fill-schedule]')]
-      .find((h) => h.dataset.fillSchedule === week);
+      .find((h: any) => h.dataset.fillSchedule === week);
     if (!heading) return;
     window.history.replaceState(window.history.state, '', window.location.pathname);
     heading.scrollIntoView({ block: 'start' });
@@ -254,7 +278,7 @@ export class ChauffagePanel extends HTMLElement {
     this._weekCards = {}; // a thermostat's sheet: its card of each schedule
     const scheduled = Object.keys(src.weeks()).length;
     const card = (config, parent = content) => {
-      const el = document.createElement('chauffage-programme-card');
+      const el: any = document.createElement('chauffage-programme-card');
       el._setPanelConfig({ thermostats: this._thermostats(src), panel: true, ...config });
       parent.appendChild(el);
       this._cards.push(el);
@@ -347,7 +371,7 @@ export class ChauffagePanel extends HTMLElement {
     // every slot of the week to heat or to cool
     const reversible = route.sheet === 'thermostat' && isReversible(this._hass, route.id) && src.plannable;
     for (const h of this.shadowRoot.querySelectorAll('[data-fill-schedule]')) {
-      const id = h.dataset.fillSchedule;
+      const id = (h as any).dataset.fillSchedule;
       const others = src.schedules().filter((m) => m !== id);
       const all = (mode, key) => `<button class="mi" data-week-hvac="${mode}">${hvacIcon(mode)}<span>${esc(t(key))}</span></button>`;
       const items = [
@@ -382,7 +406,7 @@ export class ChauffagePanel extends HTMLElement {
   // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
   // order of the schedules
   _dirtyWeeks() {
-    return Object.entries(this._weekCards || {}).filter(([, card]) => card._dirty);
+    return Object.entries(this._weekCards || {}).filter(([, card]) => (card as any)._dirty);
   }
 
   // A thermostat's sheet has one save bar for all its weeks: on a phone, a bar under a week further
@@ -393,7 +417,7 @@ export class ChauffagePanel extends HTMLElement {
     const t = this._t;
     const dirty = this._dirtyWeeks();
     if (!dirty.length) { setHtml(slot, ''); this._saveError = null; this._leave = null; return; }
-    const names = dirty.map(([, card]) => card._scheduleName(card._schedule)).join(', ');
+    const names = dirty.map(([, card]) => (card as any)._scheduleName((card as any)._schedule)).join(', ');
     if (this._leave) {
       setHtml(slot, `<div class="sheet-savebar leaving">
         <span class="dirty">${esc(t('leaveUnsaved', { schedules: names }))}</span>
@@ -414,7 +438,7 @@ export class ChauffagePanel extends HTMLElement {
   // Cancel: every week goes back as it was saved
   _discardSheet() {
     for (const card of this._dirtyWeeks().map(([, c]) => c)) {
-      card._discard();
+      (card as any)._discard();
     }
     this._saveError = null;
     this._fillSavebar();
@@ -425,23 +449,23 @@ export class ChauffagePanel extends HTMLElement {
   async _saveSheet(climate) {
     const t = this._t;
     const src = dataSource(this._hass);
-    for (const card of Object.values(this._weekCards)) card._settle(true);
+    for (const card of Object.values(this._weekCards)) (card as any)._settle(true);
     const dirty = this._dirtyWeeks();
     if (!dirty.length) return;
-    const first = dirty[0][1];
-    const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, card._week(climate).map(serializeDay)])) };
+    const first: any = dirty[0][1];
+    const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, (card as any)._week(climate).map(serializeDay)])) };
     const revisions = { [climate]: first._revisions[climate] ?? null };
     try {
       const result = await src.saveWeeks(weeks, revisions);
       for (const card of Object.values(this._weekCards)) {
-        if (result && result.revisions) Object.assign(card._revisions, result.revisions);
-        if (result && result.revision != null) card._revision = result.revision;
+        if (result && result.revisions) Object.assign((card as any)._revisions, result.revisions);
+        if (result && result.revision != null) (card as any)._revision = result.revision;
       }
       for (const [, card] of dirty) {
-        card._loadedWeeks = card._serialized();
-        card._dirty = false;
-        card._msg = card._loc.t('saved');
-        card._render();
+        (card as any)._loadedWeeks = (card as any)._serialized();
+        (card as any)._dirty = false;
+        (card as any)._msg = (card as any)._loc.t('saved');
+        (card as any)._render();
       }
       this._saveError = null;
     } catch (err) {
@@ -628,7 +652,7 @@ export class ChauffagePanel extends HTMLElement {
           button.classList.toggle('on', on);
           button.setAttribute('aria-pressed', String(on));
         }
-        for (const card of Object.values(this._weekCards)) card._setWeekView(this._groupDays, this._historyOn);
+        for (const card of Object.values(this._weekCards)) (card as any)._setWeekView(this._groupDays, this._historyOn);
         return this._update();
       }
       if ('closeNotice' in ds) {
@@ -672,7 +696,7 @@ async function cardHelpers() {
   if (window.loadCardHelpers) return window.loadCardHelpers();
   try {
     await customElements.whenDefined('partial-panel-resolver');
-    const resolver = document.createElement('partial-panel-resolver');
+    const resolver: any = document.createElement('partial-panel-resolver');
     resolver.hass = { panels: [{ url_path: 'tmp', component_name: 'lovelace' }] };
     resolver._updateRoutes();
     await resolver.routerOptions.routes.tmp.load();

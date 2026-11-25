@@ -86,7 +86,7 @@ export const SETTING_ATTRS = ['fan_mode', 'swing_mode', 'swing_horizontal_mode']
 export function slotSettings(settings) {
   if (!settings || typeof settings !== 'object') return null;
   if (settings.hvac_mode === 'off') return { hvac_mode: 'off' };
-  const out = {};
+  const out: any = {};
   if (SLOT_HVAC_MODES.includes(settings.hvac_mode)) out.hvac_mode = settings.hvac_mode;
   for (const attr of SETTING_ATTRS) if (settings[attr] != null) out[attr] = settings[attr];
   return out;

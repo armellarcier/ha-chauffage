@@ -25,6 +25,22 @@ import { LINK_STYLE, TIME_FIELD_STYLE } from './styles.ts';
 const MORE_INFO_STEP = 15;
 
 export class ChauffageMoreInfo extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _changeOpen: any;
+  declare _creating: any;
+  declare _drag: any;
+  declare _entity: any;
+  declare _error: any;
+  declare _hass: any;
+  declare _key: any;
+  declare _loc: any;
+  declare _pending: any;
+  declare _pieces: any;
+  declare _placements: any;
+  declare _redrawLater: any;
+  declare _unlisten: any;
+  declare _weekOpen: any;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -226,11 +242,11 @@ export class ChauffageMoreInfo extends HTMLElement {
         ${this._footHtml()}
       </div>`;
     // Keeps the "week" section open / closed across redraws
-    const det = this.shadowRoot.querySelector('details.week-fold');
+    const det: any = this.shadowRoot.querySelector('details.week-fold');
     det.open = !!this._weekOpen;
     det.addEventListener('toggle', () => { this._weekOpen = det.open; });
     // And "Change", on a thermostat card
-    const change = this.shadowRoot.querySelector('details.change');
+    const change: any = this.shadowRoot.querySelector('details.change');
     if (change) change.addEventListener('toggle', () => { this._changeOpen = change.open; });
     if (typed !== null) restoreTyped(this.shadowRoot, OVERRIDE_TEMPERATURE, typed);
   }

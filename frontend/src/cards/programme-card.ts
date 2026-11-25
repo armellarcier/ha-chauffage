@@ -26,6 +26,87 @@ const HANDLE_WIDTH = 18;
 const TOUCH_SLOP = 8;
 
 export class ChauffageProgrammeCard extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _accessStamp: any;
+  declare _asideKey: any;
+  declare _available: any;
+  declare _bodyScroll: any;
+  declare _cell: any;
+  declare _cellError: any;
+  declare _config: any;
+  declare _configured: any;
+  declare _copyWeekMenu: any;
+  declare _data: any;
+  declare _dirty: any;
+  declare _dirtyTold: any;
+  declare _downAt: any;
+  declare _drag: any;
+  declare _drawn: any;
+  declare _focus: any;
+  declare _forgetAsk: any;
+  declare _groupPref: any;
+  declare _handleMoved: any;
+  declare _hass: any;
+  declare _history: any;
+  declare _lastClick: any;
+  declare _linksStamp: any;
+  declare _loadedWeeks: any;
+  declare _loc: any;
+  declare _menu: any;
+  declare _moreOpen: any;
+  declare _moreTapped: any;
+  declare _msg: any;
+  declare _multiFresh: any;
+  declare _multiSel: any;
+  declare _noticeKey: any;
+  declare _onDocDown: any;
+  declare _onKey: any;
+  declare _overrideDrag: any;
+  declare _overrideDragEnded: any;
+  declare _overridePending: any;
+  declare _overrideSel: any;
+  declare _overrideStamp: any;
+  declare _ownClip: any;
+  declare _placeToken: any;
+  declare _placedKey: any;
+  declare _placements: any;
+  declare _preview: any;
+  declare _previewDelay: any;
+  declare _previewKey: any;
+  declare _previewSub: any;
+  declare _previewTimer: any;
+  declare _previewed: any;
+  declare _readTouch: any;
+  declare _redrawLater: any;
+  declare _renderedDay: any;
+  declare _revision: any;
+  declare _revisions: any;
+  declare _rows: any;
+  declare _rulesDraft: any;
+  declare _rulesStamp: any;
+  declare _schedEd: any;
+  declare _schedErr: any;
+  declare _schedule: any;
+  declare _scheduleState: any;
+  declare _sel: any;
+  declare _shown: any;
+  declare _shownForPreview: any;
+  declare _slotMoved: any;
+  declare _stamp: any;
+  declare _tableLeft: any;
+  declare _tabsShown: any;
+  declare _tabsWait: any;
+  declare _targetShown: any;
+  declare _thMore: any;
+  declare _thermostats: any;
+  declare _thermostatsStamp: any;
+  declare _timer: any;
+  declare _trial: any;
+  declare _unlisten: any;
+  declare _view: any;
+  declare _wantSchedule: any;
+  declare _zoom: any;
+
   // Tells the panel which version of the card the page defined first (cards before 0.8.1: none)
   static get version() {
     return VERSION;
@@ -83,7 +164,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const climates = Object.keys(hass.states).filter((e) => e.startsWith('climate.'));
     let src = dataSource(hass);
     if (src.available && !src.ready) {
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         const stop = INTEGRATION.listen(() => { stop(); resolve(); });
         setTimeout(() => { stop(); resolve(); }, 2000);
       });
@@ -264,7 +345,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _inCardPicker() {
-    const root = this.getRootNode && this.getRootNode();
+    const root: any = this.getRootNode && this.getRootNode();
     return !!(root && root.host && root.host.localName === 'hui-card-picker');
   }
 
@@ -520,7 +601,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     const now = new Date();
     for (const [c, d] of Object.entries(out)) {
-      if (!d || !(parseDate(d.end) > now)) delete out[c];
+      if (!d || !(parseDate((d as any).end) > now)) delete out[c];
     }
     return out;
   }
@@ -549,7 +630,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // A time field left: its time is applied, for the slot or the thermostat it was typed for (a tap
   // outside the card may have closed the popover meanwhile). `next` is the field Tab goes to.
-  _timeFieldDone(el, next) {
+  _timeFieldDone(el, next?) {
     // Tab to another time field: applied once that field has the focus, so that the redraw waits
     // until the time fields are left, instead of replacing the field being typed in
     if (next && next.matches && next.matches('input.time')) {
@@ -635,9 +716,9 @@ export class ChauffageProgrammeCard extends HTMLElement {
     root.querySelectorAll('.chip[data-climate] .live').forEach((el) => {
       el.textContent = this._chipMark(el.parentElement.dataset.climate);
     });
-    root.querySelectorAll('.now').forEach((el) => { el.style.left = `${pct(nowMin())}%`; });
+    root.querySelectorAll('.now').forEach((el: any) => { el.style.left = `${pct(nowMin())}%`; });
     // The override field that shows the thermostat's setpoint follows it (not while typed in)
-    const input = root.querySelector('.override-ed input[data-live]');
+    const input: any = root.querySelector('.override-ed input[data-live]');
     if (input && root.activeElement !== input) {
       const st = this._hass.states[this._overrideSel.climate];
       const temperature = st && st.attributes.temperature;
@@ -944,7 +1025,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     // ("⏱ ⏻ → 17:00"), with the day when the end is not today ("→ sat. 08:00"). The tooltip is
     // a sentence: "Cool · Comfort 25° until 23:00, then Heat · Eco"
     const now = new Date();
-    const away = Math.round((new Date(end.getFullYear(), end.getMonth(), end.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+    const away = Math.round((+new Date(end.getFullYear(), end.getMonth(), end.getDate()) - +new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
     const dated = away !== 0;
     const day = !dated ? '' : `${away >= 7 || away < 0 ? this._loc.dateShort(end) : this._loc.dayShort(end)} `;
     const mode = (d.target || {}).hvac_mode || overrideNamedMode(d, src, climate, this._hass);
@@ -1101,7 +1182,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (!menu || above == null) return;
     // Measured once ha-card (a Lit component, rendered asynchronously) shows its content
     const place = () => {
-      const el = this._menu === menu && this.shadowRoot.querySelector('.menu');
+      const el: any = this._menu === menu && this.shadowRoot.querySelector('.menu');
       if (!el || !el.offsetHeight) return false;
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
       const h = el.offsetHeight;
@@ -1112,7 +1193,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       return true;
     };
     if (place()) return;
-    const card = this.shadowRoot.querySelector('ha-card');
+    const card: any = this.shadowRoot.querySelector('ha-card');
     const ready = card && card.updateComplete instanceof Promise ? card.updateComplete : Promise.resolve();
     ready.then(() => requestAnimationFrame(place));
   }
@@ -1216,7 +1297,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // ha-card (a Lit component) renders asynchronously: until its <slot> is rendered, its
   // content has no position. Wait for its rendering to complete before measuring.
   _schedulePlaceEditor() {
-    const card = this.shadowRoot.querySelector('ha-card');
+    const card: any = this.shadowRoot.querySelector('ha-card');
     if (!card || !this.shadowRoot.querySelector('.editor')) return;
     const token = (this._placeToken = (this._placeToken || 0) + 1);
     const ready = card.updateComplete instanceof Promise ? card.updateComplete : Promise.resolve();
@@ -1249,7 +1330,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   _schedulePlaceTags() {
-    const card = this.shadowRoot.querySelector('ha-card');
+    const card: any = this.shadowRoot.querySelector('ha-card');
     if (!card || !this.shadowRoot.querySelector('.override-tag')) return;
     const ready = card.updateComplete instanceof Promise ? card.updateComplete : Promise.resolve();
     ready.then(() => requestAnimationFrame(() => this._placeTags()));
@@ -1266,7 +1347,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       this._tableCue();
     };
     set();
-    const card = this.shadowRoot.querySelector('ha-card');
+    const card: any = this.shadowRoot.querySelector('ha-card');
     if (card && card.updateComplete instanceof Promise) card.updateComplete.then(set);
   }
 
@@ -1285,7 +1366,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     // The table first: the popover points at the cell where the table is scrolled
     const table = root.querySelector('.table-wrap');
     if (table && this._tableLeft) table.scrollLeft = this._tableLeft;
-    const ed = root.querySelector('.editor');
+    const ed: any = root.querySelector('.editor');
     // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
     const sel = this._overrideSel;
     const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${this._rowOf(todayIdx())[0]}"] .now`);
@@ -1351,7 +1432,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   _render() {
     // Not while a time is typed: the redraw would take its field away
     if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; }
-    const input = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
+    const input: any = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
     const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
     const area = focusedField(this.shadowRoot, '[data-rule-template]');
     const rule = area && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
@@ -1380,11 +1461,11 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // Many schedules: the tabs scroll sideways. A redraw keeps where they were scrolled; another
   // schedule shown is scrolled into view
   _placeTabs(left) {
-    const tabs = this.shadowRoot.querySelector('.tabs-scroll');
+    const tabs: any = this.shadowRoot.querySelector('.tabs-scroll');
     if (!tabs) return;
     // ha-card (a Lit component) shows its content asynchronously: measured once more after it is
     // drawn, once per render (a hidden card has no width: no measuring on every frame)
-    const card = this.shadowRoot.querySelector('ha-card');
+    const card: any = this.shadowRoot.querySelector('ha-card');
     if (!tabs.clientWidth && card && card.updateComplete instanceof Promise && !this._tabsWait) {
       this._tabsWait = true;
       card.updateComplete.then(() => requestAnimationFrame(() => { if (this.isConnected) this._placeTabs(left); }));
@@ -1392,10 +1473,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     tabs.scrollLeft = left;
     this._tabArrows();
-    const on = tabs.querySelector('.tab.on');
+    const on: any = tabs.querySelector('.tab.on');
     if (!on || this._tabsShown === this._schedule) return;
     this._tabsShown = this._schedule;
-    const tool = on.nextElementSibling && on.nextElementSibling.matches('.tab-tool') ? on.nextElementSibling : on;
+    const tool: any = on.nextElementSibling && on.nextElementSibling.matches('.tab-tool') ? on.nextElementSibling : on;
     const start = on.offsetLeft - tabs.offsetLeft;
     const end = tool.offsetLeft - tabs.offsetLeft + tool.offsetWidth;
     // Clear of the fades (32 px, and the arrow's room with a mouse), so its ⋮ is not dimmed
@@ -1418,13 +1499,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // asynchronously) shows its content, as for the schedule names below
   _restoreRuleCaret({ idx, start, end }) {
     const focus = () => {
-      const area = this.shadowRoot.querySelector(`textarea[data-rule-template="${idx}"]`);
+      const area: any = this.shadowRoot.querySelector(`textarea[data-rule-template="${idx}"]`);
       if (!area) return;
       area.focus();
       area.setSelectionRange(start, end);
     };
     focus();
-    const card = this.shadowRoot.querySelector('ha-card');
+    const card: any = this.shadowRoot.querySelector('ha-card');
     if (card && card.updateComplete instanceof Promise) {
       card.updateComplete.then(() => { if (card.isConnected) focus(); });
     }
@@ -1434,7 +1515,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   _restoreSchedName(value, focus) {
     const selector = '.sched-menu input[data-sched-name]';
     if (focus) return restoreTyped(this.shadowRoot, selector, value);
-    const input = this.shadowRoot.querySelector(selector);
+    const input: any = this.shadowRoot.querySelector(selector);
     if (input && value != null) input.value = value;
   }
 
@@ -1442,7 +1523,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._settle();
     if (!this._hass || !this._config) return;
     const tr = this._loc.t;
-    const fill = (html, cls) => fillCard(this.shadowRoot, STYLE, html, `${cls || ''}${this._config.flat ? ' flat' : ''}`);
+    const fill = (html, cls?) => fillCard(this.shadowRoot, STYLE, html, `${cls || ''}${this._config.flat ? ' flat' : ''}`);
     const notice = sourceNotice(this._source());
     if (notice) {
       fill(noticeHtml(notice, tr));
@@ -1634,13 +1715,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
     // The schedule tabs scroll natively (a finger, a trackpad, Shift + wheel): their fades and arrows
     // follow. An arrow scrolls by most of a width (the tab cut at the edge then shows whole), with
     // the browser's smooth scrolling, which stops when the user scrolls
-    root.addEventListener('scroll', (e) => {
+    root.addEventListener('scroll', (e: any) => {
       if (!e.target.matches) return;
       if (e.target.matches('.tabs-scroll')) this._tabArrows();
       // The presets table scrolled sideways: kept across redraws, and its cues follow
       if (e.target.matches('.table-wrap')) { this._tableLeft = e.target.scrollLeft; this._tableCue(); }
     }, true);
-    root.addEventListener('click', (e) => {
+    root.addEventListener('click', (e: any) => {
       const arrow = e.target.closest('[data-tabs-scroll]');
       const tabs = arrow && root.querySelector('.tabs-scroll');
       if (!tabs) return;
@@ -1652,11 +1733,11 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }, true);
 
     // Readout of a day shown larger: under the mouse, or along a finger sliding on the bar
-    root.addEventListener('pointerdown', (e) => {
+    root.addEventListener('pointerdown', (e: any) => {
       const bar = e.target.closest('.bar.zoom');
       if (bar && e.pointerType === 'touch' && !e.target.closest('.handle, .override-handle')) this._readTouch = true;
     }, true);
-    root.addEventListener('pointermove', (e) => {
+    root.addEventListener('pointermove', (e: any) => {
       const bar = e.target.closest('.bar.zoom');
       if (!bar || this._drag || this._overrideDrag) return;
       if (e.pointerType === 'touch' && !this._readTouch) return;
@@ -1665,11 +1746,11 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const stopTouch = () => { this._readTouch = false; };
     root.addEventListener('pointerup', stopTouch, true);
     root.addEventListener('pointercancel', stopTouch, true);
-    root.addEventListener('pointerleave', (e) => {
+    root.addEventListener('pointerleave', (e: any) => {
       if (e.pointerType !== 'touch' && e.target.matches && e.target.matches('.bar.zoom')) this._hideReadout(e.target);
     }, true);
 
-    root.addEventListener('pointerdown', (e) => {
+    root.addEventListener('pointerdown', (e: any) => {
       // Where the finger went down on a row: a tap on a handle opens the slot there. On a touch
       // screen the browser may move the click that follows to the centre of the handle
       if (e.target.closest('.bar')) this._downAt = { x: e.clientX, t: Date.now() };
@@ -1724,7 +1805,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       };
     });
 
-    root.addEventListener('pointermove', (e) => {
+    root.addEventListener('pointermove', (e: any) => {
       const dd = this._overrideDrag;
       if (dd) {
         const step = this._config.step;
@@ -1818,7 +1899,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     });
 
     // Right click (or long press on Android) on a row: opens the menu at the pointer
-    root.addEventListener('contextmenu', (e) => {
+    root.addEventListener('contextmenu', (e: any) => {
       const bar = e.target.closest('.bar');
       if (!bar) return;
       e.preventDefault();
@@ -1828,7 +1909,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       this._openMenu(bar.dataset.climate, Number(bar.dataset.day), e.clientY - card.top + 4, Math.max(8, card.right - e.clientX - 8), e.clientY - card.top - 4);
     });
 
-    root.addEventListener('click', (e) => {
+    root.addEventListener('click', (e: any) => {
       // Schedule menu open: a click elsewhere only closes it
       if (this._schedEd && !e.target.closest('.sched-menu, [data-act="schedule-new"], [data-act="schedule-menu"]')) {
         this._schedEd = null;
@@ -1978,16 +2059,16 @@ export class ChauffageProgrammeCard extends HTMLElement {
     });
 
     // Enter in a schedule's name field confirms (Create / Rename)
-    root.addEventListener('keydown', (e) => {
+    root.addEventListener('keydown', (e: any) => {
       if (e.key !== 'Enter' || !e.target.hasAttribute('data-sched-name')) return;
-      const ok = root.querySelector('.sched-menu .btn.primary');
+      const ok: any = root.querySelector('.sched-menu .btn.primary');
       if (ok) ok.click();
     });
 
     listenTimeFields(this, (el, next) => this._timeFieldDone(el, next));
 
     // Typing a temperature for a thermostat's preset means "use a temperature"
-    root.addEventListener('input', (e) => {
+    root.addEventListener('input', (e: any) => {
       if (e.target.hasAttribute('data-rule-template')) {
         const before = !!this._rulesDraft;
         this._editRules((d) => { d.rules[Number(e.target.dataset.ruleTemplate)].template = e.target.value; });
@@ -2001,7 +2082,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     });
 
     root.addEventListener('change', (e) => {
-      const el = e.target;
+      const el: any = e.target;
       if (el.hasAttribute('data-rule-schedule')) {
         this._editRules((d) => { d.rules[Number(el.dataset.ruleSchedule)].schedule = el.value || null; });
         this._render();
@@ -2026,7 +2107,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       }
     });
     // "More settings" of a slot stays open or closed across redraws (toggle does not bubble)
-    root.addEventListener('toggle', (e) => {
+    root.addEventListener('toggle', (e: any) => {
       if (!e.target.matches || !e.target.matches('.editor details.more')) return;
       if (!e.target.matches('.cell-ed details.more')) this._moreOpen = e.target.open;
       this._placeEditor(); // taller or shorter: it may no longer fit where it is
@@ -2038,7 +2119,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       const below = e.target.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
       if (below > 0) body.scrollTop += Math.min(below, e.target.getBoundingClientRect().top - body.getBoundingClientRect().top);
     }, true);
-    root.addEventListener('click', (e) => {
+    root.addEventListener('click', (e: any) => {
       if (e.target.closest && e.target.closest('.editor details.more > summary')) this._moreTapped = true;
     }, true);
   }
@@ -2157,7 +2238,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'schedule-delete') { ed.step = 'delete'; return this._render(); }
     const keep = this._schedules().map((id) => ({ id }));
-    const nameInput = this.shadowRoot.querySelector('input[data-sched-name]');
+    const nameInput: any = this.shadowRoot.querySelector('input[data-sched-name]');
     const checkName = (except) => {
       const name = nameInput ? nameInput.value.trim() : '';
       const taken = this._schedules().some((m) => m !== except && this._scheduleName(m).trim().toLowerCase() === name.toLowerCase());
@@ -2203,7 +2284,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   // Redraws with the schedule menu's name field focused (keeping what was typed)
-  _renderSchedMenu(typed) {
+  _renderSchedMenu(typed?) {
     this._draw();
     this._restoreSchedName(typed, true);
   }
@@ -2226,7 +2307,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // The presets tab opened on a thermostat (a slot's setpoint link): its row is brought into
   // view, once
   _showTargetRow() {
-    const row = this.shadowRoot.querySelector('.pv-table tr.target');
+    const row: any = this.shadowRoot.querySelector('.pv-table tr.target');
     if (!row || this._targetShown === row.dataset.climate) return;
     this._targetShown = row.dataset.climate;
     if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' });
@@ -2269,11 +2350,11 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const field = (selector) => root.querySelector(`.cell-ed ${selector}`);
     if (state.temperature != null) {
       const cooling = (state.hvac === 'cool' || !field('[data-cell-temp]')) && field('[data-cell-cool]');
-      field(cooling ? '[data-cell-cool]' : '[data-cell-temp]').value = this._loc.number(state.temperature);
+      (field(cooling ? '[data-cell-cool]' : '[data-cell-temp]') as any).value = this._loc.number(state.temperature);
       this._cellChooseField(!!cooling);
     }
     for (const attr of SETTING_ATTRS) {
-      const select = field(`[data-cell-setting="${attr}"]`);
+      const select: any = field(`[data-cell-setting="${attr}"]`);
       if (!select || !(attr in state.settings)) continue;
       select.value = state.settings[attr];
       select.closest('details').open = true;
@@ -2290,7 +2371,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   _cellChooseField(cooling) {
     const root = this.shadowRoot;
     if (!cooling) return this._cellChoose('temperature');
-    const own = root.querySelector('.cell-ed input[name="cell-cool-choice"][value="temperature"]');
+    const own: any = root.querySelector('.cell-ed input[name="cell-cool-choice"][value="temperature"]');
     if (own) own.checked = true;
     else this._cellChoose('cool');
     return undefined;
@@ -2298,7 +2379,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // Chooses a row of the cell popover: using a row's field means "use it"
   _cellChoose(choice) {
-    const radio = this.shadowRoot.querySelector(`.cell-ed input[name="cell-choice"][value="${choice}"]`);
+    const radio: any = this.shadowRoot.querySelector(`.cell-ed input[name="cell-choice"][value="${choice}"]`);
     if (radio) radio.checked = true;
     this._cellCoolNote();
   }
@@ -2323,8 +2404,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const note = root.querySelector('.cell-ed .pv-cooldefault');
     const sel = this._cell;
     if (!note || !sel || !sel.climate) return;
-    const choice = (root.querySelector('.cell-ed input[name="cell-choice"]:checked') || {}).value;
-    const own = (root.querySelector('.cell-ed [data-cell-preset]') || {}).value;
+    const choice = ((root.querySelector('.cell-ed input[name="cell-choice"]:checked') || {}) as any).value;
+    const own = ((root.querySelector('.cell-ed [data-cell-preset]') || {}) as any).value;
     const preset = this._presets().find((l) => l.id === sel.preset);
     if (preset) note.textContent = this._coolFallbackText(sel.climate, preset, choice === 'own' && own ? { preset_mode: own } : null);
   }
@@ -2332,8 +2413,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // The cool color of the preset popover follows the color while the user has not chosen one
   _cellCoolColor() {
     const root = this.shadowRoot;
-    const cool = root.querySelector('.cell-ed [data-cell-cool-color]');
-    if (cool && !cool.hasAttribute('data-chosen')) cool.value = derivedCoolColor(root.querySelector('.cell-ed [data-cell-color]').value);
+    const cool: any = root.querySelector('.cell-ed [data-cell-cool-color]');
+    if (cool && !cool.hasAttribute('data-chosen')) cool.value = derivedCoolColor((root.querySelector('.cell-ed [data-cell-color]') as any).value);
   }
 
   // Temperature a preset gives a thermostat (presetTemperatureOf)
@@ -2468,7 +2549,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._closePreview();
     if (!rules.length) return;
     this._previewTimer = setTimeout(() => {
-      const sub = { rules, data: null };
+      const sub: any = { rules, data: null };
       this._previewSub = sub;
       sub.unsub = this._hass.connection.subscribeMessage((data) => {
         if (this._previewSub !== sub) return;
@@ -2745,10 +2826,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
       // The thermostat's presets, the one named like this preset (what "default" uses) first
       const own = ((st && st.attributes.preset_modes) || []).map(String)
         .filter((p) => !MANUAL_PRESETS.includes(p.toLowerCase()))
-        .sort((a, b) => (b === preset.id) - (a === preset.id));
+        .sort((a, b) => +(b === preset.id) - +(a === preset.id));
       // What "default" gives: the thermostat's own preset of the same name (when the "use the
       // thermostats' presets" option allows it), else the preset's default temperature
-      const defaults = this._cellDefaults(sel.climate, preset);
+      const defaults: any = this._cellDefaults(sel.climate, preset);
       const degrees = (value) => `${this._loc.number(value)}°`;
       // An air conditioner that only cools: no heating value. Its own preset, or a cooling
       // temperature
@@ -2867,8 +2948,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
       sel.deleting = act === 'cell-delete';
       return this._render();
     }
-    const input = root.querySelector('[data-cell-temp]');
-    const cool = root.querySelector('[data-cell-cool]');
+    const input: any = root.querySelector('[data-cell-temp]');
+    const cool: any = root.querySelector('[data-cell-cool]');
     if (act === 'cell-step') { // the field of the row of the button tapped: heating or cooling
       const field = (el && el.closest('.pv-temp') || root).querySelector('input') || input;
       // An empty field starts from a usual temperature for its HVAC mode: 25° when cooling,
@@ -2896,7 +2977,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const edited = (l) => {
       const { cool_color: _, cool_temperature: kept, ...rest } = l;
       const color = value('[data-cell-color]');
-      const coolField = root.querySelector('[data-cell-cool-color]');
+      const coolField: any = root.querySelector('[data-cell-cool-color]');
       const coolColorChosen = coolField ? (coolField.hasAttribute('data-chosen') && coolField.value !== derivedCoolColor(color) ? coolField.value : null) : l.cool_color;
       const number = (field) => (Number.isFinite(parseDecimal(field.value)) ? parseDecimal(field.value) : null);
       const coolTemperature = cool ? number(cool) : kept ?? null;
@@ -2911,7 +2992,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
         // is stored
         const choice = value('.cell-ed input[name="cell-choice"]:checked');
         const coolChoice = value('.cell-ed input[name="cell-cool-choice"]:checked');
-        const target = {};
+        const target: any = {};
         if (choice === 'own') target.preset_mode = value('[data-cell-preset]');
         else if (choice === 'temperature') {
           if (!Number.isFinite(parseDecimal(input.value))) return undefined;
@@ -2924,7 +3005,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
         for (const attr of SETTING_ATTRS) if (value(`[data-cell-setting="${attr}"]`)) target[attr] = value(`[data-cell-setting="${attr}"]`);
         // Its own preset of the same name, chosen by hand: the default, so nothing more is stored
         const preset = presets.find((l) => l.id === sel.preset);
-        const defaults = this._cellDefaults(sel.climate, preset);
+        const defaults: any = this._cellDefaults(sel.climate, preset);
         if (target.preset_mode && target.preset_mode === defaults.preset_mode) delete target.preset_mode;
         const mapping = { ...src.mapping(sel.climate) };
         if (Object.keys(target).length) mapping[sel.preset] = target; else delete mapping[sel.preset];
@@ -3336,7 +3417,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }
     if (act === 'thermostat-add') {
       // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
-      const climate = this.shadowRoot.querySelector('[data-add-climate]').value;
+      const climate = (this.shadowRoot.querySelector('[data-add-climate]') as any).value;
       return this._call((src) => src.saveWeeks({ [climate]: {} }, { [climate]: null }));
     }
     if (act === 'override-new') { // today's row menu: set a temporary setpoint

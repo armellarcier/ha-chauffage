@@ -36,6 +36,14 @@ const SUMMARY_CARD_STYLE = `${tileCss('sc')}
 `;
 
 export class ChauffageSummaryCard extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _config: any;
+  declare _hass: any;
+  declare _html: any;
+  declare _menuOpen: any;
+  declare _outside: any;
+  declare _unlisten: any;
+
   static getConfigElement() {
     return document.createElement('chauffage-summary-card-editor');
   }
@@ -101,7 +109,7 @@ export class ChauffageSummaryCard extends HTMLElement {
     const loc = makeLocale(hass, this._config.language);
     const t = loc.t;
     const src = dataSource(hass);
-    const notice = sourceNotice(src);
+    const notice: any = sourceNotice(src);
     let html;
     if (notice) html = notice.loading ? '' : `<div class="msg">${esc(t(notice.text))}</div>`;
     else {

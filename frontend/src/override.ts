@@ -32,7 +32,7 @@ export function overridePieces(d) {
       let end = e < d1 ? minutesOf(e) : DAY_MIN;
       // Ending in the hour played twice when the clocks go back, before its start by the clock:
       // drawn from its start for its length
-      if (end <= start) end = Math.min(DAY_MIN, start + Math.round((e - s) / 60000));
+      if (end <= start) end = Math.min(DAY_MIN, start + Math.round((+e - +s) / 60000));
       pieces.push({
         day: (d0.getDay() + 6) % 7,
         start,

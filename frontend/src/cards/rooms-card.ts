@@ -105,6 +105,18 @@ const ROOMS_CARD_STYLE = `${tileCss('rc')}
 `;
 
 export class ChauffageRoomsCard extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _config: any;
+  declare _hass: any;
+  declare _html: any;
+  declare _iconsAwaited: any;
+  declare _modesOpen: any;
+  declare _outside: any;
+  declare _pending: any;
+  declare _sentFrom: any;
+  declare _timers: any;
+  declare _unlisten: any;
+
   static getConfigElement() {
     return document.createElement('chauffage-rooms-card-editor');
   }
@@ -172,7 +184,7 @@ export class ChauffageRoomsCard extends HTMLElement {
     const hass = this._hass;
     const loc = makeLocale(hass, this._config.language);
     const src = dataSource(hass);
-    const notice = sourceNotice(src);
+    const notice: any = sourceNotice(src);
     const html = notice
       ? (notice.loading ? '' : `<div class="msg">${esc(loc.t(notice.text))}</div>`)
       : this._entries().map((e) => this._rowHtml(e, loc, src)).join('');
@@ -203,9 +215,9 @@ export class ChauffageRoomsCard extends HTMLElement {
       }
       return;
     }
-    this.shadowRoot.querySelectorAll('ha-state-icon.rc-icon:not([icon])').forEach((el) => {
+    this.shadowRoot.querySelectorAll('ha-state-icon.rc-icon:not([icon])').forEach((el: any) => {
       el.hass = this._hass;
-      el.stateObj = this._hass.states[el.closest('.rc-row').dataset.entity];
+      el.stateObj = this._hass.states[(el.closest('.rc-row') as any).dataset.entity];
     });
   }
 

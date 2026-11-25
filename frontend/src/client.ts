@@ -18,13 +18,13 @@ export function compareVersions(a, b) {
   };
   const [ra, pa] = parse(a);
   const [rb, pb] = parse(b);
-  for (let i = 0; i < 3; i++) if ((ra[i] || 0) !== (rb[i] || 0)) return (ra[i] || 0) - (rb[i] || 0);
+  for (let i = 0; i < 3; i++) if ((ra[i] || 0) !== (rb[i] || 0)) return +(ra[i] || 0) - +(rb[i] || 0);
   if (!pa || !pb) return (pa ? -1 : 0) - (pb ? -1 : 0);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
     if (pa[i] === undefined || pb[i] === undefined) return pa[i] === undefined ? -1 : 1;
     const na = Number(pa[i]);
     const nb = Number(pb[i]);
-    const diff = Number.isNaN(na) || Number.isNaN(nb) ? pa[i].localeCompare(pb[i]) : na - nb;
+    const diff = Number.isNaN(na) || Number.isNaN(nb) ? (pa[i] as any).localeCompare(pb[i]) : na - nb;
     if (diff) return diff;
   }
   return 0;
@@ -33,7 +33,7 @@ export function compareVersions(a, b) {
 // Name shown for a thermostat: the `name` of the card's config (text, or pieces such as the
 // area and the entity, as in HA's own cards) made by HA (from 2025.10); before, a text name or
 // the thermostat's own name
-export function thermostatName(hass, entity, name) {
+export function thermostatName(hass, entity, name?) {
   const st = hass && hass.states[entity];
   if (st && hass.formatEntityName) return hass.formatEntityName(st, name === '' ? undefined : name) || entity;
   return (typeof name === 'string' && name) || (st && st.attributes.friendly_name) || entity;
@@ -44,7 +44,7 @@ export const filterActive = (raw) => {
   const out = {};
   const now = new Date();
   for (const [c, d] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
-    if (d && parseDate(d.end) > now) out[c] = d;
+    if (d && parseDate((d as any).end) > now) out[c] = d;
   }
   return out;
 };
@@ -199,7 +199,7 @@ export function bindReload(root, onClick) {
 }
 
 // The same hass and data give the same source: a render asks for it once per bar or chip
-let lastSource = { hass: null, data: null, src: null };
+let lastSource: any = { hass: null, data: null, src: null };
 
 export function dataSource(hass) {
   if (integrationAvailable(hass)) INTEGRATION.connect(hass);

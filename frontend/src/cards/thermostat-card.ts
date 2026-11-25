@@ -33,6 +33,12 @@ const THERMOSTAT_CARD_STYLE = `
 `;
 
 export class ChauffageThermostatCard extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _config: any;
+  declare _hass: any;
+  declare _key: any;
+  declare _unlisten: any;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -76,7 +82,7 @@ export class ChauffageThermostatCard extends HTMLElement {
       this._key = key;
       this._render();
     }
-    const block = this.shadowRoot.querySelector('chauffage-moreinfo');
+    const block: any = this.shadowRoot.querySelector('chauffage-moreinfo');
     if (block) block.hass = hass;
   }
 
@@ -105,7 +111,7 @@ export class ChauffageThermostatCard extends HTMLElement {
     const src = dataSource(hass);
     const card = (body) => fillCard(this.shadowRoot, THERMOSTAT_CARD_STYLE, body);
     // Without the data yet, the thermostat card already shows the thermostat: no "…"
-    const notice = sourceNotice(src);
+    const notice: any = sourceNotice(src);
     if (notice && !notice.loading) {
       card(`<div class="msg">${esc(t(notice.text))}</div>`);
       return;
@@ -133,7 +139,7 @@ export class ChauffageThermostatCard extends HTMLElement {
     // The block of the more-info dialog, with its foot: the thermostat's own entities, its device,
     // Pause or Resume. Kept when it is there: only the header is drawn again (a field being typed
     // in the block keeps its focus while the thermostat reports)
-    let block = this.shadowRoot.querySelector('chauffage-moreinfo');
+    let block: any = this.shadowRoot.querySelector('chauffage-moreinfo');
     const header = this.shadowRoot.querySelector('.tc-head');
     if (block && header && block.entity === entity) {
       header.outerHTML = head;
@@ -200,6 +206,11 @@ export class ChauffageThermostatCard extends HTMLElement {
 
 // Its visual editor: the thermostat, and its name (HA's name field from 2025.11, text before)
 export class ChauffageThermostatCardEditor extends HTMLElement {
+  // The fields of the element, untyped until the rewrite of the card gives them a type
+  declare _config: any;
+  declare _form: any;
+  declare _hass: any;
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
