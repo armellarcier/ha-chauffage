@@ -287,6 +287,29 @@ the three kinds of thermostats (Versatile Thermostat, standard presets, no prese
 | A thermostat Chauffage does not schedule says how to schedule it; the integration missing, or a card older or newer than it, says so | `C/thermostat-card.test.mjs` |
 | In the *Add card* dialog (name in HA's language, preview), suggested for a thermostat (*By entity*), starting with a scheduled thermostat; a visual editor for the thermostat and its name | `C/thermostat-card.test.mjs` (in Home Assistant) |
 
+## Rooms card
+
+| Use case | Test |
+|---|---|
+| List the thermostats in one's own dashboard or a pop-up (`custom:chauffage-rooms-card`), one row each: every scheduled thermostat, or a list given in the card, in its order, with a name and an icon | `C/rooms-card.test.mjs` |
+| A row says the name, the measured temperature, a flame while it heats, the preset now and what comes next ("Éco → Confort 17:30"); the time alone within a day, the day too further ahead; the mode once on a thermostat with several modes; a thermostat that protects itself, or off, says so | `C/rooms-card.test.mjs` |
+| − and + show the new setpoint at once, follow the thermostat's step and limits, and set it on the thermostat once the taps stop, as a change by hand; the value tapped stays shown until the thermostat answers, then the thermostat's setpoint (rounded or set back), or after 10 s without an answer; Enter on a row opens the thermostat | `C/rooms-card.test.mjs` |
+| The icon opens the thermostat, in color while it heats or cools, else in the color of the text, never grey; an override in the striped chip of the thermostat card, − and + plain; the mode button is filled while the thermostat heats or cools, empty at its setpoint | `C/rooms-card.test.mjs` |
+| The mode button shows the current mode and opens a popover of the HVAC modes; a tap on a mode sets it and closes it, a tap elsewhere or on another mode button closes it; a thermostat off has no − and +, and turns on from the popover; no mode button on a thermostat with a single mode, or off to protect itself | `C/rooms-card.test.mjs` |
+| An override says until when, and its cross resumes the schedule; a paused thermostat says so, keeps − and +, and resumes control from its row; no − and + on a thermostat without a setpoint, or in fan-only or dry mode | `C/rooms-card.test.mjs` |
+| A row opens the thermostat; a thermostat that does not exist, or the integration missing, says so; in the *Add card* dialog, with a preview | `C/rooms-card.test.mjs` |
+| Set up the card from its visual editor, as the schedule card: thermostats added, removed, reordered, a name and an icon on each thermostat's page; without a list, every scheduled thermostat, which the editor says; no option of the schedule card | `C/cards-editors.test.mjs` |
+
+## Summary card
+
+| Use case | Test |
+|---|---|
+| Show a floor or the house in one row (`custom:chauffage-summary-card`): its name; at its right end, the range of the temperatures its thermostats measure, and under it the range of their humidity when they report it, each with its icon; every scheduled thermostat, or the ones listed in the card | `C/summary-card.test.mjs` |
+| It says how many thermostats heat ("Rien ne chauffe", "1 chauffe", "2 chauffent") and cool ("1 refroidit"), the overrides and the paused thermostats; its icon is in color while one heats or cools; Enter or Space does its action, as a tap | `C/summary-card.test.mjs` |
+| One button with the active schedule opens a menu of the schedules, with the icon of their switch, so that the card keeps one line on a phone; a tap activates one through the select of the active schedule; a second tap or a tap outside closes it, without the card's action; the admin can hide it (`show_schedules: false`, in the visual editor)| `C/summary-card.test.mjs`, `C/cards-editors.test.mjs` |
+| A tap elsewhere does the card's `tap_action` (a pop-up of the rooms, another view), nothing without one; the integration missing says so; in the *Add card* dialog, with a preview | `C/summary-card.test.mjs` |
+| Set up the card from its visual editor, one form: its name, its icon, its thermostats and its tap action (HA's own field, "do nothing" by default); an option emptied is left out, options written in YAML are kept | `C/cards-editors.test.mjs` |
+
 ## More-info dialog of a thermostat
 
 | Use case | Test |

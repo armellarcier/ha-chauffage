@@ -67,6 +67,47 @@ Depuis la carte, vous pouvez créer une dérogation et suspendre le pilotage du 
 Pour modifier la semaine du thermostat, cliquez sur *Modifier sa semaine* dans la fenêtre de
 détail du thermostat.
 
+## 5. Ajouter une liste des pièces et un résumé (facultatif)
+
+![Sur un téléphone, le résumé d'un étage, puis la liste de ses pièces : le salon a une dérogation jusqu'à 15:35](media/rooms-summary.png)
+
+Ces deux cartes sont des prototypes. Elles conviennent aux tableaux de bord qui ont beaucoup de
+pièces, par exemple une tuile par étage qui ouvre une fenêtre avec ses pièces.
+
+**La carte Pièces** montre une ligne par thermostat. Chaque ligne dit ce que fait le thermostat
+et ce qui suit, par exemple *Éco → Confort 06:30*. Le **−** et le **+** règlent la consigne, et
+le bouton rond règle le mode. Chauffage en fait une dérogation, comme avec la molette du
+thermostat. Un appui sur la ligne ouvre le thermostat.
+
+**La carte Résumé du chauffage** montre un étage ou la maison sur une ligne : la plage des
+températures mesurées dans ses pièces, et de leur humidité si les thermostats la donnent, le
+nombre de thermostats qui chauffent et les dérogations. Son bouton montre le planning actif, et
+ouvre un menu pour en activer un autre. Vous pouvez masquer ce bouton. Un appui ailleurs lance
+l'action de la carte, par exemple pour ouvrir la fenêtre des pièces.
+
+Pour les ajouter, ouvrez *Ajouter une carte* et cherchez **Pièces** ou **Résumé du chauffage**.
+Sans liste de thermostats, chaque carte montre tous les thermostats que Chauffage programme.
+Vous pouvez aussi écrire les cartes en YAML :
+
+```yaml
+type: custom:chauffage-rooms-card
+thermostats:        # facultatif
+  - climate.salon
+  - entity: climate.chambre
+    name: Chambre   # facultatif
+    icon: mdi:bed   # facultatif
+```
+
+```yaml
+type: custom:chauffage-summary-card
+name: Étage                             # facultatif
+thermostats: [climate.salon, climate.chambre]  # facultatif
+show_schedules: false                   # facultatif : masque le bouton des plannings
+tap_action:                             # facultatif
+  action: navigate
+  navigation_path: "#pieces"
+```
+
 ## Mettre à jour
 
 Lisez le [journal des modifications](../CHANGELOG.md) (en anglais), puis mettez ha-chauffage à

@@ -9,6 +9,19 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+### Added
+
+- **The *Rooms* card** (`custom:chauffage-rooms-card`), a prototype. It shows one dense row per
+  thermostat, drawn like Home Assistant's Tile card. Each row says what the thermostat does now
+  and what comes next, for example "Éco → Confort 06:30". Its − and + and its HVAC mode button
+  act as the thermostat's own controls, so Chauffage turns a change into an override.
+- **The *Heating summary* card** (`custom:chauffage-summary-card`), a prototype. It shows a
+  floor or the house in one row: its temperature, how many thermostats heat or cool, the
+  overrides and the schedules. A tap elsewhere runs the card's `tap_action`, for example to open
+  a pop-up of the rooms.
+
+Both cards have a visual editor. See [Installation](docs/installation.md#5-add-a-list-of-rooms-and-a-summary-optional).
+
 ### Fixed
 
 - **You can reach every button of a slot again** (#127). On the dashboard card, the save bar

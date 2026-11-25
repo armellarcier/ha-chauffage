@@ -63,6 +63,47 @@ From the card, you can start an override and pause the thermostat.
 
 To edit the thermostat's week, click *Edit its week* in the more-info dialog.
 
+## 5. Add a list of rooms and a summary (optional)
+
+![On a phone, the summary of a floor, then a list of its rooms: the living room has an override until 15:35](media/rooms-summary.png)
+
+These two cards are prototypes. They suit dashboards with many rooms, for example a tile per
+floor that opens a pop-up of its rooms.
+
+**The Rooms card** shows one row per thermostat. Each row says what the thermostat does now and
+what comes next, for example *Éco → Confort 06:30*. The **−** and **+** set the setpoint, and the
+round button sets the HVAC mode. Chauffage turns these changes into an override, as with the
+thermostat's dial. A tap on the row opens the thermostat.
+
+**The Heating summary card** shows a floor or the house in one row: the range of temperatures
+its rooms measure, and of their humidity if the thermostats report it, how many thermostats heat
+and the overrides. Its button shows the active schedule, and opens a menu to activate another
+one. You can hide this button. A tap elsewhere runs the card's action, for example to open the
+pop-up of the rooms.
+
+To add them, open *Add card* and search for **Rooms** or **Heating summary**. Without a list of
+thermostats, each card shows every thermostat Chauffage schedules. You can also write the cards
+in YAML:
+
+```yaml
+type: custom:chauffage-rooms-card
+thermostats:        # optional
+  - climate.living_room
+  - entity: climate.bedroom
+    name: Bedroom   # optional
+    icon: mdi:bed   # optional
+```
+
+```yaml
+type: custom:chauffage-summary-card
+name: Upstairs                          # optional
+thermostats: [climate.living_room, climate.bedroom]  # optional
+show_schedules: false                   # optional: hides the button of the schedules
+tap_action:                             # optional
+  action: navigate
+  navigation_path: "#rooms"
+```
+
 ## Updating
 
 Read the [changelog](../CHANGELOG.md), then update ha-chauffage from HACS. Chauffage migrates your
