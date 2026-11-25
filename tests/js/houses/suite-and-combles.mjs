@@ -2,6 +2,7 @@
 // and the combles, which only cool. The card shows the salon. It is Monday, 10:00.
 import { afterEach, beforeEach, mock } from 'node:test';
 import { PRESETS, createCard, fakeHass, integrationData } from '../helpers.mjs';
+import { doubleTap, openOverride as openOverrideOf, openSlot } from '../driver.mjs';
 import { $, week } from './dom.mjs';
 
 export const SALON = 'climate.salon'; // a heater
@@ -40,7 +41,7 @@ export function setup({ suite = DAY, salon = DAY, combles = ['00:00 eco'], overr
   return hass;
 }
 export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: [SALON, SUITE, COMBLES], show: [SALON], group_days: false, ...config });
-export const select = (card, climate, idx, d = 0) => { card._sel = { climate, day: d, idx }; card._render(); };
+export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 export const sent = (hass) => hass.events.at(-1).override;
 export const override = (target, more = {}) => ({ target, start: at('09:30'), end: at('11:30'), ...more });
 export const moreInfo = (hass, entity, embedded = false) => {
@@ -55,15 +56,7 @@ export const moreInfo = (hass, entity, embedded = false) => {
 export const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
 export const mouse = (el, type, clientX) => el.dispatchEvent(new window.MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
 export const bar = (card, climate, d = 0) => geometry($(card, `.bar[data-climate="${climate}"][data-day="${d}"]`));
-// Two taps at a time of day, on the slot running then
-export const doubleTap = (card, climate, minute, d = 0) => {
-  for (let i = 0; i < 2; i += 1) {
-    const segs = card._week(climate)[d];
-    let idx = 0;
-    segs.forEach((s, j) => { if (s.start <= minute) idx = j; });
-    mouse(bar(card, climate, d).querySelector(`.seg[data-idx="${idx}"]`), 'click', minute);
-  }
-};
+export { doubleTap };
 
 export const thermostatCard = (hass, entity) => {
   const card = document.createElement('chauffage-thermostat-card');
@@ -75,8 +68,7 @@ export const thermostatCard = (hass, entity) => {
 export const block = (card) => card.shadowRoot.querySelector('chauffage-moreinfo').shadowRoot;
 export const openOverride = (hass, climate, config = {}) => {
   const card = cardOf(hass, { show: [climate], ...config });
-  card._overrideSel = { climate, create: !hass.data.overrides[climate] };
-  card._render();
+  openOverrideOf(card, climate);
   return card;
 };
 

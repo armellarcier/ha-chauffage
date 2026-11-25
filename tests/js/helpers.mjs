@@ -148,26 +148,15 @@ export function hassWithoutIntegration({ locale = FRENCH } = {}) {
 /** Configured card fed with hass; detach it at the end of the test (stops its timer). */
 export function createCard(hass, config = {}) {
   const card = document.createElement('chauffage-programme-card');
-  // As the panel does: a test may set the options of the panel's pages too (see PANEL_OPTIONS)
+  // As the panel does: a test may set the options of the panel's pages too (see PANEL_OPTIONS).
+  // Internal: a dashboard's configuration ignores these options
   card._setPanelConfig({ thermostats: ['climate.salon', 'climate.bureau'], show: 'all', ...config });
   document.body.appendChild(card);
   card.hass = hass;
   return card;
 }
 
-/**
- * An edit of a week, as a double tap then a tap on a preset make it: a piece cut at a time of
- * day, set to `preset` (by default a preset that neither the slot nor the next one has).
- */
-export function cutSlot(card, climate, day, minute, preset) {
-  card._split(climate, day, minute);
-  const sel = card._sel;
-  if (!sel || sel.climate !== climate) return;
-  const segs = card._week(climate)[sel.day];
-  const taken = [segs[sel.idx].preset, segs[sel.idx + 1] && segs[sel.idx + 1].preset];
-  const other = preset || ['comfort', 'eco', 'boost', 'frost'].find((id) => !taken.includes(id));
-  card._changeSlot(climate, sel.day, sel.idx, (slot) => ({ ...slot, preset: other }));
-}
+export { cutSlot } from './driver.mjs';
 
 /** Types a time in one of the cards' time fields, then leaves the field: the time is applied then. */
 export function typeTime(field, value) {
