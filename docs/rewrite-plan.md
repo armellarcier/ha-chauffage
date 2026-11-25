@@ -3,14 +3,15 @@
 This plan rewrites ha-chauffage, the integration and the card, so that the code is clean and
 maintainable. The rewrite changes the structure of the code, not the behavior of Chauffage.
 
-The line numbers below come from commit `0f7d582`, on the `feat/rooms-list-card` branch.
+The line numbers below come from `main`, after the merge of the Rooms and Heating summary cards
+(#129).
 
 ## In short
 
 - **We rewrite step by step, not in one go.** The real specification of Chauffage is in 1,833
   tests (759 pytest, 1,074 node) and in [decisions.md](decisions.md). Each phase ships with the
   tests green.
-- **Most of the work is in the card.** The card is one file of 10,044 lines, without components,
+- **Most of the work is in the card.** The card is one file of 10,059 lines, without components,
   redrawn with `innerHTML`. We move it to TypeScript and Lit, bundled with esbuild, split into
   modules.
 - **The integration is restructured, its rules are not rewritten.** `engine.py` and `model.py`
@@ -51,17 +52,17 @@ Keep what is sound: `engine.py` and `model.py` without Home Assistant imports, t
 migrations with their fixtures, and the convention `send()` / `_keep_override()` /
 `_drop_override()`.
 
-### The card (10,044 lines in one file)
+### The card (10,059 lines in one file)
 
 | Problem | Where |
 |---|---|
-| **A god class** | `ChauffageProgrammeCard`, lines 3078-6479: 3,400 lines, 160 methods, about 35 mutable fields in the constructor, and a dozen more created on the fly, such as `_schedEd` or `_copyWeekMenu`. |
-| **Five screens in one class** | `_draw` (4493-4652) switches on `_view`: weeks, presets, schedules, thermostats, rules. The panel gets its pages by configuring the card with `PANEL_OPTIONS`. |
-| **Full redraws** | 35 uses of `innerHTML`, `setHtml` or `fillCard`. `_render` (4403-4430) saves and restores six UI states by hand, for example the caret of a rule and the scroll of the table. |
-| **Hand-made change detection** | `set hass` (3186-3275) compares 9 "stamps", each one guarded against a drag in progress. |
-| **Centralized events** | `_bindEvents` (4683-5100) has 417 lines of delegation. `_action` and three sister functions switch on about 70 `data-act` strings. |
-| **Mutable module singletons** | `INTEGRATION`, `lastSource`, `PLACEMENTS` and `HTML_OF`. The last configured card overwrites `MORE_INFO_CFG` (line 3171). |
-| **Rules duplicated from Python** | `valueOn`, `slotModeOn`, `fitTemperature` and `normalize` copy `engine.py` and `model.py`. The copies already drift: Python compares `low < high` after fitting the values to the thermostat (`engine.py:345`), the card before (line 1278). |
+| **A god class** | `ChauffageProgrammeCard`, lines 3076-6477: 3,400 lines, 160 methods, about 35 mutable fields in the constructor, and a dozen more created on the fly, such as `_schedEd` or `_copyWeekMenu`. |
+| **Five screens in one class** | `_draw` (4491-4650) switches on `_view`: weeks, presets, schedules, thermostats, rules. The panel gets its pages by configuring the card with `PANEL_OPTIONS`. |
+| **Full redraws** | 35 uses of `innerHTML`, `setHtml` or `fillCard`. `_render` (4401-4428) saves and restores six UI states by hand, for example the caret of a rule and the scroll of the table. |
+| **Hand-made change detection** | `set hass` (3184-3273) compares 9 "stamps", each one guarded against a drag in progress. |
+| **Centralized events** | `_bindEvents` (4681-5098) has 417 lines of delegation. `_action` and three sister functions switch on about 70 `data-act` strings. |
+| **Mutable module singletons** | `INTEGRATION`, `lastSource`, `PLACEMENTS` and `HTML_OF`. The last configured card overwrites `MORE_INFO_CFG` (line 3169). |
+| **Rules duplicated from Python** | `valueOn`, `slotModeOn`, `fitTemperature` and `normalize` copy `engine.py` and `model.py`. The copies already drift: Python compares `low < high` after fitting the values to the thermostat (`engine.py:345`), the card before (line 1276). |
 | **Translations in the code** | `I18N` takes 700 lines of the file. |
 
 ### The tests
@@ -220,14 +221,13 @@ magnitude, in days of focused work.
 
 ### First step: less code to rewrite (3 to 4 days)
 
-The first step removes code that the rewrite would otherwise carry over. Merge
-`feat/rooms-list-card` first.
+The first step removes code that the rewrite would otherwise carry over.
 
 1. **Remove the v0.1 import.** Remove `importer.py`, its call in `__init__.py` and
    `config_flow.py`, its texts in `strings.json` and the translations, `test_import.py` and
    `schedules-v1.json`. Remove its mentions in the READMEs, `docs/installation.md`, the
    glossary, the use cases and `CONTRIBUTING.md`. Say in the changelog, under "Upgrading", that
-   a v0.1 user must first install a release that still imports, such as 0.10.
+   a v0.1 user must first install 0.10.0, the last release that imports.
 2. **Require Versatile Thermostat 10.5.** Document the minimum Versatile Thermostat version in
    `docs/installation.md` and `docs/thermostats.md`, with their French versions. Say it in the
    changelog, under "Upgrading".
@@ -334,7 +334,7 @@ the TypeScript sources of `frontend/src/**`, not on the bundle. Remove a facade 
 These are proposals, outside the rewrite. Review them one by one with the
 `simplify-behavior-rules` skill.
 
-1. **Two revision systems**, global and per thermostat (`runtime.py:714-738`, card line 2178).
+1. **Two revision systems**, global and per thermostat (`runtime.py:714-738`, card line 2176).
    The integration serves the card and checks its version, so the path for old cards seems
    removable.
 2. **`ends_at` is kept, taken back or removed** depending on three branches
