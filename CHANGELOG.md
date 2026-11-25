@@ -9,6 +9,39 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-25
+
+**A slot says what the device does, not only how warm.** A slot can turn a thermostat off, and on
+an air conditioner it chooses *Heat*, *Cool*, *Heat/Cool*, *Dry*, *Auto* or *Fan only*. This
+release gathers 0.10.0-alpha.1 to 0.10.0-alpha.4, below, with the additions listed here. The
+stored data is migrated (version 7). Home Assistant 2025.1 or later.
+
+### Highlights
+
+- **A slot can turn a thermostat off, and choose the HVAC mode of an air conditioner** (#61,
+  #91, #96).
+- **A change by hand is an override on what you changed**: the HVAC mode, the setpoint, or both.
+  Turning a thermostat off by hand is an override too (#91).
+- **A *Next change* sensor for each thermostat, for preheating tools** (#82).
+- **Two new cards, as prototypes**: *Rooms*, one row per thermostat, and *Heating summary*, a
+  floor or the house in one row.
+
+### Upgrading
+
+**From 0.9.0:**
+
+1. **Make a full backup of Home Assistant first.** Version 0.9.0 does not know version 7 of the
+   stored data. To go back to 0.9.0, restore that backup.
+2. Update from HACS, then restart Home Assistant and reload the page.
+3. Read the points to check in the upgrade steps of 0.10.0-alpha.1, below. For example, an air
+   conditioner that heats and cools now heats unless a slot says *Cool*.
+4. The *Planned preset* sensor is deprecated. If one is enabled, a repair in **Settings →
+   Repairs** lists it. Move your automations to the *Next change* sensor. The *Planned preset*
+   sensor will be removed in 0.12 at the earliest.
+
+**From 0.10.0-alpha.4:** update from HACS, then restart Home Assistant and reload the page. No
+stored data is migrated.
+
 ### Added
 
 - **The *Rooms* card** (`custom:chauffage-rooms-card`), a prototype. It shows one dense row per
