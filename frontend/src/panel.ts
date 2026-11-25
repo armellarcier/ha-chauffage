@@ -2,7 +2,8 @@ import { bindReload, NOTICE_RELOAD, noticeHtml, reloadPage, sourceNotice } from 
 import { dataSource, integrationAvailable, renamedTo } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { client } from './client/chauffage-client.ts';
-import { LS_GROUP, LS_HISTORY, errorText, esc, setHtml } from './common.ts';
+import { errorText, esc, setHtml } from './common.ts';
+import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference } from './state/preferences.ts';
 import { linksByKeyboard, roundDurationText } from './fields.ts';
 import { hvacIcon, isReversible } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
@@ -89,10 +90,8 @@ export class ChauffagePanel extends HTMLElement {
     this._groupDays = true;
     // …and the history of the measured temperature, as chosen on this device (as the cards)
     this._historyOn = false;
-    try {
-      this._groupDays = localStorage.getItem(LS_GROUP) !== '0';
-      this._historyOn = localStorage.getItem(LS_HISTORY) === '1';
-    } catch (e) { /* ignore */ }
+    this._groupDays = groupPreference() !== false;
+    this._historyOn = historyPreference();
     this._picked = new Set(); // the welcome: the thermostats ticked
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
@@ -409,7 +408,7 @@ export class ChauffagePanel extends HTMLElement {
   // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
   // order of the schedules
   _dirtyWeeks() {
-    return Object.entries(this._weekCards || {}).filter(([, card]) => (card as any)._dirty);
+    return Object.entries(this._weekCards || {}).filter(([, card]) => (card as any)._draft.dirty);
   }
 
   // A thermostat's sheet has one save bar for all its weeks: on a phone, a bar under a week further
@@ -456,16 +455,14 @@ export class ChauffagePanel extends HTMLElement {
     if (!dirty.length) return;
     const first: any = dirty[0][1];
     const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, (card as any)._week(climate).map(serializeDay)])) };
-    const revisions = { [climate]: first._revisions[climate] ?? null };
+    const revisions = { [climate]: first._draft.revisions[climate] ?? null };
     try {
       const result = await commands(this._hass).saveWeeks(weeks, revisions);
       for (const card of Object.values(this._weekCards)) {
-        if (result && result.revisions) Object.assign((card as any)._revisions, result.revisions);
-        if (result && result.revision != null) (card as any)._revision = result.revision;
+        (card as any)._draft.recordRevisions(result);
       }
       for (const [, card] of dirty) {
-        (card as any)._loadedWeeks = (card as any)._serialized();
-        (card as any)._dirty = false;
+        (card as any)._draft.saved();
         (card as any)._msg = (card as any)._loc.t('saved');
         (card as any)._render();
       }
@@ -643,10 +640,8 @@ export class ChauffagePanel extends HTMLElement {
           this._groupDays = !(this._groupDays && !this._historyOn);
           this._historyOn = false;
         }
-        try {
-          localStorage.setItem(LS_GROUP, this._groupDays ? '1' : '0');
-          localStorage.setItem(LS_HISTORY, this._historyOn ? '1' : '0');
-        } catch (err) { /* ignore */ }
+        saveGroupPreference(this._groupDays);
+        saveHistoryPreference(this._historyOn);
         // In place: the weeks keep their edits not saved yet
         const grouped = this._groupDays && !this._historyOn;
         for (const [chip, on] of [['[data-group-days]', grouped], ['[data-history]', this._historyOn]]) {
