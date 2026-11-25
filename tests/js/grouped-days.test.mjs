@@ -2,7 +2,7 @@
 import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay, makeLocale, MORE_INFO_CFG } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { serializeDay, makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
 
 const day = (card, climate, d) => serializeDay(card._week(climate)[d]);
 const $ = (card, sel) => card.shadowRoot.querySelector(sel);
@@ -13,8 +13,7 @@ const user = (prefs) => ({ locale: { time_format: 'language', number_format: 'la
 
 // Monday 12 October 2026, 10:00
 beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
-// The more-info block takes the options of the last card configured
-afterEach(() => { mock.timers.reset(); cleanup(); MORE_INFO_CFG.group_days = undefined; });
+afterEach(() => { mock.timers.reset(); cleanup(); });
 
 describe('rows of identical days', () => {
   test('the days with the same slots share a row, named after its days', () => {
@@ -281,8 +280,8 @@ describe('the week in the more-info block', () => {
     assert.deepEqual(widths, ['100%', '4.167%']); // all Monday, Tuesday until 01:00
   });
 
-  test('`group_days: false` shows each day', () => {
-    MORE_INFO_CFG.group_days = false;
-    assert.equal(rows(block(fakeHass())).length, 7);
+  test('uses its defaults, not the options of a dashboard card', () => {
+    createCard(fakeHass(), { group_days: false, language: 'en' });
+    assert.deepEqual(rows(block(fakeHass())), ['Lun–Ven', 'Sam, Dim']);
   });
 });

@@ -1096,6 +1096,9 @@ dashboards, automations, scripts and by voice without the card
 - **`language` is only set in YAML**: the card follows the user's profile (language and
   formats), like every HA card, none of which offers that option. It also forces the more-info
   block of every card. It stays readable for the configurations that use it.
+  **Amended by the rewrite**: the more-info block uses its defaults, the language of the Home
+  Assistant profile and identical days grouped. It no longer takes the options of the last
+  configured card.
 - **A preview shows what its config says**, not the thermostats last chosen on the device
   (kept for the next visit, shared by the cards): in the *Add card* dialog every thermostat is
   there but only the first is shown, and in the card editor the *show every thermostat* switch

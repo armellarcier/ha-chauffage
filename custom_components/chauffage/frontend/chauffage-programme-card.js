@@ -3165,8 +3165,6 @@ class ChauffageProgrammeCard extends HTMLElement {
     // Without the thermostats renamed in Home Assistant (see _setAside)
     this._thermostats = this._configured;
     this._asideKey = '';
-    // The more-info block uses the options of the dashboard cards, not those of the panel's pages
-    if (!config.panel) for (const k of Object.keys(MORE_INFO_CFG)) MORE_INFO_CFG[k] = this._config[k];
     this._shown = this._initialShown();
     this._schedule = null;
     // The schedule shown first (the Chauffage panel's ?schedule=), else the active schedule
@@ -7027,12 +7025,9 @@ const STYLE = `
 //  other consequence.
 // =====================================================================
 
-// Options of the block (updated by the last configured card)
-const MORE_INFO_CFG = {
-  language: undefined, // card option: forces the UI language
-  step: 15,
-  group_days: undefined, // card option: false shows every day on its own row
-};
+// The block uses its defaults: the language of the Home Assistant profile, identical days grouped,
+// and this step for the end of an override, in minutes
+const MORE_INFO_STEP = 15;
 
 class ChauffageMoreInfo extends HTMLElement {
   constructor() {
@@ -7060,9 +7055,8 @@ class ChauffageMoreInfo extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    const c = MORE_INFO_CFG;
     const s = hass.states;
-    this._loc = makeLocale(hass, c.language);
+    this._loc = makeLocale(hass);
     const src = dataSource(hass);
     if (src.available && !this._unlisten) {
       this._unlisten = INTEGRATION.listen(() => { if (this._hass) this.hass = this._hass; });
@@ -7109,7 +7103,7 @@ class ChauffageMoreInfo extends HTMLElement {
   _setEnd(endsAt) {
     const d = this._currentOverride();
     if (!d) return;
-    const min = new Date(Date.now() + MORE_INFO_CFG.step * 60000);
+    const min = new Date(Date.now() + MORE_INFO_STEP * 60000);
     const { ends_at: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
     this._send({ ...chosen, end: (endsAt < min ? min : endsAt).toISOString() });
   }
@@ -7175,7 +7169,7 @@ class ChauffageMoreInfo extends HTMLElement {
     const src = dataSource(this._hass);
     // What changes an override, or sets one: the same controls as in the card's popover
     const body = (override) => overrideBodyHtml(override, src, this._entity, this._hass, this._loc,
-      { step: MORE_INFO_CFG.step, line: 'line', actions: 'btns', endLoc: names });
+      { step: MORE_INFO_STEP, line: 'line', actions: 'btns', endLoc: names });
     if (d) {
       this._creating = false;
       const lastPiece = pieces.find((p) => p.isLast);
@@ -7214,9 +7208,9 @@ class ChauffageMoreInfo extends HTMLElement {
       </div>`;
     }
 
-    // Identical days on one row (card option `group_days`), like the schedule card
+    // Identical days on one row, like the schedule card
     const order = this._loc.dayOrder;
-    const rows = (MORE_INFO_CFG.group_days === false ? order.map((d) => [d]) : rowsOfDays(order, (d) => serializeDay(dayOn(this._hass, this._entity, week[d])).join(',')))
+    const rows = rowsOfDays(order, (d) => serializeDay(dayOn(this._hass, this._entity, week[d])).join(','))
       .map((days) => `<div class="row${days.includes(today) ? ' today' : ''}">
         <span>${esc(this._loc.daysLabel(days))}</span>${this._bar(week[days[0]], rowPiece(pieces, days), false, false)}</div>`).join('');
     const ticks = [0, 6, 12, 18, 24].map((h) => `<span>${this._loc.tick(h)}</span>`).join('');
@@ -7345,7 +7339,7 @@ class ChauffageMoreInfo extends HTMLElement {
   _onMove(e) {
     const dr = this._drag;
     if (!dr) return;
-    const step = MORE_INFO_CFG.step;
+    const step = MORE_INFO_STEP;
     const p = dr.piece;
     const r = dr.bar.getBoundingClientRect();
     const raw = Math.max(0, Math.min(DAY_MIN, ((e.clientX - r.left) / r.width) * DAY_MIN));
@@ -10053,7 +10047,7 @@ console.info(`%c ha-chauffage %c ${VERSION} `, 'background:#f57c00;color:#fff;bo
 export {
   tagSide,
   VERSION, I18N, compareVersions, makeLocale, toMin, toHM, parseDate, normalize, joined, parseDay, serializeDay, parseTime,
-  overridePieces, overrideLabel, planText, CHIP_STYLE, STYLE, MORE_INFO_STYLE, FIELD_BOX, chipTextColor, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, MORE_INFO_CFG, INTEGRATION, dataSource,
+  overridePieces, overrideLabel, planText, CHIP_STYLE, STYLE, MORE_INFO_STYLE, FIELD_BOX, chipTextColor, coolColor, derivedCoolColor, valueOn, presetModes, slotModeOn, historyDays, rowsOfStates, INTEGRATION, dataSource,
   ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageProgrammeCardEditor, ChauffageThermostatCard,
   ChauffagePanel, panelRoute, cardPlacements, leaveMoreInfo, ICONS, reloadPage,
 };

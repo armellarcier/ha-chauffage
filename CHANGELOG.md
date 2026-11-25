@@ -23,6 +23,8 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ### Changed
 
+- **The more-info dialog follows your Home Assistant profile.** Its week uses the language of
+  your profile and groups identical days, whatever the options of your dashboard cards.
 - **Only a change by hand says why its override ends.** When you change an override from the
   card or a service, the logbook gives its end time alone, for example "until 22:00". The
   events of such an override no longer carry `ends_at`.
