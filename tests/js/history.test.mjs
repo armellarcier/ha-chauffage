@@ -2,7 +2,7 @@
 import { fakeHass, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { historyDays, rowsOfStates } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { historyDays, rowsOfStates } from '../../frontend/src/index.ts';
 import { openMenu, selected } from './driver.mjs';
 import { measured } from './driver.mjs';
 

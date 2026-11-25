@@ -1,7 +1,7 @@
 // The Chauffage panel (#57): where an admin configures Chauffage, lists then sheets, one address
 // per page (docs/decisions.md, "Chauffage panel and devices"). Dashboard cards link to it.
 import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { ChauffagePanel, leaveMoreInfo, ICONS, reloadPage, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { ChauffagePanel, leaveMoreInfo, ICONS, reloadPage, VERSION } from '../../frontend/src/index.ts';
 import { copyDay, cutSlot, day, openMenu, redraw } from './driver.mjs';
 import { historyAsked, scheduleShown, unsavedWeeks, watchReloads, wholeWeek } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';

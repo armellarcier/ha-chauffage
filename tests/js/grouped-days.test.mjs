@@ -3,7 +3,7 @@ import { fakeHass, createCard, cleanup, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeLocale } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { makeLocale } from '../../frontend/src/index.ts';
 import { copyDay, day, openMenu, openSlot } from './driver.mjs';
 import { historyShown, pasteDay } from './driver.mjs';
 

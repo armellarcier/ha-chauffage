@@ -3,7 +3,7 @@
 import { afterEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanup, createCard, fakeHass, integrationData } from './helpers.mjs';
-import { CHIP_STYLE, STYLE as STYLE_TEXT, coolColor, derivedCoolColor, makeLocale, overrideLabel, planText } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { CHIP_STYLE, STYLE as STYLE_TEXT, coolColor, derivedCoolColor, makeLocale, overrideLabel, planText } from '../../frontend/src/index.ts';
 import { $, $$, icons, rgb, text } from './houses/dom.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 import * as everyHvacMode from './houses/every-hvac-mode.mjs';
@@ -268,7 +268,7 @@ afterEach(() => cleanup());
     });
 
     test('every chip and HVAC mode button has one height, from one variable', async () => {
-      const { CHIP_STYLE } = await import('../../custom_components/chauffage/frontend/chauffage-programme-card.js');
+      const { CHIP_STYLE } = await import('../../frontend/src/index.ts');
       assert.match(CHIP_STYLE, /--chauffage-chip-h:34px/);
       assert.match(CHIP_STYLE, /\.mode-row \.mode, \.presets button \{[^}]*height:var\(--chauffage-chip-h\)/);
       assert.match(CHIP_STYLE, /\.mode-row \{[^}]*margin-bottom:0/);

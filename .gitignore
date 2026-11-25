@@ -15,3 +15,6 @@ lcov.info
 coverage.json
 .coverage
 coverage-*.txt
+
+# The card bundle: built from frontend/src by esbuild (npm run build), shipped in the release ZIP
+custom_components/chauffage/frontend/chauffage-programme-card.js

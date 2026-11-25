@@ -11,7 +11,7 @@ class FormerCard extends HTMLElement {}
 customElements.define('chauffage-programme-card', FormerCard);
 
 const { fakeHass, cleanup } = await import('./helpers.mjs');
-await import('../../custom_components/chauffage/frontend/chauffage-programme-card.js');
+await import('../../frontend/src/index.ts');
 after(cleanup);
 
 test('the panel asks to reload the page when a former card was loaded first', () => {

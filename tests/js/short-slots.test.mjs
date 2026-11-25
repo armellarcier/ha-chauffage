@@ -1,7 +1,7 @@
 // Short slots stay within reach (#91): a tap that lands on a handle opens the slot under it, an
 // end typed as 24:00 is the end of the day, and a time typed onto a neighbor leaves no sliver.
 import { fakeHass, createCard, cleanup, typeTime, WEEKDAY } from './helpers.mjs';
-import { tagSide } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { tagSide } from '../../frontend/src/index.ts';
 import { act, day as dayOf, openSlot, selected } from './driver.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

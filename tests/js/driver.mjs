@@ -7,7 +7,7 @@
 // because a user can't do it in a test (a timer, a panel's options). Each one says so with an
 // "Internal:" comment. The phase that rewrites that part of the card rewrites these functions,
 // and no test.
-import { serializeDay } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { serializeDay } from '../../frontend/src/index.ts';
 import { $, $$ } from './houses/dom.mjs';
 
 export { $, $$, change, click, icons, rgb, text, week } from './houses/dom.mjs';

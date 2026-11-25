@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanup } from './helpers.mjs';
-import { CHIP_STYLE, derivedCoolColor } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { CHIP_STYLE, derivedCoolColor } from '../../frontend/src/index.ts';
 import { $, $$, change, click, rgb, text } from './houses/dom.mjs';
 import { openOverride as showOverride, redraw } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';

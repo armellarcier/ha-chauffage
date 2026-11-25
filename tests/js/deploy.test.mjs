@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, delimiter, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compareVersions } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { compareVersions } from '../../frontend/src/index.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const posix = (path) => path.replace(/\\/g, '/');
