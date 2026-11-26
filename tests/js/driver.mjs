@@ -34,6 +34,12 @@ export function act(card, name, data = {}) {
 /** Lets the card finish what a click started: its calls to Home Assistant, and their answers. */
 export const settle = () => new Promise((resolve) => { setImmediate(resolve); });
 
+/**
+ * Waits until Lit has drawn the element, and no longer: its calls to Home Assistant may not be
+ * answered yet. For example, to see a control wait for an answer.
+ */
+export const drawn = (el) => el.updateComplete;
+
 // ----- the week -----
 
 /**
@@ -312,5 +318,5 @@ export function watchReloads(el) {
  * the "saved" mark away.
  * Internal: the timer runs on the real clock.
  */
-export const redrawDialog = (dialog) => dialog._update();
+export const redrawDialog = (dialog) => dialog.requestUpdate();
 

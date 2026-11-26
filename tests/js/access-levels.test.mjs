@@ -377,11 +377,12 @@ describe('the access level in the settings dialog', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-14T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  const settings = (hass) => {
+  const settings = async (hass) => {
     const el = document.createElement('chauffage-settings-dialog');
     document.body.appendChild(el);
     el.hass = hass;
     el.showDialog({});
+    await settle();
     return el;
   };
   const choices = (el) => $$(el, '.access-settings [data-access-level]');
@@ -392,7 +393,7 @@ describe('the access level in the settings dialog', () => {
   };
 
   test('an admin chooses the access level among Use, Plan and Set up, the current one checked', async () => {
-    const el = settings(as('admin'));
+    const el = await settings(as('admin'));
     assert.equal(text($(el, '.access-settings h3')), 'Niveau d’accès');
     assert.equal(text($(el, '.access-settings .intro')), 'Pour les utilisateurs non administrateurs.');
     assert.deepEqual(choices(el).map((c) => c.value), ['use', 'plan', 'set_up']);
@@ -405,7 +406,7 @@ describe('the access level in the settings dialog', () => {
   });
 
   test('the warning of Set up is inside its choice, and always shown', async () => {
-    const el = settings(as('admin'));
+    const el = await settings(as('admin'));
     const warning = $(el, '.access-settings .warning');
     assert.equal(text(warning), 'Leurs changements touchent toutes les pièces.');
     assert.equal(warning.closest('label').querySelector('input').value, 'set_up');
@@ -413,7 +414,7 @@ describe('the access level in the settings dialog', () => {
 
   test('a choice is sent at once, and says it is saved', async () => {
     const hass = as('admin');
-    const el = settings(hass);
+    const el = await settings(hass);
     pick(el, 'plan');
     await tick();
     assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', access_level: 'plan' });
@@ -422,23 +423,24 @@ describe('the access level in the settings dialog', () => {
 
   test('the note on the sidebar shows only while Set up is chosen', async () => {
     const hass = as('admin');
-    const el = settings(hass);
+    const el = await settings(hass);
     assert.equal($(el, '.access-settings .sidebar-note'), null);
     hass.push({ ...dataAt('admin'), access_level: 'set_up' }); await settle();
     assert.equal(text($(el, '.access-settings .sidebar-note')), 'Chacun peut masquer Chauffage de sa barre latérale, dans son profil.');
   });
 
   // Home Assistant may open the dialog before it puts it on the page (the first open after a load)
-  const openedBeforeConnected = (hass, params = {}) => {
+  const openedBeforeConnected = async (hass, params = {}) => {
     const el = document.createElement('chauffage-settings-dialog');
     el.hass = hass;
     el.showDialog(params);
     document.body.appendChild(el);
+    await settle();
     return el;
   };
 
   test('opened before Home Assistant puts it on the page, the dialog is filled once there', async () => {
-    const el = openedBeforeConnected(as('admin'));
+    const el = await openedBeforeConnected(as('admin'));
     assert.deepEqual(choices(el).map((c) => c.checked), [true, false, false]);
     assert.equal($$(el, '.override-settings [data-override-end]').length, 3);
   });
@@ -448,7 +450,7 @@ describe('the access level in the settings dialog', () => {
     const scrollIntoView = window.HTMLElement.prototype.scrollIntoView;
     window.HTMLElement.prototype.scrollIntoView = function record() { scrolled.push([this.className, this.querySelectorAll('[data-access-level]').length]); };
     try {
-      openedBeforeConnected(as('admin'), { section: 'access' });
+      await openedBeforeConnected(as('admin'), { section: 'access' });
       await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
       assert.deepEqual(scrolled, [['access-settings', 3]]);
     } finally {
@@ -457,14 +459,14 @@ describe('the access level in the settings dialog', () => {
   });
 
   test('a user with Set up sets the overrides, not the access level', async () => {
-    const el = settings(as('set_up'));
+    const el = await settings(as('set_up'));
     assert.ok($(el, '.override-settings'));
     assert.equal($(el, '.access-settings'), null);
     assert.equal($(el, '.foot'), null);
   });
 
   test('in English', async () => {
-    const el = settings(as('admin', { locale: { language: 'en' } }));
+    const el = await settings(as('admin', { locale: { language: 'en' } }));
     assert.equal(text($(el, '.access-settings h3')), 'Access level');
     assert.deepEqual(choices(el).map((c) => text(c.closest('label').querySelector('.choice-label'))), [
       'Use (default) Overrides, pause, active schedule',

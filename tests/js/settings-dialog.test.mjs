@@ -4,7 +4,7 @@
 import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { settle } from './driver.mjs';
+import { drawn, settle } from './driver.mjs';
 import { redrawDialog } from './driver.mjs';
 
 const WEEK = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND];
@@ -34,11 +34,12 @@ function setup(more = {}) {
 }
 
 // The dialog, opened as Home Assistant's dialog manager opens it
-function settings(hass) {
+async function settings(hass) {
   const el = document.createElement('chauffage-settings-dialog');
   document.body.appendChild(el);
   el.hass = hass;
   el.showDialog({});
+  await settle();
   return el;
 }
 // The dialog is open: its frame (Home Assistant's dialog, or the browser's) is shown
@@ -63,7 +64,7 @@ describe('the settings dialog', () => {
     };
 
     test('short and plain, as Home Assistant\'s settings: a heading, one line, the duration, the choices, a line for off, one note', async () => {
-      const el = settings(withSettings({}));
+      const el = await settings(withSettings({}));
       assert.equal(text($(el, '.override-settings h3')), 'Dérogations');
       assert.equal(text($(el, '.override-settings .intro')),
         'Une consigne changée à la main devient une dérogation. Choisissez combien de temps elle dure.');
@@ -87,7 +88,7 @@ describe('the settings dialog', () => {
 
     test('the end of off overrides: until the next slot by default, sent at once when changed', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       const off = () => $$(el, '.override-settings [data-off-override-end]');
       assert.deepEqual(off().map((c) => `${c.value}${c.checked ? ' ✓' : ''}`), ['duration', 'next_slot_within_duration', 'next_slot ✓']);
       change(off()[0]);
@@ -97,27 +98,27 @@ describe('the settings dialog', () => {
     });
 
     test('the choices carry the user\'s duration and mark the default; the current one is checked', async () => {
-      const el = settings(withSettings({}));
+      const el = await settings(withSettings({}));
       assert.deepEqual(choices(el).map((c) => c.value), ['duration', 'next_slot_within_duration', 'next_slot']);
       assert.deepEqual(choices(el).map((c) => c.checked), [true, false, false]);
       assert.equal(label(el, 'duration'), 'Pendant 2 h (par défaut)');
       assert.equal(label(el, 'next_slot_within_duration'), 'Pendant 2 h, ou moins si un créneau commence avant');
       assert.equal(label(el, 'next_slot'), "Jusqu'au prochain créneau");
       cleanup();
-      const short = settings(withSettings({ override_duration: 90 }));
+      const short = await settings(withSettings({ override_duration: 90 }));
       assert.equal(label(short, 'duration'), 'Pendant 1 h 30 (par défaut)');
       assert.equal(label(short, 'next_slot_within_duration'), 'Pendant 1 h 30, ou moins si un créneau commence avant');
     });
 
     test('the duration comes first, above the choices that use it', async () => {
-      const el = settings(withSettings({}));
+      const el = await settings(withSettings({}));
       const duration = $(el, '.override-settings input[data-override-duration]');
       assert.ok(duration.compareDocumentPosition(choices(el)[0]) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
     test('one note under the choices, always: the 15 minutes', async () => {
       for (const end of ['duration', 'next_slot_within_duration', 'next_slot']) {
-        const el = settings(withSettings({ manual_override_end: end }));
+        const el = await settings(withSettings({ manual_override_end: end }));
         assert.equal(text($(el, '.override-settings .slot-note')), 'Un créneau qui commence dans moins de 15 min ne compte pas.', end);
         cleanup();
       }
@@ -125,8 +126,9 @@ describe('the settings dialog', () => {
 
     test('a choice is sent at once, the controls wait for the answer, then say it is saved', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       change(choices(el)[2]);
+      await drawn(el);
       assert.ok(choices(el).every((c) => c.disabled), 'disabled while it is sent');
       await tick();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', manual_override_end: 'next_slot' });
@@ -144,7 +146,7 @@ describe('the settings dialog', () => {
     const arrow = (el, dir) => el.shadowRoot.querySelector(`.override-settings .duration-field [data-time-step="${dir}"]`).click();
 
     test('the duration is a field like the end of an override: a text in hours and minutes, with two small arrows', async () => {
-      const el = settings(withSettings({ override_duration: 90 }));
+      const el = await settings(withSettings({ override_duration: 90 }));
       const input = durationInput(el);
       assert.ok(input.matches('.time-field input.time[type="text"][inputmode="numeric"]'));
       assert.equal(input.value, '1 h 30');
@@ -152,13 +154,14 @@ describe('the settings dialog', () => {
       assert.equal(text($(el, '.override-settings .duration-row label[for="override-duration"]')), 'Durée');
       const buttons = [...el.shadowRoot.querySelectorAll('.override-settings .duration-field .time-step')];
       assert.deepEqual(buttons.map((b) => b.getAttribute('aria-label')), ['15 min de plus', '15 min de moins']);
-      assert.equal(durationInput(settings(withSettings({ override_duration: 120 }))).value, '2 h');
+      assert.equal(durationInput(await settings(withSettings({ override_duration: 120 }))).value, '2 h');
     });
 
     test('its small arrows move the duration by 15 minutes and send it', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       arrow(el, 1);
+      await drawn(el);
       assert.equal(durationInput(el).disabled, true, 'disabled while it is sent');
       await tick();
       assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: 135 });
@@ -168,7 +171,7 @@ describe('the settings dialog', () => {
 
     test('a duration typed, then a choice clicked: the click leaves the field, and both are saved', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       const radio = choices(el)[2];
       // The browser: the press on the choice leaves the field (sent), then the click lands on the choice
       leave(durationInput(el), '1 h 30');
@@ -185,7 +188,7 @@ describe('the settings dialog', () => {
     test('its small arrows stop at 15 minutes and at 24 hours', async () => {
       for (const [minutes, dir] of [[15, -1], [1440, 1]]) {
         const hass = withSettings({ override_duration: minutes });
-        const el = settings(hass);
+        const el = await settings(hass);
         const sent = hass.events.length;
         arrow(el, dir);
         await tick();
@@ -197,7 +200,7 @@ describe('the settings dialog', () => {
 
     test('the arrow keys move the duration by 15 minutes; it is sent once the field is left', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       const sent = hass.events.length;
       const input = durationInput(el);
       key(input, 'ArrowUp');
@@ -214,7 +217,7 @@ describe('the settings dialog', () => {
     test('from a duration off the steps, its arrows go to the next step, as those of a time field', async () => {
       for (const [dir, sent] of [[1, 165], [-1, 150]]) {
         const hass = withSettings({ override_duration: 160 }); // 2 h 40
-        const el = settings(hass);
+        const el = await settings(hass);
         assert.equal(durationInput(el).value, '2 h 40');
         arrow(el, dir);
         await tick();
@@ -226,7 +229,7 @@ describe('the settings dialog', () => {
     test('a duration is typed as a time is, in hours and minutes: 245, 2:45, 2h45, 2 h 45; the choices then say 2 h 45', async () => {
       for (const typed of ['245', '2:45', '2h45', '2 h 45']) {
         const hass = withSettings({});
-        const el = settings(hass);
+        const el = await settings(hass);
         leave(durationInput(el), typed);
         await tick();
         assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: 165 }, typed);
@@ -238,7 +241,7 @@ describe('the settings dialog', () => {
       // "4" is 4 h, "12" 12 h, "0040" 40 minutes, "24" a day, "2h40" off the arrows' steps
       for (const [typed, minutes] of [['4', 240], ['12', 720], ['0040', 40], ['24', 1440], ['2h40', 160], ['45 min', 45]]) {
         const hass = withSettings({});
-        leave(durationInput(settings(hass)), typed);
+        leave(durationInput(await settings(hass)), typed);
         await tick();
         assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', override_duration: minutes }, typed);
         cleanup();
@@ -247,7 +250,7 @@ describe('the settings dialog', () => {
 
     test('Enter sends the duration typed', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       const input = durationInput(el);
       input.focus();
       input.value = '3h';
@@ -260,7 +263,7 @@ describe('the settings dialog', () => {
       // "165" is no h:mm, as in a time field; "0010" is 10 minutes, "2430" more than a day
       for (const typed of ['165', '0010', '2430', '25', '2pm', 'abc']) {
         const hass = withSettings({});
-        const el = settings(hass);
+        const el = await settings(hass);
         const sent = hass.events.length;
         leave(durationInput(el), typed);
         await tick();
@@ -273,7 +276,7 @@ describe('the settings dialog', () => {
 
     test('a duration refused by the integration says why, next to the field, which shows the duration kept', async () => {
       const hass = withSettings({}, { reply: () => { throw { code: 'unauthorized', message: 'Unauthorized' }; } });
-      const el = settings(hass);
+      const el = await settings(hass);
       leave(durationInput(el), '4h');
       await tick();
       assert.match(text($(el, '.override-settings .duration-row .error')), /Votre niveau d’accès ne le permet pas./);
@@ -282,7 +285,7 @@ describe('the settings dialog', () => {
 
     test('leaving the field unchanged sends nothing', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       const sent = hass.events.length;
       leave(durationInput(el));
       await tick();
@@ -292,14 +295,14 @@ describe('the settings dialog', () => {
     test('the duration is read-only for a user who is not an admin', async () => {
       const hass = withSettings({});
       hass.user = { is_admin: false };
-      const el = settings(hass);
+      const el = await settings(hass);
       assert.equal(durationInput(el).disabled, true);
       assert.ok([...el.shadowRoot.querySelectorAll('.override-settings .duration-field .time-step')].every((b) => b.disabled));
     });
 
     test('follows the settings changed elsewhere (the options, the entities)', async () => {
       const hass = withSettings({});
-      const el = settings(hass);
+      const el = await settings(hass);
       hass.push({ ...integrationData({ weeks: WEEKS }), manual_override_end: 'next_slot_within_duration', override_duration: 60 }); await settle();
       assert.deepEqual(choices(el).map((c) => c.checked), [false, true, false]);
       assert.equal($(el, '.override-settings input[data-override-duration]').value, '1 h');
@@ -307,7 +310,7 @@ describe('the settings dialog', () => {
 
     test('a change refused by the integration says why', async () => {
       const hass = withSettings({}, { reply: () => { throw { code: 'unauthorized', message: 'Unauthorized' }; } });
-      const el = settings(hass);
+      const el = await settings(hass);
       change(choices(el)[2]);
       await tick();
       assert.match(text($(el, '.override-settings .error')), /Votre niveau d’accès ne le permet pas./);
@@ -315,7 +318,7 @@ describe('the settings dialog', () => {
     });
 
     test('speaks English', async () => {
-      const el = settings(withSettings({}, { locale: { language: 'en' } }));
+      const el = await settings(withSettings({}, { locale: { language: 'en' } }));
       assert.equal(text($(el, '.override-settings h3')), 'Overrides');
       assert.equal(text($(el, '.override-settings .intro')), 'A setpoint changed by hand becomes an override. Choose how long it lasts.');
       assert.equal(text($(el, '.override-settings .duration-row label')), 'Duration');
@@ -327,36 +330,36 @@ describe('the settings dialog', () => {
     });
 
     test('writes a duration the same way everywhere, in English as in French: "1 h 30", "2 h"', async () => {
-      const en = settings(withSettings({ override_duration: 90 }, { locale: { language: 'en' } }));
+      const en = await settings(withSettings({ override_duration: 90 }, { locale: { language: 'en' } }));
       assert.equal(label(en, 'duration'), 'For 1 h 30 (default)');
       assert.equal($(en, '.override-settings input[data-override-duration]').value, '1 h 30');
       cleanup();
-      const fr = settings(withSettings({ override_duration: 90 }));
+      const fr = await settings(withSettings({ override_duration: 90 }));
       assert.equal(label(fr, 'duration'), 'Pendant 1 h 30 (par défaut)');
       assert.equal($(fr, '.override-settings input[data-override-duration]').value, '1 h 30');
     });
   });
 
   test('its title names Chauffage; it says the same in English', async () => {
-    assert.equal(text($(settings(setup()), '.title')), 'Réglages de Chauffage');
+    assert.equal(text($(await settings(setup()), '.title')), 'Réglages de Chauffage');
     cleanup();
-    assert.equal(text($(settings(setup({ locale: { language: 'en' } })), '.title')), 'Chauffage settings');
+    assert.equal(text($(await settings(setup({ locale: { language: 'en' } })), '.title')), 'Chauffage settings');
   });
 
   describe('its foot: the other options of Chauffage', () => {
     test('a link to the integration, alone, for an admin', async () => {
-      const foot = $(settings(setup()), '.foot');
+      const foot = $(await settings(setup()), '.foot');
       assert.equal(text(foot), 'Autres options de Chauffage');
       assert.equal(foot.querySelector('[data-other-options]').getAttribute('href'), '/config/integrations/integration/chauffage');
       cleanup();
-      const en = $(settings(setup({ locale: { language: 'en' } })), '.foot');
+      const en = $(await settings(setup({ locale: { language: 'en' } })), '.foot');
       assert.equal(text(en), 'Other Chauffage options');
     });
 
     test('is not there for a user who is not an admin', async () => {
       const hass = setup();
       hass.user = { is_admin: false };
-      assert.equal($(settings(hass), '.foot'), null);
+      assert.equal($(await settings(hass), '.foot'), null);
     });
 
     test('the link closes the dialog, gives back its history entry, then opens the integration\'s page', async () => {
@@ -364,7 +367,7 @@ describe('the settings dialog', () => {
       const el = document.createElement('chauffage-settings-dialog');
       document.body.appendChild(el);
       el.hass = setup(); await settle();
-      el.showDialog({ history: true });
+      el.showDialog({ history: true }); await settle();
       const length = window.history.length;
       const opened = nextEvent('location-changed');
       $(el, '[data-other-options]').click(); await settle();
@@ -383,7 +386,7 @@ describe('the settings dialog', () => {
       const el = document.createElement('chauffage-settings-dialog');
       document.body.appendChild(el);
       el.hass = setup(); await settle();
-      el.showDialog({ history: true });
+      el.showDialog({ history: true }); await settle();
       const back = nextEvent('popstate');
       $(el, '[data-other-options]').click(); await settle();
       el.remove(); // the user went elsewhere before Home Assistant took back the dialog's entry
@@ -531,7 +534,7 @@ describe('the settings dialog', () => {
     // former Home Assistant, whose data then reached the panels of the page
     test('a dialog no longer on the page leaves the subscription alone', async () => {
       const former = setup();
-      const el = settings(former);
+      const el = await settings(former);
       el.remove();
       const subscriptions = former.subscriptions.length;
       setup({ data: null }); // the page now has another connection
@@ -544,6 +547,7 @@ describe('the settings dialog', () => {
       const open = async () => {
         window.history.replaceState(null, '', '/lovelace/0');
         (await moreInfo(withOverride())).shadowRoot.querySelector('[data-open-settings]').click();
+        await settle();
         return document.querySelector(DIALOG);
       };
 
@@ -609,7 +613,7 @@ describe('the settings dialog', () => {
     test('the newer ha-dialog: its header title, its own ✕; closed by it, or by Back', async () => {
       if (!customElements.get('ha-dialog')) customElements.define('ha-dialog', FakeHaDialog);
       Object.defineProperty(FakeHaDialog.prototype, 'headerTitle', headerTitle);
-      const dialog = settings(setup());
+      const dialog = await settings(setup());
       const frame = $(dialog, '.frame');
       assert.equal(frame.localName, 'ha-dialog');
       assert.equal(frame.headerTitle, 'Réglages de Chauffage');
@@ -624,7 +628,7 @@ describe('the settings dialog', () => {
       frame.dispatchEvent(new CustomEvent('closed', { bubbles: true, composed: true })); await settle();
       assert.deepEqual(closed, [{ dialog: 'chauffage-settings-dialog' }]);
       assert.equal(frame.open, false);
-      dialog.showDialog({});
+      dialog.showDialog({}); await settle();
       assert.ok(isOpen(dialog), 'opens again');
       dialog.closeDialog(); // Back
       assert.equal(isOpen(dialog), false);
@@ -635,10 +639,10 @@ describe('the settings dialog', () => {
       if (!customElements.get('ha-dialog')) customElements.define('ha-dialog', FakeHaDialog);
       Object.defineProperty(FakeHaDialog.prototype, 'headerTitle', headerTitle);
       const hass = setup();
-      const dialog = settings(hass);
+      const dialog = await settings(hass);
       const former = $(dialog, '.frame');
       dialog.closeDialog();
-      dialog.showDialog({});
+      dialog.showDialog({}); await settle();
       const closed = [];
       dialog.addEventListener('dialog-closed', (e) => closed.push(e.detail));
       former.dispatchEvent(new CustomEvent('closed', { bubbles: true, composed: true })); await settle(); // its animation ends
@@ -651,7 +655,7 @@ describe('the settings dialog', () => {
 
     test('the Material ha-dialog (Home Assistant 2025.1): a heading with the title and a ✕', async () => {
       delete FakeHaDialog.prototype.headerTitle;
-      const dialog = settings(setup());
+      const dialog = await settings(setup());
       const frame = $(dialog, '.frame');
       assert.equal(frame.localName, 'ha-dialog');
       assert.ok(frame.heading);
