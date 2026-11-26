@@ -85,9 +85,9 @@ export class ChauffageRulesView extends ChauffageView {
         if (!rule.schedule && !st.result) detail += ` · ${t(boolean ? 'ruleChooseSchedule' : 'ruleNamesNone')}`;
       }
       const tools = editable ? html`<span class="rule-tools">
-          <button class="btn icon" data-act="rule-up" data-idx=${i} title=${t('ruleUp')} ?disabled=${!i}>↑</button>
-          <button class="btn icon" data-act="rule-down" data-idx=${i} title=${t('ruleDown')} ?disabled=${i >= rules.length - 1}>↓</button>
-          <button class="btn icon" data-act="rule-delete" data-idx=${i} title=${t('delete')}>✕</button></span>` : nothing;
+          <button class="btn icon" data-act="rule-up" data-idx=${i} @click=${() => this._moveRule(i, -1)} title=${t('ruleUp')} ?disabled=${!i}>↑</button>
+          <button class="btn icon" data-act="rule-down" data-idx=${i} @click=${() => this._moveRule(i, 1)} title=${t('ruleDown')} ?disabled=${i >= rules.length - 1}>↓</button>
+          <button class="btn icon" data-act="rule-delete" data-idx=${i} @click=${() => this._edit((d) => d.rules.splice(i, 1))} title=${t('delete')}>✕</button></span>` : nothing;
       return html`<div class="rule">
         <div class="rule-head"><span class="rule-num">${i + 1}</span><span class="rule-state ${cls}">${label}</span>${tools}</div>
         <textarea data-rule-template=${i} rows="2" spellcheck="false" placeholder="{{ is_state('sensor.edf_tempo_color', 'red') }}" ?readonly=${!editable} .value=${live(rule.template)}></textarea>
@@ -106,9 +106,9 @@ export class ChauffageRulesView extends ChauffageView {
       if (given && active && given !== active) outcome += ` ${t('rulesByHand', { schedule: src.scheduleName(active) })}`;
     }
     const actions = editable ? html`<div class="ed-actions start">
-        <button class="btn" data-act="rule-add">${t('ruleAdd')}</button>
-        ${this._draft.edited ? html`<button class="btn" data-act="rules-cancel">${t('cancel')}</button>` : nothing}
-        <button class="btn primary" data-act="rules-save" ?disabled=${!this._draft.edited}>${t('save')}</button></div>` : nothing;
+        <button class="btn" data-act="rule-add" @click=${() => this._edit((d) => d.rules.push({ template: '', schedule: this._source().schedules()[0] }))}>${t('ruleAdd')}</button>
+        ${this._draft.edited ? html`<button class="btn" data-act="rules-cancel" @click=${() => this._cancel()}>${t('cancel')}</button>` : nothing}
+        <button class="btn primary" data-act="rules-save" @click=${() => this._save()} ?disabled=${!this._draft.edited}>${t('save')}</button></div>` : nothing;
     return html`<div class="rules-view">
       <div class="muted">${t('rulesIntro')} <a class="rules-try" href="/developer-tools/template" target="_top">${t('rulesTry')}</a></div>
       ${rules.length ? rows : html`<div class="rules-empty muted">${t('rulesEmpty')}</div>`}
@@ -158,27 +158,26 @@ export class ChauffageRulesView extends ChauffageView {
     this.requestUpdate();
   }
 
-  async _action(act, ds) {
-    const i = Number(ds.idx);
-    if (act === 'rule-add') {
-      this._edit((d) => d.rules.push({ template: '', schedule: this._source().schedules()[0] }));
-    } else if (act === 'rule-up' || act === 'rule-down') {
-      const j = act === 'rule-up' ? i - 1 : i + 1;
-      this._edit((d) => { [d.rules[i], d.rules[j]] = [d.rules[j], d.rules[i]]; });
-    } else if (act === 'rule-delete') {
-      this._edit((d) => d.rules.splice(i, 1));
-    } else if (act === 'rules-cancel') {
+  // A rule moves up (-1) or down (1) the list
+  _moveRule(i, dir) {
+    const j = i + dir;
+    this._edit((d) => { [d.rules[i], d.rules[j]] = [d.rules[j], d.rules[i]]; });
+  }
+
+  _cancel() {
+    this._draft.drop();
+    this._msg = '';
+    this.requestUpdate();
+  }
+
+  async _save() {
+    try {
+      const { rules, def } = this._draft.toSave(this._source());
+      await this._commands().setRules(rules, def);
       this._draft.drop();
-      this._msg = '';
-    } else if (act === 'rules-save') {
-      try {
-        const { rules, def } = this._draft.toSave(this._source());
-        await this._commands().setRules(rules, def);
-        this._draft.drop();
-        this._msg = this._loc.t('saved');
-      } catch (err) {
-        this._msg = errorText(this._loc.t, err);
-      }
+      this._msg = this._loc.t('saved');
+    } catch (err) {
+      this._msg = errorText(this._loc.t, err);
     }
     this.requestUpdate();
   }

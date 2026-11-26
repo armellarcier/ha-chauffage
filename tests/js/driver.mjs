@@ -46,7 +46,7 @@ export const drawn = (el) => el.updateComplete;
  * A thermostat's day, as the card would save it, in the schedule shown or in `schedule`.
  * Internal: the DOM doesn't show the fan or the vanes a slot sets.
  */
-export const day = (card, climate, d = 0, schedule) => serializeDay(card._week(climate, schedule)[d]);
+export const day = (card, climate, d = 0, schedule) => serializeDay(card._draft.week(climate, schedule ?? card.schedule)[d]);
 
 /** The slot whose popover is open: { climate, day, idx }, or null. */
 export function selected(card) {
@@ -62,7 +62,7 @@ export function selected(card) {
  */
 export async function openSlot(card, climate, idx, d = 0) {
   card._draft.selection = { climate, day: d, idx };
-  card._render();
+  card.requestUpdate();
   await settle();
 }
 
@@ -162,7 +162,7 @@ export async function save(card) {
  * Internal: the timer runs on the real clock.
  */
 export async function redraw(card) {
-  card._render();
+  card.requestUpdate();
   await settle();
 }
 
@@ -305,11 +305,12 @@ export const escape = () => document.dispatchEvent(new window.KeyboardEvent('key
 /**
  * Counts the reloads of the page that a card or the panel asks for, from now on: returns a
  * function that gives the count. The page is not reloaded.
- * Internal: jsdom can't reload a page.
+ * Internal: jsdom can't reload a page. A reload empties the browser's caches first: the caches
+ * count it, and never answer, so the reload stops there.
  */
-export function watchReloads(el) {
+export function watchReloads() {
   let count = 0;
-  el._reloadPage = () => { count += 1; };
+  window.caches = { keys: () => { count += 1; return new Promise(() => {}); } };
   return () => count;
 }
 

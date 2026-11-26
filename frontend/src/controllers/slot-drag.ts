@@ -49,7 +49,7 @@ export class SlotDrag implements ReactiveController {
       const day = Number(bar.dataset.day);
       if (!card._mayEdit(climate)) return false; // read-only weeks: nothing moves
       const idx = Number(seg.dataset.idx);
-      const segs = card._week(climate)[day];
+      const segs = card.week(climate)[day];
       if (idx < 1 || idx >= segs.length - 1) return false;
       const sel = card._draft.selection;
       const selected = !!sel && sel.climate === climate && sel.day === day && sel.idx === idx;
@@ -75,7 +75,7 @@ export class SlotDrag implements ReactiveController {
     const day = Number(bar.dataset.day);
     this.drag = {
       climate, day, idx: Number(h.dataset.idx), bar, el: h, moved: false, x0: e.clientX, y0: e.clientY,
-      touch: e.pointerType === 'touch', orig: card._week(climate)[day].map((s) => s.start),
+      touch: e.pointerType === 'touch', orig: card.week(climate)[day].map((s) => s.start),
     };
     return true;
   }
@@ -95,7 +95,7 @@ export class SlotDrag implements ReactiveController {
       d.started = true;
     }
     const step = card._config.step;
-    const segs = card._week(d.climate)[d.day];
+    const segs = card.week(d.climate)[d.day];
     if (d.move) {
       // A few pixels are still a click (opens the popover)
       if (!d.moved && Math.abs(e.clientX - d.x0) < 5) return;
@@ -139,7 +139,7 @@ export class SlotDrag implements ReactiveController {
       this.slotMovedAt = Date.now();
       // A selected slot stays selected (by touch, it can slide again); otherwise no popover
       if (!d.selected) card._draft.selection = null;
-      card._commit(d.climate, d.day, d.selected ? card._week(d.climate)[d.day][d.idx].start : null);
+      card._commit(d.climate, d.day, d.selected ? card.week(d.climate)[d.day][d.idx].start : null);
       return true;
     }
     if (d.moved) {
@@ -155,7 +155,7 @@ export class SlotDrag implements ReactiveController {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
-    const segs = this.card._week(d.climate)[d.day];
+    const segs = this.card.week(d.climate)[d.day];
     d.orig.forEach((start, i) => { if (segs[i]) segs[i].start = start; });
     this.restore();
     this.card.requestUpdate(); // what came during the drag is drawn now

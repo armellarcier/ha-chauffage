@@ -9,7 +9,7 @@ export function weekGrid(card: ChauffageProgrammeCard) {
   const loc = card._loc;
   const multi = card._shown.length > 1;
   const today = todayIdx();
-  const active = card._schedule === card._activeSchedule();
+  const active = card._schedule === card._source().activeSchedule();
   const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => html`<span class=${h % 6 ? 'minor' : nothing} style=${`left:${(h / 24) * 100}%`}>${loc.tick(h)}</span>`);
   // The column of the days fits the longest label (on two lines at most)
   const rows = card._rows;

@@ -397,3 +397,31 @@ describe('the more-info block between two updates', () => {
     assert.match(text(el), /23 °C/);
   });
 });
+
+describe('the more-info block and a push that changes something else', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
+  afterEach(() => { mock.timers.reset(); cleanup(); });
+  const override = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+
+  test('an override removed stays removed through a push that does not touch the overrides', async () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    hass.callWS = async (msg) => { hass.events.push(msg); return null; };
+    const el = await block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-act="override-del"]').click(); await settle();
+    assert.doesNotMatch(el.shadowRoot.textContent, /21,5/);
+    hass.push(integrationData({ paused: ['climate.bureau'], overrides: { 'climate.salon': override } })); await settle();
+    assert.doesNotMatch(el.shadowRoot.textContent, /21,5/);
+  });
+
+  test('a pause error stays through a push that does not pause or resume', async () => {
+    const planned = { 'climate.salon': { preset: 'eco', next_preset: 'comfort', next_start: '2026-10-12T17:30:00+02:00' } };
+    const hass = fakeHass({ planned, reply: () => { throw { code: 'invalid_format', message: 'boom' }; } });
+    const el = await block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-pause]').click(); await settle();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.match(el.shadowRoot.textContent, /Erreur : boom/);
+    hass.push(integrationData({ planned, overrides: { 'climate.bureau': override } })); await settle();
+    el.hass = hass; await settle();
+    assert.match(el.shadowRoot.textContent, /Erreur : boom/);
+  });
+});

@@ -320,12 +320,12 @@ export function moreSettings(hass, climate, loc, settings, defaults, open, field
 }
 
 // The capture button (#91, lot 3): fills the popover of a preset's value from the thermostat's
-// current state. `captured`: it just did, and says so
-export function captureButton(hass, climate, loc, captured = false) {
+// current state. `captured`: it just did, and says so. `capture()`: what a tap on it does
+export function captureButton(hass, climate, loc, captured, capture) {
   const t = loc.t;
   const unavailable = !captureState(hass, climate);
   const label = captured ? t('captured') : unavailable ? t('unsupported', { value: t('capture') }) : t('capture');
-  return html`<button class="btn capture" data-act="capture" ?disabled=${unavailable}><ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${label}</button>`;
+  return html`<button class="btn capture" data-act="capture" ?disabled=${unavailable} @click=${capture}><ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${label}</button>`;
 }
 
 // Days in display order, the days of the same key on one row: [[0, 1, 2, 3, 4], [5, 6]]

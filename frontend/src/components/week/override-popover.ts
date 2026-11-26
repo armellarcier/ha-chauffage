@@ -2,7 +2,7 @@ import { LitElement, html, nothing } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { todayIdx } from '../../common.ts';
 import { fullNames } from '../../hvac.ts';
-import { overrideBody, overrideSummary } from '../../override-edit.ts';
+import { RESUME, overrideBody, overrideSummary } from '../../override-edit.ts';
 import { PopoverPlacement } from '../../controllers/popover-placement.ts';
 import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
 
@@ -52,10 +52,10 @@ export class ChauffageOverridePopover extends LitElement {
       <div class="ed-head">
         <strong>${card._moreInfoLink(climate)} · ${t('temporarySetpoint')}</strong>
         ${d ? html`<span class="override-value">${overrideSummary(d, src, climate, loc, hass)}</span>` : nothing}
-        <button class="btn icon close" data-act="override-close" title=${t('close')}>✕</button>
+        <button class="btn icon close" data-act="override-close" @click=${() => card._closeOverride()} title=${t('close')}>✕</button>
       </div>
-      <div class="ed-body">${overrideBody(d, src, climate, hass, loc, { step: card._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(loc, hass, climate) })}</div>
-      ${d ? html`<div class="ed-actions"><button class="btn danger" data-act="override-del">${t('resume')}</button></div>` : nothing}
+      <div class="ed-body">${overrideBody(d, src, climate, hass, loc, { step: card._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(loc, hass, climate), edit: (make) => card._editOverride(make), moveEnd: (m) => card._moveOverrideEnd(m) })}</div>
+      ${d ? html`<div class="ed-actions"><button class="btn danger" data-act="override-del" @click=${() => card._editOverride((now) => now && RESUME)}>${t('resume')}</button></div>` : nothing}
     </div>`);
   }
 }

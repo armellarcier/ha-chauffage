@@ -111,7 +111,7 @@ export class ChauffageClient {
       this.stopTimer();
       this.retryIn = SUBSCRIBE_RETRY_MS;
       this.missing = false;
-      this.data = data;
+      this.data = keepParts(this.data, data);
       this.notify();
     }, { type: 'chauffage/subscribe' }, { resubscribe: false });
     this.subscribed = subscribed.catch(() => null);
@@ -168,6 +168,17 @@ export class ChauffageClient {
   private notify() {
     for (const listener of [...this.listeners]) listener();
   }
+}
+
+// The parts of a push that the cards compare by identity: a part equal to the same part of the
+// former push keeps the former object
+const KEPT_PARTS = ['overrides', 'thermostats'];
+function keepParts(former, data) {
+  if (!former || !data) return data;
+  for (const part of KEPT_PARTS) {
+    if (JSON.stringify(former[part]) === JSON.stringify(data[part])) data[part] = former[part];
+  }
+  return data;
 }
 
 // The page's client

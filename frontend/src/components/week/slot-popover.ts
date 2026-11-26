@@ -5,7 +5,7 @@ import { DAY_MIN, SETPOINT_MODES, hasNoPreset, isAdmin, isOff, slotMode } from '
 import { timeField } from '../../fields.ts';
 import { defaultSetpointMode, hasModeRow, moreSettings, slotOn } from '../../hvac.ts';
 import { panelPath } from '../../links.ts';
-import { setpointLine, slotSetpointText } from '../../override-edit.ts';
+import { coolPresetTemperatureOf, presetTemperatureOf, setpointLine, slotSetpointText } from '../../override-edit.ts';
 import { modeChip, modeRow, offChip } from '../../presets.ts';
 import { PopoverPlacement } from '../../controllers/popover-placement.ts';
 import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
@@ -40,7 +40,7 @@ export class ChauffageSlotPopover extends LitElement {
     const loc = card._loc;
     const t = loc.t;
     const step = card._config.step;
-    const segs = card._week(climate)[day];
+    const segs = card.week(climate)[day];
     const s = slotOn(hass, climate, segs[idx]);
     const last = idx === segs.length - 1;
     const end = last ? DAY_MIN : segs[idx + 1].start;
@@ -64,21 +64,22 @@ export class ChauffageSlotPopover extends LitElement {
       .filter((l) => (!none && s.preset === l.id) || offered.includes(l.id))
       .map((l) => {
         const missing = !offered.includes(l.id);
-        return html`<button data-act="preset" data-preset=${l.id} class=${`${!none && s.preset === l.id ? 'on' : ''}${missing ? ' unsupported' : ''}`} title=${missing ? t('noPresetInMode') : nothing} style=${chipStyle(l, none ? null : mode)}>${l.name}</button>`;
+        return html`<button data-act="preset" data-preset=${l.id} @click=${() => card._setSelectedPreset(l.id)} class=${`${!none && s.preset === l.id ? 'on' : ''}${missing ? ' unsupported' : ''}`} title=${missing ? t('noPresetInMode') : nothing} style=${chipStyle(l, none ? null : mode)}>${l.name}</button>`;
       });
     // An HVAC mode no preset has a value for cannot be chosen; while the integration has not
     // said what each preset is worth here, every one can
     const known = card._presets().every((l) => card._targetOf(climate, l));
     const disabled = known ? SETPOINT_MODES.filter((m) => !card._presetsIn(climate, m).length) : [];
-    const modes = rows ? modeRow(hass, climate, loc, none ? mode : inMode, 'slot-mode', disabled) : nothing;
+    const pick = (m) => card._setSelectedMode(m);
+    const modes = rows ? modeRow(hass, climate, loc, none ? mode : inMode, 'slot-mode', pick, disabled) : nothing;
     // One row: Off first; a fan-only, a dry or an auto slot pasted on this thermostat stays, marked
-    const single = rows ? nothing : html`${offChip(hass, climate, loc, 'slot-off', off)}${none && !off ? modeChip(hass, climate, loc, mode, 'slot-mode', true) : nothing}`;
+    const single = rows ? nothing : html`${offChip(hass, climate, loc, 'slot-off', off, pick)}${none && !off ? modeChip(hass, climate, loc, mode, 'slot-mode', true, pick) : nothing}`;
     const presets = rows && !chips.length ? nothing : html`<div class="presets">${single}${chips}</div>`;
     // The setpoint the slot will apply, with its number, as the preset's value gives it for the
     // slot's HVAC mode: a link to the presets page for an admin
     const setpoint = slotSetpointText(hass, climate, s, target, loc, {
-      temperatureOf: (value) => card._presetTemperature(climate, value),
-      coolTemperatureOf: (value) => card._coolPresetTemperature(climate, value),
+      temperatureOf: (value) => presetTemperatureOf(card._source(), climate, value),
+      coolTemperatureOf: (value) => coolPresetTemperatureOf(card._source(), climate, value),
     });
     // The link opens the presets tab on this thermostat's row
     const line = setpointLine(setpoint, loc, isAdmin(hass) && !none ? `${panelPath('presets')}?thermostat=${encodeURIComponent(climate)}` : null);
@@ -94,7 +95,7 @@ export class ChauffageSlotPopover extends LitElement {
       <div class="ed-head">
         <strong>${card._moreInfoLink(climate)} · ${card._rowLabel(day, 'long')}</strong>
         <span class="ed-times"><label>${t('from')} ${from}</label><label>${t('to')} ${to}</label></span>
-        <button class="btn icon close" data-act="close" title=${t('close')}>✕</button>
+        <button class="btn icon close" data-act="close" @click=${() => card._closeSlot()} title=${t('close')}>✕</button>
       </div>
       <div class="ed-body">
         ${measured ? html`<div class="ed-measured">${measured}</div>` : nothing}
@@ -104,8 +105,8 @@ export class ChauffageSlotPopover extends LitElement {
         ${more}
       </div>
       <div class="ed-actions">
-        <button class="btn" data-act="insert" ?disabled=${end - s.start < 2 * step}>${t('insertSlot')}</button>
-        <button class="btn" data-act="delete" ?disabled=${segs.length === 1}>${t('delete')}</button>
+        <button class="btn" data-act="insert" @click=${() => card._insertSlot()} ?disabled=${end - s.start < 2 * step}>${t('insertSlot')}</button>
+        <button class="btn" data-act="delete" @click=${() => card._deleteSlot()} ?disabled=${segs.length === 1}>${t('delete')}</button>
       </div>
     </div>`);
   }

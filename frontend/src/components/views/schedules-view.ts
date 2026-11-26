@@ -1,7 +1,7 @@
 import { html, nothing } from 'lit';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
 import { openPanel, panelPath } from '../../links.ts';
-import { activateSchedule, scheduleMenu, scheduleMenuAction } from '../shared/schedule-menu.ts';
+import { scheduleMenu, toggleScheduleMenu } from '../shared/schedule-menu.ts';
 import type { ScheduleMenu, ScheduleMenuHost } from '../shared/schedule-menu.ts';
 import { listRow } from '../shared/list-row.ts';
 import { ChauffageView } from './view.ts';
@@ -14,8 +14,6 @@ export class ChauffageSchedulesView extends ChauffageView {
   _error = '';
   // The schedules' revision a change answered, until the integration pushes it
   _revision: { from: number | null; value: number | null } | null = null;
-  // The access level drawn: a lower one closes the menu
-  _access: string | undefined;
   _dismiss = new DismissController(this, () => {
     if (!this._menu) return false;
     this._menu = null;
@@ -33,12 +31,9 @@ export class ChauffageSchedulesView extends ChauffageView {
     });
   }
 
+  // Without Plan (an access level lowered), the menu closes
   willUpdate() {
-    const src = this._source();
-    if (src.stamps.access !== this._access) {
-      this._access = src.stamps.access;
-      if (!src.plannable) this._menu = null;
-    }
+    if (!this._source().plannable) this._menu = null;
   }
 
   render() {
@@ -48,12 +43,12 @@ export class ChauffageSchedulesView extends ChauffageView {
     const rows = src.schedules().map((id) => {
       const open = this._menu && this._menu.kind === 'menu' && this._menu.id === id;
       const more = !src.editable ? null
-        : html`<button class="icon-btn${open ? ' on' : ''}" data-act="schedule-menu" data-schedule=${id} title=${t('scheduleMenu')} aria-label=${t('scheduleMenu')}><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
+        : html`<button class="icon-btn${open ? ' on' : ''}" data-act="schedule-menu" data-schedule=${id} @click=${(e) => toggleScheduleMenu(this._menuHost(), 'menu', id, e.currentTarget)} title=${t('scheduleMenu')} aria-label=${t('scheduleMenu')}><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
       return listRow({ schedule: id, to: panelPath(`schedules/${id}`), icon: src.scheduleIcon(id) || 'mdi:calendar-clock',
         title: html`${src.scheduleName(id)}${id === active ? html` <span class="badge on">${t('panelActive')}</span>` : nothing}`,
         actions: more });
     });
-    const add = src.editable ? html`<div class="th-add"><button class="btn" data-act="schedule-new">+ ${t('newSchedule')}</button></div>` : nothing;
+    const add = src.editable ? html`<div class="th-add"><button class="btn" data-act="schedule-new" @click=${(e) => toggleScheduleMenu(this._menuHost(), 'new', null, e.currentTarget)}>+ ${t('newSchedule')}</button></div>` : nothing;
     return html`<div class="thermostats-view schedules-view"><div class="th-list">${rows}</div>${add}</div>${
       scheduleMenu(this._menuHost())}${this._msgTemplate()}`;
   }
@@ -93,16 +88,5 @@ export class ChauffageSchedulesView extends ChauffageView {
 
   _leaving(kind) {
     if (kind === 'more-info') this._menu = null;
-  }
-
-  _action(act, ds, el) {
-    const host = this._menuHost();
-    if (act === 'activate-schedule') {
-      // From a schedule's ⋮ menu: closed at once, as after every action
-      this._menu = null;
-      this.requestUpdate();
-      return activateSchedule(host, ds.schedule);
-    }
-    return scheduleMenuAction(host, act, ds, el, null);
   }
 }

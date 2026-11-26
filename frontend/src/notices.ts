@@ -22,11 +22,10 @@ export function sourceNotice(src) {
   return null;
 }
 
-// The notice. Its Reload button carries data-act="reload-page": the card or the panel reloads the
-// page on its click
+// The notice. Its Reload button reloads the page
 export function noticeTemplate(notice, t) {
   if (notice.loading) return html`<div class="loading">…</div>`;
   const button = notice.reload
-    ? html`<div><button class="btn primary" data-act="reload-page">${t('reloadPage')}</button></div>` : '';
+    ? html`<div><button class="btn primary" data-act="reload-page" @click=${() => reloadPage()}>${t('reloadPage')}</button></div>` : '';
   return html`<div class="missing" role="status">${t(notice.text)}${button}</div>`;
 }

@@ -282,6 +282,7 @@ export function cleanup() {
   window.__dialogManagers = [];
   document.body.innerHTML = '';
   try { localStorage.clear(); } catch (e) { /* ignore */ }
+  delete window.caches; // watchReloads()
 }
 
 export { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard };

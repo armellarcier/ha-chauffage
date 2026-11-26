@@ -6,7 +6,7 @@ import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { act, day, openMenu, openOverride, openSlot, redraw, save, selected, settle, unsaved } from './driver.mjs';
-import { shown } from './driver.mjs';
+import { historyShown, shown } from './driver.mjs';
 import { client } from '../../frontend/src/client/chauffage-client.ts';
 
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
@@ -1044,5 +1044,71 @@ describe('presets without the thermostats\' own presets (option off)', () => {
     const cell = $(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(cell.querySelector('.pv-val').textContent, '20°'); // the preset's default, not the thermostat's own preset
     assert.equal(cell.querySelector('.pv-how').textContent, 'par défaut');
+  });
+});
+
+describe('a tap while a menu or a popover is open', () => {
+  test('with a day\'s menu open, a tap on another control only closes the menu', async () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false }); await settle();
+    await openMenu(card, 'climate.salon', 1); await settle();
+    act(card, 'history'); await settle();
+    assert.equal($(card, '.menu'), null);
+    assert.equal(historyShown(card), false);
+  });
+
+  test('with the menu to copy a week open, a tap on another control only closes the menu', async () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    act(card, 'copyweek-menu'); await settle();
+    act(card, 'history'); await settle();
+    assert.equal($(card, '.copyweek-menu'), null);
+    assert.equal(historyShown(card), false);
+  });
+
+  test('with a schedule\'s menu open, a tap on another control only closes the menu', async () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    act(card, 'schedule-new'); await settle();
+    act(card, 'history'); await settle();
+    assert.equal($(card, '.sched-menu'), null);
+    assert.equal(historyShown(card), false);
+  });
+
+  test('with a schedule\'s menu open, the arrows of the tabs scroll and leave the menu open', async () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    act(card, 'schedule-new'); await settle();
+    $(card, '[data-tabs-scroll="right"]').click(); await settle();
+    assert.ok($(card, '.sched-menu'));
+  });
+
+  test('with a slot\'s popover open, a tap on another control closes the popover and does what the control does', async () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    $(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click(); await settle();
+    assert.ok($(card, '.editor'));
+    act(card, 'history'); await settle();
+    assert.equal($(card, '.editor'), null);
+    assert.equal(historyShown(card), true);
+  });
+
+  test('a tap on a control of a view of the panel does not reach the element that shows the view', async () => {
+    const frame = createView(fakeHass(), 'rules'); await settle();
+    let reached = 0;
+    frame.addEventListener('click', () => { reached += 1; });
+    frame.shadowRoot.querySelector('[data-act="rule-add"]').click(); await settle();
+    assert.equal(reached, 0);
+  });
+});
+
+describe('the card and a push that changes something else', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
+  afterEach(() => mock.timers.reset());
+
+  test('an override removed stays removed through a push that does not touch the overrides', async () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    hass.callWS = async (msg) => { hass.events.push(msg); return null; };
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
+    await openOverride(card, 'climate.salon');
+    act(card, 'override-del'); await settle();
+    assert.equal($(card, '.override[data-climate="climate.salon"]'), null, 'removed at once');
+    hass.push(integrationData({ paused: ['climate.bureau'], overrides: { 'climate.salon': override } })); await settle();
+    assert.equal($(card, '.override[data-climate="climate.salon"]'), null, 'still removed');
   });
 });

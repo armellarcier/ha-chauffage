@@ -1,7 +1,7 @@
 import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { live } from 'lit/directives/live.js';
-import { NOTICE_RELOAD, noticeTemplate, reloadPage, sourceNotice } from './notices.ts';
+import { NOTICE_RELOAD, noticeTemplate, sourceNotice } from './notices.ts';
 import { dataSource, renamedTo } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { SnapshotController } from './controllers/snapshot-controller.ts';
@@ -264,10 +264,6 @@ export class ChauffagePanel extends LitElement {
 
   get _t() {
     return makeLocale(this.hass).t;
-  }
-
-  _reloadPage() {
-    reloadPage();
   }
 
   // Under its tabs, the panel shows what the cards show while the data can't be used. Also when
@@ -659,11 +655,6 @@ export class ChauffagePanel extends LitElement {
   }
 
   async _onClick(e) {
-    // The notice's Reload button
-    if (e.target.closest('[data-act="reload-page"]')) {
-      this._reloadPage();
-      return undefined;
-    }
     // The page's menu open: a click elsewhere only closes it
     if (this._pageMenu && !e.target.closest('.page-menu, [data-page-menu]')) {
       this._pageMenu = false;

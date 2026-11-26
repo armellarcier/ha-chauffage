@@ -264,7 +264,6 @@ export const fr = {
   stale: 'Ces plannings ont été modifiés ailleurs entre-temps : annulez pour les recharger, puis refaites vos modifications.',
   presetHint: '(son préréglage)',
   setPresets: 'Régler les préréglages',
-  presetFor: '{preset} · {name}',
   ownPreset: 'Préréglage de l\'appareil',
   presetTemperature: 'Température',
   presetAuto: 'Par défaut ({value})',

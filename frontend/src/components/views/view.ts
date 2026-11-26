@@ -10,8 +10,9 @@ import { entityLink } from '../shared/entity-link.ts';
 
 // A view of the Chauffage panel: the presets, the schedules, the thermostats or the rules. It
 // draws in the light DOM of the element that shows it, with that element's stylesheet: the panel
-// puts it in a frame (ChauffageViewFrame). It closes its own menus, follows its own links and does
-// its own actions: its clicks don't reach the element that shows it.
+// puts it in a frame (ChauffageViewFrame). It closes its own menus and follows its own links. Its
+// controls take their taps with Lit's @click: a tap on a button of the view doesn't reach the
+// element that shows it.
 export class ChauffageView extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -28,7 +29,8 @@ export class ChauffageView extends LitElement {
 
   constructor() {
     super();
-    this.addEventListener('click', (e) => this._onClick(e));
+    this.addEventListener('click', (e) => this._tapFirst(e), true);
+    this.addEventListener('click', (e: any) => { if (e.target.closest('button')) e.stopPropagation(); });
   }
 
   createRenderRoot() {
@@ -75,10 +77,10 @@ export class ChauffageView extends LitElement {
     }
   }
 
-  // What a click does in the view: a menu open closes first (_clickCloses), then a link (an
-  // entity's more-info dialog, a device's page, a page of the panel or a dashboard's view), then
-  // a control (`data-act`, _action)
-  _onClick(e) {
+  // What a tap does before the control tapped: a menu open closes first (_clickCloses), then a
+  // link (an entity's more-info dialog, a device's page, a page of the panel or a dashboard's
+  // view), then a popover open may close (_clickElsewhere)
+  _tapFirst(e) {
     if (this._clickCloses(e)) {
       e.stopPropagation();
       this.requestUpdate();
@@ -96,11 +98,7 @@ export class ChauffageView extends LitElement {
       else navigate(to.dataset.navigate);
       return;
     }
-    if (this._clickElsewhere(e)) return;
-    const act = e.target.closest('[data-act]');
-    if (!act) return;
-    e.stopPropagation();
-    if (!act.disabled) this._action(act.dataset.act, act.dataset, act);
+    this._clickElsewhere(e);
   }
 
   // A click outside the menu open: it only closes the menu (true)
@@ -111,12 +109,7 @@ export class ChauffageView extends LitElement {
   // A link followed: the menus it leaves close
   _leaving(kind: 'more-info' | 'device' | 'navigate') {}
 
-  // A click that is not a link: a popover open may close (true: nothing more to do)
-  _clickElsewhere(e): boolean {
-    return false;
-  }
-
-  _action(act: string, ds: DOMStringMap, el: HTMLElement): unknown {
-    return undefined;
-  }
+  // A tap that is not a link: a popover open may close. It stops the tap when the tap only closes
+  // it
+  _clickElsewhere(e) {}
 }

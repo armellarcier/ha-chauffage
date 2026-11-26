@@ -3,6 +3,7 @@ import { coolColor, presetColorIn } from '../../colors.ts';
 import { NO_PRESET_MODES, slotMode } from '../../common.ts';
 import { coolsOnly, hvacIconTemplate, hvacSlotStyle, listsMode, modeName, presetModes, slotModeOn } from '../../hvac.ts';
 import { panelPath } from '../../links.ts';
+import { coolPresetTemperatureOf, presetTemperatureOf } from '../../override-edit.ts';
 import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
 
 // The legend under the week: each preset a shown thermostat can use, with its colors, and its
@@ -27,8 +28,8 @@ export function weekLegend(card: ChauffageProgrammeCard) {
     const usable = usableModes(card, l);
     if (!usable.size) return nothing;
     const target = card._targetOf(focus, l) || {}; // not known yet: no values
-    const t = single && !coolsOnly(hass, focus) ? card._presetTemperature(focus, target) : null;
-    const c = single && listsMode(hass, focus, 'cool') ? card._coolPresetTemperature(focus, target) : null;
+    const t = single && !coolsOnly(hass, focus) ? presetTemperatureOf(card._source(), focus, target) : null;
+    const c = single && listsMode(hass, focus, 'cool') ? coolPresetTemperatureOf(card._source(), focus, target) : null;
     const hint = !multi && ('preset_mode' in target || 'cool_preset_mode' in target) && t == null && c == null && !coolsOnly(hass, focus) ? ` ${tr('presetHint')}` : '';
     const heat = showsHeat && usable.has('heat') ? html`<i class=${`heat${showsCool ? ' mk' : ''}`} style=${`background:${l.color}`} title=${showsCool ? tr('slotHeat') : nothing}>${showsCool ? hvacIconTemplate('heat') : nothing}</i>` : null;
     const cool = showsCool && usable.has('cool') ? html`<i class="cool mk" style=${`background:${coolColor(l)}`} title=${tr('slotCool')}>${hvacIconTemplate('cool')}</i>` : null;
@@ -53,7 +54,7 @@ function usableModes(card: ChauffageProgrammeCard, preset) {
 // Heat/cool, when a week shown has such a slot: the two colors of its preset, split as in the week
 function heatCool(card: ChauffageProgrammeCard) {
   for (const climate of card._shown) {
-    const slot = card._week(climate).flat().find((s) => slotModeOn(card._hass, climate, s) === 'heat_cool');
+    const slot = card.week(climate).flat().find((s) => slotModeOn(card._hass, climate, s) === 'heat_cool');
     if (slot) {
       return html`<span class="legend-mode legend-heat-cool"><i style=${`background:${presetColorIn(card._preset(slot.preset), 'heat_cool')}`}></i>${hvacIconTemplate('heat_cool')}${modeName(card._loc, 'heat_cool')}</span>`;
     }
@@ -65,7 +66,7 @@ function heatCool(card: ChauffageProgrammeCard) {
 // only when a shown week has such a slot. Alone, they are the legend of a week of a thermostat's
 // page
 export function noPresetModes(card: ChauffageProgrammeCard) {
-  const has = (mode) => card._shown.some((climate) => card._week(climate).some((segs) => segs.some((s) => slotMode(s) === mode)));
+  const has = (mode) => card._shown.some((climate) => card.week(climate).some((segs) => segs.some((s) => slotMode(s) === mode)));
   return NO_PRESET_MODES.filter(has).map((mode) => {
     const swatch = mode === 'fan_only' ? html`<i class="fan"></i>` : html`<i style=${hvacSlotStyle(mode)}></i>`;
     return html`<span class=${`legend-off${mode === 'fan_only' ? ' legend-fan' : ''}`}>${swatch}${hvacIconTemplate(mode)}${mode === 'off' ? card._loc.t('legendOff') : modeName(card._loc, mode)}</span>`;

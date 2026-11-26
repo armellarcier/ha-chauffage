@@ -77,7 +77,7 @@ function zoom(card: ChauffageProgrammeCard, { lo, hi, y }) {
 
 // Override drawn over the schedule (only in the active schedule's tab), on a row of days
 function override(card: ChauffageProgrammeCard, climate: string, days: number[]) {
-  if (card._schedule !== card._activeSchedule()) return nothing;
+  if (card._schedule !== card._source().activeSchedule()) return nothing;
   const d = card._overrides()[climate];
   const piece = rowPiece(card._overridePieces(climate), days);
   if (!d || !piece) return nothing;
