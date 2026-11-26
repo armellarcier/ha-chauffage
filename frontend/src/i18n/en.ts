@@ -271,6 +271,7 @@ export const en = {
   ownPreset: 'Device preset',
   presetTemperature: 'Temperature',
   presetAuto: 'Default ({value})',
+  presetDefault: 'Default',
   apply: 'OK',
   viewPresets: 'Presets',
   defaultHelp: 'The default temperature: for the thermostats that have no preset of their own for this one.',

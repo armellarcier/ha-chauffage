@@ -66,7 +66,10 @@ export class ChauffageSlotPopover extends LitElement {
         const missing = !offered.includes(l.id);
         return html`<button data-act="preset" data-preset=${l.id} class=${`${!none && s.preset === l.id ? 'on' : ''}${missing ? ' unsupported' : ''}`} title=${missing ? t('noPresetInMode') : nothing} style=${chipStyle(l, none ? null : mode)}>${l.name}</button>`;
       });
-    const disabled = SETPOINT_MODES.filter((m) => !card._presetsIn(climate, m).length);
+    // An HVAC mode no preset has a value for cannot be chosen; while the integration has not
+    // said what each preset is worth here, every one can
+    const known = card._presets().every((l) => card._targetOf(climate, l));
+    const disabled = known ? SETPOINT_MODES.filter((m) => !card._presetsIn(climate, m).length) : [];
     const modes = rows ? modeRow(hass, climate, loc, none ? mode : inMode, 'slot-mode', disabled) : nothing;
     // One row: Off first; a fan-only, a dry or an auto slot pasted on this thermostat stays, marked
     const single = rows ? nothing : html`${offChip(hass, climate, loc, 'slot-off', off)}${none && !off ? modeChip(hass, climate, loc, mode, 'slot-mode', true) : nothing}`;

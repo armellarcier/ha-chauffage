@@ -121,7 +121,8 @@ function slotNameOn(hass, climate, seg, presets, loc) {
 }
 
 // What a preset means for a thermostat, as the integration computes it: its `targets` for a
-// thermostat it schedules, else its answer to the card's question (nothing while it is on its way)
+// thermostat it schedules, else its answer to the card's question. Null while the answer is on
+// its way, or when none came: not known, which is not "no value"
 export function targetOf(src, hass, climate, preset) {
   const known = src.targets(climate)[preset.id];
   if (known) return known;
@@ -129,10 +130,16 @@ export function targetOf(src, hass, climate, preset) {
 }
 
 // What a preset is worth on a thermostat, with a value set by hand (`value`, saved or not), as the
-// integration computes it: nothing while its answer is on its way
+// integration computes it. Null while its answer is on its way, or when none came
 export function presetValue(hass, climate, preset, value) {
   const answer = client.preview(hass, climate, preset, value);
-  return answer ? answer.value : {};
+  return answer ? answer.value : null;
+}
+
+// The same, once the integration has answered: null when it gave no answer
+export async function presetValueAnswered(hass, climate, preset, value) {
+  const answer = await client.answer(hass, climate, preset, value);
+  return answer ? answer.value : null;
 }
 
 // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one the

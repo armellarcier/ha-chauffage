@@ -268,6 +268,7 @@ export const fr = {
   ownPreset: 'Préréglage de l\'appareil',
   presetTemperature: 'Température',
   presetAuto: 'Par défaut ({value})',
+  presetDefault: 'Par défaut',
   apply: 'OK',
   viewPresets: 'Préréglages',
   defaultHelp: 'La température par défaut : pour les thermostats qui n\'ont pas de préréglage à eux pour celui-ci.',

@@ -25,6 +25,17 @@ afterEach(() => cleanup());
   describe('the slot popover', () => {
     const hvac = (card) => $$(card, '.editor .mode-row [data-mode="heat"], .editor .mode-row [data-mode="cool"]').map(pressed);
 
+    test('a thermostat not scheduled yet: while the integration has not said what its presets give, every HVAC mode can be chosen', async () => {
+      const salonOnly = { 'climate.salon': { comfort: { preset_mode: 'comfort' }, eco: { preset_mode: 'eco' }, boost: { preset_mode: 'boost' }, frost: { temperature: 7 } } };
+      const hass = setup({ targets: salonOnly });
+      hass.presetPreviewAnswers = 'hold';
+      const card = await cardOf(hass, { show: ['climate.atelier'] });
+      await select(card, 'climate.atelier', 0, 1); // 14:00 comfort
+      assert.equal($(card, '.editor .mode-row [data-mode="cool"]').disabled, false);
+      hass.answerPresetPreviews(); await settle(); await settle();
+      assert.equal($(card, '.editor .mode-row [data-mode="cool"]').disabled, false);
+    });
+
     test('a heater: one row of chips, Éteint first; no Ventilation, no HVAC mode', async () => {
       const card = await cardOf(setup(), { show: ['climate.salon'] });
       await select(card, 'climate.salon', 0, 1); // 06:30 comfort

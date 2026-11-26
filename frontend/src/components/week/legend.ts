@@ -26,7 +26,7 @@ export function weekLegend(card: ChauffageProgrammeCard) {
     // left out, and each of its colors shows only if a week shown can have it
     const usable = usableModes(card, l);
     if (!usable.size) return nothing;
-    const target = card._targetOf(focus, l);
+    const target = card._targetOf(focus, l) || {}; // not known yet: no values
     const t = single && !coolsOnly(hass, focus) ? card._presetTemperature(focus, target) : null;
     const c = single && listsMode(hass, focus, 'cool') ? card._coolPresetTemperature(focus, target) : null;
     const hint = !multi && ('preset_mode' in target || 'cool_preset_mode' in target) && t == null && c == null && !coolsOnly(hass, focus) ? ` ${tr('presetHint')}` : '';

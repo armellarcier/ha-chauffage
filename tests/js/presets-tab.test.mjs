@@ -171,6 +171,58 @@ afterEach(() => cleanup());
       assert.equal(text(note()), 'Par défaut (25°)');
     });
 
+    test('while the integration has not said what the default gives, the cell says nothing about it', async () => {
+      const hass = setup();
+      hass.presetPreviewAnswers = 'hold';
+      const card = await open(hass); await settle();
+      const note = () => $(card, '.cell-ed .pv-cooldefault');
+      cell(card, 'eco', 'climate.salon').click(); await settle();
+      assert.deepEqual(rows(card), ['Par défaut ✓', 'Son préréglage', 'Température']);
+      cell(card, 'comfort', 'climate.atelier').click(); await settle();
+      assert.equal(text(note()), 'Par défaut');
+      // The user chooses a row while the answer is on its way: the answer still shows
+      choose(card, 'temperature'); await settle();
+      hass.answerPresetPreviews(); await settle(); await settle();
+      assert.equal(text(note()), 'Par défaut (son préréglage Confort)');
+      cell(card, 'eco', 'climate.salon').click(); await settle(); await settle();
+      assert.deepEqual(rows(card), ['Par défaut (son préréglage Éco, 17°) ✓', 'Son préréglage', 'Température']);
+    });
+
+    test('a thermostat not scheduled yet: while the integration has not said what a preset gives, its cell shows no value', async () => {
+      const salonOnly = { 'climate.salon': { comfort: { preset_mode: 'comfort' }, eco: { preset_mode: 'eco' }, boost: { preset_mode: 'boost' }, frost: { temperature: 7 } } };
+      const hass = setup({ targets: salonOnly });
+      hass.presetPreviewAnswers = 'hold';
+      const card = await open(hass); await settle();
+      assert.equal(text(cell(card, 'frost', 'climate.atelier').querySelector('.pv-val')), '');
+      hass.answerPresetPreviews(); await settle(); await settle();
+      assert.equal(text(cell(card, 'frost', 'climate.atelier').querySelector('.pv-val')), '7°');
+    });
+
+    test('an integration that does not answer: the cell says nothing about the default', async () => {
+      const hass = setup();
+      hass.presetPreviewAnswers = 'fail';
+      const card = await open(hass); await settle();
+      cell(card, 'eco', 'climate.salon').click(); await settle(); await settle();
+      assert.deepEqual(rows(card), ['Par défaut ✓', 'Son préréglage', 'Température']);
+      cell(card, 'comfort', 'climate.atelier').click(); await settle(); await settle();
+      assert.equal(text($(card, '.cell-ed .pv-cooldefault')), 'Par défaut');
+    });
+
+    test('saved while the integration has not said what the default gives, the default stays the default', async () => {
+      const hass = setup();
+      hass.presetPreviewAnswers = 'hold';
+      const card = await open(hass); await settle();
+      cell(card, 'comfort', 'climate.salon').click(); await settle();
+      await applyCell(card);
+      assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false, 'the default: nothing stored');
+      // Its own preset of the same name, chosen by hand, is the default once the integration answers
+      cell(card, 'comfort', 'climate.salon').click(); await settle();
+      choose(card, 'own'); await settle();
+      await applyCell(card);
+      hass.answerPresetPreviews(); await settle(); await settle();
+      assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false, 'the default: nothing stored');
+    });
+
     test('a cooling setpoint stored shows in its field and in the cell; with the default chosen, it is dropped', async () => {
       const hass = setup();
       hass.data.mappings = { 'climate.atelier': { comfort: { temperature: 20, cool_temperature: 25 } } };

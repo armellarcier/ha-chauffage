@@ -123,6 +123,7 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, planned, lo
   resetClient(); // one subscription per page: a new one for each test
   if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, planned, language: locale.language });
   const events = [];
+  const held = []; // the questions about presets not answered yet (presetPreviewAnswers 'hold')
   let globalRevision = data ? data.revision : 4;
   let listener = null;
   const hass = {
@@ -156,9 +157,15 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, planned, lo
     // What the cards asked about presets (chauffage/preset/preview): a question, not a change, kept
     // out of `events`
     presetPreviews: [],
+    // How the fake integration answers these questions: 'answer' at once, 'hold' until
+    // `hass.answerPresetPreviews()`, or 'fail'
+    presetPreviewAnswers: 'answer',
+    answerPresetPreviews: () => { for (const answer of held.splice(0)) answer(); },
     callWS: async (msg) => {
       if (msg.type === 'chauffage/preset/preview') {
         hass.presetPreviews.push(msg);
+        if (hass.presetPreviewAnswers === 'fail') throw { code: 'unknown_error', message: 'No answer' };
+        if (hass.presetPreviewAnswers === 'hold') await new Promise((resolve) => { held.push(resolve); });
         return presetPreview(hass, data, msg);
       }
       events.push(msg);

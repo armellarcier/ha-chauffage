@@ -232,6 +232,11 @@ pas encore (`chauffage/preset/preview`). La fausse intégration répond avec `va
 `tests/js/helpers.mjs`, et range ces questions dans `hass.presetPreviews`, pas dans `hass.events`.
 La réponse arrive elle aussi après la tâche en cours : `await settle()` l'attend.
 
+Pour tester la carte pendant qu'une réponse est en route, mettez
+`hass.presetPreviewAnswers = 'hold'`. La fausse intégration ne répond alors que quand vous appelez
+`hass.answerPresetPreviews()`. Pour tester une intégration qui ne répond pas, mettez
+`hass.presetPreviewAnswers = 'fail'`.
+
 ### Le TypeScript de la carte
 
 Les tests de la carte lancent les sources TypeScript sans build : Node retire les types. Donc :

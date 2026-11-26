@@ -2173,6 +2173,12 @@ Claude made these choices while rewriting the week editor. The owner hasn't conf
 - **While an answer is on its way, the card shows nothing for it.** The popover of a slot of a
   thermostat not scheduled yet offers no preset for a moment, the first time. The legend asks
   first, so the answer is usually there when the user opens a popover.
+- **An answer not known is not "no value".** The card never says "Not used when heating" for an
+  answer on its way, and never greys out an HVAC mode for it. An answer that fails reads the
+  same way. The card asks again only after a page reload, or when the thermostat lists other
+  modes or presets. A cell saved before the
+  answer waits for it: one of the thermostat's own presets that turns out to be the default is
+  not stored.
 - **The parts of the week editor are elements only where they have a life of their own.** Only
   the two popovers are elements, drawn again with the card. The week grid, the legend, a row of
   days and a bar are templates: the card holds their state, and the drags change the bars in
