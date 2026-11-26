@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 from typing import Any
 
@@ -28,7 +28,7 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
     async_track_time_change,
 )
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from . import engine, model, repairs
@@ -43,30 +43,23 @@ from .const import (
     CONF_OFF_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
-    CONTROL_KEY,
     DEFAULT_ACCESS_LEVEL,
     DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OFF_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_USE_PRESETS,
-    DOMAIN,
     EVENT_SCHEDULE_ACTIVATED,
     MANUAL_OVERRIDE_ENDS,
-    NEXT_CHANGE_KEY,
     OVERRIDE_DURATION_MAX,
     OVERRIDE_DURATION_MIN,
     OVERRIDE_DURATION_STEP,
-    OVERRIDE_END_KEY,
-    OVERRIDE_KEY,
-    PLANNED_PRESET_KEY,
-    THERMOSTAT_ENTITIES,
-    schedule_unique_id,
-    thermostat_unique_id,
 )
-from .store import SAVE_DELAY, ChauffageStore
+from .store import ChauffageStore
+from .storage.installation import Installation
 from .app.learner import Learner
 from .app.manual_changes import ManualChanges
 from .app.overrides import OverrideService, ThermostatFailed, ThermostatPaused
+from .app.read_model import SnapshotBuilder, device_by_identifier
 from .app.rule_engine import RuleEngine
 from .app.scheduler import Scheduler
 from .app.thermostat_registry import ThermostatRegistry
@@ -81,33 +74,23 @@ class StaleRevision(Exception):
     """Weeks or schedules saved from an outdated copy (edited elsewhere in the meantime)."""
 
 
-def device_by_identifier(hass: HomeAssistant, entry: ConfigEntry, identifier: tuple[str, str]) -> dr.DeviceEntry | None:
-    """One of the integration's devices, by its identifier."""
-    registry = dr.async_get(hass)
-    # From Home Assistant 2026.10, identifiers are only unique within a config entry: the
-    # lookup by identifiers alone is deprecated (it stops working in 2027.8)
-    if hasattr(registry, "async_get_device_by_identifier"):
-        return registry.async_get_device_by_identifier(identifier, entry.entry_id)
-    return registry.async_get_device(identifiers={identifier})
-
-
 class ChauffageRuntime:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: ChauffageStore, data: dict[str, Any],
                  version: str) -> None:
         self.hass = hass
         self.entry = entry
-        self.store = store
-        self.data = data
+
+        self.installation = Installation(store, data)
         self.version = version  # of the integration: a card older than it asks to reload the page
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
-        self.gateway = ThermostatGateway(hass, data, self.current, self._save)
+        self.gateway = ThermostatGateway(hass, self.installation, self.current, self._save)
         self.overrides = OverrideService(self)
         self.manual_changes = ManualChanges(self)
         self.scheduler = Scheduler(self)
         self.rules = RuleEngine(self)
         self.learner = Learner(self)
         self.registry = ThermostatRegistry(self)
-        self._listeners: set[Callable[[str], None]] = set()
+        self.read_model = SnapshotBuilder(self)
         self._unsubs: list[Callable[[], None]] = []
         self._unsub_states: Callable[[], None] | None = None
         self._planned_presets: set[str] = set()  # the deprecated sensors, seen at the last check
@@ -162,23 +145,19 @@ class ChauffageRuntime:
 
     @callback
     def async_add_listener(self, listener: Callable[[str], None]) -> Callable[[], None]:
-        self._listeners.add(listener)
-        return lambda: self._listeners.discard(listener)
+        return self.installation.add_listener(listener)
 
     @callback
     def _notify(self, reason: str = DATA) -> None:
-        for listener in list(self._listeners):
-            listener(reason)
+        self.installation.notify(reason)
 
     @callback
     def _changed(self) -> None:
-        self._save()
-        self._notify(DATA)
+        self.installation.changed()
 
     @callback
     def _save(self) -> None:
-        """Saved, nothing the cards show changed."""
-        self.store.async_delay_save(lambda: self.data, SAVE_DELAY)
+        self.installation.save()
 
     # ----- reading -----
 
@@ -247,25 +226,25 @@ class ChauffageRuntime:
 
     @property
     def schedule_ids(self) -> set[str]:
-        return {m["id"] for m in self.data["schedules"]}
+        return {m["id"] for m in self.installation.schedules}
 
     def schedule_name(self, schedule_id: str) -> str | None:
-        return next((m["name"] for m in self.data["schedules"] if m["id"] == schedule_id), None)
+        return next((m["name"] for m in self.installation.schedules if m["id"] == schedule_id), None)
 
     @property
     def preset_ids(self) -> set[str]:
-        return {preset["id"] for preset in self.data["presets"]}
+        return {preset["id"] for preset in self.installation.presets}
 
     @property
     def presets_by_id(self) -> dict[str, dict[str, Any]]:
         """The presets by id, in their order."""
-        return {preset["id"]: preset for preset in self.data["presets"]}
+        return {preset["id"]: preset for preset in self.installation.presets}
 
     @property
     def thermostats(self) -> dict[str, dict[str, Any]]:
         """The thermostats Chauffage knows (model.py): the scheduled ones, and those with only
         values of the presets, set before their weeks."""
-        return self.data["thermostats"]
+        return self.installation.thermostats
 
     @property
     def scheduled(self) -> dict[str, dict[str, Any]]:
@@ -316,10 +295,10 @@ class ChauffageRuntime:
         """What the active thermostats follow: paused ones are left out."""
         return engine.Plan(
             {entity_id: self.thermostats[entity_id]["weeks"] for entity_id in self.active},
-            self.data["active_schedule"],
+            self.installation.active_schedule,
             self.presets_by_id,
             self.mappings,
-            self.data["overrides"],
+            self.installation.overrides,
             self.use_presets,
             {entity_id: own for entity_id in self.active if (own := self.own_settings(entity_id))},
         )
@@ -339,211 +318,43 @@ class ChauffageRuntime:
     def use_presets(self) -> bool:
         return bool(self.entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
 
-    def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
-        """What each preset means for a thermostat, in each HVAC mode (engine.value_on: the
-        mapping set by hand, else the default). Without an HVAC mode: an override set to a
-        preset keeps the thermostat's own."""
-        presets = self.presets_by_id
-        mapping = self.thermostats.get(entity_id, {}).get("mapping") or None
-        current = self.current(self.hass.states.get(entity_id))
-        out = {}
-        for preset_id in presets:
-            target = engine.resolve(preset_id, presets, mapping, current, self.use_presets)
-            if target:
-                out[preset_id] = target
-        return out
+    # ----- what the card and the entities read (app/read_model.py) -----
 
-    def preset_temperatures_of(self, entity_id: str, cool: bool = False) -> dict[str, float]:
-        """{preset id: temperature} on a thermostat: its own for a temperature, the one its own
-        preset gives (published, else learned) for a climate preset; unknown ones left out.
-        `cool`: what each preset gives when the thermostat cools: its cooling temperature, else
-        what its own preset gives when cooling. A heating temperature is not one."""
-        own = self.temperatures_of(self.hass.states.get(entity_id), cool)
-        key, own_key = ("cool_temperature", "cool_preset_mode") if cool else ("temperature", "preset_mode")
-        temperatures = {p: t.get(key, own.get(t.get(own_key))) for p, t in self.targets_of(entity_id).items()}
-        return {p: t for p, t in temperatures.items() if t is not None}
+    def targets_of(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.targets_of(*args, **kwargs)
 
-    def snapshot(self) -> dict[str, Any]:
-        """Everything the card needs."""
-        return {
-            "schedules": self.data["schedules"],
-            "active_schedule": self.data["active_schedule"],
-            "presets": self.data["presets"],
-            # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
-            # own_settings: the fan and the vanes it gets back from a slot that sets none
-            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e),
-                                "own_settings": self.own_settings(e)}
-                            for e, t in self.scheduled.items()},
-            "mappings": self.mappings,
-            "targets": {e: self.targets_of(e) for e in self.scheduled},
-            "weeks": self.weeks,
-            "overrides": self.data["overrides"],
-            # Every thermostat, those the card shows before they are scheduled too
-            "preset_temperatures": {
-                state.entity_id: temperatures for state in self.hass.states.async_all("climate")
-                if (temperatures := self.temperatures_of(state))
-            },
-            # What its own presets give when it cools (an air conditioner)
-            "cool_preset_temperatures": {
-                state.entity_id: temperatures for state in self.hass.states.async_all("climate")
-                if (temperatures := self.temperatures_of(state, cool=True))
-            },
-            "use_presets": self.use_presets,
-            "revision": self.data["revision"],
-            "override_duration": self.override_duration,
-            "manual_override_end": self.manual_override_end,
-            "off_override_end": self.off_override_end,
-            "access_level": self.access_level,
-            "rules": self.data["rules"],
-            "default_schedule": self.data["default_schedule"],
-            "rule_results": self.rule_results,
-            "renamed": self.data["renamed"],
-            "planned": self.planned_presets(),
-            "version": self.version,
-            "schedule_entities": self.schedule_entities(),
-            # The cards open the entities and the device they mention (#39)
-            "thermostat_entities": self.thermostat_entities(),
-            "schedule_select": self.schedule_select(),
-            "device_id": self.device_id(),
-        }
+    def preset_temperatures_of(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.preset_temperatures_of(*args, **kwargs)
 
-    def schedule_entities(self) -> dict[str, str]:
-        """{schedule id: entity id of its switch}: the card shows the icon chosen for it in HA."""
-        registry = er.async_get(self.hass)
-        entities = {s: registry.async_get_entity_id("switch", DOMAIN, schedule_unique_id(self.entry.entry_id, s))
-                    for s in self.schedule_ids}
-        return {s: entity_id for s, entity_id in entities.items() if entity_id}
+    def snapshot(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.snapshot(*args, **kwargs)
 
-    def thermostat_entities(self) -> dict[str, dict[str, str]]:
-        """{thermostat: {control, override, planned_preset, override_end, next_change: entity id}}: a thermostat
-        without a device has no other way to find its entities (named after it, not attached)."""
-        registry = er.async_get(self.hass)
-        names = {CONTROL_KEY: "control", OVERRIDE_KEY: "override", PLANNED_PRESET_KEY: "planned_preset",
-                 OVERRIDE_END_KEY: "override_end", NEXT_CHANGE_KEY: "next_change"}
-        out = {}
-        for climate in self.scheduled:
-            ids = {names[key]: registry.async_get_entity_id(platform, DOMAIN, thermostat_unique_id(
-                self.entry.entry_id, climate, key)) for key, platform in THERMOSTAT_ENTITIES.items()}
-            out[climate] = {name: entity_id for name, entity_id in ids.items() if entity_id}
-        return out
+    def schedule_entities(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.schedule_entities(*args, **kwargs)
 
-    def device_id(self) -> str | None:
-        """The "Chauffage" device holding the global entities."""
-        device = device_by_identifier(self.hass, self.entry, (DOMAIN, self.entry.entry_id))
-        return device.id if device else None
+    def thermostat_entities(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.thermostat_entities(*args, **kwargs)
 
-    def schedule_select(self) -> str | None:
-        """The active-schedule select's entity id."""
-        return er.async_get(self.hass).async_get_entity_id("select", DOMAIN, f"{self.entry.entry_id}_schedule")
+    def device_id(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.device_id(*args, **kwargs)
 
-    def _card_entities(self) -> set[str]:
-        ids = {*self.schedule_entities().values(), self.schedule_select()}
-        for entities in self.thermostat_entities().values():
-            ids.update(entities.values())
-        return ids
+    def schedule_select(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.schedule_select(*args, **kwargs)
 
-    def cause(self, entity_id: str) -> str | None:
-        """Why a thermostat protects itself, when it says it (a VTherm's window, open while it is
-        off or heats at the frost setpoint, or its auto start/stop): for the card, which then
-        does not read VTherm's attributes."""
-        return self._cause_of(self.hass.states.get(entity_id))
+    def planned(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.planned(*args, **kwargs)
 
-    def planned(self, entity_id: str, now: datetime | None = None, thermostat: engine.Thermostat | None = None
-                ) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
-        """(slot now, next different slot, its start) for a thermostat in the active schedule.
-        The slots as they run on it: on an air conditioner, a slot that says heat does not
-        differ from one that says nothing. `thermostat`: the thermostat as read by the caller,
-        else read here."""
-        week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
-        if not week:
-            return None, None, None
-        thermostat = thermostat or self.current(self.hass.states.get(entity_id))
-        return engine.current_and_next(engine.week_on(week, thermostat), now or dt_util.now())
+    def planned_targets(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.planned_targets(*args, **kwargs)
 
-    def planned_targets(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None,
-                        thermostat: engine.Thermostat | None = None) -> dict[str, Any]:
-        """What a scheduled thermostat follows now (its preset, its HVAC mode, its target on this
-        thermostat), and the next different slot (its preset, its HVAC mode, its start): the
-        planned-preset sensor's attributes. The HVAC mode is the slot's: off, fan_only, or heat
-        or cool when the thermostat lists it, else None. An off slot and a fan-only slot have no
-        preset. `plan`: the one built for a snapshot, else built here. `thermostat`: the thermostat
-        as read by the caller, else read here."""
-        plan = plan or self.plan()
-        thermostat = thermostat or self.current(self.hass.states.get(entity_id))
-        current, following, next_start = self.planned(entity_id, now, thermostat)
-        target = plan.target_of(entity_id, current, thermostat)
-        next_target = plan.target_of(entity_id, following, thermostat)
-        return {
-            "preset": current.preset if current else None,
-            "hvac_mode": target.get("hvac_mode") if target else None,
-            "target": dict(target) if target is not None else None,
-            "next_preset": following.preset if following else None,
-            "next_hvac_mode": next_target.get("hvac_mode") if next_target else None,
-            "next_start": next_start.isoformat() if next_start else None,
-        }
+    def planned_info(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.planned_info(*args, **kwargs)
 
-    def planned_info(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None) -> dict[str, Any]:
-        """planned_targets, and the ends the card's buttons offer (#83, D2): the next slot a
-        change made now would end at (*Until the next slot*) and the next morning (*Until
-        tomorrow*), computed here, in Home Assistant's time zone, not in the browser's."""
-        plan, now = plan or self.plan(), now or dt_util.now()
-        thermostat = self.current(self.hass.states.get(entity_id))
-        slot = self.next_slot_end(entity_id, thermostat, plan, now)
-        tomorrow = self.next_day_slot_end(entity_id, thermostat, plan, now)
-        return {
-            **self.planned_targets(entity_id, plan, now, thermostat),
-            "next_slot_end": slot.isoformat() if slot else None,
-            "next_day_slot_end": tomorrow.isoformat() if tomorrow else None,
-        }
+    def next_change_info(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.next_change_info(*args, **kwargs)
 
-    def next_change_info(self, entity_id: str, now: datetime | None = None) -> dict[str, Any]:
-        """When Chauffage next changes a thermostat, and to what (#82): the end of its override,
-        else the next slot that sends something different, within a week. Its Chauffage preset,
-        then what the thermostat will have, named like a climate's attributes: its HVAC mode, its
-        own preset, its temperature (None when unknown), its range in heat/cool. `start` is None
-        when no slot ever changes the thermostat."""
-        plan, now = self.plan(), now or dt_util.now()
-        thermostat = self.current(self.hass.states.get(entity_id))
-        override = self.data["overrides"].get(entity_id)
-        if override:
-            start = engine.parse_datetime(override.get("end"))
-            start = dt_util.as_local(start) if start else None
-        else:
-            start = plan.next_change(entity_id, now, thermostat, not_before=now, until=now + timedelta(days=8))
-        slot = plan.slot_at(entity_id, start)[0] if start else None
-        target = plan.target_of(entity_id, slot, thermostat) or {}
-        # What it sends, in the slot's HVAC mode: a preset's cooling value in cool, not its heating one
-        sent = engine.complete(target, thermostat, planned=target.get("hvac_mode")) if target else {}
-        # The HVAC mode sent, or the one the thermostat keeps
-        hvac_mode = sent.get("hvac_mode") or (thermostat.state if thermostat is not None and target else None)
-        info = {"start": start, "preset": slot.preset if slot else None, "hvac_mode": hvac_mode,
-                "preset_mode": sent.get("preset_mode"), "temperature": sent.get("temperature")}
-        if all(key in sent for key in engine.RANGE_KEYS):
-            info.update({key: sent[key] for key in engine.RANGE_KEYS})
-        elif info["temperature"] is None and slot is not None and slot.preset and hvac_mode != "off":
-            info["temperature"] = self.preset_temperatures_of(entity_id, hvac_mode == "cool").get(slot.preset)
-        return info
-
-    def next_day_slot_end(self, entity_id: str, current: engine.Thermostat | None, plan: engine.Plan | None = None,
-                          now: datetime | None = None) -> datetime | None:
-        """The next morning, for the end "until tomorrow" of an off override (C4, D2): the first
-        slot of today that changes the thermostat's state, if it is still to come, else the first
-        one of tomorrow, or of the next day that has one, within a week. A 00:00 slot that
-        repeats the evening's does not count. None without one."""
-        now, plan = now or dt_util.now(), plan or self.plan()
-        for days in range(7):
-            start = (now + timedelta(days=days)).replace(hour=0, minute=0, second=0, microsecond=0)
-            start = dt_util.as_local(dt_util.as_utc(start))
-            when = plan.next_change(entity_id, start - timedelta(minutes=1), current,
-                                    not_before=start, until=start + timedelta(days=1))
-            if when is not None and dt_util.as_utc(when) > dt_util.as_utc(now):
-                return when
-        return None
-
-    def planned_presets(self) -> dict[str, dict[str, Any]]:
-        """planned_info of every scheduled thermostat, from one plan."""
-        plan, now = self.plan(), dt_util.now()
-        return {entity_id: self.planned_info(entity_id, plan, now) for entity_id in self.scheduled}
+    def planned_presets(self, *args: Any, **kwargs: Any) -> Any:
+        return self.read_model.planned_presets(*args, **kwargs)
 
     # ----- writing -----
 
@@ -579,13 +390,13 @@ class ChauffageRuntime:
                 current = scheduled.get(entity_id, {}).get("revision")
                 if revisions.get(entity_id) != current:
                     raise StaleRevision
-        schedule_ids = [schedule["id"] for schedule in self.data["schedules"]]
+        schedule_ids = [schedule["id"] for schedule in self.installation.schedules]
         preset_ids = list(self.presets_by_id)
         for entity_id, by_schedule in normalized.items():
             t = self._thermostat(entity_id)
             t["weeks"] = model.complete_weeks({**t["weeks"], **by_schedule}, schedule_ids, preset_ids)
         self._weeks_changed(normalized)
-        self.data["revision"] += 1
+        self.installation.revision += 1
         self._track_thermostats()
         for entity_id in self.active:
             self.learner.learn(self.hass.states.get(entity_id))
@@ -641,11 +452,11 @@ class ChauffageRuntime:
                         [[[slot[0], replacements.get(slot[1], slot[1]), *slot[2:]] for slot in day] for day in week]
                     )
             self._weeks_changed(affected)
-            self.data["revision"] += 1
+            self.installation.revision += 1
         for t in self.thermostats.values():
             for preset_id in removed:
                 t["mapping"].pop(preset_id, None)
-        self.data["presets"] = new_presets
+        self.installation.presets = new_presets
         self._changed()
         await self.scheduler.apply(Forced("presets changed"))
 
@@ -688,11 +499,11 @@ class ChauffageRuntime:
         An empty schedule puts every scheduled thermostat in eco (or the first preset) all week:
         each keeps a week in every schedule. The active schedule and its weeks do not change: the
         thermostats are not touched."""
-        if revision is not None and revision != self.data["revision"]:
+        if revision is not None and revision != self.installation.revision:
             raise StaleRevision
-        schedules, created = model.plan_schedules(items, self.data["schedules"], self.data["active_schedule"])
+        schedules, created = model.plan_schedules(items, self.installation.schedules, self.installation.active_schedule)
         kept = {s["id"] for s in schedules}
-        in_rules = ({rule["schedule"] for rule in self.data["rules"]} | {self.data["default_schedule"]}) - {None}
+        in_rules = ({rule["schedule"] for rule in self.installation.rules} | {self.installation.default_schedule}) - {None}
         if in_rules - kept:
             raise model.InvalidData(f"used by the activation rules: {sorted(in_rules - kept)}")
         preset_ids = list(self.presets_by_id)
@@ -705,8 +516,8 @@ class ChauffageRuntime:
         # schedule deleted then created again may take the same id)
         if created or self.schedule_ids - kept:
             self._weeks_changed(self.scheduled)
-        self.data["schedules"] = schedules
-        self.data["revision"] += 1
+        self.installation.schedules = schedules
+        self.installation.revision += 1
         self._changed()
         return copy.deepcopy(schedules)
 
@@ -715,9 +526,9 @@ class ChauffageRuntime:
         fired on the select with the `context` of what activated it (the logbook says who)."""
         if schedule_id not in self.schedule_ids:
             raise model.InvalidData(f"unknown schedule: {schedule_id}")
-        if schedule_id == self.data["active_schedule"]:
+        if schedule_id == self.installation.active_schedule:
             return
-        previous, self.data["active_schedule"] = self.data["active_schedule"], schedule_id
+        previous, self.installation.active_schedule = self.installation.active_schedule, schedule_id
         self._changed()
         self.hass.bus.async_fire(EVENT_SCHEDULE_ACTIVATED, {
             "schedule": schedule_id, "schedule_name": self.schedule_name(schedule_id),

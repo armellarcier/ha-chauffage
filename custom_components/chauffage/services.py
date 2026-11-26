@@ -203,13 +203,13 @@ def async_register(hass: HomeAssistant) -> None:
         entities = runtime.schedule_entities()
         return {
             "schedules": [{"id": s["id"], "name": s["name"], "entity_id": entities.get(s["id"])}
-                          for s in runtime.data["schedules"]],
-            **{key: runtime.data[key] for key in ("active_schedule", "rules_choice", "default_schedule")},
+                          for s in runtime.installation.schedules],
+            **{key: getattr(runtime.installation, key) for key in ("active_schedule", "rules_choice", "default_schedule")},
         }
 
     async def get_week(call: ServiceCall) -> ServiceResponse:
         runtime = loaded_runtime(hass)
-        schedule = known_schedule(runtime, call.data.get("schedule", runtime.data["active_schedule"]))
+        schedule = known_schedule(runtime, call.data.get("schedule", runtime.installation.active_schedule))
         response = {}
         for entity_id in call.data[ATTR_ENTITY_ID]:
             # The slots as they run on the thermostat: on an air conditioner, heat or cool

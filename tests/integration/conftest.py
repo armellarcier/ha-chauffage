@@ -279,7 +279,7 @@ class Bench:
     async def edit_stored_data(self, change: Callable[[dict[str, Any]], None]) -> None:
         """Change the data in memory as an older version stored it, or in a state that no API
         reaches. The only place where the tests touch the integration's data."""
-        change(self.runtime.data)
+        change(self.runtime.installation.stored)
         await self.hass.async_block_till_done()
 
     async def set_override(self, entity_id: str, override: dict | None) -> None:

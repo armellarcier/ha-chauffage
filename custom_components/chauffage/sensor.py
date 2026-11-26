@@ -44,10 +44,10 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
 
     @property
     def options(self) -> list[str]:
-        return [preset["id"] for preset in self.runtime.data["presets"]]
+        return [preset["id"] for preset in self.runtime.installation.presets]
 
     def _name(self, preset_id: str | None) -> str | None:
-        return next((p["name"] for p in self.runtime.data["presets"] if p["id"] == preset_id), None)
+        return next((p["name"] for p in self.runtime.installation.presets if p["id"] == preset_id), None)
 
     @property
     def native_value(self) -> str | None:
@@ -102,7 +102,7 @@ class NextChangeSensor(ThermostatSensorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         info = self.runtime.next_change_info(self.climate)
-        name = next((p["name"] for p in self.runtime.data["presets"] if p["id"] == info["preset"]), None)
+        name = next((p["name"] for p in self.runtime.installation.presets if p["id"] == info["preset"]), None)
         # Named like a climate entity's attributes, to apply with the climate services as they are
         return {"preset": info["preset"], "preset_name": name,
                 **{key: value for key, value in info.items() if key not in ("start", "preset")}}

@@ -89,7 +89,7 @@ class ManualChanges:
         if runtime.gateway.pending(new.entity_id):
             then = "a newer command is not applied yet"
         else:
-            then = "set back to its " + ("override" if new.entity_id in runtime.data["overrides"] else "slot")
+            then = "set back to its " + ("override" if new.entity_id in runtime.installation.overrides else "slot")
             runtime.entry.async_create_task(runtime.hass, runtime.scheduler.realign(new.entity_id), "chauffage realign late")
         _LOGGER.info("%s: applied late a command sent at %s (%s): not an override, %s",
                      new.entity_id, local_time(applied["sent"]), describe(applied), then)
@@ -106,7 +106,7 @@ class ManualChanges:
             expected = engine.complete(expected, after)
         preset_temperature = runtime.preset_temperature(new, expected["preset_mode"], after.state == "cool") \
             if expected is not None and "preset_mode" in expected else None
-        current = runtime.data["overrides"].get(new.entity_id)
+        current = runtime.installation.overrides.get(new.entity_id)
         change = classify(before, after, by_user=context.user_id is not None, expected=expected,
                           preset_temperature=preset_temperature, override=current["target"] if current else None)
         if isinstance(change, NoChange):
@@ -116,7 +116,7 @@ class ManualChanges:
                      describe(expected) if expected else "nothing",
                      "back to its slot" if isinstance(change, Resume) else "an override")
         if isinstance(change, Resume):
-            if new.entity_id in runtime.data["overrides"]:
+            if new.entity_id in runtime.installation.overrides:
                 resume = runtime.overrides.set(new.entity_id, None, source="thermostat", context=context)
             else:  # turned back on without an override: it may have missed slots while off
                 resume = runtime.scheduler.apply(Realign(frozenset({new.entity_id}), f"back from {old.state}"))

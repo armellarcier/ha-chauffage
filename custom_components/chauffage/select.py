@@ -40,23 +40,23 @@ class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
 
     @property
     def options(self) -> list[str]:
-        return [s["name"] for s in self.runtime.data["schedules"]]
+        return [s["name"] for s in self.runtime.installation.schedules]
 
     @property
     def current_option(self) -> str | None:
-        return self.runtime.schedule_name(self.runtime.data["active_schedule"])
+        return self.runtime.schedule_name(self.runtime.installation.active_schedule)
 
     @property
     def extra_state_attributes(self) -> dict[str, str | None]:
         return {
-            "schedule_id": self.runtime.data["active_schedule"],
+            "schedule_id": self.runtime.installation.active_schedule,
             # What the activation rules give (None without rules): a schedule chosen by hand stays
             # until it changes, an automation can activate it at once
-            "rules_choice": self.runtime.data["rules_choice"],
+            "rules_choice": self.runtime.installation.rules_choice,
         }
 
     async def async_select_option(self, option: str) -> None:
-        schedule_id = next(s["id"] for s in self.runtime.data["schedules"] if s["name"] == option)
+        schedule_id = next(s["id"] for s in self.runtime.installation.schedules if s["name"] == option)
         await self.runtime.activate_schedule(schedule_id, source="entity", context=self._context)
 
 

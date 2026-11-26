@@ -21,7 +21,9 @@ l'intégration. Si Node ou Python n'est pas installé, les scripts les lancent d
 ```
 custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
 custom_components/chauffage/domain/ les règles de Chauffage en objets valeur, sans Home Assistant
-custom_components/chauffage/storage/ les données stockées : la validation de ce qu'envoient la carte et les services
+custom_components/chauffage/storage/ les données stockées : leur propriétaire (Installation) et la validation de ce qu'envoient la carte et les services
+custom_components/chauffage/thermostats/  comment Chauffage lit un thermostat, et le commande (ThermostatGateway)
+custom_components/chauffage/app/    les services : programmateur, dérogations, changements à la main, règles, apprentissage, modèle de lecture
 frontend/src/                       la carte, en TypeScript : cartes Lovelace, panneau, bloc injecté
                                     dans la fenêtre de détail
 custom_components/chauffage/frontend/  la carte construite, servie par l'intégration (hors de git)
@@ -192,7 +194,7 @@ types, appelez `bench.needs(...)` dans le test.
 
 Lisez ce que Chauffage garde à travers le banc : `bench.presets()`, `bench.overrides()` ou
 `bench.snapshot()`, le message que reçoit la carte. Pour lire ce que Chauffage a enregistré,
-appelez `await bench.stored()`. Ne lisez jamais `runtime.data`. Pour simuler des données
+appelez `await bench.stored()`. Ne lisez jamais `runtime.installation`. Pour simuler des données
 enregistrées par une ancienne version, appelez `bench.edit_stored_data(...)`.
 
 ### Les filets de sécurité de la réécriture

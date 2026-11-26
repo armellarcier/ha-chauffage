@@ -21,7 +21,9 @@ integration tests. If Node or Python is not installed, the scripts run them in D
 ```
 custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
 custom_components/chauffage/domain/ the rules of Chauffage as value objects, without Home Assistant
-custom_components/chauffage/storage/ the stored data: the validation of what the card and the services send
+custom_components/chauffage/storage/ the stored data: its owner (Installation) and the validation of what the card and the services send
+custom_components/chauffage/thermostats/  how Chauffage reads a thermostat, and commands it (ThermostatGateway)
+custom_components/chauffage/app/    the services: scheduler, overrides, changes by hand, rules, learner, read model
 frontend/src/                       the card, in TypeScript: Lovelace cards, panel, block injected into
                                     the more-info dialog
 custom_components/chauffage/frontend/  the built card, served by the integration (not in git)
@@ -181,7 +183,7 @@ fixture: `vtherm`, `standard` and `plain`. If a test only makes sense for some k
 
 Read what Chauffage holds through the bench: `bench.presets()`, `bench.overrides()` or
 `bench.snapshot()`, the message the card receives. To read what Chauffage saved, call
-`await bench.stored()`. Never read `runtime.data`. To simulate data stored by an older version,
+`await bench.stored()`. Never read `runtime.installation`. To simulate data stored by an older version,
 call `bench.edit_stored_data(...)`.
 
 ### The safety nets of the rewrite

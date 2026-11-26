@@ -47,15 +47,15 @@ class ThermostatRegistry:
         self._runtime.overrides.drop(entity_id, "forgotten")
         self._runtime.scheduler.retry.discard(entity_id)
         self._runtime.gateway.drop_pending(entity_id)
-        self._runtime.data["renamed"] = {former: e for former, e in self._runtime.data["renamed"].items() if e != entity_id}
+        self._runtime.installation.renamed = {former: e for former, e in self._runtime.installation.renamed.items() if e != entity_id}
         repairs.close_missing(self._runtime.hass, entity_id)
-        self._runtime.data["revision"] += 1
+        self._runtime.installation.revision += 1
         self._runtime._track_thermostats()
         self._runtime._changed()
 
     def renamed_to(self, entity_id: str) -> str | None:
         """The new id of a thermostat renamed from this one, unless the id is taken again."""
-        current = self._runtime.data["renamed"].get(entity_id)
+        current = self._runtime.installation.renamed.get(entity_id)
         if current is None or entity_id in self._runtime.thermostats or self._runtime.hass.states.get(entity_id) is not None:
             return None
         return current
@@ -69,7 +69,7 @@ class ThermostatRegistry:
             repairs.close_missing(self._runtime.hass, entity_id)  # made again with the same id
         elif action == "update" and event.data.get("old_entity_id") in self._runtime.thermostats:
             self.renamed(event.data["old_entity_id"], entity_id)
-        if action != "remove" and entity_id in self._runtime._card_entities():
+        if action != "remove" and entity_id in self._runtime.read_model.card_entities():
             self._runtime._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
         entry = er.async_get(self._runtime.hass).async_get(entity_id) if entity_id else None
         if entity_id in self._runtime._planned_presets or (
@@ -99,9 +99,9 @@ class ThermostatRegistry:
         self._runtime.gateway.renamed(old, new)
         self._runtime.thermostats[new] = self._runtime.thermostats.pop(old)
         self._runtime._weeks_changed([new])
-        if old in self._runtime.data["overrides"]:
-            self._runtime.data["overrides"][new] = self._runtime.data["overrides"].pop(old)
-        renamed = self._runtime.data["renamed"]
+        if old in self._runtime.installation.overrides:
+            self._runtime.installation.overrides[new] = self._runtime.installation.overrides.pop(old)
+        renamed = self._runtime.installation.renamed
         for former, current in list(renamed.items()):
             if current == old:
                 renamed[former] = new
@@ -112,7 +112,7 @@ class ThermostatRegistry:
             entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id(old, key))
             if entity_id:
                 registry.async_update_entity(entity_id, new_unique_id=unique_id(new, key))
-        self._runtime.data["revision"] += 1
+        self._runtime.installation.revision += 1
         # Not notified: the entities wait for the reload (see reloading), which saves the data
         self._runtime.reloading = True
         self._runtime.hass.config_entries.async_schedule_reload(self._runtime.entry.entry_id)
