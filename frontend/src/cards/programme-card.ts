@@ -16,7 +16,7 @@ import { LINK_TOKEN, deviceLabel, deviceLinkHtml, deviceOf, entityLinkHtml, inRo
 import { OVERRIDE_TEMPERATURE, RESUME, cardFrame, coolPresetTemperatureOf, fillCard, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, withoutAir } from '../override-edit.ts';
 import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
 import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from '../presets.ts';
-import { INTEGRATION_PAGE, fromSettings, openSettings } from '../settings-dialog.ts';
+import { fromSettings, openSettings } from '../settings-dialog.ts';
 import { copyOfDay, joinAt, joined, normalize, parseSlot, serializeDay } from '../slots.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
@@ -53,7 +53,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _downAt: any;
   declare _drag: any;
   declare _focus: any;
-  declare _forgetAsk: any;
   declare _groupPref: any;
   declare _handleMoved: any;
   declare _hass: any;
@@ -77,7 +76,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _overrideStamp: any;
   declare _placeToken: any;
   declare _placedKey: any;
-  declare _placements: any;
   declare _previewed: any;
   declare _readTouch: any;
   declare _redrawLater: any;
@@ -96,7 +94,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _tabsShown: any;
   declare _tabsWait: any;
   declare _targetShown: any;
-  declare _thMore: any;
   declare _thermostats: any;
   declare _thermostatsStamp: any;
   declare _timer: any;
@@ -357,11 +354,9 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell && !this._thMore && !this._copyWeekMenu) return;
+      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell && !this._copyWeekMenu) return;
       this._menu = null;
       this._copyWeekMenu = null;
-      this._thMore = null;
-      this._forgetAsk = null;
       this._cell = null;
       this._schedEd = null;
       this._sel = null;
@@ -1439,10 +1434,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
       fill(`${this._schedulesViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
       return;
     }
-    if (this._view === 'thermostats' && this._source().ready) {
-      fill(`${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
-      return;
-    }
     // A view of the panel (`view`): its own element, kept while the card shows it
     if (VIEWS[this._view] && this._source().ready) {
       const frame = cardFrame(this.shadowRoot, STYLE, this._config.flat ? ' flat' : '');
@@ -1830,13 +1821,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
         this._render();
         return;
       }
-      // A thermostat's menu open (Thermostats page): a click elsewhere only closes it
-      if (this._thMore && !e.target.closest('.th-menu, [data-act="thermostat-more"]')) {
-        this._thMore = null;
-        this._forgetAsk = null;
-        this._render();
-        return;
-      }
       // Menu open: a click elsewhere only closes it
       if (this._menu && !e.target.closest('.menu, [data-act="menu"]')) {
         this._menu = null;
@@ -1856,7 +1840,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
         this._overrideSel = null;
         this._menu = null;
         this._schedEd = null;
-        this._thMore = null;
         this._render();
         this._openMoreInfo(mi.dataset.moreInfo);
         return;
@@ -1866,7 +1849,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
         this._sel = null;
         this._overrideSel = null;
         this._cell = null;
-        this._thMore = null;
         openDevice(device.dataset.device);
         return;
       }
@@ -2347,72 +2329,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     return `<span class="mi-link settings-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}">${esc(this._loc.t('setPresets'))}</span>`;
   }
 
-  // The panel's Thermostats page: every scheduled thermostat, by name. A row says what matters
-  // first: the thermostat (it opens its page), whether Chauffage controls it, the cards that show
-  // it. Pause is at hand; the rarer actions (open it, its devices, forget it) wait behind ⋮.
-  _thermostatsViewHtml() {
-    const t = this._loc.t;
-    const src = this._source();
-    const editable = src.editable;
-    const scheduled = [...src.scheduled()].sort((a, b) => this._name(a).localeCompare(this._name(b)));
-    // The cards that show each thermostat, read from the dashboards once
-    if (this._placements === undefined) {
-      this._placements = null;
-      placements(this._hass).then((p) => { this._placements = p; this._render(); });
-    }
-    const placesLine = (climate) => (this._placements
-      ? `<div class="th-cards">${placesHtml(t, this._placements[climate] || [])}</div>` : '');
-    // A row opens the thermostat's sheet; only a paused thermostat has a badge, the exception. Its
-    // actions wait in its ⋮ menu (canSetUp)
-    const rows = scheduled.map((climate) => {
-      const paused = src.paused(climate);
-      const open = this._thMore && this._thMore.climate === climate;
-      const more = !editable ? ''
-        : `<button class="icon-btn${open ? ' on' : ''}" data-act="thermostat-more" data-climate="${esc(climate)}" title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
-      const icon = (this._hass.states[climate] || { attributes: {} }).attributes.icon || 'mdi:thermostat';
-      return thRow(`class="th-row${paused ? ' paused' : ''}" data-climate="${esc(climate)}"`, `data-navigate="${esc(weeksPath(climate))}"`, icon,
-        `${esc(this._name(climate))}${paused ? ` <span class="badge paused">${esc(t('paused'))}</span>` : ''}`,
-        placesLine(climate), more);
-    }).join('');
-    // Schedule another thermostat: one of the climates Chauffage does not schedule yet
-    const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.') && !scheduled.includes(e))
-      .sort((a, b) => this._name(a).localeCompare(this._name(b)));
-    const add = editable && climates.length ? `<div class="th-add"><div class="th-add-title">${esc(t('addThermostat'))}</div>
-        <div class="th-add-row"><select data-add-climate>${climates.map((c) => `<option value="${esc(c)}">${esc(this._name(c))}</option>`).join('')}</select>
-        <button class="btn primary" data-act="thermostat-add">${esc(t('scheduleThermostat'))}</button></div></div>` : '';
-    // The integration's page: its options, its logs and its diagnostics. Home Assistant keeps it
-    // for admins
-    const integration = src.admin
-      ? `<span class="mi-link" role="link" tabindex="0" data-navigate="${INTEGRATION_PAGE}">${esc(t('integrationPage'))}</span>` : '';
-    return `<div class="thermostats-view"><div class="th-hint">${esc(t('thermostatsHint'))}</div><div class="th-list">${rows}</div>${add}
-      ${integration ? `<div class="th-foot">${integration}</div>` : ''}</div>${this._thermostatMenuHtml()}`;
-  }
-
-  // A thermostat's ⋮ menu on the Thermostats page, floating as every ⋮ menu of the card: Pause or
-  // Control, the thermostat and its devices, Forget (then its confirmation, in the menu)
-  _thermostatMenuHtml() {
-    const m = this._thMore;
-    if (!m || !this._source().scheduled().includes(m.climate)) return '';
-    const t = this._loc.t;
-    const src = this._source();
-    const ref = `data-climate="${esc(m.climate)}"`;
-    const item = (attrs, label, cls = 'mi') => `<button class="${cls}" ${attrs}><span>${label}</span></button>`;
-    const body = this._forgetAsk === m.climate
-      ? `<div class="mh">${esc(t('forgetText', { name: this._name(m.climate) }))}</div>
-        <div class="sched-btns"><button class="btn small danger" data-act="thermostat-forget-confirm" ${ref}>${esc(t('forgetConfirm'))}</button>
-        <button class="btn small" data-act="thermostat-forget-cancel" ${ref}>${esc(t('cancel'))}</button></div>`
-      : [
-        src.paused(m.climate) ? item(`data-act="resume" ${ref}`, esc(t('resumeShort'))) : item(`data-act="pause" ${ref}`, esc(t('pauseShort'))),
-        '<div class="sep"></div>',
-        item(`data-more-info="${esc(m.climate)}"`, esc(t('openThermostat'))),
-        // The devices' pages: Home Assistant keeps them for admins
-        ...(src.admin ? thermostatDevices(this._hass, src, m.climate) : []).map((id) => item(`data-device="${esc(id)}"`, esc(deviceLabel(this._hass, id)))),
-        '<div class="sep"></div>',
-        item(`data-act="thermostat-forget" ${ref}`, esc(t('forget')), 'mi danger'),
-      ].join('');
-    return `<div class="menu th-menu" style="top:${m.top}px;right:${m.right}px">${body}</div>`;
-  }
-
   // The panel's Schedules page: one row per schedule, as the Thermostats page, the active one
   // marked; a row opens the schedule's sheet; Activate; its ⋮ renames, moves, deletes (canSetUp, as the panel);
   // + New schedule creates an empty one or a copy, as the card's +
@@ -2431,11 +2347,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }).join('');
     const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
     return `<div class="thermostats-view schedules-view"><div class="th-list">${rows}</div>${add}</div>${this._schedMenuHtml()}`;
-  }
-
-  _forget(climate) {
-    this._forgetAsk = null;
-    return this._call((cmd) => cmd.forget(climate));
   }
 
   // Table: one column per preset (header: the preset, then its default temperature), one row per
@@ -3115,33 +3026,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
     if (act === 'week-hvac') return this._setWeekHvac(ds.climate, ds.mode);
-    if (act === 'pause' || act === 'resume') {
-      this._thMore = null;
-      return this._setPaused(ds.climate, act === 'pause');
-    }
-    if (act === 'thermostat-more') {
-      // Under its button, as the row menu
-      const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
-      const b = el.getBoundingClientRect();
-      const m = this._thMore;
-      this._thMore = m && m.climate === ds.climate ? null
-        : { climate: ds.climate, top: b.bottom - card.top + 4, right: card.right - b.right };
-      this._forgetAsk = null;
-      return this._render();
-    }
-    if (act === 'thermostat-forget' || act === 'thermostat-forget-cancel') {
-      this._forgetAsk = act === 'thermostat-forget' ? ds.climate : null;
-      return this._render();
-    }
-    if (act === 'thermostat-forget-confirm') {
-      this._thMore = null;
-      return this._forget(ds.climate);
-    }
-    if (act === 'thermostat-add') {
-      // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
-      const climate = (this.shadowRoot.querySelector('[data-add-climate]') as any).value;
-      return this._call((cmd) => cmd.saveWeeks({ [climate]: {} }, { [climate]: null }));
-    }
+    if (act === 'resume') return this._setPaused(ds.climate, false);
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._sel = null;
       this._overrideSel = { climate: ds.climate, create: true };

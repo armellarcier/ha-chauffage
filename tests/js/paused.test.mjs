@@ -86,7 +86,7 @@ describe('a paused thermostat in the card', () => {
     assert.ok(q(card, '.paused-note'));
     q(card, '[data-act="resume"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
-    const page = createCard(hass, { view: 'thermostats' }); // the panel's Thermostats page
+    const page = createCard(hass, { view: 'thermostats' }); await settle(); // the panel's Thermostats page
     assert.equal(q(page, '[data-act="pause"], [data-act="resume"]'), null);
   });
 
