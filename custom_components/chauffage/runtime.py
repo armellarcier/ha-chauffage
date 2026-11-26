@@ -15,7 +15,6 @@ its own (not manual changes).
 
 from __future__ import annotations
 
-import asyncio
 import copy
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -25,20 +24,19 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Context, Event, HomeAssistant, State, callback
-from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.event import (
-    TrackTemplate,
     async_track_state_change_event,
-    async_track_template_result,
     async_track_time_change,
 )
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
 from . import engine, model, repairs
 from .history import TemperatureHistory
 from .const import (
+    DATA,
+    ENTITIES,
+    TICK,
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
     CONF_MANUAL_OVERRIDE_END,
@@ -66,18 +64,17 @@ from .const import (
     thermostat_unique_id,
 )
 from .store import SAVE_DELAY, ChauffageStore
+from .app.learner import Learner
 from .app.manual_changes import ManualChanges
 from .app.overrides import OverrideService, ThermostatFailed, ThermostatPaused
+from .app.rule_engine import RuleEngine
+from .app.scheduler import Scheduler
+from .app.thermostat_registry import ThermostatRegistry
+from .domain.plan import Forced
 from .thermostats.gateway import ThermostatGateway
 from .thermostats.reader import ThermostatReader, reader_for
 
 _LOGGER = logging.getLogger(__name__)
-
-# Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
-DATA, TICK = "data", "tick"
-# The ids of the entities the cards open changed: the cards are told, nothing else is redone (the
-# entities must not be added or removed during a thermostat's rename, which moves them)
-ENTITIES = "entities"
 
 
 class StaleRevision(Exception):
@@ -104,18 +101,17 @@ class ChauffageRuntime:
         self.version = version  # of the integration: a card older than it asks to reload the page
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
         self.gateway = ThermostatGateway(hass, data, self.current, self._save)
-        self._retry: set[str] = set()  # thermostats whose last command failed
         self.overrides = OverrideService(self)
         self.manual_changes = ManualChanges(self)
-        self._lock = asyncio.Lock()
+        self.scheduler = Scheduler(self)
+        self.rules = RuleEngine(self)
+        self.learner = Learner(self)
+        self.registry = ThermostatRegistry(self)
         self._listeners: set[Callable[[str], None]] = set()
         self._unsubs: list[Callable[[], None]] = []
         self._unsub_states: Callable[[], None] | None = None
-        self._last_tick: datetime | None = None
         self._planned_presets: set[str] = set()  # the deprecated sensors, seen at the last check
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
-        self._unsub_rules: Callable[[], None] | None = None
-        self.rule_results: list[Any] = []  # each rule now (see render_rule)
         # A thermostat renamed: the entry reloads to attach its entities to the new id, which
         # follow it meanwhile (their unique ids moved); nothing to add or remove until then
         self.reloading = False
@@ -123,14 +119,14 @@ class ChauffageRuntime:
     # ----- life cycle -----
 
     async def async_start(self) -> None:
-        self._last_tick = dt_util.now()  # the realignment below covers the time before
+        self.scheduler.start()
         self._unsubs.append(async_track_time_change(self.hass, self._tick, second=0))
-        self._unsubs.append(self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self._registry_updated))
+        self._unsubs.append(self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self.registry.registry_updated))
         for reloaded in ("automation_reloaded", "script_reloaded"):
             self._unsubs.append(self.hass.bus.async_listen(reloaded, self._check_planned_preset))
         self._track_thermostats()
         for entity_id in self.active:
-            self._learn(self.hass.states.get(entity_id))
+            self.learner.learn(self.hass.states.get(entity_id))
         if self.hass.state is CoreState.running:
             self.entry.async_create_task(self.hass, self._started(), "chauffage realign")
         else:
@@ -148,9 +144,9 @@ class ChauffageRuntime:
             if self.hass.states.get(entity_id) is None and er.async_get(self.hass).async_get(entity_id) is None:
                 repairs.raise_missing(self.hass, entity_id)
         self._check_planned_preset()  # once the automations and scripts are loaded
-        self._track_rules()
+        self.rules.track()
         await self.follow_rules()
-        await self.apply(force=True, reason="Home Assistant started")
+        await self.scheduler.apply(Forced("Home Assistant started"))
 
     @callback
     def async_stop(self) -> None:
@@ -160,9 +156,7 @@ class ChauffageRuntime:
         if self._unsub_states:
             self._unsub_states()
             self._unsub_states = None
-        if self._unsub_rules:
-            self._unsub_rules()
-            self._unsub_rules = None
+        self.rules.stop()
 
     # ----- listeners (entities, websocket) -----
 
@@ -249,7 +243,7 @@ class ChauffageRuntime:
     @property
     def retrying(self) -> set[str]:
         """The thermostats whose last command failed, sent again at the next minutes."""
-        return set(self._retry)
+        return set(self.scheduler.retry)
 
     @property
     def schedule_ids(self) -> set[str]:
@@ -312,24 +306,11 @@ class ChauffageRuntime:
         """Why a thermostat protects itself: "window", "auto_start_stop", or None."""
         return self.reader(state.entity_id).cause(state) if state is not None else None
 
-    def _learned(self, entity_id: str, cool: bool = False) -> dict[str, float]:
-        """{own preset: temperature} learned from a thermostat. `cool`: while it cooled."""
-        key = "cool_preset_temperatures" if cool else "preset_temperatures"
-        return self.thermostats.get(entity_id, {}).get(key, {})
-
     def preset_temperature(self, state: State, preset: str, cool: bool = False) -> float | None:
-        """Temperature a thermostat's own preset gives (published, else learned): the one the
-        card shows, and the one a manual setpoint is compared with. `cool`: when it cools."""
-        return engine.preset_temperature(dict(state.attributes), preset, self._learned(state.entity_id, cool), cool)
+        return self.learner.preset_temperature(state, preset, cool)
 
     def temperatures_of(self, state: State | None, cool: bool = False) -> dict[str, float]:
-        """{own preset: temperature} of a thermostat, for its presets and the learned ones.
-        `cool`: what they give when it cools."""
-        if state is None:
-            return {}
-        learned = self._learned(state.entity_id, cool)
-        temperatures = {p: self.preset_temperature(state, p, cool) for p in {*self.current(state).presets, *learned}}
-        return {p: t for p, t in temperatures.items() if t is not None}
+        return self.learner.temperatures_of(state, cool)
 
     def plan(self) -> engine.Plan:
         """What the active thermostats follow: paused ones are left out."""
@@ -495,7 +476,7 @@ class ChauffageRuntime:
         return {
             "preset": current.preset if current else None,
             "hvac_mode": target.get("hvac_mode") if target else None,
-            "target": target,
+            "target": dict(target) if target is not None else None,
             "next_preset": following.preset if following else None,
             "next_hvac_mode": next_target.get("hvac_mode") if next_target else None,
             "next_start": next_start.isoformat() if next_start else None,
@@ -584,7 +565,7 @@ class ChauffageRuntime:
         thermostat sent (`revisions`; None: not scheduled when the copy was made). StaleRevision
         if one of them changed."""
         normalized = model.normalize_weeks(weeks, self.schedule_ids, self.preset_ids)
-        if any(self._renamed_to(entity_id) for entity_id in normalized):
+        if any(self.registry.renamed_to(entity_id) for entity_id in normalized):
             raise StaleRevision  # a copy holding a former id: reloaded, the card sets it aside
         # A card may list a climate removed from Home Assistant: never schedule a ghost
         registry = er.async_get(self.hass)
@@ -607,65 +588,17 @@ class ChauffageRuntime:
         self.data["revision"] += 1
         self._track_thermostats()
         for entity_id in self.active:
-            self._learn(self.hass.states.get(entity_id))
+            self.learner.learn(self.hass.states.get(entity_id))
         self._changed()
-        await self.apply(force=True, reason="weeks saved")
+        await self.scheduler.apply(Forced("weeks saved"))
+
+    # ----- scheduled thermostats (app/thermostat_registry.py) -----
 
     async def set_paused(self, entity_id: str, paused: bool) -> None:
-        """Pause (kept, not controlled, its override dropped and the thermostat left as it is) or
-        resume (realigned at once)."""
-        if entity_id not in self.scheduled:
-            raise model.InvalidData(f"not scheduled: {entity_id}")
-        if self.is_paused(entity_id) == paused:
-            return
-        self.thermostats[entity_id]["paused"] = paused
-        if paused:
-            self.overrides.drop(entity_id, "paused")
-            self._retry.discard(entity_id)
-            self.gateway.drop_pending(entity_id)
-        self._track_thermostats()
-        self._changed()
-        if not paused:
-            self._learn(self.hass.states.get(entity_id))
-            await self.apply(include={entity_id}, reason="resumed after a pause")
+        await self.registry.set_paused(entity_id, paused)
 
     async def forget(self, entity_id: str) -> None:
-        """No longer scheduled: its data, override and entities are dropped, the thermostat left
-        as it is. A new revision: a card's copy that still holds it must reload before saving."""
-        if self.thermostats.pop(entity_id, None) is None:
-            raise model.InvalidData(f"not scheduled: {entity_id}")
-        self.overrides.drop(entity_id, "forgotten")
-        self._retry.discard(entity_id)
-        self.gateway.drop_pending(entity_id)
-        self.data["renamed"] = {former: e for former, e in self.data["renamed"].items() if e != entity_id}
-        repairs.close_missing(self.hass, entity_id)
-        self.data["revision"] += 1
-        self._track_thermostats()
-        self._changed()
-
-    def _renamed_to(self, entity_id: str) -> str | None:
-        """The new id of a thermostat renamed from this one, unless the id is taken again."""
-        current = self.data["renamed"].get(entity_id)
-        if current is None or entity_id in self.thermostats or self.hass.states.get(entity_id) is not None:
-            return None
-        return current
-
-    @callback
-    def _registry_updated(self, event: Event) -> None:
-        action, entity_id = event.data.get("action"), event.data.get("entity_id")
-        if action == "remove" and entity_id in self.scheduled:
-            repairs.raise_missing(self.hass, entity_id)
-        elif action == "create" and entity_id in self.scheduled:
-            repairs.close_missing(self.hass, entity_id)  # made again with the same id
-        elif action == "update" and event.data.get("old_entity_id") in self.thermostats:
-            self._renamed(event.data["old_entity_id"], entity_id)
-        if action != "remove" and entity_id in self._card_entities():
-            self._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
-        entry = er.async_get(self.hass).async_get(entity_id) if entity_id else None
-        if entity_id in self._planned_presets or (
-                entry is not None and entry.domain == "sensor" and entry.platform == DOMAIN
-                and entry.unique_id.endswith(f"_{PLANNED_PRESET_KEY}")):
-            self._check_planned_preset()
+        await self.registry.forget(entity_id)
 
     @callback
     def _check_planned_preset(self, _event: Event | None = None) -> None:
@@ -677,46 +610,6 @@ class ChauffageRuntime:
         sensors = [entity_id for entity_id in self._planned_presets
                    if (entry := registry.async_get(entity_id)) is not None and entry.disabled_by is None]
         repairs.check_planned_preset(self.hass, sensors)
-
-    @callback
-    def _renamed(self, old: str, new: str) -> None:
-        """A thermostat renamed in Home Assistant: its data and override move to the new id
-        (`renamed` tells the cards still holding the former one), its entities keep their ids and
-        settings (their unique ids follow), and the entry is reloaded to attach them to the new
-        id. A new revision: a card's copy of the weeks holds
-        the former id. Data still held under the new id (an entity gone, kept in its repair) is
-        dropped with its entities: the renamed thermostat is the one that exists."""
-        registry = er.async_get(self.hass)
-        # Exact unique ids: climate.salon_bas's also start with "<entry>_climate.salon_"
-        def unique_id(climate: str, key: str) -> str:
-            return thermostat_unique_id(self.entry.entry_id, climate, key)
-
-        if self.thermostats.pop(new, None) is not None:
-            for key, platform in THERMOSTAT_ENTITIES.items():
-                if entity_id := registry.async_get_entity_id(platform, DOMAIN, unique_id(new, key)):
-                    registry.async_remove(entity_id)
-            repairs.close_missing(self.hass, new)
-        self.overrides.drop(new, "forgotten")
-        self.gateway.renamed(old, new)
-        self.thermostats[new] = self.thermostats.pop(old)
-        self._weeks_changed([new])
-        if old in self.data["overrides"]:
-            self.data["overrides"][new] = self.data["overrides"].pop(old)
-        renamed = self.data["renamed"]
-        for former, current in list(renamed.items()):
-            if current == old:
-                renamed[former] = new
-        renamed[old] = new
-        renamed.pop(new, None)  # renamed back
-        repairs.close_missing(self.hass, old)
-        for key, platform in THERMOSTAT_ENTITIES.items():
-            entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id(old, key))
-            if entity_id:
-                registry.async_update_entity(entity_id, new_unique_id=unique_id(new, key))
-        self.data["revision"] += 1
-        # Not notified: the entities wait for the reload (see reloading), which saves the data
-        self.reloading = True
-        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
 
     async def set_presets(self, presets: list[Any], replacements: dict[str, str] | None = None) -> None:
         """New list of presets; a removed preset is replaced in the weeks by the preset given
@@ -754,7 +647,7 @@ class ChauffageRuntime:
                 t["mapping"].pop(preset_id, None)
         self.data["presets"] = new_presets
         self._changed()
-        await self.apply(force=True, reason="presets changed")
+        await self.scheduler.apply(Forced("presets changed"))
 
     def _refuse_lost_temperature(self, preset: dict[str, Any]) -> None:
         """Refuses a preset that loses its temperature when heating or when cooling while a
@@ -788,7 +681,7 @@ class ChauffageRuntime:
         else:
             self.thermostats.pop(entity_id, None)  # not scheduled: nothing left to keep
         self._changed()
-        await self.apply(force=True, reason=f"mapping of {entity_id} changed")
+        await self.scheduler.apply(Forced(f"mapping of {entity_id} changed"))
 
     async def set_schedules(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
         """Create (empty or a copy), rename, move and delete schedules (see model.plan_schedules).
@@ -831,97 +724,25 @@ class ChauffageRuntime:
             "previous_schedule": previous, "source": source, "entity_id": self.schedule_select(),
         }, context=context)
         _LOGGER.info("Schedule %s activated (%s), was %s", schedule_id, source, previous)
-        await self.apply(force=True, reason=f"schedule {schedule_id} activated ({source})")
+        await self.scheduler.apply(Forced(f"schedule {schedule_id} activated ({source})"))
 
-    # ----- activation rules -----
+    # ----- activation rules (app/rule_engine.py) -----
+
+    @property
+    def rule_results(self) -> list[Any]:
+        return self.rules.results
 
     async def set_rules(self, rules: Any, default_schedule: Any) -> None:
-        """New activation rules. They activate their schedule when what they give changes, as
-        when their entities change: a schedule chosen by hand stays if the outcome is the same."""
-        normalized = model.normalize_rules(rules, default_schedule, self.schedule_ids)
-        for rule in normalized:
-            try:
-                Template(rule["template"], self.hass).ensure_valid()
-            except TemplateError as err:
-                raise model.InvalidData(f"invalid template: {err}") from err
-        self.data["rules"], self.data["default_schedule"] = normalized, default_schedule
-        self._changed()
-        self._track_rules()
-        await self.follow_rules()
+        await self.rules.set(rules, default_schedule)
 
-    @callback
-    def _track_rules(self) -> None:
-        """Watches the entities (and the time) the templates of the rules depend on."""
-        if self._unsub_rules:
-            self._unsub_rules()
-        self.rule_results = []
-
-        @callback
-        def changed() -> None:
-            self.entry.async_create_task(self.hass, self.follow_rules(), "chauffage rules")
-
-        self._unsub_rules = self.track_templates([rule["template"] for rule in self.data["rules"]], changed)
-
-    @callback
     def track_templates(self, templates: list[str], action: Callable[[], None]) -> Callable[[], None] | None:
-        """Calls `action` (a callback) when the result of one of these templates may have changed:
-        HA's template tracking (the entities they read, the time when they use now()). Empty and
-        invalid templates are left out; None when nothing is tracked."""
-        tracked = []
-        for text in templates:
-            template = Template(text, self.hass)
-            try:
-                template.ensure_valid()
-            except TemplateError:
-                continue
-            if text.strip():
-                tracked.append(TrackTemplate(template, None))
-        if not tracked:
-            return None
-
-        @callback
-        def changed(_event: Event | None, _updates: list) -> None:
-            action()
-
-        return async_track_template_result(self.hass, tracked, changed).async_remove
+        return self.rules.track_templates(templates, action)
 
     def render_rule(self, rule: dict[str, Any]) -> tuple[Any, str | None, str | None]:
-        """(result, text, error) of a rule now. The result: True / False for a rule with a schedule,
-        the schedule its template gives (False: none) for a rule without; None when its template is
-        empty or fails (the rule does not apply)."""
-        if not rule["template"].strip():
-            return None, None, None
-        try:
-            text = Template(rule["template"], self.hass).async_render(parse_result=False)
-        except TemplateError as err:
-            return None, None, str(err)
-        if rule["schedule"]:
-            return result_as_boolean(text), text, None
-        return model.schedule_named(text, self.data["schedules"]) or False, text, None
-
-    def _evaluate_rules(self) -> list[Any]:
-        results = []
-        for rule in self.data["rules"]:
-            result, _, error = self.render_rule(rule)
-            if error:
-                _LOGGER.warning("Activation rule %s: %s", rule["template"], error)
-            results.append(result)
-        return results
+        return self.rules.render(rule)
 
     async def follow_rules(self, force: bool = False) -> None:
-        """Activates the schedule the rules give when their outcome changed (or `force`)."""
-        results = self._evaluate_rules()
-        notify = results != self.rule_results
-        self.rule_results = results
-        outcome = model.rules_outcome(self.data["rules"], results, self.data["default_schedule"])
-        changed = outcome != self.data["rules_choice"]
-        if changed:
-            self.data["rules_choice"] = outcome
-            self._changed()
-        elif notify:
-            self._notify(DATA)
-        if outcome is not None and (changed or force):
-            await self.activate_schedule(outcome, source="rules")
+        await self.rules.follow(force)
 
     # ----- overrides (app/overrides.py) -----
 
@@ -966,71 +787,10 @@ class ChauffageRuntime:
         is sent, a preset's heating temperature is not)."""
         return self.gateway.needs(entity_id, self._to_send(entity_id, target, current, by_user), current)
 
-    async def _realign(self, entity_id: str, reason: str = "command applied late") -> None:
-        """A command applied late, after the thermostat was meant to do something else, or a
-        thermostat turned back on: set to its override, or to its slot."""
-        override = self.data["overrides"].get(entity_id)
-        if override is None:
-            await self.apply(include={entity_id}, reason=reason)
-            return
-        async with self._lock:
-            current = self.current(self.hass.states.get(entity_id))
-            if current is None or engine.ignored(current):
-                return
-            to_send = self.needs(entity_id, override["target"], current, by_user=not override.get("preset"))
-            if to_send is not None:
-                await self.gateway.send(entity_id, to_send, f"{reason}, back to the override")
-
-    # ----- scheduling -----
-
-    async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None,
-                    since: datetime | None = None, include: set[str] | None = None, reason: str | None = None) -> None:
-        """Sends the thermostats their slot (see engine.targets); `reason`, logged with each
-        command, says why (by default: a new slot)."""
-        async with self._lock:
-            now, retry = dt_util.now(), set(self._retry)
-            plan = self.plan()
-            todo = engine.targets(
-                plan,
-                now,
-                {e: t for e in self.active if (t := self.current(self.hass.states.get(e)))},
-                force=force,
-                resumed=resumed,
-                ended=ended or (),
-                since=since,
-                include=frozenset(include or ()) | frozenset(self._retry),
-                pending=self.gateway.last_pending(),
-            )
-            # A thermostat to retry that needs nothing anymore (already right, override, off…)
-            self._retry &= {entity_id for entity_id, _ in todo}
-            for i, (entity_id, target) in enumerate(todo):
-                if i and self.pause:
-                    await asyncio.sleep(self.pause)
-                if entity_id not in self.thermostats or self.is_paused(entity_id):
-                    continue  # paused or forgotten meanwhile
-                why = ("retry after a failed command" if entity_id in retry
-                       else "override ended (expired)" if entity_id in (ended or ())
-                       else reason or "new slot")
-                slot, _ = plan.slot_at(entity_id, now)
-                what = slot.preset or slot.settings.get("hvac_mode")  # an off or a fan-only slot has no preset
-                done = await self.gateway.send(entity_id, target, f"{why}, {what} of schedule {self.data['active_schedule']}")
-                # Not delivered (unreachable valve…): sent again at the next minutes
-                if done:
-                    self._retry.discard(entity_id)
-                else:
-                    self._retry.add(entity_id)
+    # ----- scheduling (app/scheduler.py) -----
 
     async def _tick(self, now: datetime) -> None:
-        ended = engine.ended_overrides(self.data["overrides"], dt_util.now())
-        since, self._last_tick = self._last_tick, dt_util.now()
-        # Dropped before the slots are applied (which takes a while): one set again meanwhile is a
-        # new override, sent to the thermostat
-        for entity_id in ended:
-            self.overrides.drop(entity_id, "expired")
-        if ended:
-            self._changed()
-        self.gateway.expire_pending(dt_util.now())
-        await self.apply(ended=ended, since=since)
+        await self.scheduler.tick(now)
         self._notify(TICK)
 
     # ----- manual changes -----
@@ -1044,29 +804,4 @@ class ChauffageRuntime:
             async_track_state_change_event(self.hass, entities, self.manual_changes.state_changed) if entities else None
         )
 
-    @callback
-    def _learn(self, state: State | None) -> bool:
-        """While a thermostat is on a preset, its setpoint is that preset's temperature: its
-        cooling temperature while it cools, kept apart. In heat/cool, in dry and in fan only, the
-        setpoint shown is not a preset's temperature: nothing is learned."""
-        current = self.current(state)
-        if current is None or engine.ignored(current) or state.entity_id not in self.thermostats:
-            return False
-        data = self.thermostats[state.entity_id]
-        learned = False
-        temperatures = (data.setdefault("cool_preset_temperatures", {}) if current.state == "cool"
-                        else data["preset_temperatures"])
-        # A VTherm on another preset than asked, for example its central mode in frost
-        # protection: its setpoint is not the asked preset's temperature (#92). Nor is the frost
-        # setpoint it shows on the asked preset while its window is open
-        if (current.temperature is not None and not engine.is_manual_preset(current.preset)
-                and self._cause_of(state) is None
-                and current.state not in (engine.HEAT_COOL, engine.DRY, engine.FAN_ONLY)
-                and current.preset == engine.preset_value(state.attributes.get("preset_mode"))
-                and temperatures.get(current.preset) != current.temperature):
-            temperatures[current.preset] = current.temperature
-            learned = True
-        if learned:
-            self._changed()
-        return learned
 

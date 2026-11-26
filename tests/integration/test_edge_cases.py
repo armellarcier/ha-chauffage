@@ -84,7 +84,7 @@ async def test_thermostats_are_sent_one_after_the_other(bench: Bench, monkeypatc
     async def sleep(seconds):
         pauses.append(seconds)  # asyncio.sleep is replaced for the whole test
 
-    monkeypatch.setattr("custom_components.chauffage.runtime.asyncio.sleep", sleep)
+    monkeypatch.setattr("custom_components.chauffage.app.scheduler.asyncio.sleep", sleep)
     await bench.go_to("10:00")
     bench.thermostat("climate.salon", "comfort")
     bench.thermostat("climate.bureau", "eco")

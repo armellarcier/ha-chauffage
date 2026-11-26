@@ -14,6 +14,7 @@ from test_store import fixture
 
 from custom_components.chauffage import engine, model
 from custom_components.chauffage.store import migrate
+from custom_components.chauffage.domain.plan import Forced
 
 
 @pytest.fixture(params=KINDS)
@@ -30,7 +31,7 @@ async def without_cooling(bench: Bench, preset_id: str) -> None:
     without = [{k: v for k, v in p.items() if k != "cool_temperature"} if p["id"] == preset_id else p
                for p in bench.presets()]
     await bench.edit_stored_data(lambda data: data.update(presets=without))
-    await bench.runtime.apply(force=True)
+    await bench.runtime.scheduler.apply(Forced("new slot"))
     await bench.hass.async_block_till_done()
     bench.applied()
     bench.temperature_calls.clear()
