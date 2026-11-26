@@ -4,10 +4,10 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { coolColor, derivedCoolColor } from '../../colors.ts';
 import { MANUAL_PRESETS, SETTING_ATTRS, errorText, esc, hasNoPreset } from '../../common.ts';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
-import { captureButtonHtml, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
+import { captureButtonHtml, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettings, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
 import { deviceLinkHtml, deviceOf } from '../../links.ts';
 import { coolPresetTemperatureOf, presetTemperatureOf, presetValue, targetOf } from '../../override-edit.ts';
-import { fitTemperature, presetsOf, sortedPresets, stepOf, stepperHtml } from '../../presets.ts';
+import { fitTemperature, presetsOf, sortedPresets, stepOf, stepper } from '../../presets.ts';
 import { parseSlot } from '../../slots.ts';
 import { placePopover, placeWhenDrawn } from '../shared/popover.ts';
 import { ChauffageView } from './view.ts';
@@ -247,8 +247,8 @@ export class ChauffagePresetsView extends ChauffageView {
     // `attr`: data-cell-temp (heating) or data-cell-cool (cooling, empty without a value), with
     // its aria-label. Its − and its + move it by the thermostat's step (half a degree for a
     // preset's default)
-    const tempInput = (value, attr = 'data-cell-temp', label = t('presetTemperature')) => unsafeHTML(stepperHtml(this._loc, attr, value, 'cell-step',
-      sel.kind === 'thermostat' ? stepOf(this.hass, sel.climate) : 0.5, label));
+    const tempInput = (value, attrs: any = { 'data-cell-temp': true }, label = t('presetTemperature')) => stepper(this._loc, attrs, value, 'cell-step',
+      sel.kind === 'thermostat' ? stepOf(this.hass, sel.climate) : 0.5, label);
     if (sel.kind === 'thermostat') {
       const explicit = src.mapping(sel.climate)[preset.id] || {};
       const st = this.hass.states[sel.climate];
@@ -284,15 +284,15 @@ export class ChauffagePresetsView extends ChauffageView {
       // The cooling field opens on what the thermostat gets: its own value, else the default
       const coolDefault = coolPresetTemperatureOf(src, sel.climate, defaults);
       // Empty (its own preset's temperature is not known): the preset's cooling temperature, as a hint
-      const coolHint = preset.cool_temperature != null ? ` placeholder="${esc(this._loc.number(preset.cool_temperature))}"` : '';
-      const coolField = tempInput(cool ?? coolDefault, `data-cell-cool${coolHint}`, t('temperatureCoolAria'));
+      const coolHint = preset.cool_temperature != null ? this._loc.number(preset.cool_temperature) : null;
+      const coolField = tempInput(cool ?? coolDefault, { 'data-cell-cool': true, placeholder: coolHint }, t('temperatureCoolAria'));
       // Only cooling: one question, the default, one of its own presets, or a temperature
       const heatChoice = coolOnly && cool != null ? 'cool' : choice;
       const row = radio('cell-choice', heatChoice);
       const rows = html`${row('default', t('presetAuto', { value: defaultText }))}${
         own.length ? row('own', t('cellOwn'), html`<select data-cell-preset aria-label=${t('ownPreset')}>${options}</select>`) : nothing}${
         coolOnly ? row('cool', t('presetTemperature'), coolField, ' pv-cool')
-          : row('temperature', t('presetTemperature'), tempInput(temp, 'data-cell-temp', reversible ? t('temperatureHeatAria') : t('presetTemperature')))}`;
+          : row('temperature', t('presetTemperature'), tempInput(temp, { 'data-cell-temp': true }, reversible ? t('temperatureHeatAria') : t('presetTemperature')))}`;
       // An air conditioner that heats and cools: the same question when cooling, with the same
       // rows. The default says what the thermostat then gets: "Default (25°)", "Default (its
       // Eco preset, 27°)" or "Not used when cooling"; again when the row chosen changes
@@ -301,7 +301,7 @@ export class ChauffagePresetsView extends ChauffageView {
       const cooling = !reversible ? nothing : html`<div class="pv-when">${hvacIconTemplate('cool')}${t('whenCooling')}</div>
         <div class="pv-choices" role="radiogroup">${coolRow('default', fallback, null, ' pv-cooldefault-row')}${coolRow('temperature', t('presetTemperature'), coolField, ' pv-cool')}</div>`;
       // The fan and the vanes, folded (lot 3)
-      const more = unsafeHTML(moreSettingsHtml(this.hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting'));
+      const more = moreSettings(this.hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting');
       // Its own presets are set on its device (their temperatures, on a Versatile Thermostat)
       const device = own.length ? deviceLinkHtml(this.hass, deviceOf(this.hass, sel.climate), t('ownPresetsOnDevice')) : '';
       const when = reversible ? html`<div class="pv-when">${hvacIconTemplate('heat')}${t('whenHeating')}</div>`
@@ -333,8 +333,8 @@ export class ChauffagePresetsView extends ChauffageView {
         <span>${t('presetName')}</span>
         <span class="pv-name">${cools ? nothing : color}
           <input type="text" data-cell-name value=${isNew ? '' : preset.name} placeholder=${t('presetName')}></span>
-        <span>${t(cools ? 'whenHeating' : 'presetDefaultTemperature')}</span>${tempInput(isNew ? 19 : preset.temperature, 'data-cell-temp', t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
-        ${cools ? html`<span>${t('whenCooling')}</span>${tempInput(isNew ? null : preset.cool_temperature, 'data-cell-cool', t('temperatureCoolAria'))}
+        <span>${t(cools ? 'whenHeating' : 'presetDefaultTemperature')}</span>${tempInput(isNew ? 19 : preset.temperature, { 'data-cell-temp': true }, t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
+        ${cools ? html`<span>${t('whenCooling')}</span>${tempInput(isNew ? null : preset.cool_temperature, { 'data-cell-cool': true }, t('temperatureCoolAria'))}
         <span>${t('presetHeatColor')}</span><span class="pv-name">${color}</span>
         <span>${t('presetCoolColor')}</span>
         <span class="pv-name"><input type="color" data-cell-cool-color ?data-chosen=${!!preset.cool_color} value=${coolColor(isNew ? { color: '#9e9e9e' } : preset)} title=${t('presetCoolColor')}></span>` : nothing}

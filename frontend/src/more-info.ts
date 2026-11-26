@@ -1,5 +1,4 @@
 import { LitElement, html, nothing, unsafeCSS } from 'lit';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { dataSource } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { SnapshotController } from './controllers/snapshot-controller.ts';
@@ -9,7 +8,7 @@ import { atMinutes, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, t
 import { COLS3_STYLE, FAN_STYLE, FIELD_BOX, OFF_COLOR, dayOn, fullNames, hasModeRow, hvacIconTemplate, hvacSlotStyle, parseDecimal, rowsOfDays } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { leaveMoreInfo, navigate, openMoreInfo, panelPath, placements, weeksPath } from './links.ts';
-import { OVERRIDE_TEMPERATURE, RESUME, activeWeek, focusedField, nextOverride, overrideBodyHtml, overrideSummary, overrideUntilText, overrideWithTemperature, planText, restoreTyped, slotName, stepOverrideTemperature, withoutAir } from './override-edit.ts';
+import { RESUME, activeWeek, focusedField, nextOverride, overrideBody, overrideSummary, overrideUntilText, overrideWithTemperature, planText, slotName, stepOverrideTemperature, withoutAir } from './override-edit.ts';
 import { overridePieces, rowPiece } from './override.ts';
 import { presetOf, presetsOf } from './presets.ts';
 import { OverrideDraft } from './state/override-draft.ts';
@@ -127,8 +126,6 @@ export class ChauffageMoreInfo extends LitElement {
   _force = false;
   // A redraw skipped while the end of an override is typed: drawn once the field is left
   _redrawLater = false;
-  // A temperature being typed when the block is drawn again
-  _typed: string | null = null;
   // Data pushed by the integration: drawn again if it changes the block, as a new hass
   _snapshot = new SnapshotController(this, () => this.requestUpdate('hass', undefined));
 
@@ -174,16 +171,6 @@ export class ChauffageMoreInfo extends LitElement {
     if (focusedField(this.renderRoot, 'input.time')) { this._redrawLater = true; return false; } // nor while the end is typed
     this._key = key;
     return true;
-  }
-
-  willUpdate() {
-    // A temperature being typed survives the redraw (a new state of the thermostat, every minute)
-    const focused = this.renderRoot && focusedField(this.renderRoot, OVERRIDE_TEMPERATURE);
-    this._typed = focused ? focused.value : null;
-  }
-
-  updated() {
-    if (this._typed !== null) restoreTyped(this.renderRoot, OVERRIDE_TEMPERATURE, this._typed);
   }
 
   _preset(id) {
@@ -263,8 +250,8 @@ export class ChauffageMoreInfo extends LitElement {
     let status;
     let endDay: any = nothing;
     // What changes an override, or sets one: the same controls as in the card's popover
-    const body = (override) => unsafeHTML(overrideBodyHtml(override, src, this.entity, this.hass, this._loc,
-      { step: MORE_INFO_STEP, line: 'line', actions: 'btns', endLoc: names }));
+    const body = (override) => overrideBody(override, src, this.entity, this.hass, this._loc,
+      { step: MORE_INFO_STEP, line: 'line', actions: 'btns', endLoc: names });
     if (d) {
       this._creating = false;
       const lastPiece = pieces.find((p) => p.isLast);

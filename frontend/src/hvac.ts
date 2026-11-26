@@ -1,4 +1,6 @@
 import { html, nothing } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
+import { attributes } from './components/shared/attributes.ts';
 import { dataSource } from './client/snapshot.ts';
 import { DARK_TEXT } from './colors.ts';
 import { HVAC_ORDER, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, esc, slotMode, slotSettings, withSettings } from './common.ts';
@@ -290,33 +292,33 @@ function ownSettingText(hass, climate, attr, loc) {
   return value == null || value === '' ? loc.t('keep') : loc.t('keepValue', { value: attributeValue(hass, climate, attr, value, loc) });
 }
 
-export function moreSettingsHtml(hass, climate, loc, settings, defaults, open, field = 'data-slot-setting', direct = []) {
+export function moreSettings(hass, climate, loc, settings, defaults, open, field = 'data-slot-setting', direct = []) {
   const t = loc.t;
   const options = settingOptionsOf(hass, climate);
   const attrs = SETTING_ATTRS.filter((attr) => attr in options || (settings && attr in settings));
-  if (!attrs.length) return '';
+  if (!attrs.length) return nothing;
+  // A row for each setting, a new one when its value changes: its select shows the value
   const row = (attr) => {
     const value = settings && settings[attr];
     const listed = options[attr] || [];
     const unsupported = value && !listed.includes(value);
     // Nothing set: the preset's value, else the thermostat gets its own back
     const fallback = defaults && defaults[attr] ? t('fromPreset', { value: attributeValue(hass, climate, attr, defaults[attr], loc) }) : ownSettingText(hass, climate, attr, loc);
-    const items = [`<option value=""${!value ? ' selected' : ''}>${esc(fallback)}</option>`]
-      .concat(unsupported ? [`<option value="${esc(value)}" class="unsupported" selected>${esc(t('unsupported', { value: attributeValue(hass, climate, attr, value, loc) }))}</option>`] : [])
-      .concat(listed.map((v) => `<option value="${esc(v)}"${value === v ? ' selected' : ''}>${esc(attributeValue(hass, climate, attr, v, loc))}</option>`));
-    return `<label class="more-row"><span>${esc(attributeName(attr, loc))}</span>
-      <select ${field}="${attr}"${listed.length ? '' : ' disabled'}>${items.join('')}</select></label>`;
+    return keyed(value || '', html`<label class="more-row"><span>${attributeName(attr, loc)}</span>
+      <select ${attributes({ [field]: attr })} ?disabled=${!listed.length}><option value="" ?selected=${!value}>${fallback}</option>${
+        unsupported ? html`<option value=${value} class="unsupported" selected>${t('unsupported', { value: attributeValue(hass, climate, attr, value, loc) })}</option>` : nothing}${
+        listed.map((v) => html`<option value=${v} ?selected=${value === v}>${attributeValue(hass, climate, attr, v, loc)}</option>`)}</select></label>`);
   };
   // `direct`: the settings shown at once, not folded (the fan speed of a fan-only or dry slot)
   const shown = attrs.filter((attr) => direct.includes(attr));
   const folded = attrs.filter((attr) => !direct.includes(attr));
-  const sight = shown.length ? `<div class="more-rows direct">${shown.map(row).join('')}</div>` : '';
+  const sight = shown.length ? html`<div class="more-rows direct">${shown.map(row)}</div>` : nothing;
   if (!folded.length) return sight;
   const foldedSettings = Object.fromEntries(Object.entries(settings || {}).filter(([attr]) => folded.includes(attr)));
   const set = folded.filter((attr) => attr in foldedSettings);
   const summary = settingsText(hass, climate, loc, foldedSettings) || t('moreSettings');
   // The summary is a button: it unfolds the rows, and says so with a chevron
-  return `${sight}<details class="more"${open || set.length ? ' open' : ''}><summary><span>${esc(summary)}</span><ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="more-rows">${folded.map(row).join('')}</div></details>`;
+  return html`${sight}<details class="more" ?open=${open || set.length > 0}><summary><span>${summary}</span><ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="more-rows">${folded.map(row)}</div></details>`;
 }
 
 // The capture button (#91, lot 3): fills the popover of a preset's value from the thermostat's

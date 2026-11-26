@@ -8,21 +8,19 @@ import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPre
 import { WeekDraft } from '../state/week-draft.ts';
 import { HistoryStore } from '../state/history-store.ts';
 import { OverrideDraft } from '../state/override-draft.ts';
-import { chipStyle, coolColor, presetColorIn, slotColor } from '../colors.ts';
-import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, minutesOf, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
-import { atMinutes, causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeField, timeFieldDone } from '../fields.ts';
-import { MEASURE_RAMP, SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
-import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacIconTemplate, hvacModesOf, hvacSlotStyle, listsMode, modeName, moreSettingsHtml, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
+import { airSettings, clone, DAY_MIN, errorText, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_OPEN, ICON_PASTE, ICON_ZOOM, NO_PRESET_MODES, noPresetSlot, nowMin, pct, pieceSettings, sameSlot, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
+import { causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeFieldDone } from '../fields.ts';
+import { SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
+import { MODE_LABELS, SETTING_LABELS, dayOn, hvacIconTemplate, hvacModesOf, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
-import { LINK_TOKEN, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
-import { OVERRIDE_TEMPERATURE, RESUME, coolPresetTemperatureOf, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
-import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
-import { modeChipHtml, modeRowHtml, offChipHtml, presetOf, sortedPresets } from '../presets.ts';
+import { LINK_TOKEN, deviceOf, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
+import { RESUME, coolPresetTemperatureOf, focusedField, nextOverride, overrideWithTemperature, presetTemperatureOf, restoreTyped, slotName, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
+import { overrideLabel, overridePieces, tagSide } from '../override.ts';
+import { presetOf, sortedPresets } from '../presets.ts';
 import { fromSettings, openSettings } from '../settings-dialog.ts';
 import { copyOfDay, joinAt, joined, normalize, serializeDay } from '../slots.ts';
 import { activateSchedule, scheduleMenuAction, scheduleMenuHtml } from '../components/shared/schedule-menu.ts';
 import type { ScheduleMenuHost } from '../components/shared/schedule-menu.ts';
-import { placePopover, placeWhenDrawn } from '../components/shared/popover.ts';
 import { entityLink } from '../components/shared/entity-link.ts';
 import { ChauffageWeekLegend } from '../components/week/legend.ts';
 import { OverrideEndDrag } from '../controllers/override-end-drag.ts';
@@ -52,11 +50,9 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _answers: number;
   declare _asideKey: any;
   declare _available: any;
-  declare _bodyScroll: any;
   declare _liveKey: string;
   declare _focusName: { value?: string } | null;
   declare _tabsLeft: number;
-  declare _typedTemperature: string | null;
   declare _typing: { value: string; focused: boolean } | null;
   declare _config: any;
   declare _configured: any;
@@ -86,8 +82,6 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _overrideDraft: OverrideDraft;
   declare _overrideSel: any;
   declare _overrideStamp: any;
-  declare _placeToken: any;
-  declare _placedKey: any;
   declare _previewed: any;
   declare _readTouch: any;
   declare _redrawLater: any;
@@ -924,111 +918,6 @@ export class ChauffageProgrammeCard extends LitElement {
     ready.then(() => requestAnimationFrame(place));
   }
 
-  _editorHtml() {
-    const t = this._loc.t;
-    // In the words of a mouse, or of a finger on a touch screen (CSS)
-    // A thermostat's page stacks one card per schedule: it shows the hint once (`week_only`)
-    // Not with read-only weeks (the access level): there is nothing to drag
-    const hint = this._config.week_only || !this._shown.some((c) => this._mayEdit(c)) ? ''
-      : `<div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`;
-    if (this._overrideSel) return hint + this._overrideEditorHtml();
-    if (!this._sel || !this._shown.includes(this._sel.climate)) { this._sel = null; return hint; }
-    const { climate, day, idx } = this._sel;
-    const segs = this._week(climate)[day];
-    const s = segs && segs[idx] && slotOn(this._hass, climate, segs[idx]);
-    if (!s) { this._sel = null; return hint; }
-    // Popover, placed under the slot by _placeEditor() after rendering
-    const last = idx === segs.length - 1;
-    const end = last ? DAY_MIN : segs[idx + 1].start;
-    const slot = `data-slot="${esc(JSON.stringify({ climate, day, idx }))}"`;
-    const from = idx === 0 ? `<span class="fixed">${this._loc.time(0)}</span>`
-      : timeField(`data-edge="start" ${slot}`, s.start, this._loc, this._config.step);
-    const to = last ? `<span class="fixed">${this._loc.time(DAY_MIN)}</span>`
-      : timeField(`data-edge="end" data-day-end ${slot}`, end, this._loc, this._config.step);
-    // On a thermostat with more than one "on" HVAC mode, two rows (#91). First what the device
-    // does: its HVAC modes. Then how warm: the presets that have a value for the HVAC mode
-    // chosen, in its color; none for off, fan only, dry and auto. A heater has one row: Off,
-    // then the presets
-    const none = hasNoPreset(s);
-    const target = none ? null : this._targetOf(climate, this._preset(s.preset));
-    const off = isOff(s);
-    const rows = hasModeRow(this._hass, climate);
-    const mode = slotMode(s);
-    const inMode = none || !mode ? defaultSetpointMode(this._hass, climate) : mode;
-    const chips = rows && none ? '' : this._presets()
-      .filter((l) => (!none && s.preset === l.id) || this._presetsIn(climate, inMode).includes(l.id))
-      .map((l) => {
-        const missing = !this._presetsIn(climate, inMode).includes(l.id);
-        return `<button data-act="preset" data-preset="${esc(l.id)}" class="${!none && s.preset === l.id ? 'on' : ''}${missing ? ' unsupported' : ''}"${missing ? ` title="${esc(t('noPresetInMode'))}"` : ''} style="${chipStyle(l, none ? null : mode)}">${esc(l.name)}</button>`;
-      }).join('');
-    const disabled = SETPOINT_MODES.filter((m) => !this._presetsIn(climate, m).length);
-    const modeRow = rows ? modeRowHtml(this._hass, climate, this._loc, none ? mode : inMode, 'slot-mode', disabled) : '';
-    // One row: Off first; a fan-only, a dry or an auto slot pasted on this thermostat stays, marked
-    const single = rows ? '' : `${offChipHtml(this._hass, climate, this._loc, 'slot-off', off)}${none && !off ? modeChipHtml(this._hass, climate, this._loc, mode, 'slot-mode', true) : ''}`;
-    const presets = `${single}${chips}`;
-    // The setpoint the slot will apply, with its number, as the preset's value gives it for the
-    // slot's HVAC mode: a link to the presets page for an admin
-    const setpoint = slotSetpointText(this._hass, climate, s, target, this._loc, {
-      temperatureOf: (value) => this._presetTemperature(climate, value),
-      coolTemperatureOf: (value) => this._coolPresetTemperature(climate, value),
-    });
-    // The link opens the presets tab on this thermostat's row
-    const setpointLine = setpointLineHtml(setpoint, this._loc, isAdmin(this._hass) && !none ? `${panelPath('presets')}?thermostat=${encodeURIComponent(climate)}` : null);
-    // With the history shown, what the slot measured: the slot's tooltip says it too, but a phone
-    // shows no tooltip
-    const measured = this._measuredText(climate, day, s.start, end).replace(/^ · /, '');
-    // The fan and the vanes of an air conditioner, folded (lot 3): not on an off slot
-    // In fan only and in dry, the fan speed is what there is to set: in sight, not folded
-    const more = off ? '' : moreSettingsHtml(this._hass, climate, this._loc, s.settings, target, this._moreOpen, 'data-slot-setting',
-      ['fan_only', 'dry'].includes(mode) ? ['fan_mode'] : []);
-    return `${hint}<div class="editor">
-      <div class="ed-head">
-        <strong>${entityLinkHtml(climate, this._name(climate), this._loc.t("openThermostat"))} · ${esc(this._rowLabel(day, 'long'))}</strong>
-        <span class="ed-times"><label>${esc(t('from'))} ${from}</label><label>${esc(t('to'))} ${to}</label></span>
-        <button class="btn icon close" data-act="close" title="${esc(t('close'))}">✕</button>
-      </div>
-      <div class="ed-body">
-        ${measured ? `<div class="ed-measured">${esc(measured)}</div>` : ''}
-        ${modeRow}
-        ${rows && !presets ? '' : `<div class="presets">${presets}</div>`}
-        ${setpointLine}
-        ${more}
-      </div>
-      <div class="ed-actions">
-        <button class="btn" data-act="insert" ${end - s.start < 2 * this._config.step ? 'disabled' : ''}>${esc(t('insertSlot'))}</button>
-        <button class="btn" data-act="delete" ${segs.length === 1 ? 'disabled' : ''}>${esc(t('delete'))}</button>
-      </div>
-    </div>`;
-  }
-
-  _overrideEditorHtml() {
-    const { climate, create } = this._overrideSel;
-    const d = this._overrides()[climate];
-    // Without an override: closed (it ended), unless opened to set one (today's row menu)
-    if ((!d && !create) || !this._shown.includes(climate)) { this._overrideSel = null; return ''; }
-    const t = this._loc.t;
-    // In the order of the more-info block: what it is, then what changes it (overrideBodyHtml),
-    // and Resume the schedule
-    return `<div class="editor override-ed">
-      <div class="ed-head">
-        <strong>${entityLinkHtml(climate, this._name(climate), t("openThermostat"))} · ${esc(t('temporarySetpoint'))}</strong>
-        ${d ? `<span class="override-value">${esc(overrideSummary(d, this._source(), climate, this._loc, this._hass))}</span>` : ''}
-        <button class="btn icon close" data-act="override-close" title="${esc(t('close'))}">✕</button>
-      </div>
-      <div class="ed-body">${overrideBodyHtml(d, this._source(), climate, this._hass, this._loc, { step: this._config.step, line: 'ed-head', actions: 'ed-actions start', endLoc: fullNames(this._loc, this._hass, climate) })}</div>
-      ${d ? `<div class="ed-actions"><button class="btn danger" data-act="override-del">${esc(t('resume'))}</button></div>` : ''}
-    </div>`;
-  }
-
-  // ha-card (a Lit component) renders asynchronously: until its <slot> is rendered, its
-  // content has no position. Wait for its rendering to complete before measuring.
-  _schedulePlaceEditor() {
-    const card: any = this.shadowRoot.querySelector('ha-card');
-    if (!card || !this.shadowRoot.querySelector('.editor')) return;
-    const token = (this._placeToken = (this._placeToken || 0) + 1);
-    placeWhenDrawn(card, () => token === this._placeToken, () => this._placeEditor());
-  }
-
   // The tag of each short override, on the side where it covers no slot's label (tagSide). Once
   // ha-card shows its content: before that, nothing has a width
   _placeTags() {
@@ -1053,30 +942,30 @@ export class ChauffageProgrammeCard extends LitElement {
     ready.then(() => requestAnimationFrame(() => this._placeTags()));
   }
 
-  // Places the popover under the selected slot or override (or above it when there is no room).
-  // Returns false if the layout is not ready yet.
-  _placeEditor() {
-    const root = this.shadowRoot;
-    const ed: any = root.querySelector('.editor');
-    // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
-    const sel = this._overrideSel;
-    const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${this._rowOf(todayIdx())[0]}"] .now`);
-    const seg = root.querySelector('.override.sel, .seg.sel') || now;
-    if (!ed || !seg) return true;
-    // A slot is clipped to its row: the popover goes under the row
-    if (!placePopover(this, root.querySelector('ha-card'), ed, seg, seg.parentElement, false)) return false;
-    // A redraw (a preset tapped, Home Assistant's new data) keeps where the body was scrolled
-    const kept = this._bodyScroll;
-    this._placedKey = this._editorKey();
-    const body = ed.querySelector('.ed-body');
-    if (kept && body && kept.key === this._placedKey) body.scrollTop = kept.top;
-    this._bodyScroll = null; // once put back
-    return true;
+  // In the words of a mouse, or of a finger on a touch screen (CSS). A thermostat's page stacks
+  // one card per schedule: it shows the hint once (`week_only`). Not with read-only weeks (the
+  // access level): there is nothing to drag
+  _hint() {
+    if (this._config.week_only || !this._shown.some((c) => this._mayEdit(c))) return nothing;
+    const t = this._loc.t;
+    return html`<div class="hint"><span class="mouse">${t('hint')}</span><span class="touch">${t('hintTouch')}</span></div>`;
   }
 
-  // Which popover is open: a slot or an override
-  _editorKey() {
-    return JSON.stringify([this._sel, this._overrideSel && this._overrideSel.climate]);
+  // Places the popover open under its slot or its override (or above it when there is no room),
+  // now. Returns false if the layout is not ready yet.
+  _placeEditor() {
+    const popover: any = this.renderRoot.querySelector('chauffage-override-popover .editor, chauffage-slot-popover .editor');
+    return popover ? popover.closest('chauffage-override-popover, chauffage-slot-popover').placement.place() : true;
+  }
+
+  // The popover open, if what it edits is still there: a slot of a thermostat shown, an override
+  // that has not ended, unless opened to set one (today's row menu)
+  _checkPopovers() {
+    const o = this._overrideSel;
+    if (o && ((!this._overrides()[o.climate] && !o.create) || !this._shown.includes(o.climate))) this._overrideSel = null;
+    const s = this._sel;
+    const segs = s && this._shown.includes(s.climate) && this._week(s.climate)[s.day];
+    if (s && !(segs && segs[s.idx])) this._sel = null;
   }
 
   // Redraws the card, keeping a schedule name being typed in a menu (the card is redrawn every
@@ -1096,13 +985,8 @@ export class ChauffageProgrammeCard extends LitElement {
     const root = this.renderRoot;
     const input: any = root.querySelector('.sched-menu input[data-sched-name]');
     this._typing = input && { value: input.value, focused: (root as any).activeElement === input };
-    const field = focusedField(root, OVERRIDE_TEMPERATURE);
-    this._typedTemperature = field ? field.value : null;
     const tabs = root.querySelector('.tabs-scroll');
     this._tabsLeft = tabs ? tabs.scrollLeft : 0;
-    // A popover's body scrolled: put back by _placeEditor(), if the same popover is still open
-    const body = root.querySelector('.editor .ed-body');
-    this._bodyScroll = body && body.scrollTop ? { key: this._placedKey, top: body.scrollTop } : null;
   }
 
   updated() {
@@ -1114,9 +998,7 @@ export class ChauffageProgrammeCard extends LitElement {
       this._restoreSchedName(this._focusName.value, true);
       this._focusName = null;
     } else if (typing) this._restoreSchedName(typing.value, typing.focused);
-    if (this._typedTemperature !== null) restoreTyped(this.renderRoot, `.override-ed ${OVERRIDE_TEMPERATURE}`, this._typedTemperature);
     this._placeMenu();
-    this._schedulePlaceEditor();
     this._schedulePlaceTags();
     // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
     // sheet hears when it has edits to save
@@ -1226,6 +1108,7 @@ export class ChauffageProgrammeCard extends LitElement {
     const newTab = plannable && !one ? html`<button class="tab-tool" data-act="schedule-new" title=${tr('newSchedule')}>+</button>` : nothing;
     // Days in the order of the user's first weekday (data stays Monday-based)
     this._layoutRows();
+    this._checkPopovers();
     const focus = this._focusClimate();
     // The weeks edited, then the access level dropped (U31): kept until Cancel, but not saved
     const maySave = !this._draft.dirty || (plannable && this._maySave());
@@ -1259,7 +1142,8 @@ export class ChauffageProgrammeCard extends LitElement {
         ${this._scheduleBar(active)}`}
         <chauffage-week-grid .card=${this}></chauffage-week-grid>
         ${this._menuTemplate()}
-        ${unsafeHTML(this._editorHtml())}
+        ${this._hint()}
+        ${this._overrideSel ? html`<chauffage-override-popover .card=${this}></chauffage-override-popover>` : html`<chauffage-slot-popover .card=${this}></chauffage-slot-popover>`}
         ${foot}
         <div class="msg">${maySave ? this._msg : tr('unauthorized')}</div>
         ${this._draft.dirty && !weekOnly ? html`<div class="savebar">

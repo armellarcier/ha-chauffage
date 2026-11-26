@@ -15,6 +15,8 @@ import { ChauffageRulesView } from './components/views/rules-view.ts';
 import { ChauffageSchedulesView } from './components/views/schedules-view.ts';
 import { ChauffageThermostatsView } from './components/views/thermostats-view.ts';
 import { ChauffageWeekGrid } from './components/week/week-grid.ts';
+import { ChauffageSlotPopover } from './components/week/slot-popover.ts';
+import { ChauffageOverridePopover } from './components/week/override-popover.ts';
 import { ChauffageWeekLegend } from './components/week/legend.ts';
 import { dataSource } from './client/snapshot.ts';
 import { ChauffageProgrammeCardEditor, ChauffageRoomsCardEditor, ChauffageSummaryCardEditor } from './editors.ts';
@@ -59,6 +61,8 @@ function defineElements() {
   if (!customElements.get('chauffage-thermostats-view')) customElements.define('chauffage-thermostats-view', ChauffageThermostatsView);
   if (!customElements.get('chauffage-week-grid')) customElements.define('chauffage-week-grid', ChauffageWeekGrid);
   if (!customElements.get('chauffage-week-legend')) customElements.define('chauffage-week-legend', ChauffageWeekLegend);
+  if (!customElements.get('chauffage-slot-popover')) customElements.define('chauffage-slot-popover', ChauffageSlotPopover);
+  if (!customElements.get('chauffage-override-popover')) customElements.define('chauffage-override-popover', ChauffageOverridePopover);
 }
 defineElements();
 // The integration's module is loaded in parallel with HA's frontend, which replaces
