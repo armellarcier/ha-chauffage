@@ -323,9 +323,6 @@ class ChauffageRuntime:
     def targets_of(self, *args: Any, **kwargs: Any) -> Any:
         return self.read_model.targets_of(*args, **kwargs)
 
-    def preview_preset(self, *args: Any, **kwargs: Any) -> Any:
-        return self.read_model.preview_preset(*args, **kwargs)
-
     def preset_temperatures_of(self, *args: Any, **kwargs: Any) -> Any:
         return self.read_model.preset_temperatures_of(*args, **kwargs)
 
@@ -344,9 +341,6 @@ class ChauffageRuntime:
     def schedule_select(self, *args: Any, **kwargs: Any) -> Any:
         return self.read_model.schedule_select(*args, **kwargs)
 
-    def cause(self, *args: Any, **kwargs: Any) -> Any:
-        return self.read_model.cause(*args, **kwargs)
-
     def planned(self, *args: Any, **kwargs: Any) -> Any:
         return self.read_model.planned(*args, **kwargs)
 
@@ -358,9 +352,6 @@ class ChauffageRuntime:
 
     def next_change_info(self, *args: Any, **kwargs: Any) -> Any:
         return self.read_model.next_change_info(*args, **kwargs)
-
-    def next_day_slot_end(self, *args: Any, **kwargs: Any) -> Any:
-        return self.read_model.next_day_slot_end(*args, **kwargs)
 
     def planned_presets(self, *args: Any, **kwargs: Any) -> Any:
         return self.read_model.planned_presets(*args, **kwargs)

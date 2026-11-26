@@ -367,7 +367,7 @@ async def ws_preview_preset(hass: HomeAssistant, connection: websocket_api.Activ
     """Read only, as chauffage/subscribe: anyone who may open the card."""
 
     async def preview(runtime: ChauffageRuntime) -> dict[str, Any]:
-        return runtime.preview_preset(msg["entity_id"], msg["preset"], msg.get("value"))
+        return runtime.read_model.preview_preset(msg["entity_id"], msg["preset"], msg.get("value"))
 
     await _run(hass, connection, msg, preview)
 
