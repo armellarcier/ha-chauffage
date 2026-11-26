@@ -184,7 +184,6 @@ function typedName(host: ScheduleMenuHost, except: string | null) {
 const kept = (host: ScheduleMenuHost): any[] => host.src.schedules().map((id) => ({ id }));
 
 function createSchedule(host: ScheduleMenuHost) {
-  host.error = '';
   const name = typedName(host, null);
   if (!name) return undefined;
   const copy = host.menu.copy;
@@ -192,7 +191,6 @@ function createSchedule(host: ScheduleMenuHost) {
 }
 
 function renameSchedule(host: ScheduleMenuHost) {
-  host.error = '';
   const id = host.menu.id;
   const name = typedName(host, id);
   if (!name) return undefined;

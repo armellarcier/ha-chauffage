@@ -38,8 +38,6 @@ export class ChauffageProgrammeCard extends LitElement {
   static styles = unsafeCSS(STYLE);
 
   // The fields of the element, untyped until the rewrite of the card gives them a type
-  // The access level and whether the user is an admin, as the card last saw them (_sync)
-  declare _access: string;
   declare _asideKey: any;
   declare _tabsLeft: number;
   declare _config: any;
@@ -79,8 +77,8 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _multiSel: any;
   declare _overrideDraft: OverrideDraft;
   declare _overrideSel: any;
-  // The integration's push that the overrides sent were last checked against (_sync)
-  declare _pushed: any;
+  // The integration's overrides that the overrides sent were last checked against (_sync)
+  declare _overridesSeen: any;
   declare _previewed: any;
   declare _readTouch: any;
   declare _redrawLater: any;
@@ -268,23 +266,20 @@ export class ChauffageProgrammeCard extends LitElement {
       this._revision = src.revision;
       need = true;
     }
-    // A new push of the integration: the overrides sent are now its own (OverrideDraft)
-    if (client.data !== this._pushed && !this._overrideEnd.active && !this._slotDrag.active) {
-      this._pushed = client.data;
+    // The integration's overrides changed: the overrides sent are now its own (OverrideDraft)
+    const overrides = client.data && client.data.overrides;
+    if (overrides !== this._overridesSeen && !this._overrideEnd.active && !this._slotDrag.active) {
+      this._overridesSeen = overrides;
       this._overrideDraft.updated();
     }
-    // The access level changed (#99): the tools appear or go at once. Without Plan, what was being
-    // edited closes; the weeks not saved yet stay until Cancel
-    const access = `${src.accessLevel()} ${src.admin}`;
-    if (access !== this._access) {
-      this._access = access;
-      if (this._slotDrag.active && !this._mayEdit(this._slotDrag.drag.climate)) this._slotDrag.cancel();
-      if (this._draft.selection && !this._mayEdit(this._draft.selection.climate)) this._draft.selection = null;
-      if (!src.plannable) {
-        this._schedEd = null;
-        this._copyWeekMenu = null;
-      }
-      need = true;
+    // The access level (#99): what the user may no longer edit closes at once. The weeks not saved
+    // yet stay until Cancel. A new access level draws the card again: it comes with a push or a
+    // new user
+    if (this._slotDrag.active && !this._mayEdit(this._slotDrag.drag.climate)) this._slotDrag.cancel();
+    if (this._draft.selection && !this._mayEdit(this._draft.selection.climate)) this._draft.selection = null;
+    if (!src.plannable) {
+      this._schedEd = null;
+      this._copyWeekMenu = null;
     }
     if (src.ready && this._wantSchedule && this._source().schedules().includes(this._wantSchedule)) {
       this._schedule = this._wantSchedule; // created from this card, or asked by its config

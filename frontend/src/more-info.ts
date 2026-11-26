@@ -162,17 +162,17 @@ export class ChauffageMoreInfo extends LitElement {
     if (!this.hass || !this.entity) return false;
     this._loc = makeLocale(this.hass);
     const src = dataSource(this.hass);
-    // A new push of the integration: it holds the override sent, and a pause or a resume error is over
-    if (this._key && client.data !== this._key[1]) {
-      this._overrides.updated();
-      this._error = null;
-    }
+    // The integration's overrides changed: they hold the override sent. Its thermostats changed
+    // (paused or resumed): a resume error is over
+    const data = client.data || {};
+    if (this._key && data.overrides !== this._key[2]) this._overrides.updated();
+    if (this._key && data.thermostats !== this._key[3]) this._error = null;
     if (this._force) {
       this._force = false;
       return true;
     }
     // (the access level gives the links; the registry gives the device)
-    const key = [this.hass.states[this.entity], client.data, Math.floor(Date.now() / 60000), this._loc.signature,
+    const key = [this.hass.states[this.entity], client.data, data.overrides, data.thermostats, Math.floor(Date.now() / 60000), this._loc.signature,
       src.accessLevel(), src.admin, this.hass.entities && this.hass.entities[this.entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return false;
     if (this._drag) return false; // no redraw while dragging

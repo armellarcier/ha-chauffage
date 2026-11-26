@@ -1096,3 +1096,19 @@ describe('a tap while a menu or a popover is open', () => {
     assert.equal(reached, 0);
   });
 });
+
+describe('the card and a push that changes something else', () => {
+  beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
+  afterEach(() => mock.timers.reset());
+
+  test('an override removed stays removed through a push that does not touch the overrides', async () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    hass.callWS = async (msg) => { hass.events.push(msg); return null; };
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
+    await openOverride(card, 'climate.salon');
+    act(card, 'override-del'); await settle();
+    assert.equal($(card, '.override[data-climate="climate.salon"]'), null, 'removed at once');
+    hass.push(integrationData({ paused: ['climate.bureau'], overrides: { 'climate.salon': override } })); await settle();
+    assert.equal($(card, '.override[data-climate="climate.salon"]'), null, 'still removed');
+  });
+});
