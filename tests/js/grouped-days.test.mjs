@@ -19,13 +19,13 @@ afterEach(() => { mock.timers.reset(); cleanup(); });
 
 describe('rows of identical days', () => {
   test('the days with the same slots share a row, named after its days', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
     assert.equal(card.shadowRoot.querySelectorAll('.bar').length, 2);
   });
 
   test('the same day all week is one row, named from the first day to the last one', async () => {
-    const card = createCard(fakeHass({ weeks: RETIRED }), { show: ['climate.salon'] });
+    const card = createCard(fakeHass({ weeks: RETIRED }), { show: ['climate.salon'] }); await settle();
     assert.deepEqual(labels(card), ['Lun–Dim']);
     // The menus have the room to say it in words
     $(card, '[data-act="menu"][data-day="0"]').click(); await settle();
@@ -34,10 +34,10 @@ describe('rows of identical days', () => {
 
   test('a day that differs gets its own row; days apart are named one by one', async () => {
     const week = [WEEKDAY, WEEKDAY, OTHER, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND];
-    const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] });
+    const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] }); await settle();
     assert.deepEqual(labels(card), ['Lun, Mar, Jeu, Ven', 'Mer', 'Sam, Dim']);
     const alternate = [WEEKDAY, OTHER, WEEKDAY, OTHER, WEEKDAY, OTHER, OTHER];
-    const other = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: alternate } } }), { show: ['climate.salon'] });
+    const other = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: alternate } } }), { show: ['climate.salon'] }); await settle();
     assert.deepEqual(labels(other), ['Lun, Mer, Ven', 'Mar, Jeu, Sam, Dim']);
   });
 
@@ -61,14 +61,14 @@ describe('rows of identical days', () => {
       'climate.salon': { Normal: [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] },
       'climate.bureau': { Normal: [WEEKDAY, WEEKDAY, OTHER, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND] },
     };
-    const card = createCard(fakeHass({ weeks }));
+    const card = createCard(fakeHass({ weeks })); await settle();
     assert.deepEqual(labels(card), ['Lun, Mar, Jeu, Ven', 'Mer', 'Sam, Dim']);
     assert.equal($(card, '.dgroup').querySelectorAll('.bar').length, 2);
   });
 
   test('the column of the days is as wide as the longest name of a row', async () => {
-    const short = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: [WEEKDAY, OTHER, WEEKDAY, OTHER, WEEKDAY, OTHER, WEEKEND] } } }), { show: ['climate.salon'] });
-    const long = createCard(fakeHass(), { show: ['climate.salon'] });
+    const short = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: [WEEKDAY, OTHER, WEEKDAY, OTHER, WEEKDAY, OTHER, WEEKEND] } } }), { show: ['climate.salon'] }); await settle();
+    const long = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
     const width = (card) => Number($(card, '.days').style.getPropertyValue('--day-w').replace('px', ''));
     assert.ok(width(short) > width(long));
   });
@@ -108,8 +108,8 @@ describe('the width of the card', () => {
 
 describe('editing a row', () => {
   test('editing a row edits each of its days', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    cutSlot(card, 'climate.salon', 0, 12 * 60);
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    await cutSlot(card, 'climate.salon', 0, 12 * 60);
     const monday = day(card, 'climate.salon', 0);
     assert.notDeepEqual(monday, WEEKDAY);
     for (const d of [1, 2, 3, 4]) assert.deepEqual(day(card, 'climate.salon', d), monday);
@@ -118,8 +118,8 @@ describe('editing a row', () => {
   });
 
   test('a slot\'s popover edits the whole row, and names it', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    openSlot(card, 'climate.salon', 1, 5);
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    await openSlot(card, 'climate.salon', 1, 5);
     assert.match($(card, '.editor .ed-head strong').textContent, /Sam, Dim/);
     $(card, '.editor [data-preset="boost"]').click(); await settle();
     assert.deepEqual(day(card, 'climate.salon', 6), ['00:00 eco', '08:00 boost', '23:00 eco']);
@@ -128,8 +128,8 @@ describe('editing a row', () => {
   test('a slot edited until its row joins another one stays selected, its popover open', async () => {
     const boosted = ['00:00 eco', '06:30 boost', '08:30 eco', '17:30 comfort', '22:30 eco'];
     const week = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, boosted, boosted];
-    const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] });
-    openSlot(card, 'climate.salon', 1, 5);
+    const card = createCard(fakeHass({ weeks: { 'climate.salon': { Normal: week } } }), { show: ['climate.salon'] }); await settle();
+    await openSlot(card, 'climate.salon', 1, 5);
     $(card, '.editor [data-preset="comfort"]').click(); await settle(); // the weekend is now the weekdays
     assert.deepEqual(labels(card), ['Lun–Dim']);
     assert.ok($(card, '.seg.sel'));
@@ -137,22 +137,22 @@ describe('editing a row', () => {
   });
 
   test('pasting on a row pastes on each of its days', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    copyDay(card, 'climate.salon', 5);
-    pasteDay(card, 'climate.salon', 0);
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    await copyDay(card, 'climate.salon', 5);
+    await pasteDay(card, 'climate.salon', 0);
     for (let d = 0; d < 7; d++) assert.deepEqual(day(card, 'climate.salon', d), WEEKEND);
     assert.deepEqual(labels(card), ['Lun–Dim']);
   });
 
   test('copying a row to the other thermostats copies each of its days', async () => {
-    const card = createCard(fakeHass());
-    copyDay(card, 'climate.salon', 0, 'others');
+    const card = createCard(fakeHass()); await settle();
+    await copyDay(card, 'climate.salon', 0, 'others');
     for (const d of [0, 1, 2, 3, 4]) assert.deepEqual(day(card, 'climate.bureau', d), WEEKDAY);
     assert.deepEqual(day(card, 'climate.bureau', 5), ['00:00 eco']);
   });
 
   test('copying a day onto other days joins their rows', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
     $(card, '[data-act="menu"][data-day="0"]').click(); await settle();
     assert.match($(card, '.menu .mh').textContent, /Lun–Ven/);
     $(card, '.menu [data-act="fill-all"]').click(); await settle();
@@ -164,26 +164,26 @@ describe('grouping the days or not', () => {
   const chip = (card) => $(card, '[data-act="group-days"]');
 
   test('"Group days" shows each day on its own row, remembered on the device', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
     assert.ok(chip(card).classList.contains('on'));
     chip(card).click(); await settle();
     assert.equal(labels(card).length, 7);
     assert.ok(!chip(card).classList.contains('on'));
-    const again = createCard(fakeHass(), { show: ['climate.salon'] });
+    const again = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
     assert.equal(labels(again).length, 7);
   });
 
   test('a day edited on its own keeps its own row once the days are grouped again', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
     chip(card).click(); await settle();
-    cutSlot(card, 'climate.salon', 2, 12 * 60); // Wednesday only
+    await cutSlot(card, 'climate.salon', 2, 12 * 60); // Wednesday only
     assert.deepEqual(day(card, 'climate.salon', 1), WEEKDAY);
     chip(card).click(); await settle();
     assert.deepEqual(labels(card), ['Lun, Mar, Jeu, Ven', 'Mer', 'Sam, Dim']);
   });
 
   test('the card option `group_days: false` shows each day, until the user groups them', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false });
+    const card = createCard(fakeHass(), { show: ['climate.salon'], group_days: false }); await settle();
     assert.equal(labels(card).length, 7);
     chip(card).click(); await settle();
     assert.deepEqual(labels(card), ['Lun–Ven', 'Sam, Dim']);
@@ -191,7 +191,7 @@ describe('grouping the days or not', () => {
 
   test('the history shows each day: the days are no longer grouped, and grouping them hides it', async () => {
     const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/history' ? {} : null) });
-    const card = createCard(hass, { show: ['climate.salon'] });
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
     $(card, '[data-act="history"]').click(); await settle();
     assert.equal(labels(card).length, 7);
     assert.ok(!chip(card).classList.contains('on'));
@@ -211,7 +211,7 @@ describe('today in a row of days', () => {
   const weeks = { 'climate.salon': { Normal: [WEEKDAY, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND, WEEKEND] } };
 
   test('the row holding today stands out, with the current time', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
     const today = card.shadowRoot.querySelectorAll('.dgroup.today');
     assert.equal(today.length, 1);
     assert.equal(today[0].querySelector('.day').textContent, 'Lun–Ven');
@@ -221,23 +221,23 @@ describe('today in a row of days', () => {
   test('an override on a day in the middle of its row opens its popover', async () => {
     mock.timers.setTime(new Date('2026-10-14T10:00:00+02:00').getTime()); await settle(); // Wednesday, in Mon–Fri
     const midday = { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-14T09:00:00+02:00', end: '2026-10-14T18:00:00+02:00' } };
-    const card = createCard(fakeHass({ overrides: midday }), { show: ['climate.salon'] });
+    const card = createCard(fakeHass({ overrides: midday }), { show: ['climate.salon'] }); await settle();
     $(card, '.override').click(); await settle();
     assert.ok($(card, '.override.sel'));
     assert.ok($(card, '.editor.override-ed'));
   });
 
   test('its menu sets a temporary setpoint', async () => {
-    const card = createCard(fakeHass(), { show: ['climate.salon'] });
-    openMenu(card, 'climate.salon', 0);
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    openMenu(card, 'climate.salon', 0); await settle();
     assert.ok($(card, '.menu [data-act="override-new"]'));
-    openMenu(card, 'climate.salon', 0); // closes it
-    openMenu(card, 'climate.salon', 5);
+    openMenu(card, 'climate.salon', 0); await settle(); // closes it
+    openMenu(card, 'climate.salon', 5); await settle();
     assert.equal($(card, '.menu [data-act="override-new"]'), null);
   });
 
   test('an override shows today, and on another row where it ends', async () => {
-    const card = createCard(fakeHass({ weeks, overrides }), { show: ['climate.salon'] });
+    const card = createCard(fakeHass({ weeks, overrides }), { show: ['climate.salon'] }); await settle();
     assert.deepEqual(labels(card), ['Lun', 'Mar–Dim']);
     const pieces = [...card.shadowRoot.querySelectorAll('.override')];
     assert.deepEqual(pieces.map((p) => p.dataset.day), ['0', '1']);
@@ -247,7 +247,7 @@ describe('today in a row of days', () => {
   test('an override for the week also shows on a row of the days it covers', async () => {
     const week = { 'climate.salon': { target: { temperature: 19 }, start: '2026-10-12T08:00:00+02:00', end: '2026-10-18T01:00:00+02:00' } };
     const three = { 'climate.salon': { Normal: [WEEKDAY, OTHER, OTHER, OTHER, OTHER, WEEKEND, WEEKEND] } };
-    const card = createCard(fakeHass({ weeks: three, overrides: week }), { show: ['climate.salon'] });
+    const card = createCard(fakeHass({ weeks: three, overrides: week }), { show: ['climate.salon'] }); await settle();
     assert.deepEqual(labels(card), ['Lun', 'Mar–Ven', 'Sam, Dim']);
     const pieces = [...card.shadowRoot.querySelectorAll('.override')];
     assert.deepEqual(pieces.map((p) => p.dataset.day), ['0', '1', '6']); // Sunday: where it ends
@@ -260,8 +260,8 @@ describe('the week in the more-info block', () => {
   const block = async (hass) => {
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
-    el.entity = 'climate.salon';
-    el.hass = hass;
+    el.entity = 'climate.salon'; await settle();
+    el.hass = hass; await settle();
     await settle();
     return el;
   };
@@ -282,7 +282,7 @@ describe('the week in the more-info block', () => {
   });
 
   test('uses its defaults, not the options of a dashboard card', async () => {
-    createCard(fakeHass(), { group_days: false, language: 'en' });
+    createCard(fakeHass(), { group_days: false, language: 'en' }); await settle();
     assert.deepEqual(rows(await block(fakeHass())), ['Lun–Ven', 'Sam, Dim']);
   });
 });

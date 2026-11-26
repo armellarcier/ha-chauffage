@@ -35,10 +35,10 @@ export function setup({ atelier = PLAIN, combles = PLAIN, salon = PLAIN } = {}) 
   return hass;
 }
 export const ALL = [SALON, ATELIER, COMBLES];
-export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: ALL, show: [ATELIER], group_days: false, ...config });
+export const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: ALL, show: [ATELIER], group_days: false, ...config }); await settle(); return card; };
 export const presetsTab = async (hass) => { const card = createCard(hass, { thermostats: ALL, view: 'presets' }); await settle(); return card; };
 export const cell = (card, preset, climate) => $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`);
-export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
+export const select = async (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 
 // Hue (degrees) and lightness (0 to 1) of a "#rrggbb" color
 export function hsl(hex) {

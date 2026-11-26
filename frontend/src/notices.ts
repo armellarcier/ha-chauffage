@@ -1,4 +1,4 @@
-import { esc } from './common.ts';
+import { html } from 'lit';
 
 // Reloads the page to finish an update. Home Assistant's service worker serves the page from its
 // cache, then updates it: its caches are emptied first, or the first reload gets the former page
@@ -22,15 +22,11 @@ export function sourceNotice(src) {
   return null;
 }
 
-// The notice's HTML. Its Reload button carries data-act="reload-page": bind it with bindReload.
-export function noticeHtml(notice, t) {
-  if (notice.loading) return '<div class="loading">…</div>';
+// The notice. Its Reload button carries data-act="reload-page": the card or the panel reloads the
+// page on its click
+export function noticeTemplate(notice, t) {
+  if (notice.loading) return html`<div class="loading">…</div>`;
   const button = notice.reload
-    ? `<div><button class="btn primary" data-act="reload-page">${esc(t('reloadPage'))}</button></div>` : '';
-  return `<div class="missing" role="status">${esc(t(notice.text))}${button}</div>`;
-}
-
-export function bindReload(root, onClick) {
-  const button = root.querySelector('[data-act="reload-page"]');
-  if (button) button.addEventListener('click', onClick);
+    ? html`<div><button class="btn primary" data-act="reload-page">${t('reloadPage')}</button></div>` : '';
+  return html`<div class="missing" role="status">${t(notice.text)}${button}</div>`;
 }

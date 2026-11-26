@@ -45,8 +45,8 @@ export function setup({ weeks, targets, overrides, planned, thermostats, atelier
   hass.entities['climate.atelier'] = { entity_id: 'climate.atelier' };
   return hass;
 }
-export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config });
-export const select = (card, climate, d, idx) => openSlot(card, climate, idx, d);
+export const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config }); await settle(); return card; };
+export const select = async (card, climate, d, idx) => openSlot(card, climate, idx, d);
 // A thermostat card, once drawn
 export const thermostatCard = async (hass, entity = 'climate.salon') => {
   const tc = document.createElement('chauffage-thermostat-card');

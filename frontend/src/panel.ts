@@ -2,7 +2,7 @@ import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { live } from 'lit/directives/live.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { NOTICE_RELOAD, noticeHtml, reloadPage, sourceNotice } from './notices.ts';
+import { NOTICE_RELOAD, noticeTemplate, reloadPage, sourceNotice } from './notices.ts';
 import { dataSource, renamedTo } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { SnapshotController } from './controllers/snapshot-controller.ts';
@@ -410,7 +410,7 @@ export class ChauffagePanel extends LitElement {
     // The live parts follow the address; the page keeps what it was built with
     const route = this._route(src);
     return keyed(page, html`${this._toolbar(page, route, src)}<div class="content">${
-      page.notice ? unsafeHTML(noticeHtml(page.notice, this._t)) : this._content(page, route, src)}</div>`);
+      page.notice ? noticeTemplate(page.notice, this._t) : this._content(page, route, src)}</div>`);
   }
 
   // A list: the panel's title and its tabs. A sheet: a breadcrumb to its list, no tabs

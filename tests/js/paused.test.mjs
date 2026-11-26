@@ -13,8 +13,8 @@ const lastCall = (hass) => hass.events.at(-1);
 const text = (root) => root.textContent.replace(/\s+/g, ' ');
 const q = (card, selector) => card.shadowRoot.querySelector(selector);
 
-function openMenu(card, climate, day) {
-  q(card, `.ibtn[data-act="menu"][data-climate="${climate}"][data-day="${day}"]`).click();
+async function openMenu(card, climate, day) {
+  q(card, `.ibtn[data-act="menu"][data-climate="${climate}"][data-day="${day}"]`).click(); await settle();
   return q(card, '.menu');
 }
 
@@ -23,7 +23,7 @@ describe('a paused thermostat in the card', () => {
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
   test('its chip says it is paused, instead of what it does now', async () => {
-    const card = createCard(pausedSalon());
+    const card = createCard(pausedSalon()); await settle();
     const chip = q(card, '.chip[data-climate="climate.salon"]');
     assert.ok(chip.classList.contains('paused'));
     assert.match(chip.querySelector('.live').textContent, /Pilotage suspendu/);
@@ -32,7 +32,7 @@ describe('a paused thermostat in the card', () => {
 
   test('a notice says Chauffage does not control it, with a button to resume it', async () => {
     const hass = pausedSalon();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     const notes = [...card.shadowRoot.querySelectorAll('.paused-note')];
     assert.equal(notes.length, 1);
     assert.match(text(notes[0]), /Salon : pilotage suspendu\. Chauffage n'y touche plus\./);
@@ -42,14 +42,14 @@ describe('a paused thermostat in the card', () => {
 
   test('once resumed elsewhere (switch, another card), the notice and the paused rows go away', async () => {
     const hass = pausedSalon();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     hass.push(integrationData({ weeks: WEEKS })); await settle();
     assert.equal(q(card, '.paused-note'), null);
     assert.ok(!q(card, '.bar[data-climate="climate.salon"]').classList.contains('paused'));
   });
 
   test('its rows are marked paused, without the current time', async () => {
-    const card = createCard(pausedSalon());
+    const card = createCard(pausedSalon()); await settle();
     const salon = q(card, '.dgroup.today .bar[data-climate="climate.salon"]');
     const bureau = q(card, '.dgroup.today .bar[data-climate="climate.bureau"]');
     assert.ok(salon.classList.contains('paused'));
@@ -59,19 +59,19 @@ describe('a paused thermostat in the card', () => {
   });
 
   test('today\'s row menu offers no temporary setpoint on it, and no pausing on any (#39)', async () => {
-    const card = createCard(pausedSalon());
-    const salon = openMenu(card, 'climate.salon', 0);
+    const card = createCard(pausedSalon()); await settle();
+    const salon = await openMenu(card, 'climate.salon', 0); await settle();
     assert.equal(salon.querySelector('[data-act="override-new"], [data-act="pause"], [data-act="resume"]'), null);
-    openMenu(card, 'climate.salon', 0); // closes it
-    const bureau = openMenu(card, 'climate.bureau', 0);
+    await openMenu(card, 'climate.salon', 0); await settle(); // closes it
+    const bureau = await openMenu(card, 'climate.bureau', 0); await settle();
     assert.ok(bureau.querySelector('[data-act="override-new"]'));
     assert.equal(bureau.querySelector('[data-act="pause"]'), null); // in the "Thermostats" view
   });
 
   test('its weeks can still be edited and saved, which does not resume it', async () => {
     const hass = pausedSalon();
-    const card = createCard(hass);
-    cutSlot(card, 'climate.salon', 0, 12 * 60);
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.salon', 0, 12 * 60);
     await save(card);
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/weeks/save');
@@ -82,7 +82,7 @@ describe('a paused thermostat in the card', () => {
   test('a user who is not an admin resumes it too, as with its Control switch', async () => {
     const hass = pausedSalon();
     hass.user = { is_admin: false };
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.ok(q(card, '.paused-note'));
     q(card, '[data-act="resume"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
@@ -91,7 +91,7 @@ describe('a paused thermostat in the card', () => {
   });
 
   test('in English', async () => {
-    const card = createCard(pausedSalon({ locale: { language: 'en' } }));
+    const card = createCard(pausedSalon({ locale: { language: 'en' } })); await settle();
     assert.match(q(card, '.chip[data-climate="climate.salon"] .live').textContent, /Control paused/);
     assert.match(text(q(card, '.paused-note')), /Salon: control paused\. Chauffage leaves it alone\. Resume/);
   });

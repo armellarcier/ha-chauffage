@@ -445,7 +445,7 @@ describe('the settings dialog', () => {
     test("from the card's override popover: it opens on top, and the popover is still open once it is closed", async () => {
       const hass = withOverride();
       const manager = fakeDialogManager(hass);
-      const card = createCard(hass, { show: ['climate.salon'] });
+      const card = createCard(hass, { show: ['climate.salon'] }); await settle();
       card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click(); await settle();
       card.shadowRoot.querySelector('.override-ed [data-open-settings]').click(); await settle();
       await tick();
@@ -674,7 +674,7 @@ describe('the settings dialog', () => {
       // The more-info dialog, a Material dialog open under ours
       const moreInfo = document.body.appendChild(document.createElement('ha-dialog'));
       moreInfo.open = true;
-      const card = createCard(hass, { show: ['climate.salon'] });
+      const card = createCard(hass, { show: ['climate.salon'] }); await settle();
       card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click(); await settle();
       card.shadowRoot.querySelector('.override-ed [data-open-settings]').click(); await settle();
       await tick();

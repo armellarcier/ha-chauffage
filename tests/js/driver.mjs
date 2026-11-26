@@ -60,9 +60,10 @@ export function selected(card) {
  * Opens the popover of a slot.
  * Internal: a tap on a slot of the same row within 400 ms is a double tap, which cuts the slot.
  */
-export function openSlot(card, climate, idx, d = 0) {
+export async function openSlot(card, climate, idx, d = 0) {
   card._sel = { climate, day: d, idx };
   card._render();
+  await settle();
 }
 
 // One pixel per minute on a row: a click's clientX is a time of day in minutes
@@ -89,22 +90,25 @@ export function tapAt(card, climate, minute, d = 0) {
 }
 
 /** Two taps at a time of day, on the slot running then: they cut the slot there. */
-export function doubleTap(card, climate, minute, d = 0) {
+export async function doubleTap(card, climate, minute, d = 0) {
   tapAt(card, climate, minute, d);
+  await settle();
   tapAt(card, climate, minute, d);
+  await settle();
 }
 
 /**
  * A piece of a slot, cut at a time of day by a double tap, then set to `preset` in its popover.
  * By default, a preset that neither the slot nor the next one has.
  */
-export function cutSlot(card, climate, d, minute, preset) {
-  doubleTap(card, climate, minute, d);
+export async function cutSlot(card, climate, d, minute, preset) {
+  await doubleTap(card, climate, minute, d);
   const sel = selected(card);
   if (!sel || sel.climate !== climate) return;
   const slots = day(card, climate, sel.day).map((slot) => slot.split(' ')[1]);
   const other = preset || ['comfort', 'eco', 'boost', 'frost'].find((id) => id !== slots[sel.idx] && id !== slots[sel.idx + 1]);
   act(card, 'preset', { preset: other });
+  await settle();
 }
 
 // ----- the menu of a row -----
@@ -116,9 +120,11 @@ export const openMenu = (card, climate, d = 0) => act(card, 'menu', { climate, d
  * Copies a day from its row's menu: `to` is "weekdays", "weekend", "all" or "others" (the other
  * thermostats shown), or nothing to copy the day to the clipboard.
  */
-export function copyDay(card, climate, d, to) {
+export async function copyDay(card, climate, d, to) {
   openMenu(card, climate, d);
+  await settle();
   act(card, to ? `fill-${to}` : 'copy-day', { climate, day: d });
+  await settle();
 }
 
 // ----- overrides -----
@@ -129,14 +135,15 @@ const today = () => (new Date().getDay() + 6) % 7;
  * Opens the popover of a thermostat's override: a tap on the override, or "New override" in
  * the menu of today's row when the thermostat has none.
  */
-export function openOverride(card, climate) {
+export async function openOverride(card, climate) {
   const band = $(card, `.override[data-climate="${climate}"]`);
-  if (band) {
-    band.click();
-    return;
+  if (band) band.click();
+  else {
+    openMenu(card, climate, today());
+    await settle();
+    act(card, 'override-new', { climate });
   }
-  openMenu(card, climate, today());
-  act(card, 'override-new', { climate });
+  await settle();
 }
 
 /** The week has changes not saved yet: the save bar is on screen. */
@@ -154,7 +161,10 @@ export async function save(card) {
  * Draws the card again, as its timer does every 30 seconds.
  * Internal: the timer runs on the real clock.
  */
-export const redraw = (card) => card._render();
+export async function redraw(card) {
+  card._render();
+  await settle();
+}
 
 // ----- more of the week -----
 
@@ -173,26 +183,31 @@ export const wholeWeek = (card, climate, schedule) => [0, 1, 2, 3, 4, 5, 6].map(
  * Internal: the popover of an air conditioner's off or fan-only slot shows no presets, and the
  * card still gives such a slot a preset, in the HVAC mode of the slot before it.
  */
-export function slotPreset(card, preset) {
+export async function slotPreset(card, preset) {
   const chip = $(card, `.editor [data-act="preset"][data-preset="${preset}"]`);
   if (chip) chip.click();
   else card._action('preset', { preset });
+  await settle();
 }
 
 /** Pastes the day copied (see `copyDay`) on a row, from the row's menu. */
-export function pasteDay(card, climate, d) {
+export async function pasteDay(card, climate, d) {
   openMenu(card, climate, d);
+  await settle();
   act(card, 'paste-day', { climate, day: d });
+  await settle();
 }
 
 /**
  * Sets every slot of a thermostat's week to heat or to cool (`mode`), with "All heat" or
  * "All cool" in the menu of its first row.
  */
-export function weekHvac(card, climate, mode) {
+export async function weekHvac(card, climate, mode) {
   const first = Number($$(card, `.bar[data-climate="${climate}"]`)[0].dataset.day);
   openMenu(card, climate, first);
+  await settle();
   act(card, 'week-hvac', { climate, mode });
+  await settle();
 }
 
 /**

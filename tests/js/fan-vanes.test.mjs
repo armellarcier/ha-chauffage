@@ -33,46 +33,46 @@ function setup({ weeks, mappings, locale, atelier = {} } = {}) {
   hass.entities['climate.atelier'] = { entity_id: 'climate.atelier' };
   return hass;
 }
-const cardOf = (hass, config = {}) => createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config });
-const select = (card, climate, d, idx) => openSlot(card, climate, idx, d);
+const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config }); await settle(); return card; };
+const select = async (card, climate, d, idx) => await openSlot(card, climate, idx, d);
 
 afterEach(() => cleanup());
 
 describe('fan and vanes on a slot', () => {
-  test('an air conditioner\'s slot popover folds the fan and swing settings under "More settings"; a heater has none', () => {
-    const card = cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
-    select(card, 'climate.atelier', 0, 0); // 00:00 eco, nothing set
+  test('an air conditioner\'s slot popover folds the fan and swing settings under "More settings"; a heater has none', async () => {
+    const card = await cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
+    await select(card, 'climate.atelier', 0, 0); // 00:00 eco, nothing set
     const more = $(card, '.editor details.more');
     assert.equal(text(more.querySelector('summary')), 'Plus de réglages');
     assert.equal(more.open, false);
     assert.deepEqual($$(card, '.editor details.more select').map((s) => s.dataset.slotSetting), ['fan_mode', 'swing_mode', 'swing_horizontal_mode']);
     assert.deepEqual($$(card, '.editor [data-slot-setting="fan_mode"] option').map((o) => `${o.value}:${o.textContent}`), [':Celui du thermostat (2)', 'auto:Auto', '1:1', '2:2', '3:3']);
-    select(card, 'climate.salon', 0, 1);
+    await select(card, 'climate.salon', 0, 1);
     assert.equal($(card, '.editor details.more'), null);
   });
 
-  test('a setting chosen is written on the slot; "Don\'t change" removes it; the summary lists the values set, and opens by itself', () => {
-    const card = cardOf(setup(), { show: ['climate.atelier'] });
-    select(card, 'climate.atelier', 0, 0);
-    change($(card, '.editor [data-slot-setting="fan_mode"]'), '2');
+  test('a setting chosen is written on the slot; "Don\'t change" removes it; the summary lists the values set, and opens by itself', async () => {
+    const card = await cardOf(setup(), { show: ['climate.atelier'] });
+    await select(card, 'climate.atelier', 0, 0);
+    change($(card, '.editor [data-slot-setting="fan_mode"]'), '2'); await settle();
     assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco {"fan_mode":"2"}');
     assert.equal(text($(card, '.editor details.more summary')), 'Ventilateur 2');
     assert.equal($(card, '.editor details.more').open, true);
-    change($(card, '.editor [data-slot-setting="fan_mode"]'), '');
+    change($(card, '.editor [data-slot-setting="fan_mode"]'), ''); await settle();
     assert.equal(day(card, 'climate.atelier', 0)[0], '00:00 eco');
-    select(card, 'climate.atelier', 0, 1); // 14:00: fan 1, swing
+    await select(card, 'climate.atelier', 0, 1); // 14:00: fan 1, swing
     assert.equal(text($(card, '.editor details.more summary')), 'Ventilateur 1 · Volets Oscillation');
   });
 
-  test('the default option names the value the preset\'s value sets', () => {
-    const card = cardOf(setup(), { show: ['climate.atelier'] });
-    select(card, 'climate.atelier', 0, 1); // comfort means fan 3 on this AC
+  test('the default option names the value the preset\'s value sets', async () => {
+    const card = await cardOf(setup(), { show: ['climate.atelier'] });
+    await select(card, 'climate.atelier', 0, 1); // comfort means fan 3 on this AC
     assert.equal($(card, '.editor [data-slot-setting="fan_mode"] option').textContent, '3 (préréglage)');
   });
 
-  test('the week shows a mark on the slots that set the fan or the vanes, at any width, and their title says the values', () => {
+  test('the week shows a mark on the slots that set the fan or the vanes, at any width, and their title says the values', async () => {
     const hass = setup();
-    const card = cardOf(hass, { show: ['climate.atelier'] });
+    const card = await cardOf(hass, { show: ['climate.atelier'] });
     const seg = (idx) => $(card, `.bar[data-climate="climate.atelier"][data-day="0"] .seg[data-idx="${idx}"]`);
     assert.equal(seg(1).querySelector('.t ha-icon.air').getAttribute('icon'), 'mdi:tune-variant');
     assert.match(seg(1).title, /Confort · Chauffe · Ventilateur 1 · Volets Oscillation$/);
@@ -80,52 +80,52 @@ describe('fan and vanes on a slot', () => {
     // A slot too narrow for its time and its name keeps the marker
     const NARROW = ['00:00 eco', ['14:00', 'comfort', { fan_mode: '1' }], '14:30 eco'];
     const { weeks } = integrationData({ weeks: { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.atelier': { Normal: [NARROW, QUIET, QUIET, QUIET, QUIET, WEEKEND, WEEKEND] } } });
-    hass.push({ ...hass.data, weeks, revision: hass.data.revision + 1 });
+    hass.push({ ...hass.data, weeks, revision: hass.data.revision + 1 }); await settle();
     assert.equal(text(seg(1)), '');
     assert.ok(seg(1).querySelector('.t.alone ha-icon.air'));
   });
 
-  test('short names of our own for the fan and the vanes, and a summary that is a button', () => {
-    const card = cardOf(setup(), { show: ['climate.atelier'] });
-    select(card, 'climate.atelier', 0, 0);
+  test('short names of our own for the fan and the vanes, and a summary that is a button', async () => {
+    const card = await cardOf(setup(), { show: ['climate.atelier'] });
+    await select(card, 'climate.atelier', 0, 0);
     assert.deepEqual($$(card, '.editor .more-row > span').map(text), ['Ventilateur', 'Volets', 'Volets horizontaux']);
     assert.ok($(card, '.editor details.more summary ha-icon[icon="mdi:chevron-down"]'));
   });
 
-  test('the values of the vanes read in the user\'s language, word by word; the rest stays', () => {
+  test('the values of the vanes read in the user\'s language, word by word; the rest stays', async () => {
     const options = (card) => $$(card, '.editor [data-slot-setting="swing_mode"] option').map((o) => o.textContent);
-    const card = cardOf(setup({ atelier: { swing_modes: ['auto', '1_up', 'swing', '5_down'] } }), { show: ['climate.atelier'] });
-    select(card, 'climate.atelier', 0, 0);
+    const card = await cardOf(setup({ atelier: { swing_modes: ['auto', '1_up', 'swing', '5_down'] } }), { show: ['climate.atelier'] });
+    await select(card, 'climate.atelier', 0, 0);
     assert.deepEqual(options(card), ['Celui du thermostat (Oscillation)', 'Auto', '1 haut', 'Oscillation', '5 bas']);
-    change($(card, '.editor [data-slot-setting="swing_mode"]'), '5_down');
+    change($(card, '.editor [data-slot-setting="swing_mode"]'), '5_down'); await settle();
     assert.equal(text($(card, '.editor details.more summary')), 'Volets 5 bas');
     cleanup();
-    const english = cardOf(setup({ atelier: { swing_modes: ['auto', '1_up', 'swing', '5_down'] }, locale: { language: 'en' } }), { show: ['climate.atelier'] });
-    select(english, 'climate.atelier', 0, 0);
+    const english = await cardOf(setup({ atelier: { swing_modes: ['auto', '1_up', 'swing', '5_down'] }, locale: { language: 'en' } }), { show: ['climate.atelier'] });
+    await select(english, 'climate.atelier', 0, 0);
     assert.deepEqual(options(english), ['Thermostat’s own (Swing)', 'Auto', '1 up', 'Swing', '5 down']);
   });
 
-  test('Home Assistant\'s own name of a value comes first', () => {
+  test('Home Assistant\'s own name of a value comes first', async () => {
     const hass = setup();
     hass.formatEntityAttributeValue = (st, attr, value) => (value === 'swing' ? 'Balancement' : value);
-    const card = cardOf(hass, { show: ['climate.atelier'] });
-    select(card, 'climate.atelier', 0, 0);
+    const card = await cardOf(hass, { show: ['climate.atelier'] });
+    await select(card, 'climate.atelier', 0, 0);
     assert.deepEqual($$(card, '.editor [data-slot-setting="swing_mode"] option').map((o) => o.textContent), ['Celui du thermostat (Balancement)', 'Auto', '1 haut', 'Balancement']);
   });
 
-  test('the open state of "More settings" survives a redraw', () => {
-    const card = cardOf(setup(), { show: ['climate.atelier'] });
-    select(card, 'climate.atelier', 0, 0);
+  test('the open state of "More settings" survives a redraw', async () => {
+    const card = await cardOf(setup(), { show: ['climate.atelier'] });
+    await select(card, 'climate.atelier', 0, 0);
     const more = $(card, '.editor details.more');
     more.open = true;
-    more.dispatchEvent(new window.Event('toggle'));
-    redraw(card);
+    more.dispatchEvent(new window.Event('toggle')); await settle();
+    await redraw(card);
     assert.equal($(card, '.editor details.more').open, true);
   });
 
-  test('a day copied to a thermostat that lists no fan loses the fan setting', () => {
-    const card = cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
-    copyDay(card, 'climate.atelier', 0, 'others');
+  test('a day copied to a thermostat that lists no fan loses the fan setting', async () => {
+    const card = await cardOf(setup(), { show: ['climate.salon', 'climate.atelier'] });
+    await copyDay(card, 'climate.atelier', 0, 'others');
     assert.equal(day(card, 'climate.salon', 0)[1], '14:00 comfort');
     assert.match(text($(card, '.msg')), /non repris : Ventilateur, Volets$/);
   });
@@ -147,8 +147,8 @@ describe('fan and vanes on a preset\'s value', () => {
     assert.deepEqual($$(card, '.cell-ed details.more select').map((s) => s.dataset.cellSetting), ['fan_mode', 'swing_mode', 'swing_horizontal_mode']);
     assert.equal($(card, '.cell-ed [data-cell-setting="fan_mode"]').value, '3');
     assert.equal($(card, '.cell-ed [data-cell-setting="swing_mode"] option').textContent, 'Celui du thermostat (Oscillation)');
-    change($(card, '.cell-ed [data-cell-setting="swing_mode"]'), '1_up');
-    act(card, 'cell-apply');
+    change($(card, '.cell-ed [data-cell-setting="swing_mode"]'), '1_up'); await settle();
+    act(card, 'cell-apply'); await settle();
     await settle();
     assert.deepEqual(lastCall(hass).mapping, { comfort: { fan_mode: '3', swing_mode: '1_up' } }, 'with the default setpoint');
     // Folded when nothing is set
@@ -185,7 +185,7 @@ describe('Copy from the thermostat, in the popover of a preset\'s value', () => 
     assert.equal($(card, '.cell-ed [data-cell-setting="fan_mode"]').value, '2');
     assert.equal($(card, '.cell-ed details.more').open, true);
     assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false);
-    act(card, 'cell-apply');
+    act(card, 'cell-apply'); await settle();
     await settle();
     assert.deepEqual(lastCall(hass).mapping, { eco: { cool_temperature: 20, fan_mode: '2', swing_mode: 'swing', swing_horizontal_mode: 'auto' } });
   });
@@ -194,7 +194,7 @@ describe('Copy from the thermostat, in the popover of a preset\'s value', () => 
     const hass = setup({ atelier: { preset_mode: 'none', temperature: 23.5 } });
     hass.states['climate.atelier'].state = 'off';
     const card = await open(hass);
-    click(card, '.cell-ed [data-act="capture"]');
+    click(card, '.cell-ed [data-act="capture"]'); await settle();
     assert.equal(chosen(card), 'temperature');
     assert.equal($(card, '.cell-ed [data-cell-temp]').value, '23,5');
     assert.equal($(card, '.cell-ed [data-cell-cool]').value, '');

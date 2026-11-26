@@ -421,8 +421,8 @@ afterEach(() => cleanup());
     });
 
     test('the setpoint of a slot opens the presets tab on the thermostat\'s row', async () => {
-      const card = cardOf(setup());
-      select(card, SUITE, 1);
+      const card = await cardOf(setup());
+      await select(card, SUITE, 1);
       assert.equal($(card, '.editor .setpoint-edit').dataset.navigate, `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
       window.history.replaceState(null, '', `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
       const tab = await panel(setup());
@@ -472,11 +472,11 @@ afterEach(() => cleanup());
       // Frost protection has no temperature when cooling. The combles cool on it at their own 28°
       const targets = { ...TARGETS, [COMBLES]: { ...TARGETS[COMBLES], frost: { cool_temperature: 28 } } };
       const hass = setup({ targets, suite: [['00:00', 'eco', { hvac_mode: 'cool' }]] });
-      const card = cardOf(hass, { show: [COMBLES, SUITE] });
-      const offered = (climate) => { select(card, climate, 0); return $$(card, '.editor .presets [data-act="preset"]').map((b) => b.dataset.preset); };
-      assert.ok(offered(COMBLES).includes('frost'));
-      assert.ok(!offered(SUITE).includes('frost'));
-      openOverride(card, COMBLES);
+      const card = await cardOf(hass, { show: [COMBLES, SUITE] });
+      const offered = async (climate) => { await select(card, climate, 0); return $$(card, '.editor .presets [data-act="preset"]').map((b) => b.dataset.preset); };
+      assert.ok((await offered(COMBLES)).includes('frost'));
+      assert.ok(!(await offered(SUITE)).includes('frost'));
+      await openOverride(card, COMBLES);
       assert.ok($(card, '.override-ed [data-act="override-preset"][data-preset="frost"]'));
     });
   });
@@ -496,8 +496,8 @@ afterEach(() => cleanup());
     });
 
     test('the chips of a slot follow it', async () => {
-      const card = cardOf(setup(), { show: [SUITE] });
-      select(card, SUITE, 1);
+      const card = await cardOf(setup(), { show: [SUITE] });
+      await select(card, SUITE, 1);
       assert.notEqual($(card, '.editor .presets [data-preset="comfort"]').style.color, 'rgb(255, 255, 255)');
       click(card, '.editor .mode-row [data-mode="cool"]'); await settle();
       assert.equal($(card, '.editor .presets [data-preset="comfort"]').style.color, 'rgb(255, 255, 255)');
@@ -506,7 +506,7 @@ afterEach(() => cleanup());
 
   describe('the presets tab', () => {
     onMondayAtTen();
-    const presetsTab = async (hass) => createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' });
+    const presetsTab = async (hass) => { const card = createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' }); await settle(); return card; };
     const open = (card, preset, climate) => click(card, `[data-act="cell"][data-kind="${climate ? 'thermostat' : 'preset'}"][data-preset="${preset}"]${climate ? `[data-climate="${climate}"]` : ''}`);
 
     test('an empty cooling field shows the preset\'s cooling temperature as a hint', async () => {

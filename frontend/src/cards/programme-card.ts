@@ -1,4 +1,6 @@
-import { bindReload, noticeHtml, reloadPage, sourceNotice } from '../notices.ts';
+import { LitElement, html, unsafeCSS } from 'lit';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { noticeTemplate, reloadPage, sourceNotice } from '../notices.ts';
 import { dataSource, renamedTo } from '../client/snapshot.ts';
 import { commands } from '../client/commands.ts';
 import { client } from '../client/chauffage-client.ts';
@@ -13,7 +15,7 @@ import { MEASURE_RAMP, SETPOINT_MARGIN, curveValue, rowsOfStates } from '../hist
 import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacModesOf, hvacSlotStyle, listsMode, modeName, moreSettingsHtml, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
 import { LINK_TOKEN, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withHtml } from '../links.ts';
-import { OVERRIDE_TEMPERATURE, RESUME, cardFrame, coolPresetTemperatureOf, fillCard, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
+import { OVERRIDE_TEMPERATURE, RESUME, coolPresetTemperatureOf, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
 import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
 import { modeChipHtml, modeRowHtml, offChipHtml, presetOf, sortedPresets } from '../presets.ts';
 import { fromSettings, openSettings } from '../settings-dialog.ts';
@@ -40,12 +42,18 @@ const HANDLE_WIDTH = 18;
 // How far a finger moves sideways before it moves a time or a slot (#67), in pixels
 const TOUCH_SLOP = 8;
 
-export class ChauffageProgrammeCard extends HTMLElement {
+export class ChauffageProgrammeCard extends LitElement {
+  static styles = unsafeCSS(STYLE);
+
   // The fields of the element, untyped until the rewrite of the card gives them a type
   declare _accessStamp: any;
   declare _asideKey: any;
   declare _available: any;
   declare _bodyScroll: any;
+  declare _focusName: { value?: string } | null;
+  declare _tabsLeft: number;
+  declare _typedTemperature: string | null;
+  declare _typing: { value: string; focused: boolean } | null;
   declare _config: any;
   declare _configured: any;
   declare _copyWeekMenu: any;
@@ -110,8 +118,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
-    linksByKeyboard(this.shadowRoot);
     this._draft = new WeekDraft(); // the weeks edited, until saved
     this._sel = null; // { climate, day, idx }
     this._focus = null; // last thermostat used (source of "Copier la semaine")
@@ -136,7 +142,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._rows = null; // rows of days drawn last, each edited as a whole
     this._history.shown = historyPreference();
     this._groupPref = groupPreference();
-    this._bindEvents();
+  }
+
+  createRenderRoot() {
+    const root = super.createRenderRoot();
+    linksByKeyboard(root);
+    this._bindEvents(root);
+    return root;
   }
 
   static getConfigElement() {
@@ -343,6 +355,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   connectedCallback() {
+    super.connectedCallback();
     this._previewChanged();
     this._timer = setInterval(() => {
       if (this._drag || this._overrideDrag) return;
@@ -377,6 +390,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback();
     clearInterval(this._timer);
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
@@ -1083,10 +1097,16 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // upwards, because there is no room for it below in the window
   _openMenu(climate, day, top, right, above) {
     const m = this._menu;
-    this._menu = m && m.climate === climate && m.day === day ? null : { climate, day, top, right };
+    this._menu = m && m.climate === climate && m.day === day ? null : { climate, day, top, right, above };
     this._render();
+  }
+
+  // The row menu just drawn, placed upwards when there is no room for it below in the window
+  _placeMenu() {
     const menu = this._menu;
-    if (!menu || above == null) return;
+    if (!menu || menu.above == null) return;
+    const { top, above } = menu;
+    menu.above = null; // placed once
     // Measured once ha-card (a Lit component, rendered asynchronously) shows its content
     const place = () => {
       const el: any = this._menu === menu && this.shadowRoot.querySelector('.menu');
@@ -1248,10 +1268,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (!placePopover(this, root.querySelector('ha-card'), ed, seg, seg.parentElement, false)) return false;
     // A redraw (a preset tapped, Home Assistant's new data) keeps where the body was scrolled
     const kept = this._bodyScroll;
-    this._bodyScroll = null;
     this._placedKey = this._editorKey();
     const body = ed.querySelector('.ed-body');
     if (kept && body && kept.key === this._placedKey) body.scrollTop = kept.top;
+    this._bodyScroll = null; // once put back
     return true;
   }
 
@@ -1263,22 +1283,48 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // Redraws the card, keeping a schedule name being typed in a menu (the card is redrawn every
   // 30 s during an override, or when Home Assistant sends new data)
   _render() {
-    // Not while a time is typed: the redraw would take its field away
-    if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; }
-    const input: any = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
-    const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
-    const field = focusedField(this.shadowRoot, OVERRIDE_TEMPERATURE);
-    const temperature = field ? field.value : null;
-    const tabs = this.shadowRoot.querySelector('.tabs-scroll');
-    const tabsLeft = tabs ? tabs.scrollLeft : 0;
+    this.requestUpdate();
+  }
+
+  // Not while a time is typed: the redraw would take its field away
+  shouldUpdate() {
+    if (!this._hass || !this._config) return false;
+    if (focusedField(this.renderRoot, 'input.time')) { this._redrawLater = true; return false; }
+    return true;
+  }
+
+  willUpdate() {
+    const root = this.renderRoot;
+    const input: any = root.querySelector('.sched-menu input[data-sched-name]');
+    this._typing = input && { value: input.value, focused: (root as any).activeElement === input };
+    const field = focusedField(root, OVERRIDE_TEMPERATURE);
+    this._typedTemperature = field ? field.value : null;
+    const tabs = root.querySelector('.tabs-scroll');
+    this._tabsLeft = tabs ? tabs.scrollLeft : 0;
     // A popover's body scrolled: put back by _placeEditor(), if the same popover is still open
-    const body = this.shadowRoot.querySelector('.editor .ed-body');
+    const body = root.querySelector('.editor .ed-body');
     this._bodyScroll = body && body.scrollTop ? { key: this._placedKey, top: body.scrollTop } : null;
-    this._draw();
+  }
+
+  updated() {
     this._tabsWait = false;
-    this._placeTabs(tabsLeft);
-    if (typing) this._restoreSchedName(typing.value, typing.focused);
-    if (temperature !== null) restoreTyped(this.shadowRoot, `.override-ed ${OVERRIDE_TEMPERATURE}`, temperature);
+    this._placeTabs(this._tabsLeft);
+    const typing = this._typing;
+    this._typing = null;
+    if (this._focusName) {
+      this._restoreSchedName(this._focusName.value, true);
+      this._focusName = null;
+    } else if (typing) this._restoreSchedName(typing.value, typing.focused);
+    if (this._typedTemperature !== null) restoreTyped(this.renderRoot, `.override-ed ${OVERRIDE_TEMPERATURE}`, this._typedTemperature);
+    this._placeMenu();
+    this._schedulePlaceEditor();
+    this._schedulePlaceTags();
+    // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
+    // sheet hears when it has edits to save
+    if (this._config.week_only && this._draft.dirty !== this._dirtyTold) {
+      this._dirtyTold = this._draft.dirty;
+      this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
+    }
   }
 
   // Many schedules: the tabs scroll sideways. A redraw keeps where they were scrolled; another
@@ -1333,33 +1379,24 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (input && value != null) input.value = value;
   }
 
-  _draw() {
+  render() {
     this._settle();
-    if (!this._hass || !this._config) return;
     const tr = this._loc.t;
-    const fill = (html, cls?) => fillCard(this.shadowRoot, STYLE, html, `${cls || ''}${this._config.flat ? ' flat' : ''}`);
+    const flat = this._config.flat ? ' flat' : '';
+    const fill = (content, cls?) => html`<ha-card class=${`${cls || ''}${flat}`}>${typeof content === 'string' ? unsafeHTML(content) : content}</ha-card>`;
     const notice = sourceNotice(this._source());
-    if (notice) {
-      fill(noticeHtml(notice, tr));
-      bindReload(this.shadowRoot, () => this._reloadPage());
-      return;
-    }
+    if (notice) return fill(noticeTemplate(notice, tr));
     // A view of the panel (`view`): its own element, kept while the card shows it
     if (VIEWS[this._view] && this._source().ready) {
-      const frame = cardFrame(this.shadowRoot, STYLE, this._config.flat ? ' flat' : '');
       const view = this._viewElement();
       view.hass = this._hass;
       view.loc = this._loc;
       view.thermostats = this._thermostats;
       view.panel = !!this._config.panel;
       if (this._view === 'presets') view.definitions = this._config.preset_definitions !== false;
-      if (frame.firstChild !== view || frame.childNodes.length !== 1) frame.replaceChildren(view);
-      return;
+      return fill(view);
     }
-    if (!this._thermostats.length) {
-      fill(this._renamedNotesHtml());
-      return;
-    }
+    if (!this._thermostats.length) return fill(this._renamedNotesHtml());
     const src = this._source();
     const schedules = this._schedules();
     const active = this._activeSchedule();
@@ -1441,8 +1478,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
         return items ? `<div class="mh">${esc(this._name(t.entity))}</div>${items}` : '';
       }).join('')}</div>`;
 
-    fill(`
-        
+    return fill(`
         ${weekOnly ? '' : `<div class="chips${panelOpen ? ' with-open' : ''}">
           ${panelOpen}
           ${chips}
@@ -1478,14 +1514,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
           ${maySave ? `<button class="btn primary" data-act="save">${esc(tr('save'))}</button>` : ''}
         </div>` : ''}`,
       `${multi ? 'multi' : 'single'} h${Math.min(this._shown.length, 3)}${this._loc.hour12 ? ' h12' : ''}`);
-    this._schedulePlaceEditor();
-    this._schedulePlaceTags();
-    // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
-    // sheet hears when it has edits to save
-    if (this._config.week_only && this._draft.dirty !== this._dirtyTold) {
-      this._dirtyTold = this._draft.dirty;
-      this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
-    }
   }
 
   // Visual update of a row while dragging (without recreating the captured handle)
@@ -1517,8 +1545,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // ---------- events ----------
 
-  _bindEvents() {
-    const root = this.shadowRoot;
+  _bindEvents(root) {
 
     // The schedule tabs scroll natively (a finger, a trackpad, Shift + wheel): their fades and arrows
     // follow. An arrow scrolls by most of a width (the tab cut at the edge then shows whole), with
@@ -1943,8 +1970,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   // Redraws with the schedule menu's name field focused (keeping what was typed)
   _renderSchedMenu(typed?) {
-    this._draw();
-    this._restoreSchedName(typed, true);
+    this._focusName = { value: typed };
+    this.requestUpdate();
   }
 
   // Where a change comes from, for the logbook: the panel, or a card (none: older integrations)
@@ -2331,6 +2358,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       const changed = nextOverride(act, ds, d, this._source(), c, this._hass);
       return changed && this._sendOverride(c, changed === RESUME ? null : changed);
     }
+    if (act === 'reload-page') return this._reloadPage();
     if (act === 'save') return this._save();
     if (act === 'cancel') return this._discard();
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));

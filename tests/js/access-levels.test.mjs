@@ -42,10 +42,10 @@ function as(level, { weeks, overrides, reply, locale } = {}) {
 // The access level changed by an admin: the integration pushes its data again
 const changeTo = (hass, level, more = {}) => hass.push(dataAt(level, more));
 
-const card = (hass, config = {}) => createCard(hass, { show: ['climate.salon'], group_days: false, ...config });
+const card = async (hass, config = {}) => { const card = createCard(hass, { show: ['climate.salon'], group_days: false, ...config }); await settle(); return card; };
 const bar = (c, climate = 'climate.salon', d = 0) => geometry($(c, `.bar[data-climate="${climate}"][data-day="${d}"]`));
-const dayMenu = (c, d = 0, climate = 'climate.salon') => {
-  $(c, `[data-act="menu"][data-climate="${climate}"][data-day="${d}"]`).click();
+const dayMenu = async (c, d = 0, climate = 'climate.salon') => {
+  $(c, `[data-act="menu"][data-climate="${climate}"][data-day="${d}"]`).click(); await settle();
   return $$(c, '.menu .mi').map((b) => b.dataset.act);
 };
 
@@ -54,7 +54,7 @@ describe('the access level in the schedule card', () => {
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
   test('with Use, the weeks are read-only: no handle, no hint, no tab ⋮ or +, no copy of a week', async () => {
-    const c = card(as('use'));
+    const c = await card(as('use'));
     assert.equal($(c, '.handle'), null);
     assert.equal($(c, '.hint'), null);
     assert.equal($(c, '[data-act="schedule-menu"]'), null);
@@ -63,7 +63,7 @@ describe('the access level in the schedule card', () => {
   });
 
   test('with Use, tapping or dragging a slot changes nothing and opens nothing', async () => {
-    const c = card(as('use'));
+    const c = await card(as('use'));
     const seg = bar(c).querySelector('.seg[data-idx="1"]');
     pointer(seg, 'pointerdown', 400);
     pointer(seg, 'pointermove', 500);
@@ -76,23 +76,23 @@ describe('the access level in the schedule card', () => {
   });
 
   test("with Use, a day's ⋮ only offers a new override, on today", async () => {
-    const c = card(as('use'));
-    assert.deepEqual(dayMenu(c, 0), ['override-new']);
-    escape(); // the menu closed
+    const c = await card(as('use'));
+    assert.deepEqual(await dayMenu(c, 0), ['override-new']);
+    escape(); await settle(); // the menu closed
     assert.ok($(c, '[data-act="menu"][data-day="1"]').disabled, 'nothing to offer on another day');
   });
 
   test('with Use, a right click on a day opens no copy or paste', async () => {
-    const c = card(as('use'));
+    const c = await card(as('use'));
     bar(c, 'climate.salon', 1).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 100, clientY: 50 })); await settle();
     assert.equal($(c, '.menu [data-act="copy-day"], .menu [data-act="paste-day"]'), null);
   });
 
   test('with Use, the overrides, the pause and the active schedule still work', async () => {
     const hass = as('use');
-    const c = card(hass);
-    assert.ok(dayMenu(c, 0).includes('override-new'));
-    act(c, 'override-new', { climate: 'climate.salon' });
+    const c = await card(hass);
+    assert.ok((await dayMenu(c, 0)).includes('override-new'));
+    act(c, 'override-new', { climate: 'climate.salon' }); await settle();
     assert.ok($(c, '.editor'), 'the override popover opens');
     $(c, '.tab[data-schedule="away"]').click(); await settle();
     $(c, '[data-act="activate-schedule"]').click(); await settle();
@@ -100,20 +100,20 @@ describe('the access level in the schedule card', () => {
   });
 
   test('with Plan, the weeks and the schedules are edited from the card', async () => {
-    const c = card(as('plan'));
+    const c = await card(as('plan'));
     assert.ok($(c, '.handle'));
     assert.ok($(c, '.hint'));
     assert.ok($(c, '[data-act="schedule-menu"]'));
     assert.ok($(c, '[data-act="schedule-new"]'));
     assert.ok($(c, '[data-act="copyweek-menu"]'));
-    assert.deepEqual(dayMenu(c, 0).slice(0, 2), ['copy-day', 'paste-day']);
-    escape(); // the menu closed
+    assert.deepEqual((await dayMenu(c, 0)).slice(0, 2), ['copy-day', 'paste-day']);
+    escape(); await settle(); // the menu closed
     bar(c).querySelector('.seg[data-idx="2"]').click(); await settle();
     assert.ok($(c, '.editor'));
   });
 
   test('with Plan, no way to the panel: no panel button, no "Set the presets"', async () => {
-    const c = card(as('plan'));
+    const c = await card(as('plan'));
     assert.equal($(c, '.panel-open'), null);
     assert.equal($(c, '.settings-link'), null);
     assert.equal($(c, '[data-navigate^="/chauffage"]'), null);
@@ -123,7 +123,7 @@ describe('the access level in the schedule card', () => {
   });
 
   test('with Plan, the week of a thermostat Chauffage does not schedule stays read-only: editing it would schedule it', async () => {
-    const c = card(as('plan'), { show: ['climate.salon', 'climate.bureau'] });
+    const c = await card(as('plan'), { show: ['climate.salon', 'climate.bureau'] });
     assert.ok(bar(c, 'climate.bureau').classList.contains('ro'));
     assert.ok(!bar(c, 'climate.salon').classList.contains('ro'));
     assert.equal(text($(c, '.unscheduled-note')), 'Chauffage ne programme pas Bureau.');
@@ -135,7 +135,7 @@ describe('the access level in the schedule card', () => {
   });
 
   test('with Set up, the card leads to the panel, and schedules a thermostat by editing its week', async () => {
-    const c = card(as('set_up'), { show: ['climate.salon', 'climate.bureau'] });
+    const c = await card(as('set_up'), { show: ['climate.salon', 'climate.bureau'] });
     assert.ok($(c, '.panel-open[data-navigate="/chauffage"]'));
     assert.ok($(c, '.settings-link[data-navigate="/chauffage/presets"]'));
     assert.ok(!bar(c, 'climate.bureau').classList.contains('ro'));
@@ -143,7 +143,7 @@ describe('the access level in the schedule card', () => {
   });
 
   test('an admin sees everything, whatever the access level', async () => {
-    const c = card(as('admin'), { show: ['climate.salon', 'climate.bureau'] });
+    const c = await card(as('admin'), { show: ['climate.salon', 'climate.bureau'] });
     assert.ok($(c, '.panel-open'));
     assert.ok($(c, '.handle'));
     assert.ok(!bar(c, 'climate.bureau').classList.contains('ro'));
@@ -152,38 +152,38 @@ describe('the access level in the schedule card', () => {
 
   test('a save refused by the integration says the access level does not allow it', async () => {
     const hass = as('plan', { reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'unauthorized', message: 'Unauthorized' }; return null; } });
-    const c = card(hass);
-    cutSlot(c, 'climate.salon', 0, 12 * 60);
+    const c = await card(hass);
+    await cutSlot(c, 'climate.salon', 0, 12 * 60);
     await save(c);
     assert.equal(text($(c, '.msg')), 'Votre niveau d’accès ne le permet pas.');
   });
 
   test('in English', async () => {
     const hass = as('plan', { locale: { language: 'en' }, reply: () => { throw { code: 'unauthorized', message: 'Unauthorized' }; } });
-    const c = card(hass);
-    cutSlot(c, 'climate.salon', 0, 12 * 60);
+    const c = await card(hass);
+    await cutSlot(c, 'climate.salon', 0, 12 * 60);
     await save(c);
     assert.equal(text($(c, '.msg')), 'Your access level doesn’t allow this.');
   });
 
   test('the access level rises: the tools appear without a reload', async () => {
     const hass = as('use');
-    const c = card(hass);
+    const c = await card(hass);
     assert.equal($(c, '.handle'), null);
-    changeTo(hass, 'plan');
+    changeTo(hass, 'plan'); await settle();
     assert.ok($(c, '.handle'));
     assert.ok($(c, '[data-act="schedule-new"]'));
-    changeTo(hass, 'set_up');
+    changeTo(hass, 'set_up'); await settle();
     assert.ok($(c, '.panel-open'));
   });
 
   test('the access level drops with weeks not saved: the edits stay until Cancel, but cannot be saved', async () => {
     const hass = as('plan');
-    const c = card(hass);
-    cutSlot(c, 'climate.salon', 0, 12 * 60);
+    const c = await card(hass);
+    await cutSlot(c, 'climate.salon', 0, 12 * 60);
     const edited = day(c, 'climate.salon', 0).length;
     assert.ok($(c, '[data-act="save"]'));
-    changeTo(hass, 'use');
+    changeTo(hass, 'use'); await settle();
     assert.equal(unsaved(c), true);
     assert.equal(day(c, 'climate.salon', 0).length, edited, 'the edit is kept');
     assert.equal($(c, '.handle'), null);
@@ -200,10 +200,10 @@ describe('the access level in the schedule card', () => {
 
   test('the access level drops after a copy: the message says the access level, not the copy', async () => {
     const hass = as('plan');
-    const c = card(hass);
-    copyDay(c, 'climate.salon', 0, 'weekend');
+    const c = await card(hass);
+    await copyDay(c, 'climate.salon', 0, 'weekend');
     assert.match(text($(c, '.msg')), /copié/);
-    changeTo(hass, 'use');
+    changeTo(hass, 'use'); await settle();
     assert.equal(text($(c, '.msg')), 'Votre niveau d’accès ne le permet pas.');
   });
 });
@@ -292,9 +292,9 @@ describe('the access level in the thermostat card', () => {
   const cardFor = async (hass, entity) => {
     hass.states['climate.cuisine'] = { state: 'heat', attributes: { friendly_name: 'Cuisine', current_temperature: 18 }, last_updated: '1' };
     const el = document.createElement('chauffage-thermostat-card');
-    el.setConfig({ type: 'custom:chauffage-thermostat-card', entity });
+    el.setConfig({ type: 'custom:chauffage-thermostat-card', entity }); await settle();
     document.body.appendChild(el);
-    el.hass = hass;
+    el.hass = hass; await settle();
     await settle();
     return el;
   };
@@ -315,10 +315,10 @@ describe('the access level in the thermostat card', () => {
     const hass = as('plan');
     const card = await cardFor(hass, 'climate.cuisine');
     assert.equal($(card, '.msg [data-navigate]'), null);
-    changeTo(hass, 'set_up');
+    changeTo(hass, 'set_up'); await settle();
     card.hass = hass; await settle();
     assert.equal(text($(card, '.msg [data-navigate]')), 'Le programmer');
-    changeTo(hass, 'use');
+    changeTo(hass, 'use'); await settle();
     card.hass = hass; await settle();
     assert.equal($(card, '.msg [data-navigate]'), null);
   });
@@ -335,7 +335,7 @@ describe('the access level in the panel', () => {
     window.history.replaceState(null, '', `/chauffage${path}`);
     const el = document.createElement('chauffage-panel');
     document.body.appendChild(el);
-    el.hass = hass;
+    el.hass = hass; await settle();
     el.panel = hass.panels.chauffage;
     el.route = { prefix: '/chauffage', path };
     await drawn(el);
@@ -381,16 +381,16 @@ describe('the access level in the settings dialog', () => {
   const settings = async (hass) => {
     const el = document.createElement('chauffage-settings-dialog');
     document.body.appendChild(el);
-    el.hass = hass;
+    el.hass = hass; await settle();
     el.showDialog({});
     await settle();
     return el;
   };
   const choices = (el) => $$(el, '.access-settings [data-access-level]');
-  const pick = (el, value) => {
+  const pick = async (el, value) => {
     const radio = choices(el).find((c) => c.value === value);
     radio.checked = true;
-    radio.dispatchEvent(new Event('change', { bubbles: true }));
+    radio.dispatchEvent(new Event('change', { bubbles: true })); await settle();
   };
 
   test('an admin chooses the access level among Use, Plan and Set up, the current one checked', async () => {
@@ -416,7 +416,7 @@ describe('the access level in the settings dialog', () => {
   test('a choice is sent at once, and says it is saved', async () => {
     const hass = as('admin');
     const el = await settings(hass);
-    pick(el, 'plan');
+    await pick(el, 'plan');
     await tick();
     assert.deepEqual(hass.events.at(-1), { type: 'chauffage/settings/set', access_level: 'plan' });
     assert.match(text($(el, '.access-settings .saved')), /Enregistré/);
@@ -433,7 +433,7 @@ describe('the access level in the settings dialog', () => {
   // Home Assistant may open the dialog before it puts it on the page (the first open after a load)
   const openedBeforeConnected = async (hass, params = {}) => {
     const el = document.createElement('chauffage-settings-dialog');
-    el.hass = hass;
+    el.hass = hass; await settle();
     el.showDialog(params);
     document.body.appendChild(el);
     await settle();

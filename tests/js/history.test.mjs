@@ -3,7 +3,7 @@ import { fakeHass, createCard, cleanup } from './helpers.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { historyDays, rowsOfStates } from '../../frontend/src/index.ts';
-import { openMenu, selected } from './driver.mjs';
+import { drawn, openMenu, selected, settle } from './driver.mjs';
 import { measured } from './driver.mjs';
 
 // Monday 12 October 2026, 10:00 (Paris): Monday is "today", Sunday is yesterday, Tuesday was 6 days ago
@@ -51,7 +51,7 @@ afterEach(() => { mock.timers.reset(); cleanup(); });
 beforeEach(() => mock.timers.enable({ apis: ['Date'], now: NOW }));
 
 describe('history of the measured temperature', () => {
-  test('each weekday gets its last occurrence, carried over from the day before', () => {
+  test('each weekday gets its last occurrence, carried over from the day before', async () => {
     const days = historyDays(HISTORY, NOW)['climate.salon'];
     // Monday = today, until now (10:00)
     assert.deepEqual(days[0].current, [[[0, 18], [390, 18.2], [480, 19.6], [600, 19.6]]]);
@@ -62,7 +62,7 @@ describe('history of the measured temperature', () => {
     assert.deepEqual(days[1].current, []);
   });
 
-  test('an unavailable thermostat breaks the curve', () => {
+  test('an unavailable thermostat breaks the curve', async () => {
     const days = historyDays({
       'climate.salon': [
         row('2026-10-12T01:00:00+02:00', 18, 17),
@@ -73,7 +73,7 @@ describe('history of the measured temperature', () => {
     assert.deepEqual(days[0].current, [[[60, 18], [120, 18]], [[180, 17.5], [600, 17.5]]]);
   });
 
-  test("HA's own history is read the same way", () => {
+  test("HA's own history is read the same way", async () => {
     const state = (iso, current, target) => ({ s: 'heat', a: { current_temperature: current, temperature: target }, lu: at(iso) });
     assert.deepEqual(rowsOfStates({
       'climate.salon': [
@@ -89,7 +89,7 @@ describe('history of the measured temperature', () => {
 
   test('hidden by default: no history is loaded', async () => {
     const hass = historyHass();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await flush();
     assert.equal(historyCalls(hass).length, 0);
     assert.equal(curve(card, 'climate.salon', 0), null);
@@ -98,8 +98,8 @@ describe('history of the measured temperature', () => {
 
   test('the History button loads the last 7 days of every thermostat from the integration and draws them', async () => {
     const hass = historyHass();
-    const card = createCard(hass);
-    toggle(card).click();
+    const card = createCard(hass); await settle();
+    toggle(card).click(); await drawn(card);
     // Loading: the button says so
     assert.ok(toggle(card).classList.contains('loading'));
     await flush();
@@ -126,8 +126,8 @@ describe('history of the measured temperature', () => {
   });
 
   test('the measured range of a slot is in its tooltip', async () => {
-    const card = createCard(historyHass());
-    toggle(card).click();
+    const card = createCard(historyHass()); await settle();
+    toggle(card).click(); await settle();
     await flush();
     // Monday 06:30 → 08:30, Comfort: 18.2 then 19.6, setpoint 20
     const seg = card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]');
@@ -135,21 +135,21 @@ describe('history of the measured temperature', () => {
   });
 
   test('the measured range of a slot is in its popover too: a phone shows no tooltip', async () => {
-    const card = createCard(historyHass());
-    toggle(card).click();
+    const card = createCard(historyHass()); await settle();
+    toggle(card).click(); await settle();
     await flush();
-    card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+    card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click(); await settle();
     assert.equal(card.shadowRoot.querySelector('.editor .ed-measured').textContent, 'mesuré 18,2–19,6° · consigne 20°');
     // Without the history, the popover says nothing about it
-    toggle(card).click();
+    toggle(card).click(); await settle();
     await flush();
-    card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click();
+    card.shadowRoot.querySelector('.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').click(); await settle();
     assert.equal(card.shadowRoot.querySelector('.editor .ed-measured'), null);
   });
 
   test('the measured temperature is a smooth line, flat until 15 minutes before a change after a long steady time', async () => {
-    const card = createCard(historyHass());
-    toggle(card).click();
+    const card = createCard(historyHass()); await settle();
+    toggle(card).click(); await settle();
     await flush();
     // Monday: 18 since Sunday, 18.2 at 06:30, 19.6 at 08:00 (scale 17 → 20 with the setpoints)
     const d = curve(card, 'climate.salon', 0).querySelector('path.measured').getAttribute('d');
@@ -158,44 +158,44 @@ describe('history of the measured temperature', () => {
 
   test('a setpoint a few degrees above the measured temperature stays in the scale', async () => {
     // Measured 18 → 19, setpoint 21: the scale goes up to 21 (no clamping on the edge)
-    const card = createCard(historyHass({ 'climate.salon': [row('2026-10-12T00:00:00+02:00', 18, 21), row('2026-10-12T06:00:00+02:00', 19, 21)] }));
-    toggle(card).click();
+    const card = createCard(historyHass({ 'climate.salon': [row('2026-10-12T00:00:00+02:00', 18, 21), row('2026-10-12T06:00:00+02:00', 19, 21)] })); await settle();
+    toggle(card).click(); await settle();
     await flush();
     const d = curve(card, 'climate.salon', 0).querySelector('path.target').getAttribute('d');
     assert.equal(d, 'M0 10.0 H600');
   });
 
   test('a setpoint far below the measured temperature stays on the bottom edge', async () => {
-    const card = createCard(historyHass({ 'climate.salon': [row('2026-10-12T00:00:00+02:00', 18, 7), row('2026-10-12T06:00:00+02:00', 19, 7)] }));
-    toggle(card).click();
+    const card = createCard(historyHass({ 'climate.salon': [row('2026-10-12T00:00:00+02:00', 18, 7), row('2026-10-12T06:00:00+02:00', 19, 7)] })); await settle();
+    toggle(card).click(); await settle();
     await flush();
     const d = curve(card, 'climate.salon', 0).querySelector('path.target').getAttribute('d');
     assert.equal(d, 'M0 97.0 H600');
   });
 
   test('the choice is kept for the next visit', async () => {
-    const card = createCard(historyHass());
-    toggle(card).click();
+    const card = createCard(historyHass()); await settle();
+    toggle(card).click(); await settle();
     await flush();
     card.remove();
     const hass = historyHass();
-    const again = createCard(hass);
+    const again = createCard(hass); await settle();
     await flush();
     assert.equal(historyCalls(hass).length, 1);
     assert.ok(curve(again, 'climate.salon', 0));
   });
 
   test('clicking again hides the curves', async () => {
-    const card = createCard(historyHass());
-    toggle(card).click();
+    const card = createCard(historyHass()); await settle();
+    toggle(card).click(); await settle();
     await flush();
-    toggle(card).click();
+    toggle(card).click(); await settle();
     assert.equal(curve(card, 'climate.salon', 0), null);
   });
 
   test('history unavailable (recorder off): says so', async () => {
-    const card = createCard(historyHass(new Error('The recorder is not set up: no history')));
-    toggle(card).click();
+    const card = createCard(historyHass(new Error('The recorder is not set up: no history'))); await settle();
+    toggle(card).click(); await settle();
     await flush();
     assert.match(card.shadowRoot.querySelector('.msg').textContent, /Historique indisponible : The recorder is not set up/);
   });
@@ -203,8 +203,8 @@ describe('history of the measured temperature', () => {
   test("integration updated but HA not restarted yet: HA's own history is used", async () => {
     const compressed = { 'climate.salon': [{ s: 'heat', a: { current_temperature: 18, temperature: 17 }, lu: at('2026-10-11T23:00:00+02:00') }] };
     const hass = historyHass(compressed, { old: true });
-    const card = createCard(hass);
-    toggle(card).click();
+    const card = createCard(hass); await settle();
+    toggle(card).click(); await settle();
     await flush();
     await flush();
     const call = hass.events.find((e) => e.type === 'history/history_during_period');
@@ -214,19 +214,19 @@ describe('history of the measured temperature', () => {
 
   test('after 5 minutes, only what is new is loaded, and added to the curves', async () => {
     const hass = historyHass();
-    const card = createCard(hass);
-    toggle(card).click();
+    const card = createCard(hass); await settle();
+    toggle(card).click(); await settle();
     await flush();
-    card.hass = hass; // Home Assistant's next update: too early to load again
+    card.hass = hass; await settle(); // Home Assistant's next update: too early to load again
     await flush();
     assert.equal(historyCalls(hass).length, 1);
-    mock.timers.setTime(NOW.getTime() + 6 * 60000);
+    mock.timers.setTime(NOW.getTime() + 6 * 60000); await settle();
     // The integration answers from the start asked, the state at that time first
     hass.events.length = 0;
     const later = { 'climate.salon': [row('2026-10-12T09:59:00+02:00', 19.6, 20), row('2026-10-12T10:05:00+02:00', 20.1, 20)], 'climate.bureau': [] };
     const reply = (msg) => (msg.type === 'chauffage/history' ? later : null);
     hass.callWS = async (msg) => { hass.events.push(msg); return reply(msg); };
-    card.hass = hass; // Home Assistant's next update
+    card.hass = hass; await settle(); // Home Assistant's next update
     await flush();
     const [call] = historyCalls(hass);
     assert.equal(new Date(call.start_time).getTime(), new Date('2026-10-12T09:59:00+02:00').getTime());
@@ -237,17 +237,17 @@ describe('history of the measured temperature', () => {
 describe('a day shown larger', () => {
   const zoomed = (card) => card.shadowRoot.querySelector('.bar.zoom');
   const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 180, height: 180 }); return el; };
-  const pointer = (el, type, clientX, pointerType = 'mouse') => {
+  const pointer = async (el, type, clientX, pointerType = 'mouse') => {
     const e = new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX });
     Object.defineProperty(e, 'pointerType', { value: pointerType });
-    el.dispatchEvent(e);
+    el.dispatchEvent(e); await settle();
   };
   async function open(config) {
-    const card = createCard(historyHass(), config);
-    toggle(card).click();
+    const card = createCard(historyHass(), config); await settle();
+    toggle(card).click(); await settle();
     await flush();
-    openMenu(card, 'climate.salon', 0);
-    card.shadowRoot.querySelector('.menu [data-act="zoom"]').click();
+    openMenu(card, 'climate.salon', 0); await settle();
+    card.shadowRoot.querySelector('.menu [data-act="zoom"]').click(); await settle();
     return card;
   }
 
@@ -264,51 +264,51 @@ describe('a day shown larger', () => {
 
   test('the menu shows it smaller again', async () => {
     const card = await open();
-    openMenu(card, 'climate.salon', 0);
+    openMenu(card, 'climate.salon', 0); await settle();
     const item = card.shadowRoot.querySelector('.menu [data-act="zoom"]');
     assert.match(item.textContent, /Réduire/);
-    item.click();
+    item.click(); await settle();
     assert.equal(zoomed(card), null);
   });
 
   test('the mouse over it reads the time, the measured temperature and the setpoint', async () => {
     const card = await open();
     const bar = geometry(zoomed(card));
-    pointer(bar, 'pointermove', 7 * 60); // 07:00
+    await pointer(bar, 'pointermove', 7 * 60); // 07:00
     assert.equal(bar.querySelector('.readout').textContent, '07:00 · 18,2° · consigne 20°');
-    pointer(bar, 'pointerleave', 0);
+    await pointer(bar, 'pointerleave', 0);
     assert.equal(bar.querySelector('.readout').hidden, true);
   });
 
   test('on a phone, sliding a finger along it reads the values; a tap still selects the slot', async () => {
     const card = await open();
     const bar = geometry(zoomed(card));
-    pointer(bar, 'pointermove', 7 * 60, 'touch'); // no finger down: nothing
+    await pointer(bar, 'pointermove', 7 * 60, 'touch'); // no finger down: nothing
     assert.equal(bar.querySelector('.readout').hidden, true);
-    pointer(bar, 'pointerdown', 7 * 60, 'touch');
-    pointer(bar, 'pointermove', 9 * 60, 'touch');
+    await pointer(bar, 'pointerdown', 7 * 60, 'touch');
+    await pointer(bar, 'pointermove', 9 * 60, 'touch');
     assert.equal(bar.querySelector('.readout').textContent, '09:00 · 19,6° · consigne 20°');
-    pointer(bar, 'pointerup', 9 * 60, 'touch');
+    await pointer(bar, 'pointerup', 9 * 60, 'touch');
     // A tap (no slide) still selects the slot
-    bar.querySelector('.seg[data-idx="1"]').dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 7 * 60 }));
+    bar.querySelector('.seg[data-idx="1"]').dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 7 * 60 })); await settle();
     assert.deepEqual(selected(card), { climate: 'climate.salon', day: 0, idx: 1 });
     // The bar slides with the finger instead of scrolling the page sideways
     assert.match(card.shadowRoot.querySelector('style').textContent, /\.bar\.zoom \{[^}]*touch-action:pan-y/);
   });
 
   test('with one thermostat shown, clicking the name of the day shows it larger', async () => {
-    const card = createCard(historyHass(), { show: ['climate.salon'] });
-    toggle(card).click();
+    const card = createCard(historyHass(), { show: ['climate.salon'] }); await settle();
+    toggle(card).click(); await settle();
     await flush();
-    card.shadowRoot.querySelector('.dgroup .day[data-day="0"]').click();
+    card.shadowRoot.querySelector('.dgroup .day[data-day="0"]').click(); await settle();
     assert.equal(zoomed(card).dataset.day, '0');
-    card.shadowRoot.querySelector('.dgroup .day[data-day="0"]').click();
+    card.shadowRoot.querySelector('.dgroup .day[data-day="0"]').click(); await settle();
     assert.equal(zoomed(card), null);
   });
 
   test('hiding the history shows the day small again', async () => {
     const card = await open();
-    toggle(card).click();
+    toggle(card).click(); await settle();
     assert.equal(zoomed(card), null);
   });
 });

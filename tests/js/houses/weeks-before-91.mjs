@@ -1,7 +1,7 @@
 // Weeks stored before #91, whose slots say no HVAC mode: the salon, a heater, the atelier, which
 // heats and cools, and the combles, which only cool. The card shows the atelier.
 import { createCard, fakeHass, integrationData } from '../helpers.mjs';
-import { openSlot } from '../driver.mjs';
+import { openSlot, settle } from '../driver.mjs';
 import { $, $$, text, week } from './dom.mjs';
 
 export const OFF = { hvac_mode: 'off' };
@@ -38,7 +38,7 @@ export function setup({ atelier = OLD, combles = OLD, salon = OLD, overrides, pl
   hass.entities[COMBLES] = { entity_id: COMBLES };
   return hass;
 }
-export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: [SALON, ATELIER, COMBLES], show: [ATELIER], group_days: false, ...config });
-export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
+export const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: [SALON, ATELIER, COMBLES], show: [ATELIER], group_days: false, ...config }); await settle(); return card; };
+export const select = async (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 export const hvacRow = (card) => $$(card, '.editor .mode-row [data-mode="heat"], .editor .mode-row [data-mode="cool"]').map((b) => `${text(b)}${b.getAttribute('aria-pressed') === 'true' ? ' ✓' : ''}`);
 export const seg = (card, climate, idx, d = 0) => $(card, `.bar[data-climate="${climate}"][data-day="${d}"] .seg[data-idx="${idx}"]`);
