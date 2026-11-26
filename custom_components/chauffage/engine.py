@@ -22,7 +22,7 @@ from .domain.plan import ApplyReason, Forced, Plan, Realign, Resumed, Tick, due_
 from .domain.preset import Preset
 from .domain.preset_value import PresetValue
 from .domain.slot import Day, Slot, Week, slot_hvac_mode, target_of
-from .domain.timeline import current_and_next, parse_datetime, slots_after
+from .domain.timeline import current_and_next, parse_datetime
 from .domain.target import (
     COOL_KEYS,
     EQUAL_KEYS,
@@ -53,10 +53,8 @@ __all__ = [
     "NO_PRESET_MODES", "OFF", "RANGE_KEYS", "SETPOINTS", "SETPOINT_KEYS", "SETPOINT_MODES", "SETPOINT_TARGET_KEYS",
     "TEMPERATURE_KEYS", "Slot", "Target", "Thermostat", "fit_temperature", "ignored", "is_manual_preset", "on_mode",
     "preset_value", "same_temperature", "setpoint_modes", "slot_hvac_mode", "temperature_value", "Plan",
-    "current_and_next", "ended_overrides", "parse_datetime", "slots_after", "Week",
+    "current_and_next", "ended_overrides", "parse_datetime", "Week",
 ]
-
-
 
 
 # ----- facades over domain/ -----
@@ -131,18 +129,16 @@ def slot_at(day: list[list[Any]], hhmm: str) -> tuple[Slot | None, bool]:
 
 # ----- slots (domain/timeline.py, domain/plan.py) -----
 
-def reason_of(*, force: bool = False, resumed: str | None = None, ended: frozenset[str] | list[str] | None = (),
-              since: datetime | None = None, include: frozenset[str] | set[str] | None = frozenset(),
-              why: str | None = None) -> ApplyReason:
-    """The ApplyReason of the flags it replaces (the facades of engine.targets and runtime.apply)."""
-    why = why or "new slot"
+def reason_of(*, force: bool = False, resumed: str | None = None, ended: frozenset[str] | list[str] = (),
+              since: datetime | None = None, include: frozenset[str] | set[str] = frozenset()) -> ApplyReason:
+    """The ApplyReason of the flags it replaces (the facade engine.targets)."""
     if force:
-        return Forced(why)
+        return Forced("")
     if resumed is not None:
-        return Resumed(resumed, why)
+        return Resumed(resumed, "")
     if include:
-        return Realign(frozenset(include), why)
-    return Tick(since, frozenset(ended or ()))
+        return Realign(frozenset(include), "")
+    return Tick(since, frozenset(ended))
 
 
 def targets(plan: Plan, now: datetime, thermostats: dict[str, Thermostat], *, force: bool = False,

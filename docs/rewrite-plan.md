@@ -92,7 +92,7 @@ custom_components/chauffage/
     target.py                Target: satisfied_by(), fitted_to(), completed_for()
     thermostat.py            ThermostatState, Capabilities
     override.py              Override, OverrideEndPolicy
-    timeline.py              slots_after, next_change, summer time
+    timeline.py              slots_after, summer time (next_change is a method of Plan)
     manual_change.py         classify() -> NoChange | Resume | NewOverride
     pending.py               PendingCommands
     rules.py                 rules_outcome, schedule_named
@@ -130,10 +130,10 @@ its three values.
 **Two types replace the ambiguous `Target`.** `PresetValue` holds what a preset is worth for
 each HVAC mode. `Target` holds the partial state Chauffage sends. `to_stored()` writes the same
 keys as today.
-
-**`ApplyReason` replaces the six flags.** Its cases are `Forced(why)`, `Tick(since)`,
-`OverrideEnded(ids)`, `Resumed(id)` and `Realign(ids, why)`. The "why" of the log comes from the
-object.
+**`ApplyReason` replaces the six flags.** Its cases are `Forced(why)`, `Tick(since, ended)`,
+`Resumed(id, why)` and `Realign(ids, why)`. The minute applies the slots and the overrides that
+end in one pass, so `Tick` carries the overrides that ended (phase I5). The "why" of the log
+comes from the object.
 
 **Side effects live in three places.** `ThermostatGateway` calls the `climate` services and
 keeps the pending commands. `OverrideService` fires the events and fills the logbook.
@@ -320,8 +320,9 @@ decides when `rewrite` goes into `main`.
 **Rewrite, because they test internals:**
 
 - `test_engine.py` (77 tests) and the direct calls to `engine.*` and `model.*` in other files,
-  such as `test_heat_cool.py`. Move them to `tests/unit/domain/` during I1 to I5, with the same
-  cases and the same names.
+  such as `test_heat_cool.py`. Move them to `tests/unit/domain/` in I7, with the same
+  cases and the same names, when the facades they call go (the phases I1 to I5 kept them as the
+  specification of the facades).
 - The 16 node files with private access, such as `week-editing` and `override-block`. Move them
   to the driver in phase 0, before the rewrite.
 - The imports of pure functions from the big file. Point them to `frontend/src/index.js`.

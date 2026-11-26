@@ -789,12 +789,6 @@ class ChauffageRuntime:
 
     # ----- scheduling (app/scheduler.py) -----
 
-    async def apply(self, *, force: bool = False, resumed: str | None = None, ended: list[str] | None = None,
-                    since: datetime | None = None, include: set[str] | None = None, reason: str | None = None) -> None:
-        """Sends the thermostats their slot (Scheduler.apply), from the flags of before ApplyReason."""
-        await self.scheduler.apply(engine.reason_of(force=force, resumed=resumed, ended=ended, since=since,
-                                                    include=include, why=reason))
-
     async def _tick(self, now: datetime) -> None:
         await self.scheduler.tick(now)
         self._notify(TICK)
