@@ -193,7 +193,7 @@ export { toMin, toHM, parseDate } from './common.ts';
 export { ChauffageProgrammeCardEditor } from './editors.ts';
 export { parseTime } from './fields.ts';
 export { historyDays, rowsOfStates } from './history.ts';
-export { CHIP_STYLE, FIELD_BOX, valueOn, presetModes, slotModeOn } from './hvac.ts';
+export { CHIP_STYLE, FIELD_BOX, presetModes, slotModeOn } from './hvac.ts';
 export { I18N } from './i18n/index.ts';
 export { makeLocale } from './i18n/locale.ts';
 export { ICONS };

@@ -2,8 +2,8 @@
 // a preset means on each thermostat, and colors that can be told apart and read.
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanup, createCard } from './helpers.mjs';
-import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn, valueOn } from '../../frontend/src/index.ts';
+import { cleanup, createCard, valueOn } from './helpers.mjs';
+import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn } from '../../frontend/src/index.ts';
 import { $, $$, change, click, icons, text } from './houses/dom.mjs';
 import { openOverride, settle } from './driver.mjs';
 import { applyCell } from './driver.mjs';

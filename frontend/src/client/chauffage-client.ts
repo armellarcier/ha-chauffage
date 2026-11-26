@@ -8,6 +8,12 @@ const SUBSCRIBE_NO_DATA_MS = 10000;
 
 type Listener = () => void;
 
+// What a preset is worth on a thermostat: its value for each HVAC mode, and the HVAC modes it can
+// be used in
+export type PresetPreview = { value: Record<string, any>; modes: string[] };
+// What the integration reads from a thermostat to say what a preset is worth on it
+const PREVIEW_ATTRIBUTES = ['hvac_modes', 'preset_modes', 'supported_features', 'min_temp', 'max_temp', 'target_temp_step'];
+
 export class ChauffageClient {
   // The latest data pushed by the integration, as `chauffage/subscribe` sends it
   data: any = null;
@@ -15,6 +21,9 @@ export class ChauffageClient {
   // its services stay until a restart)
   missing = false;
   listeners = new Set<Listener>();
+  // The answers of the integration about presets (see preview), and how many came
+  private previews = new Map<string, PresetPreview | null>();
+  previewed = 0;
   private connection: any = null;
   private hass: any = null; // the latest, for the panels of a "not_loaded"
   private missingPanels: any = null;
@@ -44,6 +53,27 @@ export class ChauffageClient {
         this.connection = null;
       }
     };
+  }
+
+  // What a preset is worth on a thermostat, as the integration computes it
+  // (chauffage/preset/preview): { value, modes }, as the data's `targets` give it, and the HVAC
+  // modes the preset can be used in. `value`: a value set by hand on the thermostat, saved or not.
+  // The first call asks the integration and returns null; the listeners hear when the answer
+  // comes, and the next calls return it. A question is asked once: its answer is kept while the
+  // thermostat lists the same modes and presets.
+  preview(hass, climate: string, preset, value = null): PresetPreview | null {
+    const state = hass && hass.states && hass.states[climate];
+    const attributes = (state && state.attributes) || {};
+    const key = JSON.stringify([climate, preset, value, (this.data && this.data.use_presets) !== false,
+      PREVIEW_ATTRIBUTES.map((name) => attributes[name] ?? null)]);
+    if (this.previews.has(key)) return this.previews.get(key);
+    this.previews.set(key, null);
+    hass.callWS({ type: 'chauffage/preset/preview', entity_id: climate, preset, ...(value ? { value } : {}) }).then((answer) => {
+      this.previews.set(key, answer);
+      this.previewed += 1;
+      this.notify();
+    }, () => {}); // no answer: nothing to say about it
+    return null;
   }
 
   // Stops the tries for good: the page's client is replaced (tests)

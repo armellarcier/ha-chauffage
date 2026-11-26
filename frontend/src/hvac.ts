@@ -196,35 +196,6 @@ export function slotOn(hass, climate, seg) {
   return withSettings(seg, slotSettings({ ...airSettings(seg), ...(mode ? { hvac_mode: mode } : {}) }));
 }
 export const dayOn = (hass, climate, segs) => segs.map((seg) => slotOn(hass, climate, seg));
-// What a preset means on a thermostat, for each HVAC mode: the integration's rule
-// (engine.value_on), for a thermostat the integration does not know yet and for what a popover
-// is about to save. When heating: preset_mode or temperature. When cooling, on a thermostat
-// that cools: cool_preset_mode or cool_temperature. In heat/cool, on a thermostat that takes a
-// range: target_temp_low and target_temp_high. `cell`: the value set by hand on the thermostat
-export function valueOn(preset, cell, hass, climate, usePresets = true) {
-  const set = cell || {};
-  const st = stateOf(hass, climate);
-  const own = usePresets && st && (st.attributes.preset_modes || []).map(String).includes(preset.id) ? preset.id : null;
-  const heat = preset.temperature ?? null;
-  const cool = preset.cool_temperature ?? null;
-  const out: any = {};
-  if ('preset_mode' in set) out.preset_mode = set.preset_mode;
-  else if ('temperature' in set) out.temperature = set.temperature;
-  else if (heat != null) Object.assign(out, own ? { preset_mode: own } : { temperature: heat });
-  if (listsMode(hass, climate, 'cool')) {
-    if ('cool_temperature' in set) out.cool_temperature = set.cool_temperature;
-    else if ('preset_mode' in set) out.cool_preset_mode = set.preset_mode;
-    else if (cool != null) Object.assign(out, own ? { cool_preset_mode: own } : { cool_temperature: cool });
-  }
-  const low = 'temperature' in set ? set.temperature : heat;
-  const high = 'cool_temperature' in set ? set.cool_temperature : cool;
-  if (setpointModesOf(hass, climate).includes('heat_cool') && low != null && high != null && low < high) {
-    out.target_temp_low = low;
-    out.target_temp_high = high;
-  }
-  for (const attr of SETTING_ATTRS) if (attr in set) out[attr] = set[attr];
-  return out;
-}
 // The HVAC modes a preset can be used in, from its value on a thermostat (engine.offered_modes):
 // those it has a value for. The one place of the card that says so
 export function presetModes(value) {

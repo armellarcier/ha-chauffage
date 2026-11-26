@@ -2,7 +2,8 @@ import { chipStyle } from './colors.ts';
 import { DAY_MIN, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, esc, hasNoPreset, minutesOf, parseDate, rangeText, slotMode } from './common.ts';
 import { durationText, endReasonText, roundDurationText, timeField } from './fields.ts';
 import { temperatureOf } from './history.ts';
-import { defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf, valueOn } from './hvac.ts';
+import { defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf } from './hvac.ts';
+import { client } from './client/chauffage-client.ts';
 import { isOffOverride, overrideHvac, overrideLabel, setpointHvac, targetKind } from './override.ts';
 import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from './presets.ts';
 import { parseDay } from './slots.ts';
@@ -119,12 +120,19 @@ function slotNameOn(hass, climate, seg, presets, loc) {
   return mode ? `${modeName(loc, mode)} · ${name}` : name;
 }
 
-// What a preset means for a thermostat: its mapping (as computed by the integration), else the
-// default for a thermostat the integration does not know yet
+// What a preset means for a thermostat, as the integration computes it: its `targets` for a
+// thermostat it schedules, else its answer to the card's question (nothing while it is on its way)
 export function targetOf(src, hass, climate, preset) {
   const known = src.targets(climate)[preset.id];
   if (known) return known;
-  return valueOn(preset, src.mapping(climate)[preset.id], hass, climate, src.usePresets());
+  return presetValue(hass, climate, preset, src.mapping(climate)[preset.id] || null);
+}
+
+// What a preset is worth on a thermostat, with a value set by hand (`value`, saved or not), as the
+// integration computes it: nothing while its answer is on its way
+export function presetValue(hass, climate, preset, value) {
+  const answer = client.preview(hass, climate, preset, value);
+  return answer ? answer.value : {};
 }
 
 // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one the

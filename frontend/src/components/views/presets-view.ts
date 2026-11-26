@@ -4,9 +4,9 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { coolColor, derivedCoolColor } from '../../colors.ts';
 import { MANUAL_PRESETS, SETTING_ATTRS, errorText, esc, hasNoPreset } from '../../common.ts';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
-import { captureButtonHtml, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, slotModeOn, valueOn } from '../../hvac.ts';
+import { captureButtonHtml, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
 import { deviceLinkHtml, deviceOf } from '../../links.ts';
-import { coolPresetTemperatureOf, presetTemperatureOf, targetOf } from '../../override-edit.ts';
+import { coolPresetTemperatureOf, presetTemperatureOf, presetValue, targetOf } from '../../override-edit.ts';
 import { fitTemperature, presetsOf, sortedPresets, stepOf, stepperHtml } from '../../presets.ts';
 import { parseSlot } from '../../slots.ts';
 import { placePopover, placeWhenDrawn } from '../shared/popover.ts';
@@ -380,11 +380,10 @@ export class ChauffagePresetsView extends ChauffageView {
     return false;
   }
 
-  // What a preset gives a thermostat by default, in each HVAC mode (valueOn without a value set
-  // by hand): its own preset of the same name when the option allows it, else the preset's
+  // What a preset gives a thermostat by default, in each HVAC mode (without a value set by hand): its own preset of the same name when the option allows it, else the preset's
   // temperature, for the HVAC modes the preset has a temperature for
   _cellDefaults(climate, preset) {
-    return valueOn(preset, null, this.hass, climate, this._source().usePresets());
+    return presetValue(this.hass, climate, preset, null);
   }
 
   // The cell popover takes the thermostat's current state (#91, lot 3): its setpoint, as the
@@ -435,7 +434,7 @@ export class ChauffagePresetsView extends ChauffageView {
   // being set by hand, without a cooling temperature
   _coolFallbackText(climate, preset, cell) {
     const t = this._loc.t;
-    const value = valueOn(preset, cell, this.hass, climate, this._source().usePresets());
+    const value = presetValue(this.hass, climate, preset, cell);
     if ('cool_temperature' in value) return t('presetAuto', { value: `${this._loc.number(value.cool_temperature)}°` });
     if (!('cool_preset_mode' in value)) return t('notWhenCooling');
     const temperature = this._source().coolPresetTemperature(climate, value.cool_preset_mode);

@@ -68,6 +68,53 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
 export const INTEGRATION_DATA = () => integrationData();
 
 /**
+ * What a preset is worth on a thermostat, as the fake integration answers
+ * `chauffage/preset/preview`: the integration's rule (domain.Preset.value_on), as the card
+ * computed it before it asked the integration. When heating: preset_mode or temperature. When
+ * cooling, on a thermostat that cools: cool_preset_mode or cool_temperature. In heat/cool, on a
+ * thermostat that takes a range: target_temp_low and target_temp_high. `cell`: the value set by
+ * hand on the thermostat.
+ */
+export function valueOn(preset, cell, hass, climate, usePresets = true) {
+  const set = cell || {};
+  const st = hass.states[climate];
+  const attributes = (st && st.attributes) || {};
+  const listed = Array.isArray(attributes.hvac_modes) ? attributes.hvac_modes.map(String) : [];
+  const own = usePresets && st && (attributes.preset_modes || []).map(String).includes(preset.id) ? preset.id : null;
+  const heat = preset.temperature ?? null;
+  const cool = preset.cool_temperature ?? null;
+  const out = {};
+  if ('preset_mode' in set) out.preset_mode = set.preset_mode;
+  else if ('temperature' in set) out.temperature = set.temperature;
+  else if (heat != null) Object.assign(out, own ? { preset_mode: own } : { temperature: heat });
+  if (listed.includes('cool')) {
+    if ('cool_temperature' in set) out.cool_temperature = set.cool_temperature;
+    else if ('preset_mode' in set) out.cool_preset_mode = set.preset_mode;
+    else if (cool != null) Object.assign(out, own ? { cool_preset_mode: own } : { cool_temperature: cool });
+  }
+  const low = 'temperature' in set ? set.temperature : heat;
+  const high = 'cool_temperature' in set ? set.cool_temperature : cool;
+  const range = listed.includes('heat_cool') && (Number(attributes.supported_features) & 2) !== 0;
+  if (range && low != null && high != null && low < high) {
+    out.target_temp_low = low;
+    out.target_temp_high = high;
+  }
+  for (const attr of ['fan_mode', 'swing_mode', 'swing_horizontal_mode']) if (attr in set) out[attr] = set[attr];
+  return out;
+}
+
+// The answer of the fake integration to `chauffage/preset/preview`: the value, and the HVAC
+// modes the preset can be used in
+function presetPreview(hass, data, { entity_id: climate, preset, value }) {
+  const worth = valueOn(preset, value, hass, climate, !data || data.use_presets !== false);
+  const modes = [];
+  if ('preset_mode' in worth || 'temperature' in worth) modes.push('heat');
+  if ('cool_preset_mode' in worth || 'cool_temperature' in worth) modes.push('cool');
+  if ('target_temp_low' in worth && 'target_temp_high' in worth) modes.push('heat_cool');
+  return { value: worth, modes };
+}
+
+/**
  * Home Assistant with the integration set up: two thermostats, and the integration's data.
  * `hass.events` records the websocket commands; `hass.push(data)` sends an update to the card;
  * `reply(msg)` answers (or throws for) a command.
@@ -106,7 +153,14 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, planned, lo
         return Promise.resolve(() => {});
       },
     },
+    // What the cards asked about presets (chauffage/preset/preview): a question, not a change, kept
+    // out of `events`
+    presetPreviews: [],
     callWS: async (msg) => {
+      if (msg.type === 'chauffage/preset/preview') {
+        hass.presetPreviews.push(msg);
+        return presetPreview(hass, data, msg);
+      }
       events.push(msg);
       if (reply) return reply(msg);
       if (msg.type === 'chauffage/weeks/save') {

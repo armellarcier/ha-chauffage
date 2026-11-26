@@ -781,7 +781,14 @@ describe('the more-info dialog', () => {
 describe('error messages', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => mock.timers.reset());
-  const failing = (hass) => { hass.callWS = async () => { throw { message: 'boom' }; }; hass.callService = hass.callWS; return hass; };
+  // Every change fails. The questions about presets are still answered, as the integration
+  // answers them from its data
+  const failing = (hass) => {
+    const ask = hass.callWS;
+    hass.callService = async () => { throw { message: 'boom' }; };
+    hass.callWS = async (msg) => (msg.type === 'chauffage/preset/preview' ? ask(msg) : hass.callService());
+    return hass;
+  };
 
   test('saving, removing an override, activating a schedule', async () => {
     const hass = failing(fakeHass({ overrides: { 'climate.salon': override } }));

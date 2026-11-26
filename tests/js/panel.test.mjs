@@ -536,6 +536,7 @@ describe('the Chauffage panel', () => {
 
     test('its presets first, as the legend of its weeks: a list, one item per preset, not a table of one row', async () => {
       const el = await panel(setup(), '/thermostats/climate.salon');
+      await settle(); // what each preset is worth here, as the integration answers
       const presets = cards(el)[0];
       assert.ok($(presets, '.presets-view'));
       assert.equal($(presets, 'table'), null, 'not a table of one row');

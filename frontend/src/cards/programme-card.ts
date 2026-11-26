@@ -49,6 +49,7 @@ export class ChauffageProgrammeCard extends LitElement {
 
   // The fields of the element, untyped until the rewrite of the card gives them a type
   declare _accessStamp: any;
+  declare _answers: number;
   declare _asideKey: any;
   declare _available: any;
   declare _bodyScroll: any;
@@ -266,6 +267,12 @@ export class ChauffageProgrammeCard extends LitElement {
     const links = `${src.stamps.entities} ${this._thermostats.map((t) => deviceOf(hass, t.entity)).join(' ')}`;
     if (links !== this._linksStamp && !this._slotDrag.active && !this._overrideEnd.active) {
       this._linksStamp = links;
+      need = true;
+    }
+    // The integration answered what a preset is worth on a thermostat it does not schedule yet
+    // (targetOf): the popovers and the legend say it
+    if (client.previewed !== this._answers) {
+      this._answers = client.previewed;
       need = true;
     }
     // The access level changed (#99): the tools appear or go at once. Without Plan, what was being
