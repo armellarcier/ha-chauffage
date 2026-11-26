@@ -218,7 +218,7 @@ export async function openSlot(page, climate, day = 'today', time = 'now') {
     const row = el._rowOf(d)[0]; // the day that draws the row
     const minute = at == null ? new Date().getHours() * 60 + new Date().getMinutes() : at;
     let idx = 0;
-    el._week(climate)[row].forEach((s, i) => { if (s.start <= minute) idx = i; });
+    el.week(climate)[row].forEach((s, i) => { if (s.start <= minute) idx = i; });
     return { row, idx };
   }, [climate, d, minutes(time)]);
   await page.waitForTimeout(300);
