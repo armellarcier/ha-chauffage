@@ -44,7 +44,7 @@ export class ChauffageThermostatsView extends ChauffageView {
       const paused = src.paused(climate);
       const open = this._menu && this._menu.climate === climate;
       const more = !editable ? null
-        : html`<button class="icon-btn${open ? ' on' : ''}" data-act="thermostat-more" data-climate=${climate} title=${t('moreActions')} aria-label=${t('moreActions')}><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
+        : html`<button class="icon-btn${open ? ' on' : ''}" data-act="thermostat-more" data-climate=${climate} @click=${(e) => this._toggleMenu(climate, e.currentTarget)} title=${t('moreActions')} aria-label=${t('moreActions')}><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
       const icon = (this.hass.states[climate] || { attributes: {} }).attributes.icon || 'mdi:thermostat';
       return listRow({ cls: `th-row${paused ? ' paused' : ''}`, climate, to: weeksPath(climate), icon,
         title: html`${this._name(climate)}${paused ? html` <span class="badge paused">${t('paused')}</span>` : nothing}`,
@@ -55,7 +55,7 @@ export class ChauffageThermostatsView extends ChauffageView {
       .sort((a, b) => this._name(a).localeCompare(this._name(b)));
     const add = editable && climates.length ? html`<div class="th-add"><div class="th-add-title">${t('addThermostat')}</div>
         <div class="th-add-row"><select data-add-climate>${climates.map((c) => html`<option value=${c}>${this._name(c)}</option>`)}</select>
-        <button class="btn primary" data-act="thermostat-add">${t('scheduleThermostat')}</button></div></div>` : nothing;
+        <button class="btn primary" data-act="thermostat-add" @click=${() => this._scheduleThermostat()}>${t('scheduleThermostat')}</button></div></div>` : nothing;
     // The integration's page: its options, its logs and its diagnostics. Home Assistant keeps it
     // for admins
     const integration = src.admin
@@ -71,18 +71,19 @@ export class ChauffageThermostatsView extends ChauffageView {
     const src = this._source();
     if (!m || !src.scheduled().includes(m.climate)) return nothing;
     const t = this._loc.t;
-    const action = (act, label, cls = 'mi') => html`<button class=${cls} data-act=${act} data-climate=${m.climate}><span>${label}</span></button>`;
+    const action = (act, label, run, cls = 'mi') => html`<button class=${cls} data-act=${act} data-climate=${m.climate} @click=${run}><span>${label}</span></button>`;
+    const ask = (climate) => () => { this._forgetAsk = climate; this.requestUpdate(); };
     const body = this._forgetAsk === m.climate
       ? html`<div class="mh">${t('forgetText', { name: this._name(m.climate) })}</div>
-        <div class="sched-btns">${action('thermostat-forget-confirm', t('forgetConfirm'), 'btn small danger')}
-        ${action('thermostat-forget-cancel', t('cancel'), 'btn small')}</div>`
-      : html`${src.paused(m.climate) ? action('resume', t('resumeShort')) : action('pause', t('pauseShort'))}
+        <div class="sched-btns">${action('thermostat-forget-confirm', t('forgetConfirm'), () => this._forget(m.climate), 'btn small danger')}
+        ${action('thermostat-forget-cancel', t('cancel'), ask(null), 'btn small')}</div>`
+      : html`${src.paused(m.climate) ? action('resume', t('resumeShort'), () => this._setPaused(m.climate, false)) : action('pause', t('pauseShort'), () => this._setPaused(m.climate, true))}
         <div class="sep"></div>
         <button class="mi" data-more-info=${m.climate}><span>${t('openThermostat')}</span></button>
         ${(src.admin ? thermostatDevices(this.hass, src, m.climate) : [])
           .map((id) => html`<button class="mi" data-device=${id}><span>${deviceLabel(this.hass, id)}</span></button>`)}
         <div class="sep"></div>
-        ${action('thermostat-forget', t('forget'), 'mi danger')}`;
+        ${action('thermostat-forget', t('forget'), ask(m.climate), 'mi danger')}`;
     return html`<div class="menu th-menu" style="top:${m.top}px;right:${m.right}px">${body}</div>`;
   }
 
@@ -98,30 +99,31 @@ export class ChauffageThermostatsView extends ChauffageView {
     this._menu = null;
   }
 
-  _action(act, ds, el) {
-    if (act === 'pause' || act === 'resume') {
-      this._menu = null;
-      return this._call((cmd) => cmd.setPaused(ds.climate, act === 'pause'));
-    }
-    if (act === 'thermostat-more') {
-      // Under its button, as the row menu
-      const card = this._frame().getBoundingClientRect();
-      const b = el.getBoundingClientRect();
-      const m = this._menu;
-      this._menu = m && m.climate === ds.climate ? null : { climate: ds.climate, top: b.bottom - card.top + 4, right: card.right - b.right };
-      this._forgetAsk = null;
-    } else if (act === 'thermostat-forget' || act === 'thermostat-forget-cancel') {
-      this._forgetAsk = act === 'thermostat-forget' ? ds.climate : null;
-    } else if (act === 'thermostat-forget-confirm') {
-      this._menu = null;
-      this._forgetAsk = null;
-      return this._call((cmd) => cmd.forget(ds.climate));
-    } else if (act === 'thermostat-add') {
-      // Scheduled with the week of a new schedule in every schedule (as a thermostat added to a card)
-      const climate = (this.querySelector('[data-add-climate]') as HTMLSelectElement).value;
-      return this._call((cmd) => cmd.saveWeeks({ [climate]: {} }, { [climate]: null }));
-    }
+  _setPaused(climate, paused) {
+    this._menu = null;
+    return this._call((cmd) => cmd.setPaused(climate, paused));
+  }
+
+  // A thermostat's ⋮: its menu, under its button, as the row menu
+  _toggleMenu(climate, el) {
+    const card = this._frame().getBoundingClientRect();
+    const b = el.getBoundingClientRect();
+    const m = this._menu;
+    this._menu = m && m.climate === climate ? null : { climate, top: b.bottom - card.top + 4, right: card.right - b.right };
+    this._forgetAsk = null;
     this.requestUpdate();
-    return undefined;
+  }
+
+  _forget(climate) {
+    this._menu = null;
+    this._forgetAsk = null;
+    return this._call((cmd) => cmd.forget(climate));
+  }
+
+  // Schedules the thermostat picked, with the week of a new schedule in every schedule (as a
+  // thermostat added to a card)
+  _scheduleThermostat() {
+    const climate = (this.querySelector('[data-add-climate]') as HTMLSelectElement).value;
+    return this._call((cmd) => cmd.saveWeeks({ [climate]: {} }, { [climate]: null }));
   }
 }

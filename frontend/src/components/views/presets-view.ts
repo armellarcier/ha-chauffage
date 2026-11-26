@@ -143,7 +143,7 @@ export class ChauffagePresetsView extends ChauffageView {
     const sel = this._cell;
     const isSel = (kind, preset, climate) => sel && sel.kind === kind && sel.preset === preset && (sel.climate || null) === (climate || null);
     const cell = (kind, preset, climate, inner, cls) => (editable
-      ? html`<button class="cell ${cls}${isSel(kind, preset, climate) ? ' on' : ''}" data-act="cell" data-kind=${kind} data-preset=${preset || ''} data-climate=${climate || nothing}>${inner}</button>`
+      ? html`<button class="cell ${cls}${isSel(kind, preset, climate) ? ' on' : ''}" data-act="cell" data-kind=${kind} data-preset=${preset || ''} data-climate=${climate || nothing} @click=${() => this._toggleCell(kind, preset || '', climate || undefined)}>${inner}</button>`
       : html`<span class="cell ${cls}">${inner}</span>`);
     const definitions = this.definitions !== false;
     // Its temperature when heating, then when cooling with an air conditioner: "20° by default
@@ -234,7 +234,7 @@ export class ChauffagePresetsView extends ChauffageView {
       ${definitions ? html`<div class="pv-intro muted">${t('presetsIntro')}</div>` : nothing}
       ${body}
       ${unknown ? html`<div class="pv-note muted">${t('presetsUnknown')}</div>` : nothing}
-      ${editable && definitions ? html`<button class="btn pv-add${sel && sel.kind === 'new' ? ' on' : ''}" data-act="cell" data-kind="new" data-preset="">${t('addPresetButton')}</button>` : nothing}
+      ${editable && definitions ? html`<button class="btn pv-add${sel && sel.kind === 'new' ? ' on' : ''}" data-act="cell" data-kind="new" data-preset="" @click=${() => this._toggleCell('new', '', undefined)}>${t('addPresetButton')}</button>` : nothing}
       ${sel ? keyed(JSON.stringify([sel.kind, sel.preset, sel.climate]), this._cellPanel()) : nothing}
     </div>${this._msgTemplate()}`;
   }
@@ -246,12 +246,12 @@ export class ChauffagePresetsView extends ChauffageView {
     const src = this._source();
     const presets = this._presets();
     const preset = presets.find((l) => l.id === sel.preset) || { id: '', name: '', color: '#9e9e9e', temperature: 19, cool_temperature: undefined, cool_color: undefined };
-    const apply = html`<button class="btn primary" data-act="cell-apply">${t('apply')}</button>`;
+    const apply = html`<button class="btn primary" data-act="cell-apply" @click=${() => this._applyCell()}>${t('apply')}</button>`;
     // A temperature field, in the user's number format, read with either decimal separator;
     // `attr`: data-cell-temp (heating) or data-cell-cool (cooling, empty without a value), with
     // its aria-label. Its − and its + move it by the thermostat's step (half a degree for a
     // preset's default)
-    const tempInput = (value, attrs: any = { 'data-cell-temp': true }, label = t('presetTemperature')) => stepper(this._loc, attrs, value, 'cell-step',
+    const tempInput = (value, attrs: any = { 'data-cell-temp': true }, label = t('presetTemperature')) => stepper(this._loc, attrs, value, 'cell-step', (button) => this._stepCell(button),
       sel.kind === 'thermostat' ? stepOf(this.hass, sel.climate) : 0.5, label);
     if (sel.kind === 'thermostat') {
       const explicit = src.mapping(sel.climate)[preset.id] || {};
@@ -317,7 +317,7 @@ export class ChauffagePresetsView extends ChauffageView {
         <div class="pv-choices" role="radiogroup">${rows}</div>
         ${cooling}
         ${more}
-        <div class="capture-row">${captureButton(this.hass, sel.climate, this._loc, this._captured === sel)}</div>
+        <div class="capture-row">${captureButton(this.hass, sel.climate, this._loc, this._captured === sel, () => this._capture())}</div>
         ${device ? html`<div class="pv-device">${device}</div>` : nothing}`;
       return this._cellPopover(preset, body, apply, html`${preset.name} · ${this._moreInfoLink(sel.climate)}`);
     }
@@ -329,8 +329,8 @@ export class ChauffagePresetsView extends ChauffageView {
       const others = presets.filter((l) => l.id !== preset.id);
       const body = html`<div class="pv-delete">${t('confirmDeletePreset', { name: preset.name })}
         ${used ? html`<label class="pv-replace">${t('replaceWith')} <select data-cell-replacement>${others.map((l) => html`<option value=${l.id}>${l.name}</option>`)}</select></label>` : nothing}</div>`;
-      return this._cellPopover(preset, body, html`<button class="btn" data-act="cell-delete-cancel">${t('cancel')}</button>
-        <button class="btn danger" data-act="cell-delete-confirm">${t('deletePreset')}</button>`, title);
+      return this._cellPopover(preset, body, html`<button class="btn" data-act="cell-delete-cancel" @click=${() => this._askDelete(false)}>${t('cancel')}</button>
+        <button class="btn danger" data-act="cell-delete-confirm" @click=${() => this._applyCell(true)}>${t('deletePreset')}</button>`, title);
     }
     // With an air conditioner: its color when heating and its color when cooling, each on a
     // row with its label. Without one: its color, beside its name
@@ -348,7 +348,7 @@ export class ChauffagePresetsView extends ChauffageView {
       </div>
       <div class="muted">${t('defaultHelp')}</div>`;
     if (!isNew && presets.length > 1) {
-      return this._cellPopover(preset, body, html`<button class="btn danger pv-del" data-act="cell-delete">${t('deleteMenu')}</button>
+      return this._cellPopover(preset, body, html`<button class="btn danger pv-del" data-act="cell-delete" @click=${() => this._askDelete(true)}>${t('deleteMenu')}</button>
         ${apply}`, title);
     }
     return this._cellPopover(isNew ? null : preset, body, apply, title);
@@ -360,7 +360,7 @@ export class ChauffagePresetsView extends ChauffageView {
     const dot = preset ? html`<i class="pv-dot" style="background:${preset.color}"></i>` : nothing;
     return html`<div class="editor cell-ed" data-panel="cell">
       <div class="ed-head"><strong>${dot}${heading}</strong>
-        <button class="btn icon close" data-act="cell-close" title=${t('close')}>✕</button></div>
+        <button class="btn icon close" data-act="cell-close" @click=${() => this._closeCell()} title=${t('close')}>✕</button></div>
       <div class="ed-body">${body}
         ${this._cellError ? html`<div class="pv-error">${this._cellError}</div>` : nothing}</div>
       <div class="ed-actions pv-foot">${buttons}</div>
@@ -478,12 +478,11 @@ export class ChauffagePresetsView extends ChauffageView {
   // A preset cell popover open: a press outside the popover and the cells closes it; on a control
   // of the view, the control does its action too
   _clickElsewhere(e) {
-    if (!this._cell || e.target.closest('.editor, [data-act="cell"]')) return false;
+    if (!this._cell || e.target.closest('.editor, [data-act="cell"]')) return;
     this._openCell(null);
-    if (e.target.closest('[data-act]')) return false;
+    if (e.target.closest('button')) return;
     e.stopPropagation();
     this.requestUpdate();
-    return true;
   }
 
   _leaving(kind) {
@@ -495,38 +494,58 @@ export class ChauffagePresetsView extends ChauffageView {
     this._coolFrom = undefined;
   }
 
-  async _action(act, ds, el) {
-    if (act === 'cell') {
-      const same = this._cell && this._cell.kind === ds.kind && this._cell.preset === ds.preset && (this._cell.climate || '') === (ds.climate || '');
-      this._openCell(same ? null : { kind: ds.kind, preset: ds.preset, climate: ds.climate });
-      this._cellError = null;
-      return this.requestUpdate();
-    }
-    if (act !== 'capture' && !act.startsWith('cell-')) return undefined;
+  // A cell: opens its popover, or closes it when it is open
+  _toggleCell(kind, preset, climate) {
+    const same = this._cell && this._cell.kind === kind && this._cell.preset === preset && (this._cell.climate || '') === (climate || '');
+    this._openCell(same ? null : { kind, preset, climate });
+    this._cellError = null;
+    this.requestUpdate();
+  }
+
+  // The controls of the popover: an error said before is over
+  _closeCell() {
+    this._cellError = null;
+    this._openCell(null);
+    this.requestUpdate();
+  }
+
+  // Delete, then Cancel: the popover asks what replaces the preset, or goes back
+  _askDelete(deleting) {
+    this._cellError = null;
+    this._cell.deleting = deleting;
+    this.requestUpdate();
+  }
+
+  // The − and the + of a field of the popover: the field of the row of the button tapped, heating
+  // or cooling
+  _stepCell(button) {
     this._cellError = null;
     const sel = this._cell;
-    if (act === 'cell-close' || !sel) { this._openCell(null); return this.requestUpdate(); }
-    if (act === 'cell-delete' || act === 'cell-delete-cancel') {
-      sel.deleting = act === 'cell-delete';
-      return this.requestUpdate();
-    }
     const input: HTMLInputElement = this.querySelector('[data-cell-temp]');
     const cool: HTMLInputElement = this.querySelector('[data-cell-cool]');
-    if (act === 'cell-step') { // the field of the row of the button tapped: heating or cooling
-      const field: HTMLInputElement = (el && el.closest('.pv-temp') || this).querySelector('input') || input;
-      // An empty field starts from a usual temperature for its HVAC mode: 25° when cooling,
-      // 19° when heating. Never from the other field: a tap on − gave a cooling setpoint of 19,5°
-      const typed = parseDecimal(field.value);
-      const from = Number.isFinite(typed) ? typed : field === cool ? 25 : 19;
-      const next = Math.round((from + Number(ds.delta)) * 100) / 100;
-      field.value = this._loc.number(sel.kind === 'thermostat' ? fitTemperature(this.hass, sel.climate, next) : next);
-      this._cellChooseField(field === cool);
-      return undefined;
-    }
-    if (act === 'capture') { // the thermostat's current state fills the fields; OK saves (lot 3)
-      this._captureCell(sel.climate);
-      return undefined;
-    }
+    const field: HTMLInputElement = (button.closest('.pv-temp') || this).querySelector('input') || input;
+    // An empty field starts from a usual temperature for its HVAC mode: 25° when cooling,
+    // 19° when heating. Never from the other field: a tap on − gave a cooling setpoint of 19,5°
+    const typed = parseDecimal(field.value);
+    const from = Number.isFinite(typed) ? typed : field === cool ? 25 : 19;
+    const next = Math.round((from + Number(button.dataset.delta)) * 100) / 100;
+    field.value = this._loc.number(sel.kind === 'thermostat' ? fitTemperature(this.hass, sel.climate, next) : next);
+    this._cellChooseField(field === cool);
+  }
+
+  // The thermostat's current state fills the fields; OK saves (lot 3)
+  _capture() {
+    this._cellError = null;
+    this._captureCell(this._cell.climate);
+  }
+
+  // OK: the value of a thermostat's cell, or the preset, is saved. `deleting`: the preset is
+  // deleted
+  async _applyCell(deleting = false) {
+    this._cellError = null;
+    const sel = this._cell;
+    const input: HTMLInputElement = this.querySelector('[data-cell-temp]');
+    const cool: HTMLInputElement = this.querySelector('[data-cell-cool]');
     const src = this._source();
     // `cooling`: its cooling temperature and its cool color, when it has them (presetsOf)
     const presets = presetsOf(src, this._loc).map(({ id, name, color, temperature, ...cooling }) => (
@@ -576,7 +595,7 @@ export class ChauffagePresetsView extends ChauffageView {
         if (JSON.stringify(mapping) !== JSON.stringify(src.mapping(sel.climate))) await this._commands().setMapping(sel.climate, mapping);
       } else if (sel.kind === 'new') {
         await this._commands().setPresets([...presets, edited({})], {});
-      } else if (act === 'cell-delete-confirm') {
+      } else if (deleting) {
         const replacement = value('[data-cell-replacement]');
         await this._commands().setPresets(presets.filter((l) => l.id !== sel.preset), replacement ? { [sel.preset]: replacement } : {});
       } else {

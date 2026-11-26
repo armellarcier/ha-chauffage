@@ -22,7 +22,7 @@ export function dayRow(card: ChauffageProgrammeCard, days: number[], showNow: bo
       ${multi ? html`<div class="name" title=${loc.t('open', { name: card._name(climate) })}>${card._moreInfoLink(climate)}${nameSizer(card)}</div>` : nothing}
       ${slotBar(card, climate, segs, days, showNow)}
       ${card._hasMenu(climate, d)
-    ? html`<button class=${`ibtn${open ? ' open' : ''}`} data-act="menu" data-climate=${climate} data-day=${d} title=${loc.t('copyPaste')}>${unsafeHTML(ICON_MORE)}</button>`
+    ? html`<button class=${`ibtn${open ? ' open' : ''}`} data-act="menu" data-climate=${climate} data-day=${d} @click=${(e) => card._toggleMenu(climate, d, e.currentTarget)} title=${loc.t('copyPaste')}>${unsafeHTML(ICON_MORE)}</button>`
     : html`<button class="ibtn none" data-act="menu" data-climate=${climate} data-day=${d} disabled aria-hidden="true" tabindex="-1">${unsafeHTML(ICON_MORE)}</button>`}
     </div>`;
   });
@@ -30,7 +30,7 @@ export function dayRow(card: ChauffageProgrammeCard, days: number[], showNow: bo
   // (a thermostat's page, sheet 'thermostat'): the active week marks it already
   const today = days.includes(todayIdx()) && (card.sheet !== 'thermostat' || card._schedule === card._source().activeSchedule());
   return html`<div class=${`dgroup${today ? ' today' : ''}`}>
-    <div class="day" data-day=${d}>${loc.daysLabel(days)}</div>
+    <div class="day" data-day=${d} @click=${() => card._tapDayName(d)}>${loc.daysLabel(days)}</div>
     <div class="subs">${subs}</div>
   </div>`;
 }

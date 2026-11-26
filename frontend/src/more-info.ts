@@ -9,7 +9,7 @@ import { atMinutes, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, t
 import { COLS3_STYLE, FAN_STYLE, FIELD_BOX, OFF_COLOR, dayOn, fullNames, hasModeRow, hvacIconTemplate, hvacSlotStyle, parseDecimal, rowsOfDays } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { leaveMoreInfo, navigate, openMoreInfo, panelPath, placements, weeksPath } from './links.ts';
-import { RESUME, activeWeek, focusedField, nextOverride, overrideBody, overrideSummary, overrideUntilText, overrideWithTemperature, planText, slotName, stepOverrideTemperature, withoutAir } from './override-edit.ts';
+import { RESUME, activeWeek, focusedField, overrideBody, overrideSummary, overrideUntilText, overrideWithTemperature, planText, slotName, withoutAir } from './override-edit.ts';
 import { overridePieces, rowPiece } from './override.ts';
 import { presetOf, presetsOf } from './presets.ts';
 import { OverrideDraft } from './state/override-draft.ts';
@@ -136,6 +136,11 @@ export class ChauffageMoreInfo extends LitElement {
     // The end field of an override left: the end typed is applied
     listenTimeFields(this, (el) => timeFieldDone(this, el, (minutes) => this._setEnd(endOfField(el, minutes))));
     root.addEventListener('click', (e) => this._onClick(e));
+    // A tap on a button of the block: an error said before is over. Not the small arrows of the end
+    // (listenTimeFields), nor "Temporary setpoint…", which only unfolds the controls
+    root.addEventListener('click', (e: any) => {
+      if (e.target.closest('button:not(.time-step):not([data-new-override])')) this._error = null;
+    }, true);
     root.addEventListener('change', (e) => this._onChange(e));
     root.addEventListener('pointerdown', (e) => this._onDown(e));
     root.addEventListener('pointermove', (e) => this._onMove(e));
@@ -254,11 +259,11 @@ export class ChauffageMoreInfo extends LitElement {
     let endDay: any = nothing;
     // What changes an override, or sets one: the same controls as in the card's popover
     const body = (override) => overrideBody(override, src, this.entity, this.hass, this._loc,
-      { step: MORE_INFO_STEP, line: 'line', actions: 'btns', endLoc: names });
+      { step: MORE_INFO_STEP, line: 'line', actions: 'btns', endLoc: names, edit: (make) => this._editOverride(make), moveEnd: (m) => this._moveEnd(m) });
     if (d) {
       this._creating = false;
       const lastPiece = pieces.find((p) => p.isLast);
-      const resume = html`<button class="danger" data-act="override-del">${t('resume')}</button>`;
+      const resume = html`<button class="danger" data-act="override-del" @click=${() => this._editOverride((now) => now && RESUME)}>${t('resume')}</button>`;
       // What the override is, until when, and what comes next: "Cool · Comfort 25° until 23:00,
       // then Heat · Eco". On a thermostat card, the rest is folded under "Change". In the
       // more-info dialog, everything shows
@@ -287,7 +292,7 @@ export class ChauffageMoreInfo extends LitElement {
       // "Temporary setpoint…" unfolds the same controls, to set one
       status = html`<div class="status${this._creating ? ' derogation' : ''}">
         <div class="line"><span><span class="muted">${t('followsSchedule')}</span> ${followText}</span>
-          <button data-new-override>${t('newOverride')}</button></div>
+          <button data-new-override @click=${() => { this._creating = !this._creating; this._render(); }}>${t('newOverride')}</button></div>
         ${this._creating ? body(null) : nothing}
       </div>`;
     }
@@ -339,7 +344,7 @@ export class ChauffageMoreInfo extends LitElement {
     const link = weekPath ? html`<span class="mi-link" role="link" tabindex="0" data-navigate=${weekPath}>${t('editWeek')}</span>` : nothing;
     // Pause and Control: anyone who may control the thermostat, as with its Control switch
     const button = dataSource(this.hass).paused(this.entity)
-      ? html`<button data-resume>${t('resumeShort')}</button>` : html`<button data-pause>${t('pauseShort')}</button>`;
+      ? html`<button data-resume @click=${() => this._setPaused(false)}>${t('resumeShort')}</button>` : html`<button data-pause @click=${() => this._setPaused(true)}>${t('pauseShort')}</button>`;
     return html`<div class="foot"><span class="links">${link}</span>${button}</div>`;
   }
 
@@ -363,22 +368,24 @@ export class ChauffageMoreInfo extends LitElement {
       leaveMoreInfo(this, () => { if (path !== window.location.pathname) navigate(path); });
       return;
     }
-    const b = e.target.closest('button:not(.time-step)'); // the small arrows: listenTimeFields()
-    if (!b || !this.hass) return;
-    if (b.hasAttribute('data-new-override')) { this._creating = !this._creating; return this._render(); }
-    this._error = null;
-    if (b.hasAttribute('data-resume') || b.hasAttribute('data-pause')) {
-      return commands(this.hass).setPaused(this.entity, b.hasAttribute('data-pause')).catch((err) => {
-        this._error = errorText(this._loc.t, err);
-        this._render();
-      });
-    }
+  }
+
+  _setPaused(paused) {
+    return commands(this.hass).setPaused(this.entity, paused).catch((err) => {
+      this._error = errorText(this._loc.t, err);
+      this._render();
+    });
+  }
+
+  // A tap on the override: `make(override)` gives what to send (see overrideBody)
+  _editOverride(make) {
+    const changed = make(this._currentOverride());
+    if (changed) this._send(changed === RESUME ? null : changed);
+  }
+
+  _moveEnd(minutes) {
     const d = this._currentOverride();
-    const act = b.dataset.act;
-    if (act === 'override-step') return stepOverrideTemperature(b, this.hass, this.entity, this._loc);
-    if (act === 'override-add') return d && this._setEnd(endMovedBy(d.end, Number(b.dataset.min)));
-    const changed = nextOverride(act, b.dataset, d, dataSource(this.hass), this.entity, this.hass);
-    return changed && this._send(changed === RESUME ? null : changed);
+    if (d) this._setEnd(endMovedBy(d.end, minutes));
   }
 
   _onChange(e) {
