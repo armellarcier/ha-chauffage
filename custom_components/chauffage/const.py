@@ -126,3 +126,10 @@ def thermostat_unique_id(entry_id: str, climate: str, key: str) -> str:
 def schedule_unique_id(entry_id: str, schedule_id: str) -> str:
     """The unique id of a schedule's switch."""
     return f"{entry_id}_schedule_{schedule_id}"
+
+
+# Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
+DATA, TICK = "data", "tick"
+# The ids of the entities the cards open changed: the cards are told, nothing else is redone (the
+# entities must not be added or removed during a thermostat's rename, which moves them)
+ENTITIES = "entities"

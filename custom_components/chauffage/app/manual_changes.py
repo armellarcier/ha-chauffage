@@ -67,7 +67,7 @@ class ManualChanges:
         """What the thermostat publishes and the card shows: the temperatures of its presets,
         and why it protects itself."""
         runtime = self._runtime
-        if not runtime._learn(new) and (runtime.temperatures_of(old) != runtime.temperatures_of(new)
+        if not runtime.learner.learn(new) and (runtime.temperatures_of(old) != runtime.temperatures_of(new)
                                         or runtime.temperatures_of(old, cool=True) != runtime.temperatures_of(new, cool=True)
                                         or runtime._cause_of(old) != runtime._cause_of(new)):
             runtime._notify()
