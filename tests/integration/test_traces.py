@@ -315,6 +315,19 @@ async def test_the_logbook_says_why_a_change_by_hand_ends_then(bench: Bench):
         == "override ended (from the card)"
 
 
+async def test_the_logbook_still_says_why_an_override_recorded_before_end_rule_ends(bench: Bench):
+    """Before stored data version 8, the events named the rule of the end ends_at; the logbook
+    reads the recorded ones."""
+    await start(bench, "10:00")
+    bench.hass.states.async_set("climate.salon", "heat", {"friendly_name": "Salon"})
+    change = {"entity_id": "climate.salon", "target": {"temperature": 22}, "preset": None,
+              "start": "2026-10-12T10:00:00+02:00", "end": "2026-10-12T12:00:00+02:00", "source": "thermostat"}
+    assert described(bench, "chauffage_override_started", **change, ends_at="duration")["message"] \
+        == "override started: 22 °C until Monday 12:00 (changed by hand, for 2 h)"
+    assert described(bench, "chauffage_override_ended", **change, reason="expired", ends_at="next_slot")["message"] \
+        == "override ended at the next slot"
+
+
 async def test_the_logbook_says_why_a_change_by_hand_ends_then_in_french(bench: Bench):
     bench.hass.config.language = "fr"
     await start(bench, "10:00")
