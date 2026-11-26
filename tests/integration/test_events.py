@@ -137,15 +137,15 @@ async def test_an_override_extended_while_the_minute_is_applied_is_sent_again(be
     await start(bench)
     await bench.manual_setpoint("climate.salon", 21.5)
     copy = bench.overrides()["climate.salon"]  # what the card holds
-    runtime, apply = bench.runtime, bench.runtime.apply
+    runtime, apply = bench.runtime, bench.runtime.scheduler.apply
 
-    async def slow_apply(**kwargs):
-        await apply(**kwargs)  # the slot's preset sent
+    async def slow_apply(reason):
+        await apply(reason)  # the slot's preset sent
         await bench.thermostat_applies("climate.salon", "eco")
         if bench.overrides().get("climate.salon", copy)["end"] == copy["end"]:  # the card adds 30 minutes
             await runtime.set_override("climate.salon", {**copy, "end": "2026-10-12T12:30:00+02:00"}, source="card")
 
-    runtime.apply = slow_apply
+    runtime.scheduler.apply = slow_apply
     await bench.go_to("12:00")
     assert bench.overrides()["climate.salon"]["end"] == "2026-10-12T12:30:00+02:00"
     assert bench.applied()["climate.salon"] == "21.5"  # last sent: the override, after the slot

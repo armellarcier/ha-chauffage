@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .. import engine
 from ..domain.manual_change import NoChange, Resume, classify
+from ..domain.plan import Realign
 from ..domain.thermostat import Thermostat, ignored
 from ..thermostats.gateway import describe, local_time
 
@@ -78,7 +79,7 @@ class ManualChanges:
         back = ignored(dataclasses.replace(before, ready=True))
         why = f"back from {old.state}" if back else "thermostat ready"
         runtime = self._runtime
-        runtime.entry.async_create_task(runtime.hass, runtime._realign(new.entity_id, why), "chauffage catch up")
+        runtime.entry.async_create_task(runtime.hass, runtime.scheduler.realign(new.entity_id, why), "chauffage catch up")
 
     @callback
     def _applied_late(self, new: State, applied: dict[str, Any]) -> None:
@@ -89,7 +90,7 @@ class ManualChanges:
             then = "a newer command is not applied yet"
         else:
             then = "set back to its " + ("override" if new.entity_id in runtime.data["overrides"] else "slot")
-            runtime.entry.async_create_task(runtime.hass, runtime._realign(new.entity_id), "chauffage realign late")
+            runtime.entry.async_create_task(runtime.hass, runtime.scheduler.realign(new.entity_id), "chauffage realign late")
         _LOGGER.info("%s: applied late a command sent at %s (%s): not an override, %s",
                      new.entity_id, local_time(applied["sent"]), describe(applied), then)
 
@@ -118,7 +119,7 @@ class ManualChanges:
             if new.entity_id in runtime.data["overrides"]:
                 resume = runtime.overrides.set(new.entity_id, None, source="thermostat", context=context)
             else:  # turned back on without an override: it may have missed slots while off
-                resume = runtime.apply(include={new.entity_id}, reason=f"back from {old.state}")
+                resume = runtime.scheduler.apply(Realign(frozenset({new.entity_id}), f"back from {old.state}"))
             runtime.entry.async_create_task(runtime.hass, resume, "chauffage resume")
             return
         target = dict(change.target)

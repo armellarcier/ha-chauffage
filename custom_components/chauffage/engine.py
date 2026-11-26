@@ -12,16 +12,17 @@ are facades over them, until their callers use the value objects (rewrite phase 
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from collections.abc import Mapping
+from datetime import datetime, timedelta
 from typing import Any
 
 from .const import AUTO, DRY, FAN_ONLY, HEAT_COOL, NO_PRESET_MODES, OFF, SETPOINT_MODES
 from .domain.manual_change import NewOverride, Resume, classify
+from .domain.plan import ApplyReason, Forced, Plan, Realign, Resumed, Tick, due_targets, ended_overrides
 from .domain.preset import Preset
 from .domain.preset_value import PresetValue
 from .domain.slot import Day, Slot, Week, slot_hvac_mode, target_of
+from .domain.timeline import current_and_next, parse_datetime, slots_after
 from .domain.target import (
     COOL_KEYS,
     EQUAL_KEYS,
@@ -51,16 +52,11 @@ __all__ = [
     "AUTO", "COOL_KEYS", "DEFAULT_STEP", "DRY", "EQUAL_KEYS", "FAN_ONLY", "HEAT_COOL", "IDLE", "IGNORED_STATES",
     "NO_PRESET_MODES", "OFF", "RANGE_KEYS", "SETPOINTS", "SETPOINT_KEYS", "SETPOINT_MODES", "SETPOINT_TARGET_KEYS",
     "TEMPERATURE_KEYS", "Slot", "Target", "Thermostat", "fit_temperature", "ignored", "is_manual_preset", "on_mode",
-    "preset_value", "same_temperature", "setpoint_modes", "slot_hvac_mode", "temperature_value",
+    "preset_value", "same_temperature", "setpoint_modes", "slot_hvac_mode", "temperature_value", "Plan",
+    "current_and_next", "ended_overrides", "parse_datetime", "slots_after", "Week",
 ]
 
 
-def parse_datetime(value: Any) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(str(value))
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else None
 
 
 # ----- facades over domain/ -----
@@ -133,178 +129,30 @@ def slot_at(day: list[list[Any]], hhmm: str) -> tuple[Slot | None, bool]:
     return Day.from_stored(day).slot_at(hhmm)
 
 
-# ----- slots -----
+# ----- slots (domain/timeline.py, domain/plan.py) -----
 
-def slots_after(week: list[list[list[Any]]], now: datetime) -> Iterator[tuple[datetime, Slot]]:
-    """(start, slot) of the slots starting after now, for 7 days, in order. Every start is an
-    instant after now."""
-    hhmm = now.strftime("%H:%M")
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    for offset in range(8):
-        for raw in week[(now.weekday() + offset) % 7]:
-            start = raw[0]
-            if offset == 0 and start <= hhmm:
-                continue
-            hours, minutes = (int(x) for x in start.split(":"))
-            # Calendar arithmetic on the local date (DST changes keep the wall-clock time)
-            when = _first_instant_at((midnight + timedelta(days=offset)).replace(hour=hours, minute=minutes, fold=0))
-            if _utc(when) <= _utc(now):
-                # Now is in the second pass of the hour repeated when summer time ends: the slot
-                # starts in that second pass too (its time of day is after now's)
-                when = when.replace(fold=1)
-            yield when, slot_of(raw)
+def reason_of(*, force: bool = False, resumed: str | None = None, ended: frozenset[str] | list[str] | None = (),
+              since: datetime | None = None, include: frozenset[str] | set[str] | None = frozenset(),
+              why: str | None = None) -> ApplyReason:
+    """The ApplyReason of the flags it replaces (the facades of engine.targets and runtime.apply)."""
+    why = why or "new slot"
+    if force:
+        return Forced(why)
+    if resumed is not None:
+        return Resumed(resumed, why)
+    if include:
+        return Realign(frozenset(include), why)
+    return Tick(since, frozenset(ended or ()))
 
 
-def current_and_next(week: list[list[list[Any]]], now: datetime) -> tuple[Slot | None, Slot | None, datetime | None]:
-    """The slot planned now, then the next different one and when it starts (within 7 days)."""
-    current, _ = slot_at(week[now.weekday()], now.strftime("%H:%M"))
-    for when, slot in slots_after(week, now):
-        if slot != current:
-            return current, slot, when
-    return current, None, None
-
-
-def ended_overrides(overrides: dict[str, Any], now: datetime) -> list[str]:
-    """Thermostats whose override has ended (or is unreadable)."""
-    ended = []
-    for entity_id, override in overrides.items():
-        end = parse_datetime(override.get("end")) if isinstance(override, dict) else None
-        if end is None or end <= now:
-            ended.append(entity_id)
-    return ended
-
-
-@dataclass
-class Plan:
-    """The data a decision needs (the integration's stored data, see model.py)."""
-
-    weeks: dict[str, dict[str, Any]]
-    schedule: str  # the active schedule
-    presets: dict[str, dict[str, Any]]
-    mappings: dict[str, dict[str, Any]]
-    overrides: dict[str, Any]
-    use_presets: bool = True
-    # {thermostat: the fan and the vanes it had before a slot or an override chose others}
-    own_settings: dict[str, dict[str, str]] = field(default_factory=dict)
-
-    def week(self, entity_id: str) -> list[list[list[str]]] | None:
-        """The thermostat's week in the active schedule (None: none, or not 7 days)."""
-        week = self.weeks.get(entity_id, {}).get(self.schedule)
-        return week if week and len(week) == 7 else None
-
-    def slot_at(self, entity_id: str, now: datetime) -> tuple[Slot | None, bool]:
-        week = self.week(entity_id)
-        if week is None:
-            return None, False
-        return slot_at(week[now.weekday()], now.strftime("%H:%M"))
-
-    def target_of(self, entity_id: str, slot: Slot | None, thermostat: Thermostat | None) -> Target | None:
-        """What a slot means on a thermostat."""
-        if slot is None:
-            return None
-        return resolve(slot.preset, self.presets, self.mappings.get(entity_id), thermostat, self.use_presets,
-                       slot.settings)
-
-    def sent_target_of(self, entity_id: str, slot: Slot | None, thermostat: Thermostat | None) -> Target | None:
-        """What a slot sends a thermostat: what it means there, and the fan and the vanes the
-        thermostat had before, when the slot chooses none (`restored`)."""
-        return restored(self.target_of(entity_id, slot, thermostat), self.own_settings.get(entity_id))
-
-    def expected(self, entity_id: str, now: datetime, thermostat: Thermostat | None) -> Target | None:
-        slot, _ = self.slot_at(entity_id, now)
-        return self.target_of(entity_id, slot, thermostat)
-
-    def next_change(self, entity_id: str, now: datetime, thermostat: Thermostat | None, *,
-                    not_before: datetime, until: datetime) -> datetime | None:
-        """Start of the next slot that changes the thermostat's target, from `not_before` and
-        before `until` (None: no such slot). A slot giving the same target as the slot before it
-        changes nothing on the thermostat, so it does not count."""
-        week = self.week(entity_id)
-        if week is None:
-            return None
-        previous = self.expected(entity_id, now, thermostat)
-        for when, slot in slots_after(week, now):
-            if _utc(when) >= _utc(until):
-                return None
-            target = self.target_of(entity_id, slot, thermostat)
-            if target is None or target == previous:
-                continue
-            previous = target
-            if _utc(when) >= _utc(not_before):
-                return when
-        return None
-
-
-def _first_instant_at(when: datetime) -> datetime:
-    """The first instant the local clock shows `when` or later. `when` itself, unless it falls in
-    the hour skipped when summer time starts: then the first minute after the jump, when slot_at
-    gives that slot (2:30 → 3:00 summer time, not 3:30)."""
-    wall = when.replace(tzinfo=None)
-    if _utc(when).astimezone(when.tzinfo).replace(tzinfo=None) == wall:
-        return when
-    instant = _utc(when.replace(fold=1))  # before the jump, the clock shows an earlier time
-    while instant.astimezone(when.tzinfo).replace(tzinfo=None) < wall:
-        instant += timedelta(minutes=1)
-    return instant.astimezone(when.tzinfo)
-
-
-def _utc(when: datetime) -> datetime:
-    """Datetimes sharing a time zone compare by wall-clock time: compare instants instead."""
-    return when.astimezone(timezone.utc)
-
-
-def targets(
-    plan: Plan,
-    now: datetime,
-    thermostats: dict[str, Thermostat],
-    *,
-    force: bool = False,
-    resumed: str | None = None,
-    ended: frozenset[str] | list[str] = (),
-    since: datetime | None = None,
-    include: frozenset[str] | set[str] = frozenset(),
-    pending: dict[str, Target] | None = None,
-) -> list[tuple[str, Target]]:
-    """(thermostat, target) pairs to apply now, in schedule order.
-
-    - force: realign every thermostat (schedule activated, weeks saved, HA started);
-    - otherwise only thermostats whose slot changed since the previous check (`since`; a slot
-      starting during a missed minute, or in the hour skipped by the change to summer time, is
-      applied late rather than never; without `since`, whose slot starts now), whose override
-      just ended or was removed (resumed), or that must be realigned (`include`: back online,
-      failed command);
-    - thermostats with an active override, unavailable or already as expected are left alone.
-      Not one that still has another command to apply (`pending`, the last command sent to each
-      thermostat that it does not show yet): it would apply that one later. A thermostat turned
-      off gets its slot, which turns it on unless the slot says off (`complete`).
-    """
-    pending = pending or {}
-    out = []
-    for entity_id in plan.weeks:
-        if entity_id in plan.overrides and entity_id not in ended and entity_id != resumed:
-            continue
-        slot, starts_now = plan.slot_at(entity_id, now)
-        thermostat = thermostats.get(entity_id)
-        if slot is None or thermostat is None:
-            continue
-        # A slot that repeats the one before it (a day's first slot, eco after eco) changes
-        # nothing: a thermostat turned off by a script at bedtime stays off (#77). Compared as
-        # they run on the thermostat: on an air conditioner, a slot that says heat repeats one that
-        # says nothing
-        changed = (slot_on(plan.slot_at(entity_id, since)[0], thermostat) != slot_on(slot, thermostat)
-                   if since is not None else starts_now)
-        if not (force or changed or entity_id == resumed or entity_id in ended or entity_id in include):
-            continue
-        target = plan.sent_target_of(entity_id, slot, thermostat)
-        if target is None or ignored(thermostat):
-            continue
-        target = complete(target, thermostat)
-        # A device preset left on at the slot's temperature would still fight the setpoint
-        if (satisfied(target, thermostat) and preset_to_leave(target, thermostat) is None
-                and pending.get(entity_id, target) == target):
-            continue
-        out.append((entity_id, target))
-    return out
+def targets(plan: Plan, now: datetime, thermostats: dict[str, Thermostat], *, force: bool = False,
+            resumed: str | None = None, ended: frozenset[str] | list[str] = (), since: datetime | None = None,
+            include: frozenset[str] | set[str] = frozenset(),
+            pending: dict[str, Target] | None = None) -> list[tuple[str, dict[str, Any]]]:
+    """(thermostat, target) pairs to apply now (plan.due_targets), from the flags of before
+    ApplyReason."""
+    reason = reason_of(force=force, resumed=resumed, ended=ended, since=since, include=include)
+    return [(entity_id, dict(target)) for entity_id, target in due_targets(plan, now, thermostats, reason, pending=pending)]
 
 
 # ----- commands applied late -----

@@ -24,6 +24,7 @@ from ..const import (
     NEXT_SLOT,
     NO_NEXT_SLOT,
 )
+from ..domain.plan import Resumed
 from ..thermostats.gateway import describe
 
 if TYPE_CHECKING:
@@ -82,7 +83,7 @@ class OverrideService:
             if not self.drop(entity_id, source, context):
                 return
             runtime._changed()
-            await runtime.apply(resumed=entity_id, reason=f"override ended ({source})")
+            await runtime.scheduler.apply(Resumed(entity_id, f"override ended ({source})"))
             return
         override = model.normalize_override(override)
         current = runtime.current(runtime.hass.states.get(entity_id))
