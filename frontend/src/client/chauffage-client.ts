@@ -8,9 +8,8 @@ const SUBSCRIBE_NO_DATA_MS = 10000;
 
 type Listener = () => void;
 
-// What a preset is worth on a thermostat: its value for each HVAC mode, and the HVAC modes it can
-// be used in
-export type PresetPreview = { value: Record<string, any>; modes: string[] };
+// What a preset is worth on a thermostat: its value for each HVAC mode
+export type PresetPreview = { value: Record<string, any> };
 // A question asked about a preset: its answer once it came, and the answer to come
 type Preview = { answer: PresetPreview | null; coming: Promise<PresetPreview | null> | null };
 // What the integration reads from a thermostat to say what a preset is worth on it
@@ -58,8 +57,8 @@ export class ChauffageClient {
   }
 
   // What a preset is worth on a thermostat, as the integration computes it
-  // (chauffage/preset/preview): { value, modes }, as the data's `targets` give it, and the HVAC
-  // modes the preset can be used in. `value`: a value set by hand on the thermostat, saved or not.
+  // (chauffage/preset/preview): { value }, as the data's `targets` give it. `value`: a value set
+  // by hand on the thermostat, saved or not.
   // The first call asks the integration and returns null; the listeners hear when the answer
   // comes, and the next calls return it. A question is asked once: its answer is kept while the
   // thermostat lists the same modes and presets. Null: no answer yet, or none will come.

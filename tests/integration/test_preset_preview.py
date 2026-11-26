@@ -28,15 +28,6 @@ async def test_the_preview_of_a_saved_preset_is_what_the_card_receives(bench: Be
     assert answer["result"]["value"] == bench.snapshot()["targets"]["climate.salon"]["comfort"]
 
 
-async def test_the_preview_gives_the_hvac_modes_a_preset_can_be_used_in(bench: Bench, ws_client):
-    """Frost protection has no temperature when cooling: never in cool."""
-    await start(bench, hvac_modes=AC_MODES)
-    frost = next(p for p in bench.presets() if p["id"] == "frost")
-    comfort = next(p for p in bench.presets() if p["id"] == "comfort")
-    assert (await preview(bench, ws_client, preset=frost))["result"]["modes"] == ["heat"]
-    assert (await preview(bench, ws_client, preset=comfort))["result"]["modes"] == ["heat", "cool"]
-
-
 async def test_the_preview_takes_a_preset_and_a_value_the_user_has_not_saved(bench: Bench, ws_client):
     await start(bench, hvac_modes=AC_MODES)
     edited = {"id": "comfort", "name": "Confort", "color": "#f57c00", "temperature": 19.0, "cool_temperature": 26.0}
