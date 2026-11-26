@@ -99,9 +99,9 @@ afterEach(() => cleanup());
         ['eco', 'comfort', 'boost'].map((id) => rgb(derivedCoolColor(PRESET_COLORS[id]))), 'frost protection never cools');
     });
 
-    test('a thermostat\'s page (week_only) keeps Éteint in its legend', async () => {
-      assert.equal(text($(await cardOf(setup(), { show: ['climate.salon'], week_only: true }), '.legend')), 'Éteint');
-      assert.equal($(await cardOf(setup(), { show: ['climate.atelier'], week_only: true }), '.legend'), null);
+    test('a thermostat\'s page keeps Éteint in its legend', async () => {
+      assert.equal(text($(await cardOf(setup(), { show: ['climate.salon'], sheet: 'thermostat' }), '.legend')), 'Éteint');
+      assert.equal($(await cardOf(setup(), { show: ['climate.atelier'], sheet: 'thermostat' }), '.legend'), null);
     });
 
     test('on an off slot, "Éteint" wins over the time; too narrow for both, the icon alone, larger', async () => {

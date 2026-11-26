@@ -29,10 +29,6 @@ import { SlotDrag } from '../controllers/slot-drag.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
-// The card's options that only the Chauffage panel sets, for its pages: a page shows one view, a
-// thermostat's sheet stacks its weeks without their chips, tabs or foot, and saves them together
-const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'week_only', 'flat', 'preset_definitions', 'history'];
-
 // The width of a slot's handle, in pixels (see the style of .handle)
 const HANDLE_WIDTH = 18;
 
@@ -101,6 +97,52 @@ export class ChauffageProgrammeCard extends LitElement {
     return VERSION;
   }
 
+  // ---------- on a sheet of the Chauffage panel ----------
+  // The panel sets these members; a dashboard's card has none of them.
+
+  // The sheet the card is on, set before hass. 'schedule': every thermostat's week in one
+  // schedule, without tabs or new schedule (the page's ⋮ opens the schedule's menu). 'thermostat':
+  // one week alone, stacked with the other schedules' weeks: no chips, tabs, hint, paused note,
+  // legend or save bar (the page has its own), today marked in the active schedule only.
+  sheet: 'schedule' | 'thermostat' | null = null;
+
+  // The schedule shown. The panel sets it before hass: it is shown once the integration's data has it
+  get schedule() {
+    return this._schedule;
+  }
+
+  set schedule(id) {
+    this._wantSchedule = id;
+  }
+
+  // The weeks have edits not saved yet
+  get dirty() {
+    return this._draft.dirty;
+  }
+
+  // A thermostat's week in the schedule shown, as drawn
+  week(climate) {
+    return this._week(climate);
+  }
+
+  // A thermostat's week to save in the schedule shown, or null when the card has nothing to save:
+  // the slots the card cut are joined first. With the revision to save it against
+  toSave(climate) {
+    this._settle(true);
+    if (!this._draft.dirty) return null;
+    return { week: this._week(climate).map(serializeDay), revision: this._draft.revisions[climate] ?? null };
+  }
+
+  // The integration saved weeks, of this card (`sent`) or of another card: their new revisions.
+  // The week sent has nothing left to save
+  saved(result, sent) {
+    this._draft.recordRevisions(result);
+    if (!sent) return;
+    this._draft.saved();
+    this._msg = this._loc.t('saved');
+    this._render();
+  }
+
   constructor() {
     super();
     this._draft = new WeekDraft(); // the weeks edited, until saved
@@ -153,16 +195,9 @@ export class ChauffageProgrammeCard extends LitElement {
     return { thermostats: scheduled.length ? scheduled : climates, show: 'all' };
   }
 
-  // A dashboard's configuration: the options the Chauffage panel sets for its own pages are not
-  // options of a dashboard card (PANEL_OPTIONS), and are ignored there
+  // A dashboard's configuration. The panel's sheets set the card's public properties instead
+  // (sheet, schedule): written in a dashboard's YAML, they are not options
   setConfig(config) {
-    const own = { ...config };
-    for (const key of PANEL_OPTIONS) delete own[key];
-    this._setPanelConfig(own);
-  }
-
-  // The panel's pages set the card with their own options too (see ChauffagePanel)
-  _setPanelConfig(config) {
     if (!config.thermostats || !config.thermostats.length) {
       const lang = config.language || (typeof navigator !== 'undefined' && navigator.language);
       throw new Error(makeLocale(null, lang).t('thermostatsRequired'));
@@ -179,10 +214,7 @@ export class ChauffageProgrammeCard extends LitElement {
     this._asideKey = '';
     this._shown = this._initialShown();
     this._schedule = null;
-    // The schedule shown first (the Chauffage panel's ?schedule=), else the active schedule
-    this._wantSchedule = config.schedule || null;
-    // In the panel, a thermostat's sheet shows the history or not for all its weeks (`history`)
-    if (config.history != null) this._history.shown = !!config.history;
+    this._wantSchedule = null;
     if (this._hass) {
       this._setAside(this._source());
       this._render();
@@ -444,7 +476,6 @@ export class ChauffageProgrammeCard extends LitElement {
   // with the history, which differs from day to day
   _grouped() {
     if (this._history.shown) return false;
-    if (this._config.panel && this._config.group_days != null) return this._config.group_days;
     return this._groupPref ?? this._config.group_days !== false;
   }
 
@@ -668,7 +699,7 @@ export class ChauffageProgrammeCard extends LitElement {
   }
 
   // Cancel: the weeks go back as they were saved (the card's bar, or the panel's for a page)
-  _discard() {
+  discard() {
     this._draft.dirty = false;
     this._draft.selection = null;
     this._msg = '';
@@ -678,8 +709,8 @@ export class ChauffageProgrammeCard extends LitElement {
 
   // A thermostat's page in the panel: its switches group the days and show the history of every
   // week, in place, keeping the edits not saved yet
-  _setWeekView(groupDays, history) {
-    this._config.group_days = groupDays;
+  setWeekView(groupDays, history) {
+    this._groupPref = groupDays;
     this._history.shown = history;
     if (!history) this._zoom = null;
     this._render();
@@ -929,10 +960,10 @@ export class ChauffageProgrammeCard extends LitElement {
   }
 
   // In the words of a mouse, or of a finger on a touch screen (CSS). A thermostat's page stacks
-  // one card per schedule: it shows the hint once (`week_only`). Not with read-only weeks (the
+  // one card per schedule: it shows the hint once (sheet 'thermostat'). Not with read-only weeks (the
   // access level): there is nothing to drag
   _hint() {
-    if (this._config.week_only || !this._shown.some((c) => this._mayEdit(c))) return nothing;
+    if (this.sheet === 'thermostat' || !this._shown.some((c) => this._mayEdit(c))) return nothing;
     const t = this._loc.t;
     return html`<div class="hint"><span class="mouse">${t('hint')}</span><span class="touch">${t('hintTouch')}</span></div>`;
   }
@@ -978,9 +1009,9 @@ export class ChauffageProgrammeCard extends LitElement {
     this._placeTabs(this._tabsLeft);
     this._placeMenu();
     this._schedulePlaceTags();
-    // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
+    // A week of a thermostat's page (sheet 'thermostat'): the page's own bar saves it, so the
     // sheet hears when it has edits to save
-    if (this._config.week_only && this._draft.dirty !== this._dirtyTold) {
+    if (this.sheet === 'thermostat' && this._draft.dirty !== this._dirtyTold) {
       this._dirtyTold = this._draft.dirty;
       this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
     }
@@ -1026,7 +1057,7 @@ export class ChauffageProgrammeCard extends LitElement {
   render() {
     this._settle();
     const tr = this._loc.t;
-    const flat = this._config.flat ? ' flat' : '';
+    const flat = this.sheet === 'thermostat' ? ' flat' : '';
     const fill = (content, cls?) => html`<ha-card class=${`${cls || ''}${flat}`}>${content}</ha-card>`;
     const notice = sourceNotice(this._source());
     if (notice) return fill(noticeTemplate(notice, tr));
@@ -1045,10 +1076,10 @@ export class ChauffageProgrammeCard extends LitElement {
     });
     // The schedules' ⋮ and + edit the schedules: canPlan
     const plannable = src.plannable;
-    // On a schedule's sheet (schedule_tabs: 'one'): its tab alone, with its menu, and no new schedule
-    const one = this._config.schedule_tabs === 'one';
-    // A week of a thermostat's page: the week alone (`week_only`)
-    const weekOnly = !!this._config.week_only;
+    // On a schedule's sheet (sheet 'schedule'): its tab alone, with its menu, and no new schedule
+    const one = this.sheet === 'schedule';
+    // A week of a thermostat's page: the week alone (sheet 'thermostat')
+    const weekOnly = this.sheet === 'thermostat';
     const tabs = (one ? schedules.filter((m) => m === this._schedule) : schedules).map((m) => {
       const icon = src.scheduleIcon(m);
       return html`<button class=${`tab${m === this._schedule ? ' on' : ''}`} data-schedule=${m}>${m === active ? html`<span class="dot" title=${tr('activeSchedule')}></span>` : nothing}${icon ? html`<ha-icon class="tab-icon" icon=${icon}></ha-icon>` : nothing}<span class="tab-name">${this._scheduleName(m)}</span></button>${
@@ -1383,7 +1414,7 @@ export class ChauffageProgrammeCard extends LitElement {
     if (!this._schedule || this._schedule === active) return nothing;
     const t = this._loc.t;
     // The active schedule's name leads to it: its tab on a dashboard, its page in the panel
-    const name = this._config.panel
+    const name = this.sheet
       ? html`<span class="mi-link" role="link" tabindex="0" data-navigate=${panelPath(`schedules/${active}`)}>${this._scheduleName(active)}</span>`
       : html`<span class="mi-link" role="link" tabindex="0" data-show-schedule=${active}>${this._scheduleName(active)}</span>`;
     const current = active ? withLink(t('activeScheduleBar', { schedule: LINK_TOKEN }), html`<strong>${name}</strong>`) : t('noActiveSchedule');
@@ -1400,9 +1431,9 @@ export class ChauffageProgrammeCard extends LitElement {
       hass: this._hass,
       loc: this._loc,
       src: this._source(),
-      panel: !!this._config.panel,
+      panel: !!this.sheet,
       list: false,
-      oneTab: this._config.schedule_tabs === 'one',
+      oneTab: this.sheet === 'schedule',
       get menu() { return card._schedEd; },
       set menu(menu) { card._schedEd = menu; },
       get error() { return card._schedErr; },
@@ -1422,13 +1453,19 @@ export class ChauffageProgrammeCard extends LitElement {
     return scheduleMenuAction(this._scheduleMenuHost(), act, ds, el, this._schedule);
   }
 
+  // A schedule's sheet: the page's ⋮ (`button`, outside the card) opens the menu of the schedule
+  // shown under it
+  openScheduleMenu(button) {
+    return this._scheduleAction('schedule-menu', {}, button);
+  }
+
   _activateSchedule(schedule) {
     return activateSchedule(this._scheduleMenuHost(), schedule);
   }
 
   // Where a change comes from, for the logbook: the panel, or a card (none: older integrations)
   _changeSource() {
-    return this._config.panel ? 'panel' : undefined;
+    return this.sheet ? 'panel' : undefined;
   }
 
   // Temperature a preset gives a thermostat (presetTemperatureOf)
@@ -1453,7 +1490,7 @@ export class ChauffageProgrammeCard extends LitElement {
   // The card's top right: the Chauffage panel, for users who may set up (canSetUp), as the
   // dashboards' own panels
   _panelOpen() {
-    if (this._config.panel) return nothing;
+    if (this.sheet) return nothing;
     const hass = this._hass;
     if (!this._source().editable) return nothing;
     const label = this._loc.t('openInPanel', { panel: panelTitle(hass) });
@@ -1510,7 +1547,7 @@ export class ChauffageProgrammeCard extends LitElement {
   // Every heating or cooling slot of a thermostat's week, in the schedule shown, set to heat or
   // to cool (the week's menu): an edit like the others, saved with Save. The other slots stay
   // as they are: heat/cool, dry, auto, fan only and off
-  _setWeekHvac(climate, mode) {
+  setWeekHvac(climate, mode) {
     if (!slotModesOf(this._hass, climate).includes(mode)) return;
     const week = this._week(climate);
     const switched = (slot) => !hasNoPreset(slot) && slotModeOn(this._hass, climate, slot) !== 'heat_cool';
@@ -1700,7 +1737,7 @@ export class ChauffageProgrammeCard extends LitElement {
 
   // A week copied from another card (a thermostat's sheet in the panel): this card's schedule
   // gets it, unsaved, and this card's save bar asks to save it
-  _receiveWeek(climate, week, sourceName) {
+  receiveWeek(climate, week, sourceName) {
     const dropped = [];
     this._draft.setWeek(climate, this._schedule, clone(week).map((segs) => {
       const fit = this._adapted(segs, climate);
@@ -1764,7 +1801,7 @@ export class ChauffageProgrammeCard extends LitElement {
     this._menu = null;
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
-    if (act === 'week-hvac') return this._setWeekHvac(ds.climate, ds.mode);
+    if (act === 'week-hvac') return this.setWeekHvac(ds.climate, ds.mode);
     if (act === 'resume') return this._setPaused(ds.climate, false);
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._draft.selection = null;
@@ -1784,7 +1821,7 @@ export class ChauffageProgrammeCard extends LitElement {
     }
     if (act === 'reload-page') return this._reloadPage();
     if (act === 'save') return this._save();
-    if (act === 'cancel') return this._discard();
+    if (act === 'cancel') return this.discard();
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
     if (act === 'paste-day') return this._pasteFromClipboard(ds.climate, Number(ds.day));
     if (act === 'activate-schedule') {

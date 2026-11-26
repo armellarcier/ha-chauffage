@@ -13,7 +13,6 @@ import { hvacIconTemplate, isReversible } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { deviceNamedLinkHtml, navigate, openDevice, openMoreInfo, openPanel, panelName, panelPath, placements, placesHtml, thermostatDevices } from './links.ts';
 import { DOC_OFF_BY_HAND, LS_NEW_ACCESS, LS_NEW_OFF, LS_NEW_SETTING, openSettings, seenNewOff, seenNewSetting } from './settings-dialog.ts';
-import { serializeDay } from './slots.ts';
 import { BADGE_STYLE, LINK_STYLE } from './styles.ts';
 import { VERSION } from './version.ts';
 
@@ -368,9 +367,12 @@ export class ChauffagePanel extends LitElement {
     this._copyMenu = null;
     this._pageMenu = false;
     if (notice) return;
-    const card = (config) => {
+    // A programme card of a sheet: the weeks of its thermostats in one schedule
+    const card = (sheet, schedule, climates = this._thermostats(src)) => {
       const el: any = document.createElement('chauffage-programme-card');
-      el._setPanelConfig({ thermostats: this._thermostats(src), panel: true, ...config });
+      el.setConfig({ thermostats: climates });
+      el.sheet = sheet;
+      el.schedule = schedule;
       page.cards.push(el);
       return el;
     };
@@ -386,7 +388,7 @@ export class ChauffagePanel extends LitElement {
       return frame;
     };
     if (route.sheet === 'schedule') {
-      page.views.push(card({ schedule: route.id, schedule_tabs: 'one' }));
+      page.views.push(card('schedule', route.id));
     } else if (route.sheet === 'thermostat') {
       this._loadTile(page, route.id);
       // Its presets first: what each one means for this thermostat is the legend of its weeks
@@ -394,8 +396,8 @@ export class ChauffagePanel extends LitElement {
       for (const id of page.schedules) {
         // One week alone: no chips, tabs, hint, paused note, legend or save bar (the page has its own),
         // today marked in the active schedule only
-        page.weekCards[id] = card({ thermostats: [route.id], schedule: id, week_only: true,
-          group_days: this._groupDays, history: this._historyOn, flat: true });
+        page.weekCards[id] = card('thermostat', id, [route.id]);
+        page.weekCards[id].setWeekView(this._groupDays, this._historyOn);
       }
     } else if (route.list === 'thermostats') {
       if (page.scheduled) page.views.push(view('chauffage-thermostats-view', {}, true)); // its list is a card of its own
@@ -544,7 +546,7 @@ export class ChauffagePanel extends LitElement {
   // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
   // order of the schedules
   _dirtyWeeks(): [string, any][] {
-    return Object.entries(this._page ? this._page.weekCards : {}).filter(([, card]) => card._draft.dirty);
+    return Object.entries(this._page ? this._page.weekCards : {}).filter(([, card]) => card.dirty);
   }
 
   // A thermostat's sheet has one save bar for all its weeks: on a phone, a bar under a week further
@@ -553,7 +555,8 @@ export class ChauffagePanel extends LitElement {
     const t = this._t;
     const dirty = this._dirtyWeeks();
     if (!dirty.length) return nothing;
-    const names = dirty.map(([, card]) => card._scheduleName(card._schedule)).join(', ');
+    const src = dataSource(this.hass);
+    const names = dirty.map(([id]) => src.scheduleName(id)).join(', ');
     if (this._leave) {
       return html`<div class="sheet-savebar leaving">
         <span class="dirty">${t('leaveUnsaved', { schedules: names })}</span>
@@ -572,7 +575,7 @@ export class ChauffagePanel extends LitElement {
 
   // Cancel: every week goes back as it was saved
   _discardSheet() {
-    for (const [, card] of this._dirtyWeeks()) card._discard();
+    for (const [, card] of this._dirtyWeeks()) card.discard();
     this._saveError = null;
     this.requestUpdate();
   }
@@ -582,20 +585,14 @@ export class ChauffagePanel extends LitElement {
   async _saveSheet(climate) {
     const t = this._t;
     const weekCards: any[] = Object.values(this._page.weekCards);
-    for (const card of weekCards) card._settle(true);
-    const dirty = this._dirtyWeeks();
-    if (!dirty.length) return;
-    const first = dirty[0][1];
-    const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, card._week(climate).map(serializeDay)])) };
-    const revisions = { [climate]: first._draft.revisions[climate] ?? null };
+    const sent = Object.entries(this._page.weekCards).map(([id, card]) => [id, card, card.toSave(climate)])
+      .filter(([, , week]) => week);
+    if (!sent.length) return;
+    const weeks = { [climate]: Object.fromEntries(sent.map(([id, , week]) => [id, week.week])) };
+    const revisions = { [climate]: sent[0][2].revision };
     try {
       const result = await commands(this.hass).saveWeeks(weeks, revisions);
-      for (const card of weekCards) card._draft.recordRevisions(result);
-      for (const [, card] of dirty) {
-        card._draft.saved();
-        card._msg = card._loc.t('saved');
-        card._render();
-      }
+      for (const card of weekCards) card.saved(result, sent.some(([, c]) => c === card));
       this._saveError = null;
     } catch (err) {
       this._saveError = err && err.code === 'stale' ? t('stale') : errorText(t, err);
@@ -692,7 +689,7 @@ export class ChauffagePanel extends LitElement {
       // The page's ⋮: a schedule's sheet opens its card's menu (rename, delete); a thermostat's
       // sheet opens the thermostat, or forgets it after a confirmation
       if ('pageMenu' in ds) {
-        if (route.sheet === 'schedule') return this._page.views[0] && this._page.views[0]._scheduleAction('schedule-menu', {}, el);
+        if (route.sheet === 'schedule') return this._page.views[0] && this._page.views[0].openScheduleMenu(el);
         this._pageMenu = !this._pageMenu;
         this._pageForget = false;
         return undefined;
@@ -733,16 +730,17 @@ export class ChauffagePanel extends LitElement {
         // Every slot of the week whose menu is open, to heat or to cool: its card asks to save it
         const card = weekCards[this._copyMenu];
         this._copyMenu = null;
-        if (card) card._setWeekHvac(route.id, ds.weekHvac);
+        if (card) card.setWeekHvac(route.id, ds.weekHvac);
         return undefined;
       }
       if (ds.copyTo) {
         // Its week in schedule A copied to schedule B lands in B's card, which asks to save B. A is
         // not touched, even with edits not saved yet (they are copied as shown)
-        const from = weekCards[this._copyMenu];
+        const fromId = this._copyMenu;
+        const from = weekCards[fromId];
         const to = weekCards[ds.copyTo];
         this._copyMenu = null;
-        if (from && to) to._receiveWeek(route.id, from._week(route.id), from._scheduleName(from._schedule));
+        if (from && to) to.receiveWeek(route.id, from.week(route.id), src.scheduleName(fromId));
         return undefined;
       }
       // The settings, on top of the panel: the notice of the new setting is then told
@@ -764,7 +762,7 @@ export class ChauffagePanel extends LitElement {
         saveGroupPreference(this._groupDays);
         saveHistoryPreference(this._historyOn);
         // In place: the weeks keep their edits not saved yet
-        for (const card of Object.values(weekCards)) card._setWeekView(this._groupDays, this._historyOn);
+        for (const card of Object.values(weekCards)) card.setWeekView(this._groupDays, this._historyOn);
         return undefined;
       }
       if ('closeNotice' in ds) {

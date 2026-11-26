@@ -75,6 +75,6 @@ export function noPresetModes(card: ChauffageProgrammeCard) {
 // On a dashboard, the legend of the presets ends with the link to set them (canSetUp, as the
 // panel). In the panel, no link to the panel
 function settingsLink(card: ChauffageProgrammeCard) {
-  if (card._config.panel || !card._source().editable) return nothing;
+  if (card.sheet || !card._source().editable) return nothing;
   return html`<span class="mi-link settings-link" role="link" tabindex="0" data-navigate=${panelPath('presets')}>${card._loc.t('setPresets')}</span>`;
 }
