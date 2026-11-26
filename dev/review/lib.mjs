@@ -292,7 +292,7 @@ export async function openOverride(page, climate, where = 'card') {
  */
 export async function openPresetCell(page, climate, preset) {
   if (!page.url().endsWith('/chauffage/presets')) await openPanel(page, 'presets');
-  const c = page.locator(`chauffage-panel ${CARD}`).first();
+  const c = page.locator('chauffage-panel chauffage-presets-view').first();
   await c.waitFor({ timeout: 30000 });
   const cell = climate
     ? c.locator(`[data-act="cell"][data-kind="thermostat"][data-climate="${climate}"][data-preset="${preset}"]`)
@@ -301,7 +301,7 @@ export async function openPresetCell(page, climate, preset) {
   const editor = c.locator('.cell-ed');
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // A popover already open may cover the cell: closed first
-    if (await editor.count()) await c.evaluate((el) => { el._cell = null; el._render(); });
+    if (await editor.count()) await c.evaluate((el) => { el._cell = null; el.requestUpdate(); });
     await tap(page, cell.first()).catch(() => {});
     try {
       await editor.waitFor({ timeout: 5000 });

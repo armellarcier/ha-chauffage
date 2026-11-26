@@ -2,7 +2,7 @@
 // vanes, and a popover that fits a phone.
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WEEKDAY, WEEKEND, cleanup } from './helpers.mjs';
+import { WEEKDAY, WEEKEND, cleanup, createView } from './helpers.mjs';
 import { CHIP_STYLE, FIELD_BOX, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, STYLE as STYLE_TEXT, derivedCoolColor, normalize, parseDay, serializeDay } from '../../frontend/src/index.ts';
 import { $, $$, change, click, icons, rgb, text, week } from './houses/dom.mjs';
 import { day } from './driver.mjs';
@@ -483,7 +483,7 @@ afterEach(() => cleanup());
     test('the popovers of an override and of a preset\'s value scroll the same way', async () => {
       const card = await openOverride(setup(), SALON);
       assert.deepEqual(children($(card, '.editor.override-ed')).slice(0, 2), ['ed-head', 'ed-body']);
-      const presets = await cardOf(setup(), { view: 'presets' }); await settle();
+      const presets = createView(setup(), 'presets', { thermostats: ['climate.salon', 'climate.atelier'] }); await settle(); await settle();
       click(presets, '[data-act="cell"]'); await settle();
       assert.deepEqual(children($(presets, '.editor.cell-ed')), ['ed-head', 'ed-body', 'ed-actions pv-foot']);
     });

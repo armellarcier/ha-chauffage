@@ -2,7 +2,7 @@
 // a preset means on each thermostat, and colors that can be told apart and read.
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanup, createCard, valueOn } from './helpers.mjs';
+import { cleanup, createView, valueOn } from './helpers.mjs';
 import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn } from '../../frontend/src/index.ts';
 import { $, $$, change, click, icons, text } from './houses/dom.mjs';
 import { openOverride, settle } from './driver.mjs';
@@ -21,7 +21,7 @@ afterEach(() => cleanup());
   const { lastCall, setup } = heaterAndAtelier;
 
   describe('the presets tab', () => {
-    const open = async (hass) => { const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' }); await settle(); return card; };
+    const open = async (hass) => { const card = createView(hass, 'presets', { thermostats: ['climate.salon', 'climate.atelier'] }); await settle(); return card; };
     const cell = (card, preset, climate) => $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`);
     const rows = (card) => $$(card, '.cell-ed .pv-choices .pv-row').map((r) => `${text(r.querySelector('span'))}${r.querySelector('input[type=radio]').checked ? ' ✓' : ''}`);
     const choose = (card, value) => { const radio = $(card, `.cell-ed input[name="cell-choice"][value="${value}"]`); radio.checked = true; radio.dispatchEvent(new window.Event('change', { bubbles: true })); };
@@ -74,7 +74,7 @@ afterEach(() => cleanup());
     });
 
     test('without a thermostat that cools, a preset shows no cool color', async () => {
-      const card = createCard(setup(), { thermostats: ['climate.salon'], view: 'presets' }); await settle();
+      const card = createView(setup(), 'presets', { thermostats: ['climate.salon'] }); await settle();
       click(card, '[data-kind="preset"][data-preset="eco"]'); await settle();
       assert.equal($(card, '.cell-ed [data-cell-cool-color]'), null);
     });
@@ -280,7 +280,7 @@ afterEach(() => cleanup());
   const { ALL, COMBLES, SALON, SUITE, TARGETS, presets, setup } = everyHvacMode;
 
   describe('the presets tab sets a temperature when heating and one when cooling', () => {
-    const panel = async (hass) => { const card = createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' }); await settle(); return card; };
+    const panel = async (hass) => { const card = createView(hass, 'presets', { thermostats: [SALON, SUITE, COMBLES] }); await settle(); return card; };
 
     test('a preset\'s header says both, and frost protection has no cooling temperature', async () => {
       const card = await panel(setup());
@@ -390,7 +390,7 @@ afterEach(() => cleanup());
 
   describe('the cell popover of the presets tab', () => {
     onMondayAtTen();
-    const panel = async (hass) => { const card = createCard(hass, { thermostats: [SALON, SUITE, VANNE], view: 'presets' }); await settle(); return card; };
+    const panel = async (hass) => { const card = createView(hass, 'presets', { thermostats: [SALON, SUITE, VANNE] }); await settle(); return card; };
     const cell = (card, climate, preset) => click(card, `[data-kind="thermostat"][data-climate="${climate}"][data-preset="${preset}"]`);
     const coolRows = (card) => $$(card, '.cell-ed input[name="cell-cool-choice"]').map((r) => `${text(r.closest('label').querySelector('span'))}${r.checked ? ' ✓' : ''}`);
 
@@ -492,7 +492,7 @@ afterEach(() => cleanup());
 
   describe('a preset keeps a temperature that a heat/cool slot uses', () => {
     onMondayAtTen();
-    const panel = async (hass) => { const card = createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' }); await settle(); return card; };
+    const panel = async (hass) => { const card = createView(hass, 'presets', { thermostats: [SALON, SUITE, COMBLES] }); await settle(); return card; };
     const clear = async (card, field) => {
       if (!$(card, '.cell-ed')) click(card, '[data-kind="preset"][data-preset="eco"]'); await settle();
       $(card, `.cell-ed [${field}]`).value = '';
@@ -558,7 +558,7 @@ afterEach(() => cleanup());
 
   describe('the presets tab', () => {
     onMondayAtTen();
-    const presetsTab = async (hass) => { const card = createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' }); await settle(); return card; };
+    const presetsTab = async (hass) => { const card = createView(hass, 'presets', { thermostats: [SALON, SUITE, COMBLES] }); await settle(); return card; };
     const open = (card, preset, climate) => click(card, `[data-act="cell"][data-kind="${climate ? 'thermostat' : 'preset'}"][data-preset="${preset}"]${climate ? `[data-climate="${climate}"]` : ''}`);
 
     test('an empty cooling field shows the preset\'s cooling temperature as a hint', async () => {
@@ -716,7 +716,7 @@ afterEach(() => cleanup());
       const hass = setup();
       delete hass.states[ATELIER];
       delete hass.states[COMBLES];
-      const heaters = createCard(hass, { thermostats: [SALON], view: 'presets' }); await settle();
+      const heaters = createView(hass, 'presets', { thermostats: [SALON] }); await settle();
       click(heaters, '[data-kind="preset"][data-preset="eco"]'); await settle();
       assert.doesNotMatch(text($(heaters, '.cell-ed .pv-fields')), /Couleur en chauffe|Couleur en clim/);
     });

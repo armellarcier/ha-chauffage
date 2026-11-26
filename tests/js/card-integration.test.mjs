@@ -1,6 +1,6 @@
 // The card's exchanges with the Chauffage integration (websocket API): subscription, saves,
 // overrides, schedules, presets; and the card without the integration.
-import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY } from './helpers.mjs';
+import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, createView, cleanup, WEEKDAY } from './helpers.mjs';
 import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -284,7 +284,7 @@ describe('the "Presets" view', () => {
   });
   const open = async (hass) => {
     hass.states['climate.salon'].attributes.preset_modes = ['eco', 'comfort', 'away', 'boost'];
-    const card = createCard(hass, { view: 'presets' }); await settle(); // salon and bureau (bureau: no schedule, no presets)
+    const card = createView(hass, 'presets'); await settle(); // salon and bureau (bureau: no schedule, no presets)
     await settle();
     return card;
   };

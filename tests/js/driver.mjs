@@ -221,20 +221,16 @@ export const thermostats = (card) => $$(card, '.chip[data-climate]').map((chip) 
 export const shown = (card) => $$(card, '.chip.on[data-climate]').map((chip) => chip.dataset.climate);
 
 /**
- * The schedule a card shows: the id of its tab selected.
- * Internal: a week alone (a page of the panel) shows no tab, and names its schedule only in the
- * panel's heading.
+ * The schedule a card shows: the id of its tab selected. A week alone (a page of the panel) shows
+ * no tab, and names its schedule only in the panel's heading: the card says it.
  */
 export function scheduleShown(card) {
   const tab = $(card, '.tab.on[data-schedule]');
-  return tab ? tab.dataset.schedule : card._schedule;
+  return tab ? tab.dataset.schedule : card.schedule;
 }
 
-/**
- * Opens the menu of the schedule shown, as the panel's ⋮ above the card does, under `button`.
- * Internal: the button is the panel's, outside the card.
- */
-export const openScheduleMenuFrom = (card, button = null) => card._scheduleAction('schedule-menu', {}, button);
+/** Opens the menu of the schedule shown, as the panel's ⋮ above the card does, under `button`. */
+export const openScheduleMenuFrom = (card, button = null) => card.openScheduleMenu(button);
 
 /**
  * Scrolls the tabs to the schedule shown, as the card does once on load.

@@ -1,7 +1,7 @@
 // The fan and the vanes of a reversible air conditioner (#91, lot 3), on a slot and on a preset's
 // value, and "Copy from the thermostat", which fills the popover of a preset's value from the
 // thermostat's current state.
-import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createCard, createView, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { act, copyDay, day, openSlot, redraw, settle } from './driver.mjs';
@@ -132,7 +132,7 @@ describe('fan and vanes on a slot', () => {
 });
 
 describe('fan and vanes on a preset\'s value', () => {
-  const open = async (hass) => { const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' }); await settle(); return card; };
+  const open = async (hass) => { const card = createView(hass, 'presets', { thermostats: ['climate.salon', 'climate.atelier'] }); await settle(); return card; };
   const cell = (card, preset, climate) => $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`);
 
   test('the cell shows one icon for any fan or swing setting; its popover folds them under "More settings"', async () => {
@@ -166,7 +166,7 @@ describe('fan and vanes on a preset\'s value', () => {
 
 describe('Copy from the thermostat, in the popover of a preset\'s value', () => {
   const open = async (hass, preset = 'eco') => {
-    const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' }); await settle();
+    const card = createView(hass, 'presets', { thermostats: ['climate.salon', 'climate.atelier'] }); await settle();
     $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="climate.atelier"]`).click(); await settle();
     return card;
   };

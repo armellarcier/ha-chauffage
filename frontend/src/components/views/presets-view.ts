@@ -1,11 +1,10 @@
 import { html, nothing } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { coolColor, derivedCoolColor } from '../../colors.ts';
-import { MANUAL_PRESETS, SETTING_ATTRS, errorText, esc, hasNoPreset } from '../../common.ts';
+import { MANUAL_PRESETS, SETTING_ATTRS, errorText, hasNoPreset } from '../../common.ts';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
-import { captureButtonHtml, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettings, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
-import { deviceLinkHtml, deviceOf } from '../../links.ts';
+import { captureButton, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettings, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
+import { deviceLink, deviceOf } from '../../links.ts';
 import { coolPresetTemperatureOf, presetTemperatureOf, presetValue, presetValueAnswered, targetOf } from '../../override-edit.ts';
 import { fitTemperature, presetsOf, sortedPresets, stepOf, stepper } from '../../presets.ts';
 import { parseSlot } from '../../slots.ts';
@@ -43,6 +42,8 @@ export class ChauffagePresetsView extends ChauffageView {
   _placeToken = 0;
   // More settings opened by a tap: what it holds comes into sight
   _moreTapped = false;
+  // The cell whose popover just took the thermostat's state: its button says so for 2 s
+  _captured: Cell | null = null;
   _dismiss = new DismissController(this, () => {
     if (!this._cell) return false;
     this._cell = null;
@@ -147,7 +148,7 @@ export class ChauffagePresetsView extends ChauffageView {
     const definitions = this.definitions !== false;
     // Its temperature when heating, then when cooling with an air conditioner: "20° by default
     // · ❄ 25°". Either can be empty
-    const anyCools = thermostats.some(({ entity }) => listsMode(this.hass, entity, 'cool'));
+    const anyCools = thermostats.some((entity) => listsMode(this.hass, entity, 'cool'));
     const headDefaults = (l) => joined([l.temperature != null ? t('defaultTemperature', { value: this._loc.number(l.temperature) }) : null,
       anyCools && l.cool_temperature != null ? html`${mark('cool')}${`${this._loc.number(l.cool_temperature)}°`}` : null].filter(Boolean), ' · ');
     const headInner = (l) => html`<span class="pv-pname"><i style="background:${l.color}"></i>${l.name}</span>
@@ -206,7 +207,7 @@ export class ChauffagePresetsView extends ChauffageView {
     let body;
     const wanted = new URLSearchParams(window.location.search).get('thermostat');
     if (definitions) {
-      const rows = thermostats.map(({ entity }) => {
+      const rows = thermostats.map((entity) => {
         const cells = presets.map((l) => {
           const w = what(entity, l);
           return html`<td>${cell('thermostat', l.id, entity, html`<span class="pv-val">${w.value}</span> <span class="pv-how">${w.how}</span>`, w.cls)}</td>`;
@@ -221,7 +222,7 @@ export class ChauffagePresetsView extends ChauffageView {
     } else {
       // One thermostat (its sheet in the panel): a list, one item per preset, not a table of one
       // row; an item opens the same editor as a cell of the table
-      const entity = thermostats[0].entity;
+      const entity = thermostats[0];
       const items = presets.map((l) => {
         const w = what(entity, l);
         return cell('thermostat', l.id, entity, html`<span class="pv-pname"><i style="background:${l.color}"></i>${l.name}</span>
@@ -309,15 +310,15 @@ export class ChauffagePresetsView extends ChauffageView {
       // The fan and the vanes, folded (lot 3)
       const more = moreSettings(this.hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting');
       // Its own presets are set on its device (their temperatures, on a Versatile Thermostat)
-      const device = own.length ? deviceLinkHtml(this.hass, deviceOf(this.hass, sel.climate), t('ownPresetsOnDevice')) : '';
+      const device = own.length ? deviceLink(this.hass, deviceOf(this.hass, sel.climate), t('ownPresetsOnDevice')) : null;
       const when = reversible ? html`<div class="pv-when">${hvacIconTemplate('heat')}${t('whenHeating')}</div>`
         : coolOnly ? html`<div class="pv-when">${hvacIconTemplate('cool')}${t('whenCooling')}</div>` : nothing;
       const body = html`${when}
         <div class="pv-choices" role="radiogroup">${rows}</div>
         ${cooling}
         ${more}
-        <div class="capture-row">${unsafeHTML(captureButtonHtml(this.hass, sel.climate, this._loc))}</div>
-        ${device ? html`<div class="pv-device">${unsafeHTML(device)}</div>` : nothing}`;
+        <div class="capture-row">${captureButton(this.hass, sel.climate, this._loc, this._captured === sel)}</div>
+        ${device ? html`<div class="pv-device">${device}</div>` : nothing}`;
       return this._cellPopover(preset, body, apply, html`${preset.name} · ${this._moreInfoLink(sel.climate)}`);
     }
     const isNew = sel.kind === 'new';
@@ -333,7 +334,7 @@ export class ChauffagePresetsView extends ChauffageView {
     }
     // With an air conditioner: its color when heating and its color when cooling, each on a
     // row with its label. Without one: its color, beside its name
-    const cools = (this.thermostats || []).some(({ entity }) => listsMode(this.hass, entity, 'cool'));
+    const cools = (this.thermostats || []).some((entity) => listsMode(this.hass, entity, 'cool'));
     const color = html`<input type="color" data-cell-color value=${isNew ? '#9e9e9e' : preset.color} title=${t(cools ? 'presetHeatColor' : 'presetColor')}>`;
     const body = html`<div class="pv-fields">
         <span>${t('presetName')}</span>
@@ -411,12 +412,14 @@ export class ChauffagePresetsView extends ChauffageView {
       select.value = state.settings[attr];
       select.closest('details').open = true;
     }
-    // The capture button is drawn by captureButtonHtml, not by Lit: its label may change
-    const button = field('[data-act="capture"]');
-    if (button) {
-      button.innerHTML = `<ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${esc(this._loc.t('captured'))}`;
-      setTimeout(() => { if (button.isConnected) button.innerHTML = `<ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${esc(this._loc.t('capture'))}`; }, 2000);
-    }
+    const cell = this._cell;
+    this._captured = cell;
+    this.requestUpdate();
+    setTimeout(() => {
+      if (this._captured !== cell) return;
+      this._captured = null;
+      this.requestUpdate();
+    }, 2000);
   }
 
   // A temperature field of the cell popover used: its row is chosen. The cooling field is a row

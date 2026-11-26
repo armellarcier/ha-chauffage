@@ -37,7 +37,8 @@ async function panel(hass, path) {
   await drawn(el);
   return el;
 }
-const cards = (el) => $$(el, 'chauffage-programme-card');
+// The cards and the views of the page, in their order: a view is in its frame
+const cards = (el) => $$(el, 'chauffage-programme-card, chauffage-view-frame');
 
 describe('the Chauffage panel', () => {
   beforeEach(() => {

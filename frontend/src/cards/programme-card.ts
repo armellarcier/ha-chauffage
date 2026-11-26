@@ -4,18 +4,19 @@ import { noticeTemplate, reloadPage, sourceNotice } from '../notices.ts';
 import { dataSource, renamedTo } from '../client/snapshot.ts';
 import { commands } from '../client/commands.ts';
 import { client } from '../client/chauffage-client.ts';
+import { SnapshotController } from '../controllers/snapshot-controller.ts';
 import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference, saveShownPreference, shownPreference } from '../state/preferences.ts';
 import { WeekDraft } from '../state/week-draft.ts';
 import { HistoryStore } from '../state/history-store.ts';
 import { OverrideDraft } from '../state/override-draft.ts';
-import { airSettings, clone, DAY_MIN, errorText, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_OPEN, ICON_PASTE, ICON_ZOOM, NO_PRESET_MODES, noPresetSlot, nowMin, pct, pieceSettings, sameSlot, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
+import { airSettings, clone, DAY_MIN, errorText, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_OPEN, ICON_PASTE, ICON_ZOOM, NO_PRESET_MODES, noPresetSlot, pct, pieceSettings, sameSlot, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeFieldDone } from '../fields.ts';
 import { SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, SETTING_LABELS, dayOn, hvacIconTemplate, hvacModesOf, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
-import { LINK_TOKEN, deviceOf, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
+import { LINK_TOKEN, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
 import { RESUME, coolPresetTemperatureOf, focusedField, nextOverride, overrideWithTemperature, presetTemperatureOf, slotName, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
-import { overrideLabel, overridePieces, tagSide } from '../override.ts';
+import { overridePieces, tagSide } from '../override.ts';
 import { presetOf, sortedPresets } from '../presets.ts';
 import { fromSettings, openSettings } from '../settings-dialog.ts';
 import { copyOfDay, joinAt, joined, normalize, serializeDay } from '../slots.ts';
@@ -29,17 +30,6 @@ import { SlotDrag } from '../controllers/slot-drag.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
-// The views of the panel's pages (`view`), each its own element; the weeks are the card's own
-const VIEWS = {
-  presets: 'chauffage-presets-view',
-  schedules: 'chauffage-schedules-view',
-  thermostats: 'chauffage-thermostats-view',
-  rules: 'chauffage-rules-view',
-};
-// The card's options that only the Chauffage panel sets, for its pages: a page shows one view, a
-// thermostat's sheet stacks its weeks without their chips, tabs or foot, and saves them together
-const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'week_only', 'flat', 'preset_definitions', 'history'];
-
 // The width of a slot's handle, in pixels (see the style of .handle)
 const HANDLE_WIDTH = 18;
 
@@ -48,10 +38,7 @@ export class ChauffageProgrammeCard extends LitElement {
 
   // The fields of the element, untyped until the rewrite of the card gives them a type
   declare _accessStamp: any;
-  declare _answers: number;
   declare _asideKey: any;
-  declare _available: any;
-  declare _liveKey: string;
   declare _tabsLeft: number;
   declare _config: any;
   declare _configured: any;
@@ -61,13 +48,16 @@ export class ChauffageProgrammeCard extends LitElement {
   // The gestures on the week: a slot or a handle moved, the end of an override moved
   _slotDrag = new SlotDrag(this);
   _overrideEnd = new OverrideEndDrag(this);
+  // Data pushed by the integration: the card follows it, and draws again
+  _snapshot = new SnapshotController(this, () => this._sync(true));
+  // What the card showed from the last hass (_drawnFrom)
+  _drawn: any[] | null = null;
   declare _downAt: any;
   declare _focus: any;
   declare _groupPref: any;
   declare _hass: any;
   declare _history: HistoryStore;
   declare _lastClick: any;
-  declare _linksStamp: any;
   declare _loc: any;
   declare _menu: any;
   declare _moreOpen: any;
@@ -75,7 +65,6 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _msg: any;
   declare _multiFresh: any;
   declare _multiSel: any;
-  declare _noticeKey: any;
   declare _onDocDown: any;
   declare _onKey: any;
   declare _overrideDraft: OverrideDraft;
@@ -84,30 +73,72 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _previewed: any;
   declare _readTouch: any;
   declare _redrawLater: any;
-  declare _renderedDay: any;
   declare _rows: any;
   declare _schedEd: any;
   declare _schedErr: any;
   declare _schedule: any;
-  declare _scheduleState: any;
   declare _shown: any;
   declare _shownForPreview: any;
   declare _stamp: any;
   declare _tabsShown: any;
   declare _tabsWait: any;
   declare _thermostats: any;
-  declare _thermostatsStamp: any;
   declare _timer: any;
   declare _trial: any;
-  declare _unlisten: any;
-  declare _view: any;
-  declare _viewEl: any;
   declare _wantSchedule: any;
   declare _zoom: any;
 
   // Tells the panel which version of the card the page defined first (cards before 0.8.1: none)
   static get version() {
     return VERSION;
+  }
+
+  // ---------- on a sheet of the Chauffage panel ----------
+  // The panel sets these members; a dashboard's card has none of them.
+
+  // The sheet the card is on, set before hass. 'schedule': every thermostat's week in one
+  // schedule, without tabs or new schedule (the page's ⋮ opens the schedule's menu). 'thermostat':
+  // one week alone, stacked with the other schedules' weeks: no chips, tabs, hint, paused note,
+  // legend or save bar (the page has its own), today marked in the active schedule only.
+  sheet: 'schedule' | 'thermostat' | null = null;
+
+  // The schedule shown. The panel sets it before hass: it is shown once the integration's data has it
+  get schedule() {
+    return this._schedule;
+  }
+
+  set schedule(id) {
+    this._wantSchedule = id;
+  }
+
+  // The weeks have edits not saved yet
+  get dirty() {
+    return this._draft.dirty;
+  }
+
+  // A thermostat's week in the schedule shown, as drawn
+  week(climate) {
+    return this._week(climate);
+  }
+
+  // A thermostat's week to save in the schedule shown, or null when the card has nothing to save:
+  // the slots the card cut are joined first. With the revision to save it against
+  toSave(climate) {
+    this._settle(true);
+    if (!this._draft.dirty) return null;
+    return { week: this._week(climate).map(serializeDay), revision: this._draft.revisions[climate] ?? null };
+  }
+
+  // The integration saved weeks, of this card or of another card: their new revisions
+  recordRevisions(result) {
+    this._draft.recordRevisions(result);
+  }
+
+  // The integration saved the week this card sent: it has nothing left to save
+  saved() {
+    this._draft.saved();
+    this._msg = this._loc.t('saved');
+    this._render();
   }
 
   constructor() {
@@ -117,7 +148,6 @@ export class ChauffageProgrammeCard extends LitElement {
     this._stamp = undefined;
     this._msg = '';
     this._lastClick = null;
-    this._renderedDay = null;
     this._menu = null; // { climate, day, top, right } open row menu
     this._multiSel = false; // "Plusieurs" mode: clicking a thermostat adds / removes it
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
@@ -162,16 +192,9 @@ export class ChauffageProgrammeCard extends LitElement {
     return { thermostats: scheduled.length ? scheduled : climates, show: 'all' };
   }
 
-  // A dashboard's configuration: the options the Chauffage panel sets for its own pages are not
-  // options of a dashboard card (PANEL_OPTIONS), and are ignored there
+  // A dashboard's configuration. The panel's sheets set the card's public properties instead
+  // (sheet, schedule): written in a dashboard's YAML, they are not options
   setConfig(config) {
-    const own = { ...config };
-    for (const key of PANEL_OPTIONS) delete own[key];
-    this._setPanelConfig(own);
-  }
-
-  // The panel's pages set the card with their own options too (see ChauffagePanel)
-  _setPanelConfig(config) {
     if (!config.thermostats || !config.thermostats.length) {
       const lang = config.language || (typeof navigator !== 'undefined' && navigator.language);
       throw new Error(makeLocale(null, lang).t('thermostatsRequired'));
@@ -188,83 +211,58 @@ export class ChauffageProgrammeCard extends LitElement {
     this._asideKey = '';
     this._shown = this._initialShown();
     this._schedule = null;
-    // The schedule shown first (the Chauffage panel's ?schedule=), else the active schedule
-    this._wantSchedule = config.schedule || null;
-    // The view shown (a page of the Chauffage panel), else the weeks
-    this._view = config.view || 'schedule';
-    // In the panel, a thermostat's sheet shows the history or not for all its weeks (`history`)
-    if (config.history != null) this._history.shown = !!config.history;
+    this._wantSchedule = null;
     if (this._hass) {
       this._setAside(this._source());
       this._render();
     }
   }
 
+  get hass() {
+    return this._hass;
+  }
+
+  // A new hass: drawn again when what the card shows from it changed (_drawnFrom)
   set hass(hass) {
-    const first = !this._hass;
+    const before = this._drawn;
     this._hass = hass;
     if (!this._config) return;
-    let need = first;
+    this._drawn = this._drawnFrom(hass);
+    this._sync(!before || this._drawn.length !== before.length || this._drawn.some((v, i) => v !== before[i]));
+  }
+
+  // What the card shows from hass, besides the integration's data: the states of its thermostats,
+  // the registry (names, icons, devices), the user's language and formats, whether the integration
+  // is set up. Compared by identity: Home Assistant gives a new object only for what changed
+  _drawnFrom(hass) {
+    return [...this._configured.map((t) => hass.states[t.entity]), hass.entities, hass.devices, hass.user,
+      hass.locale, hass.language, hass.selectedLanguage, hass.config, hass.services];
+  }
+
+  // The card follows hass and the integration's data, and draws again if `redraw`: on every push
+  // of the integration, and on a hass that changes what it shows
+  _sync(redraw) {
+    if (!this._hass || !this._config) return;
+    this._snapshot.listen();
+    let need = redraw;
     // Language / time format / unit may change in the user's profile
-    const loc = makeLocale(hass, this._config.language);
-    if (!this._loc || loc.signature !== this._loc.signature) {
-      this._loc = loc;
-      need = true;
-    }
+    const loc = makeLocale(this._hass, this._config.language);
+    if (!this._loc || loc.signature !== this._loc.signature) this._loc = loc;
     const src = this._source();
-    if (src.available && !this._unlisten) {
-      // Data pushed by the integration: same checks as a hass update
-      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
-    }
-    if (src.available !== this._available) {
-      this._available = src.available; // the integration deleted or disabled, or back
-      need = true;
-    }
     if (this._setAside(src)) need = true;
-    // What the card says instead of the weeks: "…", then "restart Home Assistant" when the
-    // data that comes is an older integration's
-    const notice = sourceNotice(src);
-    const noticeKey = notice ? notice.text || 'loading' : '';
-    if (noticeKey !== this._noticeKey) {
-      this._noticeKey = noticeKey;
-      need = true;
-    }
+    // The integration's weeks changed: shown, unless the card has edits not saved yet or a slot is
+    // dragged
     const stamp = src.stamps.weeks;
     if ((stamp !== this._stamp) && !this._draft.dirty && !this._slotDrag.active) {
       this._load();
       this._stamp = stamp;
       need = true;
     }
+    // The integration's overrides changed: the changes sent are now its own (OverrideDraft)
     const dstamp = src.stamps.overrides;
     if (dstamp !== this._overrideStamp && !this._overrideEnd.active && !this._slotDrag.active) {
       this._overrideStamp = dstamp;
       this._overrideDraft.updated();
-      need = true;
-    }
-    // Active schedule changed (from the card, another dashboard or an automation), or the icon of a
-    // schedule chosen in Home Assistant: redraw the active-schedule marker, the tabs and the
-    // "activate" bar
-    const scheduleStamp = src.stamps.schedule;
-    if (scheduleStamp !== this._scheduleState && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._scheduleState = scheduleStamp;
-      need = true;
-    }
-    // A thermostat paused or resumed (switch, another card): redraw its notice and rows
-    if (src.stamps.thermostats !== this._thermostatsStamp && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._thermostatsStamp = src.stamps.thermostats;
-      need = true;
-    }
-    // An entity the card opens renamed, or a thermostat given another device: redraw its links
-    const links = `${src.stamps.entities} ${this._thermostats.map((t) => deviceOf(hass, t.entity)).join(' ')}`;
-    if (links !== this._linksStamp && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._linksStamp = links;
-      need = true;
-    }
-    // The integration answered what a preset is worth on a thermostat it does not schedule yet
-    // (targetOf): the popovers and the legend say it
-    if (client.previewed !== this._answers && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._answers = client.previewed;
-      need = true;
     }
     // The access level changed (#99): the tools appear or go at once. Without Plan, what was being
     // edited closes; the weeks not saved yet stay until Cancel
@@ -288,7 +286,6 @@ export class ChauffageProgrammeCard extends LitElement {
       need = true;
     }
     if (need) this._render();
-    else if (!this._slotDrag.active && !this._overrideEnd.active) this._updateLive();
     this._refreshHistory();
   }
 
@@ -354,12 +351,11 @@ export class ChauffageProgrammeCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._previewChanged();
+    // The time goes on: the current time, a new day, an override that ends
     this._timer = setInterval(() => {
       if (this._slotDrag.active || this._overrideEnd.active) return;
       this._refreshHistory();
-      // Full redraw on a new day or during an override (it moves with the time)
-      if (this._renderedDay !== todayIdx() || Object.keys(this._overrides()).length) this._render();
-      else this._updateLive();
+      this._render();
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
@@ -389,8 +385,6 @@ export class ChauffageProgrammeCard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     clearInterval(this._timer);
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
     document.removeEventListener('pointerdown', this._onDocDown, true);
     document.removeEventListener('keydown', this._onKey);
   }
@@ -455,7 +449,6 @@ export class ChauffageProgrammeCard extends LitElement {
   // with the history, which differs from day to day
   _grouped() {
     if (this._history.shown) return false;
-    if (this._config.panel && this._config.group_days != null) return this._config.group_days;
     return this._groupPref ?? this._config.group_days !== false;
   }
 
@@ -554,10 +547,6 @@ export class ChauffageProgrammeCard extends LitElement {
     return overridePieces(this._overrides()[climate]);
   }
 
-  _overrideLabel(d) {
-    return overrideLabel(d, this._loc, this._presets());
-  }
-
   async _sendOverride(climate, override) {
     override = withoutAir(override);
     this._overrideDraft.sent(climate, override);
@@ -637,18 +626,6 @@ export class ChauffageProgrammeCard extends LitElement {
     return st.state !== 'off' ? '' : this._loc.t('off');
   }
 
-  // What changes with Home Assistant's states between two drawings of the weeks: the marks of the
-  // chips, the current time, and the setpoint the override popover shows while it follows the
-  // thermostat. Drawn again only when one of them changes
-  _updateLive() {
-    const sel = this._overrideSel;
-    const st = sel && this._hass.states[sel.climate];
-    const key = JSON.stringify([this._thermostats.map((t) => this._chipMark(t.entity)), nowMin(), st ? st.attributes.temperature : null]);
-    if (key === this._liveKey) return;
-    this._liveKey = key;
-    this.requestUpdate();
-  }
-
   // ---------- history of the measured temperature ----------
 
   // Loads the last 7 days from the recorder while the history is shown (see HistoryStore.due)
@@ -679,7 +656,7 @@ export class ChauffageProgrammeCard extends LitElement {
   }
 
   // Cancel: the weeks go back as they were saved (the card's bar, or the panel's for a page)
-  _discard() {
+  discard() {
     this._draft.dirty = false;
     this._draft.selection = null;
     this._msg = '';
@@ -689,8 +666,8 @@ export class ChauffageProgrammeCard extends LitElement {
 
   // A thermostat's page in the panel: its switches group the days and show the history of every
   // week, in place, keeping the edits not saved yet
-  _setWeekView(groupDays, history) {
-    this._config.group_days = groupDays;
+  setWeekView(groupDays, history) {
+    this._groupPref = groupDays;
     this._history.shown = history;
     if (!history) this._zoom = null;
     this._render();
@@ -940,10 +917,10 @@ export class ChauffageProgrammeCard extends LitElement {
   }
 
   // In the words of a mouse, or of a finger on a touch screen (CSS). A thermostat's page stacks
-  // one card per schedule: it shows the hint once (`week_only`). Not with read-only weeks (the
+  // one card per schedule: it shows the hint once (sheet 'thermostat'). Not with read-only weeks (the
   // access level): there is nothing to drag
   _hint() {
-    if (this._config.week_only || !this._shown.some((c) => this._mayEdit(c))) return nothing;
+    if (this.sheet === 'thermostat' || !this._shown.some((c) => this._mayEdit(c))) return nothing;
     const t = this._loc.t;
     return html`<div class="hint"><span class="mouse">${t('hint')}</span><span class="touch">${t('hintTouch')}</span></div>`;
   }
@@ -971,9 +948,11 @@ export class ChauffageProgrammeCard extends LitElement {
     this.requestUpdate();
   }
 
-  // Not while a time is typed: the redraw would take its field away
+  // Not while a slot or the end of an override is dragged: the drag moves the bars itself, and
+  // draws the card when it ends. Not while a time is typed: the redraw would take its field away
   shouldUpdate() {
     if (!this._hass || !this._config) return false;
+    if (this._slotDrag.active || this._overrideEnd.active) return false;
     if (focusedField(this.renderRoot, 'input.time')) { this._redrawLater = true; return false; }
     return true;
   }
@@ -989,9 +968,9 @@ export class ChauffageProgrammeCard extends LitElement {
     this._placeTabs(this._tabsLeft);
     this._placeMenu();
     this._schedulePlaceTags();
-    // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
+    // A week of a thermostat's page (sheet 'thermostat'): the page's own bar saves it, so the
     // sheet hears when it has edits to save
-    if (this._config.week_only && this._draft.dirty !== this._dirtyTold) {
+    if (this.sheet === 'thermostat' && this._draft.dirty !== this._dirtyTold) {
       this._dirtyTold = this._draft.dirty;
       this.dispatchEvent(new CustomEvent('chauffage-dirty', { bubbles: true, composed: true }));
     }
@@ -1034,35 +1013,17 @@ export class ChauffageProgrammeCard extends LitElement {
     tabs.parentElement.classList.toggle('more-right', tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
   }
 
-  // The element of the view shown (`view`), created once
-  _viewElement() {
-    const tag = VIEWS[this._view];
-    if (!this._viewEl || this._viewEl.localName !== tag) this._viewEl = document.createElement(tag);
-    return this._viewEl;
-  }
-
   render() {
     this._settle();
     const tr = this._loc.t;
-    const flat = this._config.flat ? ' flat' : '';
+    const flat = this.sheet === 'thermostat' ? ' flat' : '';
     const fill = (content, cls?) => html`<ha-card class=${`${cls || ''}${flat}`}>${content}</ha-card>`;
     const notice = sourceNotice(this._source());
     if (notice) return fill(noticeTemplate(notice, tr));
-    // A view of the panel (`view`): its own element, kept while the card shows it
-    if (VIEWS[this._view] && this._source().ready) {
-      const view = this._viewElement();
-      view.hass = this._hass;
-      view.loc = this._loc;
-      view.thermostats = this._thermostats;
-      view.panel = !!this._config.panel;
-      if (this._view === 'presets') view.definitions = this._config.preset_definitions !== false;
-      return fill(view);
-    }
     if (!this._thermostats.length) return fill(this._renamedNotes());
     const src = this._source();
     const schedules = this._schedules();
     const active = this._activeSchedule();
-    this._renderedDay = todayIdx();
     const multi = this._shown.length > 1;
     const allShown = this._shown.length === this._thermostats.length;
 
@@ -1073,10 +1034,10 @@ export class ChauffageProgrammeCard extends LitElement {
     });
     // The schedules' ⋮ and + edit the schedules: canPlan
     const plannable = src.plannable;
-    // On a schedule's sheet (schedule_tabs: 'one'): its tab alone, with its menu, and no new schedule
-    const one = this._config.schedule_tabs === 'one';
-    // A week of a thermostat's page: the week alone (`week_only`)
-    const weekOnly = !!this._config.week_only;
+    // On a schedule's sheet (sheet 'schedule'): its tab alone, with its menu, and no new schedule
+    const one = this.sheet === 'schedule';
+    // A week of a thermostat's page: the week alone (sheet 'thermostat')
+    const weekOnly = this.sheet === 'thermostat';
     const tabs = (one ? schedules.filter((m) => m === this._schedule) : schedules).map((m) => {
       const icon = src.scheduleIcon(m);
       return html`<button class=${`tab${m === this._schedule ? ' on' : ''}`} data-schedule=${m}>${m === active ? html`<span class="dot" title=${tr('activeSchedule')}></span>` : nothing}${icon ? html`<ha-icon class="tab-icon" icon=${icon}></ha-icon>` : nothing}<span class="tab-name">${this._scheduleName(m)}</span></button>${
@@ -1411,7 +1372,7 @@ export class ChauffageProgrammeCard extends LitElement {
     if (!this._schedule || this._schedule === active) return nothing;
     const t = this._loc.t;
     // The active schedule's name leads to it: its tab on a dashboard, its page in the panel
-    const name = this._config.panel
+    const name = this.sheet
       ? html`<span class="mi-link" role="link" tabindex="0" data-navigate=${panelPath(`schedules/${active}`)}>${this._scheduleName(active)}</span>`
       : html`<span class="mi-link" role="link" tabindex="0" data-show-schedule=${active}>${this._scheduleName(active)}</span>`;
     const current = active ? withLink(t('activeScheduleBar', { schedule: LINK_TOKEN }), html`<strong>${name}</strong>`) : t('noActiveSchedule');
@@ -1428,9 +1389,9 @@ export class ChauffageProgrammeCard extends LitElement {
       hass: this._hass,
       loc: this._loc,
       src: this._source(),
-      panel: !!this._config.panel,
+      panel: !!this.sheet,
       list: false,
-      oneTab: this._config.schedule_tabs === 'one',
+      oneTab: this.sheet === 'schedule',
       get menu() { return card._schedEd; },
       set menu(menu) { card._schedEd = menu; },
       get error() { return card._schedErr; },
@@ -1450,13 +1411,19 @@ export class ChauffageProgrammeCard extends LitElement {
     return scheduleMenuAction(this._scheduleMenuHost(), act, ds, el, this._schedule);
   }
 
+  // A schedule's sheet: the page's ⋮ (`button`, outside the card) opens the menu of the schedule
+  // shown under it
+  openScheduleMenu(button) {
+    return this._scheduleAction('schedule-menu', {}, button);
+  }
+
   _activateSchedule(schedule) {
     return activateSchedule(this._scheduleMenuHost(), schedule);
   }
 
   // Where a change comes from, for the logbook: the panel, or a card (none: older integrations)
   _changeSource() {
-    return this._config.panel ? 'panel' : undefined;
+    return this.sheet ? 'panel' : undefined;
   }
 
   // Temperature a preset gives a thermostat (presetTemperatureOf)
@@ -1481,7 +1448,7 @@ export class ChauffageProgrammeCard extends LitElement {
   // The card's top right: the Chauffage panel, for users who may set up (canSetUp), as the
   // dashboards' own panels
   _panelOpen() {
-    if (this._config.panel) return nothing;
+    if (this.sheet) return nothing;
     const hass = this._hass;
     if (!this._source().editable) return nothing;
     const label = this._loc.t('openInPanel', { panel: panelTitle(hass) });
@@ -1538,7 +1505,7 @@ export class ChauffageProgrammeCard extends LitElement {
   // Every heating or cooling slot of a thermostat's week, in the schedule shown, set to heat or
   // to cool (the week's menu): an edit like the others, saved with Save. The other slots stay
   // as they are: heat/cool, dry, auto, fan only and off
-  _setWeekHvac(climate, mode) {
+  setWeekHvac(climate, mode) {
     if (!slotModesOf(this._hass, climate).includes(mode)) return;
     const week = this._week(climate);
     const switched = (slot) => !hasNoPreset(slot) && slotModeOn(this._hass, climate, slot) !== 'heat_cool';
@@ -1728,7 +1695,7 @@ export class ChauffageProgrammeCard extends LitElement {
 
   // A week copied from another card (a thermostat's sheet in the panel): this card's schedule
   // gets it, unsaved, and this card's save bar asks to save it
-  _receiveWeek(climate, week, sourceName) {
+  receiveWeek(climate, week, sourceName) {
     const dropped = [];
     this._draft.setWeek(climate, this._schedule, clone(week).map((segs) => {
       const fit = this._adapted(segs, climate);
@@ -1792,7 +1759,7 @@ export class ChauffageProgrammeCard extends LitElement {
     this._menu = null;
     if (act.startsWith('schedule-')) return this._scheduleAction(act, ds, el);
     if (act.startsWith('fill-')) return this._copyDay(ds.climate, Number(ds.day), act.slice(5));
-    if (act === 'week-hvac') return this._setWeekHvac(ds.climate, ds.mode);
+    if (act === 'week-hvac') return this.setWeekHvac(ds.climate, ds.mode);
     if (act === 'resume') return this._setPaused(ds.climate, false);
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
       this._draft.selection = null;
@@ -1812,7 +1779,7 @@ export class ChauffageProgrammeCard extends LitElement {
     }
     if (act === 'reload-page') return this._reloadPage();
     if (act === 'save') return this._save();
-    if (act === 'cancel') return this._discard();
+    if (act === 'cancel') return this.discard();
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
     if (act === 'paste-day') return this._pasteFromClipboard(ds.climate, Number(ds.day));
     if (act === 'activate-schedule') {

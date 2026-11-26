@@ -205,7 +205,7 @@ describe('the "⋮" menu of the open schedule', () => {
   });
 
   test('a schedule\'s sheet in the panel shows no tab: its menu, opened by the page\'s ⋮, does not move it', async () => {
-    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' }); await settle();
+    const card = createCard(fakeHass(), { sheet: 'schedule', schedule: 'away' }); await settle();
     assert.equal($(card, '.tabs'), null);
     openScheduleMenuFrom(card); await settle();
     assert.ok($(card, '[data-act="schedule-rename-open"]'));
@@ -213,7 +213,7 @@ describe('the "⋮" menu of the open schedule', () => {
   });
 
   test('a menu opened by a button on the right, as the page\'s ⋮ above the card, lines up with the button\'s right edge', async () => {
-    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' }); await settle();
+    const card = createCard(fakeHass(), { sheet: 'schedule', schedule: 'away' }); await settle();
     $(card, 'ha-card').getBoundingClientRect = () => ({ left: 100, right: 900, top: 60, bottom: 700, width: 800 });
     const button = document.createElement('button');
     button.getBoundingClientRect = () => ({ left: 860, right: 892, top: 8, bottom: 40, width: 32 });

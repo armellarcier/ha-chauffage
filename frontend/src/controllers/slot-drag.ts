@@ -132,6 +132,7 @@ export class SlotDrag implements ReactiveController {
     const card = this.card;
     this.drag = null;
     this.restore();
+    card.requestUpdate(); // what came during the drag is drawn now
     if (d.move) {
       if (!d.moved) return true;
       card._lastClick = null; // the click that follows is neither a selection nor half a double click
@@ -157,6 +158,7 @@ export class SlotDrag implements ReactiveController {
     const segs = this.card._week(d.climate)[d.day];
     d.orig.forEach((start, i) => { if (segs[i]) segs[i].start = start; });
     this.restore();
+    this.card.requestUpdate(); // what came during the drag is drawn now
   }
 
   // The bar as Lit drew it, kept before the gesture changes it

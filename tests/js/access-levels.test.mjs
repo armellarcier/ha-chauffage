@@ -341,7 +341,7 @@ describe('the access level in the panel', () => {
     await drawn(el);
     return el;
   };
-  const list = (el) => $(el, 'chauffage-programme-card');
+  const list = (el) => $(el, 'chauffage-view-frame');
 
   test('with Set up: the tabs and the ⚙, but no device and no integration page', async () => {
     const el = await panel(as('set_up', { weeks: BOTH }), '/thermostats');

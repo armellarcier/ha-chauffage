@@ -15,5 +15,5 @@ console.log(await contrast(editor.locator('.mode-row .mode.on span')));
 
 await shot(page, 'example-slot-cool', { crop: editor });
 // Nothing was saved: the edit is dropped
-await card(page).evaluate((el) => el._discard());
+await card(page).evaluate((el) => el.discard());
 await close();

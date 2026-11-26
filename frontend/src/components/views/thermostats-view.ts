@@ -1,7 +1,6 @@
 import { html, nothing } from 'lit';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
-import { deviceLabel, placements, placesHtml, thermostatDevices, weeksPath } from '../../links.ts';
+import { deviceLabel, placements, placesTemplate, thermostatDevices, weeksPath } from '../../links.ts';
 import { INTEGRATION_PAGE } from '../../settings-dialog.ts';
 import { listRow } from '../shared/list-row.ts';
 import { ChauffageView } from './view.ts';
@@ -38,7 +37,7 @@ export class ChauffageThermostatsView extends ChauffageView {
     const editable = src.editable;
     const scheduled = [...src.scheduled()].sort((a, b) => this._name(a).localeCompare(this._name(b)));
     const placesLine = (climate) => (this._placements
-      ? html`<div class="th-cards">${unsafeHTML(placesHtml(t, this._placements[climate] || []))}</div>` : nothing);
+      ? html`<div class="th-cards">${placesTemplate(t, this._placements[climate] || [])}</div>` : nothing);
     // A row opens the thermostat's sheet; only a paused thermostat has a badge, the exception. Its
     // actions wait in its ⋮ menu (canSetUp)
     const rows = scheduled.map((climate) => {

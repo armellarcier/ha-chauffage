@@ -79,9 +79,7 @@ export function makeSnapshot(hass, raw, available: boolean) {
     revision: d ? d.revision : null,
     stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides),
       schedule: JSON.stringify([d.active_schedule, schedules.map((s) => scheduleIcon(s.id))]),
-      rules: JSON.stringify([d.rules, d.default_schedule, d.rule_results]), thermostats: JSON.stringify(d.thermostats),
-      // The ids of what the cards open (an entity renamed in HA)
-      entities: JSON.stringify([d.thermostat_entities, d.schedule_entities, d.schedule_select, d.device_id]),
+      thermostats: JSON.stringify(d.thermostats),
       // What the user may change: the access level, and whether the user is an admin
       access: `${accessLevelOf(d)} ${isAdmin(hass)}` } : {} as any,
     schedules: (): string[] => schedules.map((s) => s.id),
