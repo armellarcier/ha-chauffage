@@ -245,8 +245,7 @@ async def test_changing_the_override_s_value_from_the_card_drives_the_thermostat
     comfort = card_choice(bench, "climate.salon", "comfort")
     await bench.set_override("climate.salon", {**o, **comfort})
     assert bench.applied() == {"climate.salon": "comfort"}
-    # The same end; only a change by hand says why it ends then
-    assert bench.overrides()["climate.salon"] == {**{k: v for k, v in o.items() if k != "ends_at"}, **comfort}
+    assert bench.overrides()["climate.salon"] == {**o, **comfort}  # same end
 
 
 async def test_changing_only_the_end_of_an_override_does_not_drive_the_thermostat(bench: Bench):

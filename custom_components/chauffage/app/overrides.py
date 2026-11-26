@@ -94,8 +94,17 @@ class OverrideService:
         current = runtime.current(runtime.hass.states.get(entity_id))
         target = override["target"] = dict(Target(override["target"]).fitted_to(current))
         before = self._overrides.get(entity_id)
-        # Only a change by hand says why it ends then (record): not the card, not a service
-        override.pop("ends_at", None)
+        # Why the override ends then: kept with its end, dropped once a person picks the end.
+        # Compared as instants: the card sends the same end in UTC. A new start makes a new
+        # override: a duration counted from the former start would be wrong.
+        same_end = before is not None and all(
+            parse_datetime(before.get(key)) == parse_datetime(override.get(key)) for key in ("start", "end"))
+        if override.get("ends_at") == NEXT_SLOT and self.next_slot_end(entity_id, current) == parse_datetime(override["end"]):
+            pass  # "Until the next slot" on the card: checked here, not taken on trust
+        elif same_end and "ends_at" in before:
+            override["ends_at"] = before["ends_at"]
+        else:
+            override.pop("ends_at", None)
         new_value = before is None or before["target"] != target
         left_alone = current is not None and ignored(current)  # sent when it is back
         to_send = None
