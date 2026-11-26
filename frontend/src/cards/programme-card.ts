@@ -1352,9 +1352,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
       view.loc = this._loc;
       view.thermostats = this._thermostats;
       view.panel = !!this._config.panel;
-      view.definitions = this._config.preset_definitions !== false;
+      if (this._view === 'presets') view.definitions = this._config.preset_definitions !== false;
       if (frame.firstChild !== view || frame.childNodes.length !== 1) frame.replaceChildren(view);
-      view.requestUpdate();
       return;
     }
     if (!this._thermostats.length) {
@@ -1909,8 +1908,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   _scheduleMenuHost(): ScheduleMenuHost {
     const card = this;
     return {
-      element: this,
-      root: this.shadowRoot,
       hass: this._hass,
       loc: this._loc,
       src: this._source(),

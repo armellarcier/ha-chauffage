@@ -86,8 +86,6 @@ export class ChauffageSchedulesView extends ChauffageView {
     const view = this;
     const src = this._source();
     return {
-      element: this,
-      root: this,
       hass: this.hass,
       loc: this._loc,
       src,

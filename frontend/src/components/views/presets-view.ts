@@ -50,7 +50,6 @@ export class ChauffagePresetsView extends ChauffageView {
 
   constructor() {
     super();
-    this.definitions = true;
     // Typing a temperature for a thermostat's preset means "use a temperature"
     this.addEventListener('input', (e: any) => {
       if (e.target.hasAttribute('data-cell-temp')) this._cellChoose('temperature');

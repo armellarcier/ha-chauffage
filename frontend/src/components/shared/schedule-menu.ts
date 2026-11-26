@@ -18,9 +18,6 @@ export type ScheduleMenu = {
 // What the menus of the schedules need from the element that shows them: the programme card,
 // under its tabs, or the panel's list of schedules
 export interface ScheduleMenuHost {
-  element: HTMLElement;
-  // Where the menu is drawn
-  root: ParentNode;
   hass: any;
   loc: any;
   src: Snapshot;
@@ -137,12 +134,12 @@ export async function scheduleMenuAction(host: ScheduleMenuHost, act: string, ds
   if (act === 'schedule-icon') {
     host.menu = null;
     host.draw();
-    return openMoreInfo(host.element, src.scheduleEntity(ed.id), 'settings');
+    return openMoreInfo(host.frame(), src.scheduleEntity(ed.id), 'settings');
   }
   if (act === 'schedule-delete') { ed.step = 'delete'; return host.draw(); }
   const schedules = src.schedules();
   const keep: any[] = schedules.map((id) => ({ id }));
-  const nameInput: any = host.root.querySelector('input[data-sched-name]');
+  const nameInput: any = host.frame().querySelector('input[data-sched-name]');
   const checkName = (except) => {
     const name = nameInput ? nameInput.value.trim() : '';
     const taken = schedules.some((m) => m !== except && src.scheduleName(m).trim().toLowerCase() === name.toLowerCase());
