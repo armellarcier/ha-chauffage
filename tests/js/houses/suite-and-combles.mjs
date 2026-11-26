@@ -40,8 +40,8 @@ export function setup({ suite = DAY, salon = DAY, combles = ['00:00 eco'], overr
   hass.entities[COMBLES] = { entity_id: COMBLES };
   return hass;
 }
-export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: [SALON, SUITE, COMBLES], show: [SALON], group_days: false, ...config });
-export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
+export const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: [SALON, SUITE, COMBLES], show: [SALON], group_days: false, ...config }); await settle(); return card; };
+export const select = async (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 export const sent = (hass) => hass.events.at(-1).override;
 export const override = (target, more = {}) => ({ target, start: at('09:30'), end: at('11:30'), ...more });
 export const moreInfo = async (hass, entity, embedded = false) => {
@@ -67,9 +67,9 @@ export const thermostatCard = async (hass, entity) => {
   return card;
 };
 export const block = (card) => card.shadowRoot.querySelector('chauffage-moreinfo').shadowRoot;
-export const openOverride = (hass, climate, config = {}) => {
-  const card = cardOf(hass, { show: [climate], ...config });
-  openOverrideOf(card, climate);
+export const openOverride = async (hass, climate, config = {}) => {
+  const card = await cardOf(hass, { show: [climate], ...config });
+  await openOverrideOf(card, climate);
   return card;
 };
 

@@ -2,8 +2,8 @@
 // a preset means on each thermostat, and colors that can be told apart and read.
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanup, createCard } from './helpers.mjs';
-import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn, valueOn } from '../../frontend/src/index.ts';
+import { cleanup, createCard, valueOn } from './helpers.mjs';
+import { STYLE as STYLE_TEXT, chipTextColor, coolColor, derivedCoolColor, presetModes, slotModeOn } from '../../frontend/src/index.ts';
 import { $, $$, change, click, icons, text } from './houses/dom.mjs';
 import { openOverride, settle } from './driver.mjs';
 import { applyCell } from './driver.mjs';
@@ -169,6 +169,58 @@ afterEach(() => cleanup());
       hass.states['climate.atelier'].attributes.preset_modes = [];
       cell(card, 'comfort', 'climate.atelier').click(); await settle();
       assert.equal(text(note()), 'Par défaut (25°)');
+    });
+
+    test('while the integration has not said what the default gives, the cell says nothing about it', async () => {
+      const hass = setup();
+      hass.presetPreviewAnswers = 'hold';
+      const card = await open(hass); await settle();
+      const note = () => $(card, '.cell-ed .pv-cooldefault');
+      cell(card, 'eco', 'climate.salon').click(); await settle();
+      assert.deepEqual(rows(card), ['Par défaut ✓', 'Son préréglage', 'Température']);
+      cell(card, 'comfort', 'climate.atelier').click(); await settle();
+      assert.equal(text(note()), 'Par défaut');
+      // The user chooses a row while the answer is on its way: the answer still shows
+      choose(card, 'temperature'); await settle();
+      hass.answerPresetPreviews(); await settle(); await settle();
+      assert.equal(text(note()), 'Par défaut (son préréglage Confort)');
+      cell(card, 'eco', 'climate.salon').click(); await settle(); await settle();
+      assert.deepEqual(rows(card), ['Par défaut (son préréglage Éco, 17°) ✓', 'Son préréglage', 'Température']);
+    });
+
+    test('a thermostat not scheduled yet: while the integration has not said what a preset gives, its cell shows no value', async () => {
+      const salonOnly = { 'climate.salon': { comfort: { preset_mode: 'comfort' }, eco: { preset_mode: 'eco' }, boost: { preset_mode: 'boost' }, frost: { temperature: 7 } } };
+      const hass = setup({ targets: salonOnly });
+      hass.presetPreviewAnswers = 'hold';
+      const card = await open(hass); await settle();
+      assert.equal(text(cell(card, 'frost', 'climate.atelier').querySelector('.pv-val')), '');
+      hass.answerPresetPreviews(); await settle(); await settle();
+      assert.equal(text(cell(card, 'frost', 'climate.atelier').querySelector('.pv-val')), '7°');
+    });
+
+    test('an integration that does not answer: the cell says nothing about the default', async () => {
+      const hass = setup();
+      hass.presetPreviewAnswers = 'fail';
+      const card = await open(hass); await settle();
+      cell(card, 'eco', 'climate.salon').click(); await settle(); await settle();
+      assert.deepEqual(rows(card), ['Par défaut ✓', 'Son préréglage', 'Température']);
+      cell(card, 'comfort', 'climate.atelier').click(); await settle(); await settle();
+      assert.equal(text($(card, '.cell-ed .pv-cooldefault')), 'Par défaut');
+    });
+
+    test('saved while the integration has not said what the default gives, the default stays the default', async () => {
+      const hass = setup();
+      hass.presetPreviewAnswers = 'hold';
+      const card = await open(hass); await settle();
+      cell(card, 'comfort', 'climate.salon').click(); await settle();
+      await applyCell(card);
+      assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false, 'the default: nothing stored');
+      // Its own preset of the same name, chosen by hand, is the default once the integration answers
+      cell(card, 'comfort', 'climate.salon').click(); await settle();
+      choose(card, 'own'); await settle();
+      await applyCell(card);
+      hass.answerPresetPreviews(); await settle(); await settle();
+      assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false, 'the default: nothing stored');
     });
 
     test('a cooling setpoint stored shows in its field and in the cell; with the default chosen, it is dropped', async () => {
@@ -421,8 +473,8 @@ afterEach(() => cleanup());
     });
 
     test('the setpoint of a slot opens the presets tab on the thermostat\'s row', async () => {
-      const card = cardOf(setup());
-      select(card, SUITE, 1);
+      const card = await cardOf(setup());
+      await select(card, SUITE, 1);
       assert.equal($(card, '.editor .setpoint-edit').dataset.navigate, `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
       window.history.replaceState(null, '', `/chauffage/presets?thermostat=${encodeURIComponent(SUITE)}`);
       const tab = await panel(setup());
@@ -472,11 +524,11 @@ afterEach(() => cleanup());
       // Frost protection has no temperature when cooling. The combles cool on it at their own 28°
       const targets = { ...TARGETS, [COMBLES]: { ...TARGETS[COMBLES], frost: { cool_temperature: 28 } } };
       const hass = setup({ targets, suite: [['00:00', 'eco', { hvac_mode: 'cool' }]] });
-      const card = cardOf(hass, { show: [COMBLES, SUITE] });
-      const offered = (climate) => { select(card, climate, 0); return $$(card, '.editor .presets [data-act="preset"]').map((b) => b.dataset.preset); };
-      assert.ok(offered(COMBLES).includes('frost'));
-      assert.ok(!offered(SUITE).includes('frost'));
-      openOverride(card, COMBLES);
+      const card = await cardOf(hass, { show: [COMBLES, SUITE] });
+      const offered = async (climate) => { await select(card, climate, 0); return $$(card, '.editor .presets [data-act="preset"]').map((b) => b.dataset.preset); };
+      assert.ok((await offered(COMBLES)).includes('frost'));
+      assert.ok(!(await offered(SUITE)).includes('frost'));
+      await openOverride(card, COMBLES);
       assert.ok($(card, '.override-ed [data-act="override-preset"][data-preset="frost"]'));
     });
   });
@@ -496,8 +548,8 @@ afterEach(() => cleanup());
     });
 
     test('the chips of a slot follow it', async () => {
-      const card = cardOf(setup(), { show: [SUITE] });
-      select(card, SUITE, 1);
+      const card = await cardOf(setup(), { show: [SUITE] });
+      await select(card, SUITE, 1);
       assert.notEqual($(card, '.editor .presets [data-preset="comfort"]').style.color, 'rgb(255, 255, 255)');
       click(card, '.editor .mode-row [data-mode="cool"]'); await settle();
       assert.equal($(card, '.editor .presets [data-preset="comfort"]').style.color, 'rgb(255, 255, 255)');
@@ -506,7 +558,7 @@ afterEach(() => cleanup());
 
   describe('the presets tab', () => {
     onMondayAtTen();
-    const presetsTab = async (hass) => createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' });
+    const presetsTab = async (hass) => { const card = createCard(hass, { thermostats: [SALON, SUITE, COMBLES], view: 'presets' }); await settle(); return card; };
     const open = (card, preset, climate) => click(card, `[data-act="cell"][data-kind="${climate ? 'thermostat' : 'preset'}"][data-preset="${preset}"]${climate ? `[data-climate="${climate}"]` : ''}`);
 
     test('an empty cooling field shows the preset\'s cooling temperature as a hint', async () => {

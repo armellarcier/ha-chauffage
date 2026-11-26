@@ -1,11 +1,10 @@
 import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { live } from 'lit/directives/live.js';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { dataSource } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { client } from './client/chauffage-client.ts';
-import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, errorText, esc, isAdmin } from './common.ts';
+import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, errorText, isAdmin } from './common.ts';
 import { MDI } from './editors.ts';
 import { durationField, linksByKeyboard, listenTimeFields, roundDurationText, timeFieldDone } from './fields.ts';
 import { FIELD_BOX } from './hvac.ts';
@@ -373,11 +372,11 @@ export class ChauffageSettingsDialog extends LitElement {
   // The duration of a change by hand: a stepped field, the same as the end of an override, in hours
   // and minutes ("2 h 45"), from 15 minutes to 24 hours, moved by 15 minutes by its arrows. Sent once
   // left, on Enter, or at once by its small arrows; a duration out of range is refused here. The
-  // same field stays while its HTML is the same: a duration typed is not reset by a redraw.
+  // same field stays while its duration is the same: a duration typed is not reset by a redraw.
   _durationField(minutes, disabled, loc) {
-    return unsafeHTML(`<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
-      ${durationField('id="override-duration" data-override-duration', minutes, loc,
-        { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`);
+    return html`<label for="override-duration">${loc.t('overrideDurationTitle')}</label>
+      ${durationField({ id: 'override-duration', 'data-override-duration': true }, minutes, loc,
+        { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`;
   }
 
   // The section *Access level* (#99): what users who are not admins may change. Admins only: a

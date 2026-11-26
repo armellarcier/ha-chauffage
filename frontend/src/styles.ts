@@ -50,6 +50,8 @@ export const TIME_FIELD_STYLE = `
 
 export const STYLE = `
   :host { display:block; }
+  /* The popovers of the week editor draw in the card: they lay out nothing themselves */
+  chauffage-slot-popover, chauffage-override-popover { display:contents; }
   ha-card { display:block; position:relative; padding:16px; overflow:visible; }
   ha-card.flat { padding:0; background:none; border:none; box-shadow:none; --ha-card-border-width:0; }
   /* The views of the panel's pages, each its own element in the card */

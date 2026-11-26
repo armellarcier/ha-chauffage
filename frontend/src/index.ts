@@ -14,6 +14,8 @@ import { ChauffagePresetsView } from './components/views/presets-view.ts';
 import { ChauffageRulesView } from './components/views/rules-view.ts';
 import { ChauffageSchedulesView } from './components/views/schedules-view.ts';
 import { ChauffageThermostatsView } from './components/views/thermostats-view.ts';
+import { ChauffageSlotPopover } from './components/week/slot-popover.ts';
+import { ChauffageOverridePopover } from './components/week/override-popover.ts';
 import { dataSource } from './client/snapshot.ts';
 import { ChauffageProgrammeCardEditor, ChauffageRoomsCardEditor, ChauffageSummaryCardEditor } from './editors.ts';
 import { makeLocale } from './i18n/locale.ts';
@@ -55,6 +57,8 @@ function defineElements() {
   if (!customElements.get('chauffage-rules-view')) customElements.define('chauffage-rules-view', ChauffageRulesView);
   if (!customElements.get('chauffage-schedules-view')) customElements.define('chauffage-schedules-view', ChauffageSchedulesView);
   if (!customElements.get('chauffage-thermostats-view')) customElements.define('chauffage-thermostats-view', ChauffageThermostatsView);
+  if (!customElements.get('chauffage-slot-popover')) customElements.define('chauffage-slot-popover', ChauffageSlotPopover);
+  if (!customElements.get('chauffage-override-popover')) customElements.define('chauffage-override-popover', ChauffageOverridePopover);
 }
 defineElements();
 // The integration's module is loaded in parallel with HA's frontend, which replaces
@@ -189,7 +193,7 @@ export { toMin, toHM, parseDate } from './common.ts';
 export { ChauffageProgrammeCardEditor } from './editors.ts';
 export { parseTime } from './fields.ts';
 export { historyDays, rowsOfStates } from './history.ts';
-export { CHIP_STYLE, FIELD_BOX, valueOn, presetModes, slotModeOn } from './hvac.ts';
+export { CHIP_STYLE, FIELD_BOX, presetModes, slotModeOn } from './hvac.ts';
 export { I18N } from './i18n/index.ts';
 export { makeLocale } from './i18n/locale.ts';
 export { ICONS };

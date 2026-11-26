@@ -227,6 +227,16 @@ Testez un brouillon de `frontend/src/state/` directement, sans la carte, comme l
 Un élément Lit se dessine après la tâche en cours, pas tout de suite. Après une action, attendez
 `await settle()` avant de lire l'élément.
 
+La carte demande à l'intégration ce que vaut un préréglage sur un thermostat qu'elle ne programme
+pas encore (`chauffage/preset/preview`). La fausse intégration répond avec `valueOn`, dans
+`tests/js/helpers.mjs`, et range ces questions dans `hass.presetPreviews`, pas dans `hass.events`.
+La réponse arrive elle aussi après la tâche en cours : `await settle()` l'attend.
+
+Pour tester la carte pendant qu'une réponse est en route, mettez
+`hass.presetPreviewAnswers = 'hold'`. La fausse intégration ne répond alors que quand vous appelez
+`hass.answerPresetPreviews()`. Pour tester une intégration qui ne répond pas, mettez
+`hass.presetPreviewAnswers = 'fail'`.
+
 ### Le TypeScript de la carte
 
 Les tests de la carte lancent les sources TypeScript sans build : Node retire les types. Donc :

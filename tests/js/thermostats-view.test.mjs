@@ -50,7 +50,7 @@ function setup(more = {}) {
 
 // The page of the panel: the card shows its Thermostats view alone
 async function open(hass) {
-  const card = createCard(hass, { view: 'thermostats', panel: true });
+  const card = createCard(hass, { view: 'thermostats', panel: true }); await settle();
   await settle();
   return card;
 }

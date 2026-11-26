@@ -23,14 +23,6 @@ export const toHM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${Str
 export const pct = (m) => ((m / DAY_MIN) * 100).toFixed(3);
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const clone = (x) => JSON.parse(JSON.stringify(x));
-// Writes an element's HTML only when it changes: an update of Home Assistant then keeps the
-// keyboard focus, and what is being clicked, in the parts that did not change
-const HTML_OF = new WeakMap();
-export const setHtml = (el, html) => {
-  if (HTML_OF.get(el) === html) return;
-  HTML_OF.set(el, html);
-  el.innerHTML = html;
-};
 // An admin of Home Assistant (a hass without a user, as in the tests, is an admin)
 export const isAdmin = (hass) => !(hass && hass.user && !hass.user.is_admin);
 // What a user who is not an admin may change, as an admin chose for every such user (#99). Each

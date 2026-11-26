@@ -536,6 +536,7 @@ describe('the Chauffage panel', () => {
 
     test('its presets first, as the legend of its weeks: a list, one item per preset, not a table of one row', async () => {
       const el = await panel(setup(), '/thermostats/climate.salon');
+      await settle(); // what each preset is worth here, as the integration answers
       const presets = cards(el)[0];
       assert.ok($(presets, '.presets-view'));
       assert.equal($(presets, 'table'), null, 'not a table of one row');
@@ -610,8 +611,8 @@ describe('the Chauffage panel', () => {
       // day once, when created, so the other weeks offered nothing to paste
       const el = await panel(setup(), '/thermostats/climate.salon');
       const [normal, away] = weeks(el);
-      copyDay(normal, 'climate.salon', 0); // the row "Mon–Fri"
-      openMenu(away, 'climate.salon', 0);
+      await copyDay(normal, 'climate.salon', 0); // the row "Mon–Fri"
+      openMenu(away, 'climate.salon', 0); await settle();
       const paste = $(away, '.menu [data-act="paste-day"]');
       assert.ok(!paste.disabled, 'the other week offers to paste');
       assert.match(text(paste), /Salon · .* \(Normal\)/);
@@ -624,9 +625,9 @@ describe('the Chauffage panel', () => {
       // Regression (after alpha.2): a copy wrote back the day already copied, kept in the browser
       const el = await panel(setup(), '/thermostats/climate.salon');
       const [normal, away, holiday] = weeks(el);
-      copyDay(normal, 'climate.salon', 0);
-      copyDay(holiday, 'climate.salon', 0);
-      openMenu(away, 'climate.salon', 0);
+      await copyDay(normal, 'climate.salon', 0);
+      await copyDay(holiday, 'climate.salon', 0);
+      openMenu(away, 'climate.salon', 0); await settle();
       assert.match(text($(away, '.menu [data-act="paste-day"]')), /\(Vacances\)/);
       $(away, '.menu [data-act="paste-day"]').click(); await settle();
       assert.deepEqual(day(away, 'climate.salon', 0), day(holiday, 'climate.salon', 0));
@@ -635,9 +636,9 @@ describe('the Chauffage panel', () => {
     test('only the day copied last stands out as copied, whatever week it was copied in', async () => {
       const el = await panel(setup(), '/thermostats/climate.salon');
       const [normal, away, holiday] = weeks(el);
-      copyDay(normal, 'climate.salon', 0);
-      copyDay(holiday, 'climate.salon', 0);
-      for (const card of [normal, away, holiday]) redraw(card);
+      await copyDay(normal, 'climate.salon', 0);
+      await copyDay(holiday, 'climate.salon', 0);
+      for (const card of [normal, away, holiday]) await redraw(card);
       assert.deepEqual([normal, away, holiday].map((c) => $$(c, '.bar.clipsrc').length), [0, 0, 1]);
     });
 
@@ -845,7 +846,7 @@ describe('the Chauffage panel', () => {
     test('a week with edits not saved yet is copied as shown, and keeps its own edits', async () => {
       const el = await panel(setup(), '/thermostats/climate.salon');
       const [normal, away] = weeks(el);
-      cutSlot(normal, 'climate.salon', 0, 12 * 60); await settle(); // an edit not saved yet
+      await cutSlot(normal, 'climate.salon', 0, 12 * 60); await settle(); // an edit not saved yet
       assert.ok(unsavedWeeks(el).includes('Normal'));
       const shown = wholeWeek(normal, 'climate.salon');
       $(el, '[data-copy-menu="normal"]').click(); await settle();
@@ -871,7 +872,7 @@ describe('the dashboard card and the panel', () => {
   });
 
   test('admins set the presets from the legend of the presets: one link, where the card shows them', async () => {
-    const card = createCard(setup());
+    const card = createCard(setup()); await settle();
     assert.equal(card.shadowRoot.querySelector('[data-act="view"], .config-links'), null); // no links at the top
     const links = [...card.shadowRoot.querySelectorAll('.legend [data-navigate^="/chauffage"]')];
     assert.deepEqual(links.map((l) => l.closest('.legend') && l.textContent), ['Régler les préréglages']);
@@ -880,7 +881,7 @@ describe('the dashboard card and the panel', () => {
   });
 
   test('admins open the panel from the card\'s top right, as the panels of other cards', async () => {
-    const card = createCard(setup());
+    const card = createCard(setup()); await settle();
     const open = card.shadowRoot.querySelector('.chips .panel-open[data-navigate="/chauffage"]');
     assert.equal(open.getAttribute('aria-label'), 'Ouvrir dans Chauffage');
     open.click(); await settle();
@@ -890,7 +891,8 @@ describe('the dashboard card and the panel', () => {
   test('the panel renamed and taken out of the sidebar keeps its name in the card\'s link (#104)', async () => {
     const hass = setup();
     hass.panels.chauffage = { url_path: 'chauffage', title: null, config: { title: 'Planning' } };
-    const open = createCard(hass).shadowRoot.querySelector('.chips .panel-open');
+    const card = createCard(hass); await settle();
+    const open = card.shadowRoot.querySelector('.chips .panel-open');
     assert.equal(open.getAttribute('aria-label'), 'Ouvrir dans Planning');
   });
 
@@ -904,12 +906,13 @@ describe('the dashboard card and the panel', () => {
   test('a user with the access level Use sees no link to the panel (it needs Set up, #99)', async () => {
     const hass = setup();
     hass.user = { is_admin: false };
-    assert.equal(createCard(hass).shadowRoot.querySelector('[data-navigate^="/chauffage"]'), null);
+    const card = createCard(hass); await settle();
+    assert.equal(card.shadowRoot.querySelector('[data-navigate^="/chauffage"]'), null);
   });
 
   test('outside the panel, the choice of grouping kept in the browser wins over the card\'s option', async () => {
     localStorage.setItem('chauffage-programme-card:group-days', '1');
-    const card = createCard(setup(), { group_days: false });
+    const card = createCard(setup(), { group_days: false }); await settle();
     assert.ok(card.shadowRoot.querySelector('[data-act="group-days"]').classList.contains('on'));
   });
 });

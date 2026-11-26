@@ -192,7 +192,7 @@ describe('more-info block', () => {
 
   test("the card's override popover offers the button to the next slot, and the reason opens the settings", async () => {
     const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'duration' } }, ...nextSlot('2026-10-12T17:30:00+02:00') });
-    const card = createCard(hass, { show: ['climate.salon'] });
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
     card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click(); await settle();
     const editor = card.shadowRoot.querySelector('.override-ed');
     assert.match(editor.textContent.replace(/\s+/g, ' '), /aujourd'hui, 2 h après le changement ⚙ · encore 1 h 30/);

@@ -234,9 +234,13 @@ future contributor might question.
     upgraded installation**: a reversible air conditioner that cools is switched to heat by a
     week that says nothing. The changelog says so under "Upgrading".
   - **A new slot takes the HVAC mode of the slot it comes from**: a slot inserted or cut in a
-    slot keeps its HVAC mode. In an off slot or a fan-only slot, it takes the HVAC mode of the
-    slot on a preset before it in the day, else heat. A new slot that heated in the middle of a
-    summer day would be a surprise.
+    slot keeps its HVAC mode. A slot inserted or cut in an off slot is off, and one inserted or
+    cut in a fan-only slot is fan only. A new slot that heated in the middle of a summer day
+    would be a surprise.
+  - **An off or fan-only slot of an air conditioner never has a preset** (the owner). Such a
+    slot sends no setpoint, so a preset there means nothing to the user. Its popover offers no
+    preset: the user chooses Heat or Cool first. A former version of the card still gave such
+    a slot a preset, in the HVAC mode of the slot before it, through a path no button reached.
   - **Each slot is independent**: a slot does not inherit the HVAC mode of the slot before it
     when it runs. It says its own.
   - **A target without an HVAC mode turns on a thermostat that is off or in fan only, as the
@@ -2160,3 +2164,29 @@ Claude proposes these two choices. The owner hasn't confirmed them yet.
 - **`store.py` stays at the root**, with its frozen migrations, not in `storage/store.py` and
   `storage/migrations.py`. The plan also says to keep `test_store.py` as it is, and this test
   imports `custom_components.chauffage.store`.
+
+#### The week editor in Lit (phase C5, a proposal)
+
+Claude made these choices while rewriting the week editor. The owner hasn't confirmed them yet.
+
+- **The card asks the integration what a preset is worth only for what its data lacks.** The
+  data of `chauffage/subscribe` gives `targets` for every thermostat Chauffage schedules. The
+  card asks `chauffage/preset/preview` for a thermostat it doesn't schedule yet, and for the
+  defaults of a cell of the presets tab. The page's client keeps each answer while the
+  thermostat lists the same modes and presets, and the cards draw again when an answer comes.
+- **While an answer is on its way, the card shows nothing for it.** The popover of a slot of a
+  thermostat not scheduled yet offers no preset for a moment, the first time. The legend asks
+  first, so the answer is usually there when the user opens a popover.
+- **An answer not known is not "no value".** The card never says "Not used when heating" for an
+  answer on its way, and never greys out an HVAC mode for it. An answer that fails reads the
+  same way. The card asks again only after a page reload, or when the thermostat lists other
+  modes or presets. A cell saved before the
+  answer waits for it: one of the thermostat's own presets that turns out to be the default is
+  not stored.
+- **The parts of the week editor are elements only where they have a life of their own.** Only
+  the two popovers are elements, drawn again with the card. The week grid, the legend, a row of
+  days and a bar are templates: the card holds their state, and the drags change the bars in
+  place.
+- **The temperature of an override follows the thermostat, except while it is typed in.** The
+  field stays, and nothing puts back what was typed: a redraw doesn't touch a field being typed
+  in.

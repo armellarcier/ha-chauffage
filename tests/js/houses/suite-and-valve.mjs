@@ -38,9 +38,9 @@ export function setup({ suite = DAY, salon = DAY, vanne = DAY, overrides, planne
   hass.entities[VANNE] = { entity_id: VANNE };
   return hass;
 }
-export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: [SALON, SUITE, VANNE], show: [SUITE], group_days: false, ...config });
-export const select = (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
-export const mode = (card, m, scope = '.editor') => click(card, `${scope} .mode-row [data-mode="${m}"]`);
+export const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: [SALON, SUITE, VANNE], show: [SUITE], group_days: false, ...config }); await settle(); return card; };
+export const select = async (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
+export const mode = async (card, m, scope = '.editor') => { click(card, `${scope} .mode-row [data-mode="${m}"]`); await settle(); };
 export const modeRow = (card, scope = '.editor') => $$(card, `${scope} .mode-row button`)
   .map((b) => `${text(b)}${b.getAttribute('aria-pressed') === 'true' ? ' ✓' : ''}${b.classList.contains('default') ? ' (default)' : ''}`);
 export const sent = (hass) => hass.events.at(-1).override;

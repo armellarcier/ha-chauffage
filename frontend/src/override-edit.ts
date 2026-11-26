@@ -1,10 +1,12 @@
+import { html, nothing } from 'lit';
 import { chipStyle } from './colors.ts';
-import { DAY_MIN, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, esc, hasNoPreset, minutesOf, parseDate, rangeText, slotMode } from './common.ts';
+import { DAY_MIN, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, hasNoPreset, minutesOf, parseDate, rangeText, slotMode } from './common.ts';
 import { durationText, endReasonText, roundDurationText, timeField } from './fields.ts';
 import { temperatureOf } from './history.ts';
-import { defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf, valueOn } from './hvac.ts';
+import { defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf } from './hvac.ts';
+import { client } from './client/chauffage-client.ts';
 import { isOffOverride, overrideHvac, overrideLabel, setpointHvac, targetKind } from './override.ts';
-import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from './presets.ts';
+import { fitTemperature, modeChip, modeRow, offChip, presetOf, presetsOf, sortedPresets, stepOf, stepper } from './presets.ts';
 import { parseDay } from './slots.ts';
 
 // The value of an override, in the card's popover and the more-info block (#91). On a thermostat
@@ -13,9 +15,9 @@ import { parseDay } from './slots.ts';
 // only, dry and auto have no preset. A heater has one row: Off, then the presets. Then a
 // temperature (the thermostat's setpoint while the override is a preset); in heat/cool, the
 // range instead. The preset picked is highlighted (one at the same temperature is not); without
-// one, the preset whose climate preset the thermostat is on. Returns { presets, temperature }
-// HTML.
-function overrideValueHtml(d, src, climate, attrs, loc, hass) {
+// one, the preset whose climate preset the thermostat is on. Returns { modes, presets, temperature }
+// templates.
+function overrideValue(d, src, climate, attrs, loc, hass) {
   const targets = src.targets(climate);
   const target = (d && d.target) || {};
   const off = isOffOverride(d);
@@ -32,38 +34,37 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   const none = off || !!idle;
   // Without an HVAC mode of its own (a valve that lists heat and auto): the one it runs in
   const running = state && rowModesOf(hass, climate).includes(state.state) ? state.state : defaultSetpointMode(hass, climate);
-  const presets = rows && none ? '' : sortedPresets(src, loc)
+  const presets = rows && none ? [] : sortedPresets(src, loc)
     .filter((l) => targets[l.id] && (picked === l.id || presetModes(targets[l.id]).includes(inMode))).map((l) => {
       const value = targets[l.id];
       const on = !!d && !none && (picked ? picked === l.id
         : targetKind(target) === 'preset' && targetKind(value) === 'preset' && target.preset_mode != null && target.preset_mode === value.preset_mode);
-      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="${chipStyle(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
-    }).join('');
+      return html`<button data-act="override-preset" data-preset=${l.id} class=${on ? 'on' : ''} style=${chipStyle(l, cools ? 'cool' : mode)}>${l.name}</button>`;
+    });
   // The override's own temperature: the preset's, heating or cooling, when it is known (not an open
   // window's frost setpoint, #112), or the temperature typed. A preset that cools without a value
   // when cooling leaves the setpoint alone: a note says so
   const own = picked ? (cools ? coolPresetTemperatureOf(src, climate, target) : presetTemperatureOf(src, climate, target))
     : d && targetKind(target) === 'temperature' ? target.temperature : null;
-  // Without one, the field shows the setpoint of the thermostat, and follows it (_updateLive)
+  // Without one, the field shows the setpoint of the thermostat, and follows it
   const live = own == null;
   const value = live ? attrs.temperature : own;
   const note = picked && cools && !none && !('cool_temperature' in target) && !('cool_preset_mode' in target)
     ? loc.t(isReversible(hass, climate) ? 'slotSetpointUnchanged' : 'slotSetpointKept') : '';
   // A text field with its − and its +, in the user's number format, read with either decimal
   // separator: the same field as in the presets tab
-  let temperature = `<span class="temp-label">${esc(loc.t('presetTemperature'))}</span>${stepperHtml(loc, `data-override-temperature${live ? ' data-live' : ''}`, value, 'override-step', stepOf(hass, climate), loc.t('presetTemperature'))}${note ? ` <span class="muted override-note">${esc(note)}</span>` : ''}`;
+  let temperature: any = html`<span class="temp-label">${loc.t('presetTemperature')}</span>${stepper(loc, { 'data-override-temperature': true, 'data-live': live }, value, 'override-step', stepOf(hass, climate), loc.t('presetTemperature'), true)}${note ? html` <span class="muted override-note">${note}</span>` : nothing}`;
   // Heat/cool takes a range: the one of the preset, or the one set by hand
   if (mode === 'heat_cool' && !none) {
     temperature = 'target_temp_low' in target
-      ? setpointLineHtml(loc.t('slotSetpoint', { value: rangeText(target.target_temp_low, target.target_temp_high, loc) }), loc) : '';
+      ? setpointLine(loc.t('slotSetpoint', { value: rangeText(target.target_temp_low, target.target_temp_high, loc) }), loc) : nothing;
   }
   const disabled = SETPOINT_MODES.filter((m) => !Object.values(targets).some((v) => presetModes(v).includes(m)));
   const chosen = off ? 'off' : idle || mode || running;
-  const first = rows ? modeRowHtml(hass, climate, loc, chosen, 'override-mode', disabled, !d)
-    : '';
-  const chips = rows ? '' : `${offChipHtml(hass, climate, loc, 'override-off', off)}${idle ? modeChipHtml(hass, climate, loc, idle, 'override-mode', true) : ''}`;
+  const first = rows ? modeRow(hass, climate, loc, chosen, 'override-mode', disabled, !d) : nothing;
+  const chips = rows ? nothing : html`${offChip(hass, climate, loc, 'override-off', off)}${idle ? modeChip(hass, climate, loc, idle, 'override-mode', true) : nothing}`;
   // Off, fan only, dry and auto take no temperature
-  return { modes: first, presets: rows && !presets ? '' : `<div class="presets">${chips}${presets}</div>`, temperature: none ? '' : temperature };
+  return { modes: first, presets: rows && !presets.length ? nothing : html`<div class="presets">${chips}${presets}</div>`, temperature: none ? nothing : temperature };
 }
 
 // Whether a slot will run in cool on a thermostat (#91): the slot says cool and the thermostat
@@ -106,10 +107,10 @@ export function slotSetpointText(hass, climate, seg, target, loc, { temperatureO
 
 // The line that says a setpoint, the same in every block: "Setpoint: 20 °C". `path`: the
 // presets tab, for who may set the presets: a button after the words
-export function setpointLineHtml(text, loc, path = null) {
-  if (!text && !path) return '';
-  const edit = path ? `<span class="setpoint-edit" role="link" tabindex="0" data-navigate="${esc(path)}" title="${esc(loc.t('setPresets'))}"><ha-icon icon="mdi:tune-variant"></ha-icon><span>${esc(loc.t('setpointEdit'))}</span></span>` : '';
-  return `<div class="setpoint-line">${text ? `<span class="slot-setpoint">${esc(text)}</span>` : ''}${edit}</div>`;
+export function setpointLine(text, loc, path = null) {
+  if (!text && !path) return nothing;
+  const edit = path ? html`<span class="setpoint-edit" role="link" tabindex="0" data-navigate=${path} title=${loc.t('setPresets')}><ha-icon icon="mdi:tune-variant"></ha-icon><span>${loc.t('setpointEdit')}</span></span>` : nothing;
+  return html`<div class="setpoint-line">${text ? html`<span class="slot-setpoint">${text}</span>` : nothing}${edit}</div>`;
 }
 
 // A slot's name on a thermostat that lists more than one "on" HVAC mode: "Heat · Eco"
@@ -119,12 +120,26 @@ function slotNameOn(hass, climate, seg, presets, loc) {
   return mode ? `${modeName(loc, mode)} · ${name}` : name;
 }
 
-// What a preset means for a thermostat: its mapping (as computed by the integration), else the
-// default for a thermostat the integration does not know yet
+// What a preset means for a thermostat, as the integration computes it: its `targets` for a
+// thermostat it schedules, else its answer to the card's question. Null while the answer is on
+// its way, or when none came: not known, which is not "no value"
 export function targetOf(src, hass, climate, preset) {
   const known = src.targets(climate)[preset.id];
   if (known) return known;
-  return valueOn(preset, src.mapping(climate)[preset.id], hass, climate, src.usePresets());
+  return presetValue(hass, climate, preset, src.mapping(climate)[preset.id] || null);
+}
+
+// What a preset is worth on a thermostat, with a value set by hand (`value`, saved or not), as the
+// integration computes it. Null while its answer is on its way, or when none came
+export function presetValue(hass, climate, preset, value) {
+  const answer = client.preview(hass, climate, preset, value);
+  return answer ? answer.value : null;
+}
+
+// The same, once the integration has answered: null when it gave no answer
+export async function presetValueAnswered(hass, climate, preset, value) {
+  const answer = await client.answer(hass, climate, preset, value);
+  return answer ? answer.value : null;
 }
 
 // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one the
@@ -213,7 +228,7 @@ export function whenText(at, loc) {
 // The end of an override, in words, under its time field: "today, at the next slot · 45 min left
 // · then Eco". The reason of a change by hand (#83) is part of its end; with Set up it opens the
 // settings dialog on top of the view (openSettings), where the user chooses it.
-function overrideEndHtml(src, climate, d, loc, hass) {
+function overrideEnd(src, climate, d, loc, hass) {
   const t = loc.t;
   const endsAt = parseDate(d.end);
   const now = new Date();
@@ -223,10 +238,10 @@ function overrideEndHtml(src, climate, d, loc, hass) {
   const remaining = Math.max(0, Math.round((+endsAt - +now) / 60000));
   const reason = endReasonText(d, loc);
   const why = reason && src.editable
-    ? `<span class="mi-link" role="link" tabindex="0" data-open-settings title="${esc(t('endsChoose'))}">${esc(reason)} <span aria-hidden="true">⚙</span></span>`
-    : esc(reason);
+    ? html`<span class="mi-link" role="link" tabindex="0" data-open-settings title=${t('endsChoose')}>${reason} <span aria-hidden="true">⚙</span></span>`
+    : reason;
   const then = thenText(src, climate, d, loc, hass);
-  return `${esc(day)}${reason ? `, ${why}` : ''} · ${esc(t('remaining', { duration: remainingText(remaining, loc) }))}${then ? ` · ${esc(then)}` : ''}`;
+  return html`${day}${reason ? html`, ${why}` : nothing} · ${t('remaining', { duration: remainingText(remaining, loc) })}${then ? ` · ${then}` : nothing}`;
 }
 
 // A time left: "1 h 30", "45 min"; past a day, the whole days then the whole hours left ("1 d 11 h",
@@ -246,8 +261,8 @@ function remainingText(min, loc) {
 function nextSlotButton(src, climate, d, loc) {
   const iso = (src.planned(climate) || {}).next_slot_end;
   const at = iso ? parseDate(iso) : null;
-  if (!at || d.ends_at === 'next_slot' || Math.floor(+at / 60000) === Math.floor(+parseDate(d.end) / 60000)) return '';
-  return `<button class="btn" data-act="override-next-slot" data-at="${esc(iso)}">${esc(loc.t('untilNextSlot', { time: whenText(at, loc) }))}</button>`;
+  if (!at || d.ends_at === 'next_slot' || Math.floor(+at / 60000) === Math.floor(+parseDate(d.end) / 60000)) return nothing;
+  return html`<button class="btn" data-act="override-next-slot" data-at=${iso}>${loc.t('untilNextSlot', { time: whenText(at, loc) })}</button>`;
 }
 
 // The button that sets an off override's end to tomorrow's first slot that changes the
@@ -255,20 +270,20 @@ function nextSlotButton(src, climate, d, loc) {
 // (`next_day_slot_end`). None on an "on" override, without such a slot, or when the override
 // already ends then
 function tomorrowButton(src, climate, d, loc) {
-  if (!isOffOverride(d)) return '';
+  if (!isOffOverride(d)) return nothing;
   const planned = src.planned(climate) || {};
   const iso = planned.next_day_slot_end;
   const at = iso ? parseDate(iso) : null;
   const minute = (date) => Math.floor(date / 60000);
   // The next morning: hidden when it is the next slot's instant (one button then), or when the
   // override already ends then; named by its day when it is not tomorrow (a flat Sunday)
-  if (!at || minute(at) === minute(parseDate(d.end))) return '';
-  if (planned.next_slot_end && minute(at) === minute(parseDate(planned.next_slot_end))) return '';
+  if (!at || minute(at) === minute(parseDate(d.end))) return nothing;
+  if (planned.next_slot_end && minute(at) === minute(parseDate(planned.next_slot_end))) return nothing;
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const time = loc.time(minutesOf(at));
   const label = at.toDateString() === tomorrow.toDateString() ? loc.t('untilTomorrow', { time }) : loc.t('untilDay', { day: dayText(at, loc), time });
-  return `<button class="btn" data-act="override-tomorrow" data-at="${esc(iso)}">${esc(label)}</button>`;
+  return html`<button class="btn" data-act="override-tomorrow" data-at=${iso}>${label}</button>`;
 }
 // The override `d` ended at the instant on the button, no longer "at the next slot"
 const endedAt = (d, at) => { const { ends_at: _, ...rest } = d; return { ...rest, end: at }; };
@@ -294,46 +309,10 @@ export function planText(plan, presetName, loc, named = false) {
   return start.toDateString() === new Date().toDateString() ? loc.t('untilThen', values) : loc.t('untilDayThen', { ...values, day });
 }
 
-export const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
-
-// Draws a card's content into its <ha-card>, kept from one redraw to the next: a new one (a Lit
-// component, rendered asynchronously) has no height until it renders, so the page got shorter for
-// a moment and scrolled back to the top
-export function fillCard(root, style, html, cls = '') {
-  const card = cardFrame(root, style, cls);
-  card.innerHTML = html;
-  return card;
-}
-
-// The ha-card of a shadow root, with its style, given the classes `cls`; what it holds stays
-export function cardFrame(root, style, cls = '') {
-  let card = root.querySelector('ha-card');
-  if (!card) {
-    root.innerHTML = `<style>${style}</style><ha-card></ha-card>`;
-    card = root.querySelector('ha-card');
-  }
-  card.className = cls;
-  return card;
-}
-
 // The field focused in a shadow root if it matches `selector`, else null
 export function focusedField(root, selector) {
   const el = root.activeElement;
   return el && el.matches && el.matches(selector) ? el : null;
-}
-
-// A field being typed in, again after a redraw: its text (if any) and the focus, again once
-// ha-card (a Lit component rendered asynchronously) shows its content; before that, the field
-// cannot take the focus
-export function restoreTyped(root, selector, value) {
-  const input = root.querySelector(selector);
-  if (!input) return;
-  if (value != null) input.value = value;
-  input.focus();
-  const card = root.querySelector('ha-card');
-  if (card && card.updateComplete instanceof Promise) {
-    card.updateComplete.then(() => { if (input.isConnected) input.focus(); });
-  }
 }
 
 // A new override from now, for the override duration (an option of the integration)
@@ -371,23 +350,23 @@ function offEndText(d, src, climate, hass, loc, end) {
 // new override (no `d`): the end it will have, said before the first tap. `line` and
 // `actions`: the classes of a line and of a row of buttons there; `endLoc`: the names the end
 // is said with
-export function overrideBodyHtml(d, src, climate, hass, loc, { step, line, actions, endLoc = loc }) {
-  const value = overrideValueHtml(d, src, climate, (stateOf(hass, climate) || {}).attributes || {}, loc, hass);
-  const temperature = value.temperature ? `<div class="${line}">${value.temperature}</div>` : '';
-  if (!d) return `${value.modes}${value.presets}${temperature}<div class="end-new muted">${esc(newOverrideEndText(src, climate, hass, loc))}</div>`;
+export function overrideBody(d, src, climate, hass, loc, { step, line, actions, endLoc = loc }) {
+  const value = overrideValue(d, src, climate, (stateOf(hass, climate) || {}).attributes || {}, loc, hass);
+  const temperature = value.temperature !== nothing ? html`<div class=${line}>${value.temperature}</div>` : nothing;
+  if (!d) return html`${value.modes}${value.presets}${temperature}<div class="end-new muted">${newOverrideEndText(src, climate, hass, loc)}</div>`;
   // The end Off would give it, under the button Off: the row of HVAC modes, else the row of
   // presets that starts with Off
   const offText = offEndText(d, src, climate, hass, loc, d.end);
-  const offEnd = offText ? `<div class="off-end muted">${esc(offText)}</div>` : '';
-  const values = value.modes ? `${value.modes}${offEnd}${value.presets}${temperature}` : `${value.presets}${offEnd}${temperature}`;
-  const add = (m, label) => `<button class="btn" data-act="override-add" data-min="${m}">${label}</button>`;
-  return `${values}
+  const offEnd = offText ? html`<div class="off-end muted">${offText}</div>` : nothing;
+  const values = value.modes !== nothing ? html`${value.modes}${offEnd}${value.presets}${temperature}` : html`${value.presets}${offEnd}${temperature}`;
+  const add = (m, label) => html`<button class="btn" data-act="override-add" data-min=${m}>${label}</button>`;
+  return html`${values}
     <div class="end-block">
-      <div class="${line}">
-        <label>${esc(loc.t('until'))} ${timeField(`data-override-end="${esc(climate)}" data-ends-at="${esc(d.end)}"`, minutesOf(parseDate(d.end)), loc, step)}</label>
-        <span class="muted">${overrideEndHtml(src, climate, d, endLoc, hass)}</span>
+      <div class=${line}>
+        <label>${loc.t('until')} ${timeField({ 'data-override-end': climate, 'data-ends-at': d.end }, minutesOf(parseDate(d.end)), loc, step)}</label>
+        <span class="muted">${overrideEnd(src, climate, d, endLoc, hass)}</span>
       </div>
-      <div class="${actions}">
+      <div class=${actions}>
         ${add(-30, '−30 min')}${add(30, '+30 min')}${add(60, '+1 h')}${add(120, '+2 h')}
         ${nextSlotButton(src, climate, d, loc)}
         ${tomorrowButton(src, climate, d, loc)}

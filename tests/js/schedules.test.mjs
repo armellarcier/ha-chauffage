@@ -2,7 +2,7 @@
 // a schedule (empty or a copy, then its name), "⋮" on the open tab renames it (showing its stable
 // id), moves it, deletes it (docs/decisions.md, "Schedules").
 import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
-import { cutSlot } from './driver.mjs';
+import { cutSlot, settle } from './driver.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { redraw, unsaved } from './driver.mjs';
@@ -25,24 +25,24 @@ function withSchedule(id, name) {
 
 // "+", then "Empty" or "Copy of …", then the name and Create
 async function create(card, name, { copy = '' } = {}) {
-  click(card, '[data-act="schedule-new"]');
-  click(card, `[data-act="schedule-pick"][data-copy="${copy}"]`);
+  click(card, '[data-act="schedule-new"]'); await settle();
+  click(card, `[data-act="schedule-pick"][data-copy="${copy}"]`); await settle();
   $(card, 'input[data-sched-name]').value = name;
   click(card, '[data-act="schedule-create"]');
   await flush();
 }
 
-function openMenu(card, id) {
-  click(card, `.tab[data-schedule="${id}"]`);
-  click(card, '[data-act="schedule-menu"]');
+async function openMenu(card, id) {
+  click(card, `.tab[data-schedule="${id}"]`); await settle();
+  click(card, '[data-act="schedule-menu"]'); await settle();
 }
 
 afterEach(() => cleanup());
 
 describe('the "+" menu: a new schedule', () => {
-  test('offers an empty schedule or a copy of each schedule', () => {
-    const card = createCard(fakeHass());
-    click(card, '[data-act="schedule-new"]');
+  test('offers an empty schedule or a copy of each schedule', async () => {
+    const card = createCard(fakeHass()); await settle();
+    click(card, '[data-act="schedule-new"]'); await settle();
     const items = [...card.shadowRoot.querySelectorAll('.sched-menu [data-act="schedule-pick"]')].map((b) => b.textContent.trim());
     assert.deepEqual(items, ['Vide (Éco toute la semaine)', 'Copie de « Normal »', 'Copie de « Absent »', 'Copie de « Vacances »']);
     assert.equal($(card, '.sched-ed'), null); // a menu, not a form under the tabs
@@ -50,54 +50,54 @@ describe('the "+" menu: a new schedule', () => {
 
   test('an empty schedule, which the card then opens', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await create(card, 'Télétravail');
     assert.deepEqual(schedulesSet(hass), [{ type: 'chauffage/schedules/set', revision: 4, schedules: [...ALL, { name: 'Télétravail' }] }]);
     assert.equal(menu(card), null);
-    hass.push(withSchedule('teletravail', 'Télétravail'));
+    hass.push(withSchedule('teletravail', 'Télétravail')); await settle();
     assert.equal(scheduleShown(card), 'teletravail');
     assert.ok($(card, '.tab.on[data-schedule="teletravail"]'));
   });
 
   test('a copy of a schedule', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
-    click(card, '[data-act="schedule-new"]');
-    click(card, '[data-act="schedule-pick"][data-copy="holiday"]');
+    const card = createCard(hass); await settle();
+    click(card, '[data-act="schedule-new"]'); await settle();
+    click(card, '[data-act="schedule-pick"][data-copy="holiday"]'); await settle();
     assert.match(menu(card).textContent, /Copie de « Vacances »/);
     $(card, 'input[data-sched-name]').value = 'Guests';
-    click(card, '[data-act="schedule-create"]');
+    click(card, '[data-act="schedule-create"]'); await settle();
     await flush();
     assert.deepEqual(schedulesSet(hass)[0].schedules.at(-1), { name: 'Guests', copy_of: 'holiday' });
   });
 
-  test('a name being typed survives a redraw of the card (every 30 s during an override)', () => {
-    const card = createCard(fakeHass());
-    click(card, '[data-act="schedule-new"]');
-    click(card, '[data-act="schedule-pick"][data-copy=""]');
+  test('a name being typed survives a redraw of the card (every 30 s during an override)', async () => {
+    const card = createCard(fakeHass()); await settle();
+    click(card, '[data-act="schedule-new"]'); await settle();
+    click(card, '[data-act="schedule-pick"][data-copy=""]'); await settle();
     $(card, 'input[data-sched-name]').value = 'Télé';
     $(card, 'input[data-sched-name]').focus();
-    redraw(card);
+    await redraw(card);
     assert.equal($(card, 'input[data-sched-name]').value, 'Télé');
     assert.equal(card.shadowRoot.activeElement, $(card, 'input[data-sched-name]'));
   });
 
   test('Enter in the name field creates it', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
-    click(card, '[data-act="schedule-new"]');
-    click(card, '[data-act="schedule-pick"][data-copy=""]');
+    const card = createCard(hass); await settle();
+    click(card, '[data-act="schedule-new"]'); await settle();
+    click(card, '[data-act="schedule-pick"][data-copy=""]'); await settle();
     const input = $(card, 'input[data-sched-name]');
     input.value = 'Guests';
-    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true })); await settle();
     await flush();
     assert.deepEqual(schedulesSet(hass)[0].schedules.at(-1), { name: 'Guests' });
   });
 
   test('unsaved edits of the weeks are saved first, then the schedule is created', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await create(card, 'Guests');
     assert.deepEqual(hass.events.map((m) => m.type), ['chauffage/weeks/save', 'chauffage/schedules/set']);
     assert.equal(schedulesSet(hass)[0].revision, 5); // the revision the save produced
@@ -106,8 +106,8 @@ describe('the "+" menu: a new schedule', () => {
 
   test('when saving the edits fails, nothing is created', async () => {
     const hass = fakeHass({ reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'stale', message: 'stale' }; } });
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60);
     await create(card, 'Guests');
     assert.deepEqual(schedulesSet(hass), []);
     assert.match($(card, '.msg').textContent, /modifiés ailleurs/);
@@ -115,11 +115,11 @@ describe('the "+" menu: a new schedule', () => {
 
   test('a name is needed and must not be taken; the menu stays open', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await create(card, '  ');
     assert.match(menu(card).textContent, /Donnez un nom/);
     $(card, 'input[data-sched-name]').value = 'absent ';
-    click(card, '[data-act="schedule-create"]');
+    click(card, '[data-act="schedule-create"]'); await settle();
     await flush();
     assert.deepEqual(schedulesSet(hass), []);
     assert.match(menu(card).textContent, /déjà utilisé/);
@@ -127,40 +127,40 @@ describe('the "+" menu: a new schedule', () => {
 
   test('an error of the integration is shown', async () => {
     const hass = fakeHass({ reply: (msg) => { if (msg.type === 'chauffage/schedules/set') throw { code: 'invalid_format', message: 'boom' }; } });
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await create(card, 'Guests');
     assert.match($(card, '.msg').textContent, /boom/);
   });
 });
 
 describe('the "⋮" menu of the open schedule', () => {
-  test('lists its actions only, without a header', () => {
-    const card = createCard(fakeHass());
-    openMenu(card, 'away');
+  test('lists its actions only, without a header', async () => {
+    const card = createCard(fakeHass()); await settle();
+    await openMenu(card, 'away'); await settle();
     assert.equal(menu(card).querySelector('.mh'), null);
     assert.doesNotMatch(menu(card).textContent, /Identifiant/);
   });
 
-  test('opens the schedule\'s page in the Chauffage panel, not its switch: no user path needs an entity', () => {
-    const card = createCard(fakeHass());
-    openMenu(card, 'away');
+  test('opens the schedule\'s page in the Chauffage panel, not its switch: no user path needs an entity', async () => {
+    const card = createCard(fakeHass()); await settle();
+    await openMenu(card, 'away'); await settle();
     assert.equal(menu(card).querySelector('[data-more-info]'), null);
     const open = menu(card).querySelector('[data-navigate="/chauffage/schedules/away"]');
     assert.equal(open.textContent.trim(), 'Ouvrir dans Chauffage');
-    open.click();
+    open.click(); await settle();
     assert.equal(window.location.pathname, '/chauffage/schedules/away');
   });
 
-  test('changes its icon in its switch\'s settings, as for any entity of Home Assistant', () => {
+  test('changes its icon in its switch\'s settings, as for any entity of Home Assistant', async () => {
     const opened = [];
     const intercept = (e) => { opened.push(e.detail); e.stopPropagation(); };
     document.addEventListener('hass-more-info', intercept);
     try {
-      const card = createCard(fakeHass());
-      openMenu(card, 'away');
+      const card = createCard(fakeHass()); await settle();
+      await openMenu(card, 'away'); await settle();
       const item = menu(card).querySelector('[data-act="schedule-icon"]');
       assert.equal(item.textContent.trim(), 'Changer l’icône…');
-      item.click();
+      item.click(); await settle();
       assert.deepEqual(opened, [{ entityId: 'switch.chauffage_schedule_away', view: 'settings' }]);
       assert.equal(menu(card), null);
     } finally {
@@ -170,54 +170,54 @@ describe('the "⋮" menu of the open schedule', () => {
 
   test('renames it, showing its id (used by automations)', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
-    openMenu(card, 'away');
-    click(card, '[data-act="schedule-rename-open"]');
+    const card = createCard(hass); await settle();
+    await openMenu(card, 'away'); await settle();
+    click(card, '[data-act="schedule-rename-open"]'); await settle();
     assert.match(menu(card).textContent, /Identifiant : away/);
     assert.equal($(card, 'input[data-sched-name]').value, 'Absent');
     $(card, 'input[data-sched-name]').value = 'Sortis';
-    click(card, '[data-act="schedule-rename"]');
+    click(card, '[data-act="schedule-rename"]'); await settle();
     await flush();
     assert.deepEqual(schedulesSet(hass)[0].schedules, [{ id: 'normal' }, { id: 'away', name: 'Sortis' }, { id: 'holiday' }]);
   });
 
-  test('the renamed schedule stays open', () => {
+  test('the renamed schedule stays open', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
-    click(card, '.tab[data-schedule="away"]');
+    const card = createCard(hass); await settle();
+    click(card, '.tab[data-schedule="away"]'); await settle();
     const data = integrationData();
     data.schedules[1].name = 'Sortis';
     data.revision = 5;
-    hass.push(data);
+    hass.push(data); await settle();
     assert.equal(scheduleShown(card), 'away');
     assert.equal($(card, '.tab.on').textContent.trim(), 'Sortis');
   });
 
   test('moves it left or right', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
-    openMenu(card, 'away');
-    click(card, '[data-act="schedule-move"][data-dir="-1"]');
+    const card = createCard(hass); await settle();
+    await openMenu(card, 'away'); await settle();
+    click(card, '[data-act="schedule-move"][data-dir="-1"]'); await settle();
     await flush();
     assert.deepEqual(schedulesSet(hass)[0].schedules, [{ id: 'away' }, { id: 'normal' }, { id: 'holiday' }]);
-    openMenu(card, 'holiday');
+    await openMenu(card, 'holiday'); await settle();
     assert.equal($(card, '[data-act="schedule-move"][data-dir="1"]').disabled, true); // already last
   });
 
-  test('a schedule\'s sheet in the panel shows no tab: its menu, opened by the page\'s ⋮, does not move it', () => {
-    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
+  test('a schedule\'s sheet in the panel shows no tab: its menu, opened by the page\'s ⋮, does not move it', async () => {
+    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' }); await settle();
     assert.equal($(card, '.tabs'), null);
-    openScheduleMenuFrom(card);
+    openScheduleMenuFrom(card); await settle();
     assert.ok($(card, '[data-act="schedule-rename-open"]'));
     assert.equal($(card, '[data-act="schedule-move"]'), null);
   });
 
-  test('a menu opened by a button on the right, as the page\'s ⋮ above the card, lines up with the button\'s right edge', () => {
-    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' });
+  test('a menu opened by a button on the right, as the page\'s ⋮ above the card, lines up with the button\'s right edge', async () => {
+    const card = createCard(fakeHass(), { schedule_tabs: 'one', schedule: 'away' }); await settle();
     $(card, 'ha-card').getBoundingClientRect = () => ({ left: 100, right: 900, top: 60, bottom: 700, width: 800 });
     const button = document.createElement('button');
     button.getBoundingClientRect = () => ({ left: 860, right: 892, top: 8, bottom: 40, width: 32 });
-    openScheduleMenuFrom(card, button);
+    openScheduleMenuFrom(card, button); await settle();
     assert.equal(menu(card).style.right, '8px');
     assert.equal(menu(card).style.left, '');
     assert.equal(menu(card).style.top, '-16px');
@@ -225,59 +225,59 @@ describe('the "⋮" menu of the open schedule', () => {
 
   test('deletes it after a confirmation', async () => {
     const hass = fakeHass();
-    const card = createCard(hass);
-    openMenu(card, 'holiday');
-    click(card, '[data-act="schedule-delete"]');
+    const card = createCard(hass); await settle();
+    await openMenu(card, 'holiday'); await settle();
+    click(card, '[data-act="schedule-delete"]'); await settle();
     assert.deepEqual(schedulesSet(hass), []);
     assert.match(menu(card).textContent, /Supprimer « Vacances » et ses semaines/);
-    click(card, '[data-act="schedule-delete-confirm"]');
+    click(card, '[data-act="schedule-delete-confirm"]'); await settle();
     await flush();
     assert.deepEqual(schedulesSet(hass)[0].schedules, [{ id: 'normal' }, { id: 'away' }]);
   });
 
-  test('a schedule used by the activation rules cannot be deleted', () => {
+  test('a schedule used by the activation rules cannot be deleted', async () => {
     const data = { ...integrationData(), rules: [{ template: '{{ true }}', schedule: 'holiday' }], default_schedule: 'away', rule_results: [true] };
-    const card = createCard(fakeHass({ data }));
+    const card = createCard(fakeHass({ data })); await settle();
     for (const id of ['holiday', 'away']) {
-      openMenu(card, id);
+      await openMenu(card, id); await settle();
       assert.equal($(card, '[data-act="schedule-delete"]').disabled, true);
       assert.match(menu(card).textContent, /Une règle d’activation utilise ce planning/);
     }
   });
 
-  test('the active schedule cannot be deleted', () => {
-    const card = createCard(fakeHass());
-    openMenu(card, 'normal');
+  test('the active schedule cannot be deleted', async () => {
+    const card = createCard(fakeHass()); await settle();
+    await openMenu(card, 'normal'); await settle();
     assert.equal($(card, '[data-act="schedule-delete"]').disabled, true);
     assert.match(menu(card).textContent, /planning actif ne peut pas être supprimé/);
   });
 });
 
 describe('closing the menus', () => {
-  test('a click elsewhere, Cancel, or the same button again', () => {
-    const card = createCard(fakeHass());
-    openMenu(card, 'away');
-    click(card, '.legend');
+  test('a click elsewhere, Cancel, or the same button again', async () => {
+    const card = createCard(fakeHass()); await settle();
+    await openMenu(card, 'away'); await settle();
+    click(card, '.legend'); await settle();
     assert.equal(menu(card), null);
-    click(card, '[data-act="schedule-new"]');
-    click(card, '[data-act="schedule-pick"][data-copy=""]');
-    click(card, '[data-act="schedule-close"]');
+    click(card, '[data-act="schedule-new"]'); await settle();
+    click(card, '[data-act="schedule-pick"][data-copy=""]'); await settle();
+    click(card, '[data-act="schedule-close"]'); await settle();
     assert.equal(menu(card), null);
-    click(card, '[data-act="schedule-menu"]');
-    click(card, '[data-act="schedule-menu"]');
+    click(card, '[data-act="schedule-menu"]'); await settle();
+    click(card, '[data-act="schedule-menu"]'); await settle();
     assert.equal(menu(card), null);
   });
 
-  test('Escape', () => {
-    const card = createCard(fakeHass());
-    click(card, '[data-act="schedule-new"]');
-    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  test('Escape', async () => {
+    const card = createCard(fakeHass()); await settle();
+    click(card, '[data-act="schedule-new"]'); await settle();
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })); await settle();
     assert.equal(menu(card), null);
   });
 });
 
-test('with many schedules, the tabs keep a minimum width and scroll sideways; the "+" stays in place', () => {
-  const card = createCard(fakeHass());
+test('with many schedules, the tabs keep a minimum width and scroll sideways; the "+" stays in place', async () => {
+  const card = createCard(fakeHass()); await settle();
   const scroller = $(card, '.tabs > .tabs-wrap > .tabs-scroll');
   assert.equal(scroller.querySelectorAll('.tab').length, 3);
   assert.ok(scroller.querySelector('[data-act="schedule-menu"]'), 'the ⋮ goes with its tab');
@@ -297,8 +297,8 @@ function scrollable(el, { width, client, left = 0 }) {
   Object.defineProperty(el, 'scrollLeft', { configurable: true, get: () => x, set: (v) => { x = Math.max(0, Math.min(v, width - client)); } });
 }
 
-test('an arrow on a side of the tabs shows that more schedules are hidden there, and scrolls to them', () => {
-  const card = createCard(fakeHass());
+test('an arrow on a side of the tabs shows that more schedules are hidden there, and scrolls to them', async () => {
+  const card = createCard(fakeHass()); await settle();
   const scroller = $(card, '.tabs-scroll');
   const wrap = $(card, '.tabs-wrap');
   const shown = () => ['more-left', 'more-right'].map((c) => wrap.classList.contains(c));
@@ -306,20 +306,20 @@ test('an arrow on a side of the tabs shows that more schedules are hidden there,
   assert.deepEqual([...wrap.querySelectorAll('[data-tabs-scroll]')].map((a) => a.dataset.tabsScroll), ['left', 'right']);
   assert.deepEqual(shown(), [false, false], 'every tab fits: no arrow, no fade');
   scrollable(scroller, { width: 600, client: 300 });
-  scroller.dispatchEvent(new window.Event('scroll'));
+  scroller.dispatchEvent(new window.Event('scroll')); await settle();
   assert.deepEqual(shown(), [false, true]);
-  $(card, '[data-tabs-scroll="right"]').click();
+  $(card, '[data-tabs-scroll="right"]').click(); await settle();
   assert.equal(scroller.scrollLeft, 240, 'most of a width, so the tab cut at the edge shows whole');
   assert.deepEqual(shown(), [true, true]);
-  $(card, '[data-tabs-scroll="right"]').click();
+  $(card, '[data-tabs-scroll="right"]').click(); await settle();
   assert.deepEqual(shown(), [true, false]);
-  $(card, '[data-tabs-scroll="left"]').click();
+  $(card, '[data-tabs-scroll="left"]').click(); await settle();
   assert.equal(scroller.scrollLeft, 60);
   assert.equal($(card, '[data-tabs-scroll="right"]').getAttribute('aria-label'), 'Plannings suivants');
 });
 
-test('the tabs scroll natively, with no scrollbar: a fade where schedules are hidden, arrows over it with a mouse', () => {
-  const card = createCard(fakeHass());
+test('the tabs scroll natively, with no scrollbar: a fade where schedules are hidden, arrows over it with a mouse', async () => {
+  const card = createCard(fakeHass()); await settle();
   const css = card.shadowRoot.querySelector('style').textContent;
   assert.match(css, /\.tabs-scroll \{[^}]*overflow-x:auto;[^}]*scrollbar-width:none/);
   assert.match(css, /.tabs-wrap.more-right .tabs-scroll { mask-image/);
@@ -329,13 +329,13 @@ test('the tabs scroll natively, with no scrollbar: a fade where schedules are hi
   const scroller = $(card, '.tabs-scroll');
   scrollable(scroller, { width: 600, client: 300 });
   const wheel = new window.WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
-  scroller.dispatchEvent(wheel);
+  scroller.dispatchEvent(wheel); await settle();
   assert.equal(wheel.defaultPrevented, false);
   assert.equal(scroller.scrollLeft, 0);
 });
 
-test('on load, the tabs show the active schedule, however far it is, with its ⋮ clear of the fade', () => {
-  const card = createCard(fakeHass({ schedule: 'Vacances' }));
+test('on load, the tabs show the active schedule, however far it is, with its ⋮ clear of the fade', async () => {
+  const card = createCard(fakeHass({ schedule: 'Vacances' })); await settle();
   const scroller = $(card, '.tabs-scroll');
   const on = $(card, '.tab.on');
   assert.equal(on.dataset.schedule, 'holiday');
@@ -350,26 +350,26 @@ test('on load, the tabs show the active schedule, however far it is, with its �
   assert.equal(scroller.scrollLeft, 830 + 32 - 300);
 });
 
-test('an arrow scrolls smoothly with the browser\'s own animation, which stops when the user scrolls', () => {
-  const card = createCard(fakeHass());
+test('an arrow scrolls smoothly with the browser\'s own animation, which stops when the user scrolls', async () => {
+  const card = createCard(fakeHass()); await settle();
   const scroller = $(card, '.tabs-scroll');
   scrollable(scroller, { width: 600, client: 300 });
   const calls = [];
   scroller.scrollBy = (options) => calls.push(options);
-  $(card, '[data-tabs-scroll="right"]').click();
+  $(card, '[data-tabs-scroll="right"]').click(); await settle();
   assert.deepEqual(calls, [{ left: 240, behavior: 'smooth' }]);
 });
 
 
 test('a hidden card (no width) measures its tabs once more after drawing, not on every frame', async () => {
-  const card = createCard(fakeHass());
+  const card = createCard(fakeHass()); await settle();
   $(card, 'ha-card').updateComplete = Promise.resolve();
   const frames = [];
   let asked = 0;
   const raf = globalThis.requestAnimationFrame;
   globalThis.requestAnimationFrame = (f) => { asked += 1; frames.push(f); return asked; };
   try {
-    redraw(card);
+    await redraw(card);
     for (let i = 0; i < 5; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 0));
       for (const f of frames.splice(0)) f(); // a frame passes; the card is still hidden
@@ -380,18 +380,18 @@ test('a hidden card (no width) measures its tabs once more after drawing, not on
   }
 });
 
-test('with the access level Use, no "+" or "⋮" (#99)', () => {
+test('with the access level Use, no "+" or "⋮" (#99)', async () => {
   const hass = fakeHass();
   hass.user = { is_admin: false };
-  const card = createCard(hass);
+  const card = createCard(hass); await settle();
   assert.equal($(card, '[data-act="schedule-new"]'), null);
   assert.equal($(card, '[data-act="schedule-menu"]'), null);
 });
 
-test('in English', () => {
-  const card = createCard(fakeHass({ locale: { language: 'en' } }));
-  openMenu(card, 'normal');
+test('in English', async () => {
+  const card = createCard(fakeHass({ locale: { language: 'en' } })); await settle();
+  await openMenu(card, 'normal'); await settle();
   assert.match(menu(card).textContent, /The active schedule cannot be deleted/);
-  click(card, '[data-act="schedule-rename-open"]');
+  click(card, '[data-act="schedule-rename-open"]'); await settle();
   assert.match(menu(card).textContent, /Id: normal/);
 });

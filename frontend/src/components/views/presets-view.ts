@@ -4,10 +4,10 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { coolColor, derivedCoolColor } from '../../colors.ts';
 import { MANUAL_PRESETS, SETTING_ATTRS, errorText, esc, hasNoPreset } from '../../common.ts';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
-import { captureButtonHtml, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, slotModeOn, valueOn } from '../../hvac.ts';
+import { captureButtonHtml, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettings, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
 import { deviceLinkHtml, deviceOf } from '../../links.ts';
-import { coolPresetTemperatureOf, presetTemperatureOf, targetOf } from '../../override-edit.ts';
-import { fitTemperature, presetsOf, sortedPresets, stepOf, stepperHtml } from '../../presets.ts';
+import { coolPresetTemperatureOf, presetTemperatureOf, presetValue, presetValueAnswered, targetOf } from '../../override-edit.ts';
+import { fitTemperature, presetsOf, sortedPresets, stepOf, stepper } from '../../presets.ts';
 import { parseSlot } from '../../slots.ts';
 import { placePopover, placeWhenDrawn } from '../shared/popover.ts';
 import { ChauffageView } from './view.ts';
@@ -34,8 +34,9 @@ export class ChauffagePresetsView extends ChauffageView {
   declare definitions: boolean;
   _cell: Cell | null = null;
   _cellError: string | null = null;
-  // What the empty cooling field gives, said again when the row chosen changes (_cellCoolNote)
-  _coolNote: string | null = null;
+  // What the empty cooling field gives follows the row chosen (_cellCoolNote): the value that row
+  // sets by hand. Undefined: no row chosen yet, the stored value
+  _coolFrom: any = undefined;
   // The thermostat whose row a slot's setpoint link asked for, brought into view once
   _targetShown: string | null = null;
   // The newest placing of the popover: an older one stops
@@ -158,7 +159,9 @@ export class ChauffagePresetsView extends ChauffageView {
     // set here, or the default)
     const what = (entity, l) => {
       const explicit = src.mapping(entity);
-      const target = this._targetOf(entity, l);
+      // Not known while the integration has not said: no value shown
+      const answered = this._targetOf(entity, l);
+      const target = answered || {};
       // An air conditioner that only cools has no heating value; one that cools has a cooling
       // value: its cooling temperature, else what its own preset gives when cooling
       const coolOnly = coolsOnly(this.hass, entity);
@@ -197,7 +200,7 @@ export class ChauffagePresetsView extends ChauffageView {
       // the thermostat's own preset when cooling is not known yet
       const coolUnknown = !heats && usable.includes('cool');
       if (coolUnknown && !cool) unknown = true;
-      const setpoint = cool ? html`${heat ? html`${heat} · ` : nothing}${cool}` : heat || (coolUnknown ? '?' : '—');
+      const setpoint = cool ? html`${heat ? html`${heat} · ` : nothing}${cool}` : heat || (coolUnknown ? '?' : answered ? '—' : nothing);
       return { value: html`${setpoint}${tuned}`, how, cls };
     };
     let body;
@@ -247,8 +250,8 @@ export class ChauffagePresetsView extends ChauffageView {
     // `attr`: data-cell-temp (heating) or data-cell-cool (cooling, empty without a value), with
     // its aria-label. Its − and its + move it by the thermostat's step (half a degree for a
     // preset's default)
-    const tempInput = (value, attr = 'data-cell-temp', label = t('presetTemperature')) => unsafeHTML(stepperHtml(this._loc, attr, value, 'cell-step',
-      sel.kind === 'thermostat' ? stepOf(this.hass, sel.climate) : 0.5, label));
+    const tempInput = (value, attrs: any = { 'data-cell-temp': true }, label = t('presetTemperature')) => stepper(this._loc, attrs, value, 'cell-step',
+      sel.kind === 'thermostat' ? stepOf(this.hass, sel.climate) : 0.5, label);
     if (sel.kind === 'thermostat') {
       const explicit = src.mapping(sel.climate)[preset.id] || {};
       const st = this.hass.states[sel.climate];
@@ -257,8 +260,10 @@ export class ChauffagePresetsView extends ChauffageView {
         .filter((p) => !MANUAL_PRESETS.includes(p.toLowerCase()))
         .sort((a, b) => +(b === preset.id) - +(a === preset.id));
       // What "default" gives: the thermostat's own preset of the same name (when the "use the
-      // thermostats' presets" option allows it), else the preset's default temperature
-      const defaults: any = this._cellDefaults(sel.climate, preset);
+      // thermostats' presets" option allows it), else the preset's default temperature. Not known
+      // while the integration has not said: "Default", with nothing more
+      const answered: any = this._cellDefaults(sel.climate, preset);
+      const defaults: any = answered || {};
       const degrees = (value) => `${this._loc.number(value)}°`;
       // An air conditioner that only cools: no heating value. Its own preset, or a cooling
       // temperature
@@ -274,7 +279,7 @@ export class ChauffagePresetsView extends ChauffageView {
       // temperature. The cell opens on what is stored; using a row's field chooses the row
       const choice = 'preset_mode' in explicit ? 'own' : 'temperature' in explicit ? 'temperature' : 'default';
       const temp = 'temperature' in explicit ? explicit.temperature
-        : presetTemperatureOf(src, sel.climate, this._targetOf(sel.climate, preset)) ?? preset.temperature ?? 19;
+        : presetTemperatureOf(src, sel.climate, this._targetOf(sel.climate, preset) || {}) ?? preset.temperature ?? 19;
       const radio = (name, checked) => (value, label, field = null, cls = '') => html`<label class="pv-row${cls}"><input type="radio" name=${name} value=${value} ?checked=${checked === value}>
           <span class=${cls === ' pv-cooldefault-row' ? 'pv-cooldefault' : nothing}>${label}</span>${field ? html`<span class="pv-field">${field}</span>` : nothing}</label>`;
       const picked = own.includes(explicit.preset_mode) ? explicit.preset_mode : own[0];
@@ -284,24 +289,25 @@ export class ChauffagePresetsView extends ChauffageView {
       // The cooling field opens on what the thermostat gets: its own value, else the default
       const coolDefault = coolPresetTemperatureOf(src, sel.climate, defaults);
       // Empty (its own preset's temperature is not known): the preset's cooling temperature, as a hint
-      const coolHint = preset.cool_temperature != null ? ` placeholder="${esc(this._loc.number(preset.cool_temperature))}"` : '';
-      const coolField = tempInput(cool ?? coolDefault, `data-cell-cool${coolHint}`, t('temperatureCoolAria'));
+      const coolHint = preset.cool_temperature != null ? this._loc.number(preset.cool_temperature) : null;
+      const coolField = tempInput(cool ?? coolDefault, { 'data-cell-cool': true, placeholder: coolHint }, t('temperatureCoolAria'));
       // Only cooling: one question, the default, one of its own presets, or a temperature
       const heatChoice = coolOnly && cool != null ? 'cool' : choice;
       const row = radio('cell-choice', heatChoice);
-      const rows = html`${row('default', t('presetAuto', { value: defaultText }))}${
+      const rows = html`${row('default', answered ? t('presetAuto', { value: defaultText }) : t('presetDefault'))}${
         own.length ? row('own', t('cellOwn'), html`<select data-cell-preset aria-label=${t('ownPreset')}>${options}</select>`) : nothing}${
         coolOnly ? row('cool', t('presetTemperature'), coolField, ' pv-cool')
-          : row('temperature', t('presetTemperature'), tempInput(temp, 'data-cell-temp', reversible ? t('temperatureHeatAria') : t('presetTemperature')))}`;
+          : row('temperature', t('presetTemperature'), tempInput(temp, { 'data-cell-temp': true }, reversible ? t('temperatureHeatAria') : t('presetTemperature')))}`;
       // An air conditioner that heats and cools: the same question when cooling, with the same
       // rows. The default says what the thermostat then gets: "Default (25°)", "Default (its
       // Eco preset, 27°)" or "Not used when cooling"; again when the row chosen changes
-      const fallback = this._coolNote ?? this._coolFallbackText(sel.climate, preset, 'preset_mode' in explicit ? { preset_mode: explicit.preset_mode } : null);
+      const fallback = this._coolFallbackText(sel.climate, preset, this._coolFrom !== undefined ? this._coolFrom
+        : 'preset_mode' in explicit ? { preset_mode: explicit.preset_mode } : null);
       const coolRow = radio('cell-cool-choice', cool != null ? 'temperature' : 'default');
       const cooling = !reversible ? nothing : html`<div class="pv-when">${hvacIconTemplate('cool')}${t('whenCooling')}</div>
         <div class="pv-choices" role="radiogroup">${coolRow('default', fallback, null, ' pv-cooldefault-row')}${coolRow('temperature', t('presetTemperature'), coolField, ' pv-cool')}</div>`;
       // The fan and the vanes, folded (lot 3)
-      const more = unsafeHTML(moreSettingsHtml(this.hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting'));
+      const more = moreSettings(this.hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting');
       // Its own presets are set on its device (their temperatures, on a Versatile Thermostat)
       const device = own.length ? deviceLinkHtml(this.hass, deviceOf(this.hass, sel.climate), t('ownPresetsOnDevice')) : '';
       const when = reversible ? html`<div class="pv-when">${hvacIconTemplate('heat')}${t('whenHeating')}</div>`
@@ -333,8 +339,8 @@ export class ChauffagePresetsView extends ChauffageView {
         <span>${t('presetName')}</span>
         <span class="pv-name">${cools ? nothing : color}
           <input type="text" data-cell-name value=${isNew ? '' : preset.name} placeholder=${t('presetName')}></span>
-        <span>${t(cools ? 'whenHeating' : 'presetDefaultTemperature')}</span>${tempInput(isNew ? 19 : preset.temperature, 'data-cell-temp', t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
-        ${cools ? html`<span>${t('whenCooling')}</span>${tempInput(isNew ? null : preset.cool_temperature, 'data-cell-cool', t('temperatureCoolAria'))}
+        <span>${t(cools ? 'whenHeating' : 'presetDefaultTemperature')}</span>${tempInput(isNew ? 19 : preset.temperature, { 'data-cell-temp': true }, t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
+        ${cools ? html`<span>${t('whenCooling')}</span>${tempInput(isNew ? null : preset.cool_temperature, { 'data-cell-cool': true }, t('temperatureCoolAria'))}
         <span>${t('presetHeatColor')}</span><span class="pv-name">${color}</span>
         <span>${t('presetCoolColor')}</span>
         <span class="pv-name"><input type="color" data-cell-cool-color ?data-chosen=${!!preset.cool_color} value=${coolColor(isNew ? { color: '#9e9e9e' } : preset)} title=${t('presetCoolColor')}></span>` : nothing}
@@ -380,11 +386,11 @@ export class ChauffagePresetsView extends ChauffageView {
     return false;
   }
 
-  // What a preset gives a thermostat by default, in each HVAC mode (valueOn without a value set
-  // by hand): its own preset of the same name when the option allows it, else the preset's
-  // temperature, for the HVAC modes the preset has a temperature for
+  // What a preset gives a thermostat by default, in each HVAC mode (without a value set by hand): its own preset of the same name when the option allows it, else the preset's
+  // temperature, for the HVAC modes the preset has a temperature for. Null while the integration
+  // has not said
   _cellDefaults(climate, preset) {
-    return valueOn(preset, null, this.hass, climate, this._source().usePresets());
+    return presetValue(this.hass, climate, preset, null);
   }
 
   // The cell popover takes the thermostat's current state (#91, lot 3): its setpoint, as the
@@ -431,11 +437,13 @@ export class ChauffagePresetsView extends ChauffageView {
   }
 
   // What an empty cooling field gives, in words: "Default (25°)", "Default (its Comfort preset,
-  // 25°)", or "Not used when cooling" when the preset has no value there. `cell`: the value
+  // 25°)", or "Not used when cooling" when the preset has no value there; "Default" while the
+  // integration has not said. `cell`: the value
   // being set by hand, without a cooling temperature
   _coolFallbackText(climate, preset, cell) {
     const t = this._loc.t;
-    const value = valueOn(preset, cell, this.hass, climate, this._source().usePresets());
+    const value = presetValue(this.hass, climate, preset, cell);
+    if (!value) return t('presetDefault'); // not known yet: nothing said about it
     if ('cool_temperature' in value) return t('presetAuto', { value: `${this._loc.number(value.cool_temperature)}°` });
     if (!('cool_preset_mode' in value)) return t('notWhenCooling');
     const temperature = this._source().coolPresetTemperature(climate, value.cool_preset_mode);
@@ -452,9 +460,9 @@ export class ChauffagePresetsView extends ChauffageView {
     const own = ((this.querySelector('.cell-ed [data-cell-preset]') || {}) as any).value;
     const preset = this._presets().find((l) => l.id === sel.preset);
     if (!preset) return;
-    const note = this._coolFallbackText(sel.climate, preset, choice === 'own' && own ? { preset_mode: own } : null);
-    if (note === this._coolNote) return;
-    this._coolNote = note;
+    const from = choice === 'own' && own ? { preset_mode: own } : null;
+    if (this._coolFrom !== undefined && JSON.stringify(from) === JSON.stringify(this._coolFrom)) return;
+    this._coolFrom = from;
     this.requestUpdate();
   }
 
@@ -481,7 +489,7 @@ export class ChauffagePresetsView extends ChauffageView {
 
   _openCell(cell: Cell | null) {
     this._cell = cell;
-    this._coolNote = null;
+    this._coolFrom = undefined;
   }
 
   async _action(act, ds, el) {
@@ -555,9 +563,10 @@ export class ChauffagePresetsView extends ChauffageView {
         }
         for (const attr of SETTING_ATTRS) if (value(`[data-cell-setting="${attr}"]`)) target[attr] = value(`[data-cell-setting="${attr}"]`);
         // Its own preset of the same name, chosen by hand: the default, so nothing more is stored
+        // (once the integration has said what the default is)
         const preset = presets.find((l) => l.id === sel.preset);
-        const defaults: any = this._cellDefaults(sel.climate, preset);
-        if (target.preset_mode && target.preset_mode === defaults.preset_mode) delete target.preset_mode;
+        const defaults: any = target.preset_mode ? await presetValueAnswered(this.hass, sel.climate, preset, null) : null;
+        if (target.preset_mode && defaults && target.preset_mode === defaults.preset_mode) delete target.preset_mode;
         const mapping = { ...src.mapping(sel.climate) };
         if (Object.keys(target).length) mapping[sel.preset] = target; else delete mapping[sel.preset];
         // The same as what is stored (the default kept): nothing to send

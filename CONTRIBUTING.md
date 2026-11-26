@@ -214,6 +214,15 @@ Each test gets a new subscription to the integration: `fakeHass` calls `resetCli
 A Lit element draws after the current task, not at once. After an action, `await settle()` before you
 read the element.
 
+The card asks the integration what a preset is worth on a thermostat it does not schedule yet
+(`chauffage/preset/preview`). The fake integration answers with `valueOn`, in
+`tests/js/helpers.mjs`, and keeps these questions in `hass.presetPreviews`, not in `hass.events`.
+The answer comes after the current task too: `await settle()` waits for it.
+
+To test the card while an answer is on its way, set `hass.presetPreviewAnswers = 'hold'`. The
+fake integration then answers only when you call `hass.answerPresetPreviews()`. To test an
+integration that gives no answer, set `hass.presetPreviewAnswers = 'fail'`.
+
 ### The card's TypeScript
 
 The card tests run the TypeScript sources without a build: Node removes the types. So:

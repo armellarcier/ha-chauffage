@@ -1,4 +1,6 @@
 import { html, nothing } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
+import { attributes } from './components/shared/attributes.ts';
 import { dataSource } from './client/snapshot.ts';
 import { DARK_TEXT } from './colors.ts';
 import { HVAC_ORDER, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, esc, slotMode, slotSettings, withSettings } from './common.ts';
@@ -125,10 +127,8 @@ export const FAN_STYLE = `
   .seg.fan, .presets button.fan-chip { color:${DARK_TEXT}; }
   ${CHIP_STYLE}
 `;
-export const hvacIcon = (mode) => (mode ? `<ha-icon icon="${esc(HVAC_ICONS[mode] || 'mdi:thermostat')}"></ha-icon>` : '');
-// The same icon, in a Lit template
+// Home Assistant's icon of an HVAC mode
 export const hvacIconTemplate = (mode) => (mode ? html`<ha-icon icon=${HVAC_ICONS[mode] || 'mdi:thermostat'}></ha-icon>` : nothing);
-export const hvacIconHtml = (mode) => (mode ? `<span class="m">${hvacIcon(mode)}</span>` : '');
 // A number typed by hand, with either decimal separator ("20,5" or "20.5"); NaN for anything else
 export const parseDecimal = (text) => (String(text).trim() === '' ? NaN : Number(String(text).trim().replace(',', '.')));
 // The HVAC modes a thermostat lists, and the ones that turn it on
@@ -196,35 +196,6 @@ export function slotOn(hass, climate, seg) {
   return withSettings(seg, slotSettings({ ...airSettings(seg), ...(mode ? { hvac_mode: mode } : {}) }));
 }
 export const dayOn = (hass, climate, segs) => segs.map((seg) => slotOn(hass, climate, seg));
-// What a preset means on a thermostat, for each HVAC mode: the integration's rule
-// (engine.value_on), for a thermostat the integration does not know yet and for what a popover
-// is about to save. When heating: preset_mode or temperature. When cooling, on a thermostat
-// that cools: cool_preset_mode or cool_temperature. In heat/cool, on a thermostat that takes a
-// range: target_temp_low and target_temp_high. `cell`: the value set by hand on the thermostat
-export function valueOn(preset, cell, hass, climate, usePresets = true) {
-  const set = cell || {};
-  const st = stateOf(hass, climate);
-  const own = usePresets && st && (st.attributes.preset_modes || []).map(String).includes(preset.id) ? preset.id : null;
-  const heat = preset.temperature ?? null;
-  const cool = preset.cool_temperature ?? null;
-  const out: any = {};
-  if ('preset_mode' in set) out.preset_mode = set.preset_mode;
-  else if ('temperature' in set) out.temperature = set.temperature;
-  else if (heat != null) Object.assign(out, own ? { preset_mode: own } : { temperature: heat });
-  if (listsMode(hass, climate, 'cool')) {
-    if ('cool_temperature' in set) out.cool_temperature = set.cool_temperature;
-    else if ('preset_mode' in set) out.cool_preset_mode = set.preset_mode;
-    else if (cool != null) Object.assign(out, own ? { cool_preset_mode: own } : { cool_temperature: cool });
-  }
-  const low = 'temperature' in set ? set.temperature : heat;
-  const high = 'cool_temperature' in set ? set.cool_temperature : cool;
-  if (setpointModesOf(hass, climate).includes('heat_cool') && low != null && high != null && low < high) {
-    out.target_temp_low = low;
-    out.target_temp_high = high;
-  }
-  for (const attr of SETTING_ATTRS) if (attr in set) out[attr] = set[attr];
-  return out;
-}
 // The HVAC modes a preset can be used in, from its value on a thermostat (engine.offered_modes):
 // those it has a value for. The one place of the card that says so
 export function presetModes(value) {
@@ -319,33 +290,33 @@ function ownSettingText(hass, climate, attr, loc) {
   return value == null || value === '' ? loc.t('keep') : loc.t('keepValue', { value: attributeValue(hass, climate, attr, value, loc) });
 }
 
-export function moreSettingsHtml(hass, climate, loc, settings, defaults, open, field = 'data-slot-setting', direct = []) {
+export function moreSettings(hass, climate, loc, settings, defaults, open, field = 'data-slot-setting', direct = []) {
   const t = loc.t;
   const options = settingOptionsOf(hass, climate);
   const attrs = SETTING_ATTRS.filter((attr) => attr in options || (settings && attr in settings));
-  if (!attrs.length) return '';
+  if (!attrs.length) return nothing;
+  // A row for each setting, a new one when its value changes: its select shows the value
   const row = (attr) => {
     const value = settings && settings[attr];
     const listed = options[attr] || [];
     const unsupported = value && !listed.includes(value);
     // Nothing set: the preset's value, else the thermostat gets its own back
     const fallback = defaults && defaults[attr] ? t('fromPreset', { value: attributeValue(hass, climate, attr, defaults[attr], loc) }) : ownSettingText(hass, climate, attr, loc);
-    const items = [`<option value=""${!value ? ' selected' : ''}>${esc(fallback)}</option>`]
-      .concat(unsupported ? [`<option value="${esc(value)}" class="unsupported" selected>${esc(t('unsupported', { value: attributeValue(hass, climate, attr, value, loc) }))}</option>`] : [])
-      .concat(listed.map((v) => `<option value="${esc(v)}"${value === v ? ' selected' : ''}>${esc(attributeValue(hass, climate, attr, v, loc))}</option>`));
-    return `<label class="more-row"><span>${esc(attributeName(attr, loc))}</span>
-      <select ${field}="${attr}"${listed.length ? '' : ' disabled'}>${items.join('')}</select></label>`;
+    return keyed(value || '', html`<label class="more-row"><span>${attributeName(attr, loc)}</span>
+      <select ${attributes({ [field]: attr })} ?disabled=${!listed.length}><option value="" ?selected=${!value}>${fallback}</option>${
+        unsupported ? html`<option value=${value} class="unsupported" selected>${t('unsupported', { value: attributeValue(hass, climate, attr, value, loc) })}</option>` : nothing}${
+        listed.map((v) => html`<option value=${v} ?selected=${value === v}>${attributeValue(hass, climate, attr, v, loc)}</option>`)}</select></label>`);
   };
   // `direct`: the settings shown at once, not folded (the fan speed of a fan-only or dry slot)
   const shown = attrs.filter((attr) => direct.includes(attr));
   const folded = attrs.filter((attr) => !direct.includes(attr));
-  const sight = shown.length ? `<div class="more-rows direct">${shown.map(row).join('')}</div>` : '';
+  const sight = shown.length ? html`<div class="more-rows direct">${shown.map(row)}</div>` : nothing;
   if (!folded.length) return sight;
   const foldedSettings = Object.fromEntries(Object.entries(settings || {}).filter(([attr]) => folded.includes(attr)));
   const set = folded.filter((attr) => attr in foldedSettings);
   const summary = settingsText(hass, climate, loc, foldedSettings) || t('moreSettings');
   // The summary is a button: it unfolds the rows, and says so with a chevron
-  return `${sight}<details class="more"${open || set.length ? ' open' : ''}><summary><span>${esc(summary)}</span><ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="more-rows">${folded.map(row).join('')}</div></details>`;
+  return html`${sight}<details class="more" ?open=${open || set.length > 0}><summary><span>${summary}</span><ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="more-rows">${folded.map(row)}</div></details>`;
 }
 
 // The capture button (#91, lot 3): fills the popover of a preset's value from the thermostat's

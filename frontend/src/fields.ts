@@ -1,4 +1,9 @@
-import { DAY_MIN, ICON_DOWN, ICON_UP, esc, minutesOf, parseDate } from './common.ts';
+import { html } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
+import { live } from 'lit/directives/live.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { DAY_MIN, ICON_DOWN, ICON_UP, minutesOf, parseDate } from './common.ts';
+import { attributes } from './components/shared/attributes.ts';
 import { DEFAULT_LOCALE } from './i18n/locale.ts';
 
 // ---------- stepped fields: a time, a duration ----------
@@ -37,29 +42,35 @@ const STEPPED_KINDS = {
 };
 const kindOf = (el) => STEPPED_KINDS[el.dataset.kind] || STEPPED_KINDS.time;
 
-// A stepped field of a `kind`, on `minutes`. `attr`: the attributes that say what it is for.
-function steppedField(kind, attr, minutes, loc, step, disabled = false) {
-  const off = disabled ? ' disabled' : '';
+// A stepped field of a `kind`, on `minutes`. `attrs`: the attributes that say what it is for. A
+// new value is a new field: a field keeps what is typed in it while its value stays the same.
+// A time field left shows the time it ends up with at the next redraw, even when that time does
+// not change, for example a time rounded back onto it: its hosts don't redraw while a time is
+// typed. A duration field keeps what is typed: the settings dialog redraws as the integration
+// pushes.
+function steppedField(kind, attrs, minutes, loc, step, disabled = false) {
   const k = STEPPED_KINDS[kind];
   // Out of the Tab order: the arrow keys do the same from the field
-  const button = (dir, icon, title) => `<button type="button" class="time-step" data-time-step="${dir}" tabindex="-1" title="${esc(title)}" aria-label="${esc(title)}"${off}>${icon}</button>`;
+  const button = (dir, icon, title) => html`<button type="button" class="time-step" data-time-step=${dir} tabindex="-1" title=${title} aria-label=${title} ?disabled=${disabled}>${unsafeHTML(icon)}</button>`;
   // Counting a character of Chinese or Japanese as two
   const width = [...k.widest(loc)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
   const [up, down] = k.titles(step, loc);
+  const shown = (value) => (kind === 'time' ? live(value) : value);
   // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
-  return `<span class="time-field"><input type="text" class="time" style="width:calc(${width}ch + 2px)" inputmode="numeric"
-    autocomplete="off" ${attr} data-kind="${kind}" data-step="${step}" data-minutes="${minutes}"${off} value="${esc(k.format(minutes, loc))}"><span
-    class="time-spin">${button(1, ICON_UP, up)}${button(-1, ICON_DOWN, down)}</span></span>`;
+  return keyed(`${minutes} ${loc.signature}`, html`<span class="time-field"><input type="text" class="time" style=${`width:calc(${width}ch + 2px)`} inputmode="numeric"
+    autocomplete="off" ${attributes(attrs)} data-kind=${kind} data-step=${step} data-minutes=${shown(String(minutes))} ?disabled=${disabled} .value=${shown(k.format(minutes, loc))}><span
+    class="time-spin">${button(1, ICON_UP, up)}${button(-1, ICON_DOWN, down)}</span></span>`);
 }
 
-export function timeField(attr, minutes, loc, step) {
-  return steppedField('time', attr, minutes, loc, step);
+// A time field: the start or the end of a slot, the end of an override
+export function timeField(attrs, minutes, loc, step) {
+  return steppedField('time', attrs, minutes, loc, step);
 }
 
 // A duration field, from `min` to `max` minutes by `step`: the duration of a change by hand, in
 // the settings dialog
-export function durationField(attr, minutes, loc, { step, min, max, disabled = false }) {
-  return steppedField('duration', `${attr} data-min="${min}" data-max="${max}"`, minutes, loc, step, disabled);
+export function durationField(attrs, minutes, loc, { step, min, max, disabled = false }) {
+  return steppedField('duration', { ...attrs, 'data-min': min, 'data-max': max }, minutes, loc, step, disabled);
 }
 
 // A duration typed by hand, read as a time is (parseTime), as hours and minutes: "4" is 4 h 00,

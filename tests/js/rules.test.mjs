@@ -16,7 +16,7 @@ function withRules({ rules = [RED, WHITE], results = [false, true], def = 'norma
 }
 
 async function openRules(hass) {
-  const card = createCard(hass, { view: 'rules' }); // the page of the Chauffage panel
+  const card = createCard(hass, { view: 'rules' }); await settle(); // the page of the Chauffage panel
   tryRulesAtOnce(card); // rules being typed are tried at once
   await settle();
   return card;
@@ -311,7 +311,7 @@ describe('in Home Assistant, where ha-card shows its content asynchronously', ()
       const area = $$(card, '.rule textarea')[1];
       area.focus();
       area.setSelectionRange(4, 4);
-      redraw(card);
+      await redraw(card);
       await new Promise((resolve) => setTimeout(resolve, 5));
       const now = card.shadowRoot.activeElement;
       assert.equal(now && now.dataset.ruleTemplate, '1');
