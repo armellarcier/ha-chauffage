@@ -99,7 +99,8 @@ class OverrideService:
         # override: a duration counted from the former start would be wrong.
         same_end = before is not None and all(
             parse_datetime(before.get(key)) == parse_datetime(override.get(key)) for key in ("start", "end"))
-        if override.get("end_rule") == NEXT_SLOT and self.next_slot_end(entity_id, current) == parse_datetime(override["end"]):
+        slot = self.next_slot_end(entity_id, current) if override.get("end_rule") == NEXT_SLOT else None
+        if slot is not None and slot == parse_datetime(override["end"]):
             pass  # "Until the next slot" on the card: checked here, not taken on trust
         elif same_end and "end_rule" in before:
             override["end_rule"] = before["end_rule"]

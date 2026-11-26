@@ -515,6 +515,15 @@ async def test_an_end_said_to_be_the_next_slot_that_is_not_says_nothing(bench: B
     assert "end_rule" not in bench.overrides()["climate.salon"]
 
 
+async def test_an_end_said_to_be_the_next_slot_without_a_next_slot_says_nothing(bench: Bench):
+    """No slot ahead, and an end the integration cannot read: neither is the next slot."""
+    await start(bench, schedules={"climate.salon": {"normal": every_day(("00:00", "eco"))}})
+    override = {"target": {"temperature": 22}, "start": at("10:00").isoformat(),
+                "end": "2026-10-12T22:30:00", "end_rule": "next_slot"}
+    await bench.set_override("climate.salon", override)
+    assert "end_rule" not in bench.overrides()["climate.salon"]
+
+
 async def test_an_end_moved_from_the_next_slot_no_longer_says_next_slot(bench: Bench):
     """+30 min on an override ending at the next slot: the card sends the former reason along."""
     await start(bench, WITHIN, hhmm="21:30")
