@@ -149,7 +149,7 @@ def async_describe_events(
         return t["hours_minutes"].format(h=minutes // 60, mm=f"{minutes % 60:02d}")
 
     def end_rule(data: dict[str, Any]) -> str | None:
-        """The rule that chose the end. An event recorded before stored data version 8 names it
+        """The rule that chose the end. An event recorded by 0.10 and earlier names it
         ends_at."""
         return data.get("end_rule") or data.get("ends_at")
 
