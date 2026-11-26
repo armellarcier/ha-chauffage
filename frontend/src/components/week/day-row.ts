@@ -2,15 +2,15 @@ import { html, nothing } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { ICON_MORE, todayIdx } from '../../common.ts';
 import { slotBar } from './slot-bar.ts';
-import type { WeekCard } from './week-card.ts';
+import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
 
 // The names shown, invisible, in every cell of the names column: each row sizes the column on
 // the longest one, so that all rows (separate grids) have the same column
-export const nameSizer = (card: WeekCard) => html`<span class="sizer" aria-hidden="true">${card._shown.map((c) => html`<span>${card._name(c)}</span>`)}</span>`;
+export const nameSizer = (card: ChauffageProgrammeCard) => html`<span class="sizer" aria-hidden="true">${card._shown.map((c) => html`<span>${card._name(c)}</span>`)}</span>`;
 
 // A row of days (in display order), drawn and edited through its first day: a bar per thermostat
 // shown, each with its ⋮
-export function dayRow(card: WeekCard, days: number[], showNow: boolean) {
+export function dayRow(card: ChauffageProgrammeCard, days: number[], showNow: boolean) {
   const d = days[0];
   const loc = card._loc;
   const multi = card._shown.length > 1;

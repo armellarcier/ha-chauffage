@@ -2,7 +2,7 @@ import type { ReactiveController } from 'lit';
 import { DAY_MIN, pct } from '../common.ts';
 import { dayOn } from '../hvac.ts';
 import { slotTexts } from '../components/week/slot-bar.ts';
-import type { WeekCard } from '../components/week/week-card.ts';
+import type { ChauffageProgrammeCard } from '../cards/programme-card.ts';
 
 // How far a finger moves sideways before it moves a time or a slot (#67), in pixels
 const TOUCH_SLOP = 8;
@@ -19,14 +19,14 @@ type Kept = { el: Element; attrs: [string, string | null][]; texts: [Text, strin
 // sliding over the week moves nothing; a finger moves a time once it has moved a few pixels
 // sideways, and a mostly vertical swipe is a scroll, which puts the slots back.
 export class SlotDrag implements ReactiveController {
-  card: WeekCard;
+  card: ChauffageProgrammeCard;
   drag: any = null;
   // When a whole slot or a handle was moved last: the click that follows opens no popover
   slotMovedAt = 0;
   handleMovedAt = 0;
   kept: Kept[] = [];
 
-  constructor(card: WeekCard) {
+  constructor(card: ChauffageProgrammeCard) {
     this.card = card;
     card.addController(this);
   }

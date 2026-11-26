@@ -4,7 +4,7 @@ import { todayIdx } from '../../common.ts';
 import { fullNames } from '../../hvac.ts';
 import { overrideBody, overrideSummary } from '../../override-edit.ts';
 import { PopoverPlacement } from '../../controllers/popover-placement.ts';
-import type { WeekCard } from './week-card.ts';
+import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
 
 // The popover of an override (the card's `_overrideSel`), under it: in the order of the more-info
 // block, what it is, then what changes it (overrideBody), and Resume the schedule. Opened from
@@ -15,7 +15,7 @@ export class ChauffageOverridePopover extends LitElement {
     card: { attribute: false, hasChanged: () => true },
   };
 
-  declare card: WeekCard;
+  declare card: ChauffageProgrammeCard;
   placement = new PopoverPlacement(this, {
     card: () => this.card,
     frame: () => this.card && this.card.renderRoot.querySelector('ha-card'),

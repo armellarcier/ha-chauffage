@@ -5,11 +5,11 @@ import { OFF_COLOR, dayOn, hvacIconTemplate, hvacSlotStyle, modeName, settingsTe
 import { overrideNamedMode, overrideSummary, overrideUntilText } from '../../override-edit.ts';
 import { rowPiece } from '../../override.ts';
 import { MEASURE_RAMP } from '../../history.ts';
-import type { WeekCard } from './week-card.ts';
+import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
 
 // What a slot shows inside its block: its start and its name, each when the block is wide enough
 // for it, and the marks of its HVAC mode and of the fan and the vanes it sets
-export function slotInner(card: WeekCard, start: number, end: number, s) {
+export function slotInner(card: ChauffageProgrammeCard, start: number, end: number, s) {
   const { t, l, alone } = slotTexts(card, start, end, s);
   const tuned = Object.keys(airSettings(s)).length ? html`<ha-icon class="air" icon="mdi:tune-variant"></ha-icon>` : nothing;
   return html`<span class=${`t${alone ? ' alone' : ''}`}>${t}${hvacIconTemplate(slotMode(s))}${tuned}</span><span class="l">${l}</span>`;
@@ -17,7 +17,7 @@ export function slotInner(card: WeekCard, start: number, end: number, s) {
 
 // The texts of a slot's block: its start `t` and its name `l`, each when the block is wide enough
 // for it; `alone` when its marks show without them
-export function slotTexts(card: WeekCard, start: number, end: number, s) {
+export function slotTexts(card: ChauffageProgrammeCard, start: number, end: number, s) {
   const loc = card._loc;
   const dur = end - start;
   const compact = card._shown.length > 1;
@@ -40,7 +40,7 @@ export function slotTexts(card: WeekCard, start: number, end: number, s) {
 // The history of a day drawn over its bar: the measured temperature and the setpoint applied
 // (over it); a setpoint far from the measured temperatures (frost protection at night…) stays on
 // the edge of the bar
-function history(card: WeekCard, climate: string, day: number) {
+function history(card: ChauffageProgrammeCard, climate: string, day: number) {
   const hd = card._historyOf(climate, day);
   if (!hd || !hd.current.length) return nothing;
   const scale = card._historyScale(climate, day);
@@ -67,7 +67,7 @@ function history(card: WeekCard, climate: string, day: number) {
 
 // A day shown larger: a scale in degrees (a line every 1, 2 or 5°), and the readout of the values
 // under the mouse or the finger
-function zoom(card: WeekCard, { lo, hi, y }) {
+function zoom(card: ChauffageProgrammeCard, { lo, hi, y }) {
   const step = hi - lo <= 6 ? 1 : hi - lo <= 12 ? 2 : 5;
   const marks = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) marks.push(v);
@@ -76,7 +76,7 @@ function zoom(card: WeekCard, { lo, hi, y }) {
 }
 
 // Override drawn over the schedule (only in the active schedule's tab), on a row of days
-function override(card: WeekCard, climate: string, days: number[]) {
+function override(card: ChauffageProgrammeCard, climate: string, days: number[]) {
   if (card._schedule !== card._activeSchedule()) return nothing;
   const d = card._overrides()[climate];
   const piece = rowPiece(card._overridePieces(climate), days);
@@ -109,7 +109,7 @@ function override(card: WeekCard, climate: string, days: number[]) {
 
 // The bar of a thermostat's row of days: its slots, the handles between them, the history, the
 // override and the current time. `stored`: the slots of the row's first day, as stored
-export function slotBar(card: WeekCard, climate: string, stored, days: number[], showNow: boolean) {
+export function slotBar(card: ChauffageProgrammeCard, climate: string, stored, days: number[], showNow: boolean) {
   const loc = card._loc;
   const d = days[0];
   const segs = dayOn(card._hass, climate, stored); // an air conditioner's slots heat or cool

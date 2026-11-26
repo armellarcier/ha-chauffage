@@ -7,12 +7,15 @@ import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { act, day, openMenu, openOverride, openSlot, redraw, save, selected, settle, unsaved } from './driver.mjs';
 import { shown } from './driver.mjs';
+import { client } from '../../frontend/src/client/chauffage-client.ts';
 
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 // One pixel per minute: clientX is a time of day in minutes
 const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
 const pointer = (el, type, clientX = 0) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
 const override = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+// The integration answers what a preset is worth on a thermostat: the card draws again
+const answerAboutAPreset = async (hass) => { client.preview(hass, 'climate.salon', { id: 'other', name: 'Other', color: '#000', temperature: 18 }); await settle(); };
 
 afterEach(() => cleanup());
 
@@ -45,6 +48,20 @@ describe('dragging a slot boundary', () => {
     pointer(handle, 'pointerup', 390);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
     assert.ok(!unsaved(card));
+  });
+
+  test('an answer of the integration during the drag leaves the handle and the slots where the drag left them', async () => {
+    const hass = fakeHass();
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
+    const handle = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]')).querySelector('.handle[data-idx="1"]'); // 06:30
+    pointer(handle, 'pointerdown', 390);
+    pointer(handle, 'pointermove', 420);
+    await answerAboutAPreset(hass);
+    pointer(handle, 'pointerup', 420); await settle();
+    assert.equal(day(card, 'climate.salon', 0)[1], '07:00 comfort');
+    const at = `${((420 / 1440) * 100).toFixed(3)}%`;
+    assert.equal($(card, '.bar[data-climate="climate.salon"][data-day="0"] .handle[data-idx="1"]').style.left, at);
+    assert.equal($(card, '.bar[data-climate="climate.salon"][data-day="0"] .seg[data-idx="1"]').style.left, at);
   });
 });
 
@@ -178,6 +195,19 @@ describe('dragging the end of an override', () => {
     pointer(handle, 'pointermove', 12 * 60 + 40);
     pointer(handle, 'pointerup');
         assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:45:00.000Z'); // 12:45 in Paris
+  });
+
+  test('in the card, an answer of the integration during the drag: the new end is sent and drawn', async () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
+    const handle = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]')).querySelector('.override-handle');
+    pointer(handle, 'pointerdown', 690);
+    pointer(handle, 'pointermove', 12 * 60 + 40);
+    await answerAboutAPreset(hass);
+    pointer(handle, 'pointerup'); await settle();
+    assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:45:00.000Z'); // 12:45 in Paris
+    const drawn = $(card, '.bar[data-climate="climate.salon"][data-day="0"] .override-handle').parentElement;
+    assert.equal(drawn.style.width, `${(((12 * 60 + 45 - 570) / 1440) * 100).toFixed(3)}%`);
   });
 
   test('in the more-info block: sets the new end', async () => {
@@ -546,6 +576,20 @@ describe('editing a slot', () => {
     assert.equal((await editor(card)).start.value, '06:20');
     $(card, '.editor input.time[data-edge="start"] + .time-spin [data-time-step="-1"]').click(); await settle();
     assert.equal(day(card, 'climate.salon', 0)[1], '06:15 comfort');
+  });
+
+  test('a start rounded back onto the start of the slot: the field shows the start the slot keeps', async () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    typeTime((await editor(card)).start, '06:37'); await settle(); // step 15 min
+    assert.equal(day(card, 'climate.salon', 0)[1], '06:30 comfort');
+    assert.equal($(card, '.editor input.time[data-edge="start"]').value, '06:30');
+  });
+
+  test('an end rounded back onto the end of the slot: the field shows the end the slot keeps', async () => {
+    const card = createCard(fakeHass(), { show: ['climate.salon'] }); await settle();
+    typeTime((await editor(card)).end, '08:34'); await settle();
+    assert.deepEqual(day(card, 'climate.salon', 0).slice(1, 3), ['06:30 comfort', '08:30 eco']);
+    assert.equal($(card, '.editor input.time[data-edge="end"]').value, '08:30');
   });
 
   test('a click outside closes the editor', async () => {

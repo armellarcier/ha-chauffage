@@ -8,7 +8,7 @@ import { panelPath } from '../../links.ts';
 import { setpointLine, slotSetpointText } from '../../override-edit.ts';
 import { modeChip, modeRow, offChip } from '../../presets.ts';
 import { PopoverPlacement } from '../../controllers/popover-placement.ts';
-import type { WeekCard } from './week-card.ts';
+import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
 
 // The popover of the slot selected (the draft's `selection`), under the slot: its times, its HVAC
 // mode and its preset, the setpoint it applies, the fan and the vanes, then Insert a slot and
@@ -19,7 +19,7 @@ export class ChauffageSlotPopover extends LitElement {
     card: { attribute: false, hasChanged: () => true },
   };
 
-  declare card: WeekCard;
+  declare card: ChauffageProgrammeCard;
   placement = new PopoverPlacement(this, {
     card: () => this.card,
     frame: () => this.card && this.card.renderRoot.querySelector('ha-card'),

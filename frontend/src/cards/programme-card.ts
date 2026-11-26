@@ -22,7 +22,8 @@ import { copyOfDay, joinAt, joined, normalize, serializeDay } from '../slots.ts'
 import { activateSchedule, scheduleMenu, scheduleMenuAction } from '../components/shared/schedule-menu.ts';
 import type { ScheduleMenuHost } from '../components/shared/schedule-menu.ts';
 import { entityLink } from '../components/shared/entity-link.ts';
-import { ChauffageWeekLegend } from '../components/week/legend.ts';
+import { noPresetModes, weekLegend } from '../components/week/legend.ts';
+import { weekGrid } from '../components/week/week-grid.ts';
 import { OverrideEndDrag } from '../controllers/override-end-drag.ts';
 import { SlotDrag } from '../controllers/slot-drag.ts';
 import { STYLE } from '../styles.ts';
@@ -261,7 +262,7 @@ export class ChauffageProgrammeCard extends LitElement {
     }
     // The integration answered what a preset is worth on a thermostat it does not schedule yet
     // (targetOf): the popovers and the legend say it
-    if (client.previewed !== this._answers) {
+    if (client.previewed !== this._answers && !this._slotDrag.active && !this._overrideEnd.active) {
       this._answers = client.previewed;
       need = true;
     }
@@ -287,7 +288,7 @@ export class ChauffageProgrammeCard extends LitElement {
       need = true;
     }
     if (need) this._render();
-    else this._updateLive();
+    else if (!this._slotDrag.active && !this._overrideEnd.active) this._updateLive();
     this._refreshHistory();
   }
 
@@ -1094,10 +1095,12 @@ export class ChauffageProgrammeCard extends LitElement {
     const maySave = !this._draft.dirty || (plannable && this._maySave());
     const panelOpen = this._panelOpen();
     const cw = this._copyWeekMenu;
+    // A week of a thermostat's page: the HVAC modes without a preset alone
+    const modes = weekOnly ? noPresetModes(this) : [];
     const foot = weekOnly
-      ? (ChauffageWeekLegend.hasNoPresetModes(this) ? html`<div class="foot"><chauffage-week-legend .card=${this} .modesOnly=${true}></chauffage-week-legend></div>` : nothing)
+      ? (modes.length ? html`<div class="foot"><div class="legend">${modes}</div></div>` : nothing)
       : html`<div class="foot">
-          <chauffage-week-legend .card=${this}></chauffage-week-legend>
+          ${weekLegend(this)}
           <div class="actions">
             ${plannable ? html`<button class=${`btn copyweek${cw ? ' on' : ''}`} data-act="copyweek-menu">${tr('copyWeekTo', { name: this._name(focus) })}</button>` : nothing}
             ${this._copyWeekMenuTemplate()}
@@ -1120,7 +1123,7 @@ export class ChauffageProgrammeCard extends LitElement {
         ${weekOnly ? nothing : html`${one ? html`<div class="no-tabs"></div>` : html`<div class="tabs"><div class="tabs-wrap"><div class="tabs-scroll">${tabs}</div>${tabsArrow('left')}${tabsArrow('right')}</div>${newTab}</div>`}
         ${scheduleMenu(this._scheduleMenuHost())}
         ${this._scheduleBar(active)}`}
-        <chauffage-week-grid .card=${this}></chauffage-week-grid>
+        ${weekGrid(this)}
         ${this._menuTemplate()}
         ${this._hint()}
         ${this._overrideSel ? html`<chauffage-override-popover .card=${this}></chauffage-override-popover>` : html`<chauffage-slot-popover .card=${this}></chauffage-slot-popover>`}

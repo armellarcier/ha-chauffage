@@ -1,5 +1,6 @@
 import { html } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
+import { live } from 'lit/directives/live.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { DAY_MIN, ICON_DOWN, ICON_UP, minutesOf, parseDate } from './common.ts';
 import { attributes } from './components/shared/attributes.ts';
@@ -42,7 +43,11 @@ const STEPPED_KINDS = {
 const kindOf = (el) => STEPPED_KINDS[el.dataset.kind] || STEPPED_KINDS.time;
 
 // A stepped field of a `kind`, on `minutes`. `attrs`: the attributes that say what it is for. A
-// new value is a new field: a field keeps what is typed in it while its value stays the same
+// new value is a new field: a field keeps what is typed in it while its value stays the same.
+// A time field left shows the time it ends up with at the next redraw, even when that time does
+// not change, for example a time rounded back onto it: its hosts don't redraw while a time is
+// typed. A duration field keeps what is typed: the settings dialog redraws as the integration
+// pushes.
 function steppedField(kind, attrs, minutes, loc, step, disabled = false) {
   const k = STEPPED_KINDS[kind];
   // Out of the Tab order: the arrow keys do the same from the field
@@ -50,9 +55,10 @@ function steppedField(kind, attrs, minutes, loc, step, disabled = false) {
   // Counting a character of Chinese or Japanese as two
   const width = [...k.widest(loc)].reduce((n, c) => n + (c >= '⺀' ? 2 : 1), 0);
   const [up, down] = k.titles(step, loc);
+  const shown = (value) => (kind === 'time' ? live(value) : value);
   // The number keypad on a phone, on a 12 h clock too: a time typed without AM / PM keeps the period
   return keyed(`${minutes} ${loc.signature}`, html`<span class="time-field"><input type="text" class="time" style=${`width:calc(${width}ch + 2px)`} inputmode="numeric"
-    autocomplete="off" ${attributes(attrs)} data-kind=${kind} data-step=${step} data-minutes=${minutes} ?disabled=${disabled} value=${k.format(minutes, loc)}><span
+    autocomplete="off" ${attributes(attrs)} data-kind=${kind} data-step=${step} data-minutes=${shown(String(minutes))} ?disabled=${disabled} .value=${shown(k.format(minutes, loc))}><span
     class="time-spin">${button(1, ICON_UP, up)}${button(-1, ICON_DOWN, down)}</span></span>`);
 }
 

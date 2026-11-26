@@ -1,18 +1,18 @@
 import type { ReactiveController } from 'lit';
 import { DAY_MIN, nowMin, pct } from '../common.ts';
 import { atMinutes } from '../fields.ts';
-import type { WeekCard } from '../components/week/week-card.ts';
+import type { ChauffageProgrammeCard } from '../cards/programme-card.ts';
 
 // Dragging the end of an override, by its handle, on the row of the day it ends. The gesture
 // changes the width of the override, the time of its tip and its label in place, as Lit drew
 // them; the release puts them back before the new end is sent, so that Lit draws the new end.
 export class OverrideEndDrag implements ReactiveController {
-  card: WeekCard;
+  card: ChauffageProgrammeCard;
   drag: any = null;
   // When a drag ended last: the click that follows does not open the popover
   endedAt = 0;
 
-  constructor(card: WeekCard) {
+  constructor(card: ChauffageProgrammeCard) {
     this.card = card;
     card.addController(this);
   }
