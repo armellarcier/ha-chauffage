@@ -148,13 +148,18 @@ def async_describe_events(
             return t["hours"].format(h=minutes // 60)
         return t["hours_minutes"].format(h=minutes // 60, mm=f"{minutes % 60:02d}")
 
+    def end_rule(data: dict[str, Any]) -> str | None:
+        """The rule that chose the end. An event recorded by 0.10 and earlier names it
+        ends_at."""
+        return data.get("end_rule") or data.get("ends_at")
+
     @callback
     def started(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
         end = parse_datetime(data.get("end"))
         source = t["sources"].get(data.get("source"), data.get("source"))
         # The rule that chose the end, when Chauffage computed it (#83)
-        why = t["ends"].get(data.get("end_rule"))
+        why = t["ends"].get(end_rule(data))
         message = (t["started_why"].format(value=value(data), end=until(end), source=source,
                                            why=why.format(duration=duration(data)))
                    if why else t["started"].format(value=value(data), end=until(end), source=source))
@@ -164,7 +169,7 @@ def async_describe_events(
     def ended(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
         # Expired: when it was meant to end, for a change by hand (#83)
-        at = t["ended_at"].get(data.get("end_rule")) if data.get("reason") == "expired" else None
+        at = t["ended_at"].get(end_rule(data)) if data.get("reason") == "expired" else None
         message = (at.format(duration=duration(data)) if at
                    else t["ended"].format(reason=t["reasons"].get(data.get("reason"), data.get("reason"))))
         return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
