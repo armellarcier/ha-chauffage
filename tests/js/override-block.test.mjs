@@ -272,17 +272,17 @@ afterEach(() => cleanup());
     test('until the next slot by default, however far (#77 without a script)', async () => {
       const override = await turnOff({});
       assert.deepEqual(override.target, OFF);
-      assert.deepEqual([override.end, override.ends_at], [next, 'next_slot']);
+      assert.deepEqual([override.end, override.end_rule], [next, 'next_slot']);
     });
 
     test('a week without a next slot', async () => {
       const override = await turnOff({}, { preset: 'eco', hvac_mode: null });
-      assert.deepEqual([override.end, override.ends_at], ['2026-10-19T08:00:00.000Z', undefined]);
+      assert.deepEqual([override.end, override.end_rule], ['2026-10-19T08:00:00.000Z', undefined]);
     });
 
     test('for the override duration', async () => {
       const override = await turnOff({ off_override_end: 'duration' });
-      assert.deepEqual([override.end, override.ends_at], ['2026-10-12T10:00:00.000Z', undefined]);
+      assert.deepEqual([override.end, override.end_rule], ['2026-10-12T10:00:00.000Z', undefined]);
     });
 
     test('for the override duration, or less if a slot starts first', async () => {
@@ -291,7 +291,7 @@ afterEach(() => cleanup());
       cleanup();
       const sooner = '2026-10-12T11:00:00+02:00';
       const override = await turnOff({ off_override_end: 'next_slot_within_duration' }, { preset: 'eco', hvac_mode: null, next_slot_end: sooner });
-      assert.deepEqual([override.end, override.ends_at], [sooner, 'next_slot']);
+      assert.deepEqual([override.end, override.end_rule], [sooner, 'next_slot']);
     });
 
     test('an integration older than the setting: the override duration, as before', async () => {
@@ -318,7 +318,7 @@ afterEach(() => cleanup());
       assert.equal(text(button), 'Jusqu\'à demain 06:30');
       button.click(); await settle();
       assert.equal(lastCall(hass).override.end, '2026-10-13T06:30:00+02:00');
-      assert.equal(lastCall(hass).override.ends_at, undefined);
+      assert.equal(lastCall(hass).override.end_rule, undefined);
     });
 
     test('not on an override that heats, nor when the override already ends then', async () => {
@@ -515,7 +515,7 @@ afterEach(() => cleanup());
 
     test('an off override says its end as the others do: its reason, which leads to the setting, the time left, what comes then', async () => {
       const end = '2026-10-13T06:30:00+02:00';
-      const hass = setup({ planned: planned('heat'), overrides: { [ATELIER]: { target: OFF, start: span.start, end, ends_at: 'next_slot' } } });
+      const hass = setup({ planned: planned('heat'), overrides: { [ATELIER]: { target: OFF, start: span.start, end, end_rule: 'next_slot' } } });
       const card = await cardOf(hass);
       click(card, `.override[data-climate="${ATELIER}"]`); await settle();
       assert.match(text($(card, '.override-ed .ed-head .muted')), /^demain, .+ ⚙ · encore .+ · puis .*Éco \(planning\)$/);
@@ -739,7 +739,7 @@ afterEach(() => cleanup());
   describe('an override that changes kind gets the end of its new kind', () => {
     onMondayAtTen();
     // Off since 09:30, until the next slot at 14:00 (the setting Turned off)
-    const off = override({ hvac_mode: 'off' }, { end: at('14:00'), ends_at: 'next_slot' });
+    const off = override({ hvac_mode: 'off' }, { end: at('14:00'), end_rule: 'next_slot' });
     const planned = { [SUITE]: { preset: 'eco', hvac_mode: 'heat', next_slot_end: at('14:00') } };
     const open = async (hass) => { const card = await cardOf(hass, { show: [SUITE] }); await showOverride(card, SUITE); return card; };
 
@@ -751,7 +751,7 @@ afterEach(() => cleanup());
       assert.equal(d.target.hvac_mode, 'cool');
       assert.equal(new Date(d.start).toISOString(), new Date(NOW).toISOString());
       assert.equal(new Date(d.end).toISOString(), new Date(at('12:00')).toISOString());
-      assert.equal(d.ends_at, undefined);
+      assert.equal(d.end_rule, undefined);
     });
 
     test('an off override set to a preset or to a temperature too', async () => {
@@ -760,7 +760,7 @@ afterEach(() => cleanup());
       await showOverride(card, SALON);
       click(card, '.override-ed [data-act="override-preset"][data-preset="comfort"]'); await settle();
       assert.equal(new Date(sent(hass).end).toISOString(), new Date(at('12:00')).toISOString());
-      assert.equal(sent(hass).ends_at, undefined);
+      assert.equal(sent(hass).end_rule, undefined);
     });
 
     test('an override turned off ends as the setting Turned off says', async () => {
@@ -770,7 +770,7 @@ afterEach(() => cleanup());
       const d = sent(hass);
       assert.deepEqual(d.target, { hvac_mode: 'off' });
       assert.equal(new Date(d.end).toISOString(), new Date(at('14:00')).toISOString());
-      assert.equal(d.ends_at, 'next_slot');
+      assert.equal(d.end_rule, 'next_slot');
     });
 
     test('an override that stays on keeps its end', async () => {

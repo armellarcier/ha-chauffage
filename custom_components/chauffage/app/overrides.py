@@ -53,8 +53,8 @@ def end_data(override: dict[str, Any]) -> dict[str, Any]:
     for key in ("start", "end"):
         if when := parse_datetime(override.get(key)):
             out[key] = dt_util.as_local(when).isoformat()
-    if override.get("ends_at"):
-        out["ends_at"] = override["ends_at"]
+    if override.get("end_rule"):
+        out["end_rule"] = override["end_rule"]
     return out
 
 
@@ -99,12 +99,12 @@ class OverrideService:
         # override: a duration counted from the former start would be wrong.
         same_end = before is not None and all(
             parse_datetime(before.get(key)) == parse_datetime(override.get(key)) for key in ("start", "end"))
-        if override.get("ends_at") == NEXT_SLOT and self.next_slot_end(entity_id, current) == parse_datetime(override["end"]):
+        if override.get("end_rule") == NEXT_SLOT and self.next_slot_end(entity_id, current) == parse_datetime(override["end"]):
             pass  # "Until the next slot" on the card: checked here, not taken on trust
-        elif same_end and "ends_at" in before:
-            override["ends_at"] = before["ends_at"]
+        elif same_end and "end_rule" in before:
+            override["end_rule"] = before["end_rule"]
         else:
-            override.pop("ends_at", None)
+            override.pop("end_rule", None)
         new_value = before is None or before["target"] != target
         left_alone = current is not None and ignored(current)  # sent when it is back
         to_send = None
@@ -202,12 +202,12 @@ class OverrideService:
         unbounded = setting == NEXT_SLOT
         override = self.new(target, MAX_MANUAL_OVERRIDE if unbounded else None)
         if setting == DURATION:
-            return override | {"ends_at": DURATION}
+            return override | {"end_rule": DURATION}
         # In the local time zone (not a fixed offset): the slots follow its DST changes
         start, end = (dt_util.as_local(parse_datetime(override[key])) for key in ("start", "end"))
         # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
         not_before = dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
         slot = self._runtime.plan().next_change(entity_id, start, current, not_before=not_before, until=end)
         if slot is not None:
-            return override | {"end": slot.isoformat(), "ends_at": NEXT_SLOT}
-        return override | {"ends_at": NO_NEXT_SLOT if unbounded else DURATION}
+            return override | {"end": slot.isoformat(), "end_rule": NEXT_SLOT}
+        return override | {"end_rule": NO_NEXT_SLOT if unbounded else DURATION}

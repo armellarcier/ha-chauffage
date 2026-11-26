@@ -15,7 +15,7 @@
   "overrides": {
     "climate.salon": {
       "end": "2026-10-12T12:00:00+02:00",
-      "ends_at": "duration",
+      "end_rule": "duration",
       "start": "2026-10-12T10:00:00+02:00",
       "target": {
         "temperature": 21.5

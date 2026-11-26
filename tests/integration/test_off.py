@@ -198,7 +198,7 @@ async def test_turning_the_thermostat_off_by_hand_during_an_on_slot_is_an_overri
     await bench.hass.async_block_till_done()
     override = bench.overrides()["climate.salon"]
     assert override["target"] == OFF
-    assert override["ends_at"] == "next_slot"  # by default, off until the next slot (see below)
+    assert override["end_rule"] == "next_slot"  # by default, off until the next slot (see below)
     await bench.go_to("17:29")
     assert bench.powered() == {}
     await bench.go_to("17:30")  # the override expires: back on, on its slot
@@ -374,7 +374,7 @@ async def test_a_thermostat_turned_off_by_hand_stays_off_until_the_next_slot_by_
     of the override duration, which is for setpoints."""
     await start_ac(bench)
     override = await turn_off(bench)
-    assert (override["target"], override["end"], override["ends_at"]) == (OFF, "2026-10-12T17:30:00+02:00", "next_slot")
+    assert (override["target"], override["end"], override["end_rule"]) == (OFF, "2026-10-12T17:30:00+02:00", "next_slot")
     await bench.go_to("17:29")
     assert bench.powered() == {}
     await bench.go_to("17:30")
@@ -384,19 +384,19 @@ async def test_a_thermostat_turned_off_by_hand_stays_off_until_the_next_slot_by_
 async def test_an_off_override_can_last_the_override_duration(bench: Bench):
     await start_ac(bench, options={"off_override_end": "duration"})
     override = await turn_off(bench)
-    assert (override["end"], override["ends_at"]) == ("2026-10-12T12:00:00+02:00", "duration")
+    assert (override["end"], override["end_rule"]) == ("2026-10-12T12:00:00+02:00", "duration")
 
 
 async def test_an_off_override_can_last_the_override_duration_or_less(bench: Bench):
     await start_ac(bench, "16:00", options={"off_override_end": "next_slot_within_duration"})
     override = await turn_off(bench)
-    assert (override["end"], override["ends_at"]) == ("2026-10-12T17:30:00+02:00", "next_slot")
+    assert (override["end"], override["end_rule"]) == ("2026-10-12T17:30:00+02:00", "next_slot")
 
 
 async def test_an_off_override_without_a_next_slot_lasts_a_week(bench: Bench):
     await start_ac(bench, "10:00", [["00:00", "eco"]])
     override = await turn_off(bench)
-    assert (override["end"], override["ends_at"]) == ("2026-10-19T10:00:00+02:00", "no_next_slot")
+    assert (override["end"], override["end_rule"]) == ("2026-10-19T10:00:00+02:00", "no_next_slot")
 
 
 async def test_off_on_the_card_says_it_ends_at_the_next_slot(bench: Bench):
@@ -405,16 +405,16 @@ async def test_off_on_the_card_says_it_ends_at_the_next_slot(bench: Bench):
     await start_ac(bench)
     end = bench.runtime.read_model.snapshot()["planned"][SALON]["next_slot_end"]
     off = bench.runtime.overrides.new(OFF, end=dt_util.parse_datetime(end))
-    await bench.set_override(SALON, off | {"ends_at": "next_slot"})
+    await bench.set_override(SALON, off | {"end_rule": "next_slot"})
     override = bench.overrides()[SALON]
-    assert (override["target"], override["end"], override["ends_at"]) == (OFF, "2026-10-12T17:30:00+02:00", "next_slot")
+    assert (override["target"], override["end"], override["end_rule"]) == (OFF, "2026-10-12T17:30:00+02:00", "next_slot")
 
 
 async def test_a_script_that_turns_a_thermostat_off_without_an_end_follows_the_setting(bench: Bench):
     await start_ac(bench)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": SALON, "hvac_mode": "off"}, blocking=True)
     override = bench.overrides()[SALON]
-    assert (override["end"], override["ends_at"]) == ("2026-10-12T17:30:00+02:00", "next_slot")
+    assert (override["end"], override["end_rule"]) == ("2026-10-12T17:30:00+02:00", "next_slot")
     await bench.hass.services.async_call(
         "chauffage", "set_override", {"entity_id": SALON, "hvac_mode": "off", "duration": 60}, blocking=True)
     assert bench.overrides()[SALON]["end"] == "2026-10-12T11:00:00+02:00"
@@ -424,7 +424,7 @@ async def test_the_end_of_off_overrides_does_not_change_the_end_of_the_others(be
     await start_ac(bench)
     await bench.manual_setpoint(SALON, 22.5)
     override = bench.overrides()[SALON]
-    assert (override["end"], override["ends_at"]) == ("2026-10-12T12:00:00+02:00", "duration")
+    assert (override["end"], override["end_rule"]) == ("2026-10-12T12:00:00+02:00", "duration")
 
 
 async def test_the_end_of_off_overrides_is_a_setting(bench: Bench, ws_client):

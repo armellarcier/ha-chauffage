@@ -15,7 +15,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
 
-STORAGE_VERSION = 7
+STORAGE_VERSION = 8
 STORAGE_MINOR_VERSION = 1
 SAVE_DELAY = 1  # seconds: several quick changes are written once
 
@@ -143,7 +143,16 @@ def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
     }
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6, 6: _v6_to_v7}
+def _v7_to_v8(data: dict[str, Any], language: str) -> dict[str, Any]:
+    """The rule that chose the end of an override: `ends_at` read like a date, so the key is
+    now `end_rule`, with the same values."""
+    def renamed(override: dict[str, Any]) -> dict[str, Any]:
+        return {("end_rule" if key == "ends_at" else key): value for key, value in override.items()}
+
+    return {**data, "overrides": {entity_id: renamed(o) for entity_id, o in data["overrides"].items()}}
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5, 5: _v5_to_v6, 6: _v6_to_v7, 7: _v7_to_v8}
 
 
 class ChauffageStore(Store[dict[str, Any]]):

@@ -261,7 +261,7 @@ function remainingText(min, loc) {
 function nextSlotButton(src, climate, d, loc) {
   const iso = (src.planned(climate) || {}).next_slot_end;
   const at = iso ? parseDate(iso) : null;
-  if (!at || d.ends_at === 'next_slot' || Math.floor(+at / 60000) === Math.floor(+parseDate(d.end) / 60000)) return nothing;
+  if (!at || d.end_rule === 'next_slot' || Math.floor(+at / 60000) === Math.floor(+parseDate(d.end) / 60000)) return nothing;
   return html`<button class="btn" data-act="override-next-slot" data-at=${iso}>${loc.t('untilNextSlot', { time: whenText(at, loc) })}</button>`;
 }
 
@@ -286,7 +286,7 @@ function tomorrowButton(src, climate, d, loc) {
   return html`<button class="btn" data-act="override-tomorrow" data-at=${iso}>${label}</button>`;
 }
 // The override `d` ended at the instant on the button, no longer "at the next slot"
-const endedAt = (d, at) => { const { ends_at: _, ...rest } = d; return { ...rest, end: at }; };
+const endedAt = (d, at) => { const { end_rule: _, ...rest } = d; return { ...rest, end: at }; };
 
 // What the schedule does now, until when, and what comes next: "Eco until 17:30, then Comfort"
 // (`plan` computed by the integration, like the schedule sensor: the next different preset, maybe
@@ -341,7 +341,7 @@ function offEndText(d, src, climate, hass, loc, end) {
   // Compared to the minute: the two ends are computed a few milliseconds apart
   if (!off || off === RESUME || Math.round(+parseDate(off.end) / 60000) === Math.round(+parseDate(end) / 60000)) return '';
   // On an override, the button of the next slot says its time just below: said in words
-  if (d && off.ends_at === 'next_slot') return loc.t('offUntilNextSlot', { off: modeName(loc, 'off') });
+  if (d && off.end_rule === 'next_slot') return loc.t('offUntilNextSlot', { off: modeName(loc, 'off') });
   return loc.t('offUntil', { off: modeName(loc, 'off'), when: whenText(parseDate(off.end), loc) });
 }
 
@@ -386,7 +386,7 @@ export function nextOverride(act, ds, d, src, climate, hass) {
   if (!d) return undefined;
   if (act === 'override-del') return RESUME;
   // The instant on the button: the one its label shows
-  if (act === 'override-next-slot') return { ...d, end: ds.at, ends_at: 'next_slot' };
+  if (act === 'override-next-slot') return { ...d, end: ds.at, end_rule: 'next_slot' };
   return act === 'override-tomorrow' ? endedAt(d, ds.at) : undefined;
 }
 
@@ -453,7 +453,7 @@ function overrideWithPreset(d, src, climate, preset, hass) {
 // duration, as a new override does
 function turnedOn(d, src) {
   if (!isOffOverride(d)) return d;
-  const { ends_at: _, start: _s, end: _e, ...rest } = d;
+  const { end_rule: _, start: _s, end: _e, ...rest } = d;
   return { ...rest, ...newOverride(src, {}) };
 }
 
@@ -484,7 +484,7 @@ function overrideWithHvac(d, src, climate, mode, hass) {
   const planned = (src.planned(climate) || {}).preset;
   const preset = offers(planned) ? planned : src.presets().map((l) => l.id).find(offers);
   const next = withHvac(preset ? targets[preset] : {}, mode);
-  const { ends_at: _, preset: _p, ...base } = d || newOverride(src, next);
+  const { end_rule: _, preset: _p, ...base } = d || newOverride(src, next);
   return { ...base, target: next, ...(preset ? { preset } : {}) };
 }
 
@@ -500,7 +500,7 @@ function newOffOverride(src, climate) {
   const setting = src.offOverrideEnd();
   const iso = (src.planned(climate) || {}).next_slot_end;
   if (setting === 'duration') return d;
-  if (iso && (setting === 'next_slot' || parseDate(iso) <= parseDate(d.end))) return { ...d, end: iso, ends_at: 'next_slot' };
+  if (iso && (setting === 'next_slot' || parseDate(iso) <= parseDate(d.end))) return { ...d, end: iso, end_rule: 'next_slot' };
   return setting === 'next_slot' ? { ...d, end: new Date(parseDate(d.start).getTime() + 7 * DAY_MIN * 60000).toISOString() } : d;
 }
 

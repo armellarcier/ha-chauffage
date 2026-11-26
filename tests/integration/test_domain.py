@@ -245,9 +245,9 @@ def test_overrides_are_validated():
 
 def test_an_override_keeps_why_it_ends_if_the_reason_is_known():
     base = {"target": {"temperature": 21}, "start": "a", "end": "b"}
-    assert schema.override({**base, "ends_at": "next_slot"}).to_stored()["ends_at"] == "next_slot"
-    assert schema.override({**base, "ends_at": "no_next_slot"}).to_stored()["ends_at"] == "no_next_slot"
-    assert "ends_at" not in schema.override({**base, "ends_at": "whenever"}).to_stored()
+    assert schema.override({**base, "end_rule": "next_slot"}).to_stored()["end_rule"] == "next_slot"
+    assert schema.override({**base, "end_rule": "no_next_slot"}).to_stored()["end_rule"] == "no_next_slot"
+    assert "end_rule" not in schema.override({**base, "end_rule": "whenever"}).to_stored()
 
 
 # ----- presets → climate presets or temperatures -----
