@@ -2160,3 +2160,22 @@ Claude proposes these two choices. The owner hasn't confirmed them yet.
 - **`store.py` stays at the root**, with its frozen migrations, not in `storage/store.py` and
   `storage/migrations.py`. The plan also says to keep `test_store.py` as it is, and this test
   imports `custom_components.chauffage.store`.
+
+#### The week editor in Lit (phase C5, a proposal)
+
+Claude made these choices while rewriting the week editor. The owner hasn't confirmed them yet.
+
+- **The card asks the integration what a preset is worth only for what its data lacks.** The
+  data of `chauffage/subscribe` gives `targets` for every thermostat Chauffage schedules. The
+  card asks `chauffage/preset/preview` for a thermostat it doesn't schedule yet, and for the
+  defaults of a cell of the presets tab. The page's client keeps each answer while the
+  thermostat lists the same modes and presets, and the cards draw again when an answer comes.
+- **While an answer is on its way, the card shows nothing for it.** The popover of a slot of a
+  thermostat not scheduled yet offers no preset for a moment, the first time. The legend asks
+  first, so the answer is usually there when the user opens a popover.
+- **The parts of the week editor are elements only where they have a life of their own.** The
+  week grid, the legend and the two popovers are elements, drawn again with the card. A row of
+  days and a bar are templates: the card holds their state, and the drags change them in place.
+- **The temperature of an override follows the thermostat, except while it is typed in.** The
+  field stays, and nothing puts back what was typed: a redraw doesn't touch a field being typed
+  in.
