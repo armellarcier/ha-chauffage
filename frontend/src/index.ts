@@ -10,6 +10,7 @@ import { ChauffageProgrammeCard } from './cards/programme-card.ts';
 import { ChauffageRoomsCard } from './cards/rooms-card.ts';
 import { ChauffageSummaryCard } from './cards/summary-card.ts';
 import { ChauffageThermostatCard, ChauffageThermostatCardEditor } from './cards/thermostat-card.ts';
+import { ChauffageRulesView } from './components/views/rules-view.ts';
 import { dataSource } from './client/snapshot.ts';
 import { ChauffageProgrammeCardEditor, ChauffageRoomsCardEditor, ChauffageSummaryCardEditor } from './editors.ts';
 import { makeLocale } from './i18n/locale.ts';
@@ -47,6 +48,7 @@ function defineElements() {
   if (!customElements.get('chauffage-summary-card-editor')) customElements.define('chauffage-summary-card-editor', ChauffageSummaryCardEditor);
   if (!customElements.get('chauffage-panel')) customElements.define('chauffage-panel', ChauffagePanel);
   if (!customElements.get(SETTINGS_DIALOG)) customElements.define(SETTINGS_DIALOG, ChauffageSettingsDialog);
+  if (!customElements.get('chauffage-rules-view')) customElements.define('chauffage-rules-view', ChauffageRulesView);
 }
 defineElements();
 // The integration's module is loaded in parallel with HA's frontend, which replaces

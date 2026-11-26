@@ -292,9 +292,10 @@ export async function saveRules(card) {
  * Internal: the card waits for a pause of 400 ms in the typing, on the real clock.
  */
 export function tryRulesAtOnce(card) {
-  card._previewDelay = 0;
-  card._previewKey = null;
-  card._render();
+  const view = $(card, 'chauffage-rules-view');
+  view._previewDelay = 0;
+  view._previewKey = null;
+  view.requestUpdate();
 }
 
 // ----- the page and the settings dialog -----

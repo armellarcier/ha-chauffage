@@ -52,6 +52,8 @@ export const STYLE = `
   :host { display:block; }
   ha-card { display:block; position:relative; padding:16px; overflow:visible; }
   ha-card.flat { padding:0; background:none; border:none; box-shadow:none; --ha-card-border-width:0; }
+  /* The views of the panel's pages, each its own element in the card */
+  chauffage-presets-view, chauffage-schedules-view, chauffage-thermostats-view, chauffage-rules-view { display:block; }
   select, input, button { font:inherit; color:var(--primary-text-color); }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
   .chip { border:1px solid var(--divider-color); background:var(--card-background-color); border-radius:16px;

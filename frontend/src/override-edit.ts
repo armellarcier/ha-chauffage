@@ -292,13 +292,19 @@ export const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
 // component, rendered asynchronously) has no height until it renders, so the page got shorter for
 // a moment and scrolled back to the top
 export function fillCard(root, style, html, cls = '') {
+  const card = cardFrame(root, style, cls);
+  card.innerHTML = html;
+  return card;
+}
+
+// The ha-card of a shadow root, with its style, given the classes `cls`; what it holds stays
+export function cardFrame(root, style, cls = '') {
   let card = root.querySelector('ha-card');
   if (!card) {
     root.innerHTML = `<style>${style}</style><ha-card></ha-card>`;
     card = root.querySelector('ha-card');
   }
   card.className = cls;
-  card.innerHTML = html;
   return card;
 }
 

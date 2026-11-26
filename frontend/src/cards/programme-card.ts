@@ -6,15 +6,14 @@ import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPre
 import { WeekDraft } from '../state/week-draft.ts';
 import { HistoryStore } from '../state/history-store.ts';
 import { OverrideDraft } from '../state/override-draft.ts';
-import { RulesDraft } from '../state/rules-draft.ts';
 import { chipStyle, coolColor, derivedCoolColor, presetColorIn, slotColor } from '../colors.ts';
-import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, plainRule, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
+import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { atMinutes, causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeField, timeFieldDone } from '../fields.ts';
 import { MEASURE_RAMP, SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, captureButtonHtml, captureState, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacIconHtml, hvacModesOf, hvacSlotStyle, isReversible, listsMode, modeName, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn, stateOf, valueOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
 import { LINK_TOKEN, deviceLabel, deviceLinkHtml, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, openPanel, panelPath, panelTitle, placements, placesHtml, thRow, thermostatDevices, weeksPath, withHtml } from '../links.ts';
-import { OVERRIDE_TEMPERATURE, RESUME, coolPresetTemperatureOf, fillCard, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, withoutAir } from '../override-edit.ts';
+import { OVERRIDE_TEMPERATURE, RESUME, cardFrame, coolPresetTemperatureOf, fillCard, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, withoutAir } from '../override-edit.ts';
 import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
 import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from '../presets.ts';
 import { INTEGRATION_PAGE, fromSettings, openSettings } from '../settings-dialog.ts';
@@ -22,8 +21,13 @@ import { copyOfDay, joinAt, joined, normalize, parseSlot, serializeDay } from '.
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
-// What Home Assistant reads as true or false in a template's text (any other text is false)
-const BOOLEAN_WORDS = ['true', 'false', 'on', 'off', 'yes', 'no', '1', '0', 'enable', 'disable'];
+// The views of the panel's pages (`view`), each its own element; the weeks are the card's own
+const VIEWS = {
+  presets: 'chauffage-presets-view',
+  schedules: 'chauffage-schedules-view',
+  thermostats: 'chauffage-thermostats-view',
+  rules: 'chauffage-rules-view',
+};
 // The card's options that only the Chauffage panel sets, for its pages: a page shows one view, a
 // thermostat's sheet stacks its weeks without their chips, tabs or foot, and saves them together
 const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'week_only', 'flat', 'preset_definitions', 'history'];
@@ -74,18 +78,11 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _placeToken: any;
   declare _placedKey: any;
   declare _placements: any;
-  declare _preview: any;
-  declare _previewDelay: any;
-  declare _previewKey: any;
-  declare _previewSub: any;
-  declare _previewTimer: any;
   declare _previewed: any;
   declare _readTouch: any;
   declare _redrawLater: any;
   declare _renderedDay: any;
   declare _rows: any;
-  declare _rulesDraft: RulesDraft;
-  declare _rulesStamp: any;
   declare _schedEd: any;
   declare _schedErr: any;
   declare _schedule: any;
@@ -106,6 +103,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _trial: any;
   declare _unlisten: any;
   declare _view: any;
+  declare _viewEl: any;
   declare _wantSchedule: any;
   declare _zoom: any;
 
@@ -124,9 +122,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._drag = null;
     this._stamp = undefined;
     this._msg = '';
-    this._rulesDraft = new RulesDraft(); // activation rules being edited
-    this._previewDelay = 400; // ms of pause in the typing before a rule is tried
-    this._preview = null; // last try of the rules shown ({ rules, data })
     this._lastClick = null;
     this._renderedDay = null;
     this._menu = null; // { climate, day, top, right } open row menu
@@ -278,11 +273,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
       }
       need = true;
     }
-    // Activation rules changed, or one became true or false: redraw the "Rules" view
-    if (src.stamps.rules !== this._rulesStamp) {
-      this._rulesStamp = src.stamps.rules;
-      if (this._view === 'rules') need = true;
-    }
     if (src.ready && this._wantSchedule && this._schedules().includes(this._wantSchedule)) {
       this._schedule = this._wantSchedule; // created from this card, or asked by its config
       this._wantSchedule = null;
@@ -397,9 +387,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     clearInterval(this._timer);
     if (this._unlisten) this._unlisten();
     this._unlisten = null;
-    clearTimeout(this._previewTimer);
-    this._closePreview();
-    this._previewKey = null;
     document.removeEventListener('pointerdown', this._onDocDown, true);
     document.removeEventListener('keydown', this._onKey);
   }
@@ -1353,16 +1340,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
     return JSON.stringify([this._sel, this._overrideSel && this._overrideSel.climate, cell]);
   }
 
-  // Redraws the card, keeping a schedule name being typed in a menu, and the caret of a rule's
-  // template being typed (the card is redrawn every 30 s during an override, or when Home
-  // Assistant sends new data)
+  // Redraws the card, keeping a schedule name being typed in a menu (the card is redrawn every
+  // 30 s during an override, or when Home Assistant sends new data)
   _render() {
     // Not while a time is typed: the redraw would take its field away
     if (focusedField(this.shadowRoot, 'input.time')) { this._redrawLater = true; return; }
     const input: any = this.shadowRoot.querySelector('.sched-menu input[data-sched-name]');
     const typing = input && { value: input.value, focused: this.shadowRoot.activeElement === input };
-    const area = focusedField(this.shadowRoot, '[data-rule-template]');
-    const rule = area && { idx: area.dataset.ruleTemplate, start: area.selectionStart, end: area.selectionEnd };
     const field = focusedField(this.shadowRoot, OVERRIDE_TEMPERATURE);
     const temperature = field ? field.value : null;
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
@@ -1380,9 +1364,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     this._tabsWait = false;
     this._placeTabs(tabsLeft);
     if (typing) this._restoreSchedName(typing.value, typing.focused);
-    if (rule) this._restoreRuleCaret(rule);
     if (temperature !== null) restoreTyped(this.shadowRoot, `.override-ed ${OVERRIDE_TEMPERATURE}`, temperature);
-    this._syncPreview();
   }
 
   // Many schedules: the tabs scroll sideways. A redraw keeps where they were scrolled; another
@@ -1422,20 +1404,11 @@ export class ChauffageProgrammeCard extends HTMLElement {
     tabs.parentElement.classList.toggle('more-right', tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
   }
 
-  // Focus and caret of a rule's template, again once ha-card (a Lit component, rendered
-  // asynchronously) shows its content, as for the schedule names below
-  _restoreRuleCaret({ idx, start, end }) {
-    const focus = () => {
-      const area: any = this.shadowRoot.querySelector(`textarea[data-rule-template="${idx}"]`);
-      if (!area) return;
-      area.focus();
-      area.setSelectionRange(start, end);
-    };
-    focus();
-    const card: any = this.shadowRoot.querySelector('ha-card');
-    if (card && card.updateComplete instanceof Promise) {
-      card.updateComplete.then(() => { if (card.isConnected) focus(); });
-    }
+  // The element of the view shown (`view`), created once
+  _viewElement() {
+    const tag = VIEWS[this._view];
+    if (!this._viewEl || this._viewEl.localName !== tag) this._viewEl = document.createElement(tag);
+    return this._viewEl;
   }
 
   // The name field of the schedule menus: its text, and the focus
@@ -1470,9 +1443,17 @@ export class ChauffageProgrammeCard extends HTMLElement {
       fill(`${this._thermostatsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
       return;
     }
-    if (this._view === 'rules' && this._source().ready) {
-      const msg = this._msg || (this._rulesDraft.edited ? tr('unsaved') : '');
-      fill(`${this._rulesViewHtml()}<div class="msg">${esc(msg)}</div>`);
+    // A view of the panel (`view`): its own element, kept while the card shows it
+    if (VIEWS[this._view] && this._source().ready) {
+      const frame = cardFrame(this.shadowRoot, STYLE, this._config.flat ? ' flat' : '');
+      const view = this._viewElement();
+      view.hass = this._hass;
+      view.loc = this._loc;
+      view.thermostats = this._thermostats;
+      view.panel = !!this._config.panel;
+      view.definitions = this._config.preset_definitions !== false;
+      if (frame.firstChild !== view || frame.childNodes.length !== 1) frame.replaceChildren(view);
+      view.requestUpdate();
       return;
     }
     if (!this._thermostats.length) {
@@ -1996,27 +1977,13 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
     // Typing a temperature for a thermostat's preset means "use a temperature"
     root.addEventListener('input', (e: any) => {
-      if (e.target.hasAttribute('data-rule-template')) {
-        const before = this._rulesDraft.edited;
-        this._editRules((d) => { d.rules[Number(e.target.dataset.ruleTemplate)].template = e.target.value; });
-        // Shows or hides Cancel, Save and "unsaved"; the text and the caret are kept
-        if (before !== this._rulesDraft.edited) this._render();
-        this._syncPreview();
-        return;
-      }
       if (e.target.hasAttribute('data-cell-temp')) this._cellChoose('temperature');
       if (e.target.hasAttribute('data-cell-cool')) this._cellChooseField(true);
     });
 
     root.addEventListener('change', (e) => {
       const el: any = e.target;
-      if (el.hasAttribute('data-rule-schedule')) {
-        this._editRules((d) => { d.rules[Number(el.dataset.ruleSchedule)].schedule = el.value || null; });
-        this._render();
-      } else if (el.hasAttribute('data-rules-default')) {
-        this._editRules((d) => { d.def = el.value || null; });
-        this._render();
-      } else if (el.hasAttribute('data-cell-preset')) {
+      if (el.hasAttribute('data-cell-preset')) {
         this._cellChoose('own'); // picking one of the thermostat's presets means "use it"
       } else if (el.matches('.cell-ed input[name="cell-choice"]')) {
         this._cellCoolNote();
@@ -2378,150 +2345,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   _settingsLinkHtml() {
     if (this._config.panel || !this._source().editable) return '';
     return `<span class="mi-link settings-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}">${esc(this._loc.t('setPresets'))}</span>`;
-  }
-
-  // Activation rules being edited ({ rules, def }), or the integration's when nothing is edited
-  _rulesShown() {
-    return this._rulesDraft.shown(this._source());
-  }
-
-  // The "Rules" view: one row per rule (template, the schedule it activates or "given by the
-  // template", what it gives now), then the schedule when no rule applies. Rules shown are tried
-  // by the integration as they are typed (_syncPreview); otherwise its results for the saved ones.
-  _rulesViewHtml() {
-    const t = this._loc.t;
-    const src = this._source();
-    const editable = src.editable;
-    const { rules, def } = this._rulesShown();
-    const saved = src.rules();
-    const results = src.ruleResults();
-    const schedules = this._schedules();
-    const options = (selected) => schedules
-      .map((id) => `<option value="${esc(id)}"${id === selected ? ' selected' : ''}>${esc(this._scheduleName(id))}</option>`).join('');
-    const ro = editable ? '' : ' disabled';
-    const live = this._preview && this._preview.data;
-    // What a rule gives now: tried while typed, or the integration's result for the same saved rule
-    const stateOf = (rule, i) => {
-      const tried = live && this._preview.rules[i];
-      if (tried && tried.template === rule.template && tried.schedule === (rule.schedule || null)) {
-        return { result: live.results[i], text: live.texts[i], error: live.errors[i], live: true };
-      }
-      const s = saved[i];
-      const same = s && s.template === rule.template.trim() && (s.schedule || null) === (rule.schedule || null);
-      return same ? { result: results[i] } : null;
-    };
-    const rows = rules.map((rule, i) => {
-      const st = rule.template.trim() ? stateOf(rule, i) : null;
-      let cls = 'unsaved';
-      let label = t('ruleUnsaved');
-      if (st && st.result == null) [cls, label] = ['error', t('ruleError')];
-      else if (st && !rule.schedule) [cls, label] = st.result ? ['true', `→ ${this._scheduleName(st.result)}`] : ['false', t('ruleNoSchedule')];
-      else if (st) [cls, label] = st.result ? ['true', t('ruleTrue')] : ['false', t('ruleFalse')];
-      let detail = '';
-      if (st && st.live && st.error) detail = st.error;
-      else if (st && st.live && st.text != null) {
-        detail = t('ruleText', { text: st.text });
-        const boolean = BOOLEAN_WORDS.includes(st.text.trim().toLowerCase());
-        if (rule.schedule && !boolean) detail += ` · ${t('ruleNotBoolean')}`;
-        if (!rule.schedule && !st.result) detail += ` · ${t(boolean ? 'ruleChooseSchedule' : 'ruleNamesNone')}`;
-      }
-      const tools = editable ? `<span class="rule-tools">
-          <button class="btn icon" data-act="rule-up" data-idx="${i}" title="${esc(t('ruleUp'))}"${i ? '' : ' disabled'}>↑</button>
-          <button class="btn icon" data-act="rule-down" data-idx="${i}" title="${esc(t('ruleDown'))}"${i < rules.length - 1 ? '' : ' disabled'}>↓</button>
-          <button class="btn icon" data-act="rule-delete" data-idx="${i}" title="${esc(t('delete'))}">✕</button></span>` : '';
-      return `<div class="rule">
-        <div class="rule-head"><span class="rule-num">${i + 1}</span><span class="rule-state ${cls}">${esc(label)}</span>${tools}</div>
-        <textarea data-rule-template="${i}" rows="2" spellcheck="false" placeholder="{{ is_state('sensor.edf_tempo_color', 'red') }}"${editable ? '' : ' readonly'}>${esc(rule.template)}</textarea>
-        ${detail ? `<div class="rule-result${st.error ? ' error' : ''}">${esc(detail)}</div>` : ''}
-        <label class="rule-then">${esc(t('ruleActivates'))} <select data-rule-schedule="${i}"${ro}>
-          <option value=""${rule.schedule ? '' : ' selected'}>${esc(t('ruleTemplateGives'))}</option>${options(rule.schedule)}</select></label>
-      </div>`;
-    }).join('');
-    // What the integration's rules give now, and a schedule chosen by hand meanwhile
-    let outcome = '';
-    if (saved.length) {
-      const first = saved.findIndex((_, i) => results[i]);
-      const given = first >= 0 ? saved[first].schedule || results[first] : src.defaultSchedule();
-      const active = this._activeSchedule();
-      outcome = !given ? t('rulesNoOutcome') : t('rulesOutcome', { schedule: this._scheduleName(given) });
-      if (given && active && given !== active) outcome += ` ${t('rulesByHand', { schedule: this._scheduleName(active) })}`;
-    }
-    const actions = editable ? `<div class="ed-actions start">
-        <button class="btn" data-act="rule-add">${esc(t('ruleAdd'))}</button>
-        ${this._rulesDraft.edited ? `<button class="btn" data-act="rules-cancel">${esc(t('cancel'))}</button>` : ''}
-        <button class="btn primary" data-act="rules-save"${this._rulesDraft.edited ? '' : ' disabled'}>${esc(t('save'))}</button></div>` : '';
-    return `<div class="rules-view">
-      <div class="muted">${esc(t('rulesIntro'))} <a class="rules-try" href="/developer-tools/template" target="_top">${esc(t('rulesTry'))}</a></div>
-      ${rules.length ? rows : `<div class="rules-empty muted">${esc(t('rulesEmpty'))}</div>`}
-      ${rules.length ? `<label class="rule-then rules-default">${esc(t('rulesOtherwise'))} <select data-rules-default${ro}>
-        <option value=""${def ? '' : ' selected'}>${esc(t('rulesKeep'))}</option>${options(def)}</select></label>` : ''}
-      ${outcome ? `<div class="rules-outcome">${esc(outcome)}</div>` : ''}
-      ${actions}
-    </div>`;
-  }
-
-  // The rules shown are tried by the integration (chauffage/rules/preview, canSetUp: a template
-  // can read any entity), again whenever their entities change; a new try once they are edited
-  // (after a short pause in the typing), none outside the "Rules" view
-  _syncPreview() {
-    if (!this._hass) return;
-    const src = this._source();
-    const rules = this._view === 'rules' && src.ready && src.editable && this._hass.connection
-      ? this._rulesShown().rules.map(plainRule) : [];
-    const key = JSON.stringify(rules);
-    if (key === this._previewKey) return;
-    this._previewKey = key;
-    clearTimeout(this._previewTimer);
-    this._closePreview();
-    if (!rules.length) return;
-    this._previewTimer = setTimeout(() => {
-      const sub: any = { rules, data: null };
-      this._previewSub = sub;
-      sub.unsub = this._hass.connection.subscribeMessage((data) => {
-        if (this._previewSub !== sub) return;
-        sub.data = data;
-        this._preview = sub; // kept while the next try starts: rules unchanged still show it
-        this._render();
-      }, { type: 'chauffage/rules/preview', rules });
-      sub.unsub.catch(() => {});
-    }, this._previewDelay);
-  }
-
-  _closePreview() {
-    if (!this._previewSub) return;
-    this._previewSub.unsub.then((unsub) => unsub()).catch(() => {});
-    this._previewSub = null;
-  }
-
-  // Edits the draft of the rules (see RulesDraft.edit)
-  _editRules(change) {
-    this._rulesDraft.edit(this._source(), change);
-    this._msg = '';
-  }
-
-  async _rulesAction(act, ds) {
-    const i = Number(ds.idx);
-    if (act === 'rule-add') {
-      this._editRules((d) => d.rules.push({ template: '', schedule: this._schedules()[0] }));
-    } else if (act === 'rule-up' || act === 'rule-down') {
-      const j = act === 'rule-up' ? i - 1 : i + 1;
-      this._editRules((d) => { [d.rules[i], d.rules[j]] = [d.rules[j], d.rules[i]]; });
-    } else if (act === 'rule-delete') {
-      this._editRules((d) => d.rules.splice(i, 1));
-    } else if (act === 'rules-cancel') {
-      this._rulesDraft.drop();
-      this._msg = '';
-    } else if (act === 'rules-save') {
-      try {
-        const { rules, def } = this._rulesDraft.toSave(this._source());
-        await this._commands().setRules(rules, def);
-        this._rulesDraft.drop();
-        this._msg = this._loc.t('saved');
-      } catch (err) {
-        this._msg = errorText(this._loc.t, err);
-      }
-    }
-    return this._render();
   }
 
   // The panel's Thermostats page: every scheduled thermostat, by name. A row says what matters
@@ -3336,7 +3159,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
       return changed && this._sendOverride(c, changed === RESUME ? null : changed);
     }
     if (act === 'cell' || act.startsWith('cell-') || (act === 'capture' && this._cell)) return this._cellAction(act, ds, el);
-    if (act.startsWith('rule-') || act.startsWith('rules-')) return this._rulesAction(act, ds);
     if (act === 'save') return this._save();
     if (act === 'cancel') return this._discard();
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));
