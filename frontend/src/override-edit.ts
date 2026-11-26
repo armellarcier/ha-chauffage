@@ -2,7 +2,7 @@ import { chipStyle } from './colors.ts';
 import { DAY_MIN, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, esc, hasNoPreset, minutesOf, parseDate, rangeText, slotMode } from './common.ts';
 import { durationText, endReasonText, roundDurationText, timeField } from './fields.ts';
 import { temperatureOf } from './history.ts';
-import { defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf } from './hvac.ts';
+import { defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf, valueOn } from './hvac.ts';
 import { isOffOverride, overrideHvac, overrideLabel, setpointHvac, targetKind } from './override.ts';
 import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from './presets.ts';
 import { parseDay } from './slots.ts';
@@ -117,6 +117,14 @@ function slotNameOn(hass, climate, seg, presets, loc) {
   const name = slotName(seg, presets, loc);
   const mode = hasNoPreset(seg) || !hasModeRow(hass, climate) ? null : slotModeOn(hass, climate, seg);
   return mode ? `${modeName(loc, mode)} · ${name}` : name;
+}
+
+// What a preset means for a thermostat: its mapping (as computed by the integration), else the
+// default for a thermostat the integration does not know yet
+export function targetOf(src, hass, climate, preset) {
+  const known = src.targets(climate)[preset.id];
+  if (known) return known;
+  return valueOn(preset, src.mapping(climate)[preset.id], hass, climate, src.usePresets());
 }
 
 // Temperature a preset gives a thermostat: its own for a temperature; for a preset, the one the
@@ -292,13 +300,19 @@ export const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
 // component, rendered asynchronously) has no height until it renders, so the page got shorter for
 // a moment and scrolled back to the top
 export function fillCard(root, style, html, cls = '') {
+  const card = cardFrame(root, style, cls);
+  card.innerHTML = html;
+  return card;
+}
+
+// The ha-card of a shadow root, with its style, given the classes `cls`; what it holds stays
+export function cardFrame(root, style, cls = '') {
   let card = root.querySelector('ha-card');
   if (!card) {
     root.innerHTML = `<style>${style}</style><ha-card></ha-card>`;
     card = root.querySelector('ha-card');
   }
   card.className = cls;
-  card.innerHTML = html;
   return card;
 }
 

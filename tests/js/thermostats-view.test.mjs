@@ -2,6 +2,7 @@
 // whether Chauffage controls it, where the dashboards show it; pause, resume, forget, schedule
 // another one (docs/decisions.md, "Scheduled thermostats" and "Chauffage panel and devices").
 import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { settle } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -48,32 +49,34 @@ function setup(more = {}) {
 }
 
 // The page of the panel: the card shows its Thermostats view alone
-function open(hass) {
-  return createCard(hass, { view: 'thermostats', panel: true });
+async function open(hass) {
+  const card = createCard(hass, { view: 'thermostats', panel: true });
+  await settle();
+  return card;
 }
 const row = (card, climate) => card.shadowRoot.querySelector(`.th-row[data-climate="${climate}"]`);
-const click = (card, climate, act) => row(card, climate).querySelector(`[data-act="${act}"]`).click();
+const click = async (card, climate, act) => { row(card, climate).querySelector(`[data-act="${act}"]`).click(); await settle(); };
 const menuOf = (card) => card.shadowRoot.querySelector('.th-menu');
 
 describe('the panel\'s "Thermostats" page', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  test('says what a paused control is', () => {
-    assert.equal(text(open(setup()).shadowRoot.querySelector('.th-hint')),
+  test('says what a paused control is', async () => {
+    assert.equal(text((await open(setup())).shadowRoot.querySelector('.th-hint')),
       'Chauffage pilote les thermostats programmés. Un thermostat au pilotage suspendu reste programmé : il garde ses semaines, mais Chauffage n\'y touche plus.');
   });
 
-  test('lists every scheduled thermostat by name; only a paused one has a badge, the exception', () => {
-    const card = open(setup());
+  test('lists every scheduled thermostat by name; only a paused one has a badge, the exception', async () => {
+    const card = await open(setup());
     const rows = [...card.shadowRoot.querySelectorAll('.th-row')].map((r) => r.dataset.climate);
     assert.deepEqual(rows, ['climate.bureau', 'climate.cuisine', 'climate.salon']);
     assert.equal(row(card, 'climate.salon').querySelector('.badge'), null);
     assert.match(text(row(card, 'climate.cuisine').querySelector('.badge')), /^Pilotage suspendu$/);
   });
 
-  test('its rows fill a card of their own, edge to edge; the texts, the link and the form to add one sit outside it', () => {
-    const card = open(setup());
+  test('its rows fill a card of their own, edge to edge; the texts, the link and the form to add one sit outside it', async () => {
+    const card = await open(setup());
     const list = card.shadowRoot.querySelector('.th-list');
     assert.deepEqual([...list.children].map((r) => r.dataset.climate), ['climate.bureau', 'climate.cuisine', 'climate.salon']);
     for (const outside of ['.th-hint', '.th-add', '.th-foot']) {
@@ -82,151 +85,151 @@ describe('the panel\'s "Thermostats" page', () => {
     }
   });
 
-  test('the whole row opens the thermostat\'s sheet in the panel, its chevron too, as the rows of the integration\'s page', () => {
-    const card = open(setup());
-    row(card, 'climate.salon').querySelector('.th-main').click();
+  test('the whole row opens the thermostat\'s sheet in the panel, its chevron too, as the rows of the integration\'s page', async () => {
+    const card = await open(setup());
+    row(card, 'climate.salon').querySelector('.th-main').click(); await settle();
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
     window.history.pushState(null, '', '/chauffage/thermostats');
-    row(card, 'climate.salon').querySelector('.th-chevron').click();
+    row(card, 'climate.salon').querySelector('.th-chevron').click(); await settle();
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
     window.history.pushState(null, '', '/chauffage/thermostats');
-    row(card, 'climate.salon').querySelector('.th-divider').click(); // the row's end, around its ⋮
+    row(card, 'climate.salon').querySelector('.th-divider').click(); await settle(); // the row's end, around its ⋮
     assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon');
     window.history.pushState(null, '', '/chauffage/thermostats');
-    click(card, 'climate.salon', 'thermostat-more');
+    await click(card, 'climate.salon', 'thermostat-more');
     assert.equal(window.location.pathname, '/chauffage/thermostats', 'its ⋮ opens its menu only');
   });
 
-  test('a row opens the thermostat\'s sheet with Enter or Space, as a link of Home Assistant', () => {
-    const card = open(setup());
+  test('a row opens the thermostat\'s sheet with Enter or Space, as a link of Home Assistant', async () => {
+    const card = await open(setup());
     for (const key of ['Enter', ' ']) {
       window.history.pushState(null, '', '/chauffage/thermostats');
       const link = row(card, 'climate.salon');
       link.focus();
-      link.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true }));
+      link.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true })); await settle();
       assert.equal(window.location.pathname, '/chauffage/thermostats/climate.salon', key);
     }
   });
 
-  test('its ⋮ opens a floating menu, as every ⋮ of the card: pause, open the thermostat, its devices by their names, forget it', () => {
+  test('its ⋮ opens a floating menu, as every ⋮ of the card: pause, open the thermostat, its devices by their names, forget it', async () => {
     const opened = [];
     const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
     document.addEventListener('hass-more-info', intercept);
     try {
-      const card = open(setup());
+      const card = await open(setup());
       assert.equal(menuOf(card), null);
       assert.equal(row(card, 'climate.salon').querySelector('[data-act="pause"]'), null); // not on the row
-      click(card, 'climate.salon', 'thermostat-more');
+      await click(card, 'climate.salon', 'thermostat-more');
       assert.ok(menuOf(card).classList.contains('menu'));
       assert.match(text(menuOf(card)), /Suspendre le pilotage.*Ouvrir le thermostat.*Vanne salon \(TRV\).*Salon \(Thermostat programmé\).*Oublier/);
-      menuOf(card).querySelector('[data-more-info="climate.salon"]').click();
+      menuOf(card).querySelector('[data-more-info="climate.salon"]').click(); await settle();
       assert.deepEqual(opened, ['climate.salon']);
-      click(card, 'climate.salon', 'thermostat-more');
-      menuOf(card).querySelector('[data-device="salon-scheduled"]').click();
+      await click(card, 'climate.salon', 'thermostat-more');
+      menuOf(card).querySelector('[data-device="salon-scheduled"]').click(); await settle();
       assert.equal(window.location.pathname, '/config/devices/device/salon-scheduled');
     } finally {
       document.removeEventListener('hass-more-info', intercept);
     }
   });
 
-  test('its menu closes with ⋮ again, a click elsewhere or Escape', () => {
-    const card = open(setup());
-    click(card, 'climate.salon', 'thermostat-more');
-    click(card, 'climate.salon', 'thermostat-more');
+  test('its menu closes with ⋮ again, a click elsewhere or Escape', async () => {
+    const card = await open(setup());
+    await click(card, 'climate.salon', 'thermostat-more');
+    await click(card, 'climate.salon', 'thermostat-more');
     assert.equal(menuOf(card), null);
-    click(card, 'climate.salon', 'thermostat-more');
-    card.shadowRoot.querySelector('.th-hint').click();
+    await click(card, 'climate.salon', 'thermostat-more');
+    card.shadowRoot.querySelector('.th-hint').click(); await settle();
     assert.equal(menuOf(card), null);
-    click(card, 'climate.salon', 'thermostat-more');
-    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    await click(card, 'climate.salon', 'thermostat-more');
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })); await settle();
     assert.equal(menuOf(card), null);
   });
 
-  test('pauses a controlled thermostat and gives a paused one back to Chauffage, from its menu', () => {
+  test('pauses a controlled thermostat and gives a paused one back to Chauffage, from its menu', async () => {
     const hass = setup();
-    const card = open(hass);
-    click(card, 'climate.bureau', 'thermostat-more');
-    menuOf(card).querySelector('[data-act="pause"]').click();
+    const card = await open(hass);
+    await click(card, 'climate.bureau', 'thermostat-more');
+    menuOf(card).querySelector('[data-act="pause"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
     assert.equal(menuOf(card), null);
-    click(card, 'climate.cuisine', 'thermostat-more');
+    await click(card, 'climate.cuisine', 'thermostat-more');
     assert.equal(text(menuOf(card).querySelector('[data-act="resume"]')), 'Reprendre le pilotage');
-    menuOf(card).querySelector('[data-act="resume"]').click();
+    menuOf(card).querySelector('[data-act="resume"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.cuisine', paused: false });
   });
 
-  test('forgets any thermostat after a confirmation, even one a card shows: the page is not a card', () => {
+  test('forgets any thermostat after a confirmation, even one a card shows: the page is not a card', async () => {
     const hass = setup();
-    const card = open(hass);
-    click(card, 'climate.salon', 'thermostat-more');
-    menuOf(card).querySelector('[data-act="thermostat-forget"]').click();
+    const card = await open(hass);
+    await click(card, 'climate.salon', 'thermostat-more');
+    menuOf(card).querySelector('[data-act="thermostat-forget"]').click(); await settle();
     assert.equal(hass.events.filter((m) => m.type === 'chauffage/thermostat/forget').length, 0);
     assert.match(text(menuOf(card)), /Ses semaines et ses réglages seront supprimés/);
-    menuOf(card).querySelector('[data-act="thermostat-forget-confirm"]').click();
+    menuOf(card).querySelector('[data-act="thermostat-forget-confirm"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/forget', entity_id: 'climate.salon' });
   });
 
-  test('the confirmation can be cancelled', () => {
+  test('the confirmation can be cancelled', async () => {
     const hass = setup();
-    const card = open(hass);
-    click(card, 'climate.cuisine', 'thermostat-more');
-    menuOf(card).querySelector('[data-act="thermostat-forget"]').click();
-    menuOf(card).querySelector('[data-act="thermostat-forget-cancel"]').click();
+    const card = await open(hass);
+    await click(card, 'climate.cuisine', 'thermostat-more');
+    menuOf(card).querySelector('[data-act="thermostat-forget"]').click(); await settle();
+    menuOf(card).querySelector('[data-act="thermostat-forget-cancel"]').click(); await settle();
     assert.equal(card.shadowRoot.querySelector('[data-act="thermostat-forget-confirm"]'), null);
     assert.equal(hass.events.filter((m) => m.type === 'chauffage/thermostat/forget').length, 0);
   });
 
   test('says where the dashboards show each thermostat, cards nested in stacks, sections or conditions included', async () => {
-    const card = open(setup());
+    const card = await open(setup());
     await tick();
     await tick();
     assert.equal(text(row(card, 'climate.salon').querySelector('.th-cards')), 'Affiché dans Overview › Accueil, Maison › Chauffage');
     assert.equal(text(row(card, 'climate.bureau').querySelector('.th-cards')), 'Affiché dans Maison › Chauffage, Maison › Pièces');
     assert.equal(text(row(card, 'climate.cuisine').querySelector('.th-cards')), 'Affiché dans aucune carte');
-    row(card, 'climate.bureau').querySelector('[data-navigate="/maison/pieces"]').click();
+    row(card, 'climate.bureau').querySelector('[data-navigate="/maison/pieces"]').click(); await settle();
     assert.equal(window.location.pathname, '/maison/pieces');
   });
 
-  test('schedules another thermostat: a climate Chauffage does not schedule yet', () => {
+  test('schedules another thermostat: a climate Chauffage does not schedule yet', async () => {
     const hass = setup();
-    const card = open(hass);
+    const card = await open(hass);
     const select = card.shadowRoot.querySelector('[data-add-climate]');
     assert.deepEqual([...select.options].map((o) => o.value), ['climate.chambre']);
-    card.shadowRoot.querySelector('[data-act="thermostat-add"]').click();
+    card.shadowRoot.querySelector('[data-act="thermostat-add"]').click(); await settle();
     // Saved with no week of its own: the integration gives it the week of a new schedule in each one
     assert.deepEqual(lastCall(hass), { type: 'chauffage/weeks/save', weeks: { 'climate.chambre': {} }, revisions: { 'climate.chambre': null } });
   });
 
-  test('read only for a user who is not an admin', () => {
+  test('read only for a user who is not an admin', async () => {
     const hass = setup();
     hass.user = { is_admin: false };
-    const card = open(hass);
+    const card = await open(hass);
     assert.equal(card.shadowRoot.querySelectorAll('.th-row').length, 3);
     assert.equal(card.shadowRoot.querySelector('.th-row button, [data-act="thermostat-add"]'), null);
     assert.equal(card.shadowRoot.querySelector('[data-device]'), null); // no settings pages
   });
 
-  test('the integration\'s page, with its options and diagnostics, opens from it (admins); not the Chauffage device', () => {
-    const card = open(setup());
+  test('the integration\'s page, with its options and diagnostics, opens from it (admins); not the Chauffage device', async () => {
+    const card = await open(setup());
     assert.equal(card.shadowRoot.querySelector('.th-foot [data-device]'), null);
     assert.equal(text(card.shadowRoot.querySelector('.th-foot')), 'Page de l’intégration', 'short: the page says the rest');
-    card.shadowRoot.querySelector('.th-foot [data-navigate]').click();
+    card.shadowRoot.querySelector('.th-foot [data-navigate]').click(); await settle();
     assert.equal(window.location.pathname, '/config/integrations/integration/chauffage');
   });
 
-  test('an entity renamed in Home Assistant: the page follows at once', () => {
+  test('an entity renamed in Home Assistant: the page follows at once', async () => {
     const hass = setup();
-    const card = open(hass);
+    const card = await open(hass);
     const data = integrationData({ weeks: WEEKS, paused: ['climate.cuisine'] });
     data.thermostat_entities['climate.salon'].control = 'switch.salon_pilotage';
     hass.entities['switch.salon_pilotage'] = { entity_id: 'switch.salon_pilotage', device_id: 'salon-scheduled' };
-    hass.push(data); // the integration tells the cards (ENTITIES), nothing else changed
-    click(card, 'climate.salon', 'thermostat-more');
+    hass.push(data); await settle(); // the integration tells the cards (ENTITIES), nothing else changed
+    await click(card, 'climate.salon', 'thermostat-more');
     assert.ok(menuOf(card).querySelector('[data-device="salon-scheduled"]'));
   });
 
-  test('in English', () => {
-    const card = open(setup({ locale: { language: 'en' } }));
+  test('in English', async () => {
+    const card = await open(setup({ locale: { language: 'en' } }));
     assert.match(text(row(card, 'climate.cuisine')), /Cuisine Control paused/);
     assert.equal(text(row(card, 'climate.salon').querySelector('.th-title')), 'Salon');
     assert.match(text(card.shadowRoot.querySelector('.th-add')), /Schedule another thermostat/);

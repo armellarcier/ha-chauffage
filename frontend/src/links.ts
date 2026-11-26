@@ -38,20 +38,6 @@ export function deviceNamedLinkHtml(hass, id) {
   return deviceLinkHtml(hass, id, deviceLabel(hass, id));
 }
 
-// A row of the panel's lists, as the rows of the integration's page: an icon, a name and a line
-// under it, a chevron, then its actions after a divider. The whole row is one link, except its
-// actions
-export function thRow(rowAttrs, linkAttrs, icon, title, sub, actions) {
-  return `<div ${rowAttrs} role="link" tabindex="0" ${linkAttrs}>
-    <div class="th-main">
-      <ha-icon class="th-icon" icon="${esc(icon)}"></ha-icon>
-      <div class="th-text"><div class="th-title">${title}</div>${sub}</div>
-      <ha-icon class="th-chevron" icon="mdi:chevron-right" aria-hidden="true"></ha-icon>
-    </div>
-    ${actions ? `<span class="th-divider"></span><div class="th-actions">${actions}</div>` : ''}
-  </div>`;
-}
-
 // A click on the actions at the end of a row of the panel's lists: not a click on the row's link
 export const inRowActions = (e) => !!e.target.closest('.th-actions');
 

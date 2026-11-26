@@ -281,9 +281,10 @@ describe('the "Presets" view', () => {
     preset_temperatures: { 'climate.salon': { comfort: 20.5 } },
     use_presets: true,
   });
-  const open = (hass) => {
+  const open = async (hass) => {
     hass.states['climate.salon'].attributes.preset_modes = ['eco', 'comfort', 'away', 'boost'];
     const card = createCard(hass, { view: 'presets' }); // salon and bureau (bureau: no schedule, no presets)
+    await settle();
     return card;
   };
   const squash = (el) => el.textContent.replace(/\s+/g, ' ').trim();
@@ -292,7 +293,7 @@ describe('the "Presets" view', () => {
   const click = (card, selector) => card.shadowRoot.querySelector(selector).click();
 
   test('a table of what each thermostat does with each preset, each cell saying what it is (#39)', async () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
+    const card = await open(fakeIntegrationHass({ data: data() }));
     const heads = [...card.shadowRoot.querySelectorAll('[data-kind="preset"]')].map(squash);
     // From the coldest to the warmest; a preset's header holds its default temperature
     assert.deepEqual(heads, ['Hors-gel 7° par défaut', 'Éco 17° par défaut', 'Confort 20° par défaut']);
@@ -307,7 +308,7 @@ describe('the "Presets" view', () => {
   });
 
   test('many presets stay on one line: the table scrolls sideways, the thermostats\' names stay in place', async () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
+    const card = await open(fakeIntegrationHass({ data: data() }));
     assert.ok(card.shadowRoot.querySelector('.table-wrap > table.pv-table'));
     const css = card.shadowRoot.querySelector('style').textContent;
     assert.match(css, /\.table-wrap \{ overflow-x:auto;/);
@@ -320,11 +321,11 @@ describe('the "Presets" view', () => {
     const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
     document.addEventListener('hass-more-info', intercept);
     try {
-      const card = open(fakeIntegrationHass({ data: data() }));
-      click(card, '.pv-table th.name [data-more-info="climate.salon"]');
+      const card = await open(fakeIntegrationHass({ data: data() }));
+      click(card, '.pv-table th.name [data-more-info="climate.salon"]'); await settle();
       assert.deepEqual(opened, ['climate.salon']);
-      click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
-      click(card, '[data-panel="cell"] [data-device="salon-device"]');
+      click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
+      click(card, '[data-panel="cell"] [data-device="salon-device"]'); await settle();
       assert.equal(window.location.pathname, '/config/devices/device/salon-device');
     } finally {
       document.removeEventListener('hass-more-info', intercept);
@@ -332,12 +333,12 @@ describe('the "Presets" view', () => {
   });
 
   test('a cell is edited in a popover, closed by a click elsewhere or Escape', async () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
     assert.ok(card.shadowRoot.querySelector('.editor[data-panel="cell"]'), 'a popover, like the slots\' one');
-    click(card, '.pv-intro');
+    click(card, '.pv-intro'); await settle();
     assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
-    click(card, '[data-kind="preset"][data-preset="eco"]');
+    click(card, '[data-kind="preset"][data-preset="eco"]'); await settle();
     assert.ok(card.shadowRoot.querySelector('[data-panel="cell"]'));
     document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })); await settle();
     assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
@@ -352,8 +353,8 @@ describe('the "Presets" view', () => {
 
   test('the default is the thermostat\'s preset of the same name, with its temperature (#91)', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    const card = await open(hass);
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
     assert.equal(chosen(card), 'default');
     assert.equal(squash(rowOf(card, 'default')), 'Par défaut (son préréglage Confort, 20,5°)');
     assert.deepEqual(presetOptions(card), ['comfort:Confort ✓', 'eco:Éco', 'away:away', 'boost:Boost']); // its own, the same name first
@@ -363,8 +364,8 @@ describe('the "Presets" view', () => {
   });
 
   test('each row holds its own field; using the field chooses the row', async () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // set to 8°
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); await settle(); // set to 8°
     assert.ok(rowOf(card, 'temperature').querySelector('[data-cell-temp]'), 'the temperature next to "Temperature"');
     assert.ok(rowOf(card, 'own').querySelector('[data-cell-preset]'), 'the list next to "Its preset"');
     assert.equal(chosen(card), 'temperature');
@@ -375,25 +376,25 @@ describe('the "Presets" view', () => {
   });
 
   test('a preset the thermostat has no own preset for: its default temperature in the default row', async () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); await settle(); // no frost preset of its own
     assert.deepEqual(presetOptions(card).map((o) => o.split(':')[0]), ['eco', 'comfort', 'away', 'boost']); // its own order
     assert.equal(squash(rowOf(card, 'default')), 'Par défaut (7°)');
   });
 
   test('a thermostat without presets of its own: the default or a temperature', async () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.bureau"]');
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.bureau"]'); await settle();
     assert.deepEqual([...card.shadowRoot.querySelectorAll('.cell-ed input[name="cell-choice"]')].map((r) => r.value), ['default', 'temperature']);
     assert.equal(squash(rowOf(card, 'default')), 'Par défaut (20°)');
   });
 
   test('a thermostat set to a temperature for one preset', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    const card = await open(hass);
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
     assert.match(card.shadowRoot.querySelector('[data-panel="cell"]').textContent, /Confort · Salon/);
-    click(card, '[data-act="cell-step"][data-delta="0.5"]'); // 20.5 → 21, "Temperature" chosen
+    click(card, '[data-act="cell-step"][data-delta="0.5"]'); await settle(); // 20.5 → 21, "Temperature" chosen
     act(card, 'cell-apply');
     await settle();
     assert.deepEqual(lastCall(hass), {
@@ -404,15 +405,15 @@ describe('the "Presets" view', () => {
 
   test('a thermostat set to another of its presets, or back to the default', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
+    const card = await open(hass);
+    click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]'); await settle();
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'away';
     choose(card, 'own');
     act(card, 'cell-apply');
     await settle();
     assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset_mode: 'away' } });
 
-    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]');
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); await settle();
     choose(card, 'default'); // back to the default: OK drops the stored value
     act(card, 'cell-apply');
     await settle();
@@ -422,8 +423,8 @@ describe('the "Presets" view', () => {
 
   test('a preset\'s name, color and default temperature, in one popover (#39)', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="preset"][data-preset="eco"]');
+    const card = await open(hass);
+    click(card, '[data-kind="preset"][data-preset="eco"]'); await settle();
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Économique';
     card.shadowRoot.querySelector('[data-cell-temp]').value = '16.5';
     act(card, 'cell-apply');
@@ -434,9 +435,9 @@ describe('the "Presets" view', () => {
 
   test('a preset is added from a button under the table', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
+    const card = await open(hass);
     assert.match(squash(card.shadowRoot.querySelector('.pv-add')), /Ajouter un préréglage/);
-    click(card, '.pv-add');
+    click(card, '.pv-add'); await settle();
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Nuit';
     act(card, 'cell-apply');
     await settle();
@@ -445,10 +446,10 @@ describe('the "Presets" view', () => {
 
   test('deleting a preset is a button of its own, then what replaces it where it is used', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="preset"][data-preset="comfort"]'); // used in the schedules
+    const card = await open(hass);
+    click(card, '[data-kind="preset"][data-preset="comfort"]'); await settle(); // used in the schedules
     assert.equal(card.shadowRoot.querySelector('[data-cell-replacement]'), null);
-    click(card, '[data-act="cell-delete"]');
+    click(card, '[data-act="cell-delete"]'); await settle();
     assert.match(squash(card.shadowRoot.querySelector('[data-panel="cell"]')), /Supprimer « Confort » \?/);
     card.shadowRoot.querySelector('[data-cell-replacement]').value = 'eco';
     act(card, 'cell-delete-confirm');
@@ -461,13 +462,13 @@ describe('the "Presets" view', () => {
     const hass = fakeIntegrationHass({ data: { ...data(), preset_temperatures: { 'climate.salon': { eco: 16.5, comfort: 19 } } } });
     // The card does not read the thermostat's attributes itself
     hass.states['climate.salon'].attributes.preset_temperatures = { eco_temp: 15, comfort_temp: 18 };
-    const card = open(hass);
+    const card = await open(hass);
     assert.equal(cellText(card, 'eco', 'climate.salon'), '16,5° son préréglage Éco');
     assert.equal(cellText(card, 'comfort', 'climate.salon'), '19° son préréglage Confort');
   });
 
   test('the page shows the presets alone: no views to switch, the panel tabs do it (#57)', async () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
+    const card = await open(fakeIntegrationHass({ data: data() }));
     assert.equal(card.shadowRoot.querySelector('[data-act="view"]'), null);
     assert.equal(card.shadowRoot.querySelector('.chips'), null);
   });
@@ -475,12 +476,11 @@ describe('the "Presets" view', () => {
   test('read only for non-admins', async () => {
     const hass = fakeIntegrationHass({ data: data() });
     hass.user = { is_admin: false };
-    const card = open(hass);
+    const card = await open(hass);
     assert.equal(card.shadowRoot.querySelector('[data-act="cell"]'), null);
     assert.ok(card.shadowRoot.querySelector('.pv-table'));
   });
 });
-
 describe('a thermostat renamed in Home Assistant', () => {
   // climate.salon renamed climate.sejour: the card's configuration still holds the former id;
   // like HA's own cards, the card does not change it by itself

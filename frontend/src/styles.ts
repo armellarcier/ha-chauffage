@@ -52,6 +52,8 @@ export const STYLE = `
   :host { display:block; }
   ha-card { display:block; position:relative; padding:16px; overflow:visible; }
   ha-card.flat { padding:0; background:none; border:none; box-shadow:none; --ha-card-border-width:0; }
+  /* The views of the panel's pages, each its own element in the card */
+  chauffage-presets-view, chauffage-schedules-view, chauffage-thermostats-view, chauffage-rules-view { display:block; }
   select, input, button { font:inherit; color:var(--primary-text-color); }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
   .chip { border:1px solid var(--divider-color); background:var(--card-background-color); border-radius:16px;
@@ -457,7 +459,7 @@ export const STYLE = `
     padding:5px 6px; border:1px solid transparent; border-radius:6px; background:transparent; font:inherit; color:inherit; }
   button.cell { cursor:pointer; }
   button.cell:hover, .cell.on { border-color:var(--divider-color); background:var(--secondary-background-color); }
-  .cell.on { border-color:var(--primary-color); }
+  .cell.on, button.cell.on { border-color:var(--primary-color); }
   .pv-pname { display:inline-flex; align-items:center; gap:5px; font-weight:600; }
   .pv-pname i { display:inline-block; width:10px; height:10px; border-radius:3px; }
   .pv-default, .pv-how { font-size:.8em; color:var(--secondary-text-color); font-weight:normal; }

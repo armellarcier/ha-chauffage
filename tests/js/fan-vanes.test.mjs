@@ -132,15 +132,15 @@ describe('fan and vanes on a slot', () => {
 });
 
 describe('fan and vanes on a preset\'s value', () => {
-  const open = (hass) => createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' });
+  const open = async (hass) => { const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' }); await settle(); return card; };
   const cell = (card, preset, climate) => $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`);
 
   test('the cell shows one icon for any fan or swing setting; its popover folds them under "More settings"', async () => {
     const hass = setup({ mappings: { 'climate.atelier': { comfort: { fan_mode: '3' } } } });
-    const card = open(hass);
+    const card = await open(hass);
     assert.equal(cell(card, 'comfort', 'climate.atelier').querySelector('.pv-val ha-icon').getAttribute('icon'), 'mdi:tune-variant');
     assert.equal(cell(card, 'eco', 'climate.atelier').querySelector('.pv-val ha-icon'), null);
-    cell(card, 'comfort', 'climate.atelier').click();
+    cell(card, 'comfort', 'climate.atelier').click(); await settle();
     const more = $(card, '.cell-ed details.more');
     assert.equal(more.open, true, 'a value is set: unfolded');
     assert.equal(text(more.querySelector('summary')), 'Ventilateur 3');
@@ -152,32 +152,32 @@ describe('fan and vanes on a preset\'s value', () => {
     await settle();
     assert.deepEqual(lastCall(hass).mapping, { comfort: { fan_mode: '3', swing_mode: '1_up' } }, 'with the default setpoint');
     // Folded when nothing is set
-    cell(card, 'eco', 'climate.atelier').click();
+    cell(card, 'eco', 'climate.atelier').click(); await settle();
     assert.equal($(card, '.cell-ed details.more').open, false);
     assert.equal(text($(card, '.cell-ed details.more summary')), 'Plus de réglages');
   });
 
-  test('a heater has no fan or vanes', () => {
-    const card = open(setup());
-    cell(card, 'comfort', 'climate.salon').click();
+  test('a heater has no fan or vanes', async () => {
+    const card = await open(setup());
+    cell(card, 'comfort', 'climate.salon').click(); await settle();
     assert.equal($(card, '.cell-ed details.more'), null);
   });
 });
 
 describe('Copy from the thermostat, in the popover of a preset\'s value', () => {
-  const open = (hass, preset = 'eco') => {
-    const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' });
-    $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="climate.atelier"]`).click();
+  const open = async (hass, preset = 'eco') => {
+    const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], view: 'presets' }); await settle();
+    $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="climate.atelier"]`).click(); await settle();
     return card;
   };
   const chosen = (card) => $(card, '.cell-ed input[name="cell-choice"]:checked').value;
 
   test('an air conditioner that cools gives its setpoint as the cooling one, its fan and its vanes, never its preset; nothing is saved before OK', async () => {
     const hass = setup();
-    const card = open(hass);
+    const card = await open(hass);
     const button = $(card, '.cell-ed [data-act="capture"]');
     assert.equal(text(button), 'Copier depuis le thermostat');
-    button.click();
+    button.click(); await settle();
     assert.equal(text($(card, '.cell-ed [data-act="capture"]')), 'Copié ✓');
     assert.equal($(card, '.cell-ed [data-cell-cool]').value, '20'); // the AC cools: its setpoint is the cooling one
     assert.equal($(card, '.cell-ed input[name="cell-cool-choice"]:checked').value, 'temperature');
@@ -190,20 +190,20 @@ describe('Copy from the thermostat, in the popover of a preset\'s value', () => 
     assert.deepEqual(lastCall(hass).mapping, { eco: { cool_temperature: 20, fan_mode: '2', swing_mode: 'swing', swing_horizontal_mode: 'auto' } });
   });
 
-  test('a thermostat that heats, or is off, gives its setpoint as the temperature, in the user\'s number format', () => {
+  test('a thermostat that heats, or is off, gives its setpoint as the temperature, in the user\'s number format', async () => {
     const hass = setup({ atelier: { preset_mode: 'none', temperature: 23.5 } });
     hass.states['climate.atelier'].state = 'off';
-    const card = open(hass);
+    const card = await open(hass);
     click(card, '.cell-ed [data-act="capture"]');
     assert.equal(chosen(card), 'temperature');
     assert.equal($(card, '.cell-ed [data-cell-temp]').value, '23,5');
     assert.equal($(card, '.cell-ed [data-cell-cool]').value, '');
   });
 
-  test('disabled while the thermostat is unavailable', () => {
+  test('disabled while the thermostat is unavailable', async () => {
     const hass = setup();
     hass.states['climate.atelier'].state = 'unavailable';
-    const button = $(open(hass), '.cell-ed [data-act="capture"]');
+    const button = $(await open(hass), '.cell-ed [data-act="capture"]');
     assert.ok(button.disabled);
     assert.match(text(button), /indisponible/);
   });
