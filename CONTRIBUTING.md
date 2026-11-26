@@ -181,7 +181,7 @@ fixture: `vtherm`, `standard` and `plain`. If a test only makes sense for some k
 
 Read what Chauffage holds through the bench: `bench.presets()`, `bench.overrides()` or
 `bench.snapshot()`, the message the card receives. To read what Chauffage saved, call
-`await bench.stored()`. Never read `runtime.data`. To simulate data stored by an older version,
+`await bench.stored()`. Never read `runtime.installation`. To simulate data stored by an older version,
 call `bench.edit_stored_data(...)`.
 
 ### The safety nets of the rewrite

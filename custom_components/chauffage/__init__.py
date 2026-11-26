@@ -88,7 +88,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) -
     runtime = entry.runtime_data
     runtime.async_stop()
     frontend.async_remove_chauffage_panel(hass)
-    await runtime.store.async_save(runtime.data)  # pending delayed save
+    await runtime.installation.save_now()  # pending delayed save
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 

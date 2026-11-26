@@ -64,7 +64,7 @@ class ScheduleSwitch(ChauffageEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return self.runtime.data["active_schedule"] == self.schedule_id
+        return self.runtime.installation.active_schedule == self.schedule_id
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.runtime.activate_schedule(self.schedule_id, source="entity", context=self._context)

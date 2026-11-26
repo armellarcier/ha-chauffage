@@ -54,14 +54,14 @@ def end_data(override: dict[str, Any]) -> dict[str, Any]:
 
 
 class OverrideService:
-    """The overrides of the stored data (`runtime.data["overrides"]`, model.py)."""
+    """The overrides of the stored data (`runtime.installation.overrides`, model.py)."""
 
     def __init__(self, runtime: ChauffageRuntime) -> None:
         self._runtime = runtime
 
     @property
     def _overrides(self) -> dict[str, dict[str, Any]]:
-        return self._runtime.data["overrides"]
+        return self._runtime.installation.overrides
 
     async def set(self, entity_id: str, override: dict[str, Any] | None, *, source: str,
                   resend: bool = False, context: Context | None = None) -> None:

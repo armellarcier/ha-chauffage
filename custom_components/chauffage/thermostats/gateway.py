@@ -22,6 +22,7 @@ from homeassistant.util import dt as dt_util
 from .. import engine
 from ..domain.target import EQUAL_KEYS, Target
 from ..domain.thermostat import Thermostat, ignored, preset_value
+from ..storage.installation import Installation
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,14 +41,14 @@ def local_time(iso: str) -> str:
 
 
 class ThermostatGateway:
-    """`data`: the stored data (model.py), for its "pending" commands and each thermostat's
+    """`installation`: the stored data (model.py), for its "pending" commands and each thermostat's
     "own_settings". `read`: what Chauffage knows of a thermostat from its state. `save`: saves
     the stored data."""
 
-    def __init__(self, hass: HomeAssistant, data: dict[str, Any],
+    def __init__(self, hass: HomeAssistant, installation: Installation,
                  read: Callable[[State | None], Thermostat | None], save: Callable[[], None]) -> None:
         self.hass = hass
-        self._data = data
+        self._installation = installation
         self._read = read
         self._save = save
         self._own_contexts: deque[str] = deque(maxlen=500)
@@ -86,7 +87,7 @@ class ThermostatGateway:
         thermostat already shows in full sends nothing, and nothing is pending: a change by hand
         to that value later must not pass for a command applied late."""
         self._remember_settings(entity_id, target)
-        commands = self._data["pending"].get(entity_id, [])
+        commands = self._installation.pending.get(entity_id, [])
         # Not what the thermostat already shows, unless it may still apply an older command:
         # then everything, or what it shows now could be undone later
         state = self.hass.states.get(entity_id)
@@ -112,7 +113,7 @@ class ThermostatGateway:
             if commands and commands[-1]["target"] == target:
                 commands.pop()  # sent again: waited for from now
             commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
-            self._data["pending"][entity_id] = commands
+            self._installation.pending[entity_id] = commands
             self._save()
         if leave is not None:
             kept = preset_value(state.attributes.get("preset_mode"))
@@ -137,11 +138,11 @@ class ThermostatGateway:
 
     def pending(self, entity_id: str) -> list[dict[str, Any]]:
         """The commands sent to a thermostat that it does not show yet, oldest first."""
-        return [c["target"] for c in self._data["pending"].get(entity_id, [])]
+        return [c["target"] for c in self._installation.pending.get(entity_id, [])]
 
     def last_pending(self) -> dict[str, dict[str, Any]]:
         """{thermostat: the last command sent to it that it does not show yet}."""
-        return {e: commands[-1] for e in self._data["pending"] if (commands := self.pending(e))}
+        return {e: commands[-1] for e in self._installation.pending if (commands := self.pending(e))}
 
     @callback
     def applied(self, entity_id: str, before: Thermostat | None, after: Thermostat | None) -> dict[str, Any] | None:
@@ -151,41 +152,41 @@ class ThermostatGateway:
         index = engine.applied_command(commands, before, after) if after and commands else None
         if index is None:
             return None
-        command = self._data["pending"][entity_id][index]
+        command = self._installation.pending[entity_id][index]
         self.drop_pending(entity_id, index + 1)
         return command
 
     @callback
     def drop_pending(self, entity_id: str, count: int | None = None) -> None:
         """Forgets a thermostat's oldest commands not applied yet (all of them by default)."""
-        commands = self._data["pending"].get(entity_id)
+        commands = self._installation.pending.get(entity_id)
         if not commands:
             return
         del commands[:count]
         if not commands:
-            del self._data["pending"][entity_id]
+            del self._installation.pending[entity_id]
         self._save()
 
     @callback
     def expire_pending(self, now: datetime) -> None:
         """Forgets the commands a thermostat has not applied after a day."""
-        for entity_id, commands in list(self._data["pending"].items()):
+        for entity_id, commands in list(self._installation.pending.items()):
             if expired := engine.expired_commands([c["sent"] for c in commands], now):
                 self.drop_pending(entity_id, expired)
 
     @callback
     def renamed(self, old: str, new: str) -> None:
         """A thermostat renamed: its pending commands follow it."""
-        self._data["pending"].pop(new, None)
-        if old in self._data["pending"]:
-            self._data["pending"][new] = self._data["pending"].pop(old)
+        self._installation.pending.pop(new, None)
+        if old in self._installation.pending:
+            self._installation.pending[new] = self._installation.pending.pop(old)
 
     # ----- the fan and the vanes to give back -----
 
     def own_settings(self, entity_id: str) -> dict[str, str]:
         """The fan and the vanes to give back to a thermostat: what it had before a slot or an
         override chose others (docs/decisions.md, "Scheduling"). Only the values it still lists."""
-        kept = self._data["thermostats"].get(entity_id, {}).get("own_settings") or {}
+        kept = self._installation.thermostats.get(entity_id, {}).get("own_settings") or {}
         state = self.hass.states.get(entity_id)
         attributes = state.attributes if state is not None else {}
         return {key: value for key, value in kept.items()
@@ -195,7 +196,7 @@ class ThermostatGateway:
     def _remember_settings(self, entity_id: str, target: Mapping[str, Any]) -> None:
         """Before a command changes the fan or the vanes: what the thermostat shows is kept, to
         be given back by the next slot or override that chooses none."""
-        t, state = self._data["thermostats"].get(entity_id), self.hass.states.get(entity_id)
+        t, state = self._installation.thermostats.get(entity_id), self.hass.states.get(entity_id)
         if t is None or state is None:
             return
         kept = t.get("own_settings") or {}
@@ -212,7 +213,7 @@ class ThermostatGateway:
         forgotten then."""
         if ignored(before) or ignored(after):
             return
-        t = self._data["thermostats"].get(entity_id) or {}
+        t = self._installation.thermostats.get(entity_id) or {}
         kept = dict(t.get("own_settings") or {})
         for key in EQUAL_KEYS:
             shown = getattr(after, key)

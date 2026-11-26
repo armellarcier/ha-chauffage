@@ -251,7 +251,7 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 async def ws_save_weeks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     async def save(runtime: ChauffageRuntime) -> dict[str, Any]:
         await runtime.save_weeks(msg["weeks"], msg.get("revisions"))
-        return {"revision": runtime.data["revision"],
+        return {"revision": runtime.installation.revision,
                 "revisions": {e: t["revision"] for e, t in runtime.scheduled.items() if e in msg["weeks"]}}
 
     await _run(hass, connection, msg, save)
@@ -296,7 +296,7 @@ async def ws_activate_schedule(hass: HomeAssistant, connection: websocket_api.Ac
 async def ws_set_schedules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     async def set_schedules(runtime: ChauffageRuntime) -> dict[str, Any]:
         schedules = await runtime.set_schedules(msg["schedules"], msg.get("revision"))
-        return {"schedules": schedules, "revision": runtime.data["revision"]}
+        return {"schedules": schedules, "revision": runtime.installation.revision}
 
     await _run(hass, connection, msg, set_schedules)
 

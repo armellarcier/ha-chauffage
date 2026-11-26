@@ -37,7 +37,7 @@ class RuleEngine:
                 Template(rule["template"], runtime.hass).ensure_valid()
             except TemplateError as err:
                 raise model.InvalidData(f"invalid template: {err}") from err
-        runtime.data["rules"], runtime.data["default_schedule"] = normalized, default_schedule
+        runtime.installation.rules, runtime.installation.default_schedule = normalized, default_schedule
         runtime._changed()
         self.track()
         await self.follow()
@@ -53,7 +53,7 @@ class RuleEngine:
             runtime = self._runtime
             runtime.entry.async_create_task(runtime.hass, self.follow(), "chauffage rules")
 
-        self._unsub = self.track_templates([rule["template"] for rule in self._runtime.data["rules"]], changed)
+        self._unsub = self.track_templates([rule["template"] for rule in self._runtime.installation.rules], changed)
 
     @callback
     def stop(self) -> None:
@@ -96,11 +96,11 @@ class RuleEngine:
             return None, None, str(err)
         if rule["schedule"]:
             return result_as_boolean(text), text, None
-        return schedule_named(text, self._runtime.data["schedules"]) or False, text, None
+        return schedule_named(text, self._runtime.installation.schedules) or False, text, None
 
     def _evaluate(self) -> list[Any]:
         results = []
-        for rule in self._runtime.data["rules"]:
+        for rule in self._runtime.installation.rules:
             result, _, error = self.render(rule)
             if error:
                 _LOGGER.warning("Activation rule %s: %s", rule["template"], error)
@@ -113,10 +113,10 @@ class RuleEngine:
         results = self._evaluate()
         notify = results != self.results
         self.results = results
-        outcome = rules_outcome(runtime.data["rules"], results, runtime.data["default_schedule"])
-        changed = outcome != runtime.data["rules_choice"]
+        outcome = rules_outcome(runtime.installation.rules, results, runtime.installation.default_schedule)
+        changed = outcome != runtime.installation.rules_choice
         if changed:
-            runtime.data["rules_choice"] = outcome
+            runtime.installation.rules_choice = outcome
             runtime._changed()
         elif notify:
             runtime._notify()

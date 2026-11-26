@@ -49,7 +49,7 @@ class Scheduler:
                 why = why_of(reason, entity_id, entity_id in retry)
                 slot, _ = plan.slot_at(entity_id, now)
                 what = slot.preset or slot.settings.get("hvac_mode")  # an off or a fan-only slot has no preset
-                done = await runtime.gateway.send(entity_id, target, f"{why}, {what} of schedule {runtime.data['active_schedule']}")
+                done = await runtime.gateway.send(entity_id, target, f"{why}, {what} of schedule {runtime.installation.active_schedule}")
                 # Not delivered (unreachable valve…): sent again at the next minutes
                 if done:
                     self.retry.discard(entity_id)
@@ -60,7 +60,7 @@ class Scheduler:
         """Every minute: the overrides that end, the commands not waited for anymore, the slots
         that start."""
         runtime = self._runtime
-        ended = ended_overrides(runtime.data["overrides"], dt_util.now())
+        ended = ended_overrides(runtime.installation.overrides, dt_util.now())
         since, self._last_tick = self._last_tick, dt_util.now()
         # Dropped before the slots are applied (which takes a while): one set again meanwhile is a
         # new override, sent to the thermostat
@@ -75,7 +75,7 @@ class Scheduler:
         """A command applied late, after the thermostat was meant to do something else, or a
         thermostat turned back on: set to its override, or to its slot."""
         runtime = self._runtime
-        override = runtime.data["overrides"].get(entity_id)
+        override = runtime.installation.overrides.get(entity_id)
         if override is None:
             await self.apply(Realign(frozenset({entity_id}), why))
             return

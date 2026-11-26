@@ -64,7 +64,8 @@ from .const import (
     schedule_unique_id,
     thermostat_unique_id,
 )
-from .store import SAVE_DELAY, ChauffageStore
+from .store import ChauffageStore
+from .storage.installation import Installation
 from .app.learner import Learner
 from .app.manual_changes import ManualChanges
 from .app.overrides import OverrideService, ThermostatFailed, ThermostatPaused
@@ -97,18 +98,17 @@ class ChauffageRuntime:
                  version: str) -> None:
         self.hass = hass
         self.entry = entry
-        self.store = store
-        self.data = data
+
+        self.installation = Installation(store, data)
         self.version = version  # of the integration: a card older than it asks to reload the page
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
-        self.gateway = ThermostatGateway(hass, data, self.current, self._save)
+        self.gateway = ThermostatGateway(hass, self.installation, self.current, self._save)
         self.overrides = OverrideService(self)
         self.manual_changes = ManualChanges(self)
         self.scheduler = Scheduler(self)
         self.rules = RuleEngine(self)
         self.learner = Learner(self)
         self.registry = ThermostatRegistry(self)
-        self._listeners: set[Callable[[str], None]] = set()
         self._unsubs: list[Callable[[], None]] = []
         self._unsub_states: Callable[[], None] | None = None
         self._planned_presets: set[str] = set()  # the deprecated sensors, seen at the last check
@@ -163,23 +163,19 @@ class ChauffageRuntime:
 
     @callback
     def async_add_listener(self, listener: Callable[[str], None]) -> Callable[[], None]:
-        self._listeners.add(listener)
-        return lambda: self._listeners.discard(listener)
+        return self.installation.add_listener(listener)
 
     @callback
     def _notify(self, reason: str = DATA) -> None:
-        for listener in list(self._listeners):
-            listener(reason)
+        self.installation.notify(reason)
 
     @callback
     def _changed(self) -> None:
-        self._save()
-        self._notify(DATA)
+        self.installation.changed()
 
     @callback
     def _save(self) -> None:
-        """Saved, nothing the cards show changed."""
-        self.store.async_delay_save(lambda: self.data, SAVE_DELAY)
+        self.installation.save()
 
     # ----- reading -----
 
@@ -248,25 +244,25 @@ class ChauffageRuntime:
 
     @property
     def schedule_ids(self) -> set[str]:
-        return {m["id"] for m in self.data["schedules"]}
+        return {m["id"] for m in self.installation.schedules}
 
     def schedule_name(self, schedule_id: str) -> str | None:
-        return next((m["name"] for m in self.data["schedules"] if m["id"] == schedule_id), None)
+        return next((m["name"] for m in self.installation.schedules if m["id"] == schedule_id), None)
 
     @property
     def preset_ids(self) -> set[str]:
-        return {preset["id"] for preset in self.data["presets"]}
+        return {preset["id"] for preset in self.installation.presets}
 
     @property
     def presets_by_id(self) -> dict[str, dict[str, Any]]:
         """The presets by id, in their order."""
-        return {preset["id"]: preset for preset in self.data["presets"]}
+        return {preset["id"]: preset for preset in self.installation.presets}
 
     @property
     def thermostats(self) -> dict[str, dict[str, Any]]:
         """The thermostats Chauffage knows (model.py): the scheduled ones, and those with only
         values of the presets, set before their weeks."""
-        return self.data["thermostats"]
+        return self.installation.thermostats
 
     @property
     def scheduled(self) -> dict[str, dict[str, Any]]:
@@ -317,10 +313,10 @@ class ChauffageRuntime:
         """What the active thermostats follow: paused ones are left out."""
         return engine.Plan(
             {entity_id: self.thermostats[entity_id]["weeks"] for entity_id in self.active},
-            self.data["active_schedule"],
+            self.installation.active_schedule,
             self.presets_by_id,
             self.mappings,
-            self.data["overrides"],
+            self.installation.overrides,
             self.use_presets,
             {entity_id: own for entity_id in self.active if (own := self.own_settings(entity_id))},
         )
@@ -376,9 +372,9 @@ class ChauffageRuntime:
     def snapshot(self) -> dict[str, Any]:
         """Everything the card needs."""
         return {
-            "schedules": self.data["schedules"],
-            "active_schedule": self.data["active_schedule"],
-            "presets": self.data["presets"],
+            "schedules": self.installation.schedules,
+            "active_schedule": self.installation.active_schedule,
+            "presets": self.installation.presets,
             # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
             # own_settings: the fan and the vanes it gets back from a slot that sets none
             "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e),
@@ -387,7 +383,7 @@ class ChauffageRuntime:
             "mappings": self.mappings,
             "targets": {e: self.targets_of(e) for e in self.scheduled},
             "weeks": self.weeks,
-            "overrides": self.data["overrides"],
+            "overrides": self.installation.overrides,
             # Every thermostat, those the card shows before they are scheduled too
             "preset_temperatures": {
                 state.entity_id: temperatures for state in self.hass.states.async_all("climate")
@@ -399,15 +395,15 @@ class ChauffageRuntime:
                 if (temperatures := self.temperatures_of(state, cool=True))
             },
             "use_presets": self.use_presets,
-            "revision": self.data["revision"],
+            "revision": self.installation.revision,
             "override_duration": self.override_duration,
             "manual_override_end": self.manual_override_end,
             "off_override_end": self.off_override_end,
             "access_level": self.access_level,
-            "rules": self.data["rules"],
-            "default_schedule": self.data["default_schedule"],
+            "rules": self.installation.rules,
+            "default_schedule": self.installation.default_schedule,
             "rule_results": self.rule_results,
-            "renamed": self.data["renamed"],
+            "renamed": self.installation.renamed,
             "planned": self.planned_presets(),
             "version": self.version,
             "schedule_entities": self.schedule_entities(),
@@ -464,7 +460,7 @@ class ChauffageRuntime:
         The slots as they run on it: on an air conditioner, a slot that says heat does not
         differ from one that says nothing. `thermostat`: the thermostat as read by the caller,
         else read here."""
-        week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.data["active_schedule"])
+        week = self.thermostats.get(entity_id, {}).get("weeks", {}).get(self.installation.active_schedule)
         if not week:
             return None, None, None
         thermostat = thermostat or self.current(self.hass.states.get(entity_id))
@@ -514,7 +510,7 @@ class ChauffageRuntime:
         when no slot ever changes the thermostat."""
         plan, now = self.plan(), now or dt_util.now()
         thermostat = self.current(self.hass.states.get(entity_id))
-        override = self.data["overrides"].get(entity_id)
+        override = self.installation.overrides.get(entity_id)
         if override:
             start = engine.parse_datetime(override.get("end"))
             start = dt_util.as_local(start) if start else None
@@ -589,13 +585,13 @@ class ChauffageRuntime:
                 current = scheduled.get(entity_id, {}).get("revision")
                 if revisions.get(entity_id) != current:
                     raise StaleRevision
-        schedule_ids = [schedule["id"] for schedule in self.data["schedules"]]
+        schedule_ids = [schedule["id"] for schedule in self.installation.schedules]
         preset_ids = list(self.presets_by_id)
         for entity_id, by_schedule in normalized.items():
             t = self._thermostat(entity_id)
             t["weeks"] = model.complete_weeks({**t["weeks"], **by_schedule}, schedule_ids, preset_ids)
         self._weeks_changed(normalized)
-        self.data["revision"] += 1
+        self.installation.revision += 1
         self._track_thermostats()
         for entity_id in self.active:
             self.learner.learn(self.hass.states.get(entity_id))
@@ -651,11 +647,11 @@ class ChauffageRuntime:
                         [[[slot[0], replacements.get(slot[1], slot[1]), *slot[2:]] for slot in day] for day in week]
                     )
             self._weeks_changed(affected)
-            self.data["revision"] += 1
+            self.installation.revision += 1
         for t in self.thermostats.values():
             for preset_id in removed:
                 t["mapping"].pop(preset_id, None)
-        self.data["presets"] = new_presets
+        self.installation.presets = new_presets
         self._changed()
         await self.scheduler.apply(Forced("presets changed"))
 
@@ -698,11 +694,11 @@ class ChauffageRuntime:
         An empty schedule puts every scheduled thermostat in eco (or the first preset) all week:
         each keeps a week in every schedule. The active schedule and its weeks do not change: the
         thermostats are not touched."""
-        if revision is not None and revision != self.data["revision"]:
+        if revision is not None and revision != self.installation.revision:
             raise StaleRevision
-        schedules, created = model.plan_schedules(items, self.data["schedules"], self.data["active_schedule"])
+        schedules, created = model.plan_schedules(items, self.installation.schedules, self.installation.active_schedule)
         kept = {s["id"] for s in schedules}
-        in_rules = ({rule["schedule"] for rule in self.data["rules"]} | {self.data["default_schedule"]}) - {None}
+        in_rules = ({rule["schedule"] for rule in self.installation.rules} | {self.installation.default_schedule}) - {None}
         if in_rules - kept:
             raise model.InvalidData(f"used by the activation rules: {sorted(in_rules - kept)}")
         preset_ids = list(self.presets_by_id)
@@ -715,8 +711,8 @@ class ChauffageRuntime:
         # schedule deleted then created again may take the same id)
         if created or self.schedule_ids - kept:
             self._weeks_changed(self.scheduled)
-        self.data["schedules"] = schedules
-        self.data["revision"] += 1
+        self.installation.schedules = schedules
+        self.installation.revision += 1
         self._changed()
         return copy.deepcopy(schedules)
 
@@ -725,9 +721,9 @@ class ChauffageRuntime:
         fired on the select with the `context` of what activated it (the logbook says who)."""
         if schedule_id not in self.schedule_ids:
             raise model.InvalidData(f"unknown schedule: {schedule_id}")
-        if schedule_id == self.data["active_schedule"]:
+        if schedule_id == self.installation.active_schedule:
             return
-        previous, self.data["active_schedule"] = self.data["active_schedule"], schedule_id
+        previous, self.installation.active_schedule = self.installation.active_schedule, schedule_id
         self._changed()
         self.hass.bus.async_fire(EVENT_SCHEDULE_ACTIVATED, {
             "schedule": schedule_id, "schedule_name": self.schedule_name(schedule_id),

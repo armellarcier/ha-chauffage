@@ -192,7 +192,7 @@ types, appelez `bench.needs(...)` dans le test.
 
 Lisez ce que Chauffage garde à travers le banc : `bench.presets()`, `bench.overrides()` ou
 `bench.snapshot()`, le message que reçoit la carte. Pour lire ce que Chauffage a enregistré,
-appelez `await bench.stored()`. Ne lisez jamais `runtime.data`. Pour simuler des données
+appelez `await bench.stored()`. Ne lisez jamais `runtime.installation`. Pour simuler des données
 enregistrées par une ancienne version, appelez `bench.edit_stored_data(...)`.
 
 ### Les filets de sécurité de la réécriture
