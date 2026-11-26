@@ -204,7 +204,7 @@ export class ChauffageMoreInfo extends LitElement {
     const d = this._currentOverride();
     if (!d) return;
     const min = new Date(Date.now() + MORE_INFO_STEP * 60000);
-    const { end_rule: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
+    const { ends_at: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
     this._send({ ...chosen, end: (endsAt < min ? min : endsAt).toISOString() });
   }
 

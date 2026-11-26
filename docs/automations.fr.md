@@ -166,10 +166,10 @@ Les trois événements des dérogations portent `entity_id`, `start` et `end`.
 son planning à la main) ou `card`. Les autres raisons sont `panel`, `service`, `paused` et
 `forgotten`.
 
-Quand Chauffage a choisi la fin de la dérogation, `end_rule` indique la règle qui l'a choisie :
+Quand Chauffage a choisi la fin de la dérogation, `ends_at` indique la règle qui l'a choisie :
 `duration`, `next_slot` ou `no_next_slot`. Par exemple, un changement à la main qui dure jusqu'au
 prochain créneau porte `next_slot`. Quand vous choisissez la fin vous-même, les événements ne
-portent pas de `end_rule`.
+portent pas de `ends_at`.
 
 ### Événement du planning
 

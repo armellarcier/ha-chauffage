@@ -19,7 +19,7 @@ const $ = (root, selector) => root.shadowRoot.querySelector(selector);
 const $$ = (root, selector) => [...root.shadowRoot.querySelectorAll(selector)];
 const pointer = (el, type, clientX = 0) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
 const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
-const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00', end_rule: 'next_slot' };
+const override = { kind: 'temperature', value: 21.5, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00', ends_at: 'next_slot' };
 
 // The integration's data at an access level ('admin': an admin, whatever the access level)
 function dataAt(level, { weeks = WEEKS, ...more } = {}) {
