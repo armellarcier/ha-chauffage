@@ -11,7 +11,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import dt as dt_util
 
-from .. import engine
+from ..domain.plan import Plan
+from ..domain.slot import Slot, Week, target_of
+from ..domain.target import RANGE_KEYS
+from ..domain.thermostat import Thermostat
+from ..domain.timeline import current_and_next, parse_datetime
 from ..const import (
     CONTROL_KEY,
     DOMAIN,
@@ -44,7 +48,7 @@ class SnapshotBuilder:
         self._runtime = runtime
 
     def targets_of(self, entity_id: str) -> dict[str, dict[str, Any]]:
-        """What each preset means for a thermostat, in each HVAC mode (engine.value_on: the
+        """What each preset means for a thermostat, in each HVAC mode (Preset.value_on: the
         mapping set by hand, else the default). Without an HVAC mode: an override set to a
         preset keeps the thermostat's own."""
         presets = self._runtime.presets_by_id
@@ -52,9 +56,9 @@ class SnapshotBuilder:
         current = self._runtime.current(self._runtime.hass.states.get(entity_id))
         out = {}
         for preset_id in presets:
-            target = engine.resolve(preset_id, presets, mapping, current, self._runtime.use_presets)
+            target = target_of(preset_id, presets, mapping, current, self._runtime.use_presets)
             if target:
-                out[preset_id] = target
+                out[preset_id] = dict(target)
         return out
 
     def preview_preset(self, entity_id: str, preset: Any, value: Any = None) -> dict[str, Any]:
@@ -71,7 +75,7 @@ class SnapshotBuilder:
         preset gives (published, else learned) for a climate preset; unknown ones left out.
         `cool`: what each preset gives when the thermostat cools: its cooling temperature, else
         what its own preset gives when cooling. A heating temperature is not one."""
-        own = self._runtime.temperatures_of(self._runtime.hass.states.get(entity_id), cool)
+        own = self._runtime.learner.temperatures_of(self._runtime.hass.states.get(entity_id), cool)
         key, own_key = ("cool_temperature", "cool_preset_mode") if cool else ("temperature", "preset_mode")
         temperatures = {p: t.get(key, own.get(t.get(own_key))) for p, t in self.targets_of(entity_id).items()}
         return {p: t for p, t in temperatures.items() if t is not None}
@@ -85,7 +89,7 @@ class SnapshotBuilder:
             # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
             # own_settings: the fan and the vanes it gets back from a slot that sets none
             "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e),
-                                "own_settings": self._runtime.own_settings(e)}
+                                "own_settings": self._runtime.gateway.own_settings(e)}
                             for e, t in self._runtime.scheduled.items()},
             "mappings": self._runtime.mappings,
             "targets": {e: self.targets_of(e) for e in self._runtime.scheduled},
@@ -94,12 +98,12 @@ class SnapshotBuilder:
             # Every thermostat, those the card shows before they are scheduled too
             "preset_temperatures": {
                 state.entity_id: temperatures for state in self._runtime.hass.states.async_all("climate")
-                if (temperatures := self._runtime.temperatures_of(state))
+                if (temperatures := self._runtime.learner.temperatures_of(state))
             },
             # What its own presets give when it cools (an air conditioner)
             "cool_preset_temperatures": {
                 state.entity_id: temperatures for state in self._runtime.hass.states.async_all("climate")
-                if (temperatures := self._runtime.temperatures_of(state, cool=True))
+                if (temperatures := self._runtime.learner.temperatures_of(state, cool=True))
             },
             "use_presets": self._runtime.use_presets,
             "revision": self._runtime.installation.revision,
@@ -109,7 +113,7 @@ class SnapshotBuilder:
             "access_level": self._runtime.access_level,
             "rules": self._runtime.installation.rules,
             "default_schedule": self._runtime.installation.default_schedule,
-            "rule_results": self._runtime.rule_results,
+            "rule_results": self._runtime.rules.results,
             "renamed": self._runtime.installation.renamed,
             "planned": self.planned_presets(),
             "version": self._runtime.version,
@@ -161,8 +165,8 @@ class SnapshotBuilder:
         does not read VTherm's attributes."""
         return self._runtime._cause_of(self._runtime.hass.states.get(entity_id))
 
-    def planned(self, entity_id: str, now: datetime | None = None, thermostat: engine.Thermostat | None = None
-                ) -> tuple[engine.Slot | None, engine.Slot | None, datetime | None]:
+    def planned(self, entity_id: str, now: datetime | None = None, thermostat: Thermostat | None = None
+                ) -> tuple[Slot | None, Slot | None, datetime | None]:
         """(slot now, next different slot, its start) for a thermostat in the active schedule.
         The slots as they run on it: on an air conditioner, a slot that says heat does not
         differ from one that says nothing. `thermostat`: the thermostat as read by the caller,
@@ -171,10 +175,10 @@ class SnapshotBuilder:
         if not week:
             return None, None, None
         thermostat = thermostat or self._runtime.current(self._runtime.hass.states.get(entity_id))
-        return engine.current_and_next(engine.week_on(week, thermostat), now or dt_util.now())
+        return current_and_next(Week.from_stored(week).on(thermostat).to_stored(), now or dt_util.now())
 
-    def planned_targets(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None,
-                        thermostat: engine.Thermostat | None = None) -> dict[str, Any]:
+    def planned_targets(self, entity_id: str, plan: Plan | None = None, now: datetime | None = None,
+                        thermostat: Thermostat | None = None) -> dict[str, Any]:
         """What a scheduled thermostat follows now (its preset, its HVAC mode, its target on this
         thermostat), and the next different slot (its preset, its HVAC mode, its start): the
         planned-preset sensor's attributes. The HVAC mode is the slot's: off, fan_only, or heat
@@ -195,13 +199,13 @@ class SnapshotBuilder:
             "next_start": next_start.isoformat() if next_start else None,
         }
 
-    def planned_info(self, entity_id: str, plan: engine.Plan | None = None, now: datetime | None = None) -> dict[str, Any]:
+    def planned_info(self, entity_id: str, plan: Plan | None = None, now: datetime | None = None) -> dict[str, Any]:
         """planned_targets, and the ends the card's buttons offer (#83, D2): the next slot a
         change made now would end at (*Until the next slot*) and the next morning (*Until
         tomorrow*), computed here, in Home Assistant's time zone, not in the browser's."""
         plan, now = plan or self._runtime.plan(), now or dt_util.now()
         thermostat = self._runtime.current(self._runtime.hass.states.get(entity_id))
-        slot = self._runtime.next_slot_end(entity_id, thermostat, plan, now)
+        slot = self._runtime.overrides.next_slot_end(entity_id, thermostat, plan, now)
         tomorrow = self.next_day_slot_end(entity_id, thermostat, plan, now)
         return {
             **self.planned_targets(entity_id, plan, now, thermostat),
@@ -219,25 +223,25 @@ class SnapshotBuilder:
         thermostat = self._runtime.current(self._runtime.hass.states.get(entity_id))
         override = self._runtime.installation.overrides.get(entity_id)
         if override:
-            start = engine.parse_datetime(override.get("end"))
+            start = parse_datetime(override.get("end"))
             start = dt_util.as_local(start) if start else None
         else:
             start = plan.next_change(entity_id, now, thermostat, not_before=now, until=now + timedelta(days=8))
         slot = plan.slot_at(entity_id, start)[0] if start else None
         target = plan.target_of(entity_id, slot, thermostat) or {}
         # What it sends, in the slot's HVAC mode: a preset's cooling value in cool, not its heating one
-        sent = engine.complete(target, thermostat, planned=target.get("hvac_mode")) if target else {}
+        sent = target.completed_for(thermostat, planned=target.get("hvac_mode")) if target else {}
         # The HVAC mode sent, or the one the thermostat keeps
         hvac_mode = sent.get("hvac_mode") or (thermostat.state if thermostat is not None and target else None)
         info = {"start": start, "preset": slot.preset if slot else None, "hvac_mode": hvac_mode,
                 "preset_mode": sent.get("preset_mode"), "temperature": sent.get("temperature")}
-        if all(key in sent for key in engine.RANGE_KEYS):
-            info.update({key: sent[key] for key in engine.RANGE_KEYS})
+        if all(key in sent for key in RANGE_KEYS):
+            info.update({key: sent[key] for key in RANGE_KEYS})
         elif info["temperature"] is None and slot is not None and slot.preset and hvac_mode != "off":
             info["temperature"] = self.preset_temperatures_of(entity_id, hvac_mode == "cool").get(slot.preset)
         return info
 
-    def next_day_slot_end(self, entity_id: str, current: engine.Thermostat | None, plan: engine.Plan | None = None,
+    def next_day_slot_end(self, entity_id: str, current: Thermostat | None, plan: Plan | None = None,
                           now: datetime | None = None) -> datetime | None:
         """The next morning, for the end "until tomorrow" of an off override (C4, D2): the first
         slot of today that changes the thermostat's state, if it is still to come, else the first

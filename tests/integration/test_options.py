@@ -1,5 +1,7 @@
 """Options (default settings), and what the card sets: presets, per-thermostat mappings."""
 
+from types import MappingProxyType
+
 import pytest
 
 from conftest import WEEKDAY, Bench, every_day
@@ -54,7 +56,7 @@ async def test_without_presets_every_thermostat_is_driven_by_temperature(bench: 
     await start(bench, {"use_presets": False})
     await bench.go_to("17:30")
     assert bench.temperature_calls[-1] == ("climate.salon", 20.0)
-    assert bench.runtime.targets_of("climate.salon")["comfort"] == {"temperature": 20.0}
+    assert bench.runtime.read_model.targets_of("climate.salon")["comfort"] == {"temperature": 20.0}
 
 
 # ----- preset temperatures: published by Versatile Thermostat, else learned -----
@@ -83,7 +85,7 @@ async def test_a_vtherm_on_another_preset_than_asked_teaches_no_temperature(benc
 
 async def test_learned_temperatures_are_given_to_the_card(bench: Bench):
     await start(bench)
-    assert bench.runtime.snapshot()["preset_temperatures"] == {"climate.salon": {"eco": 17.0}}
+    assert bench.runtime.read_model.snapshot()["preset_temperatures"] == {"climate.salon": {"eco": 17.0}}
 
 
 async def test_the_card_gets_the_temperatures_versatile_thermostat_publishes(bench: Bench):
@@ -92,7 +94,7 @@ async def test_the_card_gets_the_temperatures_versatile_thermostat_publishes(ben
     await start(bench)
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 16.5, "comfort_temp": 19.0})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.snapshot()["preset_temperatures"]["climate.salon"] == {"eco": 16.5, "comfort": 19.0}
+    assert bench.runtime.read_model.snapshot()["preset_temperatures"]["climate.salon"] == {"eco": 16.5, "comfort": 19.0}
 
 
 async def test_a_preset_temperature_changed_on_the_thermostat_reaches_the_card(bench: Bench):
@@ -100,28 +102,28 @@ async def test_a_preset_temperature_changed_on_the_thermostat_reaches_the_card(b
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 17.0, "comfort_temp": 19.0})
     await bench.hass.async_block_till_done()
     sent = []
-    bench.runtime.async_add_listener(sent.append)
+    bench.runtime.installation.add_listener(sent.append)
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 17.0, "comfort_temp": 19.5})
     await bench.hass.async_block_till_done()
     assert sent
-    assert bench.runtime.snapshot()["preset_temperatures"]["climate.salon"]["comfort"] == 19.5
+    assert bench.runtime.read_model.snapshot()["preset_temperatures"]["climate.salon"]["comfort"] == 19.5
 
 
 async def test_a_paused_thermostat_still_sends_its_preset_temperatures_to_the_card(bench: Bench):
     await start(bench)
-    await bench.runtime.set_paused("climate.salon", True)
+    await bench.runtime.registry.set_paused("climate.salon", True)
     sent = []
-    bench.runtime.async_add_listener(sent.append)
+    bench.runtime.installation.add_listener(sent.append)
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 17.0, "comfort_temp": 19.5})
     await bench.hass.async_block_till_done()
     assert sent
-    assert bench.runtime.snapshot()["preset_temperatures"]["climate.salon"]["comfort"] == 19.5
+    assert bench.runtime.read_model.snapshot()["preset_temperatures"]["climate.salon"]["comfort"] == 19.5
 
 
 async def test_the_card_gets_the_preset_temperatures_of_a_thermostat_not_scheduled_yet(bench: Bench):
     await start(bench)
     bench.thermostat("climate.cuisine", "eco", preset_temperatures={"eco_temp": 16.0, "comfort_temp": 19.0})
-    assert bench.runtime.snapshot()["preset_temperatures"]["climate.cuisine"] == {"eco": 16.0, "comfort": 19.0}
+    assert bench.runtime.read_model.snapshot()["preset_temperatures"]["climate.cuisine"] == {"eco": 16.0, "comfort": 19.0}
 
 
 # ----- set from the card (websocket) -----
@@ -172,7 +174,7 @@ async def test_what_was_learned_on_a_forgotten_thermostat_is_dropped(bench: Benc
     await bench.setup()
     await bench.save_weeks({"climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
     assert bench.runtime.learned_temperatures == {"climate.cuisine": {"eco": 17.0}}
-    await bench.runtime.forget("climate.cuisine")
+    await bench.runtime.registry.forget("climate.cuisine")
     bench.thermostat("climate.cuisine", "comfort")
     await bench.hass.async_block_till_done()
     assert bench.runtime.learned_temperatures == {}
@@ -206,3 +208,12 @@ async def test_the_options_form_refuses_a_duration_that_is_not_whole_minutes(ben
     assert result["type"] == "form"
     assert result["errors"] == {"override_duration": "invalid_override_duration"}
     assert bench.runtime.override_duration == 90
+
+
+async def test_preset_temperatures_published_as_a_non_dict_mapping_are_ignored(bench: Bench):
+    """Only a dict of published preset temperatures counts, as Versatile Thermostat publishes it."""
+    await bench.setup()
+    bench.thermostat("climate.salon", "eco", preset_temperatures=MappingProxyType({"eco_temp": 16.0}))
+    await bench.hass.async_block_till_done()
+    state = bench.hass.states.get("climate.salon")
+    assert bench.runtime.learner.preset_temperature(state, "eco") != 16.0

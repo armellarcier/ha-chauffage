@@ -55,7 +55,7 @@ async def test_a_renamed_thermostat_is_still_driven_and_watched(bench: Bench):
 
 async def test_a_renamed_thermostat_stays_paused(bench: Bench):
     await start(bench)
-    await bench.runtime.set_paused("climate.salon", True)
+    await bench.runtime.registry.set_paused("climate.salon", True)
     await rename(bench)
     assert bench.runtime.is_paused("climate.sejour")
 
@@ -143,7 +143,7 @@ async def test_the_cards_learn_the_new_id(bench: Bench):
     """A card whose configuration still holds the former id shows a notice with the new one."""
     await start(bench)
     await rename(bench)
-    assert bench.runtime.snapshot()["renamed"] == {"climate.salon": "climate.sejour"}
+    assert bench.runtime.read_model.snapshot()["renamed"] == {"climate.salon": "climate.sejour"}
 
 
 async def test_renamed_twice(bench: Bench):
@@ -154,15 +154,15 @@ async def test_renamed_twice(bench: Bench):
     bench.thermostat("climate.living", "eco", friendly_name="Salon")
     await bench.hass.async_block_till_done()
     assert bench.runtime.weeks["climate.living"]["normal"] == SALON["normal"]
-    assert bench.runtime.snapshot()["renamed"] == {"climate.salon": "climate.living", "climate.sejour": "climate.living"}
+    assert bench.runtime.read_model.snapshot()["renamed"] == {"climate.salon": "climate.living", "climate.sejour": "climate.living"}
 
 
 async def test_a_forgotten_thermostat_is_no_longer_where_its_former_ids_lead(bench: Bench):
     """A card holding the former id would set it aside forever, pointing to nothing."""
     await start(bench)
     await rename(bench)
-    await bench.runtime.forget("climate.sejour")
-    assert bench.runtime.snapshot()["renamed"] == {}
+    await bench.runtime.registry.forget("climate.sejour")
+    assert bench.runtime.read_model.snapshot()["renamed"] == {}
 
 
 async def test_a_rename_is_not_an_entity_gone(bench: Bench):
@@ -179,7 +179,7 @@ async def test_a_rename_survives_a_restart(bench: Bench):
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
     assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
-    assert bench.runtime.snapshot()["renamed"] == {"climate.salon": "climate.sejour"}
+    assert bench.runtime.read_model.snapshot()["renamed"] == {"climate.salon": "climate.sejour"}
 
 
 async def test_a_copy_of_the_weeks_made_before_a_rename_must_be_reloaded(bench: Bench):
@@ -187,7 +187,7 @@ async def test_a_copy_of_the_weeks_made_before_a_rename_must_be_reloaded(bench: 
     from custom_components.chauffage.runtime import StaleRevision
 
     await start(bench)
-    revision = bench.runtime.snapshot()["thermostats"]["climate.salon"]["revision"]
+    revision = bench.runtime.read_model.snapshot()["thermostats"]["climate.salon"]["revision"]
     await rename(bench)
     with pytest.raises(StaleRevision):
         await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": revision})

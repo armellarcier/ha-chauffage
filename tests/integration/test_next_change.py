@@ -130,7 +130,7 @@ async def test_the_next_change_of_an_air_conditioner_gives_what_it_will_cool_at(
 
 async def test_the_next_change_of_a_paused_thermostat_is_unavailable(bench: Bench):
     await start(bench)
-    await bench.runtime.set_paused("climate.salon", True)
+    await bench.runtime.registry.set_paused("climate.salon", True)
     await bench.hass.async_block_till_done()
     assert bench.hass.states.get(SENSOR).state == "unavailable"
 

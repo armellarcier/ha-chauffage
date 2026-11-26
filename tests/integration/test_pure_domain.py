@@ -1,8 +1,7 @@
 """The rules of Chauffage don't depend on Home Assistant: the domain imports nothing from it.
 
-The domain is `domain/`, the validation of the input (`storage/schema.py`), and until the rewrite
-moves them there, `engine.py`, `model.py` and `const.py`. A domain module imports only the
-standard library and other domain modules.
+The domain is `domain/`, the validation of the input (`storage/schema.py`), and `model.py` and
+`const.py`. A domain module imports only the standard library and other domain modules.
 """
 
 import ast
@@ -11,7 +10,7 @@ from pathlib import Path
 import pytest
 
 PACKAGE = Path(__file__).parents[2] / "custom_components" / "chauffage"
-DOMAIN_MODULES = sorted({PACKAGE / "engine.py", PACKAGE / "model.py", PACKAGE / "const.py",
+DOMAIN_MODULES = sorted({PACKAGE / "model.py", PACKAGE / "const.py",
                          PACKAGE / "storage" / "__init__.py", PACKAGE / "storage" / "schema.py",
                          *(PACKAGE / "domain").rglob("*.py")})
 
@@ -49,4 +48,4 @@ def test_the_check_sees_an_import_of_home_assistant(tmp_path: Path):
     module.write_text("from homeassistant.core import HomeAssistant\nfrom .runtime import ChauffageRuntime\n")
     assert imports_of(module) == [("homeassistant.core", None), (".runtime", tmp_path / "runtime")]
     assert not domain_file(PACKAGE / "runtime")
-    assert domain_file(PACKAGE / "engine")
+    assert domain_file(PACKAGE / "model")

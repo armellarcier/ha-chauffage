@@ -163,7 +163,7 @@ def preset(raw: Any, taken_ids: set[str]) -> Preset:
 def day(raw: Any) -> Day:
     """Sorted slots, first one at 00:00, one slot per start time (same rules as the card). Two
     slots in a row that are the same stay two slots: the user cut them, and the second one
-    changes nothing on the thermostat (engine.targets). A slot is [start, preset] or
+    changes nothing on the thermostat (plan.due_targets). A slot is [start, preset] or
     [start, preset, settings] (#91); empty settings are left out. An off, a fan-only, a dry and
     an auto slot have no preset (None). Invalid slots are dropped, invalid settings refused; an
     empty day is eco all day."""

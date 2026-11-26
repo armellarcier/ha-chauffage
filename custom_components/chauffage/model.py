@@ -8,7 +8,7 @@ Vocabulary: docs/glossary.md.
                      "temperature" is the default when heating, for thermostats driven by
                      temperatures, and "cool_temperature" the default when cooling (#91). Either
                      can be empty ("temperature": None, no "cool_temperature"), not both: a
-                     preset is only used in the HVAC modes it has a value for (engine.value_on).
+                     preset is only used in the HVAC modes it has a value for (Preset.value_on).
                      "cool_color" is the color of the preset's cooling slots, when the user chose
                      one: without it, the card derives a cool shade from "color" (#91)
     thermostats:     {climate entity id: scheduled thermostat}, the thermostats Chauffage knows
@@ -28,10 +28,10 @@ Vocabulary: docs/glossary.md.
                              vanes. A slot on a preset that says no HVAC mode (a week stored
                              before #91) is read as heat on an air conditioner that heats and
                              cools, as cool on one that only cools, and carries none on a
-                             heater (engine.slot_hvac_mode)
+                             heater (slot.slot_hvac_mode)
         mapping:             {preset id: value}, what a preset means for this thermostat, only
                              what was set by hand: the rest is the preset's default
-                             (engine.value_on). A value is
+                             (Preset.value_on). A value is
                              a partial state of the thermostat, as a scene holds it (#91). When
                              the thermostat heats: {"preset_mode": "comfort"} or
                              {"temperature": 20.5}, never both. When it cools: an optional
@@ -82,9 +82,7 @@ from typing import Any
 
 from .const import DEFAULT_PRESET_COLOR, DEFAULT_PRESET_TEMPERATURE, DEFAULT_PRESETS, PRESET_NAMES
 from .storage import schema
-from .storage.schema import InvalidData, slug, unique_id
-
-__all__ = ["InvalidData", "slug", "unique_id"]
+from .storage.schema import InvalidData, unique_id
 
 
 def make_schedules(names: list[str]) -> list[dict[str, str]]:
@@ -204,42 +202,6 @@ def normalize_rules(rules: Any, default: Any, schedule_ids: set[str]) -> list[di
     return out
 
 
-# Facades over storage/schema.py, until their callers use it (rewrite phase I7)
-
-def normalize_preset(preset: Any, taken_ids: set[str]) -> dict[str, Any]:
-    """Validated preset; a new preset (no id) gets a unique id from its name."""
-    return schema.preset(preset, taken_ids).to_stored()
-
-
-def normalize_target(target: Any) -> dict[str, Any]:
-    """A validated target of an override or a command (storage/schema.py)."""
-    return dict(schema.target(target))
-
-
-def normalize_settings(settings: Any) -> dict[str, Any]:
-    """A slot's validated settings (storage/schema.py)."""
-    return schema.settings(settings)
-
-
-def normalize_value(value: Any) -> dict[str, Any]:
-    """A validated value of a preset on a thermostat (storage/schema.py)."""
-    return schema.value(value)
-
-
-def normalize_mapping(mapping: Any, preset_ids: set[str]) -> dict[str, dict[str, Any]]:
-    """{preset id: value} set by hand for one thermostat."""
-    return schema.mapping(mapping, preset_ids)
-
-
-def normalize_day(slots: Any) -> list[list[Any]]:
-    """Sorted slots, first one at 00:00, one slot per start time (storage/schema.py)."""
-    return schema.day(slots).to_stored()
-
-
-def normalize_week(week: Any) -> list[list[list[str]]]:
-    return schema.week(week).to_stored()
-
-
 def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | None = None) -> dict[str, dict[str, Any]]:
     """Validated copy of the weeks sent by the card or an import."""
     if not isinstance(weeks, dict):
@@ -253,13 +215,9 @@ def normalize_weeks(weeks: Any, schedule_ids: set[str], preset_ids: set[str] | N
         unknown = set(by_schedule) - schedule_ids
         if unknown:
             raise InvalidData(f"{entity_id}: unknown schedules {sorted(unknown)}")
-        out[entity_id] = {schedule: normalize_week(week) for schedule, week in by_schedule.items()}
+        out[entity_id] = {schedule: schema.week(week).to_stored() for schedule, week in by_schedule.items()}
     if preset_ids is not None:
         unknown_presets = set(used_presets(out)) - preset_ids
         if unknown_presets:
             raise InvalidData(f"unknown presets {sorted(unknown_presets)}")
     return out
-
-
-def normalize_override(override: Any) -> dict[str, Any]:
-    return schema.override(override).to_stored()

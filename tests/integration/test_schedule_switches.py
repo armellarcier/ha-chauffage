@@ -42,7 +42,7 @@ async def test_each_schedule_has_a_switch_on_for_the_active_one(bench: Bench):
     device = dr.async_get(bench.hass).async_get(entry.device_id)
     assert device.name == "Chauffage" and entry.entity_category is None
     assert bench.hass.states.get("switch.chauffage_schedule_away").name == "Chauffage Away schedule"
-    assert bench.runtime.snapshot()["schedule_entities"]["away"] == "switch.chauffage_schedule_away"  # for the card
+    assert bench.runtime.read_model.snapshot()["schedule_entities"]["away"] == "switch.chauffage_schedule_away"  # for the card
 
 
 async def test_turning_a_schedule_switch_on_activates_that_schedule(bench: Bench):
@@ -91,7 +91,7 @@ async def test_the_card_is_told_the_switch_of_a_new_schedule_or_a_new_entity_id(
     icon chosen for it is shown."""
     await start(bench)
     sent = []
-    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.snapshot()["schedule_entities"]))
+    bench.runtime.installation.add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["schedule_entities"]))
     await bench.set_schedules([{"id": "normal"}, {"id": "away"}, {"id": "holiday"}, {"name": "Guests"}])
     assert sent[-1]["guests"] == "switch.chauffage_schedule_guests"
     er.async_get(bench.hass).async_update_entity("switch.chauffage_schedule_guests", new_entity_id="switch.guests")

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import Event, EventStateChangedData, State, callback
 from homeassistant.util import dt as dt_util
 
-from .. import engine
+from ..domain.target import SETPOINT_TARGET_KEYS
 from ..domain.manual_change import NoChange, Resume, classify
 from ..domain.plan import Realign
 from ..domain.thermostat import Thermostat, ignored
@@ -67,10 +67,10 @@ class ManualChanges:
         """What the thermostat publishes and the card shows: the temperatures of its presets,
         and why it protects itself."""
         runtime = self._runtime
-        if not runtime.learner.learn(new) and (runtime.temperatures_of(old) != runtime.temperatures_of(new)
-                                        or runtime.temperatures_of(old, cool=True) != runtime.temperatures_of(new, cool=True)
+        if not runtime.learner.learn(new) and (runtime.learner.temperatures_of(old) != runtime.learner.temperatures_of(new)
+                                        or runtime.learner.temperatures_of(old, cool=True) != runtime.learner.temperatures_of(new, cool=True)
                                         or runtime._cause_of(old) != runtime._cause_of(new)):
-            runtime._notify()
+            runtime.installation.notify()
 
     @callback
     def _back_online(self, old: State, new: State, before: Thermostat) -> None:
@@ -103,8 +103,8 @@ class ManualChanges:
         slot, _ = plan.slot_at(new.entity_id, dt_util.now())
         expected = plan.target_of(new.entity_id, slot, after)
         if expected is not None:  # what the slot sends this thermostat now
-            expected = engine.complete(expected, after)
-        preset_temperature = runtime.preset_temperature(new, expected["preset_mode"], after.state == "cool") \
+            expected = expected.completed_for(after)
+        preset_temperature = runtime.learner.preset_temperature(new, expected["preset_mode"], after.state == "cool") \
             if expected is not None and "preset_mode" in expected else None
         current = runtime.installation.overrides.get(new.entity_id)
         change = classify(before, after, by_user=context.user_id is not None, expected=expected,
@@ -125,6 +125,6 @@ class ManualChanges:
         target = dict(change.target)
         recorded = runtime.overrides.manual(new.entity_id, target, after)
         if current and current.get("preset") and all(
-                target.get(key) == current["target"].get(key) for key in engine.SETPOINT_TARGET_KEYS):
+                target.get(key) == current["target"].get(key) for key in SETPOINT_TARGET_KEYS):
             recorded["preset"] = current["preset"]  # its setpoint is still the preset's
         runtime.overrides.record(new.entity_id, recorded, context)

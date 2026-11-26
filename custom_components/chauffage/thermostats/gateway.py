@@ -19,7 +19,8 @@ from homeassistant.core import Context, HomeAssistant, State, callback
 from homeassistant.helpers.state import async_reproduce_state
 from homeassistant.util import dt as dt_util
 
-from .. import engine
+from ..domain.pending import applied_command, expired_commands
+from ..domain.timeline import parse_datetime
 from ..domain.target import EQUAL_KEYS, Target
 from ..domain.thermostat import Thermostat, ignored, preset_value
 from ..storage.installation import Installation
@@ -36,7 +37,7 @@ def describe(command: Mapping[str, Any]) -> str:
 
 def local_time(iso: str) -> str:
     """Local time of an ISO date, for the log."""
-    when = engine.parse_datetime(iso)
+    when = parse_datetime(iso)
     return dt_util.as_local(when).strftime("%H:%M:%S") if when else str(iso)
 
 
@@ -149,7 +150,7 @@ class ThermostatGateway:
         """The command not applied yet that the thermostat has just taken (None: none): that one
         and the older ones are done."""
         commands = self.pending(entity_id)
-        index = engine.applied_command(commands, before, after) if after and commands else None
+        index = applied_command(commands, before, after) if after and commands else None
         if index is None:
             return None
         command = self._installation.pending[entity_id][index]
@@ -171,7 +172,7 @@ class ThermostatGateway:
     def expire_pending(self, now: datetime) -> None:
         """Forgets the commands a thermostat has not applied after a day."""
         for entity_id, commands in list(self._installation.pending.items()):
-            if expired := engine.expired_commands([c["sent"] for c in commands], now):
+            if expired := expired_commands([c["sent"] for c in commands], now):
                 self.drop_pending(entity_id, expired)
 
     @callback

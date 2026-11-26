@@ -99,7 +99,7 @@ async def calendar(bench: Bench, tmp_path):
     hass = bench.hass
     await at(bench, "0 10:01")  # the next reading of the calendar is at 10:05
     await bench.setup()
-    await bench.runtime.set_rules([{"template": "{{ states('%s') }}" % HELPER, "schedule": None}], "normal")
+    await bench.runtime.rules.set([{"template": "{{ states('%s') }}" % HELPER, "schedule": None}], "normal")
     cal = Calendar()
     hass.services.async_register("calendar", "get_events", cal.get_events, supports_response=SupportsResponse.ONLY)
     hass.states.async_set(CALENDAR, "off")

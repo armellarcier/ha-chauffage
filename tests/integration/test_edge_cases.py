@@ -13,6 +13,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from conftest import WEEKDAY, Bench, every_day
 from custom_components.chauffage import model
+from custom_components.chauffage.storage import schema
+from custom_components.chauffage.storage.schema import InvalidData
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 SCHEDULES = {"climate.salon": {"normal": [WEEKDAY] * 7}, "climate.bureau": {"normal": every_day(("00:00", "comfort"))}}
@@ -107,12 +109,12 @@ async def test_activating_the_active_schedule_again_changes_nothing(bench: Bench
 
 async def test_unknown_schedules_duplicate_or_no_presets_are_refused(bench: Bench):
     await start(bench)
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await bench.runtime.activate_schedule("unknown", source="card")
     presets = [dict(p) for p in bench.presets()]
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await bench.runtime.set_presets(presets + [presets[0]])
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await bench.runtime.set_presets([])
 
 
@@ -126,7 +128,7 @@ async def test_removing_an_override_that_does_not_exist_changes_nothing(bench: B
 
 async def test_a_thermostat_not_scheduled_has_no_planned_preset(bench: Bench):
     await start(bench)
-    assert bench.runtime.planned("climate.cuisine") == (None, None, None)
+    assert bench.runtime.read_model.planned("climate.cuisine") == (None, None, None)
 
 
 # ----- services: errors -----
@@ -193,25 +195,25 @@ async def test_invalid_requests_are_refused(bench: Bench, ws_client, command):
 # ----- data validation -----
 
 @pytest.mark.parametrize(("function", "value"), [
-    (lambda v: model.normalize_preset(v, set()), "not a dict"),
-    (lambda v: model.normalize_mapping(v, {"eco"}), ["not", "a", "dict"]),
-    (lambda v: model.normalize_mapping(v, {"eco"}), {"eco": {"temperature": "warm"}}),
-    (lambda v: model.normalize_mapping(v, {"eco"}), {"eco": {}}),
+    (lambda v: schema.preset(v, set()).to_stored(), "not a dict"),
+    (lambda v: schema.mapping(v, {"eco"}), ["not", "a", "dict"]),
+    (lambda v: schema.mapping(v, {"eco"}), {"eco": {"temperature": "warm"}}),
+    (lambda v: schema.mapping(v, {"eco"}), {"eco": {}}),
     (lambda v: model.normalize_weeks(v, {"normal"}), ["not a dict"]),
     (lambda v: model.normalize_weeks(v, {"normal"}), {"climate.salon": "not a dict"}),
-    (model.normalize_override, "not a dict"),
-    (model.normalize_override, {"target": {"temperature": "warm"}, "start": "a", "end": "b"}),
-    (model.normalize_override, {"target": {}, "start": "a", "end": "b"}),
-    (model.normalize_override, {"target": {"preset_mode": "eco", "fan": "high"}, "start": "a", "end": "b"}),
-    (model.normalize_override, {"target": {"preset_mode": "boost"}, "start": 1, "end": None}),
+    (lambda v: schema.override(v).to_stored(), "not a dict"),
+    (lambda v: schema.override(v).to_stored(), {"target": {"temperature": "warm"}, "start": "a", "end": "b"}),
+    (lambda v: schema.override(v).to_stored(), {"target": {}, "start": "a", "end": "b"}),
+    (lambda v: schema.override(v).to_stored(), {"target": {"preset_mode": "eco", "fan": "high"}, "start": "a", "end": "b"}),
+    (lambda v: schema.override(v).to_stored(), {"target": {"preset_mode": "boost"}, "start": 1, "end": None}),
 ])
 def test_invalid_data_is_refused(function, value):
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         function(value)
 
 
 def test_a_preset_named_like_an_existing_one_gets_another_id():
-    assert model.normalize_preset({"name": "Eco"}, {"eco"})["id"] == "eco_2"
+    assert schema.preset({"name": "Eco"}, {"eco"}).to_stored()["id"] == "eco_2"
 
 
 async def test_an_override_set_before_the_thermostat_has_a_state_is_recorded(bench: Bench):
@@ -222,5 +224,5 @@ async def test_an_override_set_before_the_thermostat_has_a_state_is_recorded(ben
     await bench.setup()
     await bench.save_weeks({"climate.salon": {"normal": [WEEKDAY] * 7}})
     bench.hass.states.async_remove("climate.salon")
-    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 21.0}))
+    await bench.set_override("climate.salon", bench.runtime.overrides.new({"temperature": 21.0}))
     assert bench.overrides()["climate.salon"]["target"] == {"temperature": 21.0}

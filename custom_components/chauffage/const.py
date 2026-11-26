@@ -67,7 +67,7 @@ AIR_KEYS = ("fan_mode", "swing_mode", "swing_horizontal_mode")
 
 # Default presets: (id, color, default temperature when heating, when cooling). Their ids are
 # Versatile Thermostat's preset names, so a thermostat with those climate presets uses them (see
-# engine.value_on). Frost protection has no temperature when cooling: it never cools (#91).
+# Preset.value_on). Frost protection has no temperature when cooling: it never cools (#91).
 DEFAULT_PRESETS = (
     ("comfort", "#f57c00", 20.0, 25.0),
     ("eco", "#43a047", 17.0, 27.0),

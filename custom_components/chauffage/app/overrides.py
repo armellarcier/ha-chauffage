@@ -13,7 +13,12 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import Context, callback
 from homeassistant.util import dt as dt_util
 
-from .. import engine, model
+from ..const import HEAT_COOL, OFF
+from ..domain.plan import Plan
+from ..domain.target import RANGE_KEYS, Target
+from ..domain.thermostat import Thermostat, ignored
+from ..domain.timeline import parse_datetime
+from ..storage import schema
 from ..const import (
     DURATION,
     EVENT_OVERRIDE_END_CHANGED,
@@ -37,7 +42,7 @@ class ThermostatFailed(Exception):
     """The thermostat could not be set to an override's value."""
 
 
-class ThermostatPaused(model.InvalidData):
+class ThermostatPaused(schema.InvalidData):
     """An override asked for a paused thermostat."""
 
 
@@ -46,7 +51,7 @@ def end_data(override: dict[str, Any]) -> dict[str, Any]:
     hand, #83), for the events and the logbook."""
     out = {}
     for key in ("start", "end"):
-        if when := engine.parse_datetime(override.get(key)):
+        if when := parse_datetime(override.get(key)):
             out[key] = dt_util.as_local(when).isoformat()
     if override.get("ends_at"):
         out["ends_at"] = override["ends_at"]
@@ -76,30 +81,30 @@ class OverrideService:
         on a paused thermostat."""
         runtime = self._runtime
         if entity_id not in runtime.scheduled:
-            raise model.InvalidData(f"not scheduled: {entity_id}")
+            raise schema.InvalidData(f"not scheduled: {entity_id}")
         if override is not None and runtime.is_paused(entity_id):
             raise ThermostatPaused(f"paused: {entity_id}")
         if override is None:
             if not self.drop(entity_id, source, context):
                 return
-            runtime._changed()
+            runtime.installation.changed()
             await runtime.scheduler.apply(Resumed(entity_id, f"override ended ({source})"))
             return
-        override = model.normalize_override(override)
+        override = schema.override(override).to_stored()
         current = runtime.current(runtime.hass.states.get(entity_id))
-        target = override["target"] = engine.fit(override["target"], current)
+        target = override["target"] = dict(Target(override["target"]).fitted_to(current))
         before = self._overrides.get(entity_id)
         # Only a change by hand says why it ends then (record): not the card, not a service
         override.pop("ends_at", None)
         new_value = before is None or before["target"] != target
-        left_alone = current is not None and engine.ignored(current)  # sent when it is back
+        left_alone = current is not None and ignored(current)  # sent when it is back
         to_send = None
         if (new_value or resend) and not left_alone:
             to_send = runtime.needs(entity_id, target, current, by_user=not override.get("preset"))
         if to_send is not None and not await runtime.gateway.send(entity_id, to_send, f"override set by {source}"):
             raise ThermostatFailed(entity_id)
         self.keep(entity_id, override, source, context)
-        runtime._changed()
+        runtime.installation.changed()
 
     def refuse_lone_temperature(self, entity_id: str, override: Any) -> None:
         """Refuses a new override to a single temperature in heat/cool, on a thermostat that
@@ -108,16 +113,16 @@ class OverrideService:
         keeps it: its end may still change."""
         target = override.get("target") if isinstance(override, dict) else None
         if (not isinstance(target, dict) or "temperature" not in target or override.get("preset")
-                or any(key in target for key in engine.RANGE_KEYS)):
+                or any(key in target for key in RANGE_KEYS)):
             return
         before = self._overrides.get(entity_id)
         current = self._runtime.current(self._runtime.hass.states.get(entity_id))
-        if current is None or not current.supports_range or (before and before["target"] == engine.fit(target, current)):
+        if current is None or not current.supports_range or (before and before["target"] == Target(target).fitted_to(current)):
             return
-        if (target.get("hvac_mode") or current.state) == engine.HEAT_COOL:
-            raise model.InvalidData(f"{entity_id} takes a range of temperatures in heat_cool, not a single temperature")
+        if (target.get("hvac_mode") or current.state) == HEAT_COOL:
+            raise schema.InvalidData(f"{entity_id} takes a range of temperatures in heat_cool, not a single temperature")
 
-    def next_slot_end(self, entity_id: str, current: engine.Thermostat | None, plan: engine.Plan | None = None,
+    def next_slot_end(self, entity_id: str, current: Thermostat | None, plan: Plan | None = None,
                       now: datetime | None = None) -> datetime | None:
         """The start of the next slot that changes the thermostat's target, as for a change by
         hand made now: at least MIN_MANUAL_OVERRIDE minutes away, within a week. None without one."""
@@ -130,14 +135,14 @@ class OverrideService:
     def record(self, entity_id: str, override: dict[str, Any], context: Context | None = None) -> None:
         """The override of a change by hand, only recorded: the thermostat set it itself, and
         sending it back could undo a second change made meanwhile."""
-        self.keep(entity_id, model.normalize_override(override), "thermostat", context)
-        self._runtime._changed()
+        self.keep(entity_id, schema.override(override).to_stored(), "thermostat", context)
+        self._runtime.installation.changed()
 
     def info(self, entity_id: str) -> dict[str, Any]:
         """A thermostat's override as automations see it (sensor, event): its target, the preset
         it was set to, its end in local time (None without override)."""
         override = self._overrides.get(entity_id) or {}
-        end = engine.parse_datetime(override.get("end"))
+        end = parse_datetime(override.get("end"))
         return {"target": override.get("target"), "preset": override.get("preset"),
                 "end": dt_util.as_local(end).isoformat() if end else None}
 
@@ -153,7 +158,7 @@ class OverrideService:
             _LOGGER.info("%s: override started by %s: %s until %s", entity_id, source, describe(override), info["end"])
             bus.async_fire(EVENT_OVERRIDE_STARTED, {"entity_id": entity_id, **info, "source": source,
                                                     **end_data(override)}, context=context)
-        elif engine.parse_datetime(before.get("end")) != engine.parse_datetime(override.get("end")):
+        elif parse_datetime(before.get("end")) != parse_datetime(override.get("end")):
             _LOGGER.info("%s: override until %s, set by %s", entity_id, info["end"], source)
             bus.async_fire(EVENT_OVERRIDE_END_CHANGED, {"entity_id": entity_id, **info, "source": source,
                                                         **end_data(override)}, context=context)
@@ -169,13 +174,13 @@ class OverrideService:
                                                                  **end_data(override)}, context=context)
         return True
 
-    def new(self, target: engine.Target, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
+    def new(self, target: Target, minutes: int | None = None, end: datetime | None = None) -> dict[str, Any]:
         start = dt_util.now().replace(microsecond=0)
         # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
         end = end or dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=minutes or self._runtime.override_duration))
         return {"target": dict(target), "start": start.isoformat(), "end": end.replace(microsecond=0).isoformat()}
 
-    def manual(self, entity_id: str, target: engine.Target, current: engine.Thermostat | None) -> dict[str, Any]:
+    def manual(self, entity_id: str, target: Target, current: Thermostat | None) -> dict[str, Any]:
         """The override of a change by hand (#83), by the setting *End of a change by hand*, or
         *Turned off* for a thermostat turned off (#91): after the override duration
         (DURATION), at the next slot that changes the thermostat's target in the active schedule
@@ -183,14 +188,14 @@ class OverrideService:
         however far (NEXT_SLOT: a week later without one). A slot starting less than
         MIN_MANUAL_OVERRIDE minutes after the change does not count. Computed once, now: a
         schedule activated or a setting changed later does not move the end."""
-        off = target.get("hvac_mode") == engine.OFF
+        off = target.get("hvac_mode") == OFF
         setting = self._runtime.off_override_end if off else self._runtime.manual_override_end
         unbounded = setting == NEXT_SLOT
         override = self.new(target, MAX_MANUAL_OVERRIDE if unbounded else None)
         if setting == DURATION:
             return override | {"ends_at": DURATION}
         # In the local time zone (not a fixed offset): the slots follow its DST changes
-        start, end = (dt_util.as_local(engine.parse_datetime(override[key])) for key in ("start", "end"))
+        start, end = (dt_util.as_local(parse_datetime(override[key])) for key in ("start", "end"))
         # On the instant: wall-clock arithmetic is wrong in the hour repeated when summer time ends
         not_before = dt_util.as_local(dt_util.as_utc(start) + timedelta(minutes=MIN_MANUAL_OVERRIDE))
         slot = self._runtime.plan().next_change(entity_id, start, current, not_before=not_before, until=end)

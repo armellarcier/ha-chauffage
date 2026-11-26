@@ -273,7 +273,7 @@ test fail.
 | I6 | `Installation` owns the data. `SnapshotBuilder`. Entities, websocket, services and diagnostics stop reading dicts. Add the websocket command that previews what a preset is worth on a thermostat (section 6, item 6). | 3-4 d | The `DATA`, `TICK` and `ENTITIES` notifications |
 | I7 | Remove the facades, freeze the migrations with their helpers, update the docs | 2 d | Low |
 
-From I1 to I6, `entry.runtime_data` keeps today's public method names, which delegate.
+From I1 to I6, `entry.runtime_data` keeps today's public method names, which delegate. Phase I7 removes these delegates: the callers use the services (`runtime.overrides`, `runtime.read_model`…).
 
 ### The card
 

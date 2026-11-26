@@ -16,8 +16,8 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         "version": runtime.version,
         "options": dict(entry.options),
         "data": runtime.installation.stored,
-        "retry": sorted(runtime.retrying),
-        "rule_results": runtime.rule_results,
+        "retry": sorted(runtime.scheduler.retry),
+        "rule_results": runtime.rules.results,
         "states": {
             entity_id: {"state": state.state, "attributes": dict(state.attributes),
                         "last_changed": state.last_changed.isoformat(), "last_updated": state.last_updated.isoformat()}

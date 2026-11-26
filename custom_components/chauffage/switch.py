@@ -35,10 +35,10 @@ class ControlSwitch(ThermostatEntity, SwitchEntity):
         return not self.runtime.is_paused(self.climate)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.runtime.set_paused(self.climate, False)
+        await self.runtime.registry.set_paused(self.climate, False)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.runtime.set_paused(self.climate, True)
+        await self.runtime.registry.set_paused(self.climate, True)
 
 
 class ScheduleSwitch(ChauffageEntity, SwitchEntity):

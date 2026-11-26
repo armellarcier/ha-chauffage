@@ -45,8 +45,8 @@ async def a_rich_house(bench: Bench) -> None:
                                         ["20:00", None, {"hvac_mode": "off"}]]] * 7},
         "climate.bureau": {"normal": [WEEKDAY] * 7},
     })
-    await bench.runtime.set_paused("climate.bureau", True)
-    await bench.runtime.set_rules([{"template": "{{ is_state('input_boolean.away', 'on') }}", "schedule": "away"}],
+    await bench.runtime.registry.set_paused("climate.bureau", True)
+    await bench.runtime.rules.set([{"template": "{{ is_state('input_boolean.away', 'on') }}", "schedule": "away"}],
                                   "normal")
     bench.thermostat("climate.salon", "none", 21.5, context=CTX_USER)
     await bench.hass.async_block_till_done()
