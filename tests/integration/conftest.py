@@ -23,9 +23,9 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser, async_fire_time_changed
 
-from custom_components.chauffage import model
+from custom_components.chauffage.storage import schema
 from custom_components.chauffage.const import DOMAIN
-from custom_components.chauffage.runtime import ChauffageRuntime
+from custom_components.chauffage.app.runtime import ChauffageRuntime
 from custom_components.chauffage.store import STORAGE_MINOR_VERSION, STORAGE_VERSION
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -126,7 +126,7 @@ class Bench:
         (`schedules=None`: a new installation)."""
         if schedules and DOMAIN not in self.storage:
             self.storage[DOMAIN] = {"version": STORAGE_VERSION, "minor_version": STORAGE_MINOR_VERSION, "key": DOMAIN,
-                                    "data": model.default_data(list(schedules))}
+                                    "data": schema.default_data(list(schedules))}
         self.entry = entry or MockConfigEntry(domain=DOMAIN, title="Chauffage", options=options or {})
         if entry is None:
             self.entry.add_to_hass(self.hass)
@@ -231,7 +231,7 @@ class Bench:
 
     async def save_weeks(self, weeks: dict) -> None:
         """What the card sends when the user clicks Save."""
-        await self.runtime.save_weeks(weeks)
+        await self.runtime.schedules.save_weeks(weeks)
         await self.hass.async_block_till_done()
 
     async def activate_schedule(self, name: str) -> None:
@@ -243,7 +243,7 @@ class Bench:
 
     async def set_schedules(self, schedules: list[dict], revision: int | None = None) -> list[dict]:
         """What the card sends to create, rename, move or delete schedules."""
-        result = await self.runtime.set_schedules(schedules, revision)
+        result = await self.runtime.schedules.set_schedules(schedules, revision)
         await self.hass.async_block_till_done()
         return result
 
@@ -275,6 +275,11 @@ class Bench:
         self.hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
         await self.hass.async_block_till_done()
         return self.storage[DOMAIN]["data"]
+
+    async def learned_temperatures(self) -> dict[str, dict[str, float]]:
+        """{thermostat: {own preset: temperature}} learned while it heated, as saved."""
+        thermostats = (await self.stored())["thermostats"]
+        return {entity_id: t["preset_temperatures"] for entity_id, t in thermostats.items() if t["preset_temperatures"]}
 
     async def edit_stored_data(self, change: Callable[[dict[str, Any]], None]) -> None:
         """Change the data in memory as an older version stored it, or in a state that no API

@@ -1,7 +1,7 @@
 """Slots, days and weeks: what a schedule asks a thermostat, and when (docs/glossary.md).
 
 Stored, a day is a list of [start "HH:MM", preset id] or [start, preset id, settings] slots, the
-first one at "00:00", and a week is 7 days, Monday first (model.py).
+first one at "00:00", and a week is 7 days, Monday first (storage/schema.py).
 """
 
 from __future__ import annotations

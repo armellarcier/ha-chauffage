@@ -13,7 +13,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from conftest import KINDS, MANUAL_PRESET, WEEKDAY, WEEKEND, Bench
-from custom_components.chauffage import model
+from custom_components.chauffage.storage import schema
 from custom_components.chauffage.domain.plan import Plan, Tick, due_targets
 from custom_components.chauffage.domain.thermostat import Thermostat
 from custom_components.chauffage.domain.timeline import current_and_next
@@ -244,7 +244,7 @@ def vtherm_window(bench: Bench, asked: float, shown: float, state: str = "heat")
 
 async def start_vtherm_on_temperature_slots(bench: Bench, hhmm: str) -> None:
     await start_vtherm(bench, hhmm)
-    await bench.runtime.set_mapping("climate.salon", TEMPERATURE_SLOTS)
+    await bench.runtime.schedules.set_mapping("climate.salon", TEMPERATURE_SLOTS)
     await bench.hass.async_block_till_done()
     bench.applied()
 
@@ -372,7 +372,7 @@ def test_spring_forward_a_slot_in_the_skipped_hour_is_applied_at_3_00():
     paris = ZoneInfo("Europe/Paris")
     week = [[["00:00", "eco"], ["02:30", "comfort"]]] * 7
     plan = Plan({"climate.salon": {"normal": week}}, "normal",
-                       {lv["id"]: lv for lv in model.default_presets("en")}, {}, {})
+                       {lv["id"]: lv for lv in schema.default_presets("en")}, {}, {})
     thermostat = Thermostat("heat", "eco", 17.0, ("eco", "comfort"))
     before = datetime(2027, 3, 28, 1, 59, tzinfo=paris)
     after = (before.astimezone(ZoneInfo("UTC")) + timedelta(minutes=1)).astimezone(paris)  # 03:00 local

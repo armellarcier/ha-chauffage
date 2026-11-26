@@ -11,7 +11,7 @@ from hvac_helpers import (
     AC_MODES, BUREAU, HEAT, NIGHT_OFF, OFF, PRESETS, SALON, ac, clear, salon, start_ac, start_salon, state,
 )
 
-from custom_components.chauffage import model
+from custom_components.chauffage import const
 from custom_components.chauffage.domain.manual_change import NewOverride, NoChange, classify
 from custom_components.chauffage.domain.slot import target_of
 from custom_components.chauffage.domain.target import Target
@@ -82,7 +82,7 @@ async def test_an_off_slot_holds_no_preset_and_nothing_else(bench: Bench):
     await start_ac(bench)
     day = [["00:00", "eco"], ["12:00", "comfort", OFF], ["13:00", None, {"hvac_mode": "off", "fan_mode": "3"}], ["14:00", "eco"]]
     await bench.save_weeks({SALON: {"normal": [day] * 7}})
-    assert bench.runtime.weeks[SALON]["normal"][0] == [["00:00", "eco"], ["12:00", None, OFF], ["13:00", None, OFF], ["14:00", "eco"]]
+    assert bench.runtime.installation.weeks[SALON]["normal"][0] == [["00:00", "eco"], ["12:00", None, OFF], ["13:00", None, OFF], ["14:00", "eco"]]
 
 
 async def test_an_off_night_needs_no_rule(bench: Bench):
@@ -98,8 +98,8 @@ async def test_an_off_night_needs_no_rule(bench: Bench):
 async def test_a_preset_removed_leaves_the_off_slots_alone(bench: Bench):
     await start_ac(bench, "10:00", [["00:00", "boost"], ["22:00", None, OFF]])
     presets = [p for p in bench.presets() if p["id"] != "boost"]
-    await bench.runtime.set_presets(presets, {"boost": "comfort"})
-    assert bench.runtime.weeks[SALON]["normal"][0] == [["00:00", "comfort"], ["22:00", None, OFF]]
+    await bench.runtime.schedules.set_presets(presets, {"boost": "comfort"})
+    assert bench.runtime.installation.weeks[SALON]["normal"][0] == [["00:00", "comfort"], ["22:00", None, OFF]]
 
 
 def test_an_off_slot_and_a_fan_only_slot_have_no_setpoint():
@@ -440,14 +440,14 @@ async def test_the_end_of_off_overrides_is_a_setting(bench: Bench, ws_client):
     await client.send_json({"id": 1, "type": "chauffage/settings/set", "off_override_end": "next_slot_within_duration"})
     assert (await client.receive_json())["success"]
     await bench.hass.async_block_till_done()
-    assert bench.runtime.off_override_end == "next_slot_within_duration"
+    assert bench.runtime.settings.off_override_end == "next_slot_within_duration"
     await client.send_json({"id": 2, "type": "chauffage/settings/set", "off_override_end": "whenever"})
     assert not (await client.receive_json())["success"]
 
 
 async def test_an_unknown_end_of_off_overrides_is_the_default(bench: Bench):
     await start_ac(bench, options={"off_override_end": "whenever"})
-    assert bench.runtime.off_override_end == "next_slot"
+    assert bench.runtime.settings.off_override_end == "next_slot"
 
 
 def test_the_setting_for_a_thermostat_turned_off_has_one_name_everywhere():
@@ -455,7 +455,7 @@ def test_the_setting_for_a_thermostat_turned_off_has_one_name_everywhere():
     description says it also applies to automations."""
     import json
     from pathlib import Path
-    component = Path(model.__file__).parent
+    component = Path(const.__file__).parent
     for file, name in (("strings.json", "Turned off"), ("translations/en.json", "Turned off"),
                        ("translations/fr.json", "Thermostat éteint")):
         texts = json.loads((component / file).read_text(encoding="utf-8"))

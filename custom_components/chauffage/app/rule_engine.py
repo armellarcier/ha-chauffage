@@ -12,12 +12,12 @@ from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.event import TrackTemplate, async_track_template_result
 from homeassistant.helpers.template import Template, result_as_boolean
 
-from .. import model
+from ..storage import schema
 from ..storage.schema import InvalidData
 from ..domain.rules import rules_outcome, schedule_named
 
 if TYPE_CHECKING:
-    from ..runtime import ChauffageRuntime
+    from .runtime import ChauffageRuntime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class RuleEngine:
         """New activation rules. They activate their schedule when what they give changes, as
         when their entities change: a schedule chosen by hand stays if the outcome is the same."""
         runtime = self._runtime
-        normalized = model.normalize_rules(rules, default_schedule, runtime.schedule_ids)
+        normalized = schema.normalize_rules(rules, default_schedule, runtime.installation.schedule_ids)
         for rule in normalized:
             try:
                 Template(rule["template"], runtime.hass).ensure_valid()
@@ -122,4 +122,4 @@ class RuleEngine:
         elif notify:
             runtime.installation.notify()
         if outcome is not None and (changed or force):
-            await runtime.activate_schedule(outcome, source="rules")
+            await runtime.schedules.activate(outcome, source="rules")

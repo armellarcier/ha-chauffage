@@ -164,7 +164,7 @@ async def test_a_thermostat_coming_back_by_itself_to_a_held_slot_value_keeps_the
     temperatures: leaving its safety mode, it comes back to that value, which ends nothing."""
     bench.needs("vtherm")
     await start(bench)
-    await bench.runtime.set_mapping("climate.salon", {"eco": {"temperature": 17}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"eco": {"temperature": 17}})
     bench.thermostat("climate.salon", "none", 17)  # as the schedule set it
     await bench.hass.async_block_till_done()
     hold = bench.runtime.overrides.new({"temperature": 17}, minutes=24 * 60)
@@ -478,7 +478,7 @@ async def test_an_override_set_to_a_preset_ends_and_resumes_the_schedule(bench: 
 
 async def test_set_override_with_a_preset_follows_the_thermostat_s_mapping(bench: Bench):
     await start(bench)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 22.5}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"temperature": 22.5}})
     bench.temperature_calls.clear()
     await bench.hass.services.async_call(
         "chauffage", "set_override", {"entity_id": "climate.salon", "preset": "comfort"}, blocking=True

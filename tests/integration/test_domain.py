@@ -1,4 +1,4 @@
-"""The rules of Chauffage, on the domain objects (domain/) and the stored data (model.py, storage/schema.py)."""
+"""The rules of Chauffage, on the domain objects (domain/) and the stored data (storage/schema.py)."""
 
 from datetime import datetime, timedelta
 from enum import Enum
@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from custom_components.chauffage import model
 from custom_components.chauffage.domain.manual_change import NewOverride, NoChange, Resume, classify
 from custom_components.chauffage.domain.pending import applied_command, expired_commands
 from custom_components.chauffage.domain.plan import Forced, Plan, Resumed, Tick, due_targets, ended_overrides
@@ -35,7 +34,7 @@ def at(hhmm: str, day: int = 0) -> datetime:
 
 
 VTHERM = ("none", "frost", "eco", "comfort", "boost")
-PRESETS = {preset["id"]: preset for preset in model.default_presets("en")}
+PRESETS = {preset["id"]: preset for preset in schema.default_presets("en")}
 
 
 def heat(preset="eco", temperature=17.0, state="heat", presets=VTHERM) -> Thermostat:
@@ -221,15 +220,15 @@ def test_days_are_normalized_like_in_the_card():
 
 
 def test_schedules_are_validated():
-    ok = model.normalize_weeks({"climate.salon": {"normal": WEEK}}, {"normal"})
+    ok = schema.normalize_weeks({"climate.salon": {"normal": WEEK}}, {"normal"})
     assert ok["climate.salon"]["normal"] == WEEK
     for bad in ({"light.x": {}}, {"climate.salon": {"other": WEEK}}, {"climate.salon": {"normal": [WEEKDAY]}}):
         with pytest.raises(InvalidData):
-            model.normalize_weeks(bad, {"normal"})
+            schema.normalize_weeks(bad, {"normal"})
 
 
 def test_schedule_ids_are_unique_slugs_of_their_names():
-    assert model.make_schedules(["Normal", "Vacances d'été", "Normal", "normal!"]) == [
+    assert schema.make_schedules(["Normal", "Vacances d'été", "Normal", "normal!"]) == [
         {"id": "normal", "name": "Normal"},
         {"id": "vacances_d_ete", "name": "Vacances d'été"},
         {"id": "normal_2", "name": "normal!"},
@@ -378,7 +377,7 @@ def test_the_temperature_of_a_thermostat_s_own_preset():
 # ----- preset data -----
 
 def test_default_presets_are_named_in_the_language_and_keep_unknown_ones():
-    presets = model.default_presets("fr", ["eco", "sleep"])
+    presets = schema.default_presets("fr", ["eco", "sleep"])
     assert [p["name"] for p in presets] == ["Confort", "Éco", "Boost", "Hors-gel", "sleep"]
     assert presets[-1]["id"] == "sleep"
 
@@ -401,7 +400,7 @@ def test_presets_and_mappings_are_validated():
 
 def test_weeks_with_an_unknown_preset_are_refused():
     with pytest.raises(InvalidData):
-        model.normalize_weeks({"climate.salon": {"normal": [[["00:00", "sleep"]]] * 7}}, {"normal"}, {"eco"})
+        schema.normalize_weeks({"climate.salon": {"normal": [[["00:00", "sleep"]]] * 7}}, {"normal"}, {"eco"})
 
 
 # ----- commands applied late -----
@@ -611,7 +610,7 @@ def test_settings_of_a_slot_are_validated():
     cool = {"hvac_mode": "cool"}
     day = [["00:00", "eco"], ["21:00", "eco", cool], ["22:00", "eco", cool], ["23:00", "comfort", cool]]
     assert schema.day(day).to_stored() == day
-    assert model.used_presets({"climate.salon": {"normal": [[["00:00", None, OFF], ["08:00", "eco", cool]]] * 7}}) == ["eco"]
+    assert schema.used_presets({"climate.salon": {"normal": [[["00:00", None, OFF], ["08:00", "eco", cool]]] * 7}}) == ["eco"]
     # A slot's HVAC mode is one of Home Assistant's
     for bad in (["00:00", "eco", "off"], ["00:00", "eco", {"hvac_mode": ""}], ["00:00", "eco", {"temperature": 19}],
                 ["00:00", "eco", {"hvac_mode": "defrost"}]):

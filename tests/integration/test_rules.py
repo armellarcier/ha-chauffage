@@ -5,7 +5,7 @@ default schedule otherwise. A schedule chosen by hand stays until the outcome of
 import pytest
 
 from conftest import WEEKDAY, Bench
-from custom_components.chauffage.model import InvalidData
+from custom_components.chauffage.storage.schema import InvalidData
 
 WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": [[["00:00", "frost"]]] * 7,
                            "holiday": [[["00:00", "eco"]]] * 7}}

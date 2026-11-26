@@ -70,13 +70,12 @@ def _setpoints(hass: HomeAssistant) -> Callable[[str, datetime], tuple[str, floa
     entries = hass.config_entries.async_loaded_entries("chauffage")
     if not entries:
         return None
-    runtime = entries[0].runtime_data
-    installation = runtime.installation
+    installation = entries[0].runtime_data.installation
     presets = {p["id"]: p.get("temperature") for p in installation.presets}
-    learned = runtime.learned_temperatures
+    learned = {entity_id: t["preset_temperatures"] for entity_id, t in installation.thermostats.items()}
 
     def at(entity_id: str, t: datetime) -> tuple[str, float]:
-        week = runtime.weeks.get(entity_id, {}).get(installation.active_schedule) or [[["00:00", "eco"]]] * 7
+        week = installation.weeks.get(entity_id, {}).get(installation.active_schedule) or [[["00:00", "eco"]]] * 7
         minute = t.hour * 60 + t.minute
         preset = "eco"
         # A slot is [start, preset] or [start, preset, settings]; an off slot and a fan-only slot

@@ -33,7 +33,7 @@ V7_COOL_TEMPERATURES = {"comfort": 25.0, "eco": 27.0, "boost": 23.0}
 
 
 # The helpers of the migrations, frozen as they were when each migration was written: a change to
-# the live code (model.py, domain/) must never change how an old format is migrated
+# the live code (storage/schema.py, domain/) must never change how an old format is migrated
 
 def _used_presets_v2(weeks: dict[str, Any]) -> list[str]:
     """Preset ids used in the weeks of version 1, in order of appearance."""

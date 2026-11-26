@@ -12,7 +12,6 @@ from homeassistant.exceptions import ServiceValidationError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from conftest import WEEKDAY, Bench, every_day
-from custom_components.chauffage import model
 from custom_components.chauffage.storage import schema
 from custom_components.chauffage.storage.schema import InvalidData
 
@@ -110,12 +109,12 @@ async def test_activating_the_active_schedule_again_changes_nothing(bench: Bench
 async def test_unknown_schedules_duplicate_or_no_presets_are_refused(bench: Bench):
     await start(bench)
     with pytest.raises(InvalidData):
-        await bench.runtime.activate_schedule("unknown", source="card")
+        await bench.runtime.schedules.activate("unknown", source="card")
     presets = [dict(p) for p in bench.presets()]
     with pytest.raises(InvalidData):
-        await bench.runtime.set_presets(presets + [presets[0]])
+        await bench.runtime.schedules.set_presets(presets + [presets[0]])
     with pytest.raises(InvalidData):
-        await bench.runtime.set_presets([])
+        await bench.runtime.schedules.set_presets([])
 
 
 async def test_removing_an_override_that_does_not_exist_changes_nothing(bench: Bench):
@@ -199,8 +198,8 @@ async def test_invalid_requests_are_refused(bench: Bench, ws_client, command):
     (lambda v: schema.mapping(v, {"eco"}), ["not", "a", "dict"]),
     (lambda v: schema.mapping(v, {"eco"}), {"eco": {"temperature": "warm"}}),
     (lambda v: schema.mapping(v, {"eco"}), {"eco": {}}),
-    (lambda v: model.normalize_weeks(v, {"normal"}), ["not a dict"]),
-    (lambda v: model.normalize_weeks(v, {"normal"}), {"climate.salon": "not a dict"}),
+    (lambda v: schema.normalize_weeks(v, {"normal"}), ["not a dict"]),
+    (lambda v: schema.normalize_weeks(v, {"normal"}), {"climate.salon": "not a dict"}),
     (lambda v: schema.override(v).to_stored(), "not a dict"),
     (lambda v: schema.override(v).to_stored(), {"target": {"temperature": "warm"}, "start": "a", "end": "b"}),
     (lambda v: schema.override(v).to_stored(), {"target": {}, "start": "a", "end": "b"}),

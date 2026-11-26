@@ -72,7 +72,7 @@ async def test_setting_the_number_changes_the_override_duration(bench: Bench):
     await start(bench)
     await call(bench, "number", "set_value", {"entity_id": NUMBER, "value": 45})
     assert bench.entry.options["override_duration"] == 45
-    assert bench.runtime.override_duration == 45
+    assert bench.runtime.settings.override_duration == 45
     assert float(bench.hass.states.get(NUMBER).state) == 45
 
 
@@ -167,7 +167,7 @@ async def test_any_whole_number_of_minutes_is_a_duration_the_15_minutes_are_the_
     client = await ws_client(bench.hass)
     await client.send_json({"id": 1, "type": "chauffage/settings/set", "override_duration": 160})
     assert (await client.receive_json())["success"]
-    assert bench.runtime.override_duration == 160
+    assert bench.runtime.settings.override_duration == 160
 
 
 @pytest.mark.parametrize("value", [10, 1500])

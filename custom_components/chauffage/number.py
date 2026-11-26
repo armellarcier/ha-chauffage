@@ -40,12 +40,12 @@ class OverrideDurationNumber(ChauffageEntity, NumberEntity):
 
     @property
     def native_value(self) -> int:
-        return self.runtime.override_duration
+        return self.runtime.settings.override_duration
 
     async def async_set_native_value(self, value: float) -> None:
         # Home Assistant checks the minimum and the maximum, not whole minutes
         try:
-            self.runtime.set_override_settings(override_duration=value)
+            self.runtime.settings.set_override_settings(override_duration=value)
         except InvalidData as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="invalid_override_duration",

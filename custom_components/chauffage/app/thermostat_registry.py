@@ -15,26 +15,46 @@ from ..const import DOMAIN, ENTITIES, PLANNED_PRESET_KEY, THERMOSTAT_ENTITIES, t
 from ..domain.plan import Realign
 
 if TYPE_CHECKING:
-    from ..runtime import ChauffageRuntime
+    from .runtime import ChauffageRuntime
 
 
 class ThermostatRegistry:
     def __init__(self, runtime: ChauffageRuntime) -> None:
         self._runtime = runtime
+        self._planned_presets: set[str] = set()  # the deprecated sensors, seen at the last check
+
+    @callback
+    def check_missing(self) -> None:
+        """A repair for each scheduled thermostat whose entity is gone."""
+        hass = self._runtime.hass
+        for entity_id in self._runtime.installation.scheduled:
+            if hass.states.get(entity_id) is None and er.async_get(hass).async_get(entity_id) is None:
+                repairs.raise_missing(hass, entity_id)
+
+    @callback
+    def check_planned_preset(self, _event: Event | None = None) -> None:
+        """The deprecated *Planned preset* sensors enabled: a repair warns about them. Also when
+        the automations or the scripts are reloaded: the repair lists those that use them."""
+        registry = er.async_get(self._runtime.hass)
+        self._planned_presets = {entity_id for entities in self._runtime.read_model.thermostat_entities().values()
+                                 if (entity_id := entities.get("planned_preset"))}
+        sensors = [entity_id for entity_id in self._planned_presets
+                   if (entry := registry.async_get(entity_id)) is not None and entry.disabled_by is None]
+        repairs.check_planned_preset(self._runtime.hass, sensors)
 
     async def set_paused(self, entity_id: str, paused: bool) -> None:
         """Pause (kept, not controlled, its override dropped and the thermostat left as it is) or
         resume (realigned at once)."""
-        if entity_id not in self._runtime.scheduled:
+        if entity_id not in self._runtime.installation.scheduled:
             raise InvalidData(f"not scheduled: {entity_id}")
-        if self._runtime.is_paused(entity_id) == paused:
+        if self._runtime.installation.is_paused(entity_id) == paused:
             return
-        self._runtime.thermostats[entity_id]["paused"] = paused
+        self._runtime.installation.thermostats[entity_id]["paused"] = paused
         if paused:
             self._runtime.overrides.drop(entity_id, "paused")
             self._runtime.scheduler.retry.discard(entity_id)
             self._runtime.gateway.drop_pending(entity_id)
-        self._runtime._track_thermostats()
+        self._runtime.manual_changes.track()
         self._runtime.installation.changed()
         if not paused:
             self._runtime.learner.learn(self._runtime.hass.states.get(entity_id))
@@ -43,7 +63,7 @@ class ThermostatRegistry:
     async def forget(self, entity_id: str) -> None:
         """No longer scheduled: its data, override and entities are dropped, the thermostat left
         as it is. A new revision: a card's copy that still holds it must reload before saving."""
-        if self._runtime.thermostats.pop(entity_id, None) is None:
+        if self._runtime.installation.thermostats.pop(entity_id, None) is None:
             raise InvalidData(f"not scheduled: {entity_id}")
         self._runtime.overrides.drop(entity_id, "forgotten")
         self._runtime.scheduler.retry.discard(entity_id)
@@ -51,32 +71,32 @@ class ThermostatRegistry:
         self._runtime.installation.renamed = {former: e for former, e in self._runtime.installation.renamed.items() if e != entity_id}
         repairs.close_missing(self._runtime.hass, entity_id)
         self._runtime.installation.revision += 1
-        self._runtime._track_thermostats()
+        self._runtime.manual_changes.track()
         self._runtime.installation.changed()
 
     def renamed_to(self, entity_id: str) -> str | None:
         """The new id of a thermostat renamed from this one, unless the id is taken again."""
         current = self._runtime.installation.renamed.get(entity_id)
-        if current is None or entity_id in self._runtime.thermostats or self._runtime.hass.states.get(entity_id) is not None:
+        if current is None or entity_id in self._runtime.installation.thermostats or self._runtime.hass.states.get(entity_id) is not None:
             return None
         return current
 
     @callback
     def registry_updated(self, event: Event) -> None:
         action, entity_id = event.data.get("action"), event.data.get("entity_id")
-        if action == "remove" and entity_id in self._runtime.scheduled:
+        if action == "remove" and entity_id in self._runtime.installation.scheduled:
             repairs.raise_missing(self._runtime.hass, entity_id)
-        elif action == "create" and entity_id in self._runtime.scheduled:
+        elif action == "create" and entity_id in self._runtime.installation.scheduled:
             repairs.close_missing(self._runtime.hass, entity_id)  # made again with the same id
-        elif action == "update" and event.data.get("old_entity_id") in self._runtime.thermostats:
+        elif action == "update" and event.data.get("old_entity_id") in self._runtime.installation.thermostats:
             self.renamed(event.data["old_entity_id"], entity_id)
         if action != "remove" and entity_id in self._runtime.read_model.card_entities():
             self._runtime.installation.notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
         entry = er.async_get(self._runtime.hass).async_get(entity_id) if entity_id else None
-        if entity_id in self._runtime._planned_presets or (
+        if entity_id in self._planned_presets or (
                 entry is not None and entry.domain == "sensor" and entry.platform == DOMAIN
                 and entry.unique_id.endswith(f"_{PLANNED_PRESET_KEY}")):
-            self._runtime._check_planned_preset()
+            self.check_planned_preset()
 
     @callback
     def renamed(self, old: str, new: str) -> None:
@@ -91,15 +111,15 @@ class ThermostatRegistry:
         def unique_id(climate: str, key: str) -> str:
             return thermostat_unique_id(self._runtime.entry.entry_id, climate, key)
 
-        if self._runtime.thermostats.pop(new, None) is not None:
+        if self._runtime.installation.thermostats.pop(new, None) is not None:
             for key, platform in THERMOSTAT_ENTITIES.items():
                 if entity_id := registry.async_get_entity_id(platform, DOMAIN, unique_id(new, key)):
                     registry.async_remove(entity_id)
             repairs.close_missing(self._runtime.hass, new)
         self._runtime.overrides.drop(new, "forgotten")
         self._runtime.gateway.renamed(old, new)
-        self._runtime.thermostats[new] = self._runtime.thermostats.pop(old)
-        self._runtime._weeks_changed([new])
+        self._runtime.installation.thermostats[new] = self._runtime.installation.thermostats.pop(old)
+        self._runtime.installation.weeks_changed([new])
         if old in self._runtime.installation.overrides:
             self._runtime.installation.overrides[new] = self._runtime.installation.overrides.pop(old)
         renamed = self._runtime.installation.renamed

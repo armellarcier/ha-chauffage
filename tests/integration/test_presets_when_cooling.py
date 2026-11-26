@@ -12,7 +12,6 @@ from hvac_helpers import (
 )
 from test_store import fixture
 
-from custom_components.chauffage import model
 from custom_components.chauffage.store import migrate
 from custom_components.chauffage.domain.plan import Forced
 from custom_components.chauffage.domain.preset import Preset
@@ -46,7 +45,7 @@ async def without_cooling(bench: Bench, preset_id: str) -> None:
 # ----- a preset has a temperature when heating and one when cooling -----
 
 def test_a_new_installation_has_a_cooling_temperature_for_eco_comfort_and_boost():
-    values = {p["id"]: (p["temperature"], p.get("cool_temperature")) for p in model.default_presets("fr")}
+    values = {p["id"]: (p["temperature"], p.get("cool_temperature")) for p in schema.default_presets("fr")}
     assert values == {"frost": (7.0, None), "eco": (17.0, 27.0), "comfort": (20.0, 25.0), "boost": (22.0, 23.0)}
 
 
@@ -75,7 +74,7 @@ async def test_a_preset_s_cooling_temperature_is_set_and_cleared(bench: Bench):
     await start_ac_with_range(bench, [["00:00", "eco"]])
     presets = [{**p, "cool_temperature": 26.5} if p["id"] == "comfort" else
                {**p, "cool_temperature": None} if p["id"] == "eco" else p for p in bench.presets()]
-    await bench.runtime.set_presets(presets)
+    await bench.runtime.schedules.set_presets(presets)
     stored = {p["id"]: p for p in bench.presets()}
     assert stored["comfort"]["cool_temperature"] == 26.5 and "cool_temperature" not in stored["eco"]
     assert PresetValue.from_target(bench.runtime.read_model.targets_of(SALON)["eco"]).offered_modes() == ["heat"]
@@ -84,33 +83,33 @@ async def test_a_preset_s_cooling_temperature_is_set_and_cleared(bench: Bench):
 async def test_a_heating_temperature_used_in_the_weeks_cannot_be_cleared(bench: Bench):
     await start_ac_with_range(bench, [["00:00", "eco"], ["12:00", "comfort"]])
     with pytest.raises(InvalidData, match="eco"):
-        await bench.runtime.set_presets(presets_without("eco", "temperature"))
-    assert bench.runtime.presets_by_id["eco"]["temperature"] == 17.0
+        await bench.runtime.schedules.set_presets(presets_without("eco", "temperature"))
+    assert bench.runtime.installation.presets_by_id["eco"]["temperature"] == 17.0
     # Boost is in no week: its temperature when heating can be cleared
-    await bench.runtime.set_presets(presets_without("boost", "temperature"))
-    assert bench.runtime.presets_by_id["boost"]["temperature"] is None
+    await bench.runtime.schedules.set_presets(presets_without("boost", "temperature"))
+    assert bench.runtime.installation.presets_by_id["boost"]["temperature"] is None
 
 
 async def test_a_cooling_temperature_used_in_the_weeks_cannot_be_cleared(bench: Bench):
     await start_ac_with_range(bench, [["00:00", "eco"], ["12:00", "comfort", {"hvac_mode": "cool"}]])
     with pytest.raises(InvalidData, match="comfort"):
-        await bench.runtime.set_presets(presets_without("comfort", "cool_temperature"))
+        await bench.runtime.schedules.set_presets(presets_without("comfort", "cool_temperature"))
     # Eco only heats in the weeks: its temperature when cooling can be cleared
-    await bench.runtime.set_presets(presets_without("eco", "cool_temperature"))
-    assert "cool_temperature" not in bench.runtime.presets_by_id["eco"]
+    await bench.runtime.schedules.set_presets(presets_without("eco", "cool_temperature"))
+    assert "cool_temperature" not in bench.runtime.installation.presets_by_id["eco"]
 
 
 async def test_a_temperature_set_on_the_thermostat_lets_the_preset_lose_its_own(bench: Bench):
     """The salon cools on Comfort at its own 24 °C: Comfort's default when cooling is not used."""
     await start_ac_with_range(bench, [["00:00", "comfort", {"hvac_mode": "cool"}]])
-    await bench.runtime.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
-    await bench.runtime.set_presets(presets_without("comfort", "cool_temperature"))
-    assert "cool_temperature" not in bench.runtime.presets_by_id["comfort"]
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
+    await bench.runtime.schedules.set_presets(presets_without("comfort", "cool_temperature"))
+    assert "cool_temperature" not in bench.runtime.installation.presets_by_id["comfort"]
 
 
 async def test_a_preset_does_not_set_an_hvac_mode(bench: Bench):
     await start_ac(bench)
-    await bench.runtime.set_presets([*bench.presets(), {"name": "Away", "temperature": 7, "hvac_mode": "off"}])
+    await bench.runtime.schedules.set_presets([*bench.presets(), {"name": "Away", "temperature": 7, "hvac_mode": "off"}])
     assert bench.presets()[-1] == {"id": "away", "name": "Away", "color": "#9e9e9e", "temperature": 7.0}
 
 
@@ -120,7 +119,7 @@ async def test_a_preset_s_value_is_a_climate_preset_or_a_temperature(bench: Benc
     """Not both, and never an HVAC mode. Alone, a cooling temperature or a fan adds to the default."""
     await start_ac(bench)
     with pytest.raises(InvalidData):
-        await bench.runtime.set_mapping(SALON, {"comfort": value})
+        await bench.runtime.schedules.set_mapping(SALON, {"comfort": value})
 
 
 async def test_a_window_that_sets_the_frost_setpoint_teaches_no_preset_temperature(bench: Bench):
@@ -132,12 +131,12 @@ async def test_a_window_that_sets_the_frost_setpoint_teaches_no_preset_temperatu
     bench.thermostat(SALON, "eco")
     await bench.setup()
     await bench.save_weeks({SALON: {"normal": [[["00:00", "eco"]]] * 7}})
-    before = dict(bench.runtime.thermostats[SALON]["preset_temperatures"])
+    before = dict(bench.runtime.installation.thermostats[SALON]["preset_temperatures"])
     bench.thermostat(SALON, "eco", 7.0, context=Context(),
                      requested_state={"hvac_mode": "heat", "target_temperature": 17.0, "preset": "eco"},
                      specific_states={"window_manager": {"window_state": "on"}})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.thermostats[SALON]["preset_temperatures"] == before
+    assert bench.runtime.installation.thermostats[SALON]["preset_temperatures"] == before
 
 
 # ----- the presets offered in each HVAC mode -----
@@ -177,7 +176,7 @@ def test_a_thermostat_s_own_preset_is_its_value_in_the_hvac_modes_the_preset_has
 
 async def test_the_card_gets_what_each_preset_means_in_each_hvac_mode(bench: Bench):
     await start_ac_with_range(bench, [["00:00", "eco"]])
-    await bench.runtime.set_mapping(SALON, {"frost": {"temperature": 8.0}})
+    await bench.runtime.schedules.set_mapping(SALON, {"frost": {"temperature": 8.0}})
     snapshot = bench.runtime.read_model.snapshot()
     frost, comfort = (snapshot["targets"][SALON][p] for p in ("frost", "comfort"))
     assert frost == {"temperature": 8.0}
@@ -192,7 +191,7 @@ async def test_the_card_gets_what_each_preset_means_in_each_hvac_mode(bench: Ben
 async def test_a_cooling_slot_gives_a_preset_its_cooling_temperature(bench: Bench):
     """Comfort on the air conditioner: 20 °C when heating, 25 °C when cooling."""
     await start_ac(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort", COOL], ["16:00", "comfort", HEAT]])
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 25}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 25}})
     clear(bench)
     await bench.go_to("14:00")
     assert sent_to(bench) == [25.0]
@@ -238,7 +237,7 @@ async def test_in_cool_a_preset_without_a_cooling_value_sends_no_setpoint(bench:
 
 async def test_in_cool_a_cooling_value_is_sent(bench: Bench):
     await start_salon(bench, "13:00", ECO_IN_COOL, **COOLING)
-    await bench.runtime.set_mapping("climate.salon", {"eco": {"preset_mode": "eco", "cool_temperature": 26}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"eco": {"preset_mode": "eco", "cool_temperature": 26}})
     await bench.hass.async_block_till_done()
     bench.temperature_calls.clear()
     await bench.go_to("14:00")
@@ -258,7 +257,7 @@ async def test_an_override_to_a_preset_without_a_cooling_value_sends_no_temperat
 async def test_a_heating_slot_ignores_the_cooling_setpoint(bench: Bench):
     bench.needs("plain")
     await start_salon(bench, "17:00", **COOL_ATTRS)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 20, "cool_temperature": 25}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"temperature": 20, "cool_temperature": 25}})
     await bench.hass.async_block_till_done()
     bench.temperature_calls.clear()
     await bench.go_to("17:30")
@@ -268,7 +267,7 @@ async def test_a_heating_slot_ignores_the_cooling_setpoint(bench: Bench):
 
 async def test_an_override_to_a_preset_in_cool_uses_the_cooling_setpoint(bench: Bench):
     await start_salon(bench, "10:00", COOL_WEEKDAY, state="cool", **COOL_ATTRS)
-    await bench.runtime.set_mapping("climate.salon", {"boost": {"temperature": 21, "cool_temperature": 23}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"boost": {"temperature": 21, "cool_temperature": 23}})
     await bench.hass.async_block_till_done()
     bench.temperature_calls.clear()
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True)
@@ -296,7 +295,7 @@ async def test_an_override_that_switches_to_cool_with_a_temperature_sends_it(ben
 
 async def test_the_planned_preset_sensor_gives_the_cooling_temperatures_while_the_slot_cools(bench: Bench):
     await start_ac(bench, "10:00", [["00:00", "eco", HEAT], ["14:00", "comfort", COOL]])
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 24}, "frost": {"temperature": 8}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"temperature": 20, "cool_temperature": 24}, "frost": {"temperature": 8}})
     await bench.hass.async_block_till_done()
     temperatures = lambda: bench.hass.states.get("sensor.salon_planned_preset").attributes["temperatures"]
     assert temperatures()["comfort"] == 20.0 and temperatures()["frost"] == 8.0
@@ -320,7 +319,7 @@ async def test_a_preset_s_heating_temperature_is_still_not_sent_in_cool(bench: B
     """The preset's value set by hand without a cooling setpoint: a heating value (D1). When
     cooling, the preset's default goes on."""
     await start_salon(bench, "10:00", COOL_WEEKDAY, state="cool", **COOL_ATTRS)
-    await bench.runtime.set_mapping("climate.salon", {"boost": {"temperature": 21}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"boost": {"temperature": 21}})
     await bench.hass.async_block_till_done()
     bench.temperature_calls.clear()
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": "climate.salon", "preset": "boost"}, blocking=True)
@@ -346,7 +345,7 @@ async def test_a_slot_never_sends_a_heating_temperature_to_an_air_conditioner_th
 
 async def test_a_cooling_temperature_is_sent_to_an_air_conditioner_that_only_cools(bench: Bench):
     await start_ac(bench, "13:00", [["00:00", "eco"], ["14:00", "comfort"]], state="cool", modes=COOLING_ONLY)
-    await bench.runtime.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
     clear(bench)
     await bench.go_to("14:00")
     assert sent_to(bench) == [24.0]
@@ -366,16 +365,15 @@ async def test_a_preset_may_have_a_color_for_its_cooling_slots(bench: Bench):
     await start_ac(bench)
     presets = bench.presets()
     assert all("cool_color" not in preset for preset in presets)
-    await bench.runtime.set_presets([{**presets[0], "cool_color": "#0288D1"}, *presets[1:]])
+    await bench.runtime.schedules.set_presets([{**presets[0], "cool_color": "#0288D1"}, *presets[1:]])
     assert bench.presets()[0]["cool_color"] == "#0288d1"
     with pytest.raises(InvalidData):
-        await bench.runtime.set_presets([{**presets[0], "cool_color": "blue"}, *presets[1:]])
+        await bench.runtime.schedules.set_presets([{**presets[0], "cool_color": "blue"}, *presets[1:]])
 
 
 def test_frost_protection_of_a_new_installation_does_not_look_like_fan_only():
     """Its light blue looked like Home Assistant's cyan of fan only. Stored presets keep theirs."""
-    from custom_components.chauffage import model
-    colors = {preset["id"]: preset["color"] for preset in model.default_presets("fr")}
+    colors = {preset["id"]: preset["color"] for preset in schema.default_presets("fr")}
     assert colors["frost"] == "#78909c"
     assert len(set(colors.values())) == 4
 
@@ -383,5 +381,5 @@ def test_frost_protection_of_a_new_installation_does_not_look_like_fan_only():
 def test_a_new_installation_gets_a_boost_red_that_white_text_reads_on():
     """White on the former #e53935 is at 4.2:1, under the 4.5:1 of WCAG AA. Existing
     installations keep their colors: the stored presets are not touched (test_store.py)."""
-    colors = {p["id"]: p["color"] for p in model.default_presets("en")}
+    colors = {p["id"]: p["color"] for p in schema.default_presets("en")}
     assert colors["boost"] == "#d32f2f"

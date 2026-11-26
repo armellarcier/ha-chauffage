@@ -6,11 +6,13 @@ online, a change Chauffage or an automation made, a command applied late, and a 
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import Event, EventStateChangedData, State, callback
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 
 from ..domain.target import SETPOINT_TARGET_KEYS
@@ -18,9 +20,10 @@ from ..domain.manual_change import NoChange, Resume, classify
 from ..domain.plan import Realign
 from ..domain.thermostat import Thermostat, ignored
 from ..thermostats.gateway import describe, local_time
+from ..thermostats.reader import cause, read
 
 if TYPE_CHECKING:
-    from ..runtime import ChauffageRuntime
+    from .runtime import ChauffageRuntime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,16 +41,31 @@ def _change(before: Thermostat, after: Thermostat) -> str:
 class ManualChanges:
     def __init__(self, runtime: ChauffageRuntime) -> None:
         self._runtime = runtime
+        self._unsub: Callable[[], None] | None = None
+
+    @callback
+    def track(self) -> None:
+        """Follows the state changes of the scheduled thermostats, paused ones included."""
+        self.stop()
+        entities = list(self._runtime.installation.scheduled)
+        if entities:
+            self._unsub = async_track_state_change_event(self._runtime.hass, entities, self.state_changed)
+
+    @callback
+    def stop(self) -> None:
+        if self._unsub:
+            self._unsub()
+            self._unsub = None
 
     @callback
     def state_changed(self, event: Event[EventStateChangedData]) -> None:
         old, new = event.data["old_state"], event.data["new_state"]
         self._published(old, new)
         # Paused thermostats are followed for their preset temperatures only
-        if old is None or new is None or self._runtime.is_paused(new.entity_id):
+        if old is None or new is None or self._runtime.installation.is_paused(new.entity_id):
             return
         runtime = self._runtime
-        before, after = runtime.current(old), runtime.current(new)
+        before, after = read(runtime.hass, old), read(runtime.hass, new)
         runtime.gateway.forget_settings(new.entity_id, before, after, given_back=runtime.gateway.is_own(new.context))
         applied = runtime.gateway.applied(new.entity_id, before, after)
         if ignored(before) and not ignored(after):
@@ -69,7 +87,7 @@ class ManualChanges:
         runtime = self._runtime
         if not runtime.learner.learn(new) and (runtime.learner.temperatures_of(old) != runtime.learner.temperatures_of(new)
                                         or runtime.learner.temperatures_of(old, cool=True) != runtime.learner.temperatures_of(new, cool=True)
-                                        or runtime._cause_of(old) != runtime._cause_of(new)):
+                                        or cause(runtime.hass, old) != cause(runtime.hass, new)):
             runtime.installation.notify()
 
     @callback
@@ -99,7 +117,7 @@ class ManualChanges:
         """A change by hand: an override, the end of the override, or nothing (classify)."""
         runtime = self._runtime
         context = new.context
-        plan = runtime.plan()
+        plan = runtime.scheduler.plan()
         slot, _ = plan.slot_at(new.entity_id, dt_util.now())
         expected = plan.target_of(new.entity_id, slot, after)
         if expected is not None:  # what the slot sends this thermostat now

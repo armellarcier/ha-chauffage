@@ -35,12 +35,12 @@ async def rename(bench: Bench, new: str = "climate.sejour") -> None:
 
 async def test_a_renamed_thermostat_keeps_its_schedule_and_its_override(bench: Bench):
     await start(bench)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 19.5}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"temperature": 19.5}})
     await bench.manual_setpoint("climate.salon", 22)
     await rename(bench)
-    assert "climate.salon" not in bench.runtime.thermostats
-    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
-    assert bench.runtime.mappings["climate.sejour"] == {"comfort": {"temperature": 19.5}}
+    assert "climate.salon" not in bench.runtime.installation.thermostats
+    assert bench.runtime.installation.weeks["climate.sejour"]["normal"] == SALON["normal"]
+    assert bench.runtime.installation.mappings["climate.sejour"] == {"comfort": {"temperature": 19.5}}
     assert "climate.sejour" in bench.overrides() and "climate.salon" not in bench.overrides()
 
 
@@ -57,7 +57,7 @@ async def test_a_renamed_thermostat_stays_paused(bench: Bench):
     await start(bench)
     await bench.runtime.registry.set_paused("climate.salon", True)
     await rename(bench)
-    assert bench.runtime.is_paused("climate.sejour")
+    assert bench.runtime.installation.is_paused("climate.sejour")
 
 
 async def test_its_entities_keep_their_ids_and_settings(bench: Bench):
@@ -85,7 +85,7 @@ async def test_its_entities_are_kept_through_a_change_made_before_the_reload(ben
     monkeypatch.setattr(bench.hass.config_entries, "async_schedule_reload", reloads.append)
     await rename(bench)
     assert reloads == [bench.entry.entry_id]
-    await bench.runtime.set_mapping("climate.sejour", {"comfort": {"temperature": 19.5}})  # before the reload
+    await bench.runtime.schedules.set_mapping("climate.sejour", {"comfort": {"temperature": 19.5}})  # before the reload
     await bench.hass.async_block_till_done()
     for entity_id in ("sensor.salon_planned_preset", "binary_sensor.salon_override", "switch.salon_control"):
         assert registry.async_get(entity_id) is not None
@@ -102,7 +102,7 @@ async def test_the_entities_of_a_thermostat_with_a_longer_id_stay_where_they_are
     await rename(bench)
     assert registry.async_get("switch.salon_bas_control").unique_id == before
     assert registry.async_get("switch.salon_control").unique_id.endswith("climate.sejour_control")
-    assert bench.runtime.weeks["climate.salon_bas"]["normal"] == SALON["normal"]
+    assert bench.runtime.installation.weeks["climate.salon_bas"]["normal"] == SALON["normal"]
 
 
 async def test_renamed_to_the_id_of_a_thermostat_whose_entity_is_gone(bench: Bench):
@@ -121,7 +121,7 @@ async def test_renamed_to_the_id_of_a_thermostat_whose_entity_is_gone(bench: Ben
     assert registry.async_get("switch.sejour_control") is not None
 
     await rename(bench)
-    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
+    assert bench.runtime.installation.weeks["climate.sejour"]["normal"] == SALON["normal"]
     assert "climate.sejour" not in bench.overrides()
     assert registry.async_get("switch.sejour_control") is None
     switch = registry.async_get("switch.salon_control")
@@ -135,7 +135,7 @@ async def test_renamed_back(bench: Bench):
     bench.hass.states.async_remove("climate.sejour")
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await bench.hass.async_block_till_done()
-    assert bench.runtime.weeks["climate.salon"]["normal"] == SALON["normal"]
+    assert bench.runtime.installation.weeks["climate.salon"]["normal"] == SALON["normal"]
     assert er.async_get(bench.hass).async_get("switch.salon_control").unique_id.endswith("climate.salon_control")
 
 
@@ -153,7 +153,7 @@ async def test_renamed_twice(bench: Bench):
     bench.hass.states.async_remove("climate.sejour")
     bench.thermostat("climate.living", "eco", friendly_name="Salon")
     await bench.hass.async_block_till_done()
-    assert bench.runtime.weeks["climate.living"]["normal"] == SALON["normal"]
+    assert bench.runtime.installation.weeks["climate.living"]["normal"] == SALON["normal"]
     assert bench.runtime.read_model.snapshot()["renamed"] == {"climate.salon": "climate.living", "climate.sejour": "climate.living"}
 
 
@@ -178,30 +178,30 @@ async def test_a_rename_survives_a_restart(bench: Bench):
     await bench.advance(1)  # delayed save
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
+    assert bench.runtime.installation.weeks["climate.sejour"]["normal"] == SALON["normal"]
     assert bench.runtime.read_model.snapshot()["renamed"] == {"climate.salon": "climate.sejour"}
 
 
 async def test_a_copy_of_the_weeks_made_before_a_rename_must_be_reloaded(bench: Bench):
     """It still holds the former id: saving it would schedule that id again."""
-    from custom_components.chauffage.runtime import StaleRevision
+    from custom_components.chauffage.app.schedules import StaleRevision
 
     await start(bench)
     revision = bench.runtime.read_model.snapshot()["thermostats"]["climate.salon"]["revision"]
     await rename(bench)
     with pytest.raises(StaleRevision):
-        await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": revision})
+        await bench.runtime.schedules.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": revision})
 
 
 async def test_saving_weeks_under_a_former_id_is_refused(bench: Bench):
     """A card not edited since the rename: the weeks would schedule an id no entity has."""
-    from custom_components.chauffage.runtime import StaleRevision
+    from custom_components.chauffage.app.schedules import StaleRevision
 
     await start(bench)
     await rename(bench)
     with pytest.raises(StaleRevision):
-        await bench.runtime.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": None})
-    assert "climate.salon" not in bench.runtime.thermostats
+        await bench.runtime.schedules.save_weeks({"climate.salon": SALON}, revisions={"climate.salon": None})
+    assert "climate.salon" not in bench.runtime.installation.thermostats
 
 
 async def test_a_former_id_given_to_another_entity_is_that_entity(bench: Bench):
@@ -211,6 +211,6 @@ async def test_a_former_id_given_to_another_entity_is_that_entity(bench: Bench):
     await rename(bench)
     bench.thermostat("climate.salon", "eco", friendly_name="Salon neuf")
     week = every_day(("00:00", "frost"))
-    await bench.runtime.save_weeks({"climate.salon": {"normal": week}}, revisions={"climate.salon": None})
-    assert bench.runtime.weeks["climate.salon"]["normal"] == week
-    assert bench.runtime.weeks["climate.sejour"]["normal"] == SALON["normal"]
+    await bench.runtime.schedules.save_weeks({"climate.salon": {"normal": week}}, revisions={"climate.salon": None})
+    assert bench.runtime.installation.weeks["climate.salon"]["normal"] == week
+    assert bench.runtime.installation.weeks["climate.sejour"]["normal"] == SALON["normal"]

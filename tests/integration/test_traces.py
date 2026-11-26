@@ -89,7 +89,7 @@ async def test_an_override_on_a_vtherm_logs_the_setpoint_it_was_asked_for(bench:
     bench.needs("vtherm")
     bench.versatile_thermostat("climate.salon")
     await start(bench, "10:00")
-    await bench.runtime.set_mapping("climate.salon", {"eco": {"temperature": 17.5}, "comfort": {"temperature": 19.0}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"eco": {"temperature": 17.5}, "comfort": {"temperature": 19.0}})
     await bench.hass.async_block_till_done()
 
     def window_open(asked: float) -> None:

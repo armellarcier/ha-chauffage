@@ -17,7 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN, SCHEDULED_THERMOSTAT_MODEL, TITLE, thermostat_unique_id
 from .app.read_model import device_by_identifier
 from .const import DATA
-from .runtime import ChauffageRuntime
+from .app.runtime import ChauffageRuntime
 
 # From Home Assistant 2026.10, a device names its parent by the parent's id (`via_device` by
 # identifiers is deprecated, it stops working in 2027.8)
@@ -123,7 +123,7 @@ class ThermostatSensorEntity(ThermostatEntity):
 
     @property
     def available(self) -> bool:
-        return not self.runtime.is_paused(self.climate)
+        return not self.runtime.installation.is_paused(self.climate)
 
 
 @callback
@@ -166,7 +166,7 @@ def async_follow_thermostats(
     make: Callable[[ChauffageRuntime, str], list[ThermostatEntity]],
 ) -> None:
     """Entities made by `make` for each scheduled thermostat, removed when it is forgotten."""
-    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.scheduled, make, _remove_device)
+    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.installation.scheduled, make, _remove_device)
 
 
 @callback
@@ -179,7 +179,7 @@ def async_clean_devices(runtime: ChauffageRuntime) -> None:
     that still holds an entity of Chauffage is left as it is."""
     hass, entry_id = runtime.hass, runtime.entry.entry_id
     devices, entities = dr.async_get(hass), er.async_get(hass)
-    keep = {(DOMAIN, entry_id)} | {scheduled_thermostat_identifier(runtime, c) for c in runtime.scheduled}
+    keep = {(DOMAIN, entry_id)} | {scheduled_thermostat_identifier(runtime, c) for c in runtime.installation.scheduled}
     for device in dr.async_entries_for_config_entry(devices, entry_id):
         if device.identifiers & keep:
             continue
