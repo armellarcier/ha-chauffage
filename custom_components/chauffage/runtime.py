@@ -32,6 +32,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from . import engine, model, repairs
+from .storage import schema
 from .history import TemperatureHistory
 from .const import (
     DATA,
@@ -352,6 +353,15 @@ class ChauffageRuntime:
             if target:
                 out[preset_id] = target
         return out
+
+    def preview_preset(self, entity_id: str, preset: Any, value: Any = None) -> dict[str, Any]:
+        """What a preset is worth on a thermostat, for each HVAC mode, and the HVAC modes it can
+        be used in: a preset and a value set by hand that the card holds, saved or not
+        (chauffage/preset/preview). The card asks rather than computing it (#132)."""
+        worth = schema.preset(preset, set()).value_on(
+            None if value is None else schema.value(value), self.current(self.hass.states.get(entity_id)),
+            self.use_presets)
+        return {"value": worth.attributes(), "modes": worth.offered_modes()}
 
     def preset_temperatures_of(self, entity_id: str, cool: bool = False) -> dict[str, float]:
         """{preset id: temperature} on a thermostat: its own for a temperature, the one its own

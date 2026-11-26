@@ -44,6 +44,9 @@ chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
 chauffage/settings/set       {manual_override_end?, off_override_end?, override_duration?, access_level?}: the settings
                              of overrides, in the integration's options (as the options flow and
                              the entities), and the access level (admins only)
+chauffage/preset/preview     {entity_id, preset, value?}: what a preset (as the card holds it, saved
+                             or not) is worth on a thermostat, with an optional value set by hand:
+                             {value, modes}, as `targets` gives it, and the HVAC modes it can be used in
 chauffage/history            {entity_ids, start_time, end_time?}: measured and target temperatures,
                              {entity_id: [[time (s), measured, target], …]} (see history.py)
 """
@@ -72,7 +75,7 @@ from .runtime import DATA, ENTITIES, ChauffageRuntime, StaleRevision, Thermostat
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
                     ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat,
-                    ws_set_rules, ws_preview_rules, ws_history, ws_set_settings):
+                    ws_set_rules, ws_preview_rules, ws_preview_preset, ws_history, ws_set_settings):
         websocket_api.async_register_command(hass, command)
 
 
@@ -351,6 +354,22 @@ async def ws_set_rules(hass: HomeAssistant, connection: websocket_api.ActiveConn
 
 
 PREVIEW_TEXT = 255  # characters of a template's text sent back
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/preset/preview",
+    vol.Required("entity_id"): str,
+    vol.Required("preset"): dict,
+    vol.Optional("value"): vol.Any(dict, None),
+})
+@websocket_api.async_response
+async def ws_preview_preset(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Read only, as chauffage/subscribe: anyone who may open the card."""
+
+    async def preview(runtime: ChauffageRuntime) -> dict[str, Any]:
+        return runtime.preview_preset(msg["entity_id"], msg["preset"], msg.get("value"))
+
+    await _run(hass, connection, msg, preview)
 
 
 @websocket_api.websocket_command({vol.Required("type"): "chauffage/rules/preview", vol.Required("rules"): [dict]})
