@@ -82,13 +82,15 @@ class SnapshotBuilder:
 
     def snapshot(self) -> dict[str, Any]:
         """Everything the card needs."""
+        hass = self._runtime.hass
         return {
             "schedules": self._runtime.installation.schedules,
             "active_schedule": self._runtime.installation.active_schedule,
             "presets": self._runtime.installation.presets,
-            # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
+            # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise: the
+            # card then does not read VTherm's attributes
             # own_settings: the fan and the vanes it gets back from a slot that sets none
-            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e),
+            "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": cause(hass, hass.states.get(e)),
                                 "own_settings": self._runtime.gateway.own_settings(e)}
                             for e, t in self._runtime.installation.scheduled.items()},
             "mappings": self._runtime.installation.mappings,
@@ -158,12 +160,6 @@ class SnapshotBuilder:
         for entities in self.thermostat_entities().values():
             ids.update(entities.values())
         return ids
-
-    def cause(self, entity_id: str) -> str | None:
-        """Why a thermostat protects itself, when it says it (a VTherm's window, open while it is
-        off or heats at the frost setpoint, or its auto start/stop): for the card, which then
-        does not read VTherm's attributes."""
-        return cause(self._runtime.hass, self._runtime.hass.states.get(entity_id))
 
     def planned(self, entity_id: str, now: datetime | None = None, thermostat: Thermostat | None = None
                 ) -> tuple[Slot | None, Slot | None, datetime | None]:

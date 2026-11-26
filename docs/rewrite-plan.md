@@ -100,7 +100,7 @@ custom_components/chauffage/
   storage/
     store.py                 ChauffageStore, STORAGE_VERSION (unchanged: 7)
     migrations.py            v1 to v7 on raw dicts, frozen, with their own helpers
-    schema.py                validates the input and builds the domain objects
+    schema.py                the stored format: validates the input, builds the domain objects
     installation.py          Installation: the only owner of the data, revisions, saving
   thermostats/
     reader.py                ThermostatReader (Protocol): read(State), cause(State)

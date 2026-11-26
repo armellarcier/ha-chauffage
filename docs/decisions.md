@@ -397,7 +397,7 @@ future contributor might question.
   - **The device validates the values, not Chauffage.** Chauffage keeps no rule such as "this
     thermostat has no cool": the card offers only the values the thermostat lists, and the
     thermostat decides. Chauffage only checks the shape of its own data: what each layer may
-    hold (`model.py`).
+    hold (`storage/schema.py`).
   - **A preset has a temperature when heating and one when cooling, and either can be empty.**
     A reversible air conditioner wants Comfort at 20 °C in winter and at 25 °C in summer, and
     the user panel refused a second *Comfort* preset for that. A first version put the cooling
@@ -2170,6 +2170,24 @@ Claude proposes these two choices. The owner hasn't confirmed them yet.
 - **`store.py` stays at the root**, with its frozen migrations, not in `storage/store.py` and
   `storage/migrations.py`. The plan also says to keep `test_store.py` as it is, and this test
   imports `custom_components.chauffage.store`.
+
+#### The end of phase I7 (2026-11)
+
+The owner decided these points on 2026-11-26, after a review of the whole rewrite:
+
+- **`Installation` stays a thin wrapper around the stored dictionaries.** Each stored key is a
+  property over the live dictionary, and the services change these dictionaries in place.
+  Making `Installation` own real objects would add code: each object would need its own
+  conversion to and from the stored format, for no change of behavior.
+- **`Installation` answers the queries on the stored data**, for example `scheduled`,
+  `presets_by_id` and `weeks`. These queries only read the dictionaries, so they need no
+  service of their own.
+- **`storage/schema.py` holds the stored format, its validation and its defaults.** `model.py`
+  is gone: the input is validated in one module.
+- **A service gets its collaborators, not the runtime, when it needs only a few.** `Settings`,
+  `Learner` and `ThermostatGateway` take Home Assistant and the installation. The services
+  that coordinate several others, such as the scheduler and the overrides, still reach them
+  through the runtime, but only through public members.
 
 #### The week editor in Lit (phase C5, a proposal)
 
