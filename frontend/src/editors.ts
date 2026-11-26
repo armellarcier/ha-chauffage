@@ -1,3 +1,5 @@
+import { LitElement, html, nothing, unsafeCSS } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
 import { haAtLeast, thermostatName } from './common.ts';
 import { dataSource, renamedTo } from './client/snapshot.ts';
 import { makeLocale } from './i18n/locale.ts';
@@ -34,33 +36,34 @@ const EDITOR_CSS = `
   .header { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; font-size: 1.1em; }
 `;
 
-export class ChauffageProgrammeCardEditor extends HTMLElement {
-  // The fields of the element, untyped until the rewrite of the card gives them a type
-  declare _built: any;
+const EDITOR_STEP_OPTIONS = EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) }));
+
+export class ChauffageProgrammeCardEditor extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    _config: { state: true },
+    _editing: { state: true },
+  };
+
+  static styles = unsafeCSS(EDITOR_CSS);
+
+  declare hass: any;
   declare _config: any;
-  declare _editing: any;
-  declare _hass: any;
-  declare _initial: any;
-  declare _options: any;
-  declare _page: any;
+  // The index of the thermostat whose page is open, else null
+  declare _editing: number | null;
+  // The thermostats when the editor opened (HA gives each change back through setConfig)
+  _initial: string[] | null = null;
+  // A row dragged by its handle: the list is drawn anew, as the drag moved its rows
+  _moves = 0;
 
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
-    this._editing = null; // index of the thermostat whose page is open
-    this._built = null; // what the DOM shows: rebuilt only when it changes (keeps the focus)
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    this._render();
+    this._editing = null;
   }
 
   setConfig(config) {
     this._config = config;
-    // The thermostats when the editor opened (HA gives each change back through setConfig)
     if (!this._initial) this._initial = this._thermostats().map((t) => t.entity);
-    this._render();
   }
 
   _thermostats() {
@@ -68,44 +71,30 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
   }
 
   _defaultName(entity) {
-    return entity ? thermostatName(this._hass, entity) : '';
+    return entity ? thermostatName(this.hass, entity) : '';
   }
 
   // Name shown under a row: only a name of the card's config that changes the thermostat's own
   _shownName(t) {
-    const shown = t.name ? thermostatName(this._hass, t.entity, t.name) : null;
+    const shown = t.name ? thermostatName(this.hass, t.entity, t.name) : null;
     return shown !== this._defaultName(t.entity) ? shown : null;
   }
 
   // HA's own name field (entity_name selector, from 2025.11): text, or pieces such as the area
   _haNameField() {
-    return haAtLeast(this._hass, 2025, 11);
+    return haAtLeast(this.hass, 2025, 11);
   }
 
-  _render() {
-    if (!this._config) return;
+  willUpdate() {
+    if (this._editing !== null && !this._thermostats()[this._editing]) this._editing = null;
+  }
+
+  render() {
+    if (!this._config) return nothing;
     const thermostats = this._thermostats();
-    if (this._editing !== null && !thermostats[this._editing]) this._editing = null;
-    const loc = makeLocale(this._hass);
-    // The thermostat's page keeps its form while its fields change; the list is rebuilt
-    const shape = JSON.stringify(this._editing !== null
-      ? ['page', this._editing, loc.signature, this._haNameField()]
-      : ['list', thermostats, thermostats.map((t) => [this._shownName(t), this._renamedTo(t.entity)]), loc.signature, this._removedScheduled()]);
-    if (shape !== this._built) {
-      this._built = shape;
-      this.shadowRoot.replaceChildren();
-      const style = document.createElement('style');
-      style.textContent = EDITOR_CSS;
-      this.shadowRoot.appendChild(style);
-      if (this._editing !== null) this._buildPage(loc);
-      else this._buildList(loc, thermostats);
-    }
-    for (const el of this.shadowRoot.querySelectorAll('ha-entity-picker, ha-form')) (el as any).hass = this._hass;
-    if (this._editing !== null) this._page.data = this._pageData(thermostats[this._editing]);
-    else if (this._options) {
-      const c = this._config;
-      this._options.data = { show_all: c.show === 'all', step: String(c.step || 15) };
-    }
+    const editing = this._editing;
+    const loc = makeLocale(this.hass);
+    return editing !== null ? this._page(loc, thermostats[editing]) : this._list(loc, thermostats);
   }
 
   // What a thermostat's page shows: its entity and its optional name
@@ -129,180 +118,125 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
   }
 
   // A note under the list, if any
-  _listNote(_loc?, _thermostats?): HTMLElement | null {
-    return null;
+  _listNote(_loc?, _thermostats?): unknown {
+    return nothing;
   }
 
   // The card's options under the list: whether every thermostat shows at first, the time step
-  _buildOptions(loc) {
-    const options: any = document.createElement('ha-form');
-    options.className = 'options';
-    options.schema = [
-      { name: 'show_all', selector: { boolean: {} } },
-      { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEPS.map((s) => ({ value: String(s), label: String(s) })) } } },
-    ];
-    options.computeLabel = (s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name]);
-    options.addEventListener('value-changed', (e: any) => {
-      e.stopPropagation();
-      const config = { ...this._config };
-      if (e.detail.value.show_all) config.show = 'all';
-      else if (config.show === 'all') delete config.show;
-      const step = Number(e.detail.value.step);
-      if (step && step !== 15) config.step = step;
-      else delete config.step;
-      this._emit(config);
-    });
-    return options;
+  _options(loc): unknown {
+    const c = this._config;
+    return html`<ha-form class="options" .hass=${this.hass}
+      .schema=${[
+        { name: 'show_all', selector: { boolean: {} } },
+        { name: 'step', required: true, selector: { select: { mode: 'dropdown', options: EDITOR_STEP_OPTIONS } } },
+      ]}
+      .computeLabel=${(s) => loc.t({ show_all: 'editorShowAll', step: 'editorStep' }[s.name])}
+      .data=${{ show_all: c.show === 'all', step: String(c.step || 15) }}
+      @value-changed=${this._optionsChanged}></ha-form>`;
   }
 
-  _button(cls, label, path, onClick) {
-    const b: any = document.createElement('ha-icon-button');
-    b.className = cls;
-    b.label = label;
-    b.path = path;
-    b.addEventListener('click', onClick);
-    return b;
-  }
-
-  _picker(cls, onChange) {
-    const p: any = document.createElement('ha-entity-picker');
-    p.className = cls;
-    p.includeDomains = ['climate'];
-    p.addEventListener('value-changed', (e: any) => {
-      e.stopPropagation();
-      onChange(e.detail.value);
-    });
-    return p;
+  _optionsChanged(e) {
+    e.stopPropagation();
+    const config = { ...this._config };
+    if (e.detail.value.show_all) config.show = 'all';
+    else if (config.show === 'all') delete config.show;
+    const step = Number(e.detail.value.step);
+    if (step && step !== 15) config.step = step;
+    else delete config.step;
+    this._emit(config);
   }
 
   _renamedTo(entity) {
-    return this._hass ? renamedTo(this._hass, dataSource(this._hass), entity) : null;
+    return this.hass ? renamedTo(this.hass, dataSource(this.hass), entity) : null;
   }
 
   // Thermostats removed from the card while it is edited that Chauffage schedules: removing one
   // from a card does not stop its schedule (docs/decisions.md, "Scheduled thermostats")
   _removedScheduled() {
-    if (!this._hass) return [];
+    if (!this.hass) return [];
     const now = this._thermostats().map((t) => t.entity);
-    const scheduled = dataSource(this._hass).scheduled();
+    const scheduled = dataSource(this.hass).scheduled();
     return this._initial.filter((e) => !now.includes(e) && scheduled.includes(e));
   }
 
-  _buildList(loc, thermostats) {
-    const title = document.createElement('h3');
-    title.textContent = this._listTitle(loc);
-    const sortable = document.createElement('ha-sortable');
-    sortable.setAttribute('handle-selector', '.handle');
-    sortable.addEventListener('item-moved', (e: any) => {
-      e.stopPropagation();
-      const list = this._thermostats();
-      list.splice(e.detail.newIndex, 0, list.splice(e.detail.oldIndex, 1)[0]);
-      this._setThermostats(list);
-    });
-    const container = document.createElement('div');
-    thermostats.forEach((t, i) => {
-      const row = document.createElement('div');
-      row.className = 'thermostat';
-      const handle = document.createElement('div');
-      handle.className = 'handle';
-      const icon: any = document.createElement('ha-svg-icon');
-      icon.path = MDI.drag;
-      handle.appendChild(icon);
-      const cell = document.createElement('div');
-      cell.className = 'picker';
-      const picker: any = this._picker('', (entity) => {
-        const list = this._thermostats();
-        if (entity) list[i].entity = entity;
-        else list.splice(i, 1);
-        this._setThermostats(list);
-      });
-      picker.value = t.entity;
-      picker.hideClearIcon = true;
-      cell.appendChild(picker);
-      const shown = this._shownName(t);
-      if (shown) {
-        const name = document.createElement('div');
-        name.className = 'custom-name';
-        name.textContent = loc.t('editorShownAs', { name: shown });
-        cell.appendChild(name);
-      }
-      const to = this._renamedTo(t.entity);
-      if (to) {
-        const note = document.createElement('div');
-        note.className = 'renamed-note';
-        const text = document.createElement('span');
-        text.textContent = loc.t('editorRenamed', { entity: to });
-        const button = document.createElement('button');
-        button.textContent = loc.t('editorUseNewId');
-        button.addEventListener('click', () => {
-          const list = this._thermostats();
-          list[i].entity = to;
-          this._setThermostats(list);
-        });
-        note.append(text, button);
-        cell.appendChild(note);
-      }
-      row.append(handle, cell,
-        this._button('remove', loc.t('editorRemove'), MDI.close, () => {
-          const list = this._thermostats();
-          list.splice(i, 1);
-          this._setThermostats(list);
-        }),
-        this._button('edit', loc.t('editorEdit'), MDI.pencil, () => {
-          this._editing = i;
-          this._render();
-        }));
-      container.appendChild(row);
-    });
-    sortable.appendChild(container);
-    const removed = this._removedScheduled().map((entity) => {
-      const note = document.createElement('div');
-      note.className = 'removed-note';
-      note.textContent = loc.t('editorRemovedScheduled', { name: this._defaultName(entity) });
-      return note;
-    });
-    const add: any = this._picker('add', (entity) => {
-      if (!entity) return;
-      add.value = '';
-      this._setThermostats([...this._thermostats(), { entity }]);
-    });
-    add.setAttribute('add-button', '');
-    this._options = this._buildOptions(loc);
-    const note = this._listNote(loc, thermostats);
-    this.shadowRoot.append(title, sortable, ...(note ? [note] : []), ...removed, add, ...(this._options ? [this._options] : []));
+  // Changes the list of thermostats: `change(list)` edits a copy of it
+  _edit(change) {
+    const list = this._thermostats();
+    change(list);
+    this._setThermostats(list);
   }
 
-  _buildPage(loc) {
-    const header = document.createElement('div');
-    header.className = 'header';
-    const back: any = document.createElement('ha-icon-button-prev');
-    back.label = loc.t('editorBack');
-    back.addEventListener('click', () => {
-      this._editing = null;
-      this._render();
-    });
-    const title = document.createElement('span');
-    title.textContent = loc.t('editorThermostat');
-    header.append(back, title);
-    const form: any = document.createElement('ha-form');
-    form.schema = this._pageSchema();
-    form.computeLabel = (s) => loc.t({ name: 'editorName', icon: 'editorIcon' }[s.name] || 'editorThermostat');
-    form.computeHelper = (s) => (s.name === 'name' && !this._haNameField() ? loc.t('editorNameDefault', { name: this._defaultName(form.data && form.data.entity) }) : undefined);
-    form.addEventListener('value-changed', (e: any) => {
-      e.stopPropagation();
-      const list = this._thermostats();
+  _list(loc, thermostats) {
+    const t = loc.t;
+    const row = (th, i) => {
+      const shown = this._shownName(th);
+      const to = this._renamedTo(th.entity);
+      return html`<div class="thermostat">
+        <div class="handle"><ha-svg-icon .path=${MDI.drag}></ha-svg-icon></div>
+        <div class="picker">
+          <ha-entity-picker .hass=${this.hass} .includeDomains=${['climate']} .value=${th.entity} .hideClearIcon=${true}
+            @value-changed=${(e) => {
+              e.stopPropagation();
+              const entity = e.detail.value;
+              this._edit((list) => (entity ? (list[i].entity = entity) : list.splice(i, 1)));
+            }}></ha-entity-picker>
+          ${shown ? html`<div class="custom-name">${t('editorShownAs', { name: shown })}</div>` : nothing}
+          ${to ? html`<div class="renamed-note"><span>${t('editorRenamed', { entity: to })}</span>
+            <button @click=${() => this._edit((list) => { list[i].entity = to; })}>${t('editorUseNewId')}</button></div>` : nothing}
+        </div>
+        <ha-icon-button class="remove" .label=${t('editorRemove')} .path=${MDI.close}
+          @click=${() => this._edit((list) => list.splice(i, 1))}></ha-icon-button>
+        <ha-icon-button class="edit" .label=${t('editorEdit')} .path=${MDI.pencil}
+          @click=${() => { this._editing = i; }}></ha-icon-button>
+      </div>`;
+    };
+    return html`<h3>${this._listTitle(loc)}</h3>
+      <ha-sortable handle-selector=".handle" @item-moved=${this._moved}>
+        ${keyed(this._moves, html`<div>${thermostats.map(row)}</div>`)}
+      </ha-sortable>
+      ${this._listNote(loc, thermostats)}
+      ${this._removedScheduled().map((entity) => html`<div class="removed-note">${t('editorRemovedScheduled', { name: this._defaultName(entity) })}</div>`)}
+      <ha-entity-picker class="add" add-button .hass=${this.hass} .includeDomains=${['climate']}
+        @value-changed=${(e) => {
+          e.stopPropagation();
+          const entity = e.detail.value;
+          if (!entity) return;
+          e.target.value = '';
+          this._setThermostats([...this._thermostats(), { entity }]);
+        }}></ha-entity-picker>
+      ${this._options(loc)}`;
+  }
+
+  _moved(e) {
+    e.stopPropagation();
+    this._moves += 1;
+    this._edit((list) => list.splice(e.detail.newIndex, 0, list.splice(e.detail.oldIndex, 1)[0]));
+  }
+
+  _page(loc, th) {
+    const haName = this._haNameField();
+    return html`<div class="header">
+        <ha-icon-button-prev .label=${loc.t('editorBack')} @click=${() => { this._editing = null; }}></ha-icon-button-prev>
+        <span>${loc.t('editorThermostat')}</span>
+      </div>
+      <ha-form .hass=${this.hass} .schema=${this._pageSchema()} .data=${this._pageData(th)}
+        .computeLabel=${(s) => loc.t({ name: 'editorName', icon: 'editorIcon' }[s.name] || 'editorThermostat')}
+        .computeHelper=${(s) => (s.name === 'name' && !haName ? loc.t('editorNameDefault', { name: this._defaultName(th.entity) }) : undefined)}
+        @value-changed=${this._pageChanged}></ha-form>`;
+  }
+
+  _pageChanged(e) {
+    e.stopPropagation();
+    this._edit((list) => {
       const t = list[this._editing];
       if (e.detail.value.entity) t.entity = e.detail.value.entity;
       // An option emptied is left out: the thermostat's own name or icon
-      for (const { name: key } of form.schema.filter((s) => s.name !== 'entity')) {
+      for (const { name: key } of this._pageSchema().filter((s) => s.name !== 'entity')) {
         const v = e.detail.value[key];
         if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) delete t[key];
         else t[key] = v;
       }
-      this._setThermostats(list);
     });
-    this._page = form;
-    this.shadowRoot.append(header, form);
   }
 
   // A thermostat without a name nor other option is written as its entity id alone
@@ -312,7 +246,6 @@ export class ChauffageProgrammeCardEditor extends HTMLElement {
 
   _emit(config) {
     this._config = config;
-    this._render();
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
   }
 }
@@ -325,15 +258,11 @@ export class ChauffageRoomsCardEditor extends ChauffageProgrammeCardEditor {
   }
 
   _listNote(loc, thermostats) {
-    if (thermostats.length) return null;
-    const note = document.createElement('div');
-    note.className = 'all-note custom-name';
-    note.textContent = loc.t('editorAllScheduled');
-    return note;
+    return thermostats.length ? nothing : html`<div class="all-note custom-name">${loc.t('editorAllScheduled')}</div>`;
   }
 
-  _buildOptions() {
-    return null;
+  _options() {
+    return nothing;
   }
 
   _removedScheduled() {
@@ -352,62 +281,52 @@ export class ChauffageRoomsCardEditor extends ChauffageProgrammeCardEditor {
 // The summary card's editor: one form, as Home Assistant's own card editors. Options written in
 // YAML that it does not show (`language`) are kept; an option emptied is left out
 const SUMMARY_FIELDS = ['name', 'icon', 'thermostats', 'show_schedules', 'tap_action'];
-export class ChauffageSummaryCardEditor extends HTMLElement {
-  // The fields of the element, untyped until the rewrite of the card gives them a type
+const SUMMARY_SCHEMA = [
+  { name: 'name', selector: { text: {} } },
+  { name: 'icon', selector: { icon: {} } },
+  { name: 'thermostats', selector: { entity: { domain: 'climate', multiple: true } } },
+  { name: 'show_schedules', selector: { boolean: {} } },
+  { name: 'tap_action', selector: { ui_action: { default_action: 'none' } } },
+];
+const SUMMARY_LABELS = { name: 'editorName', icon: 'editorIcon', thermostats: 'editorThermostatsOptional', show_schedules: 'editorShowSchedules', tap_action: 'editorTapAction' };
+
+export class ChauffageSummaryCardEditor extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    _config: { state: true },
+  };
+
+  declare hass: any;
   declare _config: any;
-  declare _form: any;
-  declare _hass: any;
-
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    this._render();
-  }
 
   setConfig(config) {
     this._config = config;
-    this._render();
   }
 
-  _render() {
-    if (!this._config) return;
-    const loc = makeLocale(this._hass);
-    if (!this._form) {
-      this._form = document.createElement('ha-form');
-      this._form.addEventListener('value-changed', (e) => {
-        e.stopPropagation();
-        const config = { ...this._config };
-        for (const key of SUMMARY_FIELDS) {
-          const v = e.detail.value[key];
-          // The menu of the schedules is shown by default: written only when hidden
-          if (v === undefined || v === '' || v === null || (Array.isArray(v) && !v.length) || (key === 'show_schedules' && v === true)) delete config[key];
-          else config[key] = v;
-        }
-        this._config = config;
-        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
-      });
-      this.shadowRoot.appendChild(this._form);
-    }
-    const form = this._form;
-    form.hass = this._hass;
-    form.schema = [
-      { name: 'name', selector: { text: {} } },
-      { name: 'icon', selector: { icon: {} } },
-      { name: 'thermostats', selector: { entity: { domain: 'climate', multiple: true } } },
-      { name: 'show_schedules', selector: { boolean: {} } },
-      { name: 'tap_action', selector: { ui_action: { default_action: 'none' } } },
-    ];
-    const labels = { name: 'editorName', icon: 'editorIcon', thermostats: 'editorThermostatsOptional', show_schedules: 'editorShowSchedules', tap_action: 'editorTapAction' };
-    form.computeLabel = (s) => loc.t(labels[s.name]);
-    form.computeHelper = (s) => (s.name === 'thermostats' && !(this._config.thermostats || []).length ? loc.t('editorAllScheduled') : undefined);
+  render() {
+    if (!this._config) return nothing;
+    const loc = makeLocale(this.hass);
     // The thermostats as entity ids: a name given in YAML is not used by this card
     const c = this._config;
-    form.data = { ...Object.fromEntries(SUMMARY_FIELDS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])),
+    const data = { ...Object.fromEntries(SUMMARY_FIELDS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])),
       ...(c.thermostats ? { thermostats: c.thermostats.map((t) => (typeof t === 'string' ? t : t.entity)) } : {}),
       show_schedules: c.show_schedules !== false };
+    return html`<ha-form .hass=${this.hass} .schema=${SUMMARY_SCHEMA} .data=${data}
+      .computeLabel=${(s) => loc.t(SUMMARY_LABELS[s.name])}
+      .computeHelper=${(s) => (s.name === 'thermostats' && !(c.thermostats || []).length ? loc.t('editorAllScheduled') : undefined)}
+      @value-changed=${this._changed}></ha-form>`;
+  }
+
+  _changed(e) {
+    e.stopPropagation();
+    const config = { ...this._config };
+    for (const key of SUMMARY_FIELDS) {
+      const v = e.detail.value[key];
+      // The menu of the schedules is shown by default: written only when hidden
+      if (v === undefined || v === '' || v === null || (Array.isArray(v) && !v.length) || (key === 'show_schedules' && v === true)) delete config[key];
+      else config[key] = v;
+    }
+    this._config = config;
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
   }
 }
