@@ -4,6 +4,7 @@ import { noticeTemplate, reloadPage, sourceNotice } from '../notices.ts';
 import { dataSource, renamedTo } from '../client/snapshot.ts';
 import { commands } from '../client/commands.ts';
 import { client } from '../client/chauffage-client.ts';
+import { SnapshotController } from '../controllers/snapshot-controller.ts';
 import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference, saveShownPreference, shownPreference } from '../state/preferences.ts';
 import { WeekDraft } from '../state/week-draft.ts';
 import { HistoryStore } from '../state/history-store.ts';
@@ -37,10 +38,7 @@ export class ChauffageProgrammeCard extends LitElement {
 
   // The fields of the element, untyped until the rewrite of the card gives them a type
   declare _accessStamp: any;
-  declare _answers: number;
   declare _asideKey: any;
-  declare _available: any;
-  declare _liveKey: string;
   declare _tabsLeft: number;
   declare _config: any;
   declare _configured: any;
@@ -50,13 +48,16 @@ export class ChauffageProgrammeCard extends LitElement {
   // The gestures on the week: a slot or a handle moved, the end of an override moved
   _slotDrag = new SlotDrag(this);
   _overrideEnd = new OverrideEndDrag(this);
+  // Data pushed by the integration: the card follows it, and draws again
+  _snapshot = new SnapshotController(this, () => this._sync(true));
+  // What the card showed from the last hass (_drawnFrom)
+  _drawn: any[] | null = null;
   declare _downAt: any;
   declare _focus: any;
   declare _groupPref: any;
   declare _hass: any;
   declare _history: HistoryStore;
   declare _lastClick: any;
-  declare _linksStamp: any;
   declare _loc: any;
   declare _menu: any;
   declare _moreOpen: any;
@@ -64,7 +65,6 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _msg: any;
   declare _multiFresh: any;
   declare _multiSel: any;
-  declare _noticeKey: any;
   declare _onDocDown: any;
   declare _onKey: any;
   declare _overrideDraft: OverrideDraft;
@@ -73,22 +73,18 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _previewed: any;
   declare _readTouch: any;
   declare _redrawLater: any;
-  declare _renderedDay: any;
   declare _rows: any;
   declare _schedEd: any;
   declare _schedErr: any;
   declare _schedule: any;
-  declare _scheduleState: any;
   declare _shown: any;
   declare _shownForPreview: any;
   declare _stamp: any;
   declare _tabsShown: any;
   declare _tabsWait: any;
   declare _thermostats: any;
-  declare _thermostatsStamp: any;
   declare _timer: any;
   declare _trial: any;
-  declare _unlisten: any;
   declare _wantSchedule: any;
   declare _zoom: any;
 
@@ -150,7 +146,6 @@ export class ChauffageProgrammeCard extends LitElement {
     this._stamp = undefined;
     this._msg = '';
     this._lastClick = null;
-    this._renderedDay = null;
     this._menu = null; // { climate, day, top, right } open row menu
     this._multiSel = false; // "Plusieurs" mode: clicking a thermostat adds / removes it
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
@@ -221,71 +216,51 @@ export class ChauffageProgrammeCard extends LitElement {
     }
   }
 
+  get hass() {
+    return this._hass;
+  }
+
+  // A new hass: drawn again when what the card shows from it changed (_drawnFrom)
   set hass(hass) {
-    const first = !this._hass;
+    const before = this._drawn;
     this._hass = hass;
     if (!this._config) return;
-    let need = first;
+    this._drawn = this._drawnFrom(hass);
+    this._sync(!before || this._drawn.length !== before.length || this._drawn.some((v, i) => v !== before[i]));
+  }
+
+  // What the card shows from hass, besides the integration's data: the states of its thermostats,
+  // the registry (names, icons, devices), the user's language and formats, whether the integration
+  // is set up. Compared by identity: Home Assistant gives a new object only for what changed
+  _drawnFrom(hass) {
+    return [...this._configured.map((t) => hass.states[t.entity]), hass.entities, hass.devices, hass.user,
+      hass.locale, hass.language, hass.selectedLanguage, hass.config, hass.services];
+  }
+
+  // The card follows hass and the integration's data, and draws again if `redraw`: on every push
+  // of the integration, and on a hass that changes what it shows
+  _sync(redraw) {
+    if (!this._hass || !this._config) return;
+    this._snapshot.listen();
+    let need = redraw;
     // Language / time format / unit may change in the user's profile
-    const loc = makeLocale(hass, this._config.language);
-    if (!this._loc || loc.signature !== this._loc.signature) {
-      this._loc = loc;
-      need = true;
-    }
+    const loc = makeLocale(this._hass, this._config.language);
+    if (!this._loc || loc.signature !== this._loc.signature) this._loc = loc;
     const src = this._source();
-    if (src.available && !this._unlisten) {
-      // Data pushed by the integration: same checks as a hass update
-      this._unlisten = client.listen(() => { if (this._hass) this.hass = this._hass; });
-    }
-    if (src.available !== this._available) {
-      this._available = src.available; // the integration deleted or disabled, or back
-      need = true;
-    }
     if (this._setAside(src)) need = true;
-    // What the card says instead of the weeks: "…", then "restart Home Assistant" when the
-    // data that comes is an older integration's
-    const notice = sourceNotice(src);
-    const noticeKey = notice ? notice.text || 'loading' : '';
-    if (noticeKey !== this._noticeKey) {
-      this._noticeKey = noticeKey;
-      need = true;
-    }
+    // The integration's weeks changed: shown, unless the card has edits not saved yet or a slot is
+    // dragged
     const stamp = src.stamps.weeks;
     if ((stamp !== this._stamp) && !this._draft.dirty && !this._slotDrag.active) {
       this._load();
       this._stamp = stamp;
       need = true;
     }
+    // The integration's overrides changed: the changes sent are now its own (OverrideDraft)
     const dstamp = src.stamps.overrides;
     if (dstamp !== this._overrideStamp && !this._overrideEnd.active && !this._slotDrag.active) {
       this._overrideStamp = dstamp;
       this._overrideDraft.updated();
-      need = true;
-    }
-    // Active schedule changed (from the card, another dashboard or an automation), or the icon of a
-    // schedule chosen in Home Assistant: redraw the active-schedule marker, the tabs and the
-    // "activate" bar
-    const scheduleStamp = src.stamps.schedule;
-    if (scheduleStamp !== this._scheduleState && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._scheduleState = scheduleStamp;
-      need = true;
-    }
-    // A thermostat paused or resumed (switch, another card): redraw its notice and rows
-    if (src.stamps.thermostats !== this._thermostatsStamp && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._thermostatsStamp = src.stamps.thermostats;
-      need = true;
-    }
-    // An entity the card opens renamed, or a thermostat given another device: redraw its links
-    const links = `${src.stamps.entities} ${this._thermostats.map((t) => deviceOf(hass, t.entity)).join(' ')}`;
-    if (links !== this._linksStamp && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._linksStamp = links;
-      need = true;
-    }
-    // The integration answered what a preset is worth on a thermostat it does not schedule yet
-    // (targetOf): the popovers and the legend say it
-    if (client.previewed !== this._answers && !this._slotDrag.active && !this._overrideEnd.active) {
-      this._answers = client.previewed;
-      need = true;
     }
     // The access level changed (#99): the tools appear or go at once. Without Plan, what was being
     // edited closes; the weeks not saved yet stay until Cancel
@@ -309,7 +284,6 @@ export class ChauffageProgrammeCard extends LitElement {
       need = true;
     }
     if (need) this._render();
-    else if (!this._slotDrag.active && !this._overrideEnd.active) this._updateLive();
     this._refreshHistory();
   }
 
@@ -375,12 +349,11 @@ export class ChauffageProgrammeCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._previewChanged();
+    // The time goes on: the current time, a new day, an override that ends
     this._timer = setInterval(() => {
       if (this._slotDrag.active || this._overrideEnd.active) return;
       this._refreshHistory();
-      // Full redraw on a new day or during an override (it moves with the time)
-      if (this._renderedDay !== todayIdx() || Object.keys(this._overrides()).length) this._render();
-      else this._updateLive();
+      this._render();
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
@@ -410,8 +383,6 @@ export class ChauffageProgrammeCard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     clearInterval(this._timer);
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
     document.removeEventListener('pointerdown', this._onDocDown, true);
     document.removeEventListener('keydown', this._onKey);
   }
@@ -655,18 +626,6 @@ export class ChauffageProgrammeCard extends LitElement {
     const cause = causeText(this._source(), climate, this._loc);
     if (cause) return cause.short;
     return st.state !== 'off' ? '' : this._loc.t('off');
-  }
-
-  // What changes with Home Assistant's states between two drawings of the weeks: the marks of the
-  // chips, the current time, and the setpoint the override popover shows while it follows the
-  // thermostat. Drawn again only when one of them changes
-  _updateLive() {
-    const sel = this._overrideSel;
-    const st = sel && this._hass.states[sel.climate];
-    const key = JSON.stringify([this._thermostats.map((t) => this._chipMark(t.entity)), nowMin(), st ? st.attributes.temperature : null]);
-    if (key === this._liveKey) return;
-    this._liveKey = key;
-    this.requestUpdate();
   }
 
   // ---------- history of the measured temperature ----------
@@ -991,9 +950,11 @@ export class ChauffageProgrammeCard extends LitElement {
     this.requestUpdate();
   }
 
-  // Not while a time is typed: the redraw would take its field away
+  // Not while a slot or the end of an override is dragged: the drag moves the bars itself, and
+  // draws the card when it ends. Not while a time is typed: the redraw would take its field away
   shouldUpdate() {
     if (!this._hass || !this._config) return false;
+    if (this._slotDrag.active || this._overrideEnd.active) return false;
     if (focusedField(this.renderRoot, 'input.time')) { this._redrawLater = true; return false; }
     return true;
   }
@@ -1065,7 +1026,6 @@ export class ChauffageProgrammeCard extends LitElement {
     const src = this._source();
     const schedules = this._schedules();
     const active = this._activeSchedule();
-    this._renderedDay = todayIdx();
     const multi = this._shown.length > 1;
     const allShown = this._shown.length === this._thermostats.length;
 
