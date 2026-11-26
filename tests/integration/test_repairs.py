@@ -123,6 +123,6 @@ async def test_a_forgotten_thermostat_s_repairs_are_closed(bench: Bench):
     await scheduled_then_gone(bench, "climate.grenier")
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
-    await bench.runtime.forget("climate.grenier")
+    await bench.runtime.registry.forget("climate.grenier")
     await bench.hass.async_block_till_done()
     assert issue(bench, MISSING) is None

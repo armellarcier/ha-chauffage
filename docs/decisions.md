@@ -176,7 +176,7 @@ future contributor might question.
   from the schedule. The card sends what the preset means on that thermostat (its climate
   preset, or a temperature), so the stored format of overrides does not change; on a thermostat
   without presets, "Comfort" picked in the card shows as its temperature.
-- **One way to set an override's value on the thermostat** (`runtime.set_override`), which
+- **One way to set an override's value on the thermostat** (`OverrideService.set`), which
   fits a temperature to the thermostat (limits, step) as for the slots, and never sends what the
   thermostat already has. The caller says what to send: the card, a new override or a new value
   (a new end alone is not sent, so it works on an unreachable thermostat); the `set_override`
@@ -208,11 +208,11 @@ future contributor might question.
     without an HVAC mode leaves the thermostat in the one it has". With that rule a slot had
     three states, *Heat*, *Cool* and "unchanged", and the third one could not be read in the
     week: what the room got depended on what the thermostat did before. The owner chose that
-    every slot says. The rule lives in one place on each side: `engine.slot_hvac_mode` in the
+    every slot says. The rule lives in one place on each side: `slot.slot_hvac_mode` in the
     integration, `slotModeOn` in the card. Both read a slot the same way:
     - off, fan only, dry and auto are the slot's own, on any thermostat;
     - heat, cool and heat/cool are kept when the thermostat can follow them
-      (`engine.setpoint_modes`: the ones it lists, heat/cool only when it takes a range of
+      (`thermostat.setpoint_modes`: the ones it lists, heat/cool only when it takes a range of
       temperatures);
     - otherwise, on a thermostat that cools, the slot heats, and it cools when the thermostat
       does not heat: a week stored before #91 says no HVAC mode, and a day pasted from another
@@ -254,7 +254,7 @@ future contributor might question.
     takes no setpoint on a device. Auto often takes one, but the device decides what to do
     with it, and the owner chose one rule for both. So `dry` or `auto` chosen by hand is an
     override to that HVAC mode, and nothing is sent. A target that holds a setpoint and says
-    no HVAC mode turns a thermostat on from off, from fan only and from dry (`engine.IDLE`),
+    no HVAC mode turns a thermostat on from off, from fan only and from dry (`thermostat.IDLE`),
     not from auto: a valve in auto takes its setpoint and keeps auto, as before #91.
   - **Heat/cool sends a range, made of the preset's two temperatures.** `target_temp_low` is
     the temperature when heating, `target_temp_high` the one when cooling, each from the
@@ -275,7 +275,7 @@ future contributor might question.
     in heat there: its setpoint changed by hand is an override. A range is checked once fitted
     to the thermostat: two temperatures above its maximum are not a range.
   - **Scripts and the sensor read the slots as they run.** `chauffage.get_week` and the
-    planned-preset sensor give each slot's HVAC mode on the thermostat (`engine.week_on`), not
+    planned-preset sensor give each slot's HVAC mode on the thermostat (`Week.on`), not
     the stored one: a script must not have to know the rule. The sensor's `temperatures` are
     the cooling ones during a slot that cools.
   - **A thermostat without fan only is left as it is by a fan-only slot**: the slot has no
@@ -345,7 +345,7 @@ future contributor might question.
     `withoutAir`), an override gives no fan back, and a fan changed by hand during an
     override changes nothing.
   - **A thermostat leaves its preset before it gets a setpoint**, when it lists the preset
-    `none` and shows another one (`engine.preset_to_leave`). A Daikin keeps its preset when it
+    `none` and shows another one (`Target.preset_to_leave`). A Daikin keeps its preset when it
     gets a temperature: left on `eco`, it saved energy against the setpoint the slot asked
     for. The preset is left first, in a call of its own: a thermostat such as Home Assistant's
     `generic_thermostat` gives back an older setpoint when it leaves a preset, so the setpoint
@@ -359,7 +359,7 @@ future contributor might question.
   - **A thermostat at the slot's temperature still leaves its device preset** (the third
     review). A Daikin on `eco` that already showed the slot's 21 °C was left alone, and went
     on saving energy against the setpoint. Chauffage now sends such a thermostat its slot
-    (`engine.targets`, `Runtime.needs`): the preset is left, then the setpoint is sent again,
+    (`plan.due_targets`, `Runtime.needs`): the preset is left, then the setpoint is sent again,
     as a thermostat may change it when it leaves a preset. Nothing is pending then: the
     thermostat already shows the target.
   - **All or nothing, as a scene** (the owner, #112). A thermostat that shows the whole target
@@ -399,7 +399,7 @@ future contributor might question.
     default for each, and a cell still sets each for one thermostat. An empty temperature
     means "this preset is not for that HVAC mode": frost protection has none when cooling.
   - **A preset is offered in the HVAC modes it has a value for.** The rule lives in one place
-    on each side: `engine.value_on` and `engine.offered_modes` in the integration, `valueOn`
+    on each side: `Preset.value_on` and `PresetValue.offered_modes` in the integration, `valueOn`
     and `presetModes` in the card, which reads what the integration computed and uses its own
     copy only for a thermostat the integration does not know yet. The value of a preset on a
     thermostat, for each HVAC mode:
@@ -416,7 +416,7 @@ future contributor might question.
     The slot popover and the override block list the presets with this rule, an HVAC mode no
     preset has a value for cannot be chosen, and `chauffage.set_override` refuses a preset in
     an HVAC mode it has no value for.
-  - **Never a heating temperature in cool.** `engine.complete()` keeps, from a preset's
+  - **Never a heating temperature in cool.** `Target.completed_for()` keeps, from a preset's
     target, the value of the HVAC mode the target is sent in, also when the target says none
     and the air conditioner cools by itself. Without a value for that HVAC mode, no setpoint
     is sent, and the unit keeps its own: a slot stored with frost protection in cool, or an
@@ -702,7 +702,7 @@ future contributor might question.
   itself: sending it would cool to a heating setpoint. An override without a Chauffage preset is
   another matter: its temperature comes from the card's field, from `chauffage.set_override
   temperature`, or from a change by hand, so the user chose it for the HVAC mode the thermostat
-  runs in, and Chauffage sends it in `cool` too. `engine.complete()` tells the two apart
+  runs in, and Chauffage sends it in `cool` too. `Target.completed_for()` tells the two apart
   (`by_user`).
 - **A preset keeps a temperature that the weeks use.** A preset whose temperature when
   cooling is emptied while a week cools on it left a slot with nothing to send. Chauffage
@@ -1270,7 +1270,7 @@ dashboards, automations, scripts and by voice without the card
     saved: a tester set the evening to the preset of the afternoon, and the cut at 20:00 was
     gone. The user cut the slot on purpose, and a silent merge surprises. So neither the card
     nor the integration merges two slots any more: `normalize` and `model.normalize_day` keep
-    them, and the second slot sends nothing (`engine.targets`). What still joins two slots:
+    them, and the second slot sends nothing (`plan.due_targets`). What still joins two slots:
     - a slot deleted, or a time typed over a slot, joins the two slots it brings together;
     - a day copied to a thermostat that cannot follow its slots, and *All heat* or *All cool*,
       join the slots they made the same (`joined`).
@@ -1301,7 +1301,7 @@ dashboards, automations, scripts and by voice without the card
     override block of the card, the thermostat cards and the more-info dialog (`CHIP_STYLE`).
   - **A thermostat that only heats says no HVAC mode in an override from the card.** The card
     wrote `heat` in every override of a valve that lists heat and auto, and the valve stayed
-    in heat afterwards. The card now follows the rule of the slots (`engine.slot_hvac_mode`):
+    in heat afterwards. The card now follows the rule of the slots (`slot.slot_hvac_mode`):
     no HVAC mode unless the user taps one. The first row then shows the HVAC mode the valve
     runs in.
   - **The fan speed in sight in fan only and in dry.** It is the one thing to set there. The
@@ -1315,7 +1315,7 @@ dashboards, automations, scripts and by voice without the card
   - **A preset can have a value when cooling on one thermostat only.** *Frost protection* has
     no temperature when cooling, and the cell of a cooling-only air conditioner still takes
     one. The reviewers asked whether this was a mistake. It is the model: a preset is offered
-    in an HVAC mode on a thermostat when it has a value for it there (`engine.value_on`, the
+    in an HVAC mode on a thermostat when it has a value for it there (`Preset.value_on`, the
     card's `valueOn`). The slot popover, the override block and the integration agree, and a
     test says so. The cell stays as it is.
   - **The second review of the layout** (#91):

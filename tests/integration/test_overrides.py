@@ -37,7 +37,7 @@ def end_of(override: dict):
 def card_choice(bench: Bench, entity_id: str, preset: str) -> dict:
     """What the card sends for a preset picked in the override popover: what that preset means
     on this thermostat (its climate preset, or a temperature), as the integration tells the card."""
-    return {"target": bench.runtime.targets_of(entity_id)[preset]}
+    return {"target": bench.runtime.read_model.targets_of(entity_id)[preset]}
 
 
 # ----- detection -----
@@ -167,7 +167,7 @@ async def test_a_thermostat_coming_back_by_itself_to_a_held_slot_value_keeps_the
     await bench.runtime.set_mapping("climate.salon", {"eco": {"temperature": 17}})
     bench.thermostat("climate.salon", "none", 17)  # as the schedule set it
     await bench.hass.async_block_till_done()
-    hold = bench.runtime.new_override({"temperature": 17}, minutes=24 * 60)
+    hold = bench.runtime.overrides.new({"temperature": 17}, minutes=24 * 60)
     await bench.set_override("climate.salon", hold)
     bench.thermostat("climate.salon", "safety", 7)  # no temperature received
     await bench.hass.async_block_till_done()
@@ -182,7 +182,7 @@ async def test_a_thermostat_coming_back_by_itself_to_the_override_keeps_its_end(
     override keeps its value and its end."""
     bench.needs("vtherm", "standard")
     await start(bench)
-    hold = bench.runtime.new_override({"temperature": 21.0}, minutes=72 * 60)
+    hold = bench.runtime.overrides.new({"temperature": 21.0}, minutes=72 * 60)
     await bench.set_override("climate.salon", hold)
     bench.thermostat("climate.salon", "safety", 7)  # no temperature received
     await bench.hass.async_block_till_done()
@@ -202,7 +202,7 @@ async def test_a_slot_with_the_override_s_preset_does_not_end_it(bench: Bench):
         ("00:00", "comfort"), ("11:00", "eco"), ("12:00", "comfort"), ("13:00", "eco"))}})
     bench.applied()
     comfort = card_choice(bench, "climate.salon", "comfort")
-    override = bench.runtime.new_override(comfort["target"], minutes=24 * 60)
+    override = bench.runtime.overrides.new(comfort["target"], minutes=24 * 60)
     await bench.set_override("climate.salon", override)
     bench.thermostat("climate.salon", "comfort", context=CTX_USER, current_temperature=19.5)  # reports again
     await bench.hass.async_block_till_done()
@@ -219,7 +219,7 @@ async def test_the_override_of_a_change_by_hand_is_only_recorded(bench: Bench):
     change."""
     await start(bench)
     bench.thermostat("climate.salon", MANUAL_PRESET[bench.kind], 21.5)  # already the second change
-    bench.runtime.record_override("climate.salon", bench.runtime.new_override({"temperature": 21}))
+    bench.runtime.overrides.record("climate.salon", bench.runtime.overrides.new({"temperature": 21}))
     assert bench.temperature_calls == []
     assert bench.overrides()["climate.salon"]["target"] == {"temperature": 21}
 
@@ -325,7 +325,7 @@ async def test_the_thermostat_answering_the_schedule_is_not_a_manual_change(benc
                                     {"preset_mode": call.data["preset_mode"], "temperature": 17}, context=call.context)
 
     bench.hass.services.async_register("climate", "set_preset_mode", apply_with_answer)
-    await runtime.set_override("climate.salon", None, source="card")
+    await runtime.overrides.set("climate.salon", None, source="card")
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.salon": "eco"}
     assert bench.overrides() == {}
@@ -382,7 +382,7 @@ async def test_an_enum_preset_does_not_break_detection(bench: Bench):
 async def test_a_change_made_by_the_integration_itself_is_not_an_override(bench: Bench):
     """The thermostat writes its new state with the context of the integration's call."""
     await start(bench)
-    await bench.runtime.reproduce("climate.salon", None, {"temperature": 23})
+    await bench.runtime.gateway.reproduce("climate.salon", None, {"temperature": 23})
     await bench.hass.async_block_till_done()
     assert bench.hass.states.get("climate.salon").attributes["temperature"] == 23
     assert bench.overrides() == {}
@@ -428,7 +428,7 @@ async def test_a_preset_picked_by_a_user_during_safety_mode_is_an_override(bench
 async def test_an_override_set_to_a_preset_from_the_card_keeps_which_preset_it_is(bench: Bench):
     """On a thermostat without presets, Comfort is 20 °C: the override still says Comfort."""
     await start(bench)
-    o = bench.runtime.new_override({"temperature": 21.5})
+    o = bench.runtime.overrides.new({"temperature": 21.5})
     await bench.set_override("climate.salon", {**o, **card_choice(bench, "climate.salon", "comfort"), "preset": "comfort"})
     assert bench.applied() == {"climate.salon": "comfort"}
     assert bench.overrides()["climate.salon"]["preset"] == "comfort"
@@ -436,7 +436,7 @@ async def test_an_override_set_to_a_preset_from_the_card_keeps_which_preset_it_i
 
 async def test_an_override_set_to_a_temperature_has_no_preset(bench: Bench):
     await start(bench)
-    o = bench.runtime.new_override({"temperature": 21.5})
+    o = bench.runtime.overrides.new({"temperature": 21.5})
     await bench.set_override("climate.salon", {**o, **card_choice(bench, "climate.salon", "comfort"), "preset": "comfort"})
     await bench.set_override("climate.salon", {**o, "target": {"temperature": 20.0}})
     assert "preset" not in bench.overrides()["climate.salon"]
@@ -444,7 +444,7 @@ async def test_an_override_set_to_a_temperature_has_no_preset(bench: Bench):
 
 async def test_a_change_by_hand_during_an_override_set_to_a_preset_is_a_temperature(bench: Bench):
     await start(bench)
-    o = bench.runtime.new_override({"temperature": 21.5})
+    o = bench.runtime.overrides.new({"temperature": 21.5})
     await bench.set_override("climate.salon", {**o, **card_choice(bench, "climate.salon", "comfort"), "preset": "comfort"})
     await bench.manual_setpoint("climate.salon", 21.5)
     o = bench.overrides()["climate.salon"]

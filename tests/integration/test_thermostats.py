@@ -4,8 +4,8 @@ purpose (docs/decisions.md, "Scheduled thermostats", #27)."""
 import pytest
 
 from conftest import Bench, every_day, KINDS
-from custom_components.chauffage import model
 from custom_components.chauffage.runtime import StaleRevision
+from custom_components.chauffage.storage.schema import InvalidData
 
 
 @pytest.fixture(params=KINDS)
@@ -28,7 +28,7 @@ async def start(bench: Bench) -> None:
 
 
 async def forget(bench: Bench, entity_id: str) -> None:
-    await bench.runtime.forget(entity_id)
+    await bench.runtime.registry.forget(entity_id)
     await bench.hass.async_block_till_done()
 
 
@@ -86,7 +86,7 @@ async def test_a_forgotten_thermostat_is_no_longer_scheduled_nor_watched(bench: 
 async def test_a_copy_of_the_weeks_made_before_a_thermostat_was_forgotten_cannot_bring_it_back(bench: Bench):
     """Another card still holding the forgotten thermostat's weeks must reload first."""
     await start(bench)
-    revisions = {e: t["revision"] for e, t in bench.runtime.snapshot()["thermostats"].items()}
+    revisions = {e: t["revision"] for e, t in bench.runtime.read_model.snapshot()["thermostats"].items()}
     await forget(bench, "climate.salon")
     with pytest.raises(StaleRevision):
         await bench.runtime.save_weeks({"climate.salon": SALON, "climate.bureau": BUREAU}, revisions=revisions)
@@ -100,15 +100,15 @@ async def test_values_of_the_presets_set_before_its_weeks_do_not_schedule_a_ther
     bench.thermostat("climate.chambre", "eco")
     await bench.runtime.set_mapping("climate.chambre", {"comfort": {"temperature": 19.5}})
     await bench.hass.async_block_till_done()
-    assert "climate.chambre" not in bench.runtime.snapshot()["thermostats"]
-    assert bench.runtime.snapshot()["mappings"]["climate.chambre"] == {"comfort": {"temperature": 19.5}}
+    assert "climate.chambre" not in bench.runtime.read_model.snapshot()["thermostats"]
+    assert bench.runtime.read_model.snapshot()["mappings"]["climate.chambre"] == {"comfort": {"temperature": 19.5}}
     assert bench.hass.states.get("switch.chambre_control") is None
-    with pytest.raises(model.InvalidData):
-        await bench.runtime.set_paused("climate.chambre", True)
+    with pytest.raises(InvalidData):
+        await bench.runtime.registry.set_paused("climate.chambre", True)
 
     await bench.runtime.save_weeks({"climate.chambre": SALON}, revisions={"climate.chambre": None})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.snapshot()["thermostats"]["climate.chambre"]["paused"] is False
+    assert bench.runtime.read_model.snapshot()["thermostats"]["climate.chambre"]["paused"] is False
     assert bench.hass.states.get("switch.chambre_control") is not None
 
 
@@ -139,7 +139,7 @@ async def test_a_thermostat_forgotten_during_a_realignment_is_sent_nothing_more(
 
     async def forget_bureau_first(entity_id, hvac_mode, attributes):
         if entity_id == "climate.salon" and "climate.bureau" in bench.runtime.thermostats:
-            await bench.runtime.forget("climate.bureau")
+            await bench.runtime.registry.forget("climate.bureau")
         return await send(entity_id, hvac_mode, attributes)
 
     bench.runtime.gateway.reproduce = forget_bureau_first
@@ -149,7 +149,7 @@ async def test_a_thermostat_forgotten_during_a_realignment_is_sent_nothing_more(
 
 async def test_only_a_scheduled_thermostat_can_be_forgotten(bench: Bench):
     await start(bench)
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await forget(bench, "climate.cuisine")
 
 
@@ -172,7 +172,7 @@ async def test_the_card_forgets_a_thermostat(bench: Bench, ws_client):
 # ----- revisions per thermostat: several cards editing the weeks -----
 
 def revision(bench: Bench, entity_id: str) -> int:
-    return bench.runtime.snapshot()["thermostats"][entity_id]["revision"]
+    return bench.runtime.read_model.snapshot()["thermostats"][entity_id]["revision"]
 
 
 async def test_two_cards_editing_different_thermostats_do_not_get_in_each_other_s_way(bench: Bench):

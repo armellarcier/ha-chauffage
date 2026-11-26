@@ -56,7 +56,7 @@ async def test_a_manual_change_turned_into_an_override_is_told(bench: Bench, eve
 async def test_an_override_set_by_a_service_or_the_card_is_told(bench: Bench, events):
     await start(bench)
     await service(bench, "set_override", entity_id="climate.salon", preset="boost")
-    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 19}))
+    await bench.set_override("climate.salon", bench.runtime.overrides.new({"temperature": 19}))
     started = events["chauffage_override_started"]
     assert [(e["preset"], e["source"]) for e in started] == [("boost", "service"), (None, "card")]
 
@@ -76,13 +76,13 @@ async def test_an_override_ending_says_why(bench: Bench, events):
     await bench.go_to("12:00")  # its end
     await service(bench, "set_override", entity_id="climate.salon", temperature=22)
     await service(bench, "clear_override", entity_id="climate.salon")
-    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
+    await bench.set_override("climate.salon", bench.runtime.overrides.new({"temperature": 22}))
     await bench.set_override("climate.salon", None)
-    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
-    await bench.runtime.set_paused("climate.salon", True)
-    await bench.runtime.set_paused("climate.salon", False)
-    await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
-    await bench.runtime.forget("climate.salon")
+    await bench.set_override("climate.salon", bench.runtime.overrides.new({"temperature": 22}))
+    await bench.runtime.registry.set_paused("climate.salon", True)
+    await bench.runtime.registry.set_paused("climate.salon", False)
+    await bench.set_override("climate.salon", bench.runtime.overrides.new({"temperature": 22}))
+    await bench.runtime.registry.forget("climate.salon")
     await bench.hass.async_block_till_done()
     assert [(e["entity_id"], e["reason"]) for e in events["chauffage_override_ended"]] == [
         ("climate.salon", reason) for reason in ("expired", "service", "card", "paused", "forgotten")
@@ -120,7 +120,7 @@ async def test_activating_a_schedule_is_told_with_where_it_came_from(bench: Benc
 async def test_a_schedule_activated_by_the_rules_is_told(bench: Bench, events):
     await start(bench)
     bench.hass.states.async_set("input_boolean.away", "on")
-    await bench.runtime.set_rules([{"template": "{{ is_state('input_boolean.away', 'on') }}", "schedule": "away"}], None)
+    await bench.runtime.rules.set([{"template": "{{ is_state('input_boolean.away', 'on') }}", "schedule": "away"}], None)
     await bench.hass.async_block_till_done()
     assert events["chauffage_schedule_activated"][-1]["source"] == "rules"
 
@@ -143,7 +143,7 @@ async def test_an_override_extended_while_the_minute_is_applied_is_sent_again(be
         await apply(reason)  # the slot's preset sent
         await bench.thermostat_applies("climate.salon", "eco")
         if bench.overrides().get("climate.salon", copy)["end"] == copy["end"]:  # the card adds 30 minutes
-            await runtime.set_override("climate.salon", {**copy, "end": "2026-10-12T12:30:00+02:00"}, source="card")
+            await runtime.overrides.set("climate.salon", {**copy, "end": "2026-10-12T12:30:00+02:00"}, source="card")
 
     runtime.scheduler.apply = slow_apply
     await bench.go_to("12:00")

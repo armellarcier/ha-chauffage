@@ -77,7 +77,7 @@ class MissingFlow(RepairsFlow):
 
         runtime = loaded_runtime(self.hass)
         if self.entity_id in runtime.thermostats:
-            await runtime.forget(self.entity_id)
+            await runtime.registry.forget(self.entity_id)
         return self.async_create_entry(data={})
 
     async def async_step_keep(self, user_input: dict[str, Any] | None = None) -> FlowResult:

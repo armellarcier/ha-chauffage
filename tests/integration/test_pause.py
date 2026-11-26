@@ -10,7 +10,7 @@ from homeassistant.exceptions import ServiceValidationError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from conftest import Bench, every_day, KINDS
-from custom_components.chauffage import model
+from custom_components.chauffage.storage.schema import InvalidData
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -37,7 +37,7 @@ async def start(bench: Bench) -> None:
 
 
 async def pause(bench: Bench, entity_id: str, paused: bool = True) -> None:
-    await bench.runtime.set_paused(entity_id, paused)
+    await bench.runtime.registry.set_paused(entity_id, paused)
     await bench.hass.async_block_till_done()
 
 
@@ -57,7 +57,7 @@ async def test_a_thermostat_paused_during_a_realignment_is_sent_nothing_more(ben
 
     async def pause_bureau_first(entity_id, hvac_mode, attributes):
         if entity_id == "climate.salon":
-            await bench.runtime.set_paused("climate.bureau", True)
+            await bench.runtime.registry.set_paused("climate.bureau", True)
         return await send(entity_id, hvac_mode, attributes)
 
     bench.runtime.gateway.reproduce = pause_bureau_first
@@ -138,8 +138,8 @@ async def test_resuming_realigns_the_thermostat_at_once(bench: Bench):
 async def test_no_override_can_be_set_on_a_paused_thermostat(bench: Bench):
     await start(bench)
     await pause(bench, "climate.salon")
-    with pytest.raises(model.InvalidData):
-        await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
+    with pytest.raises(InvalidData):
+        await bench.set_override("climate.salon", bench.runtime.overrides.new({"temperature": 22}))
     with pytest.raises(ServiceValidationError) as err:
         await bench.hass.services.async_call(
             "chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22}, blocking=True
@@ -160,7 +160,7 @@ async def test_the_weeks_of_a_paused_thermostat_can_be_saved_without_resuming_it
 
 async def test_only_a_scheduled_thermostat_can_be_paused(bench: Bench):
     await start(bench)
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await pause(bench, "climate.cuisine")
 
 

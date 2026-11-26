@@ -13,6 +13,7 @@ from homeassistant.helpers.event import TrackTemplate, async_track_template_resu
 from homeassistant.helpers.template import Template, result_as_boolean
 
 from .. import model
+from ..storage.schema import InvalidData
 from ..domain.rules import rules_outcome, schedule_named
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class RuleEngine:
             try:
                 Template(rule["template"], runtime.hass).ensure_valid()
             except TemplateError as err:
-                raise model.InvalidData(f"invalid template: {err}") from err
+                raise InvalidData(f"invalid template: {err}") from err
         runtime.installation.rules, runtime.installation.default_schedule = normalized, default_schedule
         runtime._changed()
         self.track()

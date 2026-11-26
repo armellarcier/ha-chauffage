@@ -273,7 +273,7 @@ test fail.
 | I6 | `Installation` owns the data. `SnapshotBuilder`. Entities, websocket, services and diagnostics stop reading dicts. Add the websocket command that previews what a preset is worth on a thermostat (section 6, item 6). | 3-4 d | The `DATA`, `TICK` and `ENTITIES` notifications |
 | I7 | Remove the facades, freeze the migrations with their helpers, update the docs | 2 d | Low |
 
-From I1 to I6, `entry.runtime_data` keeps today's public method names, which delegate.
+From I1 to I6, `entry.runtime_data` keeps today's public method names, which delegate. Phase I7 removes these delegates: the callers use the services (`runtime.overrides`, `runtime.read_model`…).
 
 ### The card
 
@@ -320,9 +320,9 @@ decides when `rewrite` goes into `main`.
 **Rewrite, because they test internals:**
 
 - `test_engine.py` (77 tests) and the direct calls to `engine.*` and `model.*` in other files,
-  such as `test_heat_cool.py`. Move them to `tests/unit/domain/` in I7, with the same
-  cases and the same names, when the facades they call go (the phases I1 to I5 kept them as the
-  specification of the facades).
+  such as `test_heat_cool.py`. Phase I7 moved them to the domain objects, with the same cases and
+  the same names: `test_engine.py` became `tests/integration/test_domain.py`. It stays with the
+  integration tests, so `scripts/test.sh` and the CI run it as before.
 - The 16 node files with private access, such as `week-editing` and `override-block`. Move them
   to the driver in phase 0, before the rewrite.
 - The imports of pure functions from the big file. Point them to `frontend/src/index.js`.

@@ -25,7 +25,7 @@ async def start(bench: Bench, color: str = "blue") -> None:
 
 async def set_rules(bench: Bench, rules: list, default: str | None = None) -> None:
     """What the card sends when the user saves the rules."""
-    await bench.runtime.set_rules(rules, default)
+    await bench.runtime.rules.set(rules, default)
     await bench.hass.async_block_till_done()
 
 
@@ -95,7 +95,7 @@ async def test_a_template_that_fails_counts_as_false(bench: Bench):
     failing = {"template": "{{ states('sensor.missing') | float / 0 }}", "schedule": "away"}
     await set_rules(bench, [failing, WHITE], "normal")
     assert active(bench) == "normal"
-    assert bench.runtime.snapshot()["rule_results"] == [None, False]
+    assert bench.runtime.read_model.snapshot()["rule_results"] == [None, False]
 
 
 # ----- a schedule chosen by hand -----
@@ -185,7 +185,7 @@ async def test_without_rules_the_schedule_is_only_chosen_by_hand(bench: Bench):
 async def test_invalid_rules_are_refused(bench: Bench, rules, default):
     await start(bench)
     with pytest.raises(InvalidData):
-        await bench.runtime.set_rules(rules, default)
+        await bench.runtime.rules.set(rules, default)
     assert bench.rules() == []
 
 
@@ -251,10 +251,10 @@ async def test_a_template_giving_no_known_schedule_lets_the_next_rule_decide(ben
     await start(bench, "blue")
     await set_rules(bench, [{"template": COLORS, "schedule": None}, {"template": "{{ true }}", "schedule": "holiday"}])
     assert active(bench) == "holiday"
-    assert bench.runtime.snapshot()["rule_results"] == [False, True]
+    assert bench.runtime.read_model.snapshot()["rule_results"] == [False, True]
     await tempo(bench, "red")
     assert active(bench) == "away"
-    assert bench.runtime.snapshot()["rule_results"] == ["away", True]
+    assert bench.runtime.read_model.snapshot()["rule_results"] == ["away", True]
 
 
 async def test_a_schedule_named_only_inside_a_template_can_be_deleted(bench: Bench):

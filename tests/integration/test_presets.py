@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from conftest import WEEKDAY, Bench, every_day
-from custom_components.chauffage import model
+from custom_components.chauffage.storage.schema import InvalidData
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 SCHEDULES = {
@@ -43,7 +43,7 @@ async def test_storage_from_v0_2_is_migrated_without_changing_anything(bench: Be
     assert [p["id"] for p in bench.presets()] == ["comfort", "eco", "boost", "frost"]
     assert bench.runtime.mappings == {}
     assert bench.runtime.weeks["climate.salon"]["normal"][0] == WEEKDAY
-    assert bench.runtime.targets_of("climate.salon")["comfort"] == {"preset_mode": "comfort"}
+    assert bench.runtime.read_model.targets_of("climate.salon")["comfort"] == {"preset_mode": "comfort"}
 
 
 async def test_a_mapping_set_by_hand_is_applied(bench: Bench):
@@ -51,7 +51,7 @@ async def test_a_mapping_set_by_hand_is_applied(bench: Bench):
     await bench.runtime.set_mapping("climate.bureau", {"comfort": {"temperature": 19.5}})
     await bench.hass.async_block_till_done()
     assert bench.temperature_calls[-1] == ("climate.bureau", 19.5)
-    assert bench.runtime.targets_of("climate.bureau")["comfort"] == {"temperature": 19.5}
+    assert bench.runtime.read_model.targets_of("climate.bureau")["comfort"] == {"temperature": 19.5}
     # Back to the defaults
     bench.applied()
     await bench.runtime.set_mapping("climate.bureau", {})
@@ -84,7 +84,7 @@ async def test_renaming_and_adding_presets(bench: Bench):
 async def test_removing_a_preset_used_in_the_weeks_needs_a_replacement(bench: Bench):
     await start(bench)
     without_comfort = [p for p in presets(bench) if p["id"] != "comfort"]
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await bench.runtime.set_presets(without_comfort)
     revision = bench.revision()
     await bench.runtime.set_presets(without_comfort, {"comfort": "boost"})
@@ -103,12 +103,12 @@ async def test_removing_a_preset_drops_its_mappings(bench: Bench):
 
 async def test_weeks_with_an_unknown_preset_are_refused(bench: Bench):
     await start(bench)
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await bench.runtime.save_weeks({"climate.salon": {"normal": every_day(("00:00", "sleep"))}})
 
 
 async def test_the_card_gets_presets_and_what_they_mean_per_thermostat(bench: Bench):
     await start(bench)
-    snapshot = bench.runtime.snapshot()
+    snapshot = bench.runtime.read_model.snapshot()
     assert [p["id"] for p in snapshot["presets"]] == ["comfort", "eco", "boost", "frost"]
     assert snapshot["targets"]["climate.salon"]["eco"] == {"preset_mode": "eco"}

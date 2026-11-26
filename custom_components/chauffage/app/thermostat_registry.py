@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING
 from homeassistant.core import Event, callback
 from homeassistant.helpers import entity_registry as er
 
-from .. import model, repairs
+from .. import repairs
+from ..storage.schema import InvalidData
 from ..const import DOMAIN, ENTITIES, PLANNED_PRESET_KEY, THERMOSTAT_ENTITIES, thermostat_unique_id
 from ..domain.plan import Realign
 
@@ -25,7 +26,7 @@ class ThermostatRegistry:
         """Pause (kept, not controlled, its override dropped and the thermostat left as it is) or
         resume (realigned at once)."""
         if entity_id not in self._runtime.scheduled:
-            raise model.InvalidData(f"not scheduled: {entity_id}")
+            raise InvalidData(f"not scheduled: {entity_id}")
         if self._runtime.is_paused(entity_id) == paused:
             return
         self._runtime.thermostats[entity_id]["paused"] = paused
@@ -43,7 +44,7 @@ class ThermostatRegistry:
         """No longer scheduled: its data, override and entities are dropped, the thermostat left
         as it is. A new revision: a card's copy that still holds it must reload before saving."""
         if self._runtime.thermostats.pop(entity_id, None) is None:
-            raise model.InvalidData(f"not scheduled: {entity_id}")
+            raise InvalidData(f"not scheduled: {entity_id}")
         self._runtime.overrides.drop(entity_id, "forgotten")
         self._runtime.scheduler.retry.discard(entity_id)
         self._runtime.gateway.drop_pending(entity_id)

@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING
 
 from homeassistant.core import State, callback
 
-from .. import engine
 from ..const import DRY, FAN_ONLY, HEAT_COOL
-from ..domain.thermostat import ignored, is_manual_preset, preset_value
+from ..domain.thermostat import ignored, is_manual_preset, own_preset_temperature, preset_value
 
 if TYPE_CHECKING:
     from ..runtime import ChauffageRuntime
@@ -27,7 +26,7 @@ class Learner:
     def preset_temperature(self, state: State, preset: str, cool: bool = False) -> float | None:
         """Temperature a thermostat's own preset gives (published, else learned): the one the
         card shows, and the one a manual setpoint is compared with. `cool`: when it cools."""
-        return engine.preset_temperature(dict(state.attributes), preset, self._learned(state.entity_id, cool), cool)
+        return own_preset_temperature(state.attributes, preset, self._learned(state.entity_id, cool), cool)
 
     def temperatures_of(self, state: State | None, cool: bool = False) -> dict[str, float]:
         """{own preset: temperature} of a thermostat, for its presets and the learned ones.

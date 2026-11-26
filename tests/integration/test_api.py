@@ -292,7 +292,7 @@ async def respond(bench: Bench, service: str, **data) -> dict:
 
 async def test_a_script_reads_the_schedules(bench: Bench):
     await start(bench)
-    await bench.runtime.set_rules([{"template": "{{ false }}", "schedule": "away"}], "holiday")
+    await bench.runtime.rules.set([{"template": "{{ false }}", "schedule": "away"}], "holiday")
     await bench.activate_schedule("Normal")  # chosen by hand over the rules
     assert await respond(bench, "get_schedules") == {
         "schedules": [

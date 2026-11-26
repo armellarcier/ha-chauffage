@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -109,3 +110,15 @@ def on_mode(thermostat: Thermostat, planned: str | None = None) -> str | None:
         return thermostat.state
     others = [mode for mode in thermostat.hvac_modes if mode not in IDLE]
     return (choices or others or [None])[0]
+
+
+def own_preset_temperature(attributes: Mapping[str, Any], preset: str, learned: Mapping[str, Any],
+                           cool: bool = False) -> float | None:
+    """Temperature a thermostat's own preset gives: Versatile Thermostat publishes them
+    (preset_temperatures: {"eco_temp": …}), otherwise the one last read while the thermostat was
+    on that preset (`learned`). `cool`: the one it gives when cooling (a Versatile Thermostat in AC
+    mode: "eco_cool_temp"; `learned` while it cooled)."""
+    published = attributes.get("preset_temperatures")
+    key = f"{preset}_cool_temp" if cool else f"{preset}_temp"
+    value = published.get(key) if isinstance(published, Mapping) else None
+    return temperature_value(learned.get(preset) if value is None else value)

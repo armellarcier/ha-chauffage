@@ -255,7 +255,7 @@ class Bench:
 
     def snapshot(self) -> dict[str, Any]:
         """What the card receives from `chauffage/subscribe`."""
-        return self.runtime.snapshot()
+        return self.runtime.read_model.snapshot()
 
     def presets(self) -> list[dict]:
         return self.snapshot()["presets"]
@@ -284,7 +284,7 @@ class Bench:
 
     async def set_override(self, entity_id: str, override: dict | None) -> None:
         """What the card sends to extend (+30 min…) or remove an override."""
-        await self.runtime.set_override(entity_id, override, source="card")
+        await self.runtime.overrides.set(entity_id, override, source="card")
         await self.hass.async_block_till_done()
 
     @property
