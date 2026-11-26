@@ -87,7 +87,7 @@ class OverrideService:
         if override is None:
             if not self.drop(entity_id, source, context):
                 return
-            runtime._changed()
+            runtime.installation.changed()
             await runtime.scheduler.apply(Resumed(entity_id, f"override ended ({source})"))
             return
         override = schema.override(override).to_stored()
@@ -104,7 +104,7 @@ class OverrideService:
         if to_send is not None and not await runtime.gateway.send(entity_id, to_send, f"override set by {source}"):
             raise ThermostatFailed(entity_id)
         self.keep(entity_id, override, source, context)
-        runtime._changed()
+        runtime.installation.changed()
 
     def refuse_lone_temperature(self, entity_id: str, override: Any) -> None:
         """Refuses a new override to a single temperature in heat/cool, on a thermostat that
@@ -136,7 +136,7 @@ class OverrideService:
         """The override of a change by hand, only recorded: the thermostat set it itself, and
         sending it back could undo a second change made meanwhile."""
         self.keep(entity_id, schema.override(override).to_stored(), "thermostat", context)
-        self._runtime._changed()
+        self._runtime.installation.changed()
 
     def info(self, entity_id: str) -> dict[str, Any]:
         """A thermostat's override as automations see it (sensor, event): its target, the preset

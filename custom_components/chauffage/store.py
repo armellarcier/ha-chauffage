@@ -13,7 +13,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import DEFAULT_PRESETS, DOMAIN
+from .const import DOMAIN
 
 STORAGE_VERSION = 7
 STORAGE_MINOR_VERSION = 1
@@ -28,6 +28,8 @@ V2_PRESET_NAMES = {
     "fr": {"comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel"},
 }
 V2_EXTRA_PRESET = {"color": "#9e9e9e", "temperature": 19.0}
+# The temperatures when cooling that version 7 gives the default presets, by their id (#91)
+V7_COOL_TEMPERATURES = {"comfort": 25.0, "eco": 27.0, "boost": 23.0}
 
 
 # The helpers of the migrations, frozen as they were when each migration was written: a change to
@@ -125,7 +127,7 @@ def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
     def without(command: dict[str, Any]) -> dict[str, Any]:
         return {key: value for key, value in command.items() if key not in ("kind", "value")}
 
-    cooling = {preset_id: cool for preset_id, _, _, cool in DEFAULT_PRESETS if cool is not None}
+    cooling = V7_COOL_TEMPERATURES
     return {
         **data,
         "presets": [{**preset, "cool_temperature": cooling[preset["id"]]} if preset["id"] in cooling else preset

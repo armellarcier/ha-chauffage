@@ -341,7 +341,7 @@ future contributor might question.
     holds only what was changed, the rest following the schedule. It is a change of what an
     override is, so it comes after #91 (#110). Until then, overrides keep what Chauffage handled
     before #91, plus the HVAC mode: a preset, a setpoint, a range. The fan and the vanes are
-    dropped from every override target (`model.normalize_override`, the card's
+    dropped from every override target (`storage.schema.override`, the card's
     `withoutAir`), an override gives no fan back, and a fan changed by hand during an
     override changes nothing.
   - **A thermostat leaves its preset before it gets a setpoint**, when it lists the preset
@@ -568,7 +568,7 @@ future contributor might question.
   - **A VTherm without `requested_state` keeps the behavior before #91** (#74): off, it is read
     as on. It gets its slots and its override while off, stays off, and starts again on them.
     Chauffage neither turns it on nor takes it for turned off by hand. An off slot is still
-    satisfied by it: `engine.Thermostat` keeps the HVAC mode shown (`shown`) next to the one
+    satisfied by it: `domain.thermostat.Thermostat` keeps the HVAC mode shown (`shown`) next to the one
     read, and an off target accepts either, so the off command is not waited for and a
     realignment does not send off again. Before #91, a first fix
     (0.7.1) only counted the reason `hvac_off_auto_start_stop`; that reason moved once, from a
@@ -1269,7 +1269,7 @@ dashboards, automations, scripts and by voice without the card
     validate with the owner.* The slots merged when the popover closed and when the weeks were
     saved: a tester set the evening to the preset of the afternoon, and the cut at 20:00 was
     gone. The user cut the slot on purpose, and a silent merge surprises. So neither the card
-    nor the integration merges two slots any more: `normalize` and `model.normalize_day` keep
+    nor the integration merges two slots any more: `normalize` and `storage.schema.day` keep
     them, and the second slot sends nothing (`plan.due_targets`). What still joins two slots:
     - a slot deleted, or a time typed over a slot, joins the two slots it brings together;
     - a day copied to a thermostat that cannot follow its slots, and *All heat* or *All cool*,
@@ -2149,3 +2149,14 @@ Claude made these choices while splitting the card (proposals, for the owner to 
 - **The release ZIP holds the integration's files at its root**, as HACS expects with
   `zip_release`. Without HACS, a user unzips it into `custom_components/chauffage/`.
 - **`scripts/deploy.sh` builds the card of the commit it deploys**, with Node or Docker.
+
+#### Where the integration's rewrite put the tests and the store (phase I7, a proposal)
+
+Claude proposes these two choices. The owner hasn't confirmed them yet.
+
+- **The tests of the domain stay in `tests/integration/test_domain.py`**, not in
+  `tests/unit/domain/` as the plan says. `scripts/test.sh` and the CI run them as before, with no
+  second suite to set up. The cases and their names are those of `test_engine.py`.
+- **`store.py` stays at the root**, with its frozen migrations, not in `storage/store.py` and
+  `storage/migrations.py`. The plan also says to keep `test_store.py` as it is, and this test
+  imports `custom_components.chauffage.store`.

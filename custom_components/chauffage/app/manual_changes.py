@@ -70,7 +70,7 @@ class ManualChanges:
         if not runtime.learner.learn(new) and (runtime.learner.temperatures_of(old) != runtime.learner.temperatures_of(new)
                                         or runtime.learner.temperatures_of(old, cool=True) != runtime.learner.temperatures_of(new, cool=True)
                                         or runtime._cause_of(old) != runtime._cause_of(new)):
-            runtime._notify()
+            runtime.installation.notify()
 
     @callback
     def _back_online(self, old: State, new: State, before: Thermostat) -> None:

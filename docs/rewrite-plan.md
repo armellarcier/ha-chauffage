@@ -320,9 +320,9 @@ decides when `rewrite` goes into `main`.
 **Rewrite, because they test internals:**
 
 - `test_engine.py` (77 tests) and the direct calls to `engine.*` and `model.*` in other files,
-  such as `test_heat_cool.py`. Phase I7 moved them to the domain objects, with the same cases and
-  the same names: `test_engine.py` became `tests/integration/test_domain.py`. It stays with the
-  integration tests, so `scripts/test.sh` and the CI run it as before.
+  such as `test_heat_cool.py`. Move them to `tests/unit/domain/` in I7, with the same
+  cases and the same names, when the facades they call go (the phases I1 to I5 kept them as the
+  specification of the facades).
 - The 16 node files with private access, such as `week-editing` and `override-block`. Move them
   to the driver in phase 0, before the rewrite.
 - The imports of pure functions from the big file. Point them to `frontend/src/index.js`.

@@ -15,7 +15,9 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, SCHEDULED_THERMOSTAT_MODEL, TITLE, thermostat_unique_id
-from .runtime import DATA, ChauffageRuntime, device_by_identifier
+from .app.read_model import device_by_identifier
+from .const import DATA
+from .runtime import ChauffageRuntime
 
 # From Home Assistant 2026.10, a device names its parent by the parent's id (`via_device` by
 # identifiers is deprecated, it stops working in 2027.8)
@@ -50,7 +52,7 @@ class ChauffageEntity(Entity):
         self.runtime = runtime
 
     async def async_added_to_hass(self) -> None:
-        self.async_on_remove(self.runtime.async_add_listener(self._runtime_changed))
+        self.async_on_remove(self.runtime.installation.add_listener(self._runtime_changed))
 
     def _runtime_changed(self, reason: str) -> None:
         if reason == DATA or self.update_on_tick:
@@ -155,7 +157,7 @@ def async_follow(
                 gone(runtime, key)
 
     sync()
-    entry.async_on_unload(runtime.async_add_listener(sync))
+    entry.async_on_unload(runtime.installation.add_listener(sync))
 
 
 @callback

@@ -1,6 +1,6 @@
 {
   "fit_temperature": {
-    "about": "A temperature the thermostat accepts: on its step (target_temp_step, half a degree by default), within min_temp and max_temp. engine.fit_temperature in Python, fitTemperature in the card.",
+    "about": "A temperature the thermostat accepts: on its step (target_temp_step, half a degree by default), within min_temp and max_temp. domain.thermostat.fit_temperature in Python, fitTemperature in the card.",
     "cases": [
       { "name": "on the default step of half a degree", "attributes": {}, "value": 19.26, "expected": 19.5 },
       { "name": "on a step of a tenth", "attributes": { "target_temp_step": 0.1 }, "value": 19.04, "expected": 19.0 },
@@ -12,7 +12,7 @@
     ]
   },
   "normalize_day": {
-    "about": "A day's slots as the integration stores them: sorted, the first one at 00:00, one slot per start time (the last one wins), two slots alike in a row kept apart, an empty day is eco all day. model.normalize_day in Python, parseDay then slotToArray in the card.",
+    "about": "A day's slots as the integration stores them: sorted, the first one at 00:00, one slot per start time (the last one wins), two slots alike in a row kept apart, an empty day is eco all day. storage.schema.day in Python, parseDay then slotToArray in the card.",
     "cases": [
       { "name": "sorted, and the first one starts at midnight", "slots": [["06:30", "comfort"], ["01:00", "eco"]], "expected": [["00:00", "eco"], ["06:30", "comfort"]] },
       { "name": "one slot per start time, the last one wins", "slots": [["00:00", "eco"], ["08:00", "comfort"], ["08:00", "boost"]], "expected": [["00:00", "eco"], ["08:00", "boost"]] },

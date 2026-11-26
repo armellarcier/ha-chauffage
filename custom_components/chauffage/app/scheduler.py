@@ -67,7 +67,7 @@ class Scheduler:
         for entity_id in ended:
             runtime.overrides.drop(entity_id, "expired")
         if ended:
-            runtime._changed()
+            runtime.installation.changed()
         runtime.gateway.expire_pending(dt_util.now())
         await self.apply(Tick(since, frozenset(ended)))
 

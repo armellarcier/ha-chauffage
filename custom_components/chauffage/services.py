@@ -39,7 +39,7 @@ from .domain.preset_value import PresetValue
 from .domain.slot import Slot, Week
 from .domain.target import RANGE_KEYS
 from .const import DOMAIN, HEAT_COOL, NO_PRESET_MODES, SETPOINT_MODES
-from .runtime import ThermostatFailed, ThermostatPaused
+from .app.overrides import ThermostatFailed, ThermostatPaused
 
 if TYPE_CHECKING:
     from .runtime import ChauffageRuntime

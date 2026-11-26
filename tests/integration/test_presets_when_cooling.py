@@ -21,7 +21,6 @@ from custom_components.chauffage.domain.target import Target
 from custom_components.chauffage.domain.thermostat import Thermostat
 from custom_components.chauffage.storage import schema
 from custom_components.chauffage.storage.schema import InvalidData
-from custom_components.chauffage.domain.preset import Preset
 
 
 @pytest.fixture(params=KINDS)

@@ -91,7 +91,7 @@ async def test_the_card_is_told_the_switch_of_a_new_schedule_or_a_new_entity_id(
     icon chosen for it is shown."""
     await start(bench)
     sent = []
-    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["schedule_entities"]))
+    bench.runtime.installation.add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["schedule_entities"]))
     await bench.set_schedules([{"id": "normal"}, {"id": "away"}, {"id": "holiday"}, {"name": "Guests"}])
     assert sent[-1]["guests"] == "switch.chauffage_schedule_guests"
     er.async_get(bench.hass).async_update_entity("switch.chauffage_schedule_guests", new_entity_id="switch.guests")

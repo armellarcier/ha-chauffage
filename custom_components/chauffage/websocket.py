@@ -68,7 +68,9 @@ from homeassistant.util import dt as dt_util
 
 from .storage.schema import InvalidData
 from .const import ACCESS_LEVELS, CONF_ACCESS_LEVEL, DOMAIN, PLAN, SET_UP, USE
-from .runtime import DATA, ENTITIES, ChauffageRuntime, StaleRevision, ThermostatFailed
+from .app.overrides import ThermostatFailed
+from .const import DATA, ENTITIES
+from .runtime import ChauffageRuntime, StaleRevision
 
 
 @callback
@@ -193,7 +195,7 @@ class _Subscriber:
     def attach(self, runtime: ChauffageRuntime) -> None:
         self.detach()
         self.runtime = runtime
-        self._unsub = runtime.async_add_listener(self._changed)
+        self._unsub = runtime.installation.add_listener(self._changed)
         self.send()
 
     @callback

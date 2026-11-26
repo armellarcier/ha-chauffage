@@ -62,5 +62,5 @@ class Learner:
             temperatures[current.preset] = current.temperature
             learned = True
         if learned:
-            runtime._changed()
+            runtime.installation.changed()
         return learned

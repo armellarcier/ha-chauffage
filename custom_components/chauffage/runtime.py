@@ -42,7 +42,6 @@ from .storage.schema import InvalidData
 from .history import TemperatureHistory
 from .const import (
     DATA,
-    ENTITIES,
     TICK,
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
@@ -65,8 +64,8 @@ from .store import ChauffageStore
 from .storage.installation import Installation
 from .app.learner import Learner
 from .app.manual_changes import ManualChanges
-from .app.overrides import OverrideService, ThermostatFailed, ThermostatPaused
-from .app.read_model import SnapshotBuilder, device_by_identifier
+from .app.overrides import OverrideService
+from .app.read_model import SnapshotBuilder
 from .app.rule_engine import RuleEngine
 from .app.scheduler import Scheduler
 from .app.thermostat_registry import ThermostatRegistry
@@ -90,7 +89,7 @@ class ChauffageRuntime:
         self.installation = Installation(store, data)
         self.version = version  # of the integration: a card older than it asks to reload the page
         self.pause = 0.3  # seconds between two thermostats (Zigbee network)
-        self.gateway = ThermostatGateway(hass, self.installation, self.current, self._save)
+        self.gateway = ThermostatGateway(hass, self.installation, self.current, self.installation.save)
         self.overrides = OverrideService(self)
         self.manual_changes = ManualChanges(self)
         self.scheduler = Scheduler(self)
@@ -148,23 +147,6 @@ class ChauffageRuntime:
             self._unsub_states = None
         self.rules.stop()
 
-    # ----- listeners (entities, websocket) -----
-
-    @callback
-    def async_add_listener(self, listener: Callable[[str], None]) -> Callable[[], None]:
-        return self.installation.add_listener(listener)
-
-    @callback
-    def _notify(self, reason: str = DATA) -> None:
-        self.installation.notify(reason)
-
-    @callback
-    def _changed(self) -> None:
-        self.installation.changed()
-
-    @callback
-    def _save(self) -> None:
-        self.installation.save()
 
     # ----- reading -----
 
@@ -224,7 +206,7 @@ class ChauffageRuntime:
     @callback
     def options_changed(self) -> None:
         """The options changed: the entities and the cards show them again."""
-        self._notify(DATA)
+        self.installation.notify(DATA)
 
     @property
     def schedule_ids(self) -> set[str]:
@@ -356,7 +338,7 @@ class ChauffageRuntime:
         self._track_thermostats()
         for entity_id in self.active:
             self.learner.learn(self.hass.states.get(entity_id))
-        self._changed()
+        self.installation.changed()
         await self.scheduler.apply(Forced("weeks saved"))
 
     # ----- scheduled thermostats (app/thermostat_registry.py) -----
@@ -407,7 +389,7 @@ class ChauffageRuntime:
             for preset_id in removed:
                 t["mapping"].pop(preset_id, None)
         self.installation.presets = new_presets
-        self._changed()
+        self.installation.changed()
         await self.scheduler.apply(Forced("presets changed"))
 
     def _refuse_lost_temperature(self, preset: dict[str, Any]) -> None:
@@ -441,7 +423,7 @@ class ChauffageRuntime:
             self._thermostat(entity_id)["mapping"] = normalized
         else:
             self.thermostats.pop(entity_id, None)  # not scheduled: nothing left to keep
-        self._changed()
+        self.installation.changed()
         await self.scheduler.apply(Forced(f"mapping of {entity_id} changed"))
 
     async def set_schedules(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
@@ -468,7 +450,7 @@ class ChauffageRuntime:
             self._weeks_changed(self.scheduled)
         self.installation.schedules = schedules
         self.installation.revision += 1
-        self._changed()
+        self.installation.changed()
         return copy.deepcopy(schedules)
 
     async def activate_schedule(self, schedule_id: str, *, source: str, context: Context | None = None) -> None:
@@ -479,7 +461,7 @@ class ChauffageRuntime:
         if schedule_id == self.installation.active_schedule:
             return
         previous, self.installation.active_schedule = self.installation.active_schedule, schedule_id
-        self._changed()
+        self.installation.changed()
         self.hass.bus.async_fire(EVENT_SCHEDULE_ACTIVATED, {
             "schedule": schedule_id, "schedule_name": self.schedule_name(schedule_id),
             "previous_schedule": previous, "source": source, "entity_id": self.read_model.schedule_select(),
@@ -501,7 +483,7 @@ class ChauffageRuntime:
 
     async def _tick(self, now: datetime) -> None:
         await self.scheduler.tick(now)
-        self._notify(TICK)
+        self.installation.notify(TICK)
 
     # ----- manual changes -----
 

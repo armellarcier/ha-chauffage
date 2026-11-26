@@ -35,7 +35,7 @@ class ThermostatRegistry:
             self._runtime.scheduler.retry.discard(entity_id)
             self._runtime.gateway.drop_pending(entity_id)
         self._runtime._track_thermostats()
-        self._runtime._changed()
+        self._runtime.installation.changed()
         if not paused:
             self._runtime.learner.learn(self._runtime.hass.states.get(entity_id))
             await self._runtime.scheduler.apply(Realign(frozenset({entity_id}), "resumed after a pause"))
@@ -52,7 +52,7 @@ class ThermostatRegistry:
         repairs.close_missing(self._runtime.hass, entity_id)
         self._runtime.installation.revision += 1
         self._runtime._track_thermostats()
-        self._runtime._changed()
+        self._runtime.installation.changed()
 
     def renamed_to(self, entity_id: str) -> str | None:
         """The new id of a thermostat renamed from this one, unless the id is taken again."""
@@ -71,7 +71,7 @@ class ThermostatRegistry:
         elif action == "update" and event.data.get("old_entity_id") in self._runtime.thermostats:
             self.renamed(event.data["old_entity_id"], entity_id)
         if action != "remove" and entity_id in self._runtime.read_model.card_entities():
-            self._runtime._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
+            self._runtime.installation.notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
         entry = er.async_get(self._runtime.hass).async_get(entity_id) if entity_id else None
         if entity_id in self._runtime._planned_presets or (
                 entry is not None and entry.domain == "sensor" and entry.platform == DOMAIN

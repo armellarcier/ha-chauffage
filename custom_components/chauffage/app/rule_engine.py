@@ -39,7 +39,7 @@ class RuleEngine:
             except TemplateError as err:
                 raise InvalidData(f"invalid template: {err}") from err
         runtime.installation.rules, runtime.installation.default_schedule = normalized, default_schedule
-        runtime._changed()
+        runtime.installation.changed()
         self.track()
         await self.follow()
 
@@ -118,8 +118,8 @@ class RuleEngine:
         changed = outcome != runtime.installation.rules_choice
         if changed:
             runtime.installation.rules_choice = outcome
-            runtime._changed()
+            runtime.installation.changed()
         elif notify:
-            runtime._notify()
+            runtime.installation.notify()
         if outcome is not None and (changed or force):
             await runtime.activate_schedule(outcome, source="rules")

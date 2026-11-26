@@ -258,7 +258,7 @@ async def test_the_chauffage_device_is_found_without_a_deprecated_call(bench: Be
 async def test_the_card_is_told_an_entity_renamed_by_the_user(bench: Bench):
     await start(bench)
     sent = []
-    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["thermostat_entities"]))
+    bench.runtime.installation.add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["thermostat_entities"]))
     er.async_get(bench.hass).async_update_entity("switch.salon_control", new_entity_id="switch.salon_pilotage")
     await bench.hass.async_block_till_done()
     assert sent and sent[-1]["climate.salon"]["control"] == "switch.salon_pilotage"
@@ -267,7 +267,7 @@ async def test_the_card_is_told_an_entity_renamed_by_the_user(bench: Bench):
 async def test_the_card_is_told_the_active_schedule_select_renamed_by_the_user(bench: Bench):
     await start(bench)
     sent = []
-    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["schedule_select"]))
+    bench.runtime.installation.add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["schedule_select"]))
     er.async_get(bench.hass).async_update_entity("select.chauffage_schedule", new_entity_id="select.planning_actif")
     await bench.hass.async_block_till_done()
     assert sent and sent[-1] == "select.planning_actif"

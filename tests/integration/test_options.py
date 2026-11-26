@@ -1,5 +1,7 @@
 """Options (default settings), and what the card sets: presets, per-thermostat mappings."""
 
+from types import MappingProxyType
+
 import pytest
 
 from conftest import WEEKDAY, Bench, every_day
@@ -100,7 +102,7 @@ async def test_a_preset_temperature_changed_on_the_thermostat_reaches_the_card(b
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 17.0, "comfort_temp": 19.0})
     await bench.hass.async_block_till_done()
     sent = []
-    bench.runtime.async_add_listener(sent.append)
+    bench.runtime.installation.add_listener(sent.append)
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 17.0, "comfort_temp": 19.5})
     await bench.hass.async_block_till_done()
     assert sent
@@ -111,7 +113,7 @@ async def test_a_paused_thermostat_still_sends_its_preset_temperatures_to_the_ca
     await start(bench)
     await bench.runtime.registry.set_paused("climate.salon", True)
     sent = []
-    bench.runtime.async_add_listener(sent.append)
+    bench.runtime.installation.add_listener(sent.append)
     bench.thermostat("climate.salon", "eco", preset_temperatures={"eco_temp": 17.0, "comfort_temp": 19.5})
     await bench.hass.async_block_till_done()
     assert sent
@@ -206,3 +208,12 @@ async def test_the_options_form_refuses_a_duration_that_is_not_whole_minutes(ben
     assert result["type"] == "form"
     assert result["errors"] == {"override_duration": "invalid_override_duration"}
     assert bench.runtime.override_duration == 90
+
+
+async def test_preset_temperatures_published_as_a_non_dict_mapping_are_ignored(bench: Bench):
+    """Only a dict of published preset temperatures counts, as Versatile Thermostat publishes it."""
+    await bench.setup()
+    bench.thermostat("climate.salon", "eco", preset_temperatures=MappingProxyType({"eco_temp": 16.0}))
+    await bench.hass.async_block_till_done()
+    state = bench.hass.states.get("climate.salon")
+    assert bench.runtime.learner.preset_temperature(state, "eco") != 16.0

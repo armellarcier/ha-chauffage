@@ -120,5 +120,5 @@ def own_preset_temperature(attributes: Mapping[str, Any], preset: str, learned: 
     mode: "eco_cool_temp"; `learned` while it cooled)."""
     published = attributes.get("preset_temperatures")
     key = f"{preset}_cool_temp" if cool else f"{preset}_temp"
-    value = published.get(key) if isinstance(published, Mapping) else None
+    value = published.get(key) if isinstance(published, dict) else None
     return temperature_value(learned.get(preset) if value is None else value)
