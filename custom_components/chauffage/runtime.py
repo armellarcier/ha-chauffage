@@ -24,15 +24,11 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Context, Event, HomeAssistant, State, callback
-from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.event import (
-    TrackTemplate,
     async_track_state_change_event,
-    async_track_template_result,
     async_track_time_change,
 )
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.util import dt as dt_util
 
 from . import engine, model, repairs
@@ -67,6 +63,7 @@ from .const import (
 from .store import SAVE_DELAY, ChauffageStore
 from .app.manual_changes import ManualChanges
 from .app.overrides import OverrideService, ThermostatFailed, ThermostatPaused
+from .app.rule_engine import RuleEngine
 from .app.scheduler import Scheduler
 from .domain.plan import Forced, Realign
 from .thermostats.gateway import ThermostatGateway
@@ -108,13 +105,12 @@ class ChauffageRuntime:
         self.overrides = OverrideService(self)
         self.manual_changes = ManualChanges(self)
         self.scheduler = Scheduler(self)
+        self.rules = RuleEngine(self)
         self._listeners: set[Callable[[str], None]] = set()
         self._unsubs: list[Callable[[], None]] = []
         self._unsub_states: Callable[[], None] | None = None
         self._planned_presets: set[str] = set()  # the deprecated sensors, seen at the last check
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
-        self._unsub_rules: Callable[[], None] | None = None
-        self.rule_results: list[Any] = []  # each rule now (see render_rule)
         # A thermostat renamed: the entry reloads to attach its entities to the new id, which
         # follow it meanwhile (their unique ids moved); nothing to add or remove until then
         self.reloading = False
@@ -147,7 +143,7 @@ class ChauffageRuntime:
             if self.hass.states.get(entity_id) is None and er.async_get(self.hass).async_get(entity_id) is None:
                 repairs.raise_missing(self.hass, entity_id)
         self._check_planned_preset()  # once the automations and scripts are loaded
-        self._track_rules()
+        self.rules.track()
         await self.follow_rules()
         await self.scheduler.apply(Forced("Home Assistant started"))
 
@@ -159,9 +155,7 @@ class ChauffageRuntime:
         if self._unsub_states:
             self._unsub_states()
             self._unsub_states = None
-        if self._unsub_rules:
-            self._unsub_rules()
-            self._unsub_rules = None
+        self.rules.stop()
 
     # ----- listeners (entities, websocket) -----
 
@@ -832,95 +826,23 @@ class ChauffageRuntime:
         _LOGGER.info("Schedule %s activated (%s), was %s", schedule_id, source, previous)
         await self.scheduler.apply(Forced(f"schedule {schedule_id} activated ({source})"))
 
-    # ----- activation rules -----
+    # ----- activation rules (app/rule_engine.py) -----
+
+    @property
+    def rule_results(self) -> list[Any]:
+        return self.rules.results
 
     async def set_rules(self, rules: Any, default_schedule: Any) -> None:
-        """New activation rules. They activate their schedule when what they give changes, as
-        when their entities change: a schedule chosen by hand stays if the outcome is the same."""
-        normalized = model.normalize_rules(rules, default_schedule, self.schedule_ids)
-        for rule in normalized:
-            try:
-                Template(rule["template"], self.hass).ensure_valid()
-            except TemplateError as err:
-                raise model.InvalidData(f"invalid template: {err}") from err
-        self.data["rules"], self.data["default_schedule"] = normalized, default_schedule
-        self._changed()
-        self._track_rules()
-        await self.follow_rules()
+        await self.rules.set(rules, default_schedule)
 
-    @callback
-    def _track_rules(self) -> None:
-        """Watches the entities (and the time) the templates of the rules depend on."""
-        if self._unsub_rules:
-            self._unsub_rules()
-        self.rule_results = []
-
-        @callback
-        def changed() -> None:
-            self.entry.async_create_task(self.hass, self.follow_rules(), "chauffage rules")
-
-        self._unsub_rules = self.track_templates([rule["template"] for rule in self.data["rules"]], changed)
-
-    @callback
     def track_templates(self, templates: list[str], action: Callable[[], None]) -> Callable[[], None] | None:
-        """Calls `action` (a callback) when the result of one of these templates may have changed:
-        HA's template tracking (the entities they read, the time when they use now()). Empty and
-        invalid templates are left out; None when nothing is tracked."""
-        tracked = []
-        for text in templates:
-            template = Template(text, self.hass)
-            try:
-                template.ensure_valid()
-            except TemplateError:
-                continue
-            if text.strip():
-                tracked.append(TrackTemplate(template, None))
-        if not tracked:
-            return None
-
-        @callback
-        def changed(_event: Event | None, _updates: list) -> None:
-            action()
-
-        return async_track_template_result(self.hass, tracked, changed).async_remove
+        return self.rules.track_templates(templates, action)
 
     def render_rule(self, rule: dict[str, Any]) -> tuple[Any, str | None, str | None]:
-        """(result, text, error) of a rule now. The result: True / False for a rule with a schedule,
-        the schedule its template gives (False: none) for a rule without; None when its template is
-        empty or fails (the rule does not apply)."""
-        if not rule["template"].strip():
-            return None, None, None
-        try:
-            text = Template(rule["template"], self.hass).async_render(parse_result=False)
-        except TemplateError as err:
-            return None, None, str(err)
-        if rule["schedule"]:
-            return result_as_boolean(text), text, None
-        return model.schedule_named(text, self.data["schedules"]) or False, text, None
-
-    def _evaluate_rules(self) -> list[Any]:
-        results = []
-        for rule in self.data["rules"]:
-            result, _, error = self.render_rule(rule)
-            if error:
-                _LOGGER.warning("Activation rule %s: %s", rule["template"], error)
-            results.append(result)
-        return results
+        return self.rules.render(rule)
 
     async def follow_rules(self, force: bool = False) -> None:
-        """Activates the schedule the rules give when their outcome changed (or `force`)."""
-        results = self._evaluate_rules()
-        notify = results != self.rule_results
-        self.rule_results = results
-        outcome = model.rules_outcome(self.data["rules"], results, self.data["default_schedule"])
-        changed = outcome != self.data["rules_choice"]
-        if changed:
-            self.data["rules_choice"] = outcome
-            self._changed()
-        elif notify:
-            self._notify(DATA)
-        if outcome is not None and (changed or force):
-            await self.activate_schedule(outcome, source="rules")
+        await self.rules.follow(force)
 
     # ----- overrides (app/overrides.py) -----
 
