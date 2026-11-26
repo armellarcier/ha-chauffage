@@ -2184,8 +2184,9 @@ The owner decided these points on 2026-11-26, after a review of the whole rewrit
   service of their own.
 - **`storage/schema.py` holds the stored format, its validation and its defaults.** `model.py`
   is gone: the input is validated in one module.
-- **A service gets its collaborators, not the runtime, when it needs only a few.** `Settings`,
-  `Learner` and `ThermostatGateway` take Home Assistant and the installation. The services
+- **A service gets its collaborators, not the runtime, when it needs only a few.** `Settings`
+  takes Home Assistant and the config entry. `Learner` and `ThermostatGateway` take Home
+  Assistant and the installation. The services
   that coordinate several others, such as the scheduler and the overrides, still reach them
   through the runtime, but only through public members.
 

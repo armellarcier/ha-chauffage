@@ -153,7 +153,7 @@ async def test_the_card_edits_the_presets(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/presets/set", "presets": presets, "replacements": {"comfort": "nuit"}})
     assert (await client.receive_json())["success"]
     assert [lv["id"] for lv in bench.presets()] == ["eco", "boost", "frost", "nuit"]
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
+    assert bench.weeks()["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
 
 
 @pytest.mark.parametrize("command", [

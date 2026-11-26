@@ -377,7 +377,7 @@ async def test_a_fan_only_slot_holds_no_preset_and_keeps_its_fan(bench: Bench):
     quiet = {"hvac_mode": "fan_only", "fan_mode": "1"}
     day = [["00:00", "eco", FAN], ["08:00", None, FAN], ["12:00", None, quiet], ["13:00", "comfort", quiet], ["14:00", None, FAN]]
     await bench.save_weeks({SALON: {"normal": [day] * 7}})
-    assert bench.runtime.installation.weeks[SALON]["normal"][0] == [
+    assert bench.weeks()[SALON]["normal"][0] == [
         ["00:00", None, FAN], ["08:00", None, FAN], ["12:00", None, quiet], ["13:00", None, quiet], ["14:00", None, FAN]]
 
 

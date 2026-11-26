@@ -260,6 +260,29 @@ class Bench:
     def presets(self) -> list[dict]:
         return self.snapshot()["presets"]
 
+    def preset(self, preset_id: str) -> dict:
+        return next(preset for preset in self.presets() if preset["id"] == preset_id)
+
+    def weeks(self) -> dict[str, dict[str, Any]]:
+        """{thermostat: {schedule id: week}} of the scheduled thermostats."""
+        return self.snapshot()["weeks"]
+
+    def mappings(self) -> dict[str, dict[str, Any]]:
+        """{thermostat: {preset id: value}}, the values of the presets set by hand."""
+        return self.snapshot()["mappings"]
+
+    def scheduled(self) -> dict[str, dict[str, Any]]:
+        """The scheduled thermostats, paused ones included."""
+        return self.snapshot()["thermostats"]
+
+    def paused(self, entity_id: str) -> bool:
+        return self.scheduled().get(entity_id, {}).get("paused", False)
+
+    async def known(self) -> set[str]:
+        """The thermostats Chauffage keeps, as saved: the scheduled ones, and those with only
+        values of the presets."""
+        return set((await self.stored())["thermostats"])
+
     def active_schedule(self) -> str | None:
         return self.snapshot()["active_schedule"]
 

@@ -84,10 +84,10 @@ async def test_a_heating_temperature_used_in_the_weeks_cannot_be_cleared(bench: 
     await start_ac_with_range(bench, [["00:00", "eco"], ["12:00", "comfort"]])
     with pytest.raises(InvalidData, match="eco"):
         await bench.runtime.schedules.set_presets(presets_without("eco", "temperature"))
-    assert bench.runtime.installation.presets_by_id["eco"]["temperature"] == 17.0
+    assert bench.preset("eco")["temperature"] == 17.0
     # Boost is in no week: its temperature when heating can be cleared
     await bench.runtime.schedules.set_presets(presets_without("boost", "temperature"))
-    assert bench.runtime.installation.presets_by_id["boost"]["temperature"] is None
+    assert bench.preset("boost")["temperature"] is None
 
 
 async def test_a_cooling_temperature_used_in_the_weeks_cannot_be_cleared(bench: Bench):
@@ -96,7 +96,7 @@ async def test_a_cooling_temperature_used_in_the_weeks_cannot_be_cleared(bench: 
         await bench.runtime.schedules.set_presets(presets_without("comfort", "cool_temperature"))
     # Eco only heats in the weeks: its temperature when cooling can be cleared
     await bench.runtime.schedules.set_presets(presets_without("eco", "cool_temperature"))
-    assert "cool_temperature" not in bench.runtime.installation.presets_by_id["eco"]
+    assert "cool_temperature" not in bench.preset("eco")
 
 
 async def test_a_temperature_set_on_the_thermostat_lets_the_preset_lose_its_own(bench: Bench):
@@ -104,7 +104,7 @@ async def test_a_temperature_set_on_the_thermostat_lets_the_preset_lose_its_own(
     await start_ac_with_range(bench, [["00:00", "comfort", {"hvac_mode": "cool"}]])
     await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
     await bench.runtime.schedules.set_presets(presets_without("comfort", "cool_temperature"))
-    assert "cool_temperature" not in bench.runtime.installation.presets_by_id["comfort"]
+    assert "cool_temperature" not in bench.preset("comfort")
 
 
 async def test_a_preset_does_not_set_an_hvac_mode(bench: Bench):
@@ -131,12 +131,12 @@ async def test_a_window_that_sets_the_frost_setpoint_teaches_no_preset_temperatu
     bench.thermostat(SALON, "eco")
     await bench.setup()
     await bench.save_weeks({SALON: {"normal": [[["00:00", "eco"]]] * 7}})
-    before = dict(bench.runtime.installation.thermostats[SALON]["preset_temperatures"])
+    before = dict((await bench.learned_temperatures()).get(SALON))
     bench.thermostat(SALON, "eco", 7.0, context=Context(),
                      requested_state={"hvac_mode": "heat", "target_temperature": 17.0, "preset": "eco"},
                      specific_states={"window_manager": {"window_state": "on"}})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.installation.thermostats[SALON]["preset_temperatures"] == before
+    assert (await bench.learned_temperatures()).get(SALON) == before
 
 
 # ----- the presets offered in each HVAC mode -----

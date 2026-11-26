@@ -41,8 +41,8 @@ async def test_storage_from_v0_2_is_migrated_without_changing_anything(bench: Be
     bench.thermostat("climate.salon", "eco")
     await bench.setup()
     assert [p["id"] for p in bench.presets()] == ["comfort", "eco", "boost", "frost"]
-    assert bench.runtime.installation.mappings == {}
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"][0] == WEEKDAY
+    assert bench.mappings() == {}
+    assert bench.weeks()["climate.salon"]["normal"][0] == WEEKDAY
     assert bench.runtime.read_model.targets_of("climate.salon")["comfort"] == {"preset_mode": "comfort"}
 
 
@@ -57,7 +57,7 @@ async def test_a_mapping_set_by_hand_is_applied(bench: Bench):
     await bench.runtime.schedules.set_mapping("climate.bureau", {})
     await bench.hass.async_block_till_done()
     assert bench.applied() == {"climate.bureau": "comfort"}
-    assert "climate.bureau" not in bench.runtime.installation.mappings
+    assert "climate.bureau" not in bench.mappings()
 
 
 async def test_the_preset_s_default_temperature_follows_its_changes(bench: Bench):
@@ -89,7 +89,7 @@ async def test_removing_a_preset_used_in_the_weeks_needs_a_replacement(bench: Be
     revision = bench.revision()
     await bench.runtime.schedules.set_presets(without_comfort, {"comfort": "boost"})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"][0][1] == ["06:30", "boost"]
+    assert bench.weeks()["climate.salon"]["normal"][0][1] == ["06:30", "boost"]
     assert bench.revision() == revision + 1  # the card reloads its copy
     assert bench.applied() == {"climate.bureau": "boost"}
 
@@ -98,7 +98,7 @@ async def test_removing_a_preset_drops_its_mappings(bench: Bench):
     await start(bench)
     await bench.runtime.schedules.set_mapping("climate.bureau", {"frost": {"temperature": 8}})
     await bench.runtime.schedules.set_presets([p for p in presets(bench) if p["id"] != "frost"])
-    assert bench.runtime.installation.thermostats["climate.bureau"]["mapping"] == {}
+    assert "climate.bureau" in (await bench.known()) and "climate.bureau" not in bench.mappings()
 
 
 async def test_weeks_with_an_unknown_preset_are_refused(bench: Bench):

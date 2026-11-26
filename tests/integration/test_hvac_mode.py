@@ -29,7 +29,7 @@ async def test_a_slot_s_hvac_mode_is_one_of_home_assistant_s(bench: Bench):
     for bad in ({"hvac_mode": "defrost"}, {"hvac_mode": ""}, {"temperature": 19}):
         with pytest.raises(InvalidData):
             await bench.save_weeks({SALON: {"normal": every_day(("00:00", "eco", bad))}})
-    assert bench.runtime.installation.weeks[SALON]["normal"][0] == WEEKDAY
+    assert bench.weeks()[SALON]["normal"][0] == WEEKDAY
 
 
 async def test_a_schedule_has_no_hvac_mode(bench: Bench):
@@ -65,7 +65,7 @@ async def test_two_slots_alike_are_stored_as_two_and_the_second_one_sends_nothin
     stored as it was sent. The second slot changes nothing on the thermostat."""
     day = [["00:00", "eco"], ["14:00", "eco"], ["20:00", "comfort"]]
     await start_ac_alone(bench, day, "13:00")
-    assert bench.runtime.installation.weeks[SALON]["normal"][0] == day
+    assert bench.weeks()[SALON]["normal"][0] == day
     await bench.go_to("14:00")
     assert bench.applied() == {} and bench.powered() == {}
     # The next slot of the planned preset is the next different one

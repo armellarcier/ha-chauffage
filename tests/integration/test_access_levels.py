@@ -114,7 +114,7 @@ async def test_weeks_sent_with_a_thermostat_not_scheduled_yet_need_set_up(bench:
     weeks = {**SCHEDULES, "climate.cuisine": {"normal": [WEEKDAY] * 7}}
     reply = await send(bench, ws_client, {"type": "chauffage/weeks/save", "weeks": weeks})
     assert reply["error"]["code"] == "unauthorized"
-    assert "climate.cuisine" not in bench.runtime.installation.scheduled
+    assert "climate.cuisine" not in bench.scheduled()
 
 
 async def test_a_refused_setting_changes_nothing(bench: Bench, ws_client):

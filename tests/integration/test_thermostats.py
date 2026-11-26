@@ -36,7 +36,7 @@ async def test_a_thermostat_a_card_does_not_send_keeps_its_schedule(bench: Bench
     """#27: removed from a card (or shown by another one), a thermostat is still scheduled."""
     await start(bench)
     await bench.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "eco"))}})
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"] == SALON["normal"]
+    assert bench.weeks()["climate.salon"]["normal"] == SALON["normal"]
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.salon": "comfort"}
     await bench.manual_setpoint("climate.salon", 22)
@@ -51,14 +51,14 @@ ECO_WEEK = every_day(("00:00", "eco"))
 async def test_a_scheduled_thermostat_has_a_week_in_every_schedule(bench: Bench):
     """The card sent its week in one schedule: the others are eco all week, as a new schedule."""
     await start(bench)
-    assert bench.runtime.installation.weeks["climate.salon"] == {"normal": SALON["normal"], "away": ECO_WEEK, "holiday": ECO_WEEK}
+    assert bench.weeks()["climate.salon"] == {"normal": SALON["normal"], "away": ECO_WEEK, "holiday": ECO_WEEK}
 
 
 async def test_saving_some_schedules_keeps_the_thermostat_s_other_weeks(bench: Bench):
     await start(bench)
     away = every_day(("00:00", "frost"))
     await bench.save_weeks({"climate.salon": {"away": away}})
-    assert bench.runtime.installation.weeks["climate.salon"] == {"normal": SALON["normal"], "away": away, "holiday": ECO_WEEK}
+    assert bench.weeks()["climate.salon"] == {"normal": SALON["normal"], "away": away, "holiday": ECO_WEEK}
 
 
 async def test_deleting_a_schedule_never_unschedules_a_thermostat(bench: Bench):
@@ -66,8 +66,8 @@ async def test_deleting_a_schedule_never_unschedules_a_thermostat(bench: Bench):
     await bench.activate_schedule("Away")
     await bench.set_schedules([{"id": "away"}, {"id": "holiday"}])
     await bench.hass.async_block_till_done()
-    assert set(bench.runtime.installation.scheduled) == {"climate.salon", "climate.bureau"}
-    assert set(bench.runtime.installation.weeks["climate.salon"]) == {"away", "holiday"}
+    assert set(bench.scheduled()) == {"climate.salon", "climate.bureau"}
+    assert set(bench.weeks()["climate.salon"]) == {"away", "holiday"}
 
 
 async def test_a_forgotten_thermostat_is_no_longer_scheduled_nor_watched(bench: Bench):
@@ -75,7 +75,7 @@ async def test_a_forgotten_thermostat_is_no_longer_scheduled_nor_watched(bench: 
     await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"temperature": 19.5}})
     await bench.manual_setpoint("climate.salon", 22)
     await forget(bench, "climate.salon")
-    assert "climate.salon" not in bench.runtime.installation.thermostats
+    assert "climate.salon" not in (await bench.known())
     assert bench.overrides() == {}
     await bench.manual_setpoint("climate.salon", 23)
     assert bench.overrides() == {}
@@ -90,7 +90,7 @@ async def test_a_copy_of_the_weeks_made_before_a_thermostat_was_forgotten_cannot
     await forget(bench, "climate.salon")
     with pytest.raises(StaleRevision):
         await bench.runtime.schedules.save_weeks({"climate.salon": SALON, "climate.bureau": BUREAU}, revisions=revisions)
-    assert "climate.salon" not in bench.runtime.installation.thermostats
+    assert "climate.salon" not in (await bench.known())
 
 
 async def test_values_of_the_presets_set_before_its_weeks_do_not_schedule_a_thermostat(bench: Bench):
@@ -119,7 +119,7 @@ async def test_values_of_the_presets_cleared_before_its_weeks_leave_nothing_behi
     bench.thermostat("climate.chambre", "eco")
     await bench.runtime.schedules.set_mapping("climate.chambre", {"comfort": {"temperature": 19.5}})
     await bench.runtime.schedules.set_mapping("climate.chambre", {})
-    assert "climate.chambre" not in bench.runtime.installation.thermostats
+    assert "climate.chambre" not in (await bench.known())
 
 
 async def test_a_thermostat_without_weeks_turns_no_change_by_hand_into_an_override(bench: Bench):
@@ -138,7 +138,7 @@ async def test_a_thermostat_forgotten_during_a_realignment_is_sent_nothing_more(
     send = bench.runtime.gateway.reproduce
 
     async def forget_bureau_first(entity_id, hvac_mode, attributes):
-        if entity_id == "climate.salon" and "climate.bureau" in bench.runtime.installation.thermostats:
+        if entity_id == "climate.salon" and "climate.bureau" in bench.scheduled():
             await bench.runtime.registry.forget("climate.bureau")
         return await send(entity_id, hvac_mode, attributes)
 
@@ -158,7 +158,7 @@ async def test_the_card_forgets_a_thermostat(bench: Bench, ws_client):
     client = await ws_client(bench.hass)
     await client.send_json_auto_id({"type": "chauffage/thermostat/forget", "entity_id": "climate.salon"})
     assert (await client.receive_json())["success"]
-    assert "climate.salon" not in bench.runtime.installation.thermostats
+    assert "climate.salon" not in (await bench.known())
 
     await client.send_json_auto_id({"type": "chauffage/thermostat/forget", "entity_id": "climate.salon"})
     assert not (await client.receive_json())["success"]
@@ -166,7 +166,7 @@ async def test_the_card_forgets_a_thermostat(bench: Bench, ws_client):
     reader = await ws_client(bench.hass, user="read_only")
     await reader.send_json_auto_id({"type": "chauffage/thermostat/forget", "entity_id": "climate.bureau"})
     assert not (await reader.receive_json())["success"]
-    assert "climate.bureau" in bench.runtime.installation.thermostats
+    assert "climate.bureau" in (await bench.known())
 
 
 # ----- revisions per thermostat: several cards editing the weeks -----
@@ -180,8 +180,8 @@ async def test_two_cards_editing_different_thermostats_do_not_get_in_each_other_
     salon, bureau = revision(bench, "climate.salon"), revision(bench, "climate.bureau")
     await bench.runtime.schedules.save_weeks({"climate.salon": {"normal": every_day(("00:00", "comfort"))}}, revisions={"climate.salon": salon})
     await bench.runtime.schedules.save_weeks({"climate.bureau": {"normal": every_day(("00:00", "frost"))}}, revisions={"climate.bureau": bureau})
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
-    assert bench.runtime.installation.weeks["climate.bureau"]["normal"][0] == [["00:00", "frost"]]
+    assert bench.weeks()["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
+    assert bench.weeks()["climate.bureau"]["normal"][0] == [["00:00", "frost"]]
     assert revision(bench, "climate.bureau") == bureau + 1
 
 
@@ -191,7 +191,7 @@ async def test_two_copies_of_the_same_thermostat_cannot_overwrite_each_other(ben
     await bench.runtime.schedules.save_weeks({"climate.salon": {"normal": every_day(("00:00", "comfort"))}}, revisions={"climate.salon": salon})
     with pytest.raises(StaleRevision):
         await bench.runtime.schedules.save_weeks({"climate.salon": {"normal": every_day(("00:00", "frost"))}}, revisions={"climate.salon": salon})
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
+    assert bench.weeks()["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
 
 
 async def test_a_new_schedule_changes_every_thermostat_s_revision(bench: Bench):
@@ -219,7 +219,7 @@ async def test_a_schedule_renamed_or_moved_by_another_card_does_not_block_saving
     salon = revision(bench, "climate.salon")
     await bench.set_schedules([{"id": "holiday"}, {"id": "normal", "name": "Semaine"}, {"id": "away"}])
     await bench.runtime.schedules.save_weeks({"climate.salon": {"normal": every_day(("00:00", "comfort"))}}, revisions={"climate.salon": salon})
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
+    assert bench.weeks()["climate.salon"]["normal"][0] == [["00:00", "comfort"]]
 
 
 async def test_a_removed_preset_only_changes_the_revision_of_the_thermostats_that_used_it(bench: Bench):

@@ -25,15 +25,11 @@ class ThermostatReader(Protocol):
 GENERIC, VTHERM_READER = GenericReader(), VThermReader()
 
 
-def reader_for(platform: str | None) -> ThermostatReader:
+def _reader(hass: HomeAssistant, entity_id: str) -> ThermostatReader:
     """A Versatile Thermostat is recognized by its integration, not by its attributes: VTherm
     moved some of them (#74)."""
-    return VTHERM_READER if platform == VTHERM else GENERIC
-
-
-def _reader(hass: HomeAssistant, entity_id: str) -> ThermostatReader:
     entry = er.async_get(hass).async_get(entity_id)
-    return reader_for(entry.platform if entry is not None else None)
+    return VTHERM_READER if entry is not None and entry.platform == VTHERM else GENERIC
 
 
 def read(hass: HomeAssistant, state: State | None) -> Thermostat | None:

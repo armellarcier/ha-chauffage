@@ -89,7 +89,7 @@ async def test_the_weeks_are_no_longer_saved_against_the_global_revision(bench: 
                                     "revision": bench.revision()})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
-    assert bench.runtime.installation.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
+    assert bench.weeks()["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
 
 
 async def test_invalid_schedules_are_refused(bench: Bench, ws_client):
@@ -109,7 +109,7 @@ async def test_a_card_cannot_schedule_a_thermostat_that_does_not_exist(bench: Be
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.ghost": {"normal": week}}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
-    assert "climate.ghost" not in bench.runtime.installation.scheduled
+    assert "climate.ghost" not in bench.scheduled()
 
 
 async def test_overrides_and_active_schedule_from_the_card(bench: Bench, ws_client):
@@ -217,7 +217,7 @@ async def test_anyone_at_home_pauses_and_resumes_a_thermostat_from_a_card(bench:
     for paused in (True, False):
         await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": paused})
         assert (await client.receive_json())["success"]
-        assert bench.runtime.installation.is_paused("climate.salon") is paused
+        assert bench.paused("climate.salon") is paused
 
 
 async def test_a_read_only_user_cannot_pause_a_thermostat(bench: Bench, ws_client):
@@ -226,7 +226,7 @@ async def test_a_read_only_user_cannot_pause_a_thermostat(bench: Bench, ws_clien
     await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": True})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
-    assert not bench.runtime.installation.is_paused("climate.salon")
+    assert not bench.paused("climate.salon")
 
 
 # ----- services -----

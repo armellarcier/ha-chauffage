@@ -30,7 +30,7 @@ def kept(*ids: str) -> list[dict]:
 
 
 def weeks_of(bench: Bench, schedule_id: str) -> dict:
-    return {entity: weeks[schedule_id] for entity, weeks in bench.runtime.installation.weeks.items() if schedule_id in weeks}
+    return {entity: weeks[schedule_id] for entity, weeks in bench.weeks().items() if schedule_id in weeks}
 
 
 # ----- a new installation, an existing one -----

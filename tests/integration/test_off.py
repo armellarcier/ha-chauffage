@@ -82,7 +82,7 @@ async def test_an_off_slot_holds_no_preset_and_nothing_else(bench: Bench):
     await start_ac(bench)
     day = [["00:00", "eco"], ["12:00", "comfort", OFF], ["13:00", None, {"hvac_mode": "off", "fan_mode": "3"}], ["14:00", "eco"]]
     await bench.save_weeks({SALON: {"normal": [day] * 7}})
-    assert bench.runtime.installation.weeks[SALON]["normal"][0] == [["00:00", "eco"], ["12:00", None, OFF], ["13:00", None, OFF], ["14:00", "eco"]]
+    assert bench.weeks()[SALON]["normal"][0] == [["00:00", "eco"], ["12:00", None, OFF], ["13:00", None, OFF], ["14:00", "eco"]]
 
 
 async def test_an_off_night_needs_no_rule(bench: Bench):
@@ -99,7 +99,7 @@ async def test_a_preset_removed_leaves_the_off_slots_alone(bench: Bench):
     await start_ac(bench, "10:00", [["00:00", "boost"], ["22:00", None, OFF]])
     presets = [p for p in bench.presets() if p["id"] != "boost"]
     await bench.runtime.schedules.set_presets(presets, {"boost": "comfort"})
-    assert bench.runtime.installation.weeks[SALON]["normal"][0] == [["00:00", "comfort"], ["22:00", None, OFF]]
+    assert bench.weeks()[SALON]["normal"][0] == [["00:00", "comfort"], ["22:00", None, OFF]]
 
 
 def test_an_off_slot_and_a_fan_only_slot_have_no_setpoint():

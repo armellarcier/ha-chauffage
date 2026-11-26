@@ -205,11 +205,11 @@ async def test_turning_the_control_switch_off_pauses_the_thermostat(bench: Bench
     await start(bench)
     await bench.hass.services.async_call("switch", "turn_off", {"entity_id": "switch.salon_control"}, blocking=True)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.installation.is_paused("climate.salon")
+    assert bench.paused("climate.salon")
     assert bench.hass.states.get("switch.salon_control").state == "off"
     await bench.hass.services.async_call("switch", "turn_on", {"entity_id": "switch.salon_control"}, blocking=True)
     await bench.hass.async_block_till_done()
-    assert not bench.runtime.installation.is_paused("climate.salon")
+    assert not bench.paused("climate.salon")
 
 
 async def test_the_control_switch_shows_a_pause_made_from_the_card(bench: Bench):
