@@ -2190,3 +2190,26 @@ Claude made these choices while rewriting the week editor. The owner hasn't conf
 - **The temperature of an override follows the thermostat, except while it is typed in.** The
   field stays, and nothing puts back what was typed: a redraw doesn't touch a field being typed
   in.
+
+#### The clean-up of the card (phase C6, a proposal)
+
+Claude made these choices while cleaning up the card. The owner hasn't confirmed them yet.
+
+- **The panel puts each view in a frame.** The frame, `chauffage-view-frame`, is a card around
+  the view, with the cards' stylesheet in its own shadow root. The panel's stylesheet can't hold
+  the views: both style `.head`, `.menu`, `.btn` or `.sep`, differently. The panel creates the
+  views and sets their properties itself. The programme card no longer draws a view.
+- **A sheet of the panel sets two properties of the programme card**, `sheet` and `schedule`,
+  not options. `sheet` is `schedule` (every thermostat's week in one schedule, without tabs) or
+  `thermostat` (one week alone). A dashboard's YAML can't set them. Eight panel-only options
+  did this, behind a private method.
+- **The panel uses a small public surface of the card**: `dirty`, `week()`, `toSave()`,
+  `saved()`, `discard()`, `receiveWeek()`, `setWeekHvac()`, `setWeekView()` and
+  `openScheduleMenu()`. It no longer reads the card's draft.
+- **Every push of the integration draws the card again.** A new hass draws it again only when
+  what the card shows from hass changed: the states of its thermostats, the registry, the user,
+  the language and formats, the integration's services. The card compares these parts by
+  identity, as Home Assistant's own cards do. Home Assistant sends a new hass for every state of
+  the house: drawing every card each time would cost too much on a phone.
+- **No redraw while a slot or the end of an override is dragged**, in one place:
+  `shouldUpdate`, next to the rule for a time being typed.
