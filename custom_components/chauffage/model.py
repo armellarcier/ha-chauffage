@@ -53,14 +53,14 @@ Vocabulary: docs/glossary.md.
                                                     override sets nothing else) | …,
                                           "preset": "comfort" (optional), "start": ISO datetime,
                                           "end": ISO datetime,
-                                          "ends_at": "duration" | "next_slot" |
+                                          "end_rule": "duration" | "next_slot" |
                                                      "no_next_slot" (optional)}}: the target
                      is what the thermostat is set to; "preset", the Chauffage preset picked
                      (card, service), which the target means on this thermostat (none for a change
-                     by hand); "ends_at", why a change by hand ends then: after the override
-                     duration, at the next slot, or a week later as no slot changes its target
-                     (none for an override set or changed on the card or by a service, nor
-                     before #83: an optional key, no migration)
+                     by hand); "end_rule", the rule that chose the end when Chauffage computed
+                     it: after the override duration, at the next slot, or a week later as no
+                     slot changes its target (none once a person picks the end, nor before #83;
+                     named "ends_at" before version 8)
     pending:         {climate entity id: [{"target": {"temperature": 20.0} | {"preset_mode": "comfort"},
                                            "sent": ISO datetime}, …]}: commands sent that the
                      thermostat does not show yet, oldest first (a battery valve applies them

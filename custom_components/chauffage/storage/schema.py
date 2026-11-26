@@ -25,7 +25,7 @@ from ..domain.preset import Preset
 from ..domain.slot import Day, Slot, Week
 from ..domain.target import Target
 
-OVERRIDE_ENDS = (DURATION, NEXT_SLOT, NO_NEXT_SLOT)  # why a change by hand ends then
+OVERRIDE_ENDS = (DURATION, NEXT_SLOT, NO_NEXT_SLOT)  # the rules that choose the end of an override
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 DEFAULT_DAY = [["00:00", "eco"]]
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -210,7 +210,7 @@ def override(raw: Any) -> Override:
     start, end = raw.get("start"), raw.get("end")
     if not isinstance(start, str) or not isinstance(end, str):
         raise InvalidData("start and end must be ISO datetimes")
-    override_preset, ends_at = raw.get("preset"), raw.get("ends_at")
+    override_preset, end_rule = raw.get("preset"), raw.get("end_rule")
     return Override(override_target, start, end,
                     override_preset if isinstance(override_preset, str) and override_preset else None,
-                    ends_at if ends_at in OVERRIDE_ENDS else None)
+                    end_rule if end_rule in OVERRIDE_ENDS else None)

@@ -101,6 +101,15 @@ def test_version_7_holds_targets_as_partial_states():
     assert "hvac_mode" not in v7["thermostats"]["climate.salon"]  # Chauffage learns no HVAC mode
 
 
+def test_version_8_names_the_rule_that_chose_the_end_of_an_override():
+    """`ends_at` read like a date: the key is now `end_rule`, with the same values."""
+    v7 = fixture(7)["data"]
+    salon = v7["overrides"]["climate.salon"]
+    v7 = {**v7, "overrides": {"climate.salon": {**salon, "ends_at": "next_slot"}, "climate.bureau": salon}}
+    v8 = migrate(v7, 7, target=8)
+    assert v8["overrides"] == {"climate.salon": {**salon, "end_rule": "next_slot"}, "climate.bureau": salon}
+
+
 # ----- the stored data goes through Chauffage unchanged -----
 
 @pytest.mark.parametrize("version", range(1, STORAGE_VERSION + 1))

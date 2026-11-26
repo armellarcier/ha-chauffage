@@ -49,7 +49,7 @@ async def test_a_manual_change_turned_into_an_override_is_told(bench: Bench, eve
         "entity_id": "climate.salon", "target": {"temperature": 21.5}, "preset": None,
         "end": "2026-10-12T12:00:00+02:00", "source": "thermostat",
         # When it started, and why it ends then (#83)
-        "start": "2026-10-12T10:00:00+02:00", "ends_at": "duration",
+        "start": "2026-10-12T10:00:00+02:00", "end_rule": "duration",
     }]
 
 

@@ -361,10 +361,13 @@ first step, on the current code. Item 3 moves with phase I3, and item 6 with pha
    `revision` of `chauffage/weeks/save` (`runtime.py:722`), kept for old cards. The card
    served by the integration already sends `revisions`. The global revision stays for the list
    of schedules.
-2. **Only a change by hand sets `ends_at`.** Any change of the override from the card or a
-   service removes `ends_at`, and the logbook then gives the end time alone
-   (`runtime.py:1094-1101`). Example: you drag the end of an override to the next slot, and the
-   logbook says "until 22:00".
+2. **Chauffage says which rule chose the end of an override, in `end_rule`.** The owner
+   reversed the first answer on 2026-11-26. Chauffage sets `end_rule` every time it computes the
+   end itself: after a change by hand, with the card's *Off*, and with the card's "until the
+   next slot" button, checked by the integration. When a person picks the end, `end_rule` goes.
+   An edit that keeps the end keeps `end_rule`. The key was named `ends_at`: storage version 8
+   renames it. Example: *Off* on the card says "today, at the next slot" on the card, and "(from
+   the card, until the next slot)" in the logbook.
 3. **The three resend mechanisms stay**: the retry after a failed call, the commands pending
    for 24 hours, and the forced apply of a thermostat. Each one has its own job. Phase I3 moves
    the pending commands into `ThermostatGateway`. The retry and the forced apply choose what to

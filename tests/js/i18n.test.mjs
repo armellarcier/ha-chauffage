@@ -244,10 +244,10 @@ describe('the time fields follow the profile\'s time format', () => {
   });
 
   test("why an override from a change by hand ends then, in the card's popover", async () => {
-    const slot = createCard(fakeHass({ locale: english('24'), overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), { show: ['climate.salon'] }); await settle();
+    const slot = createCard(fakeHass({ locale: english('24'), overrides: { 'climate.salon': { ...override, end_rule: 'next_slot' } } }), { show: ['climate.salon'] }); await settle();
     slot.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click(); await settle();
     assert.match(slot.shadowRoot.querySelector('.override-ed').textContent, /today, at the next slot ⚙ · 1 h 30 left · then Eco \(schedule\)/);
-    const duration = createCard(fakeHass({ locale: english('24'), overrides: { 'climate.salon': { ...override, ends_at: 'duration' } } }), { show: ['climate.salon'] }); await settle();
+    const duration = createCard(fakeHass({ locale: english('24'), overrides: { 'climate.salon': { ...override, end_rule: 'duration' } } }), { show: ['climate.salon'] }); await settle();
     duration.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click(); await settle();
     assert.match(duration.shadowRoot.querySelector('.override-ed').textContent, /today, 2 h after the change ⚙ · 1 h 30 left/);
   });

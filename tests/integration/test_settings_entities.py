@@ -65,7 +65,7 @@ async def test_choosing_an_end_in_the_select_changes_the_option(bench: Bench):
     assert bench.entry.options["manual_override_end"] == "next_slot"
     assert bench.hass.states.get(SELECT).state == "next_slot"
     await bench.manual_setpoint("climate.salon", 22)
-    assert bench.overrides()["climate.salon"]["ends_at"] == "next_slot"
+    assert bench.overrides()["climate.salon"]["end_rule"] == "next_slot"
 
 
 async def test_setting_the_number_changes_the_override_duration(bench: Bench):

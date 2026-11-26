@@ -17,6 +17,9 @@ Each entry says whether the release **migrates stored data** and what to do when
 - **Read the target of an override in your automations.** The override events and the override
   sensors no longer carry `kind` and `value`, the format before 0.10. Read `target` instead, for
   example `{"temperature": 21.5}`.
+- **Read `end_rule` instead of `ends_at` in your automations.** The override events name the
+  rule that chose the end of an override `end_rule`, with the same values: `duration`,
+  `next_slot` and `no_next_slot`. Chauffage migrates the stored data (version 8).
 - **Installed without HACS? Unzip `ha-chauffage.zip` into `custom_components/chauffage/`.** The
   ZIP of a release now holds the files of the integration at its root, with the card built.
   HACS installs this ZIP by itself.
@@ -28,9 +31,6 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 - **The more-info dialog follows your Home Assistant profile.** Its week uses the language of
   your profile and groups identical days, whatever the options of your dashboard cards.
-- **Only a change by hand says why its override ends.** When you change an override from the
-  card or a service, the logbook gives its end time alone, for example "until 22:00". The
-  events of such an override no longer carry `ends_at`.
 
 ### Removed
 
