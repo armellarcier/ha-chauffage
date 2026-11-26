@@ -702,3 +702,23 @@ describe('the settings dialog', () => {
     });
   });
 });
+
+describe('the settings dialog off the page', () => {
+  afterEach(() => cleanup());
+
+  test('opened again while off the page, it shows once Home Assistant puts it back', async () => {
+    const el = document.createElement('chauffage-settings-dialog');
+    document.body.appendChild(el);
+    el.hass = setup();
+    el.showDialog({});
+    await settle();
+    el.closeDialog();
+    await settle();
+    el.remove();
+    el.showDialog({});
+    await settle();
+    document.body.appendChild(el);
+    await settle();
+    assert.ok($(el, '.frame[open]'));
+  });
+});

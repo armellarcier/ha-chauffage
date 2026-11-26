@@ -1053,3 +1053,34 @@ describe('the Chauffage panel after an update', () => {
     assert.ok(reloaded);
   });
 });
+
+describe('the panel off the page and under a notice', () => {
+  beforeEach(() => {
+    window.loadCardHelpers = async () => ({ createCardElement: (config) => Object.assign(document.createElement('div'), { className: 'tile-card', config }) });
+  });
+  afterEach(() => {
+    delete window.loadCardHelpers;
+    cleanup();
+    window.history.replaceState(null, '', '/');
+  });
+
+  test('a thermostat sheet under the loading notice names no thermostat in its breadcrumb', async () => {
+    const el = await panel(setup({ data: null }), '/thermostats/climate.salon');
+    await settle();
+    assert.equal(text($(el, '[data-fill="crumb"]')), '');
+  });
+
+  test('put back on the page, the panel shows what the integration pushed while it was off', async () => {
+    const hass = setup();
+    const el = await panel(hass, '/thermostats/climate.salon');
+    await settle();
+    el.remove();
+    const data = integrationData({ weeks: WEEKS });
+    data.schedules = data.schedules.map((s) => ({ ...s, name: 'Renommé' }));
+    hass.push(data);
+    await settle();
+    document.body.appendChild(el);
+    await settle();
+    assert.match($$(el, 'h3').map(text).join('|'), /Renommé/);
+  });
+});

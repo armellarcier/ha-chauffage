@@ -170,7 +170,6 @@ const PANEL_CSS = `
 // again when what it is made of changes (willUpdate)
 type PanelPage = {
   key: string;
-  build: number;
   route: any;
   notice: any;
   schedules: string[];
@@ -204,7 +203,6 @@ export class ChauffagePanel extends LitElement {
   // Drawn again when the integration pushes new data
   _snapshot = new SnapshotController(this);
   _page: PanelPage | null = null;
-  _builds = 0;
   _copyMenu: string | null = null;
   _pageMenu = false;
   _pageForget = false;
@@ -254,6 +252,7 @@ export class ChauffagePanel extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.requestUpdate(); // What the integration pushed while it was off the page
     document.addEventListener('keydown', this._onKey);
     window.addEventListener('beforeunload', this._onUnload);
   }
@@ -362,8 +361,7 @@ export class ChauffagePanel extends LitElement {
   // The cards the page is made of, created once for the page: they keep their drafts while it
   // shows. Its menus do not follow to another page
   _build(key, route, src, notice) {
-    this._builds += 1;
-    const page: PanelPage = { key, build: this._builds, route, notice, schedules: src.schedules(), scheduled: Object.keys(src.weeks()).length,
+    const page: PanelPage = { key, route, notice, schedules: src.schedules(), scheduled: Object.keys(src.weeks()).length,
       cards: [], views: [], weekCards: {}, tile: null };
     this._page = page;
     this._copyMenu = null;
@@ -411,7 +409,7 @@ export class ChauffagePanel extends LitElement {
     const src = dataSource(this.hass);
     // The live parts follow the address; the page keeps what it was built with
     const route = this._route(src);
-    return keyed(page.build, html`${this._toolbar(page, route, src)}<div class="content">${
+    return keyed(page, html`${this._toolbar(page, route, src)}<div class="content">${
       page.notice ? unsafeHTML(noticeHtml(page.notice, this._t)) : this._content(page, route, src)}</div>`);
   }
 
@@ -424,7 +422,7 @@ export class ChauffagePanel extends LitElement {
       const list = PANEL_TABS.find(([p]) => p === built.list);
       return html`<div class="toolbar">${menu}
           <nav class="title crumbs"><a href="/chauffage/${built.list}" data-navigate="/chauffage/${built.list}">${t(list[1])}</a>
-            <span class="sep">›</span><span data-fill="crumb">${route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id)}</span></nav>
+            <span class="sep">›</span><span data-fill="crumb">${page.notice ? nothing : route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id)}</span></nav>
           ${src.editable && !page.notice ? html`<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
           <div data-fill="page-menu">${this._pageMenuTemplate(route)}</div>
         </div>`;

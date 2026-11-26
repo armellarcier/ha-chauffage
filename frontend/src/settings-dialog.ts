@@ -255,9 +255,9 @@ export class ChauffageSettingsDialog extends LitElement {
   // Closed by its own ✕, Escape or a tap outside: Home Assistant's newer dialog stays `open` until
   // told. A late `closed` of a former frame (closed, then opened again during its animation), or
   // of a menu inside it, is not ours
-  _frameClosed(e, opening) {
+  _frameClosed(e) {
     const frame = e.currentTarget;
-    if (e.target !== frame || opening !== this._opening) return;
+    if (e.target !== frame || frame !== this._frame) return;
     this._closed();
     if (frame.open) frame.open = false;
   }
@@ -305,16 +305,15 @@ export class ChauffageSettingsDialog extends LitElement {
   _frameTemplate() {
     const t = this._t;
     const title = t('settingsTitle');
-    const opening = this._opening;
     const close = html`<button class="close" data-close title=${t('close')} aria-label=${t('close')}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${MDI.close}></path></svg></button>`;
     if (this._kind === 'wa') {
-      return html`<ha-dialog class="frame" .headerTitle=${title} @closed=${(e) => this._frameClosed(e, opening)}>${this._body()}</ha-dialog>`;
+      return html`<ha-dialog class="frame" .headerTitle=${title} @closed=${this._frameClosed}>${this._body()}</ha-dialog>`;
     }
     if (this._kind === 'material') {
       // Material's dialog shows its heading slot only with a heading; no buttons at its foot: no
       // empty band there
-      return html`<ha-dialog class="frame" .heading=${title} .hideActions=${true} @closed=${(e) => this._frameClosed(e, opening)}>
+      return html`<ha-dialog class="frame" .heading=${title} .hideActions=${true} @closed=${this._frameClosed}>
         <div slot="heading" class="head"><h2 class="title">${title}</h2>${close}</div>${this._body()}</ha-dialog>`;
     }
     return html`<dialog class="frame" aria-labelledby="settings-title" @cancel=${this._cancelled} @close=${() => this._closed()}>
@@ -437,6 +436,12 @@ export class ChauffageSettingsDialog extends LitElement {
   _cancelLeave() {
     if (this._stopLeave) this._stopLeave();
     this._stopLeave = null;
+  }
+
+  // Opened while off the page: drawn once Home Assistant puts it back
+  connectedCallback() {
+    super.connectedCallback();
+    this.requestUpdate();
   }
 
   disconnectedCallback() {
