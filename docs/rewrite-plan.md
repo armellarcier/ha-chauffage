@@ -364,8 +364,8 @@ first step, on the current code. Item 3 moves with phase I3, and item 6 with pha
    reversed the first answer on 2026-11-26. Chauffage sets `ends_at` every time it computes the
    end itself: after a change by hand, with the card's *Off*, and with the card's "until the
    next slot" button, checked by the integration. When a person picks the end, `ends_at` goes.
-   An edit that keeps the end keeps `ends_at`. Example: *Off* on the card says "today, at the next slot" on the card, and "(from
-   the card, until the next slot)" in the logbook.
+   An edit that keeps the end keeps `ends_at`. Example: *Off* on the card says "today, at the
+   next slot" on the card, and "(from the card, until the next slot)" in the logbook.
 3. **The three resend mechanisms stay**: the retry after a failed call, the commands pending
    for 24 hours, and the forced apply of a thermostat. Each one has its own job. Phase I3 moves
    the pending commands into `ThermostatGateway`. The retry and the forced apply choose what to
