@@ -2249,3 +2249,12 @@ Claude made these choices while cleaning up the card. The owner hasn't confirmed
   strings to compare them. The weeks shown reload when the revision changes, unless a draft is
   being edited. The overrides that a card or the more-info block sent end at the next push of
   the integration, which holds them. The more-info block draws again on every push.
+- **Each control takes its tap with Lit's `@click`**, bound to the method that does its action.
+  No code reads a `data-act` string to find what to do. `data-act` stays on the controls as
+  their name, because the tests, `dev/review/` and `dev/demo/` select on it.
+- **One listener does what a tap does before any control**, in the card and in each view of the
+  panel. A menu open: a tap elsewhere only closes it. Then a link is followed. Then a popover open
+  closes, and a tap on a button does what the button does too. The gestures on the week (a tap
+  or a double tap on a slot, a drag, a long press) stay listeners of the card.
+- **A control is drawn only when the user may use it.** The access level is not checked again
+  when the control is tapped: the card draws again as soon as the access level changes.
