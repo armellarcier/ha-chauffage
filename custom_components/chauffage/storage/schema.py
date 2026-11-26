@@ -55,14 +55,13 @@ The stored data, as plain JSON-compatible dictionaries:
                                                     override sets nothing else) | …,
                                           "preset": "comfort" (optional), "start": ISO datetime,
                                           "end": ISO datetime,
-                                          "end_rule": "duration" | "next_slot" |
-                                                     "no_next_slot" (optional)}}: the target
+                                          "ends_at": "duration" | "next_slot" |
+                                                    "no_next_slot" (optional)}}: the target
                      is what the thermostat is set to; "preset", the Chauffage preset picked
                      (card, service), which the target means on this thermostat (none for a change
-                     by hand); "end_rule", the rule that chose the end when Chauffage computed
+                     by hand); "ends_at", the rule that chose the end when Chauffage computed
                      it: after the override duration, at the next slot, or a week later as no
-                     slot changes its target (none once a person picks the end, nor before #83;
-                     named "ends_at" before version 8)
+                     slot changes its target (none once a person picks the end, nor before #83)
     pending:         {climate entity id: [{"target": {"temperature": 20.0} | {"preset_mode": "comfort"},
                                            "sent": ISO datetime}, …]}: commands sent that the
                      thermostat does not show yet, oldest first (a battery valve applies them
@@ -291,8 +290,8 @@ def override(raw: Any) -> dict[str, Any]:
     out: dict[str, Any] = {"target": dict(override_target), "start": start, "end": end}
     if isinstance(override_preset := raw.get("preset"), str) and override_preset:
         out["preset"] = override_preset
-    if (end_rule := raw.get("end_rule")) in OVERRIDE_ENDS:
-        out["end_rule"] = end_rule
+    if (ends_at := raw.get("ends_at")) in OVERRIDE_ENDS:
+        out["ends_at"] = ends_at
     return out
 
 

@@ -101,16 +101,21 @@ def test_version_7_holds_targets_as_partial_states():
     assert "hvac_mode" not in v7["thermostats"]["climate.salon"]  # Chauffage learns no HVAC mode
 
 
-def test_version_8_names_the_rule_that_chose_the_end_of_an_override():
-    """`ends_at` read like a date: the key is now `end_rule`, with the same values."""
-    v7 = fixture(7)["data"]
-    salon = v7["overrides"]["climate.salon"]
-    v7 = {**v7, "overrides": {"climate.salon": {**salon, "ends_at": "next_slot"}, "climate.bureau": salon}}
-    v8 = migrate(v7, 7, target=8)
-    assert v8["overrides"] == {"climate.salon": {**salon, "end_rule": "next_slot"}, "climate.bureau": salon}
-
-
 # ----- the stored data goes through Chauffage unchanged -----
+
+async def test_the_stored_data_of_0_10_stays_readable_by_0_10(bench: Bench):
+    """An override stored by 0.10 keeps its ends_at, and the file keeps its version: going back
+    to 0.10 needs no backup (docs/decisions.md, "The key stays ends_at")."""
+    stored = fixture(7)
+    salon = {**stored["data"]["overrides"]["climate.salon"], "ends_at": "duration"}
+    stored["data"]["overrides"]["climate.salon"] = salon
+    bench.storage[DOMAIN] = stored
+    await bench.go_to("10:00")
+    await bench.setup()
+    await bench.activate_schedule("Absent")
+    assert (await bench.stored())["overrides"]["climate.salon"] == salon
+    assert bench.storage[DOMAIN]["version"] == 7
+
 
 @pytest.mark.parametrize("version", range(1, STORAGE_VERSION + 1))
 async def test_the_stored_data_is_saved_back_as_it_was_read(bench: Bench, version: int):

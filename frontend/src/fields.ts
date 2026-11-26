@@ -290,9 +290,9 @@ export function roundDurationText(min, locale = DEFAULT_LOCALE) {
 // or "no slot ahead" (kept a week until the next slot). '' for an end chosen on the card, the panel
 // or by the service
 export function endReasonText(d, loc) {
-  if (d.end_rule === 'next_slot') return loc.t('endsNextSlot');
-  if (d.end_rule === 'no_next_slot') return loc.t('endsNoNextSlot');
-  if (d.end_rule !== 'duration') return '';
+  if (d.ends_at === 'next_slot') return loc.t('endsNextSlot');
+  if (d.ends_at === 'no_next_slot') return loc.t('endsNoNextSlot');
+  if (d.ends_at !== 'duration') return '';
   const minutes = Math.round((+parseDate(d.end) - +parseDate(d.start)) / 60000);
   return loc.t('endsAfter', { duration: roundDurationText(minutes, loc) });
 }

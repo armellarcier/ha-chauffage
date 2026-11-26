@@ -156,9 +156,9 @@ The three override events carry `entity_id`, `start` and `end`.
 to its schedule by hand) or `card`. The other reasons are `panel`, `service`, `paused` and
 `forgotten`.
 
-When Chauffage chose the end of the override, `end_rule` says which rule chose it: `duration`,
+When Chauffage chose the end of the override, `ends_at` says which rule chose it: `duration`,
 `next_slot` or `no_next_slot`. For example, a change by hand that lasts until the next slot
-carries `next_slot`. When you pick the end yourself, the events carry no `end_rule`.
+carries `next_slot`. When you pick the end yourself, the events carry no `ends_at`.
 
 ### Schedule event
 

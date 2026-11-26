@@ -80,21 +80,21 @@ describe('more-info block', () => {
   });
 
   test('an override from a change by hand says why it ends then, as part of its end: the next slot, or the duration', async () => {
-    const slot = await block(fakeHass({ overrides: { 'climate.salon': { ...override, end_rule: 'next_slot' } } }), 'climate.salon');
+    const slot = await block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), 'climate.salon');
     assert.match(text(slot), /aujourd'hui, au prochain créneau ⚙ · encore 1 h 30 · puis Éco \(planning\)/);
     cleanup();
-    const duration = await block(fakeHass({ overrides: { 'climate.salon': { ...override, end_rule: 'duration' } } }), 'climate.salon');
+    const duration = await block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'duration' } } }), 'climate.salon');
     assert.match(text(duration), /aujourd'hui, 2 h après le changement ⚙ · encore 1 h 30 · puis Éco \(planning\)/);
   });
 
   test('an override kept a week, with no slot ahead, says so and counts in days', async () => {
-    const week = { ...override, start: '2026-10-12T10:00:00+02:00', end: '2026-10-19T10:00:00+02:00', end_rule: 'no_next_slot' };
+    const week = { ...override, start: '2026-10-12T10:00:00+02:00', end: '2026-10-19T10:00:00+02:00', ends_at: 'no_next_slot' };
     const el = await block(fakeHass({ overrides: { 'climate.salon': week } }), 'climate.salon');
     assert.match(text(el), /19 octobre, dans une semaine, aucun créneau prévu ⚙ · encore 7 j/);
   });
 
   test('an end 7 days away or more says its date, not a day name that would read as today', async () => {
-    const at = (end) => ({ ...override, start: '2026-10-12T10:00:00+02:00', end, end_rule: 'no_next_slot' });
+    const at = (end) => ({ ...override, start: '2026-10-12T10:00:00+02:00', end, ends_at: 'no_next_slot' });
     const english = { language: 'en', time_format: '24', number_format: 'language', first_weekday: 'monday' };
     const inAWeek = await block(fakeHass({ locale: english, overrides: { 'climate.salon': at('2026-10-19T10:00:00+02:00') } }), 'climate.salon');
     assert.match(text(inAWeek), /October 19, in a week, no slot ahead/);
@@ -118,12 +118,12 @@ describe('more-info block', () => {
   });
 
   test('for an admin, the reason of the end opens the settings of changes by hand, with a cog; plain text for others', async () => {
-    const el = await block(fakeHass({ overrides: { 'climate.salon': { ...override, end_rule: 'next_slot' } } }), 'climate.salon');
+    const el = await block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } }), 'climate.salon');
     const link = el.shadowRoot.querySelector('.derogation [data-open-settings]');
     assert.equal(link.textContent, 'au prochain créneau ⚙');
     assert.equal(link.getAttribute('title'), 'Choisir la durée des dérogations');
     cleanup();
-    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end_rule: 'next_slot' } } });
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } });
     hass.user = { is_admin: false };
     const plain = await block(hass, 'climate.salon');
     assert.equal(plain.shadowRoot.querySelector('.derogation [data-open-settings]'), null);
@@ -139,7 +139,7 @@ describe('more-info block', () => {
     button.click(); await settle();
     const sent = hass.events.at(-1).override;
     assert.equal(new Date(sent.end).toISOString(), '2026-10-12T15:30:00.000Z');
-    assert.equal(sent.end_rule, 'next_slot');
+    assert.equal(sent.ends_at, 'next_slot');
   });
 
   test('a next slot on another day names the day', async () => {
@@ -161,8 +161,8 @@ describe('more-info block', () => {
       assert.equal(el.shadowRoot.querySelector('[data-act="override-next-slot"]'), null, end);
       cleanup();
     }
-    const said = await block(fakeHass({ overrides: { 'climate.salon': { ...override, end_rule: 'next_slot' } }, ...nextSlot('2026-10-12T17:30:00+02:00') }), 'climate.salon');
-    assert.equal(said.shadowRoot.querySelector('[data-act="override-next-slot"]'), null, 'end_rule next_slot');
+    const said = await block(fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } }, ...nextSlot('2026-10-12T17:30:00+02:00') }), 'climate.salon');
+    assert.equal(said.shadowRoot.querySelector('[data-act="override-next-slot"]'), null, 'ends_at next_slot');
   });
 
   test('with no slot ahead, there is no button to the next slot', async () => {
@@ -185,13 +185,13 @@ describe('more-info block', () => {
   });
 
   test('a moved end no longer says it is the next slot', async () => {
-    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end_rule: 'next_slot' } } });
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'next_slot' } } });
     (await block(hass, 'climate.salon')).shadowRoot.querySelector('button[data-min="30"]').click(); await settle();
-    assert.equal(hass.events.at(-1).override.end_rule, undefined);
+    assert.equal(hass.events.at(-1).override.ends_at, undefined);
   });
 
   test("the card's override popover offers the button to the next slot, and the reason opens the settings", async () => {
-    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, end_rule: 'duration' } }, ...nextSlot('2026-10-12T17:30:00+02:00') });
+    const hass = fakeHass({ overrides: { 'climate.salon': { ...override, ends_at: 'duration' } }, ...nextSlot('2026-10-12T17:30:00+02:00') });
     const card = createCard(hass, { show: ['climate.salon'] }); await settle();
     card.shadowRoot.querySelector('.override[data-climate="climate.salon"]').click(); await settle();
     const editor = card.shadowRoot.querySelector('.override-ed');
@@ -202,7 +202,7 @@ describe('more-info block', () => {
     button.click(); await settle();
     const sent = hass.events.at(-1).override;
     assert.equal(new Date(sent.end).toISOString(), '2026-10-12T15:30:00.000Z');
-    assert.equal(sent.end_rule, 'next_slot');
+    assert.equal(sent.ends_at, 'next_slot');
   });
 
   test('a user who is not an admin sets, extends and ends an override too, as with the thermostat\'s knob', async () => {

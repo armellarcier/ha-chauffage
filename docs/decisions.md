@@ -127,7 +127,7 @@ future contributor might question.
     before a request: a choice per thermostat is one more thing to understand.
     **Amended by the rewrite**: the function that takes the thermostat is gone. A setting per
     thermostat would add it back.
-  - **The override says which rule chose its end**, in an optional `end_rule` key: `duration`,
+  - **The override says which rule chose its end**, in an optional `ends_at` key: `duration`,
     `next_slot` or `no_next_slot`. The key is optional, so an override stored before #83 simply
     shows no reason. Chauffage sets the key every time it computes the end itself: after a change
     by hand, with the card's *Off*, and with the card's "until the next slot" button. An end
@@ -135,9 +135,10 @@ future contributor might question.
     keeps it, with the same end. The first step of the rewrite kept the key for a change by hand
     only. The owner reversed it on 2026-11-26: the card's *Off* then said nothing of the next
     slot, while the integration had computed it.
-  - **The key is `end_rule`, not `ends_at`.** The owner renamed it on 2026-11-26, because
-    `ends_at` reads like a date. Storage version 8 renames the key of the stored overrides, and
-    the override events carry `end_rule`.
+  - **The key stays `ends_at`.** The owner renamed it `end_rule` on 2026-11-26, because `ends_at`
+    reads like a date, then reversed the rename on 2026-11-27. The rename needed storage version
+    8, and 0.10 refuses a newer storage version: a user could no longer go back to 0.10 without
+    a backup. A clearer name was not worth it.
   - **The reason is part of the end, in words**: "today, at the next slot", "today, 2 h after the
     change", "in a week, no slot ahead". A first version listed "today · after 2 h · 2 h 00 left":
     three fragments, and the duration twice. "then Eco (schedule)" keeps one form, with or
@@ -154,13 +155,13 @@ future contributor might question.
     user sees it may shorten the override. It is hidden when the override already ends then,
     compared to the minute. The integration computes the next slot, in Home Assistant's time
     zone, and publishes it for each thermostat with the planned preset. The card shows that
-    instant and sends exactly it, with `end_rule: next_slot`. A first version computed the next
+    instant and sends exactly it, with `ends_at: next_slot`. A first version computed the next
     slot in the browser, so a phone in another time zone sent a wrong instant. The integration
     keeps the reason only if the end really is the next slot: the reason is never taken on trust
     from the card.
   - **The logbook and the events say why.** The started line ends with "(changed by hand, until
     the next slot)", and an expired change by hand ends with "override ended at the next slot"
-    rather than "(expired)". The events carry `start` and `end_rule`, so the logbook can say "after
+    rather than "(expired)". The events carry `start` and `ends_at`, so the logbook can say "after
     2 h" without reading the stored data.
 - **The settings of overrides live in the options, the panel and two entities** (#83). Users
   did not find the override duration, three clicks away from the card in the integration's
@@ -2130,7 +2131,7 @@ phases. The owner decided these points on 2026-11-25:
   - the integration alone computes what a preset is worth on a thermostat, and the card asks
     for it (phases I6 and C5).
   The owner reversed one of these rules on 2026-11-26: Chauffage again says which rule chose the
-  end of an override, in `end_rule` (see *The user chooses how a change by hand ends*).
+  end of an override, in `ends_at` (see *The user chooses how a change by hand ends*).
 - **The card is built now, in TypeScript, with Lit and esbuild.** The tests run on the
   TypeScript sources through Node's type stripping, so the sources use erasable syntax only.
 - **HACS installs a ZIP built by the CI** (`zip_release`). The repository holds no built file.

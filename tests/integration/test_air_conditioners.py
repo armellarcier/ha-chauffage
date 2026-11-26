@@ -278,7 +278,7 @@ async def test_switching_to_cool_by_hand_sends_nothing(bench: Bench):
     await bench.hass.async_block_till_done(wait_background_tasks=True)
     override_ = bench.overrides()[SALON]
     assert override_["target"] == {"hvac_mode": "cool"}
-    assert override_["end_rule"] == "duration"
+    assert override_["ends_at"] == "duration"
     assert sent_to(bench) == [] and bench.applied() == {}
 
 

@@ -541,7 +541,7 @@ export class ChauffageProgrammeCard extends LitElement {
     if (!d) return;
     const min = new Date(Date.now() + this._config.step * 60000);
     const f = endsAt < min ? min : endsAt;
-    const { end_rule: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
+    const { ends_at: _reason, ...chosen } = d; // an end the user chooses: no longer the next slot
     this._sendOverride(climate, { ...chosen, end: f.toISOString() });
   }
 
