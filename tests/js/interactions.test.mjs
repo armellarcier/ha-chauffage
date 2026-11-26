@@ -140,7 +140,9 @@ describe('scrolling the week with a finger (#67)', () => {
     assert.equal(activeTab(card), 'away');
   });
 
-  test('an override set while a finger scrolls the week is shown when the finger lifts', async () => {
+  test('an override set while a finger scrolls the week is shown when the finger lifts', async (t) => {
+    mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }); // an hour of override, before midnight
+    t.after(() => mock.timers.reset());
     const hass = fakeHass();
     const card = createCard(hass, { show: ['climate.salon'] }); await settle();
     assert.equal($(card, '.override'), null);
