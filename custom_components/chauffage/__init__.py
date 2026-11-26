@@ -1,6 +1,6 @@
 """Chauffage: weekly heating schedules for Home Assistant thermostats.
 
-The config entry owns the stored data (.storage/chauffage) and the scheduler (runtime.py);
+The config entry owns the stored data (.storage/chauffage) and the services (app/runtime.py);
 the select entity changes the active schedule, sensors show each thermostat's schedule and
 override, a switch per thermostat pauses it; the card talks to the integration through the websocket API (websocket.py) and is
 served by the integration (frontend.py).
@@ -15,10 +15,11 @@ from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from . import entity, frontend, model, services, websocket
+from . import entity, frontend, services, websocket
 from .const import DEFAULT_SCHEDULES, DOMAIN, PLANNED_PRESET_KEY, SCHEDULE_ENTITY
-from .runtime import ChauffageRuntime
+from .app.runtime import ChauffageRuntime
 from .store import ChauffageStore
+from .storage import schema
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -38,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     data = await store.async_load()
     if data is None:
         language = (hass.config.language or "en").split("-")[0]
-        data = model.default_data(DEFAULT_SCHEDULES.get(language, DEFAULT_SCHEDULES["en"]), language)
+        data = schema.default_data(DEFAULT_SCHEDULES.get(language, DEFAULT_SCHEDULES["en"]), language)
         await store.async_save(data)
 
     _rename_schedule_entity(hass, entry)
@@ -100,4 +101,4 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def _options_changed(hass: HomeAssistant, entry: ChauffageConfigEntry) -> None:
     """The options changed (options flow, configuration entities, panel): the entities and the
     cards show them again."""
-    entry.runtime_data.options_changed()
+    entry.runtime_data.installation.notify()

@@ -147,7 +147,7 @@ async def test_two_presets_giving_the_same_temperature_do_not_end_it(bench: Benc
     schedules = {"climate.salon": {"normal": every_day(
         ("00:00", "eco"), ("20:00", "comfort"), ("21:00", "boost"), ("21:45", "eco"))}}
     await start(bench, WITHIN, schedules=schedules, hhmm="20:15")
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 20}, "boost": {"temperature": 20}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"temperature": 20}, "boost": {"temperature": 20}})
     await bench.manual_setpoint("climate.salon", 22)
     assert end_of(bench.overrides()["climate.salon"]) == at("21:45")
 

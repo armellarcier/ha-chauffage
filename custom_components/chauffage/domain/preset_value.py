@@ -28,7 +28,7 @@ class PresetValue:
     @classmethod
     def from_target(cls, target: Mapping[str, Any]) -> PresetValue:
         """The value held by a target: a slot's or an override's holds the preset's value in
-        each HVAC mode, as it is stored (model.py)."""
+        each HVAC mode, as it is stored (storage/schema.py)."""
         low, high = (target.get(key) for key in RANGE_KEYS)
         return cls({key: target[key] for key in SETPOINT_KEYS if key in target},
                    {key: target[key] for key in COOL_KEYS if key in target},

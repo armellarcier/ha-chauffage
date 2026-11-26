@@ -103,15 +103,9 @@ export function valueOn(preset, cell, hass, climate, usePresets = true) {
   return out;
 }
 
-// The answer of the fake integration to `chauffage/preset/preview`: the value, and the HVAC
-// modes the preset can be used in
+// The answer of the fake integration to `chauffage/preset/preview`: the value
 function presetPreview(hass, data, { entity_id: climate, preset, value }) {
-  const worth = valueOn(preset, value, hass, climate, !data || data.use_presets !== false);
-  const modes = [];
-  if ('preset_mode' in worth || 'temperature' in worth) modes.push('heat');
-  if ('cool_preset_mode' in worth || 'cool_temperature' in worth) modes.push('cool');
-  if ('target_temp_low' in worth && 'target_temp_high' in worth) modes.push('heat_cool');
-  return { value: worth, modes };
+  return { value: valueOn(preset, value, hass, climate, !data || data.use_presets !== false) };
 }
 
 /**

@@ -3,7 +3,7 @@ conditioner next to a heater, and an air conditioner that lists every HVAC mode.
 
 from conftest import CTX_USER, MANUAL_PRESET, WEEKDAY, Bench
 
-from custom_components.chauffage import model
+from custom_components.chauffage.storage import schema
 from custom_components.chauffage.domain.thermostat import Thermostat
 
 
@@ -28,7 +28,7 @@ NIGHT_OFF = [["00:00", None, OFF], ["06:30", "comfort"], ["08:30", "eco"], ["17:
 
 # The same day, in cooling slots
 COOL_WEEKDAY = [[*slot, {"hvac_mode": "cool"}] for slot in WEEKDAY]
-PRESETS = {p["id"]: p for p in model.default_presets("en")}
+PRESETS = {p["id"]: p for p in schema.default_presets("en")}
 COOLING_ONLY = ["off", "cool", "fan_only"]
 COOLING = {"preset": "comfort", "state": "cool", "hvac_modes": AC_MODES}
 

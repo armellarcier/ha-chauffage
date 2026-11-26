@@ -12,7 +12,7 @@ from hvac_helpers import (
     start_salon, unit,
 )
 
-from custom_components.chauffage import logbook, model
+from custom_components.chauffage import const, logbook
 from custom_components.chauffage.domain.slot import slot_hvac_mode
 from custom_components.chauffage.storage.schema import InvalidData
 
@@ -29,7 +29,7 @@ async def test_a_slot_s_hvac_mode_is_one_of_home_assistant_s(bench: Bench):
     for bad in ({"hvac_mode": "defrost"}, {"hvac_mode": ""}, {"temperature": 19}):
         with pytest.raises(InvalidData):
             await bench.save_weeks({SALON: {"normal": every_day(("00:00", "eco", bad))}})
-    assert bench.runtime.weeks[SALON]["normal"][0] == WEEKDAY
+    assert bench.weeks()[SALON]["normal"][0] == WEEKDAY
 
 
 async def test_a_schedule_has_no_hvac_mode(bench: Bench):
@@ -65,7 +65,7 @@ async def test_two_slots_alike_are_stored_as_two_and_the_second_one_sends_nothin
     stored as it was sent. The second slot changes nothing on the thermostat."""
     day = [["00:00", "eco"], ["14:00", "eco"], ["20:00", "comfort"]]
     await start_ac_alone(bench, day, "13:00")
-    assert bench.runtime.weeks[SALON]["normal"][0] == day
+    assert bench.weeks()[SALON]["normal"][0] == day
     await bench.go_to("14:00")
     assert bench.applied() == {} and bench.powered() == {}
     # The next slot of the planned preset is the next different one
@@ -184,7 +184,7 @@ async def test_set_override_refuses_what_contradicts_the_hvac_mode(bench: Bench,
 async def test_the_refusals_of_set_override_are_translated(bench: Bench):
     import json
     from pathlib import Path
-    component = Path(model.__file__).parent
+    component = Path(const.__file__).parent
     for file in ("strings.json", "translations/en.json", "translations/fr.json"):
         exceptions = json.loads((component / file).read_text(encoding="utf-8"))["exceptions"]
         assert {"no_setpoint_in_hvac_mode", "hvac_mode_not_listed", "duration_and_end"} <= set(exceptions)
@@ -230,7 +230,7 @@ async def test_set_override_says_what_is_wrong_with_a_range_or_an_end(bench: Ben
 def test_every_refusal_of_set_override_has_a_text_in_every_language():
     import json
     from pathlib import Path
-    component = Path(model.__file__).parent
+    component = Path(const.__file__).parent
     keys = {"range_incomplete", "range_inverted", "heat_cool_takes_a_range", "range_in_heat_cool", "end_in_the_past"}
     for file in ("strings.json", "translations/en.json", "translations/fr.json"):
         assert keys <= set(json.loads((component / file).read_text(encoding="utf-8"))["exceptions"])

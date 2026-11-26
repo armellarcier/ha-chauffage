@@ -136,7 +136,7 @@ async def test_a_change_of_another_setting_leaves_the_panel_as_it_is(bench: Benc
     again. The panel is registered again only when the sidebar option changes."""
     await setup_with_the_panel(bench)
     with patch("custom_components.chauffage.frontend.async_register_built_in_panel") as register:
-        bench.entry.runtime_data.set_override_settings("next_slot", 60)
+        bench.entry.runtime_data.settings.set_override_settings("next_slot", 60)
         await bench.hass.async_block_till_done()
         assert register.call_count == 0
         options = bench.hass.config_entries.options

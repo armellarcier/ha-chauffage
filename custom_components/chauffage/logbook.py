@@ -108,7 +108,7 @@ def async_describe_events(
         """The override's value: its HVAC mode if it sets one, then the Chauffage preset's name,
         else what its target holds (a setpoint, a cooling setpoint), then the fan and the vanes.
         An event recorded before #91 holds a kind and a value instead of a target."""
-        preset = (runtime().presets_by_id if runtime() else {}).get(data.get("preset"))
+        preset = (runtime().installation.presets_by_id if runtime() else {}).get(data.get("preset"))
         target = data.get("target")
         if not isinstance(target, dict):
             key = "temperature" if data.get("kind") == "temperature" else "preset_mode"

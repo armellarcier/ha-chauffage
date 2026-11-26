@@ -70,7 +70,7 @@ def ended_overrides(overrides: Mapping[str, Any], now: datetime) -> list[str]:
 
 @dataclass
 class Plan:
-    """The data a decision needs (the integration's stored data, see model.py)."""
+    """The data a decision needs (the integration's stored data, see storage/schema.py)."""
 
     weeks: dict[str, dict[str, Any]]
     schedule: str  # the active schedule

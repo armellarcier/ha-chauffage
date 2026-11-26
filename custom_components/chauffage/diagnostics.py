@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     runtime = entry.runtime_data
-    states = {entity_id: hass.states.get(entity_id) for entity_id in runtime.scheduled}
+    states = {entity_id: hass.states.get(entity_id) for entity_id in runtime.installation.scheduled}
     return {
         "version": runtime.version,
         "options": dict(entry.options),

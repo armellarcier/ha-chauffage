@@ -40,7 +40,7 @@ async def test_a_slot_can_set_the_fan_and_the_vanes(bench: Bench):
 
 async def test_a_preset_s_value_on_a_thermostat_can_set_the_fan(bench: Bench):
     await start_salon(bench, "17:00", **AC_ATTRS)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"preset_mode": "comfort", "fan_mode": "2"}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"preset_mode": "comfort", "fan_mode": "2"}})
     await bench.hass.async_block_till_done()
     assert bench.runtime.read_model.targets_of("climate.salon")["comfort"] == {
         "preset_mode": "comfort", "cool_preset_mode": "comfort", "fan_mode": "2"}
@@ -184,7 +184,7 @@ async def test_an_override_to_a_preset_does_not_take_the_fan_of_its_value(bench:
     """The preset's value on the thermostat sets the fan: a slot on that preset sends it, an
     override to that preset does not."""
     await start_ac_alone(bench, [["00:00", "eco"]], "10:00", **FANS)
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 21, "fan_mode": "1"}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"temperature": 21, "fan_mode": "1"}})
     clear(bench)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": SALON, "preset": "comfort"},
                                          blocking=True)

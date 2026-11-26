@@ -76,7 +76,7 @@ async def test_an_admin_changes_everything_whatever_the_access_level(bench: Benc
 async def test_the_access_level_is_use_by_default_as_before(bench: Bench, ws_client):
     """An upgrade changes nothing: a user who is not an admin uses the heating, and no more."""
     await start(bench)
-    assert bench.runtime.access_level == "use"
+    assert bench.runtime.settings.access_level == "use"
     reply = await send(bench, ws_client, commands(bench)["edit the weeks"][1])
     assert reply["error"]["code"] == "unauthorized"
 
@@ -114,7 +114,7 @@ async def test_weeks_sent_with_a_thermostat_not_scheduled_yet_need_set_up(bench:
     weeks = {**SCHEDULES, "climate.cuisine": {"normal": [WEEKDAY] * 7}}
     reply = await send(bench, ws_client, {"type": "chauffage/weeks/save", "weeks": weeks})
     assert reply["error"]["code"] == "unauthorized"
-    assert "climate.cuisine" not in bench.runtime.scheduled
+    assert "climate.cuisine" not in bench.scheduled()
 
 
 async def test_a_refused_setting_changes_nothing(bench: Bench, ws_client):
@@ -123,7 +123,7 @@ async def test_a_refused_setting_changes_nothing(bench: Bench, ws_client):
     reply = await send(bench, ws_client, {"type": "chauffage/settings/set", "access_level": "plan",
                                           "override_duration": 7}, user="admin")
     assert reply["error"]["code"] == "invalid_format"
-    assert bench.runtime.access_level == "use"
+    assert bench.runtime.settings.access_level == "use"
 
 
 async def test_the_card_is_told_the_access_level(bench: Bench, ws_client):
@@ -139,7 +139,7 @@ async def test_an_admin_chooses_the_access_level_from_the_panel(bench: Bench, ws
     reply = await send(bench, ws_client, {"type": "chauffage/settings/set", "access_level": "plan"}, user="admin")
     assert reply["success"]
     assert bench.entry.options["access_level"] == "plan"
-    assert bench.runtime.access_level == "plan"
+    assert bench.runtime.settings.access_level == "plan"
 
 
 async def test_only_an_admin_chooses_the_access_level(bench: Bench, ws_client):
@@ -147,14 +147,14 @@ async def test_only_an_admin_chooses_the_access_level(bench: Bench, ws_client):
     await start(bench, "set_up")
     reply = await send(bench, ws_client, {"type": "chauffage/settings/set", "access_level": "plan"})
     assert reply["error"]["code"] == "unauthorized"
-    assert bench.runtime.access_level == "set_up"
+    assert bench.runtime.settings.access_level == "set_up"
 
 
 async def test_an_unknown_access_level_is_refused(bench: Bench, ws_client):
     await start(bench)
     reply = await send(bench, ws_client, {"type": "chauffage/settings/set", "access_level": "everything"}, user="admin")
     assert reply["error"]["code"] == "invalid_format"
-    assert bench.runtime.access_level == "use"
+    assert bench.runtime.settings.access_level == "use"
 
 
 async def test_the_options_form_chooses_the_access_level(bench: Bench):
@@ -163,7 +163,7 @@ async def test_the_options_form_chooses_the_access_level(bench: Bench):
     flow = await options.async_init(bench.entry.entry_id)
     await options.async_configure(flow["flow_id"], {"override_duration": 120, "access_level": "set_up"})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.access_level == "set_up"
+    assert bench.runtime.settings.access_level == "set_up"
 
 
 # ----- the services -----
@@ -216,7 +216,7 @@ async def test_set_up_opens_the_panel_to_every_user(bench: Bench, access_level, 
 async def test_the_panel_follows_the_access_level_without_a_restart(bench: Bench):
     await setup_with_the_panel(bench)
     for access_level, admins_only in (("set_up", False), ("plan", True)):
-        bench.runtime.set_access_level(access_level)
+        bench.runtime.settings.set_access_level(access_level)
         await bench.hass.async_block_till_done()
         assert panel(bench).require_admin is admins_only
         assert panel(bench).sidebar_title == "Chauffage"

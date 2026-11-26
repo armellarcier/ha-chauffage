@@ -64,7 +64,7 @@ async def test_the_stored_data_does_not_change(bench: Bench):
     stored = await as_0_7_left_it(bench, bench.thermostat_on_a_valve(), on_device_info=False)
     await upgrade(bench)
     assert bench.storage[DOMAIN]["data"] == stored
-    assert bench.runtime.thermostats.keys() == {"climate.salon", "climate.cuisine"}
+    assert (await bench.known()) == {"climate.salon", "climate.cuisine"}
 
 
 async def test_the_entities_keep_their_ids_names_and_settings_on_the_new_device(bench: Bench):

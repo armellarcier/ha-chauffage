@@ -76,7 +76,7 @@ class MissingFlow(RepairsFlow):
         from .services import loaded_runtime  # the integration's runtime, once loaded
 
         runtime = loaded_runtime(self.hass)
-        if self.entity_id in runtime.thermostats:
+        if self.entity_id in runtime.installation.thermostats:
             await runtime.registry.forget(self.entity_id)
         return self.async_create_entry(data={})
 

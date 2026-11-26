@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from datetime import datetime
 import logging
 from typing import Any
@@ -24,6 +24,7 @@ from ..domain.timeline import parse_datetime
 from ..domain.target import EQUAL_KEYS, Target
 from ..domain.thermostat import Thermostat, ignored, preset_value
 from ..storage.installation import Installation
+from .reader import read
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,16 +43,12 @@ def local_time(iso: str) -> str:
 
 
 class ThermostatGateway:
-    """`installation`: the stored data (model.py), for its "pending" commands and each thermostat's
-    "own_settings". `read`: what Chauffage knows of a thermostat from its state. `save`: saves
-    the stored data."""
+    """`installation`: the stored data (storage/schema.py), for its "pending" commands and each
+    thermostat's "own_settings"."""
 
-    def __init__(self, hass: HomeAssistant, installation: Installation,
-                 read: Callable[[State | None], Thermostat | None], save: Callable[[], None]) -> None:
+    def __init__(self, hass: HomeAssistant, installation: Installation) -> None:
         self.hass = hass
         self._installation = installation
-        self._read = read
-        self._save = save
         self._own_contexts: deque[str] = deque(maxlen=500)
 
     def is_own(self, context: Context) -> bool:
@@ -92,7 +89,7 @@ class ThermostatGateway:
         # Not what the thermostat already shows, unless it may still apply an older command:
         # then everything, or what it shows now could be undone later
         state = self.hass.states.get(entity_id)
-        actual = self._read(state)
+        actual = read(self.hass, state)
         current = None if commands else actual
         shown = current is not None and Target(target).satisfied_by(current)
         # A thermostat that keeps its preset when it gets a setpoint leaves the preset first
@@ -115,7 +112,7 @@ class ThermostatGateway:
                 commands.pop()  # sent again: waited for from now
             commands.append({"target": dict(target), "sent": dt_util.now().isoformat()})
             self._installation.pending[entity_id] = commands
-            self._save()
+            self._installation.save()
         if leave is not None:
             kept = preset_value(state.attributes.get("preset_mode"))
             if await self.reproduce(entity_id, hvac_mode, {"preset_mode": leave}):
@@ -166,7 +163,7 @@ class ThermostatGateway:
         del commands[:count]
         if not commands:
             del self._installation.pending[entity_id]
-        self._save()
+        self._installation.save()
 
     @callback
     def expire_pending(self, now: datetime) -> None:
@@ -222,4 +219,4 @@ class ThermostatGateway:
                 del kept[key]
         if kept != (t.get("own_settings") or {}):
             t["own_settings"] = kept
-            self._save()
+            self._installation.save()

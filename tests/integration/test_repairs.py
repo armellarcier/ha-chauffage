@@ -91,7 +91,7 @@ async def test_an_entity_made_again_with_the_same_id_closes_the_repair(bench: Be
     await bench.hass.async_block_till_done()
     assert registry.async_get("climate.grenier") is not None
     assert issue(bench, MISSING) is None
-    assert "climate.grenier" in bench.runtime.scheduled
+    assert "climate.grenier" in bench.scheduled()
 
 
 async def test_an_entity_without_state_but_still_registered_is_not_gone(bench: Bench):
@@ -112,9 +112,9 @@ async def test_the_missing_repair_forgets_the_thermostat_or_keeps_it(bench: Benc
     result = await fix(bench, http_client, MISSING, "forget")
     assert result["menu"] == ["forget", "keep"]
     assert result["type"] == "create_entry"
-    assert "climate.grenier" not in bench.runtime.thermostats
+    assert "climate.grenier" not in (await bench.known())
     await fix(bench, http_client, "missing_climate.cave", "keep")
-    assert "climate.cave" in bench.runtime.thermostats
+    assert "climate.cave" in (await bench.known())
     assert issue(bench, "missing_climate.cave") is None
 
 

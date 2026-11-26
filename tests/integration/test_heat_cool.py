@@ -72,7 +72,7 @@ async def test_a_heat_cool_slot_heats_on_a_thermostat_that_takes_no_range(bench:
 async def test_no_preset_temperature_is_learned_in_heat_cool(bench: Bench):
     await start_ac_with_range(bench, [["00:00", "comfort", {"hvac_mode": "heat_cool"}]], state="heat_cool",
                 target_temp_low=20.0, target_temp_high=25.0)
-    assert bench.runtime.thermostats[SALON]["preset_temperatures"] == {}
+    assert SALON not in (await bench.learned_temperatures())
 
 
 async def test_a_range_whose_low_is_already_shown_is_sent_whole(bench: Bench):
@@ -111,19 +111,19 @@ async def test_a_temperature_a_heat_cool_slot_uses_cannot_be_cleared_with_a_devi
     """The salon uses its own preset for Eco. A heat/cool slot needs two numbers: the heating
     and the cooling temperature of Eco. A device preset gives none, so neither can be cleared."""
     await start_ac_alone(bench, [["00:00", "eco", {"hvac_mode": "heat_cool"}]])
-    await bench.runtime.set_mapping(SALON, {"eco": {"preset_mode": "eco"}})
+    await bench.runtime.schedules.set_mapping(SALON, {"eco": {"preset_mode": "eco"}})
     with pytest.raises(InvalidData, match="eco"):
-        await bench.runtime.set_presets(presets_without("eco", key))
-    assert bench.runtime.presets_by_id["eco"][key] is not None
+        await bench.runtime.schedules.set_presets(presets_without("eco", key))
+    assert bench.preset("eco")[key] is not None
 
 
 async def test_a_temperature_set_on_the_thermostat_serves_its_heat_cool_slots(bench: Bench):
     """The salon has its own cooling temperature for Eco: Eco's default when cooling is not
     used by its heat/cool slots."""
     await start_ac_alone(bench, [["00:00", "eco", {"hvac_mode": "heat_cool"}]])
-    await bench.runtime.set_mapping(SALON, {"eco": {"cool_temperature": 26}})
-    await bench.runtime.set_presets(presets_without("eco", "cool_temperature"))
-    assert "cool_temperature" not in bench.runtime.presets_by_id["eco"]
+    await bench.runtime.schedules.set_mapping(SALON, {"eco": {"cool_temperature": 26}})
+    await bench.runtime.schedules.set_presets(presets_without("eco", "cool_temperature"))
+    assert "cool_temperature" not in bench.preset("eco")
 
 
 # ----- a heat/cool override -----

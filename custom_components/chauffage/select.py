@@ -44,7 +44,7 @@ class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
 
     @property
     def current_option(self) -> str | None:
-        return self.runtime.schedule_name(self.runtime.installation.active_schedule)
+        return self.runtime.installation.schedule_name(self.runtime.installation.active_schedule)
 
     @property
     def extra_state_attributes(self) -> dict[str, str | None]:
@@ -57,7 +57,7 @@ class ActiveScheduleSelect(ChauffageEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         schedule_id = next(s["id"] for s in self.runtime.installation.schedules if s["name"] == option)
-        await self.runtime.activate_schedule(schedule_id, source="entity", context=self._context)
+        await self.runtime.schedules.activate(schedule_id, source="entity", context=self._context)
 
 
 class ManualOverrideEndSelect(ChauffageEntity, SelectEntity):
@@ -75,10 +75,10 @@ class ManualOverrideEndSelect(ChauffageEntity, SelectEntity):
 
     @property
     def current_option(self) -> str:
-        return getattr(self.runtime, self.key)
+        return getattr(self.runtime.settings, self.key)
 
     async def async_select_option(self, option: str) -> None:
-        self.runtime.set_override_settings(**{self.key: option})
+        self.runtime.settings.set_override_settings(**{self.key: option})
 
 
 class OffOverrideEndSelect(ManualOverrideEndSelect):

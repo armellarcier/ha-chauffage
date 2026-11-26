@@ -30,8 +30,8 @@ async def test_the_options_form(bench: Bench):
                                                              "use_presets": True})
     assert result["type"] == "create_entry"
     await bench.hass.async_block_till_done()
-    assert bench.runtime.override_duration == 30
-    assert bench.runtime.manual_override_end == "next_slot"
+    assert bench.runtime.settings.override_duration == 30
+    assert bench.runtime.settings.manual_override_end == "next_slot"
 
 
 async def test_a_change_by_hand_lasts_the_override_duration_by_default(bench: Bench):
@@ -63,13 +63,13 @@ async def test_without_presets_every_thermostat_is_driven_by_temperature(bench: 
 
 async def test_the_temperature_of_each_preset_is_learned_while_it_is_active(bench: Bench):
     await start(bench)
-    assert bench.runtime.learned_temperatures["climate.salon"] == {"eco": 17.0}
+    assert (await bench.learned_temperatures())["climate.salon"] == {"eco": 17.0}
     bench.thermostat("climate.salon", "comfort", 20.5)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.learned_temperatures["climate.salon"] == {"eco": 17.0, "comfort": 20.5}
+    assert (await bench.learned_temperatures())["climate.salon"] == {"eco": 17.0, "comfort": 20.5}
     # A manual setpoint (preset "none") is not a preset's temperature
     await bench.manual_setpoint("climate.salon", 23)
-    assert bench.runtime.learned_temperatures["climate.salon"]["comfort"] == 20.5
+    assert (await bench.learned_temperatures())["climate.salon"]["comfort"] == 20.5
 
 
 async def test_a_vtherm_on_another_preset_than_asked_teaches_no_temperature(bench: Bench):
@@ -80,7 +80,7 @@ async def test_a_vtherm_on_another_preset_than_asked_teaches_no_temperature(benc
     bench.thermostat("climate.salon", "frost", 7.0,
                      requested_state={"hvac_mode": "heat", "target_temperature": None, "preset": "comfort"})
     await bench.hass.async_block_till_done()
-    assert "comfort" not in bench.runtime.learned_temperatures["climate.salon"]
+    assert "comfort" not in (await bench.learned_temperatures())["climate.salon"]
 
 
 async def test_learned_temperatures_are_given_to_the_card(bench: Bench):
@@ -153,7 +153,7 @@ async def test_the_card_edits_the_presets(bench: Bench, ws_client):
     await client.send_json_auto_id({"type": "chauffage/presets/set", "presets": presets, "replacements": {"comfort": "nuit"}})
     assert (await client.receive_json())["success"]
     assert [lv["id"] for lv in bench.presets()] == ["eco", "boost", "frost", "nuit"]
-    assert bench.runtime.weeks["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
+    assert bench.weeks()["climate.salon"]["normal"][0][1] == ["06:30", "nuit"]
 
 
 @pytest.mark.parametrize("command", [
@@ -173,11 +173,11 @@ async def test_what_was_learned_on_a_forgotten_thermostat_is_dropped(bench: Benc
     bench.thermostat("climate.cuisine", "eco")
     await bench.setup()
     await bench.save_weeks({"climate.cuisine": {"normal": every_day(("00:00", "eco"))}})
-    assert bench.runtime.learned_temperatures == {"climate.cuisine": {"eco": 17.0}}
+    assert (await bench.learned_temperatures()) == {"climate.cuisine": {"eco": 17.0}}
     await bench.runtime.registry.forget("climate.cuisine")
     bench.thermostat("climate.cuisine", "comfort")
     await bench.hass.async_block_till_done()
-    assert bench.runtime.learned_temperatures == {}
+    assert (await bench.learned_temperatures()) == {}
 
 
 async def test_the_options_form_takes_any_whole_number_of_minutes(bench: Bench):
@@ -189,7 +189,7 @@ async def test_the_options_form_takes_any_whole_number_of_minutes(bench: Bench):
     result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": 50})
     assert result["type"] == "create_entry"
     await bench.hass.async_block_till_done()
-    assert bench.runtime.override_duration == 50
+    assert bench.runtime.settings.override_duration == 50
 
 
 @pytest.mark.parametrize("duration", [10, 1500])
@@ -198,7 +198,7 @@ async def test_the_options_form_refuses_a_duration_out_of_range(bench: Bench, du
     flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
     with pytest.raises(Exception):
         await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": duration})
-    assert bench.runtime.override_duration == 90
+    assert bench.runtime.settings.override_duration == 90
 
 
 async def test_the_options_form_refuses_a_duration_that_is_not_whole_minutes(bench: Bench):
@@ -207,7 +207,7 @@ async def test_the_options_form_refuses_a_duration_that_is_not_whole_minutes(ben
     result = await bench.hass.config_entries.options.async_configure(flow["flow_id"], {"override_duration": 50.5})
     assert result["type"] == "form"
     assert result["errors"] == {"override_duration": "invalid_override_duration"}
-    assert bench.runtime.override_duration == 90
+    assert bench.runtime.settings.override_duration == 90
 
 
 async def test_preset_temperatures_published_as_a_non_dict_mapping_are_ignored(bench: Bench):

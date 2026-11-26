@@ -13,11 +13,13 @@ from typing import TYPE_CHECKING
 
 from homeassistant.util import dt as dt_util
 
-from ..domain.plan import ApplyReason, Realign, Tick, due_targets, ended_overrides, why_of
-from ..domain.thermostat import ignored
+from ..domain.plan import ApplyReason, Plan, Realign, Tick, due_targets, ended_overrides, why_of
+from ..domain.target import Target
+from ..domain.thermostat import Thermostat, ignored
+from ..thermostats.reader import read
 
 if TYPE_CHECKING:
-    from ..runtime import ChauffageRuntime
+    from .runtime import ChauffageRuntime
 
 
 class Scheduler:
@@ -30,26 +32,55 @@ class Scheduler:
     def start(self) -> None:
         self._last_tick = dt_util.now()  # the realignment at the start covers the time before
 
+    def plan(self) -> Plan:
+        """What the active thermostats follow: paused ones are left out."""
+        runtime = self._runtime
+        installation = runtime.installation
+        return Plan(
+            {entity_id: installation.thermostats[entity_id]["weeks"] for entity_id in installation.active},
+            installation.active_schedule,
+            installation.presets_by_id,
+            installation.mappings,
+            installation.overrides,
+            runtime.settings.use_presets,
+            {entity_id: own for entity_id in installation.active if (own := runtime.gateway.own_settings(entity_id))},
+        )
+
+    def needs(self, entity_id: str, target: Target, current: Thermostat | None,
+              by_user: bool = False) -> Target | None:
+        """An override's target as it is sent, when the thermostat needs it
+        (ThermostatGateway.needs). The target is completed for the thermostat
+        (Target.completed_for): without an HVAC mode, a thermostat that is off is turned on in
+        the HVAC mode of the slot planned now, as the card does. `by_user`: an override without
+        a Chauffage preset (in cool, a temperature the user typed is sent, a preset's heating
+        temperature is not)."""
+        plan = self.plan()
+        slot, _ = plan.slot_at(entity_id, dt_util.now())
+        planned = plan.target_of(entity_id, slot, current) or {}
+        to_send = Target(target).completed_for(current, by_user, planned.get("hvac_mode"))
+        return self._runtime.gateway.needs(entity_id, to_send, current)
+
     async def apply(self, reason: ApplyReason) -> None:
         """Sends the thermostats their slot (plan.due_targets); the reason, logged with each
         command, says why."""
         runtime = self._runtime
+        installation = runtime.installation
         async with self.lock:
             now, retry = dt_util.now(), set(self.retry)
-            plan = runtime.plan()
-            todo = due_targets(plan, now, {e: t for e in runtime.active if (t := runtime.current(runtime.hass.states.get(e)))},
-                               reason, retry=frozenset(retry), pending=runtime.gateway.last_pending())
+            plan = self.plan()
+            states = {e: t for e in installation.active if (t := read(runtime.hass, runtime.hass.states.get(e)))}
+            todo = due_targets(plan, now, states, reason, retry=frozenset(retry), pending=runtime.gateway.last_pending())
             # A thermostat to retry that needs nothing anymore (already right, override, off…)
             self.retry &= {entity_id for entity_id, _ in todo}
             for i, (entity_id, target) in enumerate(todo):
                 if i and runtime.pause:
                     await asyncio.sleep(runtime.pause)
-                if entity_id not in runtime.thermostats or runtime.is_paused(entity_id):
+                if entity_id not in installation.thermostats or installation.is_paused(entity_id):
                     continue  # paused or forgotten meanwhile
                 why = why_of(reason, entity_id, entity_id in retry)
                 slot, _ = plan.slot_at(entity_id, now)
                 what = slot.preset or slot.settings.get("hvac_mode")  # an off or a fan-only slot has no preset
-                done = await runtime.gateway.send(entity_id, target, f"{why}, {what} of schedule {runtime.installation.active_schedule}")
+                done = await runtime.gateway.send(entity_id, target, f"{why}, {what} of schedule {installation.active_schedule}")
                 # Not delivered (unreachable valve…): sent again at the next minutes
                 if done:
                     self.retry.discard(entity_id)
@@ -80,10 +111,9 @@ class Scheduler:
             await self.apply(Realign(frozenset({entity_id}), why))
             return
         async with self.lock:
-            current = runtime.current(runtime.hass.states.get(entity_id))
+            current = read(runtime.hass, runtime.hass.states.get(entity_id))
             if current is None or ignored(current):
                 return
-            to_send = runtime.needs(entity_id, override["target"], current, by_user=not override.get("preset"))
+            to_send = self.needs(entity_id, override["target"], current, by_user=not override.get("preset"))
             if to_send is not None:
                 await runtime.gateway.send(entity_id, to_send, f"{why}, back to the override")
-
