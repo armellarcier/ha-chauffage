@@ -21,7 +21,6 @@ export const toMin = (s) => {
 };
 export const toHM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 export const pct = (m) => ((m / DAY_MIN) * 100).toFixed(3);
-export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const clone = (x) => JSON.parse(JSON.stringify(x));
 // An admin of Home Assistant (a hass without a user, as in the tests, is an admin)
 export const isAdmin = (hass) => !(hass && hass.user && !hass.user.is_admin);

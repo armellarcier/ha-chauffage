@@ -1,5 +1,5 @@
 import { html } from 'lit';
-import { esc, isAdmin } from './common.ts';
+import { isAdmin } from './common.ts';
 
 // ---------- links to what a card mentions (#39) ----------
 // A thermostat, a schedule or a setting a card names opens in Home Assistant: an entity in its
@@ -19,9 +19,10 @@ export function deviceOf(hass, entity) {
   return (e && e.device_id) || null;
 }
 
-export function deviceLinkHtml(hass, id, label) {
-  if (!id || !isAdmin(hass)) return '';
-  return `<span class="mi-link" role="link" tabindex="0" data-device="${esc(id)}">${esc(label)}</span>`;
+// A link to a device's page (admins), else null
+export function deviceLink(hass, id, label) {
+  if (!id || !isAdmin(hass)) return null;
+  return html`<span class="mi-link" role="link" tabindex="0" data-device=${id}>${label}</span>`;
 }
 
 // A device named by itself: "Bureau (Thermostat programmé)"
@@ -32,8 +33,8 @@ export function deviceLabel(hass, id) {
 }
 
 // A link to a device, named by the device itself (admins)
-export function deviceNamedLinkHtml(hass, id) {
-  return deviceLinkHtml(hass, id, deviceLabel(hass, id));
+export function deviceNamedLink(hass, id) {
+  return deviceLink(hass, id, deviceLabel(hass, id));
 }
 
 // A click on the actions at the end of a row of the panel's lists: not a click on the row's link
@@ -140,10 +141,10 @@ export function placements(hass) {
 }
 
 // "Shown in dashboard › view, …", each a link; "…" while the dashboards are read (null)
-export function placesHtml(t, places) {
-  if (!places) return `${esc(t('inCards'))} …`;
-  if (!places.length) return esc(t('inNoCard'));
-  return `${esc(t('inCards'))} ${places.map((p) => `<span class="mi-link" role="link" tabindex="0" data-navigate="${esc(p.path)}">${esc(`${p.dashboard} › ${p.view}`)}</span>`).join(', ')}`;
+export function placesTemplate(t, places) {
+  if (!places) return `${t('inCards')} …`;
+  if (!places.length) return t('inNoCard');
+  return html`${t('inCards')} ${places.map((p, i) => html`${i ? ', ' : ''}<span class="mi-link" role="link" tabindex="0" data-navigate=${p.path}>${`${p.dashboard} › ${p.view}`}</span>`)}`;
 }
 
 export async function cardPlacements(hass) {

@@ -1,7 +1,6 @@
 import { LitElement, html, nothing, unsafeCSS } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { live } from 'lit/directives/live.js';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { NOTICE_RELOAD, noticeTemplate, reloadPage, sourceNotice } from './notices.ts';
 import { dataSource, renamedTo } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
@@ -11,7 +10,7 @@ import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPre
 import { linksByKeyboard, roundDurationText } from './fields.ts';
 import { hvacIconTemplate, isReversible } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
-import { deviceNamedLinkHtml, navigate, openDevice, openMoreInfo, openPanel, panelName, panelPath, placements, placesHtml, thermostatDevices } from './links.ts';
+import { deviceNamedLink, navigate, openDevice, openMoreInfo, openPanel, panelName, panelPath, placements, placesTemplate, thermostatDevices } from './links.ts';
 import { DOC_OFF_BY_HAND, LS_NEW_ACCESS, LS_NEW_OFF, LS_NEW_SETTING, openSettings, seenNewOff, seenNewSetting } from './settings-dialog.ts';
 import { BADGE_STYLE, LINK_STYLE } from './styles.ts';
 import { VERSION } from './version.ts';
@@ -607,12 +606,12 @@ export class ChauffagePanel extends LitElement {
     const paused = src.paused(climate);
     const places = this._placements ? this._placements[climate] || [] : null;
     // Its devices, by their names: the thermostat's, then the scheduled thermostat's (Chauffage)
-    const devices = thermostatDevices(hass, src, climate).map((id) => deviceNamedLinkHtml(hass, id)).filter(Boolean);
+    const devices = thermostatDevices(hass, src, climate).map((id) => deviceNamedLink(hass, id)).filter(Boolean);
     // While the dashboards are read, the line already holds its place: the page does not move
     // under a finger about to tap
     return html`<div class="about">
-        <div class="shown">${unsafeHTML(placesHtml(t, places))}</div>
-        ${devices.length ? html`<div>${t('panelDevices')} ${unsafeHTML(devices.join(', '))}</div>` : nothing}
+        <div class="shown">${placesTemplate(t, places)}</div>
+        ${devices.length ? html`<div>${t('panelDevices')} ${devices.map((link, i) => html`${i ? ', ' : ''}${link}`)}</div>` : nothing}
       </div>
       <div class="control">
         <button class="btn${paused ? ' primary' : ''}" data-pause=${paused ? '0' : '1'}>${t(paused ? 'resumeShort' : 'pauseShort')}</button>

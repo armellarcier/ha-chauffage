@@ -3,7 +3,7 @@ import { keyed } from 'lit/directives/keyed.js';
 import { attributes } from './components/shared/attributes.ts';
 import { dataSource } from './client/snapshot.ts';
 import { DARK_TEXT } from './colors.ts';
-import { HVAC_ORDER, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, esc, slotMode, slotSettings, withSettings } from './common.ts';
+import { HVAC_ORDER, MANUAL_PRESETS, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, airSettings, slotMode, slotSettings, withSettings } from './common.ts';
 
 // ---------- the HVAC mode (#91) ----------
 // The slot chooses the HVAC mode: heat, cool or heat/cool with a preset; off, fan only, dry or
@@ -320,12 +320,12 @@ export function moreSettings(hass, climate, loc, settings, defaults, open, field
 }
 
 // The capture button (#91, lot 3): fills the popover of a preset's value from the thermostat's
-// current state
-export function captureButtonHtml(hass, climate, loc) {
+// current state. `captured`: it just did, and says so
+export function captureButton(hass, climate, loc, captured = false) {
   const t = loc.t;
   const unavailable = !captureState(hass, climate);
-  const label = unavailable ? t('unsupported', { value: t('capture') }) : t('capture');
-  return `<button class="btn capture" data-act="capture"${unavailable ? ' disabled' : ''}><ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${esc(label)}</button>`;
+  const label = captured ? t('captured') : unavailable ? t('unsupported', { value: t('capture') }) : t('capture');
+  return html`<button class="btn capture" data-act="capture" ?disabled=${unavailable}><ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${label}</button>`;
 }
 
 // Days in display order, the days of the same key on one row: [[0, 1, 2, 3, 4], [5, 6]]
