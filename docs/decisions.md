@@ -1986,6 +1986,8 @@ A review of every surface, before the merge into `main`, settled these choices.
   The weeks stacked on a thermostat's page take one of them, `week_only`: the week alone, without
   chips, tabs, hint, paused note, legend or save bar, today marked in the active schedule only.
   Eight options always set together used to do it.
+  **Amended in phase C6**: the panel sets the card's `sheet` and `schedule` properties instead,
+  and shows its views without the card.
 
 ### Open questions
 
