@@ -1,11 +1,15 @@
-import { bindReload, NOTICE_RELOAD, noticeHtml, reloadPage, sourceNotice } from './notices.ts';
-import { dataSource, integrationAvailable, renamedTo } from './client/snapshot.ts';
+import { LitElement, html, nothing, unsafeCSS } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
+import { live } from 'lit/directives/live.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { NOTICE_RELOAD, noticeHtml, reloadPage, sourceNotice } from './notices.ts';
+import { dataSource, renamedTo } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
-import { client } from './client/chauffage-client.ts';
-import { errorText, esc, setHtml } from './common.ts';
+import { SnapshotController } from './controllers/snapshot-controller.ts';
+import { errorText } from './common.ts';
 import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference } from './state/preferences.ts';
 import { linksByKeyboard, roundDurationText } from './fields.ts';
-import { hvacIcon, isReversible } from './hvac.ts';
+import { hvacIconTemplate, isReversible } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { deviceNamedLinkHtml, navigate, openDevice, openMoreInfo, openPanel, panelName, panelPath, placements, placesHtml, thermostatDevices } from './links.ts';
 import { DOC_OFF_BY_HAND, LS_NEW_ACCESS, LS_NEW_OFF, LS_NEW_SETTING, openSettings, seenNewOff, seenNewSetting } from './settings-dialog.ts';
@@ -51,656 +55,6 @@ export function panelRoute(path, src, hass) {
   if (PANEL_TABS.some(([p]) => p === page)) return { list: page };
   // The rules live with the schedules; anything else opens the first tab
   return { redirect: page === 'rules' ? 'schedules' : PANEL_TABS[0][0] };
-}
-
-export class ChauffagePanel extends HTMLElement {
-  // The fields of the element, untyped until the rewrite of the card gives them a type
-  declare _cards: any;
-  declare _copyMenu: any;
-  declare _error: any;
-  declare _groupDays: any;
-  declare _hass: any;
-  declare _historyOn: any;
-  declare _key: any;
-  declare _leave: any;
-  declare _narrow: any;
-  declare _notice: any;
-  declare _onKey: any;
-  declare _onUnload: any;
-  declare _pageForget: any;
-  declare _pageMenu: any;
-  declare _panel: any;
-  declare _picked: any;
-  declare _placements: any;
-  declare _route: any;
-  declare _saveError: any;
-  declare _settingsFor: any;
-  declare _unlisten: any;
-  declare _weekCards: any;
-
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    linksByKeyboard(this.shadowRoot);
-    this._unlisten = null;
-    this._key = null;
-    this._cards = [];
-    this._placements = undefined;
-    // A thermostat's sheet: identical days on one row for every schedule, as chosen on this device
-    this._groupDays = true;
-    // …and the history of the measured temperature, as chosen on this device (as the cards)
-    this._historyOn = false;
-    this._groupDays = groupPreference() !== false;
-    this._historyOn = historyPreference();
-    this._picked = new Set(); // the welcome: the thermostats ticked
-    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
-    this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
-    this.shadowRoot.addEventListener('change', (e: any) => {
-      const box = e.target.closest('[data-pick]');
-      if (!box) return;
-      if (box.checked) this._picked.add(box.dataset.pick);
-      else this._picked.delete(box.dataset.pick);
-      this._update();
-    });
-    // Closing or reloading the browser's page with weeks not saved yet: the browser asks
-    this._onUnload = (e) => {
-      if (!this._dirtyWeeks().length) return;
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    // Escape closes the panel's menus, as the card's menus
-    this._onKey = (e) => {
-      if (e.key !== 'Escape') return;
-      if (this._copyMenu) {
-        this._copyMenu = null;
-        this._update();
-      }
-      if (this._pageMenu) {
-        this._pageMenu = false;
-        this._fillPageMenu();
-      }
-    };
-  }
-
-  // Set by Home Assistant: hass, the panel (its title), the route (the page), narrow
-  set hass(hass) {
-    this._hass = hass;
-    if (!this._unlisten && integrationAvailable(hass)) {
-      client.connect(hass);
-      this._unlisten = client.listen(() => this._update());
-    }
-    this._update();
-  }
-
-  set panel(panel) {
-    this._panel = panel;
-    this._update();
-  }
-
-  set route(route) {
-    this._route = route;
-    this._update();
-  }
-
-  set narrow(narrow) {
-    this._narrow = narrow;
-    this._update();
-  }
-
-  // Home Assistant may set the properties before it adds the panel to the page
-  connectedCallback() {
-    if (!this._unlisten && this._hass && integrationAvailable(this._hass)) {
-      client.connect(this._hass);
-      this._unlisten = client.listen(() => this._update());
-    }
-    document.addEventListener('keydown', this._onKey);
-    window.addEventListener('beforeunload', this._onUnload);
-    this._update();
-  }
-
-  disconnectedCallback() {
-    if (this._unlisten) this._unlisten();
-    this._unlisten = null;
-    document.removeEventListener('keydown', this._onKey);
-    window.removeEventListener('beforeunload', this._onUnload);
-  }
-
-  get _t() {
-    return makeLocale(this._hass).t;
-  }
-
-  _reloadPage() {
-    reloadPage();
-  }
-
-  _update() {
-    const hass = this._hass;
-    // Home Assistant sets the route after hass: no redirect before the address is known. A panel
-    // no longer on the page (left, or an answer arriving late) draws nothing.
-    if (!hass || !this._route || !this.isConnected) return;
-    const src = dataSource(hass);
-    // Under its tabs, the panel shows what the cards show while the data can't be used. Also when
-    // the page loaded a former card first: the panel's cards would not work, so the panel asks to
-    // reload the page. A second copy of the same version works: compared by version, not by class.
-    const card: any = customElements.get('chauffage-programme-card');
-    const notice = card && card.version !== VERSION ? NOTICE_RELOAD : sourceNotice(src);
-    const route = panelRoute(this._route && this._route.path, src, hass);
-    if (route.redirect) {
-      window.history.replaceState(null, '', `/chauffage/${route.redirect}`);
-      window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
-      // The settings open once for this address, after the redirect: their history entry comes
-      // after it. Home Assistant gives the new route a moment later.
-      // Not under a notice: without the integration's data, the dialog would show the defaults
-      if (route.settings && this._settingsFor !== this._route && !notice) {
-        this._settingsFor = this._route;
-        openSettings(this, hass);
-      }
-      return;
-    }
-    // The page is built again when what it is made of changes; its live parts are filled each time
-    // Not while weeks are not saved: rebuilding would drop them (built again once saved or discarded)
-    const key = JSON.stringify([route, notice, src.schedules(), Object.keys(src.weeks()).sort()]);
-    if (key !== this._key && !this._dirtyWeeks().length) {
-      this._key = key;
-      this._build(route, src, notice);
-    }
-    const menu: any = this.shadowRoot.querySelector('ha-menu-button');
-    if (menu) {
-      menu.hass = hass;
-      menu.narrow = this._narrow;
-    }
-    if (this._notice) return;
-    this._fill(route, src);
-    if (route.sheet === 'thermostat') this._scrollToWeek();
-    for (const card of this._cards) card.hass = hass;
-  }
-
-  // A thermostat's page reached for one week ("Edit its week", ?week=<schedule>): scrolled to that
-  // week. Once: the address loses ?week, so a reload or going back stays put
-  _scrollToWeek() {
-    const week = new URLSearchParams(window.location.search).get('week');
-    const heading = week && [...this.shadowRoot.querySelectorAll('h3[data-fill-schedule]')]
-      .find((h: any) => h.dataset.fillSchedule === week);
-    if (!heading) return;
-    window.history.replaceState(window.history.state, '', window.location.pathname);
-    heading.scrollIntoView({ block: 'start' });
-    // The parts above it (the tile, the presets, the weeks) draw a moment later and push it down:
-    // scrolled to it again while they do, until the user scrolls or 3 s have passed
-    const content = this.shadowRoot.querySelector('.content');
-    if (typeof ResizeObserver !== 'function' || !content) return;
-    const follow = new ResizeObserver(() => heading.isConnected && heading.scrollIntoView({ block: 'start' }));
-    const stop = () => {
-      follow.disconnect();
-      for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) window.removeEventListener(type, stop, true);
-    };
-    follow.observe(content);
-    for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) window.addEventListener(type, stop, true);
-    setTimeout(stop, 3000);
-  }
-
-  // Every scheduled thermostat, or every climate before the first one is scheduled
-  _thermostats(src) {
-    const scheduled = Object.keys(src.weeks());
-    return scheduled.length ? scheduled : Object.keys(this._hass.states).filter((e) => e.startsWith('climate.'));
-  }
-
-  _build(route, src, notice) {
-    const t = this._t;
-    const title = panelName(this._panel);
-    let head;
-    if (route.sheet) {
-      const list = PANEL_TABS.find(([page]) => page === route.list);
-      head = `<div class="toolbar"><ha-menu-button></ha-menu-button>
-          <nav class="title crumbs"><a href="/chauffage/${route.list}" data-navigate="/chauffage/${route.list}">${esc(t(list[1]))}</a>
-            <span class="sep">›</span><span data-fill="crumb"></span></nav>
-          ${src.editable && !notice ? `<button class="page-more" data-page-menu title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>` : ''}
-          <div data-fill="page-menu"></div>
-        </div>`;
-    } else {
-      const tabs = PANEL_TABS.map(([page, label]) =>
-        `<a href="/chauffage/${page}" class="tab${page === route.list ? ' on' : ''}" data-navigate="/chauffage/${page}">${esc(t(label))}</a>`).join('');
-      // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (canSetUp:
-      // the panel). Not under a notice, like the sheet's ⋮
-      const cog = src.editable && !notice
-        ? `<button class="page-more" data-open-settings title="${esc(t('settingsTitle'))}" aria-label="${esc(t('settingsTitle'))}"><ha-icon icon="mdi:cog"></ha-icon></button>`
-        : '';
-      head = `<div class="toolbar"><ha-menu-button></ha-menu-button><div class="title">${esc(title)}</div>${cog}</div>
-        <nav class="tabs">${tabs}</nav>`;
-    }
-    this.shadowRoot.innerHTML = `<style>${PANEL_CSS}</style>${head}<div class="content"></div>`;
-    this._cards = [];
-    const content = this.shadowRoot.querySelector('.content');
-    this._notice = notice;
-    if (notice) {
-      content.innerHTML = noticeHtml(notice, t);
-      bindReload(content, () => this._reloadPage());
-      return;
-    }
-    const html = (s) => content.insertAdjacentHTML('beforeend', s);
-    this._weekCards = {}; // a thermostat's sheet: its card of each schedule
-    const scheduled = Object.keys(src.weeks()).length;
-    const card = (config, parent = content) => {
-      const el: any = document.createElement('chauffage-programme-card');
-      el._setPanelConfig({ thermostats: this._thermostats(src), panel: true, ...config });
-      parent.appendChild(el);
-      this._cards.push(el);
-      return el;
-    };
-    if (route.sheet === 'schedule') {
-      card({ schedule: route.id, schedule_tabs: 'one' });
-    } else if (route.sheet === 'thermostat') {
-      html('<div class="head"><div data-fill="thermostat"></div><div class="tile"></div></div>');
-      this._tile(route.id, content.querySelector('.tile'));
-      html('<div class="box sheet"></div>');
-      const box = content.querySelector('.sheet');
-      const part = (s) => box.insertAdjacentHTML('beforeend', s);
-      // Its presets first: what each one means for this thermostat is the legend of its weeks
-      part(`<h2>${esc(t('viewPresets'))}</h2>`);
-      card({ thermostats: [route.id], view: 'presets', preset_definitions: false, flat: true }, box);
-      // As on the card: the history shows each day, so grouping the days hides it
-      const grouped = this._groupDays && !this._historyOn;
-      part(`<div class="h2-row"><h2>${esc(t('weeksTitle'))}</h2>
-        <button class="chip${grouped ? ' on' : ''}" data-group-days aria-pressed="${grouped}">${esc(t('groupDays'))}</button>
-        <button class="chip${this._historyOn ? ' on' : ''}" data-history aria-pressed="${this._historyOn}" title="${esc(t('historyTitle'))}">${esc(t('history'))}</button></div>
-        <div class="hint"><span class="mouse">${esc(t('hint'))}</span><span class="touch">${esc(t('hintTouch'))}</span></div>`);
-      for (const id of src.schedules()) {
-        part(`<h3 data-fill-schedule="${esc(id)}"></h3>`);
-        // One week alone: no chips, tabs, hint, paused note, legend or save bar (the page has its own),
-        // today marked in the active schedule only
-        this._weekCards[id] = card({ thermostats: [route.id], schedule: id, week_only: true,
-          group_days: this._groupDays, history: this._historyOn, flat: true }, box);
-      }
-      html('<div data-fill="savebar"></div>');
-    } else if (route.list === 'thermostats' && !scheduled) {
-      html('<div class="box welcome" data-fill="welcome"></div>'); // a new user: no empty page
-    } else if (route.list === 'thermostats') {
-      html('<div data-fill="next"></div>');
-      card({ view: 'thermostats', flat: true }); // its list is a card of its own
-    } else {
-      // A user may create schedules or presets first: the page stays, and says where to start
-      if (!scheduled) {
-        html(`<div class="notice">${esc(t('noThermostatYet'))}
-          <a href="/chauffage/thermostats" data-navigate="/chauffage/thermostats">${esc(t('scheduleThermostats'))}</a></div>`);
-      }
-      if (route.list === 'schedules') {
-        html(`<h2>${esc(t('pageSchedules'))}</h2>`);
-        card({ view: 'schedules', flat: true });
-        html(`<h2>${esc(t('rulesHeading'))}</h2>`);
-        card({ view: 'rules' });
-      } else {
-        card({ view: 'presets' });
-      }
-    }
-  }
-
-  // The live parts: the list of schedules, a thermostat's control, the schedules' headings
-  _fill(route, src) {
-    const t = this._t;
-    const crumb = this.shadowRoot.querySelector('[data-fill="crumb"]');
-    if (crumb) crumb.textContent = route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id);
-    const active = src.activeSchedule();
-    this._fillSavebar();
-    const sheet = this.shadowRoot.querySelector('[data-fill="thermostat"]');
-    if (sheet) setHtml(sheet, this._controlHtml(route.id, src));
-    const welcome = this.shadowRoot.querySelector('[data-fill="welcome"]');
-    if (welcome) setHtml(welcome, this._welcomeHtml(src));
-    const next = this.shadowRoot.querySelector('[data-fill="next"]');
-    if (next) {
-      let shown = false;
-      let notice = false;
-      let setting = false;
-      try {
-        shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending';
-        notice = localStorage.getItem(LS_NEW_OFF) !== 'seen';
-        // Admins are told of the access level (#99), in place of the settings of overrides
-        setting = localStorage.getItem(src.admin ? LS_NEW_ACCESS : LS_NEW_SETTING) !== 'seen';
-      } catch (e) { /* ignore */ }
-      setHtml(next, shown ? `<div class="box next-steps">
-          <div class="next-head"><h2>${esc(t('nextTitle'))}</h2><button class="btn" data-close-next>${esc(t('nextClose'))}</button></div>
-          <ul><li>${esc(t('nextWeeks'))}</li><li>${esc(t('nextCard'))}</li><li>${esc(this._nextOverrideText(src))}
-            <div><button class="btn" data-open-settings>${esc(t('endsChoose'))}</button></div></li></ul></div>`
-        // An existing user never sees the next steps: the new off behavior (#91) and the new
-        // setting (#83, the access level for an admin, #99) are told once each
-        : (notice ? `<div class="notice new-off"><span>${esc(t('newOffNotice'))}
-            <a href="${DOC_OFF_BY_HAND[makeLocale(this._hass).lang] || DOC_OFF_BY_HAND.en}" target="_blank" rel="noopener">${esc(t('readMore'))}</a></span>
-            <button class="btn" data-close-notice>${esc(t('nextClose'))}</button></div>` : '')
-          + (setting ? `<div class="notice new-setting"><span>${esc(t(src.admin ? 'newAccessNotice' : 'newSettingNotice'))}
-            <a href="${panelPath('settings')}" data-open-settings${src.admin ? '="access"' : ''}>${esc(t('pageSettings'))}</a></span>
-            <button class="btn" data-close-new-setting>${esc(t('nextClose'))}</button></div>` : ''));
-    }
-    // A week's heading: its schedule (a link to its sheet), and its ⋮ menu: to copy it to another
-    // schedule, as the card's menus, and on an air conditioner that heats and cools, to set
-    // every slot of the week to heat or to cool
-    const reversible = route.sheet === 'thermostat' && isReversible(this._hass, route.id) && src.plannable;
-    for (const h of this.shadowRoot.querySelectorAll('[data-fill-schedule]')) {
-      const id = (h as any).dataset.fillSchedule;
-      const others = src.schedules().filter((m) => m !== id);
-      const all = (mode, key) => `<button class="mi" data-week-hvac="${mode}">${hvacIcon(mode)}<span>${esc(t(key))}</span></button>`;
-      const items = [
-        others.length ? `<div class="mh">${esc(t('copyTo'))}</div>${others.map((m) => `<button class="mi" data-copy-to="${esc(m)}"><span>${esc(src.scheduleName(m))}</span></button>`).join('')}` : '',
-        reversible ? all('heat', 'weekAllHeat') + all('cool', 'weekAllCool') : '',
-      ].filter(Boolean);
-      const menu = this._copyMenu === id ? `<div class="menu copy-menu">${items.join('<div class="sep"></div>')}</div>` : '';
-      const label = t(others.length ? 'copyTo' : 'weekMenu');
-      const copy = items.length ? `<button class="btn icon${menu ? ' on' : ''}" data-copy-menu="${esc(id)}" title="${esc(label)}" aria-label="${esc(label)}">⋮</button>${menu}` : '';
-      setHtml(h, `<span role="link" tabindex="0" data-navigate="${panelPath(`schedules/${esc(id)}`)}">${esc(src.scheduleName(id))}</span>${
-        id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}<span class="grow"></span>${copy}`);
-    }
-  }
-
-  // The ⋮ menu of a thermostat's sheet, under the button of the toolbar
-  _fillPageMenu() {
-    const slot = this.shadowRoot.querySelector('[data-fill="page-menu"]');
-    if (!slot) return;
-    const route = panelRoute(this._route && this._route.path, dataSource(this._hass), this._hass);
-    if (!this._pageMenu || route.sheet !== 'thermostat') { setHtml(slot, ''); return; }
-    const t = this._t;
-    const climate = route.id;
-    setHtml(slot, `<div class="menu page-menu">${this._pageForget
-      ? `<div class="mh">${esc(t('forgetText', { name: this._name(climate) }))}</div>
-        <div class="menu-btns"><button class="btn danger" data-forget-confirm>${esc(t('forgetConfirm'))}</button>
-        <button class="btn" data-forget-cancel>${esc(t('cancel'))}</button></div>`
-      : `<button class="mi" data-more-info="${esc(climate)}">${esc(t('openThermostat'))}</button>
-        <div class="sep"></div>
-        <button class="mi danger" data-forget>${esc(t('forget'))}</button>`}</div>`);
-  }
-
-  // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
-  // order of the schedules
-  _dirtyWeeks() {
-    return Object.entries(this._weekCards || {}).filter(([, card]) => (card as any)._draft.dirty);
-  }
-
-  // A thermostat's sheet has one save bar for all its weeks: on a phone, a bar under a week further
-  // up the page went unseen. It names the weeks not saved yet.
-  _fillSavebar() {
-    const slot = this.shadowRoot.querySelector('[data-fill="savebar"]');
-    if (!slot) return;
-    const t = this._t;
-    const dirty = this._dirtyWeeks();
-    if (!dirty.length) { setHtml(slot, ''); this._saveError = null; this._leave = null; return; }
-    const names = dirty.map(([, card]) => (card as any)._scheduleName((card as any)._schedule)).join(', ');
-    if (this._leave) {
-      setHtml(slot, `<div class="sheet-savebar leaving">
-        <span class="dirty">${esc(t('leaveUnsaved', { schedules: names }))}</span>
-        <span class="btns"><button class="btn" data-leave-stay>${esc(t('leaveStay'))}</button>
-        <button class="btn" data-leave-discard>${esc(t('leaveDiscard'))}</button>
-        <button class="btn primary" data-leave-save>${esc(t('leaveSave'))}</button></span>
-      </div>`);
-      return;
-    }
-    setHtml(slot, `<div class="sheet-savebar">
-        <span class="dirty">${esc(t('unsavedWeeks', { schedules: names }))}</span>
-        ${this._saveError ? `<span class="error">${esc(this._saveError)}</span>` : ''}
-        <span class="btns"><button class="btn" data-sheet-cancel>${esc(t('cancel'))}</button>
-        <button class="btn primary" data-sheet-save>${esc(t('save'))}</button></span>
-      </div>`);
-  }
-
-  // Cancel: every week goes back as it was saved
-  _discardSheet() {
-    for (const card of this._dirtyWeeks().map(([, c]) => c)) {
-      (card as any)._discard();
-    }
-    this._saveError = null;
-    this._fillSavebar();
-  }
-
-  // Saves the weeks not saved yet in one call: each card sends its own schedule's week, against
-  // the thermostat's revision. The integration keeps the weeks of the schedules not sent.
-  async _saveSheet(climate) {
-    const t = this._t;
-    for (const card of Object.values(this._weekCards)) (card as any)._settle(true);
-    const dirty = this._dirtyWeeks();
-    if (!dirty.length) return;
-    const first: any = dirty[0][1];
-    const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, (card as any)._week(climate).map(serializeDay)])) };
-    const revisions = { [climate]: first._draft.revisions[climate] ?? null };
-    try {
-      const result = await commands(this._hass).saveWeeks(weeks, revisions);
-      for (const card of Object.values(this._weekCards)) {
-        (card as any)._draft.recordRevisions(result);
-      }
-      for (const [, card] of dirty) {
-        (card as any)._draft.saved();
-        (card as any)._msg = (card as any)._loc.t('saved');
-        (card as any)._render();
-      }
-      this._saveError = null;
-    } catch (err) {
-      this._saveError = err && err.code === 'stale' ? t('stale') : errorText(t, err);
-    }
-    this._fillSavebar();
-  }
-
-  // A thermostat's sheet, first: whether Chauffage controls it, where it is shown, its devices
-  _controlHtml(climate, src) {
-    const t = this._t;
-    const hass = this._hass;
-    if (this._placements === undefined) {
-      this._placements = null;
-      placements(hass).then((p) => { this._placements = p; this._update(); });
-    }
-    const paused = src.paused(climate);
-    const places = this._placements ? this._placements[climate] || [] : null;
-    // While the dashboards are read, the line already holds its place: the page does not move
-    // under a finger about to tap
-    const shown = placesHtml(t, places);
-    // Its devices, by their names: the thermostat's, then the scheduled thermostat's (Chauffage)
-    const devices = thermostatDevices(hass, src, climate).map((id) => deviceNamedLinkHtml(hass, id)).filter(Boolean);
-    return `<div class="about">
-        <div class="shown">${shown}</div>
-        ${devices.length ? `<div>${esc(t('panelDevices'))} ${devices.join(', ')}</div>` : ''}
-      </div>
-      <div class="control">
-        <button class="btn${paused ? ' primary' : ''}" data-pause="${paused ? '0' : '1'}">${esc(t(paused ? 'resumeShort' : 'pauseShort'))}</button>
-        ${paused ? `<span class="badge paused">${esc(t('paused'))}</span>` : ''}
-      </div>
-      ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
-  }
-
-  // How long a setpoint changed by hand lasts, as the settings of overrides say (#83)
-  _nextOverrideText(src) {
-    const loc = makeLocale(this._hass);
-    const duration = roundDurationText(src.overrideDuration(), loc);
-    const key = { duration: 'nextOverrideDuration', next_slot: 'nextOverrideNextSlot' }[src.manualOverrideEnd()] || 'nextOverride';
-    return loc.t(key, { duration });
-  }
-
-  // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
-  // every climate of Home Assistant to tick (none at first: Chauffage controls it at once)
-  _welcomeHtml(src) {
-    const t = this._t;
-    const climates = Object.keys(this._hass.states).filter((e) => e.startsWith('climate.'))
-      .sort((a, b) => this._name(a).localeCompare(this._name(b)));
-    // What Chauffage does, in a sentence: the next steps come once, after the first thermostat
-    const head = `<h2>${esc(t('welcomeTitle'))}</h2><p>${esc(t('welcomeIntro'))}</p>`;
-    if (!climates.length) {
-      return `${head}<p class="none">${esc(t('welcomeNoClimate'))}</p>
-        ${src.admin ? `<button class="btn primary" data-navigate="/config/integrations/dashboard">${esc(t('welcomeAddDevice'))}</button>` : ''}`;
-    }
-    const picked = climates.filter((c) => this._picked.has(c));
-    const picks = climates.map((c) => `<label class="pick"><input type="checkbox" data-pick="${esc(c)}"${this._picked.has(c) ? ' checked' : ''}>
-        <span class="pick-name">${esc(this._name(c))}<small>${esc(c)}</small></span></label>`).join('');
-    const eco = src.presets().find((l) => l.id === 'eco') || src.presets()[0];
-    const preset = eco ? eco.name || makeLocale(this._hass).preset(eco.id) : '';
-    const label = picked.length === 0 ? t('welcomeStartNone')
-      : picked.length === 1 ? t('welcomeStartOne') : t('welcomeStartMany', { count: picked.length });
-    return `${head}<h3>${esc(t('welcomePick'))}</h3><div class="picks">${picks}</div>
-      <p class="note">${esc(t('welcomeNote', { preset }))}</p>
-      <button class="btn primary" data-start${picked.length ? '' : ' disabled'}>${esc(label)}</button>
-      ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
-  }
-
-  async _tile(climate, host) {
-    const helpers = await cardHelpers();
-    if (!helpers || !host.isConnected) return;
-    const tile = helpers.createCardElement({ type: 'tile', entity: climate, state_content: ['current_temperature', 'hvac_action'] });
-    tile.hass = this._hass;
-    host.appendChild(tile);
-    this._cards.push(tile);
-  }
-
-  _name(climate) {
-    const state = this._hass.states[climate];
-    return (state && state.attributes.friendly_name) || climate;
-  }
-
-  async _onClick(e) {
-    // The page's menu open: a click elsewhere only closes it
-    if (this._pageMenu && !e.target.closest('.page-menu, [data-page-menu]')) {
-      this._pageMenu = false;
-      this._fillPageMenu();
-      if (!e.target.closest('[data-more-info]')) return;
-    }
-    // The menu to copy a week open: a click elsewhere only closes it
-    if (this._copyMenu && !e.target.closest('.copy-menu, [data-copy-menu]')) {
-      this._copyMenu = null;
-      this._update();
-      return;
-    }
-    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-week-hvac], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next], [data-close-notice], [data-close-new-setting], [data-open-settings]');
-    if (!el || !this.shadowRoot.contains(el)) return;
-    e.preventDefault();
-    const ds = el.dataset;
-    const src = dataSource(this._hass);
-    const route = panelRoute(this._route && this._route.path, src, this._hass);
-    this._error = null;
-    try {
-      // The page's ⋮: a schedule's sheet opens its card's menu (rename, delete); a thermostat's
-      // sheet opens the thermostat, or forgets it after a confirmation
-      if ('pageMenu' in ds) {
-        if (route.sheet === 'schedule') return this._cards[0] && this._cards[0]._scheduleAction('schedule-menu', {}, el);
-        this._pageMenu = !this._pageMenu;
-        this._pageForget = false;
-        return this._fillPageMenu();
-      }
-      if ('forget' in ds || 'forgetCancel' in ds) {
-        this._pageForget = 'forget' in ds;
-        return this._fillPageMenu();
-      }
-      if ('forgetConfirm' in ds) {
-        this._pageMenu = false;
-        this._fillPageMenu();
-        await commands(this._hass).forget(route.id);
-        return openPanel('thermostats');
-      }
-      if ('sheetSave' in ds) return this._saveSheet(route.id);
-      if ('sheetCancel' in ds) return this._discardSheet();
-      // Leaving the sheet with weeks not saved yet: the save bar asks first
-      if ('leaveStay' in ds) {
-        this._leave = null;
-        return this._fillSavebar();
-      }
-      if ('leaveDiscard' in ds || 'leaveSave' in ds) {
-        const leave = this._leave;
-        this._leave = null;
-        if ('leaveSave' in ds) await this._saveSheet(route.id);
-        else this._discardSheet();
-        if (!this._dirtyWeeks().length && leave) leave();
-        return;
-      }
-      if ((ds.navigate || ds.device) && this._dirtyWeeks().length) {
-        this._leave = () => (ds.navigate ? navigate(ds.navigate) : openDevice(ds.device));
-        return this._fillSavebar();
-      }
-      if (ds.copyMenu) {
-        this._copyMenu = this._copyMenu === ds.copyMenu ? null : ds.copyMenu;
-        return this._update();
-      }
-      if (ds.weekHvac) {
-        // Every slot of the week whose menu is open, to heat or to cool: its card asks to save it
-        const card = this._weekCards && this._weekCards[this._copyMenu];
-        this._copyMenu = null;
-        if (card) card._setWeekHvac(route.id, ds.weekHvac);
-        return this._update();
-      }
-      if (ds.copyTo) {
-        // Its week in schedule A copied to schedule B lands in B's card, which asks to save B. A is
-        // not touched, even with edits not saved yet (they are copied as shown)
-        const from = this._weekCards && this._weekCards[this._copyMenu];
-        const to = this._weekCards && this._weekCards[ds.copyTo];
-        this._copyMenu = null;
-        if (from && to) to._receiveWeek(route.id, from._week(route.id), from._scheduleName(from._schedule));
-        return this._update();
-      }
-      // The settings, on top of the panel: the notice of the new setting is then told
-      if ('openSettings' in ds) {
-        openSettings(this, this._hass, ds.openSettings || null);
-        return this._update();
-      }
-      if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
-      if (ds.navigate) return navigate(ds.navigate);
-      if (ds.device) return openDevice(ds.device);
-      if ('groupDays' in ds || 'history' in ds) {
-        if ('history' in ds) {
-          this._historyOn = !this._historyOn;
-        } else {
-          // As on the card: grouping the days hides the history, which shows each day
-          this._groupDays = !(this._groupDays && !this._historyOn);
-          this._historyOn = false;
-        }
-        saveGroupPreference(this._groupDays);
-        saveHistoryPreference(this._historyOn);
-        // In place: the weeks keep their edits not saved yet
-        const grouped = this._groupDays && !this._historyOn;
-        for (const [chip, on] of [['[data-group-days]', grouped], ['[data-history]', this._historyOn]]) {
-          const button = this.shadowRoot.querySelector(chip);
-          button.classList.toggle('on', on);
-          button.setAttribute('aria-pressed', String(on));
-        }
-        for (const card of Object.values(this._weekCards)) (card as any)._setWeekView(this._groupDays, this._historyOn);
-        return this._update();
-      }
-      if ('closeNotice' in ds) {
-        seenNewOff();
-        return this._update();
-      }
-      if ('closeNewSetting' in ds) {
-        seenNewSetting(this._hass);
-        return this._update();
-      }
-      if ('closeNext' in ds) {
-        try { localStorage.setItem(LS_NEXT_STEPS, 'closed'); } catch (err) { /* ignore */ }
-        return this._update();
-      }
-      if ('start' in ds) {
-        // Scheduled with no week of their own: the integration gives them the week of a new
-        // schedule in each schedule, as a thermostat added to a card
-        const climates = [...this._picked].sort();
-        if (!climates.length) return undefined;
-        try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
-        seenNewOff(); // a new user has nothing to upgrade from
-        seenNewSetting(this._hass); // the next steps say it
-        await commands(this._hass).saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
-          Object.fromEntries(climates.map((c) => [c, null])));
-        this._picked.clear();
-        return this._update();
-      }
-      if (ds.pause != null) return await commands(this._hass).setPaused(route.id, ds.pause === '1');
-    } catch (err) {
-      this._error = errorText(this._t, err);
-      this._update();
-    }
-    return undefined;
-  }
-}
-
-// Home Assistant's card helpers (its own cards, for example a tile). They exist once a dashboard
-// was loaded: outside one, the panel loads the dashboards' code first, as custom panels do.
-// Prototype: an internal of Home Assistant's frontend, null if it changes.
-async function cardHelpers() {
-  if (window.loadCardHelpers) return window.loadCardHelpers();
-  try {
-    await customElements.whenDefined('partial-panel-resolver');
-    const resolver: any = document.createElement('partial-panel-resolver');
-    resolver.hass = { panels: [{ url_path: 'tmp', component_name: 'lovelace' }] };
-    resolver._updateRoutes();
-    await resolver.routerOptions.routes.tmp.load();
-    return window.loadCardHelpers ? window.loadCardHelpers() : null;
-  } catch (e) {
-    return null;
-  }
 }
 
 
@@ -811,3 +165,647 @@ const PANEL_CSS = `
   .hint .touch { display:none; }
   @media (hover:none), (pointer:coarse) { .hint .mouse { display:none; } .hint .touch { display:inline; } }
 `;
+
+// The page the panel built for an address: the cards it is made of, kept while it shows. Built
+// again when what it is made of changes (willUpdate)
+type PanelPage = {
+  key: string;
+  build: number;
+  route: any;
+  notice: any;
+  schedules: string[];
+  // How many thermostats are scheduled
+  scheduled: number;
+  // Every card of the page (programme cards, the tile), given hass on each update
+  cards: any[];
+  // The cards of the page, by their place: a list's views, a sheet's presets
+  views: any[];
+  // A thermostat's sheet: its card of each schedule
+  weekCards: Record<string, any>;
+  // A thermostat's sheet: Home Assistant's tile, once loaded
+  tile: any;
+};
+
+export class ChauffagePanel extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    panel: { attribute: false },
+    route: { attribute: false },
+    narrow: { attribute: false },
+  };
+
+  static styles = unsafeCSS(PANEL_CSS);
+
+  // Set by Home Assistant: hass, the panel (its title), the route (the page), narrow
+  declare hass: any;
+  declare panel: any;
+  declare route: any;
+  declare narrow: any;
+  // Drawn again when the integration pushes new data
+  _snapshot = new SnapshotController(this);
+  _page: PanelPage | null = null;
+  _builds = 0;
+  _copyMenu: string | null = null;
+  _pageMenu = false;
+  _pageForget = false;
+  _error: string | null = null;
+  _saveError: string | null = null;
+  // The save bar asks before leaving a sheet with weeks not saved yet: what leaving does then
+  _leave: (() => void) | null = null;
+  _placements: any = undefined;
+  _settingsFor: any;
+  // A thermostat's sheet: identical days on one row for every schedule, as chosen on this device…
+  _groupDays = groupPreference() !== false;
+  // …and the history of the measured temperature, as chosen on this device (as the cards)
+  _historyOn = historyPreference();
+  _picked = new Set<string>(); // the welcome: the thermostats ticked
+
+  // Closing or reloading the browser's page with weeks not saved yet: the browser asks
+  _onUnload = (e) => {
+    if (!this._dirtyWeeks().length) return;
+    e.preventDefault();
+    e.returnValue = '';
+  };
+
+  // Escape closes the panel's menus, as the card's menus
+  _onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    if (this._copyMenu || this._pageMenu) {
+      this._copyMenu = null;
+      this._pageMenu = false;
+      this.requestUpdate();
+    }
+  };
+
+  createRenderRoot() {
+    const root = super.createRenderRoot();
+    linksByKeyboard(root);
+    root.addEventListener('click', (e) => this._onClick(e));
+    root.addEventListener('chauffage-dirty', () => this.requestUpdate());
+    root.addEventListener('change', (e: any) => {
+      const box = e.target.closest('[data-pick]');
+      if (!box) return;
+      if (box.checked) this._picked.add(box.dataset.pick);
+      else this._picked.delete(box.dataset.pick);
+      this.requestUpdate();
+    });
+    return root;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('keydown', this._onKey);
+    window.addEventListener('beforeunload', this._onUnload);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('keydown', this._onKey);
+    window.removeEventListener('beforeunload', this._onUnload);
+  }
+
+  get _t() {
+    return makeLocale(this.hass).t;
+  }
+
+  _reloadPage() {
+    reloadPage();
+  }
+
+  // Under its tabs, the panel shows what the cards show while the data can't be used. Also when
+  // the page loaded a former card first: the panel's cards would not work, so the panel asks to
+  // reload the page. A second copy of the same version works: compared by version, not by class.
+  _notice(src) {
+    const card: any = customElements.get('chauffage-programme-card');
+    return card && card.version !== VERSION ? NOTICE_RELOAD : sourceNotice(src);
+  }
+
+  _route(src) {
+    return panelRoute(this.route && this.route.path, src, this.hass);
+  }
+
+  // Home Assistant sets the route after hass: no redirect before the address is known. A panel
+  // no longer on the page (left, or an answer arriving late) draws nothing. An address that
+  // redirects draws nothing either: Home Assistant gives the new route a moment later.
+  shouldUpdate() {
+    if (!this.hass || !this.route || !this.isConnected) return false;
+    const src = dataSource(this.hass);
+    const route = this._route(src);
+    if (!route.redirect) return true;
+    window.history.replaceState(null, '', `/chauffage/${route.redirect}`);
+    window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
+    // The settings open once for this address, after the redirect: their history entry comes
+    // after it. Not under a notice: without the integration's data, the dialog would show the
+    // defaults
+    if (route.settings && this._settingsFor !== this.route && !this._notice(src)) {
+      this._settingsFor = this.route;
+      openSettings(this, this.hass);
+    }
+    return false;
+  }
+
+  // The page is built again when what it is made of changes. Not while weeks are not saved:
+  // rebuilding would drop them (built again once saved or discarded)
+  willUpdate() {
+    const src = dataSource(this.hass);
+    const notice = this._notice(src);
+    const route = this._route(src);
+    const key = JSON.stringify([route, notice, src.schedules(), Object.keys(src.weeks()).sort()]);
+    if ((!this._page || key !== this._page.key) && !this._dirtyWeeks().length) this._build(key, route, src, notice);
+    // No week left to save: nothing to leave, no error to tell
+    if (!this._dirtyWeeks().length) {
+      this._saveError = null;
+      this._leave = null;
+    }
+    // A thermostat's sheet says where it is shown: the dashboards are read once
+    if (!notice && route.sheet === 'thermostat' && this._placements === undefined) {
+      this._placements = null;
+      placements(this.hass).then((p) => { this._placements = p; this.requestUpdate(); });
+    }
+  }
+
+  updated() {
+    if (this._page.notice) return;
+    if (this._route(dataSource(this.hass)).sheet === 'thermostat') this._scrollToWeek();
+    for (const card of this._page.cards) card.hass = this.hass;
+  }
+
+  // A thermostat's page reached for one week ("Edit its week", ?week=<schedule>): scrolled to that
+  // week. Once: the address loses ?week, so a reload or going back stays put
+  _scrollToWeek() {
+    const week = new URLSearchParams(window.location.search).get('week');
+    const heading = week && [...this.renderRoot.querySelectorAll('h3[data-fill-schedule]')]
+      .find((h: any) => h.dataset.fillSchedule === week);
+    if (!heading) return;
+    window.history.replaceState(window.history.state, '', window.location.pathname);
+    heading.scrollIntoView({ block: 'start' });
+    // The parts above it (the tile, the presets, the weeks) draw a moment later and push it down:
+    // scrolled to it again while they do, until the user scrolls or 3 s have passed
+    const content = this.renderRoot.querySelector('.content');
+    if (typeof ResizeObserver !== 'function' || !content) return;
+    const follow = new ResizeObserver(() => heading.isConnected && heading.scrollIntoView({ block: 'start' }));
+    const stop = () => {
+      follow.disconnect();
+      for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) window.removeEventListener(type, stop, true);
+    };
+    follow.observe(content);
+    for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) window.addEventListener(type, stop, true);
+    setTimeout(stop, 3000);
+  }
+
+  // Every scheduled thermostat, or every climate before the first one is scheduled
+  _thermostats(src) {
+    const scheduled = Object.keys(src.weeks());
+    return scheduled.length ? scheduled : Object.keys(this.hass.states).filter((e) => e.startsWith('climate.'));
+  }
+
+  // The cards the page is made of, created once for the page: they keep their drafts while it
+  // shows. Its menus do not follow to another page
+  _build(key, route, src, notice) {
+    this._builds += 1;
+    const page: PanelPage = { key, build: this._builds, route, notice, schedules: src.schedules(), scheduled: Object.keys(src.weeks()).length,
+      cards: [], views: [], weekCards: {}, tile: null };
+    this._page = page;
+    this._copyMenu = null;
+    this._pageMenu = false;
+    if (notice) return;
+    const card = (config) => {
+      const el: any = document.createElement('chauffage-programme-card');
+      el._setPanelConfig({ thermostats: this._thermostats(src), panel: true, ...config });
+      page.cards.push(el);
+      return el;
+    };
+    if (route.sheet === 'schedule') {
+      page.views.push(card({ schedule: route.id, schedule_tabs: 'one' }));
+    } else if (route.sheet === 'thermostat') {
+      this._loadTile(page, route.id);
+      // Its presets first: what each one means for this thermostat is the legend of its weeks
+      page.views.push(card({ thermostats: [route.id], view: 'presets', preset_definitions: false, flat: true }));
+      for (const id of page.schedules) {
+        // One week alone: no chips, tabs, hint, paused note, legend or save bar (the page has its own),
+        // today marked in the active schedule only
+        page.weekCards[id] = card({ thermostats: [route.id], schedule: id, week_only: true,
+          group_days: this._groupDays, history: this._historyOn, flat: true });
+      }
+    } else if (route.list === 'thermostats') {
+      if (page.scheduled) page.views.push(card({ view: 'thermostats', flat: true })); // its list is a card of its own
+    } else if (route.list === 'schedules') {
+      page.views.push(card({ view: 'schedules', flat: true }), card({ view: 'rules' }));
+    } else {
+      page.views.push(card({ view: 'presets' }));
+    }
+  }
+
+  async _loadTile(page, climate) {
+    const helpers = await cardHelpers();
+    if (!helpers || page !== this._page || !this.isConnected) return;
+    const tile = helpers.createCardElement({ type: 'tile', entity: climate, state_content: ['current_temperature', 'hvac_action'] });
+    tile.hass = this.hass;
+    page.tile = tile;
+    page.cards.push(tile);
+    this.requestUpdate();
+  }
+
+  render() {
+    const page = this._page;
+    const src = dataSource(this.hass);
+    // The live parts follow the address; the page keeps what it was built with
+    const route = this._route(src);
+    return keyed(page.build, html`${this._toolbar(page, route, src)}<div class="content">${
+      page.notice ? unsafeHTML(noticeHtml(page.notice, this._t)) : this._content(page, route, src)}</div>`);
+  }
+
+  // A list: the panel's title and its tabs. A sheet: a breadcrumb to its list, no tabs
+  _toolbar(page, route, src) {
+    const t = this._t;
+    const menu = html`<ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>`;
+    const built = page.route;
+    if (built.sheet) {
+      const list = PANEL_TABS.find(([p]) => p === built.list);
+      return html`<div class="toolbar">${menu}
+          <nav class="title crumbs"><a href="/chauffage/${built.list}" data-navigate="/chauffage/${built.list}">${t(list[1])}</a>
+            <span class="sep">›</span><span data-fill="crumb">${route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id)}</span></nav>
+          ${src.editable && !page.notice ? html`<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
+          <div data-fill="page-menu">${this._pageMenuTemplate(route)}</div>
+        </div>`;
+    }
+    // The settings: a dialog on top of the tab, from the ⚙ at the end of the toolbar (canSetUp:
+    // the panel). Not under a notice, like the sheet's ⋮
+    return html`<div class="toolbar">${menu}<div class="title">${panelName(this.panel)}</div>${src.editable && !page.notice
+        ? html`<button class="page-more" data-open-settings title=${t('settingsTitle')} aria-label=${t('settingsTitle')}><ha-icon icon="mdi:cog"></ha-icon></button>`
+        : nothing}</div>
+      <nav class="tabs">${PANEL_TABS.map(([p, label]) =>
+        html`<a href="/chauffage/${p}" class="tab${p === built.list ? ' on' : ''}" data-navigate="/chauffage/${p}">${t(label)}</a>`)}</nav>`;
+  }
+
+  // The ⋮ menu of a thermostat's sheet, under the button of the toolbar
+  _pageMenuTemplate(route) {
+    if (!this._pageMenu || route.sheet !== 'thermostat') return nothing;
+    const t = this._t;
+    const climate = route.id;
+    return html`<div class="menu page-menu">${this._pageForget
+      ? html`<div class="mh">${t('forgetText', { name: this._name(climate) })}</div>
+        <div class="menu-btns"><button class="btn danger" data-forget-confirm>${t('forgetConfirm')}</button>
+        <button class="btn" data-forget-cancel>${t('cancel')}</button></div>`
+      : html`<button class="mi" data-more-info=${climate}>${t('openThermostat')}</button>
+        <div class="sep"></div>
+        <button class="mi danger" data-forget>${t('forget')}</button>`}</div>`;
+  }
+
+  _content(page, route, src) {
+    const t = this._t;
+    const built = page.route;
+    if (built.sheet === 'schedule') return page.views[0];
+    if (built.sheet === 'thermostat') {
+      // As on the card: the history shows each day, so grouping the days hides it
+      const grouped = this._groupDays && !this._historyOn;
+      return html`<div class="head"><div data-fill="thermostat">${this._control(route.id, src)}</div><div class="tile">${page.tile || nothing}</div></div>
+        <div class="box sheet"><h2>${t('viewPresets')}</h2>${page.views[0]}
+          <div class="h2-row"><h2>${t('weeksTitle')}</h2>
+            <button class="chip${grouped ? ' on' : ''}" data-group-days aria-pressed=${String(grouped)}>${t('groupDays')}</button>
+            <button class="chip${this._historyOn ? ' on' : ''}" data-history aria-pressed=${String(this._historyOn)} title=${t('historyTitle')}>${t('history')}</button></div>
+          <div class="hint"><span class="mouse">${t('hint')}</span><span class="touch">${t('hintTouch')}</span></div>
+          ${page.schedules.map((id) => html`<h3 data-fill-schedule=${id}>${this._weekHeading(id, route, src)}</h3>${page.weekCards[id]}`)}
+        </div>
+        <div data-fill="savebar">${this._savebar()}</div>`;
+    }
+    if (built.list === 'thermostats' && !page.scheduled) {
+      // A new user: no empty page
+      return html`<div class="box welcome" data-fill="welcome">${this._welcome(src)}</div>`;
+    }
+    if (built.list === 'thermostats') return html`<div data-fill="next">${this._next(src)}</div>${page.views[0]}`;
+    // A user may create schedules or presets first: the page stays, and says where to start
+    const noThermostat = page.scheduled ? nothing : html`<div class="notice">${t('noThermostatYet')}
+      <a href="/chauffage/thermostats" data-navigate="/chauffage/thermostats">${t('scheduleThermostats')}</a></div>`;
+    if (built.list === 'schedules') {
+      return html`${noThermostat}<h2>${t('pageSchedules')}</h2>${page.views[0]}<h2>${t('rulesHeading')}</h2>${page.views[1]}`;
+    }
+    return html`${noThermostat}${page.views[0]}`;
+  }
+
+  // The Thermostats tab after the welcome: the next steps once, else what is new, told once each
+  _next(src) {
+    const t = this._t;
+    let shown = false;
+    let notice = false;
+    let setting = false;
+    try {
+      shown = localStorage.getItem(LS_NEXT_STEPS) === 'pending';
+      notice = localStorage.getItem(LS_NEW_OFF) !== 'seen';
+      // Admins are told of the access level (#99), in place of the settings of overrides
+      setting = localStorage.getItem(src.admin ? LS_NEW_ACCESS : LS_NEW_SETTING) !== 'seen';
+    } catch (e) { /* ignore */ }
+    if (shown) {
+      return html`<div class="box next-steps">
+          <div class="next-head"><h2>${t('nextTitle')}</h2><button class="btn" data-close-next>${t('nextClose')}</button></div>
+          <ul><li>${t('nextWeeks')}</li><li>${t('nextCard')}</li><li>${this._nextOverrideText(src)}
+            <div><button class="btn" data-open-settings>${t('endsChoose')}</button></div></li></ul></div>`;
+    }
+    // An existing user never sees the next steps: the new off behavior (#91) and the new
+    // setting (#83, the access level for an admin, #99) are told once each
+    return html`${notice ? html`<div class="notice new-off"><span>${t('newOffNotice')}
+            <a href=${DOC_OFF_BY_HAND[makeLocale(this.hass).lang] || DOC_OFF_BY_HAND.en} target="_blank" rel="noopener">${t('readMore')}</a></span>
+            <button class="btn" data-close-notice>${t('nextClose')}</button></div>` : nothing}${
+      setting ? html`<div class="notice new-setting"><span>${t(src.admin ? 'newAccessNotice' : 'newSettingNotice')}
+            <a href=${panelPath('settings')} data-open-settings=${src.admin ? 'access' : ''}>${t('pageSettings')}</a></span>
+            <button class="btn" data-close-new-setting>${t('nextClose')}</button></div>` : nothing}`;
+  }
+
+  // A week's heading: its schedule (a link to its sheet), and its ⋮ menu: to copy it to another
+  // schedule, as the card's menus, and on an air conditioner that heats and cools, to set
+  // every slot of the week to heat or to cool
+  _weekHeading(id, route, src) {
+    const t = this._t;
+    const reversible = route.sheet === 'thermostat' && isReversible(this.hass, route.id) && src.plannable;
+    const others = src.schedules().filter((m) => m !== id);
+    const all = (mode, key) => html`<button class="mi" data-week-hvac=${mode}>${hvacIconTemplate(mode)}<span>${t(key)}</span></button>`;
+    const items = [
+      others.length ? html`<div class="mh">${t('copyTo')}</div>${others.map((m) => html`<button class="mi" data-copy-to=${m}><span>${src.scheduleName(m)}</span></button>`)}` : null,
+      reversible ? html`${all('heat', 'weekAllHeat')}${all('cool', 'weekAllCool')}` : null,
+    ].filter(Boolean);
+    const open = this._copyMenu === id;
+    const label = t(others.length ? 'copyTo' : 'weekMenu');
+    return html`<span role="link" tabindex="0" data-navigate=${panelPath(`schedules/${id}`)}>${src.scheduleName(id)}</span>${
+      id === src.activeSchedule() ? html` <span class="badge on">${t('panelActive')}</span>` : nothing}<span class="grow"></span>${
+      items.length ? html`<button class="btn icon${open ? ' on' : ''}" data-copy-menu=${id} title=${label} aria-label=${label}>⋮</button>${
+        open ? html`<div class="menu copy-menu">${items.map((item, i) => html`${i ? html`<div class="sep"></div>` : nothing}${item}`)}</div>` : nothing}` : nothing}`;
+  }
+
+  // The weeks of a thermostat's sheet with edits not saved yet: [[schedule, its card]], in the
+  // order of the schedules
+  _dirtyWeeks(): [string, any][] {
+    return Object.entries(this._page ? this._page.weekCards : {}).filter(([, card]) => card._draft.dirty);
+  }
+
+  // A thermostat's sheet has one save bar for all its weeks: on a phone, a bar under a week further
+  // up the page went unseen. It names the weeks not saved yet.
+  _savebar() {
+    const t = this._t;
+    const dirty = this._dirtyWeeks();
+    if (!dirty.length) return nothing;
+    const names = dirty.map(([, card]) => card._scheduleName(card._schedule)).join(', ');
+    if (this._leave) {
+      return html`<div class="sheet-savebar leaving">
+        <span class="dirty">${t('leaveUnsaved', { schedules: names })}</span>
+        <span class="btns"><button class="btn" data-leave-stay>${t('leaveStay')}</button>
+        <button class="btn" data-leave-discard>${t('leaveDiscard')}</button>
+        <button class="btn primary" data-leave-save>${t('leaveSave')}</button></span>
+      </div>`;
+    }
+    return html`<div class="sheet-savebar">
+        <span class="dirty">${t('unsavedWeeks', { schedules: names })}</span>
+        ${this._saveError ? html`<span class="error">${this._saveError}</span>` : nothing}
+        <span class="btns"><button class="btn" data-sheet-cancel>${t('cancel')}</button>
+        <button class="btn primary" data-sheet-save>${t('save')}</button></span>
+      </div>`;
+  }
+
+  // Cancel: every week goes back as it was saved
+  _discardSheet() {
+    for (const [, card] of this._dirtyWeeks()) card._discard();
+    this._saveError = null;
+    this.requestUpdate();
+  }
+
+  // Saves the weeks not saved yet in one call: each card sends its own schedule's week, against
+  // the thermostat's revision. The integration keeps the weeks of the schedules not sent.
+  async _saveSheet(climate) {
+    const t = this._t;
+    const weekCards: any[] = Object.values(this._page.weekCards);
+    for (const card of weekCards) card._settle(true);
+    const dirty = this._dirtyWeeks();
+    if (!dirty.length) return;
+    const first = dirty[0][1];
+    const weeks = { [climate]: Object.fromEntries(dirty.map(([id, card]) => [id, card._week(climate).map(serializeDay)])) };
+    const revisions = { [climate]: first._draft.revisions[climate] ?? null };
+    try {
+      const result = await commands(this.hass).saveWeeks(weeks, revisions);
+      for (const card of weekCards) card._draft.recordRevisions(result);
+      for (const [, card] of dirty) {
+        card._draft.saved();
+        card._msg = card._loc.t('saved');
+        card._render();
+      }
+      this._saveError = null;
+    } catch (err) {
+      this._saveError = err && err.code === 'stale' ? t('stale') : errorText(t, err);
+    }
+    this.requestUpdate();
+  }
+
+  // A thermostat's sheet, first: whether Chauffage controls it, where it is shown, its devices
+  _control(climate, src) {
+    const t = this._t;
+    const hass = this.hass;
+    const paused = src.paused(climate);
+    const places = this._placements ? this._placements[climate] || [] : null;
+    // Its devices, by their names: the thermostat's, then the scheduled thermostat's (Chauffage)
+    const devices = thermostatDevices(hass, src, climate).map((id) => deviceNamedLinkHtml(hass, id)).filter(Boolean);
+    // While the dashboards are read, the line already holds its place: the page does not move
+    // under a finger about to tap
+    return html`<div class="about">
+        <div class="shown">${unsafeHTML(placesHtml(t, places))}</div>
+        ${devices.length ? html`<div>${t('panelDevices')} ${unsafeHTML(devices.join(', '))}</div>` : nothing}
+      </div>
+      <div class="control">
+        <button class="btn${paused ? ' primary' : ''}" data-pause=${paused ? '0' : '1'}>${t(paused ? 'resumeShort' : 'pauseShort')}</button>
+        ${paused ? html`<span class="badge paused">${t('paused')}</span>` : nothing}
+      </div>
+      ${this._error ? html`<div class="error">${this._error}</div>` : nothing}`;
+  }
+
+  // How long a setpoint changed by hand lasts, as the settings of overrides say (#83)
+  _nextOverrideText(src) {
+    const loc = makeLocale(this.hass);
+    const duration = roundDurationText(src.overrideDuration(), loc);
+    const key = { duration: 'nextOverrideDuration', next_slot: 'nextOverrideNextSlot' }[src.manualOverrideEnd()] || 'nextOverride';
+    return loc.t(key, { duration });
+  }
+
+  // The Thermostats page of a new user, before the first thermostat: what Chauffage does, and
+  // every climate of Home Assistant to tick (none at first: Chauffage controls it at once)
+  _welcome(src) {
+    const t = this._t;
+    const climates = Object.keys(this.hass.states).filter((e) => e.startsWith('climate.'))
+      .sort((a, b) => this._name(a).localeCompare(this._name(b)));
+    // What Chauffage does, in a sentence: the next steps come once, after the first thermostat
+    const head = html`<h2>${t('welcomeTitle')}</h2><p>${t('welcomeIntro')}</p>`;
+    if (!climates.length) {
+      return html`${head}<p class="none">${t('welcomeNoClimate')}</p>
+        ${src.admin ? html`<button class="btn primary" data-navigate="/config/integrations/dashboard">${t('welcomeAddDevice')}</button>` : nothing}`;
+    }
+    const picked = climates.filter((c) => this._picked.has(c));
+    const eco = src.presets().find((l) => l.id === 'eco') || src.presets()[0];
+    const preset = eco ? eco.name || makeLocale(this.hass).preset(eco.id) : '';
+    const label = picked.length === 0 ? t('welcomeStartNone')
+      : picked.length === 1 ? t('welcomeStartOne') : t('welcomeStartMany', { count: picked.length });
+    return html`${head}<h3>${t('welcomePick')}</h3><div class="picks">${climates.map((c) => html`<label class="pick"><input type="checkbox" data-pick=${c} .checked=${live(this._picked.has(c))}>
+        <span class="pick-name">${this._name(c)}<small>${c}</small></span></label>`)}</div>
+      <p class="note">${t('welcomeNote', { preset })}</p>
+      <button class="btn primary" data-start ?disabled=${!picked.length}>${label}</button>
+      ${this._error ? html`<div class="error">${this._error}</div>` : nothing}`;
+  }
+
+  _name(climate) {
+    const state = this.hass.states[climate];
+    return (state && state.attributes.friendly_name) || climate;
+  }
+
+  async _onClick(e) {
+    // The notice's Reload button
+    if (e.target.closest('[data-act="reload-page"]')) {
+      this._reloadPage();
+      return undefined;
+    }
+    // The page's menu open: a click elsewhere only closes it
+    if (this._pageMenu && !e.target.closest('.page-menu, [data-page-menu]')) {
+      this._pageMenu = false;
+      this.requestUpdate();
+      if (!e.target.closest('[data-more-info]')) return undefined;
+    }
+    // The menu to copy a week open: a click elsewhere only closes it
+    if (this._copyMenu && !e.target.closest('.copy-menu, [data-copy-menu]')) {
+      this._copyMenu = null;
+      this.requestUpdate();
+      return undefined;
+    }
+    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-week-hvac], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next], [data-close-notice], [data-close-new-setting], [data-open-settings]');
+    if (!el || !this.renderRoot.contains(el)) return undefined;
+    e.preventDefault();
+    const ds = el.dataset;
+    const src = dataSource(this.hass);
+    const route = this._route(src);
+    const weekCards = this._page.weekCards;
+    this._error = null;
+    this.requestUpdate();
+    try {
+      // The page's ⋮: a schedule's sheet opens its card's menu (rename, delete); a thermostat's
+      // sheet opens the thermostat, or forgets it after a confirmation
+      if ('pageMenu' in ds) {
+        if (route.sheet === 'schedule') return this._page.views[0] && this._page.views[0]._scheduleAction('schedule-menu', {}, el);
+        this._pageMenu = !this._pageMenu;
+        this._pageForget = false;
+        return undefined;
+      }
+      if ('forget' in ds || 'forgetCancel' in ds) {
+        this._pageForget = 'forget' in ds;
+        return undefined;
+      }
+      if ('forgetConfirm' in ds) {
+        this._pageMenu = false;
+        await commands(this.hass).forget(route.id);
+        return openPanel('thermostats');
+      }
+      if ('sheetSave' in ds) return await this._saveSheet(route.id);
+      if ('sheetCancel' in ds) return this._discardSheet();
+      // Leaving the sheet with weeks not saved yet: the save bar asks first
+      if ('leaveStay' in ds) {
+        this._leave = null;
+        return undefined;
+      }
+      if ('leaveDiscard' in ds || 'leaveSave' in ds) {
+        const leave = this._leave;
+        this._leave = null;
+        if ('leaveSave' in ds) await this._saveSheet(route.id);
+        else this._discardSheet();
+        if (!this._dirtyWeeks().length && leave) leave();
+        return undefined;
+      }
+      if ((ds.navigate || ds.device) && this._dirtyWeeks().length) {
+        this._leave = () => (ds.navigate ? navigate(ds.navigate) : openDevice(ds.device));
+        return undefined;
+      }
+      if (ds.copyMenu) {
+        this._copyMenu = this._copyMenu === ds.copyMenu ? null : ds.copyMenu;
+        return undefined;
+      }
+      if (ds.weekHvac) {
+        // Every slot of the week whose menu is open, to heat or to cool: its card asks to save it
+        const card = weekCards[this._copyMenu];
+        this._copyMenu = null;
+        if (card) card._setWeekHvac(route.id, ds.weekHvac);
+        return undefined;
+      }
+      if (ds.copyTo) {
+        // Its week in schedule A copied to schedule B lands in B's card, which asks to save B. A is
+        // not touched, even with edits not saved yet (they are copied as shown)
+        const from = weekCards[this._copyMenu];
+        const to = weekCards[ds.copyTo];
+        this._copyMenu = null;
+        if (from && to) to._receiveWeek(route.id, from._week(route.id), from._scheduleName(from._schedule));
+        return undefined;
+      }
+      // The settings, on top of the panel: the notice of the new setting is then told
+      if ('openSettings' in ds) {
+        openSettings(this, this.hass, ds.openSettings || null);
+        return undefined;
+      }
+      if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
+      if (ds.navigate) return navigate(ds.navigate);
+      if (ds.device) return openDevice(ds.device);
+      if ('groupDays' in ds || 'history' in ds) {
+        if ('history' in ds) {
+          this._historyOn = !this._historyOn;
+        } else {
+          // As on the card: grouping the days hides the history, which shows each day
+          this._groupDays = !(this._groupDays && !this._historyOn);
+          this._historyOn = false;
+        }
+        saveGroupPreference(this._groupDays);
+        saveHistoryPreference(this._historyOn);
+        // In place: the weeks keep their edits not saved yet
+        for (const card of Object.values(weekCards)) card._setWeekView(this._groupDays, this._historyOn);
+        return undefined;
+      }
+      if ('closeNotice' in ds) {
+        seenNewOff();
+        return undefined;
+      }
+      if ('closeNewSetting' in ds) {
+        seenNewSetting(this.hass);
+        return undefined;
+      }
+      if ('closeNext' in ds) {
+        try { localStorage.setItem(LS_NEXT_STEPS, 'closed'); } catch (err) { /* ignore */ }
+        return undefined;
+      }
+      if ('start' in ds) {
+        // Scheduled with no week of their own: the integration gives them the week of a new
+        // schedule in each schedule, as a thermostat added to a card
+        const climates = [...this._picked].sort();
+        if (!climates.length) return undefined;
+        try { localStorage.setItem(LS_NEXT_STEPS, 'pending'); } catch (err) { /* ignore */ }
+        seenNewOff(); // a new user has nothing to upgrade from
+        seenNewSetting(this.hass); // the next steps say it
+        await commands(this.hass).saveWeeks(Object.fromEntries(climates.map((c) => [c, {}])),
+          Object.fromEntries(climates.map((c) => [c, null])));
+        this._picked.clear();
+        this.requestUpdate();
+        return undefined;
+      }
+      if (ds.pause != null) return await commands(this.hass).setPaused(route.id, ds.pause === '1');
+    } catch (err) {
+      this._error = errorText(this._t, err);
+      this.requestUpdate();
+    }
+    return undefined;
+  }
+}
+
+// Home Assistant's card helpers (its own cards, for example a tile). They exist once a dashboard
+// was loaded: outside one, the panel loads the dashboards' code first, as custom panels do.
+// Prototype: an internal of Home Assistant's frontend, null if it changes.
+async function cardHelpers() {
+  if (window.loadCardHelpers) return window.loadCardHelpers();
+  try {
+    await customElements.whenDefined('partial-panel-resolver');
+    const resolver: any = document.createElement('partial-panel-resolver');
+    resolver.hass = { panels: [{ url_path: 'tmp', component_name: 'lovelace' }] };
+    resolver._updateRoutes();
+    await resolver.routerOptions.routes.tmp.load();
+    return window.loadCardHelpers ? window.loadCardHelpers() : null;
+  } catch (e) {
+    return null;
+  }
+}
+

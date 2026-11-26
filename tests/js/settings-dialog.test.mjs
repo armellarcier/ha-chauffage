@@ -409,13 +409,14 @@ describe('the settings dialog', () => {
       return el;
     };
     const DIALOG = 'chauffage-settings-dialog';
-    const panel = (hass, path) => {
+    const panel = async (hass, path) => {
       window.history.replaceState(null, '', `/chauffage${path}`);
       const el = document.createElement('chauffage-panel');
       document.body.appendChild(el);
       el.hass = hass;
       el.panel = hass.panels.chauffage;
       el.route = { prefix: '/chauffage', path };
+      await drawn(el);
       return el;
     };
 
@@ -486,7 +487,7 @@ describe('the settings dialog', () => {
     test("the panel's ⚙ opens it on top of the current tab, for an admin", async () => {
       const hass = setup();
       const manager = fakeDialogManager(hass);
-      const el = panel(hass, '/schedules');
+      const el = await panel(hass, '/schedules');
       const cog = $(el, '.toolbar [data-open-settings]');
       assert.equal(cog.getAttribute('aria-label'), 'Réglages de Chauffage');
       cog.click(); await settle();
@@ -496,13 +497,13 @@ describe('the settings dialog', () => {
       cleanup();
       const viewer = setup();
       viewer.user = { is_admin: false };
-      assert.equal($(panel(viewer, '/schedules'), '[data-open-settings]'), null);
+      assert.equal($(await panel(viewer, '/schedules'), '[data-open-settings]'), null);
     });
 
     test('/chauffage/settings, the former tab, opens the Thermostats tab and the dialog on top', async () => {
       const hass = setup();
       const manager = fakeDialogManager(hass);
-      panel(hass, '/settings');
+      await panel(hass, '/settings');
       assert.equal(window.location.pathname, '/chauffage/thermostats');
       await tick();
       assert.deepEqual(manager.shown.map((d) => d.dialogTag), [DIALOG]);
@@ -518,11 +519,11 @@ describe('the settings dialog', () => {
       for (const [notice, more] of Object.entries(notices)) {
         const hass = setup(more);
         const manager = fakeDialogManager(hass);
-        assert.equal($(panel(hass, '/schedules'), '[data-open-settings]'), null, notice);
+        assert.equal($(await panel(hass, '/schedules'), '[data-open-settings]'), null, notice);
         cleanup();
         const redirected = setup(more);
         const redirectedManager = fakeDialogManager(redirected);
-        panel(redirected, '/settings');
+        await panel(redirected, '/settings');
         await tick();
         assert.deepEqual(redirectedManager.shown, [], notice);
         assert.deepEqual(manager.shown, [], notice);

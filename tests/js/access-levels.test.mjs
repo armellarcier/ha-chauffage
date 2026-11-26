@@ -3,7 +3,7 @@
 // cards. Set up: also the Chauffage panel. An admin can always do everything
 // (docs/decisions.md, "Who may do what").
 import { fakeHass, createCard, cleanup, integrationData, fakeDialogManager, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { cutSlot , settle } from './driver.mjs';
+import { cutSlot, drawn, settle } from './driver.mjs';
 import { act, copyDay, day, save, unsaved } from './driver.mjs';
 import { escape, trySave } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
@@ -331,19 +331,20 @@ describe('the access level in the panel', () => {
   });
   afterEach(() => { mock.timers.reset(); delete window.loadCardHelpers; cleanup(); window.history.replaceState(null, '', '/'); });
 
-  const panel = (hass, path) => {
+  const panel = async (hass, path) => {
     window.history.replaceState(null, '', `/chauffage${path}`);
     const el = document.createElement('chauffage-panel');
     document.body.appendChild(el);
     el.hass = hass;
     el.panel = hass.panels.chauffage;
     el.route = { prefix: '/chauffage', path };
+    await drawn(el);
     return el;
   };
   const list = (el) => $(el, 'chauffage-programme-card');
 
   test('with Set up: the tabs and the ⚙, but no device and no integration page', async () => {
-    const el = panel(as('set_up', { weeks: BOTH }), '/thermostats');
+    const el = await panel(as('set_up', { weeks: BOTH }), '/thermostats');
     assert.equal($$(el, 'nav.tabs .tab').length, 3);
     assert.ok($(el, '.toolbar [data-open-settings]'));
     const view = list(el);
@@ -354,7 +355,7 @@ describe('the access level in the panel', () => {
   });
 
   test('an admin gets the devices and the integration page', async () => {
-    const view = list(panel(as('admin', { weeks: BOTH }), '/thermostats'));
+    const view = list(await panel(as('admin', { weeks: BOTH }), '/thermostats'));
     assert.ok($(view, '.th-foot [data-navigate="/config/integrations/integration/chauffage"]'));
     $(view, '[data-act="thermostat-more"][data-climate="climate.salon"]').click(); await settle();
     assert.ok($(view, '.th-menu [data-device]'));
@@ -363,7 +364,7 @@ describe('the access level in the panel', () => {
   test('admins are told once of the access level, and its Settings open the dialog', async () => {
     const hass = as('admin', { weeks: BOTH });
     const manager = fakeDialogManager(hass);
-    const el = panel(hass, '/thermostats');
+    const el = await panel(hass, '/thermostats');
     const notice = $(el, '.notice.new-setting');
     assert.match(text(notice), /Nouveau : laissez les utilisateurs non administrateurs programmer les semaines\./);
     notice.querySelector('[data-open-settings]').click(); await settle();

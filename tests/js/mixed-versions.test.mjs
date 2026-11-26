@@ -14,7 +14,7 @@ const { fakeHass, cleanup } = await import('./helpers.mjs');
 await import('../../frontend/src/index.ts');
 after(cleanup);
 
-test('the panel asks to reload the page when a former card was loaded first', () => {
+test('the panel asks to reload the page when a former card was loaded first', async () => {
   const hass = fakeHass();
   hass.panels = { chauffage: { url_path: 'chauffage', title: 'Chauffage' } };
   window.history.replaceState(null, '', '/chauffage/thermostats');
@@ -23,6 +23,7 @@ test('the panel asks to reload the page when a former card was loaded first', ()
   el.hass = hass;
   el.panel = hass.panels.chauffage;
   el.route = { prefix: '/chauffage', path: '/thermostats' };
+  await el.updateComplete; // Lit draws after the current task
   assert.match(el.shadowRoot.querySelector('.missing').textContent, /rechargez la page/);
   assert.ok(el.shadowRoot.querySelector('[data-act="reload-page"]'));
   assert.ok(el.shadowRoot.querySelector('ha-menu-button'), 'the sidebar stays reachable on a phone');
