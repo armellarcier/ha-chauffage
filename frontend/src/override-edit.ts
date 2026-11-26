@@ -302,26 +302,10 @@ export function planText(plan, presetName, loc, named = false) {
   return start.toDateString() === new Date().toDateString() ? loc.t('untilThen', values) : loc.t('untilDayThen', { ...values, day });
 }
 
-export const OVERRIDE_TEMPERATURE = 'input[data-override-temperature]';
-
 // The field focused in a shadow root if it matches `selector`, else null
 export function focusedField(root, selector) {
   const el = root.activeElement;
   return el && el.matches && el.matches(selector) ? el : null;
-}
-
-// A field being typed in, again after a redraw: its text (if any) and the focus, again once
-// ha-card (a Lit component rendered asynchronously) shows its content; before that, the field
-// cannot take the focus
-export function restoreTyped(root, selector, value) {
-  const input = root.querySelector(selector);
-  if (!input) return;
-  if (value != null) input.value = value;
-  input.focus();
-  const card = root.querySelector('ha-card');
-  if (card && card.updateComplete instanceof Promise) {
-    card.updateComplete.then(() => { if (input.isConnected) input.focus(); });
-  }
 }
 
 // A new override from now, for the override duration (an option of the integration)

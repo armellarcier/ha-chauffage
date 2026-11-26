@@ -14,12 +14,12 @@ import { SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, SETTING_LABELS, dayOn, hvacIconTemplate, hvacModesOf, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
 import { LINK_TOKEN, deviceOf, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
-import { RESUME, coolPresetTemperatureOf, focusedField, nextOverride, overrideWithTemperature, presetTemperatureOf, restoreTyped, slotName, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
+import { RESUME, coolPresetTemperatureOf, focusedField, nextOverride, overrideWithTemperature, presetTemperatureOf, slotName, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
 import { overrideLabel, overridePieces, tagSide } from '../override.ts';
 import { presetOf, sortedPresets } from '../presets.ts';
 import { fromSettings, openSettings } from '../settings-dialog.ts';
 import { copyOfDay, joinAt, joined, normalize, serializeDay } from '../slots.ts';
-import { activateSchedule, scheduleMenuAction, scheduleMenuHtml } from '../components/shared/schedule-menu.ts';
+import { activateSchedule, scheduleMenu, scheduleMenuAction } from '../components/shared/schedule-menu.ts';
 import type { ScheduleMenuHost } from '../components/shared/schedule-menu.ts';
 import { entityLink } from '../components/shared/entity-link.ts';
 import { ChauffageWeekLegend } from '../components/week/legend.ts';
@@ -51,9 +51,7 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _asideKey: any;
   declare _available: any;
   declare _liveKey: string;
-  declare _focusName: { value?: string } | null;
   declare _tabsLeft: number;
-  declare _typing: { value: string; focused: boolean } | null;
   declare _config: any;
   declare _configured: any;
   declare _copyWeekMenu: any;
@@ -983,8 +981,6 @@ export class ChauffageProgrammeCard extends LitElement {
 
   willUpdate() {
     const root = this.renderRoot;
-    const input: any = root.querySelector('.sched-menu input[data-sched-name]');
-    this._typing = input && { value: input.value, focused: (root as any).activeElement === input };
     const tabs = root.querySelector('.tabs-scroll');
     this._tabsLeft = tabs ? tabs.scrollLeft : 0;
   }
@@ -992,12 +988,6 @@ export class ChauffageProgrammeCard extends LitElement {
   updated() {
     this._tabsWait = false;
     this._placeTabs(this._tabsLeft);
-    const typing = this._typing;
-    this._typing = null;
-    if (this._focusName) {
-      this._restoreSchedName(this._focusName.value, true);
-      this._focusName = null;
-    } else if (typing) this._restoreSchedName(typing.value, typing.focused);
     this._placeMenu();
     this._schedulePlaceTags();
     // A week of a thermostat's page (`week_only`): the page's own bar saves it, so the
@@ -1052,19 +1042,11 @@ export class ChauffageProgrammeCard extends LitElement {
     return this._viewEl;
   }
 
-  // The name field of the schedule menus: its text, and the focus
-  _restoreSchedName(value, focus) {
-    const selector = '.sched-menu input[data-sched-name]';
-    if (focus) return restoreTyped(this.shadowRoot, selector, value);
-    const input: any = this.shadowRoot.querySelector(selector);
-    if (input && value != null) input.value = value;
-  }
-
   render() {
     this._settle();
     const tr = this._loc.t;
     const flat = this._config.flat ? ' flat' : '';
-    const fill = (content, cls?) => html`<ha-card class=${`${cls || ''}${flat}`}>${typeof content === 'string' ? unsafeHTML(content) : content}</ha-card>`;
+    const fill = (content, cls?) => html`<ha-card class=${`${cls || ''}${flat}`}>${content}</ha-card>`;
     const notice = sourceNotice(this._source());
     if (notice) return fill(noticeTemplate(notice, tr));
     // A view of the panel (`view`): its own element, kept while the card shows it
@@ -1138,7 +1120,7 @@ export class ChauffageProgrammeCard extends LitElement {
         ${weekOnly ? nothing : this._pausedNotes()}
         ${this._unscheduledNotes()}
         ${weekOnly ? nothing : html`${one ? html`<div class="no-tabs"></div>` : html`<div class="tabs"><div class="tabs-wrap"><div class="tabs-scroll">${tabs}</div>${tabsArrow('left')}${tabsArrow('right')}</div>${newTab}</div>`}
-        ${unsafeHTML(this._schedMenuHtml())}
+        ${scheduleMenu(this._scheduleMenuHost())}
         ${this._scheduleBar(active)}`}
         <chauffage-week-grid .card=${this}></chauffage-week-grid>
         ${this._menuTemplate()}
@@ -1455,15 +1437,11 @@ export class ChauffageProgrammeCard extends LitElement {
       get revision() { return card._draft.revision; },
       set revision(revision) { card._draft.revision = revision; },
       frame: () => this.shadowRoot.querySelector('ha-card'),
-      draw: (focus = false, typed = undefined) => (focus ? this._renderSchedMenu(typed) : this._render()),
+      draw: () => this._render(),
       save: async () => !this._draft.dirty || this._save(),
       created: (id) => { this._wantSchedule = id; },
       message: (text) => { this._msg = text; },
     };
-  }
-
-  _schedMenuHtml() {
-    return scheduleMenuHtml(this._scheduleMenuHost());
   }
 
   // Schedule actions (canPlan): unsaved edits of the weeks are saved first
@@ -1473,12 +1451,6 @@ export class ChauffageProgrammeCard extends LitElement {
 
   _activateSchedule(schedule) {
     return activateSchedule(this._scheduleMenuHost(), schedule);
-  }
-
-  // Redraws with the schedule menu's name field focused (keeping what was typed)
-  _renderSchedMenu(typed?) {
-    this._focusName = { value: typed };
-    this.requestUpdate();
   }
 
   // Where a change comes from, for the logbook: the panel, or a card (none: older integrations)

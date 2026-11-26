@@ -13,10 +13,6 @@ export function withLink(text, link) {
   return html`${before}${link}${after}`;
 }
 
-export function entityLinkHtml(entity, label, title = '') {
-  return `<span class="mi-link" role="link" tabindex="0" data-more-info="${esc(entity)}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)}</span>`;
-}
-
 // The device of an entity, as HA's frontend knows it (its entity registry); null without one
 export function deviceOf(hass, entity) {
   const e = hass && hass.entities && hass.entities[entity];

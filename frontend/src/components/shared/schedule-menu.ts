@@ -1,6 +1,9 @@
 import type { Snapshot } from '../../client/snapshot.ts';
 import { commands } from '../../client/commands.ts';
-import { errorText, esc } from '../../common.ts';
+import { html, nothing } from 'lit';
+import { ref } from 'lit/directives/ref.js';
+import { errorText } from '../../common.ts';
+import { attributes } from './attributes.ts';
 import { openMoreInfo, panelPath, panelTitle } from '../../links.ts';
 
 // The menu of a schedule open: "+" (a new schedule: empty or a copy, then its name) or "⋮" (the
@@ -33,49 +36,63 @@ export interface ScheduleMenuHost {
   revision: number | null;
   // What the menu is placed in
   frame(): Element;
-  // Draws the menu; `focus`: with its name field focused, holding `typed`
-  draw(focus?: boolean, typed?: string): void;
+  // Draws the menu again
+  draw(): void;
   // The weeks not saved yet are saved before the schedules change: false if they could not be
   save(): Promise<boolean>;
   created(id: string): void;
   message(text: string): void;
 }
 
-export function scheduleMenuHtml(host: ScheduleMenuHost) {
+// A name field of a menu takes the focus once, when it appears: once ha-card (a Lit component
+// drawn asynchronously) shows its content too, before which it cannot take the focus
+const focusedOnce = new WeakSet<Element>();
+function focusOnce(host: ScheduleMenuHost) {
+  return (el?: Element) => {
+    if (!el || focusedOnce.has(el)) return;
+    focusedOnce.add(el);
+    const focus = () => { if (el.isConnected) (el as HTMLElement).focus(); };
+    Promise.resolve().then(focus);
+    const frame: any = host.frame();
+    if (frame && frame.updateComplete instanceof Promise) frame.updateComplete.then(focus);
+  };
+}
+
+export function scheduleMenu(host: ScheduleMenuHost) {
   const ed = host.menu;
-  if (!ed) return '';
+  if (!ed) return nothing;
   const t = host.loc.t;
   const src = host.src;
   const schedules = src.schedules();
-  const item = (act, label, extra = '', disabled = false, cls = 'mi') =>
-    `<button class="${cls}" data-act="${act}" ${extra} ${disabled ? 'disabled' : ''}><span>${label}</span></button>`;
-  const err = host.error ? `<div class="sched-err">${esc(host.error)}</div>` : '';
-  const cancel = `<button class="btn small" data-act="schedule-close">${esc(t('cancel'))}</button>`;
-  const nameForm = (value, act, label) => `<div class="sched-form">
-      <input data-sched-name value="${esc(value)}" placeholder="${esc(t('scheduleName'))}">
+  const item = (act, label, data: Record<string, string> = {}, disabled = false, cls = 'mi') =>
+    html`<button class=${cls} data-act=${act} ${attributes(data)} ?disabled=${disabled}><span>${label}</span></button>`;
+  const err = host.error ? html`<div class="sched-err">${host.error}</div>` : nothing;
+  const cancel = html`<button class="btn small" data-act="schedule-close">${t('cancel')}</button>`;
+  const nameForm = (value, act, label) => html`<div class="sched-form">
+      <input data-sched-name value=${value} placeholder=${t('scheduleName')} ${ref(focusOnce(host))}>
       ${err}
-      <div class="sched-btns"><button class="btn small primary" data-act="${act}">${esc(label)}</button>${cancel}</div>
+      <div class="sched-btns"><button class="btn small primary" data-act=${act}>${label}</button>${cancel}</div>
     </div>`;
   let body;
   if (ed.kind === 'new') {
     if (ed.step === 'name') {
       const from = ed.copy ? t('copyOfName', { name: src.scheduleName(ed.copy) }) : t('emptySchedule');
-      body = `<div class="mh">${esc(t('newSchedule'))} · ${esc(from)}</div>${nameForm('', 'schedule-create', t('create'))}`;
+      body = html`<div class="mh">${t('newSchedule')} · ${from}</div>${nameForm('', 'schedule-create', t('create'))}`;
     } else {
-      body = `<div class="mh">${esc(t('newSchedule'))}</div>
-        ${item('schedule-pick', esc(t('emptySchedule')), 'data-copy=""')}
+      body = html`<div class="mh">${t('newSchedule')}</div>
+        ${item('schedule-pick', t('emptySchedule'), { 'data-copy': '' })}
         <div class="sep"></div>
-        ${schedules.map((m) => item('schedule-pick', esc(t('copyOfName', { name: src.scheduleName(m) })), `data-copy="${esc(m)}"`)).join('')}`;
+        ${schedules.map((m) => item('schedule-pick', t('copyOfName', { name: src.scheduleName(m) }), { 'data-copy': m }))}`;
     }
   } else {
     const id = ed.id;
     const name = src.scheduleName(id);
     if (ed.step === 'rename') {
       // The id does not change: automations use it
-      body = `<div class="mh">${esc(t('scheduleId', { id }))}</div>${nameForm(name, 'schedule-rename', t('rename'))}`;
+      body = html`<div class="mh">${t('scheduleId', { id })}</div>${nameForm(name, 'schedule-rename', t('rename'))}`;
     } else if (ed.step === 'delete') {
-      body = `<div class="sched-form">${esc(t('confirmDelete', { name }))}
-        <div class="sched-btns"><button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button>${cancel}</div></div>`;
+      body = html`<div class="sched-form">${t('confirmDelete', { name })}
+        <div class="sched-btns"><button class="btn small danger" data-act="schedule-delete-confirm">${t('deleteSchedule')}</button>${cancel}</div></div>`;
     } else {
       const i = schedules.indexOf(id);
       const inRules = src.rules().some((r) => r.schedule === id) || src.defaultSchedule() === id;
@@ -83,27 +100,27 @@ export function scheduleMenuHtml(host: ScheduleMenuHost) {
         : inRules ? t('cannotDeleteInRules') : '';
       // On a dashboard, the schedule's page in the panel, for whoever may open the panel (Set
       // up); in the panel, the page is a row or the page itself
-      const open = host.panel || !src.editable ? ''
-        : `<button class="mi" data-navigate="${panelPath(`schedules/${esc(id)}`)}"><span>${esc(t('openInPanel', { panel: panelTitle(host.hass) }))}</span></button><div class="sep"></div>`;
+      const open = host.panel || !src.editable ? nothing
+        : html`<button class="mi" data-navigate=${panelPath(`schedules/${id}`)}><span>${t('openInPanel', { panel: panelTitle(host.hass) })}</span></button><div class="sep"></div>`;
       // A schedule's sheet shows one tab: no tab to move it next to; the list moves it up or down
-      const moves = host.oneTab ? ''
-        : `${item('schedule-move', esc(t(host.list ? 'moveUp' : 'moveLeft')), 'data-dir="-1"', i <= 0)}
-        ${item('schedule-move', esc(t(host.list ? 'moveDown' : 'moveRight')), 'data-dir="1"', i >= schedules.length - 1)}`;
+      const moves = host.oneTab ? nothing
+        : html`${item('schedule-move', t(host.list ? 'moveUp' : 'moveLeft'), { 'data-dir': '-1' }, i <= 0)}
+        ${item('schedule-move', t(host.list ? 'moveDown' : 'moveRight'), { 'data-dir': '1' }, i >= schedules.length - 1)}`;
       // The list's rows have no Activate button: it broke their layout
       const activate = host.list && id !== src.activeSchedule()
-        ? `${item('activate-schedule', esc(t('panelActivate')), `data-schedule="${esc(id)}"`)}<div class="sep"></div>` : '';
+        ? html`${item('activate-schedule', t('panelActivate'), { 'data-schedule': id })}<div class="sep"></div>` : nothing;
       // The icon is the schedule switch's: set where Home Assistant sets every entity's icon, which
       // Home Assistant keeps for admins
-      const icon = src.scheduleEntity(id) && src.admin ? item('schedule-icon', esc(t('changeIcon'))) : '';
-      body = `${activate}${open}${item('schedule-rename-open', esc(t('renameMenu')))}
+      const icon = src.scheduleEntity(id) && src.admin ? item('schedule-icon', t('changeIcon')) : nothing;
+      body = html`${activate}${open}${item('schedule-rename-open', t('renameMenu'))}
         ${icon}
         ${moves}
         <div class="sep"></div>
-        ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
+        ${item('schedule-delete', html`${t('deleteMenu')}${reason ? html`<small>${reason}</small>` : nothing}`, {}, !!reason, 'mi danger')}`;
     }
   }
   const side = ed.right != null ? `right:${ed.right}px` : `left:${ed.left || 0}px`;
-  return `<div class="menu sched-menu" style="top:${ed.top || 0}px;${side}">${body}</div>`;
+  return html`<div class="menu sched-menu" style=${`top:${ed.top || 0}px;${side}`}>${body}</div>`;
 }
 
 // What a control of the schedule menus does (canPlan): opens or closes a menu, goes to its next
@@ -129,8 +146,8 @@ export async function scheduleMenuAction(host: ScheduleMenuHost, act: string, ds
     return host.draw();
   }
   if (act === 'schedule-close' || !ed) { host.menu = null; return host.draw(); }
-  if (act === 'schedule-pick') { ed.copy = ds.copy || null; ed.step = 'name'; return host.draw(true); }
-  if (act === 'schedule-rename-open') { ed.step = 'rename'; return host.draw(true); }
+  if (act === 'schedule-pick') { ed.copy = ds.copy || null; ed.step = 'name'; return host.draw(); }
+  if (act === 'schedule-rename-open') { ed.step = 'rename'; return host.draw(); }
   if (act === 'schedule-icon') {
     host.menu = null;
     host.draw();
@@ -144,7 +161,11 @@ export async function scheduleMenuAction(host: ScheduleMenuHost, act: string, ds
     const name = nameInput ? nameInput.value.trim() : '';
     const taken = schedules.some((m) => m !== except && src.scheduleName(m).trim().toLowerCase() === name.toLowerCase());
     host.error = !name ? t('nameRequired') : taken ? t('nameTaken') : '';
-    if (host.error) host.draw(true, name);
+    // The name stays in its field, which takes the focus back
+    if (host.error) {
+      if (nameInput) nameInput.focus();
+      host.draw();
+    }
     return host.error ? null : name;
   };
   let list;

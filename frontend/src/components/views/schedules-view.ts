@@ -1,14 +1,10 @@
 import { html, nothing } from 'lit';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
 import { openPanel, panelPath } from '../../links.ts';
-import { restoreTyped } from '../../override-edit.ts';
-import { activateSchedule, scheduleMenuAction, scheduleMenuHtml } from '../shared/schedule-menu.ts';
+import { activateSchedule, scheduleMenu, scheduleMenuAction } from '../shared/schedule-menu.ts';
 import type { ScheduleMenu, ScheduleMenuHost } from '../shared/schedule-menu.ts';
 import { listRow } from '../shared/list-row.ts';
 import { ChauffageView } from './view.ts';
-
-const NAME_FIELD = '.sched-menu input[data-sched-name]';
 
 // The panel's Schedules page: one row per schedule, as the Thermostats page, the active one
 // marked; a row opens the schedule's sheet. Its ⋮ activates, renames, moves and deletes it
@@ -20,9 +16,6 @@ export class ChauffageSchedulesView extends ChauffageView {
   _revision: { from: number | null; value: number | null } | null = null;
   // The access level drawn: a lower one closes the menu
   _access: string | undefined;
-  // The name field to focus once drawn, with the name typed
-  _focusName: { value?: string } | null = null;
-  _typing: { input: HTMLInputElement; value: string; focused: boolean } | null = null;
   _dismiss = new DismissController(this, () => {
     if (!this._menu) return false;
     this._menu = null;
@@ -46,22 +39,6 @@ export class ChauffageSchedulesView extends ChauffageView {
       this._access = src.stamps.access;
       if (!src.plannable) this._menu = null;
     }
-    // A name being typed, kept if the menu is drawn again with a new field
-    const input: HTMLInputElement = this.querySelector(NAME_FIELD);
-    const root: any = this.getRootNode();
-    this._typing = input && { input, value: input.value, focused: root.activeElement === input };
-  }
-
-  updated() {
-    const typing = this._typing;
-    this._typing = null;
-    if (this._focusName) {
-      restoreTyped(this, NAME_FIELD, this._focusName.value);
-      this._focusName = null;
-    } else if (typing && this.querySelector(NAME_FIELD) !== typing.input) {
-      if (typing.focused) restoreTyped(this, NAME_FIELD, typing.value);
-      else if (this.querySelector(NAME_FIELD)) (this.querySelector(NAME_FIELD) as HTMLInputElement).value = typing.value;
-    }
   }
 
   render() {
@@ -78,7 +55,7 @@ export class ChauffageSchedulesView extends ChauffageView {
     });
     const add = src.editable ? html`<div class="th-add"><button class="btn" data-act="schedule-new">+ ${t('newSchedule')}</button></div>` : nothing;
     return html`<div class="thermostats-view schedules-view"><div class="th-list">${rows}</div>${add}</div>${
-      unsafeHTML(scheduleMenuHtml(this._menuHost()))}${this._msgTemplate()}`;
+      scheduleMenu(this._menuHost())}${this._msgTemplate()}`;
   }
 
   // The schedule menus, drawn in this view
@@ -99,10 +76,7 @@ export class ChauffageSchedulesView extends ChauffageView {
       get revision() { return view._revision && view._revision.from === src.revision ? view._revision.value : src.revision; },
       set revision(value) { view._revision = { from: src.revision, value }; },
       frame: () => this._frame(),
-      draw: (focus = false, typed = undefined) => {
-        if (focus) this._focusName = { value: typed };
-        this.requestUpdate();
-      },
+      draw: () => this.requestUpdate(),
       save: async () => true,
       // The new schedule's sheet, to set its weeks
       created: (id) => openPanel(`schedules/${id}`),
