@@ -1,7 +1,11 @@
+import { LitElement, html, nothing, unsafeCSS } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
+import { live } from 'lit/directives/live.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { dataSource } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { client } from './client/chauffage-client.ts';
-import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, errorText, esc, isAdmin, setHtml } from './common.ts';
+import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, errorText, esc, isAdmin } from './common.ts';
 import { MDI } from './editors.ts';
 import { durationField, linksByKeyboard, listenTimeFields, roundDurationText, timeFieldDone } from './fields.ts';
 import { FIELD_BOX } from './hvac.ts';
@@ -119,43 +123,62 @@ const SETTINGS_CSS = `
   ${TIME_FIELD_STYLE}
 `;
 
-export class ChauffageSettingsDialog extends HTMLElement {
-  // The fields of the element, untyped until the rewrite of the card gives them a type
-  declare _frame: any;
-  declare _hass: any;
-  declare _moreInfo: any;
-  declare _onEscape: any;
-  declare _onPop: any;
-  declare _open: any;
-  declare _ownHistory: any;
-  declare _popped: any;
-  declare _savedKey: any;
-  declare _savedTimer: any;
-  declare _scrollTo: any;
-  declare _settingsBusy: any;
-  declare _settingsError: any;
-  declare _settingsErrorAt: any;
-  declare _settingsPending: any;
-  declare _settingsSaved: any;
-  declare _settingsSent: any;
-  declare _stopLeave: any;
-  declare _unlisten: any;
+export class ChauffageSettingsDialog extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+  };
 
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    linksByKeyboard(this.shadowRoot);
-    this._open = false;
+  static styles = unsafeCSS(SETTINGS_CSS);
+
+  // Given by Home Assistant's dialog manager, and kept up to date
+  declare hass: any;
+  _open = false;
+  // Each opening draws a new frame: a late `closed` of a former one is not ours
+  _opening = 0;
+  // The frame drawn for the current opening: Home Assistant's dialog, or the browser's
+  _frame: any = null;
+  // 'wa' (Home Assistant's dialog from 2025.2), 'material' (2025.1), 'native' (the browser's)
+  _kind: 'wa' | 'material' | 'native' = 'native';
+  _moreInfo = false;
+  _ownHistory = false;
+  _popped = false;
+  _scrollTo: string | null = null;
+  _savedKey: string | null = null;
+  _savedTimer: any;
+  _settingsBusy: any;
+  _settingsError: string | null = null;
+  _settingsErrorAt: string | null = null;
+  _settingsPending: any;
+  _settingsSaved = false;
+  _settingsSent: Promise<unknown> | null = null;
+  _stopLeave: (() => void) | null = null;
+  _unlisten: (() => void) | null = null;
+  // Its own history entry (without Home Assistant's dialog manager): Back closes it
+  _onPop = () => {
+    this._popped = true;
+    this.closeDialog();
+  };
+
+  // Escape, in Material's ha-dialog (Home Assistant 2025.1): this dialog only
+  _onEscape = (e) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    this.closeDialog();
+  };
+
+  createRenderRoot() {
+    const root = super.createRenderRoot();
+    linksByKeyboard(root);
     // The duration of a change by hand: a stepped field, as the cards' time fields
     listenTimeFields(this, (el) => this._durationDone(el));
     // The settings: sent at once, as Home Assistant's own settings
-    this.shadowRoot.addEventListener('change', (e: any) => {
+    root.addEventListener('change', (e: any) => {
       if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
       if (e.target.matches('[data-off-override-end]')) this._setSettings({ off_override_end: e.target.value });
       if (e.target.matches('[data-access-level]')) this._setSettings({ access_level: e.target.value });
     });
     // Its ✕, and a tap outside the browser's dialog (on its backdrop: the dialog element itself)
-    this.shadowRoot.addEventListener('click', (e: any) => {
+    root.addEventListener('click', (e: any) => {
       const other = e.target.closest('[data-other-options]');
       if (other) {
         e.preventDefault();
@@ -164,35 +187,15 @@ export class ChauffageSettingsDialog extends HTMLElement {
       }
       if (e.target.closest('[data-close]') || (e.target === this._frame && e.target.localName === 'dialog')) this.closeDialog();
     });
-    // Its own history entry (without Home Assistant's dialog manager): Back closes it
-    this._onPop = () => {
-      this._popped = true;
-      this.closeDialog();
-    };
-    // Escape, in Material's ha-dialog (Home Assistant 2025.1): this dialog only (_build)
-    this._onEscape = (e) => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      this.closeDialog();
-    };
-  }
-
-  // Given by Home Assistant's dialog manager, and kept up to date
-  set hass(hass) {
-    this._hass = hass;
-    if (this._open) this._update();
-  }
-
-  get hass() {
-    return this._hass;
+    return root;
   }
 
   get _loc() {
-    return makeLocale(this._hass);
+    return makeLocale(this.hass);
   }
 
   get _t() {
-    return makeLocale(this._hass).t;
+    return makeLocale(this.hass).t;
   }
 
   // Home Assistant's dialog manager calls it; { history: true } when the dialog opens by itself
@@ -200,15 +203,24 @@ export class ChauffageSettingsDialog extends HTMLElement {
     if (this._open) return;
     this._cancelLeave(); // opened again before a page left for: that page stays closed
     this._open = true;
+    this._opening += 1;
+    this._frame = null; // drawn next
     this._ownHistory = !!(params && (params as any).history);
     this._moreInfo = !!(params && (params as any).moreInfo); // opened from the more-info block
     this._popped = false;
-    // Opened from the notice of the access level: scrolled to its section, once filled (_update)
+    // Opened from the notice of the access level: scrolled to its section, once filled (updated)
     this._scrollTo = params && (params as any).section === 'access' ? '.access-settings' : null;
-    seenNewSetting(this._hass);
-    this._unlisten = client.listen(() => this._update());
-    this._build();
-    this._update(); // Home Assistant may put the dialog on the page later: then connectedCallback
+    seenNewSetting(this.hass);
+    this._unlisten = client.listen(() => this.requestUpdate());
+    // Home Assistant's own dialog when the page has it, else the browser's. Home Assistant's
+    // dialog changed: Material's until 2025 (a `heading`, our ✕), then Web Awesome's (a
+    // `headerTitle`, its own ✕).
+    const HaDialog = customElements.get('ha-dialog');
+    this._kind = !HaDialog ? 'native' : 'headerTitle' in HaDialog.prototype ? 'wa' : 'material';
+    // Every Material dialog open closes on an Escape pressed anywhere: the more-info dialog
+    // under this one too. Escape is caught first, and closes this dialog only
+    if (this._kind === 'material') window.addEventListener('keydown', this._onEscape, true);
+    this.requestUpdate(); // Home Assistant may put the dialog on the page later: drawn then
     if (this._ownHistory) {
       window.history.pushState({ [SETTINGS_DIALOG]: true }, '');
       window.addEventListener('popstate', this._onPop);
@@ -240,104 +252,162 @@ export class ChauffageSettingsDialog extends HTMLElement {
     this.dispatchEvent(new CustomEvent('dialog-closed', { bubbles: true, composed: true, detail: { dialog: SETTINGS_DIALOG } }));
   }
 
-  // Home Assistant's own dialog when the page has it, else the browser's. Home Assistant's dialog
-  // changed: Material's until 2025 (a `heading`, our ✕), then Web Awesome's (a `headerTitle`, its
-  // own ✕). Both are `open`, and say `closed` once hidden.
-  _build() {
+  // Closed by its own ✕, Escape or a tap outside: Home Assistant's newer dialog stays `open` until
+  // told. A late `closed` of a former frame (closed, then opened again during its animation), or
+  // of a menu inside it, is not ours
+  _frameClosed(e) {
+    const frame = e.currentTarget;
+    if (e.target !== frame || frame !== this._frame) return;
+    this._closed();
+    if (frame.open) frame.open = false;
+  }
+
+  // Escape, in the browser's dialog: closed as by its ✕
+  _cancelled(e) {
+    e.preventDefault();
+    this.closeDialog();
+  }
+
+  // Drawn while open and on the page. Not once off the page: its former Home Assistant would
+  // subscribe again (dataSource)
+  shouldUpdate() {
+    return this._open && !!this.hass && this.isConnected;
+  }
+
+  // A setting just sent shows at once, until the integration gives it back
+  willUpdate() {
+    const src = dataSource(this.hass);
+    const given = { override_duration: src.overrideDuration(), manual_override_end: src.manualOverrideEnd(),
+      off_override_end: src.offOverrideEnd(), access_level: src.accessLevel() };
+    if (Object.entries(this._settingsPending || {}).every(([key, value]) => given[key] === value)) {
+      this._settingsPending = null;
+    }
+  }
+
+  render() {
+    return keyed(this._opening, this._frameTemplate());
+  }
+
+  updated() {
+    const frame: any = this.renderRoot.querySelector('.frame');
+    if (frame !== this._frame) {
+      this._frame = frame;
+      if (this._kind !== 'native') frame.open = true;
+      else if (typeof frame.showModal === 'function') frame.showModal();
+      else frame.setAttribute('open', '');
+    }
+    // Scrolled once its content is drawn: earlier, the sections above it are not their height yet
+    const section: any = this._scrollTo && this.renderRoot.querySelector(this._scrollTo);
+    this._scrollTo = null;
+    if (section && typeof section.scrollIntoView === 'function') requestAnimationFrame(() => section.scrollIntoView({ block: 'start' }));
+  }
+
+  _frameTemplate() {
     const t = this._t;
     const title = t('settingsTitle');
-    const close = `<button class="close" data-close title="${esc(t('close'))}" aria-label="${esc(t('close'))}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI.close}"></path></svg></button>`;
-    // The duration's field stays across updates: only the parts under it are filled again
-    const body = `<div class="body"><section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
-        <p class="intro">${esc(t('overrideEndIntro'))}</p>
-        <div class="duration-row"><div class="duration-field"></div><span data-fill="settings-saved"></span></div>
-        <div data-fill="settings"></div></section>${this._accessHtml()}${this._footHtml()}</div>`;
-    this.shadowRoot.innerHTML = `<style>${SETTINGS_CSS}</style>`;
-    const HaDialog = customElements.get('ha-dialog');
-    let frame;
-    if (HaDialog) {
-      frame = document.createElement('ha-dialog');
-      if ('headerTitle' in HaDialog.prototype) {
-        frame.headerTitle = title;
-      } else {
-        frame.heading = title; // Material's dialog shows its heading slot only with a heading
-        frame.hideActions = true; // no buttons at its foot: no empty band there
-        frame.insertAdjacentHTML('beforeend', `<div slot="heading" class="head"><h2 class="title">${esc(title)}</h2>${close}</div>`);
-        // Every Material dialog open closes on an Escape pressed anywhere: the more-info dialog
-        // under this one too. Escape is caught first, and closes this dialog only
-        window.addEventListener('keydown', this._onEscape, true);
-      }
-      frame.insertAdjacentHTML('beforeend', body);
-      // Closed by its own ✕, Escape or a tap outside: the newer dialog stays `open` until told. A
-      // late `closed` of a former frame (closed, then opened again during its animation) is not ours
-      frame.addEventListener('closed', (e) => {
-        if (e.target !== frame || frame !== this._frame) return;
-        this._closed();
-        if (frame.open) frame.open = false;
-      });
-    } else {
-      frame = document.createElement('dialog');
-      frame.setAttribute('aria-labelledby', 'settings-title');
-      frame.innerHTML = `<div class="head"><h2 class="title" id="settings-title">${esc(title)}</h2>${close}</div>${body}`;
-      // Escape: closed as by its ✕
-      frame.addEventListener('cancel', (e) => {
-        e.preventDefault();
-        this.closeDialog();
-      });
-      frame.addEventListener('close', () => this._closed());
+    const close = html`<button class="close" data-close title=${t('close')} aria-label=${t('close')}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${MDI.close}></path></svg></button>`;
+    if (this._kind === 'wa') {
+      return html`<ha-dialog class="frame" .headerTitle=${title} @closed=${this._frameClosed}>${this._body()}</ha-dialog>`;
     }
-    frame.classList.add('frame');
-    this.shadowRoot.appendChild(frame);
-    this._frame = frame;
-    if (HaDialog) frame.open = true;
-    else if (typeof frame.showModal === 'function') frame.showModal();
-    else frame.setAttribute('open', '');
+    if (this._kind === 'material') {
+      // Material's dialog shows its heading slot only with a heading; no buttons at its foot: no
+      // empty band there
+      return html`<ha-dialog class="frame" .heading=${title} .hideActions=${true} @closed=${this._frameClosed}>
+        <div slot="heading" class="head"><h2 class="title">${title}</h2>${close}</div>${this._body()}</ha-dialog>`;
+    }
+    return html`<dialog class="frame" aria-labelledby="settings-title" @cancel=${this._cancelled} @close=${() => this._closed()}>
+      <div class="head"><h2 class="title" id="settings-title">${title}</h2>${close}</div>${this._body()}</dialog>`;
+  }
+
+  _body() {
+    const src = dataSource(this.hass);
+    return html`<div class="body">${this._overrideSettings(src)}${this._accessSettings(src)}${this._foot()}</div>`;
+  }
+
+  // The section *Overrides* (#83). The duration first, then the three ends of an override, each
+  // labelled with the user's own duration. Labels only: docs/overrides.md explains them (decisions.md)
+  _overrideSettings(src) {
+    const loc = this._loc;
+    const t = loc.t;
+    const pending = this._settingsPending || {};
+    const minutes = (this._settingsPending && pending.override_duration) || src.overrideDuration();
+    const duration = roundDurationText(minutes, loc);
+    const current = (this._settingsPending && pending.manual_override_end) || src.manualOverrideEnd();
+    const offCurrent = (this._settingsPending && pending.off_override_end) || src.offOverrideEnd();
+    // A control waits for the answer to its own setting only
+    const busy = this._settingsBusy || {};
+    const error = (at) => (this._settingsError && this._settingsErrorAt === at ? this._settingsError : null);
+    // The same choices for a thermostat turned off by hand (#91): until the next slot by default.
+    // In the same order as the choices above
+    const choices = [
+      ['duration', 'overrideEndDuration'],
+      ['next_slot_within_duration', 'overrideEndWithin'],
+      ['next_slot', 'overrideEndNextSlot'],
+    ];
+    const offChoices = [
+      ['duration', 'offEndDuration'],
+      ['next_slot_within_duration', 'overrideEndWithin'],
+      ['next_slot', 'offEndNextSlot'],
+    ];
+    const group = (list, name, attr, label, cls, chosen, disabled) => html`<div class="choices ${cls}" role="radiogroup" aria-label=${label}>${list.map(([value, text]) => html`<label class="choice">
+        <input type="radio" name=${name} value=${value} ?data-override-end=${attr === 'data-override-end'} ?data-off-override-end=${attr === 'data-off-override-end'}
+          .checked=${live(value === chosen)} .disabled=${disabled}>
+        <span class="choice-label">${t(text, { duration })}</span>
+      </label>`)}</div>`;
+    const durationError = error('duration');
+    const endError = error('end');
+    return html`<section class="override-settings"><h3>${t('overridesTitle')}</h3>
+        <p class="intro">${t('overrideEndIntro')}</p>
+        <div class="duration-row"><div class="duration-field">${this._durationField(minutes, !src.editable || !!busy.override_duration, loc)}</div><span data-fill="settings-saved">${
+          durationError ? html`<span class="error" role="alert">${durationError}</span>`
+          : this._settingsSaved && this._savedKey !== 'access_level' ? html`<span class="saved" role="status">${t('saved')}</span>` : nothing}</span></div>
+        <div data-fill="settings">${group(choices, 'override-end', 'data-override-end', t('overrideEndTitle'), 'end-choices', current, !src.editable || !!busy.manual_override_end)}
+        <h4 class="off-end-title">${t('offEndTitle')}</h4>
+        <p class="note off-end-help">${t('offEndHelp')}</p>
+        ${group(offChoices, 'off-override-end', 'data-off-override-end', t('offEndTitle'), 'off-end-choices', offCurrent, !src.editable || !!busy.off_override_end)}
+        <p class="note slot-note">${t('overrideNextSlotMeans')}</p>
+        <div data-fill="settings-end-error">${endError ? html`<div class="error">${endError}</div>` : nothing}</div></div></section>`;
+  }
+
+  // The duration of a change by hand: a stepped field, the same as the end of an override, in hours
+  // and minutes ("2 h 45"), from 15 minutes to 24 hours, moved by 15 minutes by its arrows. Sent once
+  // left, on Enter, or at once by its small arrows; a duration out of range is refused here. The
+  // same field stays while its HTML is the same: a duration typed is not reset by a redraw.
+  _durationField(minutes, disabled, loc) {
+    return unsafeHTML(`<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
+      ${durationField('id="override-duration" data-override-duration', minutes, loc,
+        { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`);
   }
 
   // The section *Access level* (#99): what users who are not admins may change. Admins only: a
-  // user with Set up who chose it would give every user everything
-  _accessHtml() {
-    if (!isAdmin(this._hass)) return '';
+  // user with Set up who chose it would give every user everything. The three access levels, each
+  // with what it adds; Set up warns that its changes reach every room.
+  _accessSettings(src) {
+    if (!isAdmin(this.hass)) return nothing;
     const t = this._t;
-    return `<section class="access-settings"><div class="section-head"><h3>${esc(t('accessTitle'))}</h3><span data-fill="access-saved"></span></div>
-        <p class="intro">${esc(t('accessIntro'))}</p>
-        <div data-fill="access"></div><div data-fill="access-note"></div><div data-fill="access-error"></div></section>`;
-  }
-
-  // The three access levels, each with what it adds; Set up warns that its changes reach every
-  // room. Drawn once, then updated in place, as the ends of an override
-  _fillAccess(src, busy) {
-    const host = this.shadowRoot.querySelector('[data-fill="access"]');
-    if (!host) return;
-    const t = this._t;
+    const busy = this._settingsBusy || {};
     const current = (this._settingsPending && this._settingsPending.access_level) || src.accessLevel();
     const levels = [['use', 'accessUse', 'accessUseText'], ['plan', 'accessPlan', 'accessPlanText'], ['set_up', 'accessSetUp', 'accessSetUpText']];
-    setHtml(host, `<div class="choices" role="radiogroup" aria-label="${esc(t('accessTitle'))}">${levels.map(([value, label, text]) => `<label class="choice">
-        <input type="radio" name="access-level" value="${value}" data-access-level>
-        <span class="choice-label"><span class="choice-name">${esc(t(label))}</span>
-          <span class="choice-text">${esc(t(text))}</span>
-          ${value === 'set_up' ? `<span class="warning">${esc(t('accessSetUpWarning'))}</span>` : ''}</span>
-      </label>`).join('')}</div>`);
-    for (const input of host.querySelectorAll('input')) {
-      input.checked = input.value === current;
-      input.disabled = !!busy.access_level;
-    }
-    // Set up opens the panel to every user: each one can hide it from the sidebar
-    setHtml(this.shadowRoot.querySelector('[data-fill="access-note"]'), current === 'set_up'
-      ? `<p class="note sidebar-note">${esc(t('accessSidebarNote'))}</p>` : '');
-    setHtml(this.shadowRoot.querySelector('[data-fill="access-saved"]'), this._settingsSaved && this._savedKey === 'access_level' && !this._settingsError
-      ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
-    setHtml(this.shadowRoot.querySelector('[data-fill="access-error"]'), this._settingsError && this._settingsErrorAt === 'access'
-      ? `<div class="error">${esc(this._settingsError)}</div>` : '');
+    const error = this._settingsError && this._settingsErrorAt === 'access' ? this._settingsError : null;
+    return html`<section class="access-settings"><div class="section-head"><h3>${t('accessTitle')}</h3><span data-fill="access-saved">${
+        this._settingsSaved && this._savedKey === 'access_level' && !this._settingsError ? html`<span class="saved" role="status">${t('saved')}</span>` : nothing}</span></div>
+        <p class="intro">${t('accessIntro')}</p>
+        <div data-fill="access"><div class="choices" role="radiogroup" aria-label=${t('accessTitle')}>${levels.map(([value, label, text]) => html`<label class="choice">
+          <input type="radio" name="access-level" value=${value} data-access-level .checked=${live(value === current)} .disabled=${!!busy.access_level}>
+          <span class="choice-label"><span class="choice-name">${t(label)}</span>
+            <span class="choice-text">${t(text)}</span>
+            ${value === 'set_up' ? html`<span class="warning">${t('accessSetUpWarning')}</span>` : nothing}</span>
+        </label>`)}</div></div>
+        <div data-fill="access-note">${current === 'set_up' ? html`<p class="note sidebar-note">${t('accessSidebarNote')}</p>` : nothing}</div>
+        <div data-fill="access-error">${error ? html`<div class="error">${error}</div>` : nothing}</div></section>`;
   }
 
   // The foot: the other options of the integration (the options flow), on its page in Home
   // Assistant, where *Configure* opens them. Admins only, as that page.
-  _footHtml() {
-    if (!isAdmin(this._hass)) return '';
-    const t = this._t;
-    return `<div class="foot"><a href="${INTEGRATION_PAGE}" data-other-options>${esc(t('otherOptions'))}</a></div>`;
+  _foot() {
+    if (!isAdmin(this.hass)) return nothing;
+    return html`<div class="foot"><a href=${INTEGRATION_PAGE} data-other-options>${this._t('otherOptions')}</a></div>`;
   }
 
   // Leaving for a page: the dialog closes first, and the history entry it had is taken back (Home
@@ -368,104 +438,21 @@ export class ChauffageSettingsDialog extends HTMLElement {
     this._stopLeave = null;
   }
 
-  // Home Assistant opens the dialog, then puts it on the page the first time: filled then
+  // Opened while off the page: drawn once Home Assistant puts it back
   connectedCallback() {
-    this._update();
+    super.connectedCallback();
+    this.requestUpdate();
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback();
     this._cancelLeave();
     clearTimeout(this._savedTimer);
   }
 
-  // Not once off the page: its former Home Assistant would subscribe again (dataSource)
-  _update() {
-    if (!this._open || !this._hass || !this.isConnected) return;
-    const src = dataSource(this._hass);
-    const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
-    if (settings) this._fillSettings(settings, src);
-    this._fillAccess(src, this._settingsBusy || {});
-    // Scrolled once its content is drawn: earlier, the sections above it are not their height yet
-    const section = this._scrollTo && this.shadowRoot.querySelector(this._scrollTo);
-    this._scrollTo = null;
-    if (section && typeof section.scrollIntoView === 'function') requestAnimationFrame(() => section.scrollIntoView({ block: 'start' }));
-  }
-
-  // A field typed in is drawn again once left (timeFieldDone)
+  // Drawn again: a field typed in, once left (timeFieldDone), and the "saved" mark taken away
   _render() {
-    this._update();
-  }
-
-  // The section *Overrides* (#83). The duration first, then the three ends of an override, each
-  // labelled with the user's own duration. Labels only: docs/overrides.md explains them (decisions.md)
-  _fillSettings(settings, src) {
-    const loc = this._loc;
-    const t = loc.t;
-    // A setting just sent shows at once, until the integration gives it back
-    const pending = this._settingsPending || {};
-    const given = { override_duration: src.overrideDuration(), manual_override_end: src.manualOverrideEnd(),
-      off_override_end: src.offOverrideEnd(), access_level: src.accessLevel() };
-    if (Object.entries(pending).every(([key, value]) => given[key] === value)) {
-      this._settingsPending = null;
-    }
-    const minutes = (this._settingsPending && pending.override_duration) || src.overrideDuration();
-    const duration = roundDurationText(minutes, loc);
-    const current = (this._settingsPending && pending.manual_override_end) || src.manualOverrideEnd();
-    // A control waits for the answer to its own setting only
-    const busy = this._settingsBusy || {};
-    const field = this.shadowRoot.querySelector('.override-settings .duration-field');
-    if (field) this._fillDuration(field, minutes, !src.editable || !!busy.override_duration, loc);
-    const saved = this.shadowRoot.querySelector('[data-fill="settings-saved"]');
-    if (saved) {
-      setHtml(saved, this._settingsError && this._settingsErrorAt === 'duration'
-        ? `<span class="error" role="alert">${esc(this._settingsError)}</span>`
-        : this._settingsSaved && this._savedKey !== 'access_level' ? `<span class="saved" role="status">${esc(t('saved'))}</span>` : '');
-    }
-    // The choices are drawn once, then updated in place: a click on a choice lands, even when the
-    // press on it has just left the duration field and sent the duration
-    const choices = [
-      ['duration', 'overrideEndDuration'],
-      ['next_slot_within_duration', 'overrideEndWithin'],
-      ['next_slot', 'overrideEndNextSlot'],
-    ];
-    // The same choices for a thermostat turned off by hand (#91): until the next slot by default
-    // In the same order as the choices above
-    const offChoices = [
-      ['duration', 'offEndDuration'],
-      ['next_slot_within_duration', 'overrideEndWithin'],
-      ['next_slot', 'offEndNextSlot'],
-    ];
-    const offCurrent = (this._settingsPending && pending.off_override_end) || src.offOverrideEnd();
-    const group = (list, name, attr, label, cls) => `<div class="choices ${cls}" role="radiogroup" aria-label="${esc(label)}">${list.map(([value]) => `<label class="choice">
-        <input type="radio" name="${name}" value="${value}" ${attr}>
-        <span class="choice-label"></span>
-      </label>`).join('')}</div>`;
-    setHtml(settings, `${group(choices, 'override-end', 'data-override-end', t('overrideEndTitle'), 'end-choices')}
-        <h4 class="off-end-title">${esc(t('offEndTitle'))}</h4>
-        <p class="note off-end-help">${esc(t('offEndHelp'))}</p>
-        ${group(offChoices, 'off-override-end', 'data-off-override-end', t('offEndTitle'), 'off-end-choices')}
-        <p class="note slot-note">${esc(t('overrideNextSlotMeans'))}</p>
-        <div data-fill="settings-end-error"></div>`);
-    const fill = (list, cls, chosen, disabled) => list.forEach(([value, label], i) => {
-      const choice = settings.querySelectorAll(`.${cls} .choice`)[i];
-      const input = choice.querySelector('input');
-      input.checked = value === chosen;
-      input.disabled = disabled;
-      choice.querySelector('.choice-label').textContent = t(label, { duration });
-    });
-    fill(choices, 'end-choices', current, !src.editable || !!busy.manual_override_end);
-    fill(offChoices, 'off-end-choices', offCurrent, !src.editable || !!busy.off_override_end);
-    setHtml(settings.querySelector('[data-fill="settings-end-error"]'), this._settingsError && this._settingsErrorAt === 'end'
-      ? `<div class="error">${esc(this._settingsError)}</div>` : '');
-  }
-
-  // The duration of a change by hand: a stepped field, the same as the end of an override, in hours
-  // and minutes ("2 h 45"), from 15 minutes to 24 hours, moved by 15 minutes by its arrows. Sent once
-  // left, on Enter, or at once by its small arrows; a duration out of range is refused here.
-  _fillDuration(field, minutes, disabled, loc) {
-    setHtml(field, `<label for="override-duration">${esc(loc.t('overrideDurationTitle'))}</label>
-      ${durationField('id="override-duration" data-override-duration', minutes, loc,
-        { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`);
+    this.requestUpdate();
   }
 
   // The duration field left, on Enter or moved by its arrows
@@ -475,7 +462,7 @@ export class ChauffageSettingsDialog extends HTMLElement {
       this._settingsError = loc.t('overrideDurationInvalid', { min: roundDurationText(OVERRIDE_DURATION_MIN, loc), max: roundDurationText(OVERRIDE_DURATION_MAX, loc) });
       this._settingsErrorAt = 'duration';
       this._settingsSaved = false;
-      this._update();
+      this.requestUpdate();
     });
   }
 
@@ -487,24 +474,24 @@ export class ChauffageSettingsDialog extends HTMLElement {
     this._settingsSaved = false;
     this._settingsBusy = { ...this._settingsBusy, [key]: ((this._settingsBusy || {})[key] || 0) + 1 };
     this._settingsPending = { ...this._settingsPending, ...settings };
-    this._update();
+    this.requestUpdate();
     this._settingsSent = (this._settingsSent || Promise.resolve()).then(() => this._sendSettings(settings, key));
     return this._settingsSent;
   }
 
   async _sendSettings(settings, key) {
     try {
-      await commands(this._hass).setSettings(settings);
+      await commands(this.hass).setSettings(settings);
       this._settingsSaved = true;
       this._savedKey = key;
       clearTimeout(this._savedTimer);
-      this._savedTimer = setTimeout(() => { this._settingsSaved = false; this._update(); }, 3000);
+      this._savedTimer = setTimeout(() => { this._settingsSaved = false; this.requestUpdate(); }, 3000);
     } catch (err) {
       this._settingsError = errorText(this._t, err);
       this._settingsErrorAt = { override_duration: 'duration', access_level: 'access' }[key] || 'end';
       if (this._settingsPending) delete this._settingsPending[key];
     }
     this._settingsBusy = { ...this._settingsBusy, [key]: this._settingsBusy[key] - 1 };
-    this._update();
+    this.requestUpdate();
   }
 }
