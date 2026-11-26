@@ -12,12 +12,14 @@ import { atMinutes, causeText, endMovedBy, endOfField, linksByKeyboard, listenTi
 import { MEASURE_RAMP, SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, captureButtonHtml, captureState, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacIconHtml, hvacModesOf, hvacSlotStyle, isReversible, listsMode, modeName, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn, stateOf, valueOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
-import { LINK_TOKEN, deviceLabel, deviceLinkHtml, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, openPanel, panelPath, panelTitle, placements, placesHtml, thRow, thermostatDevices, weeksPath, withHtml } from '../links.ts';
+import { LINK_TOKEN, deviceLinkHtml, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, openPanel, panelPath, panelTitle, withHtml } from '../links.ts';
 import { OVERRIDE_TEMPERATURE, RESUME, cardFrame, coolPresetTemperatureOf, fillCard, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, withoutAir } from '../override-edit.ts';
 import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
 import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from '../presets.ts';
 import { fromSettings, openSettings } from '../settings-dialog.ts';
 import { copyOfDay, joinAt, joined, normalize, parseSlot, serializeDay } from '../slots.ts';
+import { activateSchedule, scheduleMenuAction, scheduleMenuHtml } from '../components/shared/schedule-menu.ts';
+import type { ScheduleMenuHost } from '../components/shared/schedule-menu.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
@@ -1430,10 +1432,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
       this._schedulePlaceEditor();
       return;
     }
-    if (this._view === 'schedules' && this._source().ready) {
-      fill(`${this._schedulesViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
-      return;
-    }
     // A view of the panel (`view`): its own element, kept while the card shows it
     if (VIEWS[this._view] && this._source().ready) {
       const frame = cardFrame(this.shadowRoot, STYLE, this._config.flat ? ' flat' : '');
@@ -2016,147 +2014,43 @@ export class ChauffageProgrammeCard extends HTMLElement {
     </div>`;
   }
 
-  // Drop-down menus of the schedule tabs: "+" (new schedule: empty or a copy, then its name)
-  // and "⋮" (the open schedule: rename, move, delete). Positioned under the clicked button.
+  // The menus of the schedules' tabs: "+" and "⋮" (see schedule-menu.ts)
+  _scheduleMenuHost(): ScheduleMenuHost {
+    const card = this;
+    return {
+      element: this,
+      root: this.shadowRoot,
+      hass: this._hass,
+      loc: this._loc,
+      src: this._source(),
+      panel: !!this._config.panel,
+      list: false,
+      oneTab: this._config.schedule_tabs === 'one',
+      get menu() { return card._schedEd; },
+      set menu(menu) { card._schedEd = menu; },
+      get error() { return card._schedErr; },
+      set error(error) { card._schedErr = error; },
+      get revision() { return card._draft.revision; },
+      set revision(revision) { card._draft.revision = revision; },
+      frame: () => this.shadowRoot.querySelector('ha-card'),
+      draw: (focus = false, typed = undefined) => (focus ? this._renderSchedMenu(typed) : this._render()),
+      save: async () => !this._draft.dirty || this._save(),
+      created: (id) => { this._wantSchedule = id; },
+      message: (text) => { this._msg = text; },
+    };
+  }
+
   _schedMenuHtml() {
-    const ed = this._schedEd;
-    if (!ed) return '';
-    const t = this._loc.t;
-    const schedules = this._schedules();
-    const item = (act, label, extra = '', disabled = false, cls = 'mi') =>
-      `<button class="${cls}" data-act="${act}" ${extra} ${disabled ? 'disabled' : ''}><span>${label}</span></button>`;
-    const err = this._schedErr ? `<div class="sched-err">${esc(this._schedErr)}</div>` : '';
-    const cancel = `<button class="btn small" data-act="schedule-close">${esc(t('cancel'))}</button>`;
-    const nameForm = (value, act, label) => `<div class="sched-form">
-        <input data-sched-name value="${esc(value)}" placeholder="${esc(t('scheduleName'))}">
-        ${err}
-        <div class="sched-btns"><button class="btn small primary" data-act="${act}">${esc(label)}</button>${cancel}</div>
-      </div>`;
-    let body;
-    if (ed.kind === 'new') {
-      if (ed.step === 'name') {
-        const from = ed.copy ? t('copyOfName', { name: this._scheduleName(ed.copy) }) : t('emptySchedule');
-        body = `<div class="mh">${esc(t('newSchedule'))} · ${esc(from)}</div>${nameForm('', 'schedule-create', t('create'))}`;
-      } else {
-        body = `<div class="mh">${esc(t('newSchedule'))}</div>
-          ${item('schedule-pick', esc(t('emptySchedule')), 'data-copy=""')}
-          <div class="sep"></div>
-          ${schedules.map((m) => item('schedule-pick', esc(t('copyOfName', { name: this._scheduleName(m) })), `data-copy="${esc(m)}"`)).join('')}`;
-      }
-    } else {
-      const id = ed.id;
-      const name = this._scheduleName(id);
-      if (ed.step === 'rename') {
-        // The id does not change: automations use it
-        body = `<div class="mh">${esc(t('scheduleId', { id }))}</div>${nameForm(name, 'schedule-rename', t('rename'))}`;
-      } else if (ed.step === 'delete') {
-        body = `<div class="sched-form">${esc(t('confirmDelete', { name }))}
-          <div class="sched-btns"><button class="btn small danger" data-act="schedule-delete-confirm">${esc(t('deleteSchedule'))}</button>${cancel}</div></div>`;
-      } else {
-        const i = schedules.indexOf(id);
-        const src = this._source();
-        const inRules = src.rules().some((r) => r.schedule === id) || src.defaultSchedule() === id;
-        const reason = id === this._activeSchedule() ? t('cannotDeleteActive') : schedules.length < 2 ? t('cannotDeleteLast')
-          : inRules ? t('cannotDeleteInRules') : '';
-        // On a dashboard, the schedule's page in the panel, for whoever may open the panel (Set
-        // up); in the panel, the page is a row or the page itself
-        const open = this._config.panel || !src.editable ? ''
-          : `<button class="mi" data-navigate="${panelPath(`schedules/${esc(id)}`)}"><span>${esc(t('openInPanel', { panel: panelTitle(this._hass) }))}</span></button><div class="sep"></div>`;
-        // A schedule's sheet shows one tab (`schedule_tabs: 'one'`): no tab to move it next to; the
-        // list moves it up or down
-        const list = this._view === 'schedules';
-        const moves = this._config.schedule_tabs === 'one' ? ''
-          : `${item('schedule-move', esc(t(list ? 'moveUp' : 'moveLeft')), 'data-dir="-1"', i <= 0)}
-          ${item('schedule-move', esc(t(list ? 'moveDown' : 'moveRight')), 'data-dir="1"', i >= schedules.length - 1)}`;
-        // The list's rows have no Activate button: it broke their layout
-        const activate = list && id !== this._activeSchedule()
-          ? `${item('activate-schedule', esc(t('panelActivate')), `data-schedule="${esc(id)}"`)}<div class="sep"></div>` : '';
-        // The icon is the schedule switch's: set where Home Assistant sets every entity's icon, which
-        // Home Assistant keeps for admins
-        const icon = src.scheduleEntity(id) && src.admin ? item('schedule-icon', esc(t('changeIcon'))) : '';
-        body = `${activate}${open}${item('schedule-rename-open', esc(t('renameMenu')))}
-          ${icon}
-          ${moves}
-          <div class="sep"></div>
-          ${item('schedule-delete', `${esc(t('deleteMenu'))}${reason ? `<small>${esc(reason)}</small>` : ''}`, '', !!reason, 'mi danger')}`;
-      }
-    }
-    const side = ed.right != null ? `right:${ed.right}px` : `left:${ed.left || 0}px`;
-    return `<div class="menu sched-menu" style="top:${ed.top || 0}px;${side}">${body}</div>`;
+    return scheduleMenuHtml(this._scheduleMenuHost());
   }
 
   // Schedule actions (canPlan): unsaved edits of the weeks are saved first
-  async _scheduleAction(act, ds, el) {
-    const t = this._loc.t;
-    const ed = this._schedEd;
-    this._schedErr = '';
-    if (act === 'schedule-new' || act === 'schedule-menu') {
-      const kind = act === 'schedule-new' ? 'new' : 'menu';
-      const id = (el && el.dataset.schedule) || this._schedule;
-      if (ed && ed.kind === kind && (kind === 'new' || ed.id === id)) { this._schedEd = null; return this._render(); }
-      // Under the button: from its left edge, or from its right edge for a button on the right
-      // (the page's ⋮, above the card), so the menu stays in the window
-      const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();
-      const b = el ? el.getBoundingClientRect() : { bottom: 0, left: 0, right: 0 };
-      const onRight = b.left - card.left > card.width / 2;
-      const left = Math.max(8, Math.min(b.left - card.left, card.width - 280));
-      this._schedEd = { kind, id, step: kind === 'new' ? 'pick' : 'list', top: b.bottom - card.top + 4,
-        ...(onRight ? { right: Math.max(0, card.right - b.right) } : { left }) };
-      return this._render();
-    }
-    if (act === 'schedule-close' || !ed) { this._schedEd = null; return this._render(); }
-    if (act === 'schedule-pick') { ed.copy = ds.copy || null; ed.step = 'name'; return this._renderSchedMenu(); }
-    if (act === 'schedule-rename-open') { ed.step = 'rename'; return this._renderSchedMenu(); }
-    if (act === 'schedule-icon') {
-      this._schedEd = null;
-      this._render();
-      return openMoreInfo(this, this._source().scheduleEntity(ed.id), 'settings');
-    }
-    if (act === 'schedule-delete') { ed.step = 'delete'; return this._render(); }
-    const keep = this._schedules().map((id) => ({ id }));
-    const nameInput: any = this.shadowRoot.querySelector('input[data-sched-name]');
-    const checkName = (except) => {
-      const name = nameInput ? nameInput.value.trim() : '';
-      const taken = this._schedules().some((m) => m !== except && this._scheduleName(m).trim().toLowerCase() === name.toLowerCase());
-      this._schedErr = !name ? t('nameRequired') : taken ? t('nameTaken') : '';
-      if (this._schedErr) this._renderSchedMenu(name);
-      return this._schedErr ? null : name;
-    };
-    let list;
-    let created = false;
-    if (act === 'schedule-create') {
-      const name = checkName(null);
-      if (!name) return;
-      list = [...keep, ed.copy ? { name, copy_of: ed.copy } : { name }];
-      created = true;
-    } else if (act === 'schedule-rename') {
-      const name = checkName(ed.id);
-      if (!name) return;
-      list = keep.map((m) => (m.id === ed.id ? { id: m.id, name } : m));
-    } else if (act === 'schedule-move') {
-      const i = keep.findIndex((m) => m.id === ed.id);
-      const j = i + Number(ds.dir);
-      if (i < 0 || j < 0 || j >= keep.length) return;
-      [keep[i], keep[j]] = [keep[j], keep[i]];
-      list = keep;
-    } else if (act === 'schedule-delete-confirm') {
-      list = keep.filter((m) => m.id !== ed.id);
-    } else return;
-    this._schedEd = null;
-    this._render(); // the menu closes at once, not when the integration answers
-    if (this._draft.dirty && !(await this._save())) return;
-    try {
-      const result = await this._commands().setSchedules(list, this._draft.revision);
-      if (result && result.revision != null) this._draft.revision = result.revision;
-      if (created && result && result.schedules) {
-        this._wantSchedule = result.schedules[result.schedules.length - 1].id;
-        // The panel's list: the new schedule's sheet, to set its weeks
-        if (this._view === 'schedules') openPanel(`schedules/${this._wantSchedule}`);
-      }
-    } catch (e) {
-      this._msg = e && e.code === 'stale' ? t('stale') : errorText(t, e);
-    }
-    this._render();
+  _scheduleAction(act, ds, el) {
+    return scheduleMenuAction(this._scheduleMenuHost(), act, ds, el, this._schedule);
+  }
+
+  _activateSchedule(schedule) {
+    return activateSchedule(this._scheduleMenuHost(), schedule);
   }
 
   // Redraws with the schedule menu's name field focused (keeping what was typed)
@@ -2168,16 +2062,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // Where a change comes from, for the logbook: the panel, or a card (none: older integrations)
   _changeSource() {
     return this._config.panel ? 'panel' : undefined;
-  }
-
-  async _activateSchedule(schedule) {
-    try {
-      await this._commands().activateSchedule(schedule, this._changeSource());
-      this._msg = this._loc.t('scheduleActivated', { schedule: this._scheduleName(schedule) });
-    } catch (e) {
-      this._msg = errorText(this._loc.t, e);
-    }
-    this._render();
   }
 
   // The presets tab opened on a thermostat (a slot's setpoint link): its row is brought into
@@ -2327,26 +2211,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   _settingsLinkHtml() {
     if (this._config.panel || !this._source().editable) return '';
     return `<span class="mi-link settings-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}">${esc(this._loc.t('setPresets'))}</span>`;
-  }
-
-  // The panel's Schedules page: one row per schedule, as the Thermostats page, the active one
-  // marked; a row opens the schedule's sheet; Activate; its ⋮ renames, moves, deletes (canSetUp, as the panel);
-  // + New schedule creates an empty one or a copy, as the card's +
-  _schedulesViewHtml() {
-    const t = this._loc.t;
-    const src = this._source();
-    const active = this._activeSchedule();
-    const rows = this._schedules().map((id) => {
-      const open = this._schedEd && this._schedEd.kind === 'menu' && this._schedEd.id === id;
-      const more = !src.editable ? ''
-        : `<button class="icon-btn${open ? ' on' : ''}" data-act="schedule-menu" data-schedule="${esc(id)}" title="${esc(t('scheduleMenu'))}" aria-label="${esc(t('scheduleMenu'))}"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
-      return thRow(`class="th-row" data-schedule="${esc(id)}"`, `data-navigate="${panelPath(`schedules/${esc(id)}`)}"`,
-        src.scheduleIcon(id) || 'mdi:calendar-clock',
-        `${esc(this._scheduleName(id))}${id === active ? ` <span class="badge on">${esc(t('panelActive'))}</span>` : ''}`,
-        '', more);
-    }).join('');
-    const add = src.editable ? `<div class="th-add"><button class="btn" data-act="schedule-new">+ ${esc(t('newSchedule'))}</button></div>` : '';
-    return `<div class="thermostats-view schedules-view"><div class="th-list">${rows}</div>${add}</div>${this._schedMenuHtml()}`;
   }
 
   // Table: one column per preset (header: the preset, then its default temperature), one row per
@@ -3000,7 +2864,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   _action(act, ds, el) {
     // What edits the weeks or the schedules needs Plan (canPlan), on a thermostat the user may edit
     const editsWeeks = ['copyweek-menu', 'copy-week', 'copy-day', 'paste-day', 'preset', 'slot-off', 'slot-mode', 'week-hvac', 'insert', 'delete'].includes(act)
-      || act.startsWith('fill-') || (act.startsWith('schedule-') && act !== 'schedule-close' && !this._config.view);
+      || act.startsWith('fill-') || (act.startsWith('schedule-') && act !== 'schedule-close');
     if (editsWeeks && !(this._source().plannable && (!ds.climate || this._mayEdit(ds.climate)))) return undefined;
     if (act === 'copyweek-menu') {
       const card = this.shadowRoot.querySelector('ha-card').getBoundingClientRect();

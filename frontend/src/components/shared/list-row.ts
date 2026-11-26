@@ -1,8 +1,8 @@
 import { html, nothing } from 'lit';
 
-// A row of the panel's lists (the thermostats, the schedules): a link to its sheet, with an icon,
-// a title and a line under it, then its actions (its ⋮). A click on the actions does not follow
-// the link (inRowActions)
+// A row of the panel's lists, as the rows of the integration's page: an icon, a name and a line
+// under it, a chevron, then its actions after a divider. The whole row is one link, except its
+// actions (inRowActions)
 export function listRow({ cls = 'th-row', climate = null, schedule = null, to, icon, title, sub = nothing, actions = null }: {
   cls?: string; climate?: string | null; schedule?: string | null; to: string; icon: string; title: unknown; sub?: unknown; actions?: unknown;
 }) {
