@@ -1,3 +1,4 @@
+import { html } from 'lit';
 import { esc, isAdmin } from './common.ts';
 
 // ---------- links to what a card mentions (#39) ----------
@@ -5,10 +6,11 @@ import { esc, isAdmin } from './common.ts';
 // more-info dialog (`data-more-info`), a device in its page (`data-device`, admins only: it is a
 // settings page). The cards handle the clicks (openMoreInfo, openDevice).
 
-// A text with a link in place of one of its values: the text escaped, then the link put in
+// A text with a link in place of one of its values: the text, with the link (a template) put in
 export const LINK_TOKEN = '\u{E000}';
-export function withHtml(text, html) {
-  return esc(text).replace(LINK_TOKEN, html);
+export function withLink(text, link) {
+  const [before, after = ''] = String(text).split(LINK_TOKEN);
+  return html`${before}${link}${after}`;
 }
 
 export function entityLinkHtml(entity, label, title = '') {

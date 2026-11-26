@@ -198,7 +198,7 @@ export const en = {
   forgetText: '{name} will no longer be scheduled. Its weeks and settings will be deleted.',
   forgetConfirm: 'Forget it',
   activeSchedule: 'Active schedule',
-  activeScheduleBar: 'Active schedule: <strong>{schedule}</strong>',
+  activeScheduleBar: 'Active schedule: {schedule}',
   noActiveSchedule: 'No active schedule',
   activate: 'Activate “{schedule}”',
   scheduleActivated: '“{schedule}” activated',

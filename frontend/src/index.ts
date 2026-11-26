@@ -14,6 +14,8 @@ import { ChauffagePresetsView } from './components/views/presets-view.ts';
 import { ChauffageRulesView } from './components/views/rules-view.ts';
 import { ChauffageSchedulesView } from './components/views/schedules-view.ts';
 import { ChauffageThermostatsView } from './components/views/thermostats-view.ts';
+import { ChauffageWeekGrid } from './components/week/week-grid.ts';
+import { ChauffageWeekLegend } from './components/week/legend.ts';
 import { dataSource } from './client/snapshot.ts';
 import { ChauffageProgrammeCardEditor, ChauffageRoomsCardEditor, ChauffageSummaryCardEditor } from './editors.ts';
 import { makeLocale } from './i18n/locale.ts';
@@ -55,6 +57,8 @@ function defineElements() {
   if (!customElements.get('chauffage-rules-view')) customElements.define('chauffage-rules-view', ChauffageRulesView);
   if (!customElements.get('chauffage-schedules-view')) customElements.define('chauffage-schedules-view', ChauffageSchedulesView);
   if (!customElements.get('chauffage-thermostats-view')) customElements.define('chauffage-thermostats-view', ChauffageThermostatsView);
+  if (!customElements.get('chauffage-week-grid')) customElements.define('chauffage-week-grid', ChauffageWeekGrid);
+  if (!customElements.get('chauffage-week-legend')) customElements.define('chauffage-week-legend', ChauffageWeekLegend);
 }
 defineElements();
 // The integration's module is loaded in parallel with HA's frontend, which replaces

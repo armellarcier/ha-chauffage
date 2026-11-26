@@ -195,7 +195,7 @@ export const fr = {
   forgetText: '{name} ne sera plus programmé. Ses semaines et ses réglages seront supprimés.',
   forgetConfirm: "L'oublier",
   activeSchedule: 'Planning actif',
-  activeScheduleBar: 'Planning actif : <strong>{schedule}</strong>',
+  activeScheduleBar: 'Planning actif : {schedule}',
   noActiveSchedule: 'Aucun planning actif',
   activate: 'Activer « {schedule} »',
   scheduleActivated: 'Planning « {schedule} » activé',
