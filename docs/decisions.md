@@ -2245,3 +2245,7 @@ Claude made these choices while cleaning up the card. The owner hasn't confirmed
   `shouldUpdate`, next to the rule for a time being typed. The card draws again when the drag
   ends, whether the finger commits it or drops it. So a push that came during the drag is drawn
   at once.
+- **No stamps of the integration's data.** The card no longer turns parts of the data into JSON
+  strings to compare them. The weeks shown reload when the revision changes, unless a draft is
+  being edited. The overrides that a card or the more-info block sent end at the next push of
+  the integration, which holds them. The more-info block draws again on every push.

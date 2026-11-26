@@ -14,8 +14,6 @@ export class ChauffageSchedulesView extends ChauffageView {
   _error = '';
   // The schedules' revision a change answered, until the integration pushes it
   _revision: { from: number | null; value: number | null } | null = null;
-  // The access level drawn: a lower one closes the menu
-  _access: string | undefined;
   _dismiss = new DismissController(this, () => {
     if (!this._menu) return false;
     this._menu = null;
@@ -33,12 +31,9 @@ export class ChauffageSchedulesView extends ChauffageView {
     });
   }
 
+  // Without Plan (an access level lowered), the menu closes
   willUpdate() {
-    const src = this._source();
-    if (src.stamps.access !== this._access) {
-      this._access = src.stamps.access;
-      if (!src.plannable) this._menu = null;
-    }
+    if (!this._source().plannable) this._menu = null;
   }
 
   render() {

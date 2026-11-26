@@ -1,4 +1,5 @@
 import { LitElement, html, nothing, unsafeCSS } from 'lit';
+import { client } from './client/chauffage-client.ts';
 import { dataSource } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { SnapshotController } from './controllers/snapshot-controller.ts';
@@ -156,16 +157,18 @@ export class ChauffageMoreInfo extends LitElement {
     if (!this.hass || !this.entity) return false;
     this._loc = makeLocale(this.hass);
     const src = dataSource(this.hass);
-    const { weeks, overrides, schedule, thermostats } = src.stamps;
-    if (this._key && overrides !== this._key[2]) this._overrides.updated();
-    if (this._key && thermostats !== this._key[4]) this._error = null; // paused or resumed: a resume error is over
+    // A new push of the integration: it holds the override sent, and a pause or a resume error is over
+    if (this._key && client.data !== this._key[1]) {
+      this._overrides.updated();
+      this._error = null;
+    }
     if (this._force) {
       this._force = false;
       return true;
     }
     // (the access level gives the links; the registry gives the device)
-    const key = [this.hass.states[this.entity], weeks, overrides, schedule, thermostats, Math.floor(Date.now() / 60000), this._loc.signature,
-      src.stamps.access, this.hass.entities && this.hass.entities[this.entity]];
+    const key = [this.hass.states[this.entity], client.data, Math.floor(Date.now() / 60000), this._loc.signature,
+      src.accessLevel(), src.admin, this.hass.entities && this.hass.entities[this.entity]];
     if (this._key && key.every((v, i) => v === this._key[i])) return false;
     if (this._drag) return false; // no redraw while dragging
     if (focusedField(this.renderRoot, 'input.time')) { this._redrawLater = true; return false; } // nor while the end is typed

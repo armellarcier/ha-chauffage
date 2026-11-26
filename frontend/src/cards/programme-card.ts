@@ -37,7 +37,8 @@ export class ChauffageProgrammeCard extends LitElement {
   static styles = unsafeCSS(STYLE);
 
   // The fields of the element, untyped until the rewrite of the card gives them a type
-  declare _accessStamp: any;
+  // The access level and whether the user is an admin, as the card last saw them (_sync)
+  declare _access: string;
   declare _asideKey: any;
   declare _tabsLeft: number;
   declare _config: any;
@@ -69,7 +70,8 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _onKey: any;
   declare _overrideDraft: OverrideDraft;
   declare _overrideSel: any;
-  declare _overrideStamp: any;
+  // The integration's push that the overrides sent were last checked against (_sync)
+  declare _pushed: any;
   declare _previewed: any;
   declare _readTouch: any;
   declare _redrawLater: any;
@@ -79,7 +81,8 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _schedule: any;
   declare _shown: any;
   declare _shownForPreview: any;
-  declare _stamp: any;
+  // The revision of the weeks loaded (_sync)
+  declare _revision: number | null;
   declare _tabsShown: any;
   declare _tabsWait: any;
   declare _thermostats: any;
@@ -145,7 +148,7 @@ export class ChauffageProgrammeCard extends LitElement {
     super();
     this._draft = new WeekDraft(); // the weeks edited, until saved
     this._focus = null; // last thermostat used (source of "Copier la semaine")
-    this._stamp = undefined;
+    this._revision = null;
     this._msg = '';
     this._lastClick = null;
     this._menu = null; // { climate, day, top, right } open row menu
@@ -153,7 +156,6 @@ export class ChauffageProgrammeCard extends LitElement {
     // Overrides (temporary setpoints): sent to HA right away, without "Enregistrer"
     this._overrideSel = null; // { climate, day } override whose popover is open
     this._overrideDraft = new OverrideDraft(); // changes sent, waiting for the integration's update
-    this._overrideStamp = undefined;
     // Measured temperature of the last 7 days, drawn over the bars: rows loaded (until a time), days drawn
     this._zoom = null; // { climate, day } shown larger (with the history)
     this._readTouch = false; // a finger reads the values along the bar shown larger
@@ -250,24 +252,23 @@ export class ChauffageProgrammeCard extends LitElement {
     if (!this._loc || loc.signature !== this._loc.signature) this._loc = loc;
     const src = this._source();
     if (this._setAside(src)) need = true;
-    // The integration's weeks changed: shown, unless the card has edits not saved yet or a slot is
-    // dragged
-    const stamp = src.stamps.weeks;
-    if ((stamp !== this._stamp) && !this._draft.dirty && !this._slotDrag.active) {
+    // The integration's weeks changed (a new revision): shown, unless the card has edits not saved
+    // yet or a slot is dragged
+    if (src.revision !== this._revision && !this._draft.dirty && !this._slotDrag.active) {
       this._load();
-      this._stamp = stamp;
+      this._revision = src.revision;
       need = true;
     }
-    // The integration's overrides changed: the changes sent are now its own (OverrideDraft)
-    const dstamp = src.stamps.overrides;
-    if (dstamp !== this._overrideStamp && !this._overrideEnd.active && !this._slotDrag.active) {
-      this._overrideStamp = dstamp;
+    // A new push of the integration: the overrides sent are now its own (OverrideDraft)
+    if (client.data !== this._pushed && !this._overrideEnd.active && !this._slotDrag.active) {
+      this._pushed = client.data;
       this._overrideDraft.updated();
     }
     // The access level changed (#99): the tools appear or go at once. Without Plan, what was being
     // edited closes; the weeks not saved yet stay until Cancel
-    if (src.stamps.access !== this._accessStamp) {
-      this._accessStamp = src.stamps.access;
+    const access = `${src.accessLevel()} ${src.admin}`;
+    if (access !== this._access) {
+      this._access = access;
       if (this._slotDrag.active && !this._mayEdit(this._slotDrag.drag.climate)) this._slotDrag.cancel();
       if (this._draft.selection && !this._mayEdit(this._draft.selection.climate)) this._draft.selection = null;
       if (!src.plannable) {

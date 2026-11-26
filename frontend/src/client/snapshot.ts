@@ -77,11 +77,6 @@ export function makeSnapshot(hass, raw, available: boolean) {
     stale, // true: the page must be reloaded to finish an update
     ready: !!d,
     revision: d ? d.revision : null,
-    stamps: d ? { weeks: `r${d.revision}`, overrides: JSON.stringify(d.overrides),
-      schedule: JSON.stringify([d.active_schedule, schedules.map((s) => scheduleIcon(s.id))]),
-      thermostats: JSON.stringify(d.thermostats),
-      // What the user may change: the access level, and whether the user is an admin
-      access: `${accessLevelOf(d)} ${isAdmin(hass)}` } : {} as any,
     schedules: (): string[] => schedules.map((s) => s.id),
     hasSchedule: (id) => ids.has(id),
     scheduleName: (id) => (schedules.find((s) => s.id === id) || { name: id }).name,
