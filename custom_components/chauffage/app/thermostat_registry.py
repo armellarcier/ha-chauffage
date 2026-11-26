@@ -69,7 +69,7 @@ class ThermostatRegistry:
             repairs.close_missing(self._runtime.hass, entity_id)  # made again with the same id
         elif action == "update" and event.data.get("old_entity_id") in self._runtime.thermostats:
             self.renamed(event.data["old_entity_id"], entity_id)
-        if action != "remove" and entity_id in self._runtime._card_entities():
+        if action != "remove" and entity_id in self._runtime.read_model.card_entities():
             self._runtime._notify(ENTITIES)  # an entity registered or renamed: the cards show its icon and open it
         entry = er.async_get(self._runtime.hass).async_get(entity_id) if entity_id else None
         if entity_id in self._runtime._planned_presets or (
