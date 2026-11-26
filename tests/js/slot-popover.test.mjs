@@ -7,7 +7,7 @@ import { CHIP_STYLE, FIELD_BOX, MORE_INFO_STYLE as MORE_INFO_STYLE_TEXT, STYLE a
 import { $, $$, change, click, icons, rgb, text, week } from './houses/dom.mjs';
 import { day } from './driver.mjs';
 import { openOverride, unsaved } from './driver.mjs';
-import { placePopover } from './driver.mjs';
+import { placePopover, settle } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 import * as everyHvacMode from './houses/every-hvac-mode.mjs';
 import * as weeksBefore91 from './houses/weeks-before-91.mjs';
@@ -469,11 +469,11 @@ afterEach(() => cleanup());
       assert.doesNotMatch(STYLE_TEXT, /\n {2}\.editor[^{,]*\{[^}]*overflow/);
     });
 
-    test('the popovers of an override and of a preset\'s value scroll the same way', () => {
+    test('the popovers of an override and of a preset\'s value scroll the same way', async () => {
       const card = openOverride(setup(), SALON);
       assert.deepEqual(children($(card, '.editor.override-ed')).slice(0, 2), ['ed-head', 'ed-body']);
-      const presets = cardOf(setup(), { view: 'presets' });
-      click(presets, '[data-act="cell"]');
+      const presets = cardOf(setup(), { view: 'presets' }); await settle();
+      click(presets, '[data-act="cell"]'); await settle();
       assert.deepEqual(children($(presets, '.editor.cell-ed')), ['ed-head', 'ed-body', 'ed-actions pv-foot']);
     });
 
@@ -625,9 +625,9 @@ afterEach(() => cleanup());
     test('its presets, in the cell popover and in the cell', async () => {
       const hass = named(setup());
       hass.data.targets[ATELIER].frost = { preset_mode: 'away' };
-      const card = presetsTab(hass);
+      const card = await presetsTab(hass);
       assert.equal(text(cell(card, 'frost', ATELIER).querySelector('.pv-how')), 'son préréglage Absent');
-      cell(card, 'frost', ATELIER).click();
+      cell(card, 'frost', ATELIER).click(); await settle();
       assert.deepEqual([...$(card, '.cell-ed [data-cell-preset]').options].map((o) => o.textContent), ['Éco', 'Confort', 'Absent', 'Boost']);
     });
 
@@ -637,13 +637,13 @@ afterEach(() => cleanup());
       assert.deepEqual([...$(card, '.editor [data-slot-setting="fan_mode"]').options].map((o) => o.textContent).slice(1), ['Auto', 'Faible', 'High']);
     });
 
-    test('Home Assistant\'s translations are the next source, then the value as it is', () => {
+    test('Home Assistant\'s translations are the next source, then the value as it is', async () => {
       const hass = setup();
       hass.localize = (key) => ({ 'component.climate.entity_component._.state_attributes.preset_mode.state.away': 'Absent',
         'component.climate.entity_component._.state_attributes.fan_mode.state.low': 'Faible' })[key] || '';
       hass.data.targets[ATELIER].frost = { preset_mode: 'away' };
       hass.data.targets[ATELIER].boost = { preset_mode: 'turbo' };
-      const card = presetsTab(hass);
+      const card = await presetsTab(hass);
       assert.equal(text(cell(card, 'frost', ATELIER).querySelector('.pv-how')), 'son préréglage Absent');
       assert.equal(text(cell(card, 'boost', ATELIER).querySelector('.pv-how')), 'son préréglage turbo');
     });

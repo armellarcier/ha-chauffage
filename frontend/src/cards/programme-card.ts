@@ -6,20 +6,21 @@ import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPre
 import { WeekDraft } from '../state/week-draft.ts';
 import { HistoryStore } from '../state/history-store.ts';
 import { OverrideDraft } from '../state/override-draft.ts';
-import { chipStyle, coolColor, derivedCoolColor, presetColorIn, slotColor } from '../colors.ts';
-import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, MANUAL_PRESETS, minutesOf, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
+import { chipStyle, coolColor, presetColorIn, slotColor } from '../colors.ts';
+import { airSettings, clone, DAY_MIN, errorText, esc, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_MORE, ICON_OPEN, ICON_PASTE, ICON_ZOOM, isAdmin, isFan, isOff, minutesOf, NO_PRESET_MODES, noPresetSlot, nowMin, parseDate, pct, pieceSettings, sameSlot, SETPOINT_MODES, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { atMinutes, causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeField, timeFieldDone } from '../fields.ts';
 import { MEASURE_RAMP, SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
-import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, captureButtonHtml, captureState, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacIconHtml, hvacModesOf, hvacSlotStyle, isReversible, listsMode, modeName, moreSettingsHtml, ownPresetName, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn, stateOf, valueOn } from '../hvac.ts';
+import { MODE_LABELS, OFF_COLOR, SETTING_LABELS, coolsOnly, dayOn, defaultSetpointMode, fullNames, hasModeRow, hvacIcon, hvacModesOf, hvacSlotStyle, listsMode, modeName, moreSettingsHtml, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, settingsText, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
-import { LINK_TOKEN, deviceLinkHtml, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, openPanel, panelPath, panelTitle, withHtml } from '../links.ts';
-import { OVERRIDE_TEMPERATURE, RESUME, cardFrame, coolPresetTemperatureOf, fillCard, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, withoutAir } from '../override-edit.ts';
+import { LINK_TOKEN, deviceOf, entityLinkHtml, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withHtml } from '../links.ts';
+import { OVERRIDE_TEMPERATURE, RESUME, cardFrame, coolPresetTemperatureOf, fillCard, focusedField, nextOverride, overrideBodyHtml, overrideNamedMode, overrideSummary, overrideUntilText, overrideWithTemperature, presetTemperatureOf, restoreTyped, setpointLineHtml, slotName, slotSetpointText, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
 import { overrideLabel, overridePieces, rowPiece, tagSide } from '../override.ts';
-import { fitTemperature, modeChipHtml, modeRowHtml, offChipHtml, presetOf, presetsOf, sortedPresets, stepOf, stepperHtml } from '../presets.ts';
+import { modeChipHtml, modeRowHtml, offChipHtml, presetOf, sortedPresets } from '../presets.ts';
 import { fromSettings, openSettings } from '../settings-dialog.ts';
-import { copyOfDay, joinAt, joined, normalize, parseSlot, serializeDay } from '../slots.ts';
+import { copyOfDay, joinAt, joined, normalize, serializeDay } from '../slots.ts';
 import { activateSchedule, scheduleMenuAction, scheduleMenuHtml } from '../components/shared/schedule-menu.ts';
 import type { ScheduleMenuHost } from '../components/shared/schedule-menu.ts';
+import { placePopover, placeWhenDrawn } from '../components/shared/popover.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
@@ -45,8 +46,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _asideKey: any;
   declare _available: any;
   declare _bodyScroll: any;
-  declare _cell: any;
-  declare _cellError: any;
   declare _config: any;
   declare _configured: any;
   declare _copyWeekMenu: any;
@@ -92,10 +91,8 @@ export class ChauffageProgrammeCard extends HTMLElement {
   declare _shownForPreview: any;
   declare _slotMoved: any;
   declare _stamp: any;
-  declare _tableLeft: any;
   declare _tabsShown: any;
   declare _tabsWait: any;
-  declare _targetShown: any;
   declare _thermostats: any;
   declare _thermostatsStamp: any;
   declare _timer: any;
@@ -356,10 +353,9 @@ export class ChauffageProgrammeCard extends HTMLElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._cell && !this._copyWeekMenu) return;
+      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._copyWeekMenu) return;
       this._menu = null;
       this._copyWeekMenu = null;
-      this._cell = null;
       this._schedEd = null;
       this._sel = null;
       this._overrideSel = null;
@@ -1211,16 +1207,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const card: any = this.shadowRoot.querySelector('ha-card');
     if (!card || !this.shadowRoot.querySelector('.editor')) return;
     const token = (this._placeToken = (this._placeToken || 0) + 1);
-    const ready = card.updateComplete instanceof Promise ? card.updateComplete : Promise.resolve();
-    ready.then(() => {
-      let tries = 0;
-      const attempt = () => {
-        if (token !== this._placeToken) return; // a more recent render took over
-        if (this._placeEditor() || ++tries > 10) return;
-        requestAnimationFrame(attempt);
-      };
-      requestAnimationFrame(attempt);
-    });
+    placeWhenDrawn(card, () => token === this._placeToken, () => this._placeEditor());
   }
 
   // The tag of each short override, on the side where it covers no slot's label (tagSide). Once
@@ -1247,94 +1234,30 @@ export class ChauffageProgrammeCard extends HTMLElement {
     ready.then(() => requestAnimationFrame(() => this._placeTags()));
   }
 
-  // The presets table scrolled back to where it was before a redraw, and its cues: a fade on the
-  // side with more columns to see. Again once ha-card (a Lit component, rendered asynchronously)
-  // shows its content: before that, the table has no width to scroll
-  _keepTable() {
-    const set = () => {
-      const wrap = this.shadowRoot.querySelector('.table-wrap');
-      if (!wrap) return;
-      if (this._tableLeft) wrap.scrollLeft = this._tableLeft;
-      this._tableCue();
-    };
-    set();
-    const card: any = this.shadowRoot.querySelector('ha-card');
-    if (card && card.updateComplete instanceof Promise) card.updateComplete.then(set);
-  }
-
-  _tableCue() {
-    const wrap = this.shadowRoot.querySelector('.table-wrap');
-    if (!wrap) return;
-    const more = wrap.scrollWidth - wrap.clientWidth - wrap.scrollLeft;
-    wrap.parentElement.classList.toggle('more-left', wrap.scrollLeft > 4);
-    wrap.parentElement.classList.toggle('more-right', more > 4);
-  }
-
-  // Places the popover under the selected slot / override / preset cell (or above it when there
-  // is no room). Returns false if the layout is not ready yet.
+  // Places the popover under the selected slot or override (or above it when there is no room).
+  // Returns false if the layout is not ready yet.
   _placeEditor() {
     const root = this.shadowRoot;
-    // The table first: the popover points at the cell where the table is scrolled
-    const table = root.querySelector('.table-wrap');
-    if (table && this._tableLeft) table.scrollLeft = this._tableLeft;
     const ed: any = root.querySelector('.editor');
     // A temporary setpoint being set (no override yet): under "now" on the thermostat's row today
     const sel = this._overrideSel;
     const now = sel && sel.create && root.querySelector(`.bar[data-climate="${sel.climate}"][data-day="${this._rowOf(todayIdx())[0]}"] .now`);
-    const seg = root.querySelector('.override.sel, .seg.sel, .cell.on, .pv-add.on') || now;
+    const seg = root.querySelector('.override.sel, .seg.sel') || now;
     if (!ed || !seg) return true;
-    const card = root.querySelector('ha-card').getBoundingClientRect();
-    // A slot is clipped to its row (the popover goes under the row); a cell to the table, which
-    // may scroll sideways (the popover goes under the cell); the button adding a preset: under it
-    const isCell = seg.classList.contains('cell') || seg.classList.contains('pv-add');
-    const bar = (isCell ? seg.closest('.table-wrap') || seg.parentElement : seg.parentElement).getBoundingClientRect();
-    if (!card.width || !bar.width) return false;
-    const sr = seg.getBoundingClientRect();
-    const row = isCell ? sr : bar;
-    // On a narrow card (a phone), the popover takes the card's width: centred, whatever it holds
-    ed.style.width = card.width <= 516 ? `${card.width - 16}px` : '';
-    ed.classList.toggle('narrow', card.width <= 516); // its HVAC modes in three columns
-    ed.style.maxHeight = ''; // its whole height first
-    const w = ed.offsetWidth;
-    const h = ed.offsetHeight;
-    // The popover is placed from inside the card's border: centred between its two borders
-    const border = root.querySelector('ha-card').clientLeft || 0;
-    const cx = (Math.max(sr.left, bar.left) + Math.min(sr.right, bar.right)) / 2 - card.left;
-    const left = Math.max(8, Math.min(card.width - w - 8, cx - w / 2)) - border;
-    let top = row.bottom - card.top + 9;
-    let above = false;
-    // The popover goes over the save bar, but stays in the window, under Home Assistant's top bar
-    const topBar = parseFloat(getComputedStyle(this).getPropertyValue('--header-height')) || 0;
-    let max = 0;
-    if (row.bottom + 9 + h > window.innerHeight) {
-      const roomBelow = window.innerHeight - row.bottom - 9 - 8;
-      const roomAbove = row.top - 9 - 8 - topBar;
-      // No room on either side: it takes the larger one, and its body scrolls
-      if (row.top - 9 - h <= topBar) max = Math.max(roomBelow, roomAbove);
-      if (max !== roomBelow) {
-        top = row.top - card.top - (max || h) - 9;
-        above = true;
-      }
-    }
-    ed.style.maxHeight = max ? `${max}px` : '';
+    // A slot is clipped to its row: the popover goes under the row
+    if (!placePopover(this, root.querySelector('ha-card'), ed, seg, seg.parentElement, false)) return false;
     // A redraw (a preset tapped, Home Assistant's new data) keeps where the body was scrolled
     const kept = this._bodyScroll;
     this._bodyScroll = null;
     this._placedKey = this._editorKey();
     const body = ed.querySelector('.ed-body');
     if (kept && body && kept.key === this._placedKey) body.scrollTop = kept.top;
-    ed.style.left = `${left}px`;
-    ed.style.top = `${top}px`;
-    ed.style.setProperty('--caret', `${Math.max(14, Math.min(w - 14, cx - left))}px`);
-    ed.classList.toggle('above', above);
-    ed.classList.add('placed');
     return true;
   }
 
-  // Which popover is open: a slot, an override or a preset's value
+  // Which popover is open: a slot or an override
   _editorKey() {
-    const cell = this._cell && [this._cell.kind, this._cell.preset, this._cell.climate];
-    return JSON.stringify([this._sel, this._overrideSel && this._overrideSel.climate, cell]);
+    return JSON.stringify([this._sel, this._overrideSel && this._overrideSel.climate]);
   }
 
   // Redraws the card, keeping a schedule name being typed in a menu (the card is redrawn every
@@ -1348,16 +1271,10 @@ export class ChauffageProgrammeCard extends HTMLElement {
     const temperature = field ? field.value : null;
     const tabs = this.shadowRoot.querySelector('.tabs-scroll');
     const tabsLeft = tabs ? tabs.scrollLeft : 0;
-    // The presets table keeps where it was scrolled sideways: a tap on a cell redraws it
-    const table = this.shadowRoot.querySelector('.table-wrap');
-    if (table) this._tableLeft = table.scrollLeft;
     // A popover's body scrolled: put back by _placeEditor(), if the same popover is still open
     const body = this.shadowRoot.querySelector('.editor .ed-body');
     this._bodyScroll = body && body.scrollTop ? { key: this._placedKey, top: body.scrollTop } : null;
     this._draw();
-    this._keepTable();
-    this._showTargetRow();
-    this._cellCoolNote(); // what the default gives when cooling, in a cell popover just opened
     this._tabsWait = false;
     this._placeTabs(tabsLeft);
     if (typing) this._restoreSchedName(typing.value, typing.focused);
@@ -1425,11 +1342,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     if (notice) {
       fill(noticeHtml(notice, tr));
       bindReload(this.shadowRoot, () => this._reloadPage());
-      return;
-    }
-    if (this._view === 'presets' && this._source().ready) {
-      fill(`${this._presetsViewHtml()}<div class="msg">${esc(this._msg)}</div>`);
-      this._schedulePlaceEditor();
       return;
     }
     // A view of the panel (`view`): its own element, kept while the card shows it
@@ -1615,8 +1527,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     root.addEventListener('scroll', (e: any) => {
       if (!e.target.matches) return;
       if (e.target.matches('.tabs-scroll')) this._tabArrows();
-      // The presets table scrolled sideways: kept across redraws, and its cues follow
-      if (e.target.matches('.table-wrap')) { this._tableLeft = e.target.scrollLeft; this._tableCue(); }
     }, true);
     root.addEventListener('click', (e: any) => {
       const arrow = e.target.closest('[data-tabs-scroll]');
@@ -1846,7 +1756,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
       if (device) {
         this._sel = null;
         this._overrideSel = null;
-        this._cell = null;
         openDevice(device.dataset.device);
         return;
       }
@@ -1855,11 +1764,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
       if (to) {
         navigate(to.dataset.navigate);
         return;
-      }
-      // Preset cell popover open: a click outside the popover / cells closes it
-      if (this._cell && !e.target.closest('.editor, [data-act="cell"]')) {
-        this._cell = null;
-        if (!e.target.closest('[data-act]')) { this._render(); return; }
       }
       // Popover open: a click outside the popover / slot closes it
       if ((this._sel || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override')) {
@@ -1955,23 +1859,9 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
     listenTimeFields(this, (el, next) => this._timeFieldDone(el, next));
 
-    // Typing a temperature for a thermostat's preset means "use a temperature"
-    root.addEventListener('input', (e: any) => {
-      if (e.target.hasAttribute('data-cell-temp')) this._cellChoose('temperature');
-      if (e.target.hasAttribute('data-cell-cool')) this._cellChooseField(true);
-    });
-
     root.addEventListener('change', (e) => {
       const el: any = e.target;
-      if (el.hasAttribute('data-cell-preset')) {
-        this._cellChoose('own'); // picking one of the thermostat's presets means "use it"
-      } else if (el.matches('.cell-ed input[name="cell-choice"]')) {
-        this._cellCoolNote();
-      } else if (el.hasAttribute('data-cell-color')) {
-        this._cellCoolColor();
-      } else if (el.hasAttribute('data-cell-cool-color')) {
-        el.setAttribute('data-chosen', ''); // the user's own cool color: it no longer follows the color
-      } else if (el.hasAttribute('data-override-temperature') && Number.isFinite(parseDecimal(el.value)) && this._overrideSel) {
+      if (el.hasAttribute('data-override-temperature') && Number.isFinite(parseDecimal(el.value)) && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), c, parseDecimal(el.value), this._hass));
       } else if (el.hasAttribute('data-slot-setting') && this._sel) {
@@ -1980,10 +1870,11 @@ export class ChauffageProgrammeCard extends HTMLElement {
         this._setSlotSetting(climate, day, idx, el.dataset.slotSetting, el.value || null);
       }
     });
-    // "More settings" of a slot stays open or closed across redraws (toggle does not bubble)
+    // "More settings" of a slot stays open or closed across redraws (toggle does not bubble). Not
+    // the popover of a preset's value: the presets view places its own
     root.addEventListener('toggle', (e: any) => {
-      if (!e.target.matches || !e.target.matches('.editor details.more')) return;
-      if (!e.target.matches('.cell-ed details.more')) this._moreOpen = e.target.open;
+      if (!e.target.matches || !e.target.matches('.editor details.more') || e.target.closest('.cell-ed')) return;
+      this._moreOpen = e.target.open;
       this._placeEditor(); // taller or shorter: it may no longer fit where it is
       // Opened by the user (a redraw opens it again too): what it holds comes into sight
       const tapped = this._moreTapped;
@@ -1994,7 +1885,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
       if (below > 0) body.scrollTop += Math.min(below, e.target.getBoundingClientRect().top - body.getBoundingClientRect().top);
     }, true);
     root.addEventListener('click', (e: any) => {
-      if (e.target.closest && e.target.closest('.editor details.more > summary')) this._moreTapped = true;
+      if (e.target.closest && e.target.closest('.editor details.more > summary') && !e.target.closest('.cell-ed')) this._moreTapped = true;
     }, true);
   }
 
@@ -2064,119 +1955,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     return this._config.panel ? 'panel' : undefined;
   }
 
-  // The presets tab opened on a thermostat (a slot's setpoint link): its row is brought into
-  // view, once
-  _showTargetRow() {
-    const row: any = this.shadowRoot.querySelector('.pv-table tr.target');
-    if (!row || this._targetShown === row.dataset.climate) return;
-    this._targetShown = row.dataset.climate;
-    if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' });
-  }
-
-  // Whether a week uses a preset in an HVAC mode, heat or cool (a heat/cool slot uses both), on
-  // a thermostat that has no value of its own for it there: the preset's temperature for that
-  // HVAC mode is what its slot sends. In a heat/cool slot, only a temperature of its own counts
-  _usedIn(id, mode) {
-    const src = this._source();
-    for (const [climate, bySchedule] of Object.entries(src.weeks())) {
-      const own = src.mapping(climate)[id] || {};
-      const number = (mode === 'cool' ? 'cool_temperature' : 'temperature') in own;
-      for (const week of Object.values(bySchedule)) {
-        for (const slot of week.flat().map(parseSlot)) {
-          if (slot.preset !== id || hasNoPreset(slot)) continue;
-          const on = slotModeOn(this._hass, climate, slot) || 'heat';
-          // A heat/cool slot sends two numbers: one of the thermostat's own presets gives none
-          if (on === 'heat_cool' ? !number : on === mode && !number && !('preset_mode' in own)) return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  // What a preset gives a thermostat by default, in each HVAC mode (valueOn without a value set
-  // by hand): its own preset of the same name when the option allows it, else the preset's
-  // temperature, for the HVAC modes the preset has a temperature for
-  _cellDefaults(climate, preset) {
-    return valueOn(preset, null, this._hass, climate, this._source().usePresets());
-  }
-
-  // The cell popover takes the thermostat's current state (#91, lot 3): its setpoint, as the
-  // temperature (the cooling one while an air conditioner that also heats cools), its fan and
-  // its vanes. Never its preset: the preset is what the user is defining. The user taps OK to save.
-  _captureCell(climate) {
-    const root = this.shadowRoot;
-    const state = captureState(this._hass, climate);
-    if (!state) return;
-    const field = (selector) => root.querySelector(`.cell-ed ${selector}`);
-    if (state.temperature != null) {
-      const cooling = (state.hvac === 'cool' || !field('[data-cell-temp]')) && field('[data-cell-cool]');
-      (field(cooling ? '[data-cell-cool]' : '[data-cell-temp]') as any).value = this._loc.number(state.temperature);
-      this._cellChooseField(!!cooling);
-    }
-    for (const attr of SETTING_ATTRS) {
-      const select: any = field(`[data-cell-setting="${attr}"]`);
-      if (!select || !(attr in state.settings)) continue;
-      select.value = state.settings[attr];
-      select.closest('details').open = true;
-    }
-    const button = field('[data-act="capture"]');
-    if (button) {
-      button.innerHTML = `<ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${esc(this._loc.t('captured'))}`;
-      setTimeout(() => { if (button.isConnected) button.innerHTML = `<ha-icon icon="mdi:eyedropper-variant"></ha-icon> ${esc(this._loc.t('capture'))}`; }, 2000);
-    }
-  }
-
-  // A temperature field of the cell popover used: its row is chosen. The cooling field is a row
-  // of the heating question on an air conditioner that only cools
-  _cellChooseField(cooling) {
-    const root = this.shadowRoot;
-    if (!cooling) return this._cellChoose('temperature');
-    const own: any = root.querySelector('.cell-ed input[name="cell-cool-choice"][value="temperature"]');
-    if (own) own.checked = true;
-    else this._cellChoose('cool');
-    return undefined;
-  }
-
-  // Chooses a row of the cell popover: using a row's field means "use it"
-  _cellChoose(choice) {
-    const radio: any = this.shadowRoot.querySelector(`.cell-ed input[name="cell-choice"][value="${choice}"]`);
-    if (radio) radio.checked = true;
-    this._cellCoolNote();
-  }
-
-  // What an empty cooling field gives, in words: "Default (25°)", "Default (its Comfort preset,
-  // 25°)", or "Not used when cooling" when the preset has no value there. `cell`: the value
-  // being set by hand, without a cooling temperature
-  _coolFallbackText(climate, preset, cell) {
-    const t = this._loc.t;
-    const value = valueOn(preset, cell, this._hass, climate, this._source().usePresets());
-    if ('cool_temperature' in value) return t('presetAuto', { value: `${this._loc.number(value.cool_temperature)}°` });
-    if (!('cool_preset_mode' in value)) return t('notWhenCooling');
-    const temperature = this._source().coolPresetTemperature(climate, value.cool_preset_mode);
-    const name = t('cellOwnPreset', { preset: ownPresetName(this._hass, climate, value.cool_preset_mode, this._loc) });
-    return t('presetAuto', { value: typeof temperature === 'number' ? `${name}, ${this._loc.number(temperature)}°` : name });
-  }
-
-  // The default when cooling, in the cell popover: what the thermostat then gets, from the row
-  // chosen when heating (one of the thermostat's own presets is sent when cooling too)
-  _cellCoolNote() {
-    const root = this.shadowRoot;
-    const note = root.querySelector('.cell-ed .pv-cooldefault');
-    const sel = this._cell;
-    if (!note || !sel || !sel.climate) return;
-    const choice = ((root.querySelector('.cell-ed input[name="cell-choice"]:checked') || {}) as any).value;
-    const own = ((root.querySelector('.cell-ed [data-cell-preset]') || {}) as any).value;
-    const preset = this._presets().find((l) => l.id === sel.preset);
-    if (preset) note.textContent = this._coolFallbackText(sel.climate, preset, choice === 'own' && own ? { preset_mode: own } : null);
-  }
-
-  // The cool color of the preset popover follows the color while the user has not chosen one
-  _cellCoolColor() {
-    const root = this.shadowRoot;
-    const cool: any = root.querySelector('.cell-ed [data-cell-cool-color]');
-    if (cool && !cool.hasAttribute('data-chosen')) cool.value = derivedCoolColor((root.querySelector('.cell-ed [data-cell-color]') as any).value);
-  }
-
   // Temperature a preset gives a thermostat (presetTemperatureOf)
   _presetTemperature(climate, target) {
     return presetTemperatureOf(this._source(), climate, target);
@@ -2190,9 +1968,7 @@ export class ChauffageProgrammeCard extends HTMLElement {
   // What a preset means for a thermostat: its mapping (as computed by the integration), else
   // the default for a thermostat the integration does not know yet
   _targetOf(climate, preset) {
-    const known = this._source().targets(climate)[preset.id];
-    if (known) return known;
-    return valueOn(preset, this._source().mapping(climate)[preset.id], this._hass, climate, this._source().usePresets());
+    return targetOf(this._source(), this._hass, climate, preset);
   }
 
   // On a dashboard, the card shows the weeks; the presets, the rules and the thermostats are set
@@ -2213,347 +1989,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
     return `<span class="mi-link settings-link" role="link" tabindex="0" data-navigate="${panelPath('presets')}">${esc(this._loc.t('setPresets'))}</span>`;
   }
 
-  // Table: one column per preset (header: the preset, then its default temperature), one row per
-  // thermostat; each cell says what that thermostat does with that preset
-  _presetsViewHtml() {
-    const t = this._loc.t;
-    const src = this._source();
-    const editable = src.editable;
-    const presets = this._presets();
-    const sel = this._cell;
-    const isSel = (kind, preset, climate) => sel && sel.kind === kind && sel.preset === preset && (sel.climate || null) === (climate || null);
-    const cell = (kind, preset, climate, inner, cls) => {
-      const on = isSel(kind, preset, climate) ? ' on' : '';
-      const attrs = `data-act="cell" data-kind="${kind}" data-preset="${esc(preset || '')}"${climate ? ` data-climate="${esc(climate)}"` : ''}`;
-      return editable ? `<button class="cell ${cls}${on}" ${attrs}>${inner}</button>` : `<span class="cell ${cls}">${inner}</span>`;
-    };
-    // A preset's header holds all of it: its color, name and default temperature
-    // On a thermostat's sheet, the presets themselves are not set (they are every thermostat's)
-    const definitions = this._config.preset_definitions !== false;
-    // Its temperature when heating, then when cooling with an air conditioner: "20° by default
-    // · ❄ 25°". Either can be empty
-    const anyCools = this._thermostats.some(({ entity }) => listsMode(this._hass, entity, 'cool'));
-    const headDefaults = (l) => [l.temperature != null ? esc(t('defaultTemperature', { value: this._loc.number(l.temperature) })) : '',
-      anyCools && l.cool_temperature != null ? `${hvacIconHtml('cool')}${esc(`${this._loc.number(l.cool_temperature)}°`)}` : ''].filter(Boolean).join(' · ');
-    const headInner = (l) => `<span class="pv-pname"><i style="background:${l.color}"></i>${esc(l.name)}</span>
-       <span class="pv-default">${headDefaults(l)}</span>`;
-    const head = presets.map((l) => `<th>${definitions ? cell('preset', l.id, null, headInner(l), 'head')
-      : `<span class="cell head">${headInner(l)}</span>`}</th>`).join('');
-    let unknown = false;
-    // What a preset does on a thermostat: its value, then what it is (the thermostat's own preset,
-    // set here, or the default)
-    const what = (entity, l) => {
-      const explicit = src.mapping(entity);
-      const target = this._targetOf(entity, l);
-      // An air conditioner that only cools has no heating value; one that cools has a cooling
-      // value: its cooling temperature, else what its own preset gives when cooling
-      const coolOnly = coolsOnly(this._hass, entity);
-      const usable = presetModes(target);
-      const heats = !coolOnly && usable.includes('heat');
-      const temp = heats ? this._presetTemperature(entity, target) : null;
-      const coolTemp = listsMode(this._hass, entity, 'cool') ? this._coolPresetTemperature(entity, target) : null;
-      let how;
-      let cls;
-      // On an air conditioner that heats and cools, which of the two values is set here
-      const set = explicit[l.id] || {};
-      const heatHere = 'temperature' in set || 'preset_mode' in set;
-      const setHere = !isReversible(this._hass, entity) || heatHere === ('cool_temperature' in set) ? t('cellSetHere')
-        : t(heatHere ? 'cellHeatSetHere' : 'cellCoolSetHere');
-      if ('preset_mode' in target) {
-        how = t('cellOwnPreset', { preset: ownPresetName(this._hass, entity, target.preset_mode, this._loc) });
-        cls = 'preset';
-        if (l.id in explicit) how += ` · ${setHere}`;
-      } else if (l.id in explicit) {
-        how = setHere;
-        cls = 'custom';
-      } else {
-        how = t('cellDefault');
-        cls = 'default';
-      }
-      if (temp == null && heats) unknown = true;
-      // A fan or swing setting: one icon whatever their number (the popover details); a cooling
-      // setpoint after the heating one, "🔥 20° · ❄ 25°"
-      const tuned = SETTING_ATTRS.some((attr) => attr in target) ? '<span class="m tuned"><ha-icon icon="mdi:tune-variant"></ha-icon></span>' : '';
-      const cool = coolTemp != null ? `${hvacIconHtml('cool')}${this._loc.number(coolTemp)}°` : '';
-      // A heating setpoint known: "20°", with its icon next to a cooling one ("🔥 20° · ❄ 25°");
-      // unknown: "?", unless the cooling one is the value. Only cooling, without a cooling
-      // value: "—", the setpoint is left alone
-      const heat = !heats ? '' : temp != null ? `${cool ? hvacIconHtml('heat') : ''}${this._loc.number(temp)}°` : cool ? '' : '?';
-      // Nothing to show: "—" when the preset has no value here, "?" when the temperature of
-      // the thermostat's own preset when cooling is not known yet
-      const coolUnknown = !heats && usable.includes('cool');
-      if (coolUnknown && !cool) unknown = true;
-      const setpoint = cool ? `${heat ? `${heat} · ` : ''}${cool}` : heat || (coolUnknown ? '?' : '—');
-      return { value: `${setpoint}${tuned}`, how, cls };
-    };
-    let body;
-    const wanted = new URLSearchParams(window.location.search).get('thermostat');
-    if (definitions) {
-      const rows = this._thermostats.map(({ entity }) => {
-        const cells = presets.map((l) => {
-          const w = what(entity, l);
-          return `<td>${cell('thermostat', l.id, entity, `<span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, w.cls)}</td>`;
-        }).join('');
-        // The row a slot's setpoint link asks for (?thermostat=…) stands out
-        return `<tr data-climate="${esc(entity)}"${wanted === entity ? ' class="target"' : ''}><th class="name">${this._moreInfoLink(entity)}</th>${cells}</tr>`;
-      }).join('');
-      body = `<div class="table-outer"><div class="table-wrap"><table class="pv-table">
-        <thead><tr><th></th>${head}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div></div>`;
-    } else {
-      // One thermostat (its sheet in the panel): a list, one item per preset, not a table of one
-      // row; an item opens the same editor as a cell of the table
-      const entity = this._thermostats[0].entity;
-      const items = presets.map((l) => {
-        const w = what(entity, l);
-        return cell('thermostat', l.id, entity, `<span class="pv-pname"><i style="background:${l.color}"></i>${esc(l.name)}</span>
-          <span class="pv-val">${w.value}</span> <span class="pv-how">${esc(w.how)}</span>`, `pv-item ${w.cls}`);
-      }).join('');
-      body = `<div class="pv-list">${items}</div>`;
-    }
-    return `<div class="presets-view">
-      ${definitions ? `<div class="pv-intro muted">${esc(t('presetsIntro'))}</div>` : ''}
-      ${body}
-      ${unknown ? `<div class="pv-note muted">${esc(t('presetsUnknown'))}</div>` : ''}
-      ${editable && definitions ? `<button class="btn pv-add${sel && sel.kind === 'new' ? ' on' : ''}" data-act="cell" data-kind="new" data-preset="">${esc(t('addPresetButton'))}</button>` : ''}
-      ${this._cellPanelHtml()}
-    </div>`;
-  }
-
-  // Popover editing the selected cell
-  _cellPanelHtml() {
-    const sel = this._cell;
-    if (!sel) return '';
-    const t = this._loc.t;
-    const src = this._source();
-    const presets = this._presets();
-    const preset = presets.find((l) => l.id === sel.preset) || { id: '', name: '', color: '#9e9e9e', temperature: 19 };
-    // A temperature field, in the user's number format, read with either decimal separator;
-    // `attr`: data-cell-temp (heating) or data-cell-cool (cooling, empty without a value), with
-    // its aria-label
-    // Its − and its + move it by the thermostat's step (half a degree for a preset's default)
-    const tempInput = (value, attr = 'data-cell-temp', label = t('presetTemperature')) => stepperHtml(this._loc, attr, value, 'cell-step',
-      sel.kind === 'thermostat' ? stepOf(this._hass, sel.climate) : 0.5, label);
-    let title;
-    let body;
-    if (sel.kind === 'thermostat') {
-      title = t('presetFor', { preset: preset.name, name: this._name(sel.climate) });
-      const explicit = src.mapping(sel.climate)[preset.id] || {};
-      const st = this._hass.states[sel.climate];
-      // The thermostat's presets, the one named like this preset (what "default" uses) first
-      const own = ((st && st.attributes.preset_modes) || []).map(String)
-        .filter((p) => !MANUAL_PRESETS.includes(p.toLowerCase()))
-        .sort((a, b) => +(b === preset.id) - +(a === preset.id));
-      // What "default" gives: the thermostat's own preset of the same name (when the "use the
-      // thermostats' presets" option allows it), else the preset's default temperature
-      const defaults: any = this._cellDefaults(sel.climate, preset);
-      const degrees = (value) => `${this._loc.number(value)}°`;
-      // An air conditioner that only cools: no heating value. Its own preset, or a cooling
-      // temperature
-      const coolOnly = coolsOnly(this._hass, sel.climate);
-      const ownName = (p) => ownPresetName(this._hass, sel.climate, p, this._loc);
-      // What the default gives: when cooling on a unit that only cools, else when heating
-      const defaultTemperature = coolOnly ? this._coolPresetTemperature(sel.climate, defaults) : this._presetTemperature(sel.climate, defaults);
-      const defaultOwn = coolOnly ? defaults.cool_preset_mode : defaults.preset_mode;
-      const defaultText = defaultOwn
-        ? `${t('cellOwnPreset', { preset: ownName(defaultOwn) })}${defaultTemperature != null ? `, ${degrees(defaultTemperature)}` : ''}`
-        : defaultTemperature != null ? degrees(defaultTemperature) : t(coolOnly ? 'notWhenCooling' : 'notWhenHeating');
-      // One question, three answers: the default, one of the thermostat's own presets, or a
-      // temperature. The cell opens on what is stored; using a row's field chooses the row
-      const choice = 'preset_mode' in explicit ? 'own' : 'temperature' in explicit ? 'temperature' : 'default';
-      const temp = 'temperature' in explicit ? explicit.temperature
-        : this._presetTemperature(sel.climate, this._targetOf(sel.climate, preset)) ?? preset.temperature ?? 19;
-      const radio = (name, checked) => (value, label, field = '', cls = '') => `<label class="pv-row${cls}"><input type="radio" name="${name}" value="${value}"${checked === value ? ' checked' : ''}>
-          <span${cls === ' pv-cooldefault-row' ? ' class="pv-cooldefault"' : ''}>${esc(label)}</span>${field ? `<span class="pv-field">${field}</span>` : ''}</label>`;
-      const picked = own.includes(explicit.preset_mode) ? explicit.preset_mode : own[0];
-      const options = own.map((p) => `<option value="${esc(p)}"${picked === p ? ' selected' : ''}>${esc(ownName(p))}</option>`).join('');
-      const reversible = isReversible(this._hass, sel.climate);
-      const cool = explicit.cool_temperature;
-      // The cooling field opens on what the thermostat gets: its own value, else the default
-      const coolDefault = this._coolPresetTemperature(sel.climate, defaults);
-      // Empty (its own preset's temperature is not known): the preset's cooling temperature, as a hint
-      const coolHint = preset.cool_temperature != null ? ` placeholder="${esc(this._loc.number(preset.cool_temperature))}"` : '';
-      const coolField = tempInput(cool ?? coolDefault, `data-cell-cool${coolHint}`, t('temperatureCoolAria'));
-      // Only cooling: one question, the default, one of its own presets, or a temperature
-      const heatChoice = coolOnly && cool != null ? 'cool' : choice;
-      const row = radio('cell-choice', heatChoice);
-      const rows = row('default', t('presetAuto', { value: defaultText }))
-        + (own.length ? row('own', t('cellOwn'), `<select data-cell-preset aria-label="${esc(t('ownPreset'))}">${options}</select>`) : '')
-        + (coolOnly ? row('cool', t('presetTemperature'), coolField, ' pv-cool')
-          : row('temperature', t('presetTemperature'), tempInput(temp, 'data-cell-temp', reversible ? t('temperatureHeatAria') : t('presetTemperature'))));
-      // An air conditioner that heats and cools: the same question when cooling, with the same
-      // rows. The default says what the thermostat then gets: "Default (25°)", "Default (its
-      // Eco preset, 27°)" or "Not used when cooling"
-      const fallback = this._coolFallbackText(sel.climate, preset, 'preset_mode' in explicit ? { preset_mode: explicit.preset_mode } : null);
-      const coolRow = radio('cell-cool-choice', cool != null ? 'temperature' : 'default');
-      const cooling = !reversible ? '' : `<div class="pv-when">${hvacIcon('cool')}${esc(t('whenCooling'))}</div>
-        <div class="pv-choices" role="radiogroup">${coolRow('default', fallback, '', ' pv-cooldefault-row')}${coolRow('temperature', t('presetTemperature'), coolField, ' pv-cool')}</div>`;
-      // The fan and the vanes, folded (lot 3)
-      const more = moreSettingsHtml(this._hass, sel.climate, this._loc, explicit, null, false, 'data-cell-setting');
-      // Its own presets are set on its device (their temperatures, on a Versatile Thermostat)
-      const device = own.length ? this._deviceLink(this._deviceOf(sel.climate), t('ownPresetsOnDevice')) : '';
-      body = `${reversible ? `<div class="pv-when">${hvacIcon('heat')}${esc(t('whenHeating'))}</div>` : coolOnly ? `<div class="pv-when">${hvacIcon('cool')}${esc(t('whenCooling'))}</div>` : ''}
-        <div class="pv-choices" role="radiogroup">${rows}</div>
-        ${cooling}
-        ${more}
-        <div class="capture-row">${captureButtonHtml(this._hass, sel.climate, this._loc)}</div>
-        ${device ? `<div class="pv-device">${device}</div>` : ''}`;
-      return this._cellPopover(preset, title, body, `<button class="btn primary" data-act="cell-apply">${esc(t('apply'))}</button>`, sel.climate);
-    } else {
-      const isNew = sel.kind === 'new';
-      title = isNew ? t('newPreset') : preset.name;
-      if (!isNew && sel.deleting) {
-        // Deleting: what replaces it where it is used (schedules, overrides)
-        const used = src.usedPresets().includes(preset.id);
-        const others = presets.filter((l) => l.id !== preset.id);
-        body = `<div class="pv-delete">${esc(t('confirmDeletePreset', { name: preset.name }))}
-          ${used ? `<label class="pv-replace">${esc(t('replaceWith'))} <select data-cell-replacement>${others.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select></label>` : ''}</div>`;
-        return this._cellPopover(preset, title, body, `<button class="btn" data-act="cell-delete-cancel">${esc(t('cancel'))}</button>
-          <button class="btn danger" data-act="cell-delete-confirm">${esc(t('deletePreset'))}</button>`);
-      }
-      // With an air conditioner: its color when heating and its color when cooling, each on a
-      // row with its label. Without one: its color, beside its name
-      const cools = this._thermostats.some(({ entity }) => listsMode(this._hass, entity, 'cool'));
-      const color = `<input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t(cools ? 'presetHeatColor' : 'presetColor'))}">`;
-      body = `<div class="pv-fields">
-          <span>${esc(t('presetName'))}</span>
-          <span class="pv-name">${cools ? '' : color}
-            <input type="text" data-cell-name value="${esc(isNew ? '' : preset.name)}" placeholder="${esc(t('presetName'))}"></span>
-          <span>${esc(t(cools ? 'whenHeating' : 'presetDefaultTemperature'))}</span>${tempInput(isNew ? 19 : preset.temperature, 'data-cell-temp', t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
-          ${cools ? `<span>${esc(t('whenCooling'))}</span>${tempInput(isNew ? null : preset.cool_temperature, 'data-cell-cool', t('temperatureCoolAria'))}
-          <span>${esc(t('presetHeatColor'))}</span><span class="pv-name">${color}</span>
-          <span>${esc(t('presetCoolColor'))}</span>
-          <span class="pv-name"><input type="color" data-cell-cool-color${preset.cool_color ? ' data-chosen' : ''} value="${esc(coolColor(isNew ? { color: '#9e9e9e' } : preset))}" title="${esc(t('presetCoolColor'))}"></span>` : ''}
-        </div>
-        <div class="muted">${esc(t('defaultHelp'))}</div>`;
-      if (!isNew && presets.length > 1) {
-        return this._cellPopover(preset, title, body, `<button class="btn danger pv-del" data-act="cell-delete">${esc(t('deleteMenu'))}</button>
-          <button class="btn primary" data-act="cell-apply">${esc(t('apply'))}</button>`);
-      }
-    }
-    return this._cellPopover(sel.kind === 'new' ? null : preset, title, body,
-      `<button class="btn primary" data-act="cell-apply">${esc(t('apply'))}</button>`, sel.kind === 'thermostat' ? sel.climate : null);
-  }
-
-  // Popover of a cell, placed under it by _placeEditor() after rendering; a thermostat's title
-  // opens it
-  _cellPopover(preset, title, body, buttons, climate = null) {
-    const t = this._loc.t;
-    const dot = preset ? `<i class="pv-dot" style="background:${preset.color}"></i>` : '';
-    const heading = climate ? `${esc(preset.name)} · ${this._moreInfoLink(climate)}` : esc(title);
-    return `<div class="editor cell-ed" data-panel="cell">
-      <div class="ed-head"><strong>${dot}${heading}</strong>
-        <button class="btn icon close" data-act="cell-close" title="${esc(t('close'))}">✕</button></div>
-      <div class="ed-body">${body}
-        ${this._cellError ? `<div class="pv-error">${esc(this._cellError)}</div>` : ''}</div>
-      <div class="ed-actions pv-foot">${buttons}</div>
-    </div>`;
-  }
-
-  async _cellAction(act, ds, el) {
-    const root = this.shadowRoot;
-    if (act === 'cell') {
-      const same = this._cell && this._cell.kind === ds.kind && this._cell.preset === ds.preset && (this._cell.climate || '') === (ds.climate || '');
-      this._cell = same ? null : { kind: ds.kind, preset: ds.preset, climate: ds.climate };
-      this._cellError = null;
-      return this._render();
-    }
-    this._cellError = null;
-    const sel = this._cell;
-    if (act === 'cell-close' || !sel) { this._cell = null; return this._render(); }
-    if (act === 'cell-delete' || act === 'cell-delete-cancel') {
-      sel.deleting = act === 'cell-delete';
-      return this._render();
-    }
-    const input: any = root.querySelector('[data-cell-temp]');
-    const cool: any = root.querySelector('[data-cell-cool]');
-    if (act === 'cell-step') { // the field of the row of the button tapped: heating or cooling
-      const field = (el && el.closest('.pv-temp') || root).querySelector('input') || input;
-      // An empty field starts from a usual temperature for its HVAC mode: 25° when cooling,
-      // 19° when heating. Never from the other field: a tap on − gave a cooling setpoint of 19,5°
-      const typed = parseDecimal(field.value);
-      const from = Number.isFinite(typed) ? typed : field === cool ? 25 : 19;
-      const next = Math.round((from + Number(ds.delta)) * 100) / 100;
-      field.value = this._loc.number(sel.kind === 'thermostat' ? fitTemperature(this._hass, sel.climate, next) : next);
-      this._cellChooseField(field === cool);
-      return undefined;
-    }
-    if (act === 'capture') { // the thermostat's current state fills the fields; OK saves (lot 3)
-      this._captureCell(sel.climate);
-      return undefined;
-    }
-    const src = this._source();
-    // `cooling`: its cooling temperature and its cool color, when it has them (presetsOf)
-    const presets = presetsOf(src, this._loc).map(({ id, name, color, temperature, ...cooling }) => (
-      { id, name, color, temperature: temperature === undefined ? 19 : temperature, ...cooling }));
-    const value = (sel2) => { const el = root.querySelector(sel2); return el ? el.value : ''; };
-    // The cool color is stored only when the user chose one that is not the derived one: a
-    // preset without one keeps following its color
-    // Either temperature can be empty: the preset is then not used in that HVAC mode. Without
-    // an air conditioner, the popover has no cooling field: the cooling temperature stays
-    const edited = (l) => {
-      const { cool_color: _, cool_temperature: kept, ...rest } = l;
-      const color = value('[data-cell-color]');
-      const coolField: any = root.querySelector('[data-cell-cool-color]');
-      const coolColorChosen = coolField ? (coolField.hasAttribute('data-chosen') && coolField.value !== derivedCoolColor(color) ? coolField.value : null) : l.cool_color;
-      const number = (field) => (Number.isFinite(parseDecimal(field.value)) ? parseDecimal(field.value) : null);
-      const coolTemperature = cool ? number(cool) : kept ?? null;
-      return { ...rest, name: value('[data-cell-name]').trim(), color, temperature: number(input),
-        ...(coolTemperature != null ? { cool_temperature: coolTemperature } : {}), ...(coolColorChosen ? { cool_color: coolColorChosen } : {}) };
-    };
-    try {
-      if (sel.kind === 'thermostat') {
-        // The row chosen: the default (nothing stored), one of its own presets, or a temperature;
-        // then a cooling setpoint, a fan and vanes when they are set
-        // A temperature is stored as the thermostat takes it, on its step: the cell shows what
-        // is stored
-        const choice = value('.cell-ed input[name="cell-choice"]:checked');
-        const coolChoice = value('.cell-ed input[name="cell-cool-choice"]:checked');
-        const target: any = {};
-        if (choice === 'own') target.preset_mode = value('[data-cell-preset]');
-        else if (choice === 'temperature') {
-          if (!Number.isFinite(parseDecimal(input.value))) return undefined;
-          target.temperature = fitTemperature(this._hass, sel.climate, parseDecimal(input.value));
-        }
-        if (cool && (choice === 'cool' || coolChoice === 'temperature')) {
-          if (!Number.isFinite(parseDecimal(cool.value))) return undefined;
-          target.cool_temperature = fitTemperature(this._hass, sel.climate, parseDecimal(cool.value));
-        }
-        for (const attr of SETTING_ATTRS) if (value(`[data-cell-setting="${attr}"]`)) target[attr] = value(`[data-cell-setting="${attr}"]`);
-        // Its own preset of the same name, chosen by hand: the default, so nothing more is stored
-        const preset = presets.find((l) => l.id === sel.preset);
-        const defaults: any = this._cellDefaults(sel.climate, preset);
-        if (target.preset_mode && target.preset_mode === defaults.preset_mode) delete target.preset_mode;
-        const mapping = { ...src.mapping(sel.climate) };
-        if (Object.keys(target).length) mapping[sel.preset] = target; else delete mapping[sel.preset];
-        // The same as what is stored (the default kept): nothing to send
-        if (JSON.stringify(mapping) !== JSON.stringify(src.mapping(sel.climate))) await this._commands().setMapping(sel.climate, mapping);
-      } else if (sel.kind === 'new') {
-        await this._commands().setPresets([...presets, edited({})], {});
-      } else if (act === 'cell-delete-confirm') {
-        const replacement = value('[data-cell-replacement]');
-        await this._commands().setPresets(presets.filter((l) => l.id !== sel.preset), replacement ? { [sel.preset]: replacement } : {});
-      } else {
-        // A temperature that the weeks use stays: its slots would have nothing to send
-        const old = presets.find((l) => l.id === sel.preset);
-        const next = edited(old);
-        const lost = [['heat', 'temperature'], ['cool', 'cool_temperature']]
-          .find(([mode, key]) => old[key] != null && next[key] == null && this._usedIn(old.id, mode));
-        if (lost) {
-          this._cellError = this._loc.t(lost[0] === 'cool' ? 'presetUsedCooling' : 'presetUsedHeating');
-          return this._render();
-        }
-        await this._commands().setPresets(presets.map((l) => (l.id === sel.preset ? next : l)), {});
-      }
-      this._cell = null;
-      this._msg = this._loc.t('saved');
-    } catch (err) {
-      this._msg = errorText(this._loc.t, err);
-    }
-    return this._render();
-  }
-
   // Opens HA's standard more-info dialog (same mechanism as the built-in tiles)
   _openMoreInfo(entityId) {
     openMoreInfo(this, entityId);
@@ -2561,14 +1996,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
 
   _moreInfoLink(climate) {
     return entityLinkHtml(climate, this._name(climate), this._loc.t('openThermostat'));
-  }
-
-  _deviceLink(id, label = this._loc.t('device')) {
-    return deviceLinkHtml(this._hass, id, label);
-  }
-
-  _deviceOf(entity) {
-    return deviceOf(this._hass, entity);
   }
 
   // The names shown, invisible, in every cell of the names column: each row sizes the column on
@@ -2907,7 +2334,6 @@ export class ChauffageProgrammeCard extends HTMLElement {
       const changed = nextOverride(act, ds, d, this._source(), c, this._hass);
       return changed && this._sendOverride(c, changed === RESUME ? null : changed);
     }
-    if (act === 'cell' || act.startsWith('cell-') || (act === 'capture' && this._cell)) return this._cellAction(act, ds, el);
     if (act === 'save') return this._save();
     if (act === 'cancel') return this._discard();
     if (act === 'copy-day') return this._copyToClipboard(ds.climate, Number(ds.day));

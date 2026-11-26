@@ -10,6 +10,7 @@ import { ChauffageProgrammeCard } from './cards/programme-card.ts';
 import { ChauffageRoomsCard } from './cards/rooms-card.ts';
 import { ChauffageSummaryCard } from './cards/summary-card.ts';
 import { ChauffageThermostatCard, ChauffageThermostatCardEditor } from './cards/thermostat-card.ts';
+import { ChauffagePresetsView } from './components/views/presets-view.ts';
 import { ChauffageRulesView } from './components/views/rules-view.ts';
 import { ChauffageSchedulesView } from './components/views/schedules-view.ts';
 import { ChauffageThermostatsView } from './components/views/thermostats-view.ts';
@@ -50,6 +51,7 @@ function defineElements() {
   if (!customElements.get('chauffage-summary-card-editor')) customElements.define('chauffage-summary-card-editor', ChauffageSummaryCardEditor);
   if (!customElements.get('chauffage-panel')) customElements.define('chauffage-panel', ChauffagePanel);
   if (!customElements.get(SETTINGS_DIALOG)) customElements.define(SETTINGS_DIALOG, ChauffageSettingsDialog);
+  if (!customElements.get('chauffage-presets-view')) customElements.define('chauffage-presets-view', ChauffagePresetsView);
   if (!customElements.get('chauffage-rules-view')) customElements.define('chauffage-rules-view', ChauffageRulesView);
   if (!customElements.get('chauffage-schedules-view')) customElements.define('chauffage-schedules-view', ChauffageSchedulesView);
   if (!customElements.get('chauffage-thermostats-view')) customElements.define('chauffage-thermostats-view', ChauffageThermostatsView);
