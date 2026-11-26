@@ -1,7 +1,7 @@
 // A paused thermostat in the card and its more-info block: shown as paused, Chauffage does not
 // drive it, its weeks stay editable (docs/decisions.md, "Scheduled thermostats").
 import { fakeHass, createCard, createView, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
-import { cutSlot , settle } from './driver.mjs';
+import { cutSlot , settle, openOverride, placePopover } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { save } from './driver.mjs';
@@ -46,6 +46,23 @@ describe('a paused thermostat in the card', () => {
     hass.push(integrationData({ weeks: WEEKS })); await settle();
     assert.equal(q(card, '.paused-note'), null);
     assert.ok(!q(card, '.bar[data-climate="climate.salon"]').classList.contains('paused'));
+  });
+
+  test('a new override being set disappears when the thermostat is paused elsewhere', async () => {
+    const hass = fakeHass({ weeks: WEEKS });
+    const card = createCard(hass); await settle();
+    await openOverride(card, 'climate.salon');
+    const rect = () => ({ left: 0, right: 360, width: 360, top: 100, bottom: 138, height: 38 });
+    q(card, 'ha-card').getBoundingClientRect = rect;
+    const now = q(card, '.dgroup.today .bar[data-climate="climate.salon"] .now');
+    now.getBoundingClientRect = rect;
+    now.parentElement.getBoundingClientRect = rect;
+    placePopover(card);
+    assert.ok(q(card, '.editor').classList.contains('placed'));
+    hass.push(integrationData({ weeks: WEEKS, paused: ['climate.salon'] })); await settle(); // an automation
+    placePopover(card);
+    const editor = q(card, '.editor');
+    assert.ok(!editor || !editor.classList.contains('placed'), 'no popover left where "now" was');
   });
 
   test('its rows are marked paused, without the current time', async () => {

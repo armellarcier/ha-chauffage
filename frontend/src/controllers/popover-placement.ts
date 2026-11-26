@@ -47,7 +47,12 @@ export class PopoverPlacement implements ReactiveController {
     const ed: HTMLElement = this.host.querySelector('.editor');
     const target = this.target();
     const frame = this.frame();
-    if (!ed || !target || !frame) return true;
+    if (!ed || !frame) return true;
+    // What it edits is no longer drawn, for example a thermostat paused elsewhere: no popover
+    if (!target) {
+      ed.classList.remove('placed');
+      return true;
+    }
     // A slot is clipped to its row: the popover goes under the row
     if (!placePopover(this.card(), frame, ed, target, target.parentElement, false)) return false;
     const kept = this.kept;
