@@ -9,14 +9,14 @@ import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPre
 import { WeekDraft } from '../state/week-draft.ts';
 import { HistoryStore } from '../state/history-store.ts';
 import { OverrideDraft } from '../state/override-draft.ts';
-import { airSettings, clone, DAY_MIN, errorText, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_OPEN, ICON_PASTE, ICON_ZOOM, NO_PRESET_MODES, noPresetSlot, nowMin, pct, pieceSettings, sameSlot, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
+import { airSettings, clone, DAY_MIN, errorText, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_OPEN, ICON_PASTE, ICON_ZOOM, NO_PRESET_MODES, noPresetSlot, pct, pieceSettings, sameSlot, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeFieldDone } from '../fields.ts';
 import { SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
 import { MODE_LABELS, SETTING_LABELS, dayOn, hvacIconTemplate, hvacModesOf, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
-import { LINK_TOKEN, deviceOf, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
+import { LINK_TOKEN, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
 import { RESUME, coolPresetTemperatureOf, focusedField, nextOverride, overrideWithTemperature, presetTemperatureOf, slotName, stepOverrideTemperature, targetOf, withoutAir } from '../override-edit.ts';
-import { overrideLabel, overridePieces, tagSide } from '../override.ts';
+import { overridePieces, tagSide } from '../override.ts';
 import { presetOf, sortedPresets } from '../presets.ts';
 import { fromSettings, openSettings } from '../settings-dialog.ts';
 import { copyOfDay, joinAt, joined, normalize, serializeDay } from '../slots.ts';
@@ -543,10 +543,6 @@ export class ChauffageProgrammeCard extends LitElement {
 
   _overridePieces(climate) {
     return overridePieces(this._overrides()[climate]);
-  }
-
-  _overrideLabel(d) {
-    return overrideLabel(d, this._loc, this._presets());
   }
 
   async _sendOverride(climate, override) {
