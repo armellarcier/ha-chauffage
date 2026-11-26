@@ -175,9 +175,10 @@ type PanelPage = {
   schedules: string[];
   // How many thermostats are scheduled
   scheduled: number;
-  // Every card of the page (programme cards, the tile), given hass on each update
+  // Every element of the page given hass on each update: the programme cards, the views, the tile
   cards: any[];
-  // The cards of the page, by their place: a list's views, a sheet's presets
+  // What the page shows, by its place: a list's views (in their frames), a sheet's presets, a
+  // schedule's sheet's card
   views: any[];
   // A thermostat's sheet: its card of each schedule
   weekCards: Record<string, any>;
@@ -373,12 +374,23 @@ export class ChauffagePanel extends LitElement {
       page.cards.push(el);
       return el;
     };
+    // A view of the page, in its frame. Not the thermostats renamed in Home Assistant: the
+    // integration follows them, and the page is built again then
+    const thermostats = this._thermostats(src).filter((e) => !renamedTo(this.hass, src, e)).map((entity) => ({ entity }));
+    const view = (tag, props = {}, flat = false) => {
+      const el: any = Object.assign(document.createElement(tag), { hass: this.hass, thermostats, panel: true }, props);
+      page.cards.push(el);
+      const frame: any = document.createElement('chauffage-view-frame');
+      frame.view = el;
+      frame.flat = flat;
+      return frame;
+    };
     if (route.sheet === 'schedule') {
       page.views.push(card({ schedule: route.id, schedule_tabs: 'one' }));
     } else if (route.sheet === 'thermostat') {
       this._loadTile(page, route.id);
       // Its presets first: what each one means for this thermostat is the legend of its weeks
-      page.views.push(card({ thermostats: [route.id], view: 'presets', preset_definitions: false, flat: true }));
+      page.views.push(view('chauffage-presets-view', { thermostats: [{ entity: route.id }], definitions: false }, true));
       for (const id of page.schedules) {
         // One week alone: no chips, tabs, hint, paused note, legend or save bar (the page has its own),
         // today marked in the active schedule only
@@ -386,11 +398,11 @@ export class ChauffagePanel extends LitElement {
           group_days: this._groupDays, history: this._historyOn, flat: true });
       }
     } else if (route.list === 'thermostats') {
-      if (page.scheduled) page.views.push(card({ view: 'thermostats', flat: true })); // its list is a card of its own
+      if (page.scheduled) page.views.push(view('chauffage-thermostats-view', {}, true)); // its list is a card of its own
     } else if (route.list === 'schedules') {
-      page.views.push(card({ view: 'schedules', flat: true }), card({ view: 'rules' }));
+      page.views.push(view('chauffage-schedules-view', {}, true), view('chauffage-rules-view'));
     } else {
-      page.views.push(card({ view: 'presets' }));
+      page.views.push(view('chauffage-presets-view'));
     }
   }
 

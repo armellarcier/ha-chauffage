@@ -11,9 +11,9 @@ import { entityLink } from '../shared/entity-link.ts';
 export type Thermostat = { entity: string; name?: string };
 
 // A view of the Chauffage panel: the presets, the schedules, the thermostats or the rules. It
-// draws in the light DOM of the element that shows it, with that element's stylesheet: today the
-// programme card, set with one `view`. It closes its own menus, follows its own links and does its
-// own actions: its clicks don't reach the element that shows it.
+// draws in the light DOM of the element that shows it, with that element's stylesheet: the panel
+// puts it in a frame (ChauffageViewFrame). It closes its own menus, follows its own links and does
+// its own actions: its clicks don't reach the element that shows it.
 export class ChauffageView extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -25,7 +25,7 @@ export class ChauffageView extends LitElement {
   declare hass: any;
   // The user's language, time and number formats (makeLocale); Home Assistant's by default
   declare loc: any;
-  // The thermostats of the card, with the names its configuration gives them
+  // The thermostats the view lists, with the names a configuration may give them
   declare thermostats: Thermostat[];
   // Shown in the Chauffage panel: its changes are logged as the panel's
   declare panel: boolean;

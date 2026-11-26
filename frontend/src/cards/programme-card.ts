@@ -29,13 +29,6 @@ import { SlotDrag } from '../controllers/slot-drag.ts';
 import { STYLE } from '../styles.ts';
 import { VERSION } from '../version.ts';
 
-// The views of the panel's pages (`view`), each its own element; the weeks are the card's own
-const VIEWS = {
-  presets: 'chauffage-presets-view',
-  schedules: 'chauffage-schedules-view',
-  thermostats: 'chauffage-thermostats-view',
-  rules: 'chauffage-rules-view',
-};
 // The card's options that only the Chauffage panel sets, for its pages: a page shows one view, a
 // thermostat's sheet stacks its weeks without their chips, tabs or foot, and saves them together
 const PANEL_OPTIONS = ['panel', 'view', 'schedule', 'schedule_tabs', 'week_only', 'flat', 'preset_definitions', 'history'];
@@ -100,8 +93,6 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _timer: any;
   declare _trial: any;
   declare _unlisten: any;
-  declare _view: any;
-  declare _viewEl: any;
   declare _wantSchedule: any;
   declare _zoom: any;
 
@@ -190,8 +181,6 @@ export class ChauffageProgrammeCard extends LitElement {
     this._schedule = null;
     // The schedule shown first (the Chauffage panel's ?schedule=), else the active schedule
     this._wantSchedule = config.schedule || null;
-    // The view shown (a page of the Chauffage panel), else the weeks
-    this._view = config.view || 'schedule';
     // In the panel, a thermostat's sheet shows the history or not for all its weeks (`history`)
     if (config.history != null) this._history.shown = !!config.history;
     if (this._hass) {
@@ -1034,13 +1023,6 @@ export class ChauffageProgrammeCard extends LitElement {
     tabs.parentElement.classList.toggle('more-right', tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
   }
 
-  // The element of the view shown (`view`), created once
-  _viewElement() {
-    const tag = VIEWS[this._view];
-    if (!this._viewEl || this._viewEl.localName !== tag) this._viewEl = document.createElement(tag);
-    return this._viewEl;
-  }
-
   render() {
     this._settle();
     const tr = this._loc.t;
@@ -1048,16 +1030,6 @@ export class ChauffageProgrammeCard extends LitElement {
     const fill = (content, cls?) => html`<ha-card class=${`${cls || ''}${flat}`}>${content}</ha-card>`;
     const notice = sourceNotice(this._source());
     if (notice) return fill(noticeTemplate(notice, tr));
-    // A view of the panel (`view`): its own element, kept while the card shows it
-    if (VIEWS[this._view] && this._source().ready) {
-      const view = this._viewElement();
-      view.hass = this._hass;
-      view.loc = this._loc;
-      view.thermostats = this._thermostats;
-      view.panel = !!this._config.panel;
-      if (this._view === 'presets') view.definitions = this._config.preset_definitions !== false;
-      return fill(view);
-    }
     if (!this._thermostats.length) return fill(this._renamedNotes());
     const src = this._source();
     const schedules = this._schedules();

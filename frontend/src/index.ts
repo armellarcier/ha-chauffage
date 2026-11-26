@@ -14,6 +14,7 @@ import { ChauffagePresetsView } from './components/views/presets-view.ts';
 import { ChauffageRulesView } from './components/views/rules-view.ts';
 import { ChauffageSchedulesView } from './components/views/schedules-view.ts';
 import { ChauffageThermostatsView } from './components/views/thermostats-view.ts';
+import { ChauffageViewFrame } from './components/views/view-frame.ts';
 import { ChauffageSlotPopover } from './components/week/slot-popover.ts';
 import { ChauffageOverridePopover } from './components/week/override-popover.ts';
 import { dataSource } from './client/snapshot.ts';
@@ -57,6 +58,7 @@ function defineElements() {
   if (!customElements.get('chauffage-rules-view')) customElements.define('chauffage-rules-view', ChauffageRulesView);
   if (!customElements.get('chauffage-schedules-view')) customElements.define('chauffage-schedules-view', ChauffageSchedulesView);
   if (!customElements.get('chauffage-thermostats-view')) customElements.define('chauffage-thermostats-view', ChauffageThermostatsView);
+  if (!customElements.get('chauffage-view-frame')) customElements.define('chauffage-view-frame', ChauffageViewFrame);
   if (!customElements.get('chauffage-slot-popover')) customElements.define('chauffage-slot-popover', ChauffageSlotPopover);
   if (!customElements.get('chauffage-override-popover')) customElements.define('chauffage-override-popover', ChauffageOverridePopover);
 }
