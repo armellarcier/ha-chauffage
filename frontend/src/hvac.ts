@@ -127,10 +127,8 @@ export const FAN_STYLE = `
   .seg.fan, .presets button.fan-chip { color:${DARK_TEXT}; }
   ${CHIP_STYLE}
 `;
-export const hvacIcon = (mode) => (mode ? `<ha-icon icon="${esc(HVAC_ICONS[mode] || 'mdi:thermostat')}"></ha-icon>` : '');
-// The same icon, in a Lit template
+// Home Assistant's icon of an HVAC mode
 export const hvacIconTemplate = (mode) => (mode ? html`<ha-icon icon=${HVAC_ICONS[mode] || 'mdi:thermostat'}></ha-icon>` : nothing);
-export const hvacIconHtml = (mode) => (mode ? `<span class="m">${hvacIcon(mode)}</span>` : '');
 // A number typed by hand, with either decimal separator ("20,5" or "20.5"); NaN for anything else
 export const parseDecimal = (text) => (String(text).trim() === '' ? NaN : Number(String(text).trim().replace(',', '.')));
 // The HVAC modes a thermostat lists, and the ones that turn it on
