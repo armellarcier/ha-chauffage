@@ -10,8 +10,9 @@ import { modeChip, modeRow, offChip } from '../../presets.ts';
 import { PopoverPlacement } from '../../controllers/popover-placement.ts';
 import type { WeekCard } from './week-card.ts';
 
-// The popover of the slot selected (the card's `_sel`), under the slot: its times, its HVAC mode
-// and its preset, the setpoint it applies, the fan and the vanes, then Insert a slot and Delete.
+// The popover of the slot selected (the draft's `selection`), under the slot: its times, its HVAC
+// mode and its preset, the setpoint it applies, the fan and the vanes, then Insert a slot and
+// Delete.
 // It draws in the card's light DOM, and is drawn again with the card.
 export class ChauffageSlotPopover extends LitElement {
   static properties = {
@@ -23,7 +24,7 @@ export class ChauffageSlotPopover extends LitElement {
     card: () => this.card,
     frame: () => this.card && this.card.renderRoot.querySelector('ha-card'),
     target: () => this.card && this.card.renderRoot.querySelector('.seg.sel'),
-    key: () => JSON.stringify(this.card && this.card._sel),
+    key: () => JSON.stringify(this.card && this.card._draft.selection),
   });
 
   createRenderRoot() {
@@ -32,7 +33,7 @@ export class ChauffageSlotPopover extends LitElement {
 
   render() {
     const card = this.card;
-    const sel = card && card._sel;
+    const sel = card && card._draft.selection;
     if (!sel) return nothing;
     const { climate, day, idx } = sel;
     const hass = card._hass;

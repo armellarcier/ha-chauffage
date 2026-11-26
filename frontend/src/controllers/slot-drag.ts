@@ -51,7 +51,7 @@ export class SlotDrag implements ReactiveController {
       const idx = Number(seg.dataset.idx);
       const segs = card._week(climate)[day];
       if (idx < 1 || idx >= segs.length - 1) return false;
-      const sel = card._sel;
+      const sel = card._draft.selection;
       const selected = !!sel && sel.climate === climate && sel.day === day && sel.idx === idx;
       if (e.pointerType === 'touch' && !selected) return false;
       e.preventDefault();
@@ -137,7 +137,7 @@ export class SlotDrag implements ReactiveController {
       card._lastClick = null; // the click that follows is neither a selection nor half a double click
       this.slotMovedAt = Date.now();
       // A selected slot stays selected (by touch, it can slide again); otherwise no popover
-      if (!d.selected) card._sel = null;
+      if (!d.selected) card._draft.selection = null;
       card._commit(d.climate, d.day, d.selected ? card._week(d.climate)[d.day][d.idx].start : null);
       return true;
     }

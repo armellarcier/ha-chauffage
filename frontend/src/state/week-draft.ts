@@ -14,6 +14,8 @@ export class WeekDraft {
   revision: number | null = null;
   // true: edited since loaded or saved
   dirty = false;
+  // The slot whose popover is open: { climate, day, idx }, the day being the first of its row
+  selection: { climate: string; day: number; idx: number } | null = null;
   // The weeks as loaded or saved last, serialized (see serialized)
   private loaded: Record<string, string> | null = null;
   // The weeks drawn but not edited, see week

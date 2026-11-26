@@ -61,7 +61,7 @@ export function selected(card) {
  * Internal: a tap on a slot of the same row within 400 ms is a double tap, which cuts the slot.
  */
 export async function openSlot(card, climate, idx, d = 0) {
-  card._sel = { climate, day: d, idx };
+  card._draft.selection = { climate, day: d, idx };
   card._render();
   await settle();
 }

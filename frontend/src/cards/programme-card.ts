@@ -89,7 +89,6 @@ export class ChauffageProgrammeCard extends LitElement {
   declare _schedErr: any;
   declare _schedule: any;
   declare _scheduleState: any;
-  declare _sel: any;
   declare _shown: any;
   declare _shownForPreview: any;
   declare _stamp: any;
@@ -113,7 +112,6 @@ export class ChauffageProgrammeCard extends LitElement {
   constructor() {
     super();
     this._draft = new WeekDraft(); // the weeks edited, until saved
-    this._sel = null; // { climate, day, idx }
     this._focus = null; // last thermostat used (source of "Copier la semaine")
     this._stamp = undefined;
     this._msg = '';
@@ -272,7 +270,7 @@ export class ChauffageProgrammeCard extends LitElement {
     if (src.stamps.access !== this._accessStamp) {
       this._accessStamp = src.stamps.access;
       if (this._slotDrag.active && !this._mayEdit(this._slotDrag.drag.climate)) this._slotDrag.cancel();
-      if (this._sel && !this._mayEdit(this._sel.climate)) this._sel = null;
+      if (this._draft.selection && !this._mayEdit(this._draft.selection.climate)) this._draft.selection = null;
       if (!src.plannable) {
         this._schedEd = null;
         this._copyWeekMenu = null;
@@ -364,11 +362,11 @@ export class ChauffageProgrammeCard extends LitElement {
     }, 30000);
     // Closes the row menu / popovers on a click outside the card or the Escape key
     const closePopups = () => {
-      if (!this._menu && !this._sel && !this._overrideSel && !this._schedEd && !this._copyWeekMenu) return;
+      if (!this._menu && !this._draft.selection && !this._overrideSel && !this._schedEd && !this._copyWeekMenu) return;
       this._menu = null;
       this._copyWeekMenu = null;
       this._schedEd = null;
-      this._sel = null;
+      this._draft.selection = null;
       this._overrideSel = null;
       this._render();
     };
@@ -468,7 +466,7 @@ export class ChauffageProgrammeCard extends LitElement {
     this._rows = this._grouped()
       ? rowsOfDays(order, (d) => this._shown.map((c) => serializeDay(dayOn(this._hass, c, this._week(c)[d])).join(',')).join('|'))
       : order.map((d) => [d]);
-    for (const ref of [this._sel, this._menu]) if (ref) ref.day = this._rowOf(ref.day)[0];
+    for (const ref of [this._draft.selection, this._menu]) if (ref) ref.day = this._rowOf(ref.day)[0];
   }
 
   // The days of the row a day is drawn in (the day alone before the first drawing)
@@ -508,7 +506,7 @@ export class ChauffageProgrammeCard extends LitElement {
   // (docs/decisions.md, "Card"). The preset a slot had before an HVAC mode without one
   // (`_trial`) is forgotten then too
   _settle(force = false) {
-    const sel = this._sel;
+    const sel = this._draft.selection;
     const at = sel && (this._week(sel.climate)[sel.day] || [])[sel.idx];
     const trial = this._trial;
     if (trial && (force || !at || this._schedule !== trial.schedule || sel.climate !== trial.climate || sel.day !== trial.day || at.start !== trial.start)) this._trial = null;
@@ -537,7 +535,7 @@ export class ChauffageProgrammeCard extends LitElement {
     if (keepMin != null) {
       let idx = 0;
       week[day].forEach((s, i) => { if (s.start <= keepMin) idx = i; });
-      this._sel = { climate, day, idx };
+      this._draft.selection = { climate, day, idx };
     }
     this._focus = climate;
     this._draft.dirty = true;
@@ -682,7 +680,7 @@ export class ChauffageProgrammeCard extends LitElement {
   // Cancel: the weeks go back as they were saved (the card's bar, or the panel's for a page)
   _discard() {
     this._draft.dirty = false;
-    this._sel = null;
+    this._draft.selection = null;
     this._msg = '';
     this._load();
     this._render();
@@ -961,9 +959,9 @@ export class ChauffageProgrammeCard extends LitElement {
   _checkPopovers() {
     const o = this._overrideSel;
     if (o && ((!this._overrides()[o.climate] && !o.create) || !this._shown.includes(o.climate))) this._overrideSel = null;
-    const s = this._sel;
+    const s = this._draft.selection;
     const segs = s && this._shown.includes(s.climate) && this._week(s.climate)[s.day];
-    if (s && !(segs && segs[s.idx])) this._sel = null;
+    if (s && !(segs && segs[s.idx])) this._draft.selection = null;
   }
 
   // Redraws the card, keeping a schedule name being typed in a menu (the card is redrawn every
@@ -1259,7 +1257,7 @@ export class ChauffageProgrammeCard extends LitElement {
       const mi = e.target.closest('[data-more-info]');
       if (mi) {
         e.stopPropagation();
-        this._sel = null;
+        this._draft.selection = null;
         this._overrideSel = null;
         this._menu = null;
         this._schedEd = null;
@@ -1269,7 +1267,7 @@ export class ChauffageProgrammeCard extends LitElement {
       }
       const device = e.target.closest('[data-device]');
       if (device) {
-        this._sel = null;
+        this._draft.selection = null;
         this._overrideSel = null;
         openDevice(device.dataset.device);
         return;
@@ -1281,8 +1279,8 @@ export class ChauffageProgrammeCard extends LitElement {
         return;
       }
       // Popover open: a click outside the popover / slot closes it
-      if ((this._sel || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override')) {
-        this._sel = null;
+      if ((this._draft.selection || this._overrideSel) && !e.target.closest('.editor, .seg, .handle, .override')) {
+        this._draft.selection = null;
         this._overrideSel = null;
         if (!e.target.closest('[data-act], .tab, .chip')) { this._render(); return; }
       }
@@ -1296,7 +1294,7 @@ export class ChauffageProgrammeCard extends LitElement {
       if (tab) {
         this._schedule = tab.dataset.schedule || tab.dataset.showSchedule;
         this._schedEd = null;
-        this._sel = null;
+        this._draft.selection = null;
         this._overrideSel = null;
         this._render();
         return;
@@ -1305,7 +1303,7 @@ export class ChauffageProgrammeCard extends LitElement {
       const override = e.target.closest('.override');
       if (override) {
         if (e.target.closest('.override-handle') || Date.now() - this._overrideEnd.endedAt < 300) return;
-        this._sel = null;
+        this._draft.selection = null;
         this._overrideSel = { climate: override.dataset.climate, day: Number(override.dataset.day) };
         this._render();
         return;
@@ -1339,7 +1337,7 @@ export class ChauffageProgrammeCard extends LitElement {
         this._week(climate)[day].forEach((s, i) => { if (s.start <= minute) idx = i; });
         // A handle of the selected slot: the slot stays selected
         const edge = Number(handle.dataset.idx);
-        own = !!this._sel && this._sel.climate === climate && this._sel.day === day && (this._sel.idx === edge || this._sel.idx === edge - 1);
+        own = !!this._draft.selection && this._draft.selection.climate === climate && this._draft.selection.day === day && (this._draft.selection.idx === edge || this._draft.selection.idx === edge - 1);
       }
       const t = Date.now();
       const lc = this._lastClick;
@@ -1356,10 +1354,10 @@ export class ChauffageProgrammeCard extends LitElement {
         return;
       }
       if (own) return;
-      const sel = this._sel;
+      const sel = this._draft.selection;
       if (!sel || sel.climate !== climate || sel.day !== day || sel.idx !== idx) {
         this._overrideSel = null;
-        this._sel = { climate, day, idx };
+        this._draft.selection = { climate, day, idx };
         this._focus = climate;
         this._render();
       }
@@ -1379,8 +1377,8 @@ export class ChauffageProgrammeCard extends LitElement {
       if (el.hasAttribute('data-override-temperature') && Number.isFinite(parseDecimal(el.value)) && this._overrideSel) {
         const c = this._overrideSel.climate;
         this._sendOverride(c, overrideWithTemperature(this._overrides()[c], this._source(), c, parseDecimal(el.value), this._hass));
-      } else if (el.hasAttribute('data-slot-setting') && this._sel) {
-        const { climate, day, idx } = this._sel;
+      } else if (el.hasAttribute('data-slot-setting') && this._draft.selection) {
+        const { climate, day, idx } = this._draft.selection;
         this._moreOpen = true;
         this._setSlotSetting(climate, day, idx, el.dataset.slotSetting, el.value || null);
       }
@@ -1561,7 +1559,7 @@ export class ChauffageProgrammeCard extends LitElement {
     for (let d = 0; d < 7; d += 1) {
       week[d] = joined(week[d].map((slot) => (switched(slot) ? slotOf(slot.start, slot.preset, { ...airSettings(slot), hvac_mode: mode }) : slot)));
     }
-    this._sel = null;
+    this._draft.selection = null;
     this._focus = climate;
     this._draft.dirty = true;
     this._msg = this._loc.t('weekAllDone', { name: this._name(climate), mode: this._loc.t(mode === 'cool' ? 'slotCool' : 'slotHeat') });
@@ -1773,7 +1771,7 @@ export class ChauffageProgrammeCard extends LitElement {
     const fit = this._adapted(clone(this._draft.clip.segs), climate);
     this._week(climate)[day] = fit.segs;
     this._spread(climate, day);
-    if (this._sel && this._sel.climate === climate && this._sel.day === day) this._sel = null;
+    if (this._draft.selection && this._draft.selection.climate === climate && this._draft.selection.day === day) this._draft.selection = null;
     this._focus = climate;
     this._draft.dirty = true;
     this._msg = this._loc.t('pastedOn', { name: this._name(climate), day: this._rowLabel(day, 'long') }) + this._droppedText(fit.dropped);
@@ -1811,7 +1809,7 @@ export class ChauffageProgrammeCard extends LitElement {
     if (act === 'week-hvac') return this._setWeekHvac(ds.climate, ds.mode);
     if (act === 'resume') return this._setPaused(ds.climate, false);
     if (act === 'override-new') { // today's row menu: set a temporary setpoint
-      this._sel = null;
+      this._draft.selection = null;
       this._overrideSel = { climate: ds.climate, create: true };
       return this._render();
     }
@@ -1850,7 +1848,7 @@ export class ChauffageProgrammeCard extends LitElement {
       // The history shows each day: grouping the days hides it
       this._groupPref = !this._grouped();
       saveGroupPreference(this._groupPref);
-      this._sel = null;
+      this._draft.selection = null;
       return this._history.shown ? this._toggleHistory() : this._render();
     }
     if (act === 'zoom') return this._toggleZoom(ds.climate, Number(ds.day));
@@ -1859,13 +1857,13 @@ export class ChauffageProgrammeCard extends LitElement {
       this._saveShown();
       return this._render();
     }
-    if (!this._sel) return;
-    const { climate, day, idx } = this._sel;
+    if (!this._draft.selection) return;
+    const { climate, day, idx } = this._draft.selection;
     const segs = this._week(climate)[day];
     const s = segs[idx];
     const step = this._config.step;
     if (act === 'close') {
-      this._sel = null;
+      this._draft.selection = null;
       this._render();
     } else if (act === 'preset') {
       // A preset: the slot keeps its fan and vanes, and its heat or cool. An off slot or a
@@ -1887,7 +1885,7 @@ export class ChauffageProgrammeCard extends LitElement {
       if (segs.length === 1) return;
       if (idx > 0) { segs.splice(idx, 1); joinAt(segs, idx); }
       else { segs.splice(0, 1); segs[0].start = 0; }
-      this._sel = null;
+      this._draft.selection = null;
       this._commit(climate, day, null);
     }
   }

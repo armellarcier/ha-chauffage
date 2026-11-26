@@ -114,7 +114,7 @@ export function slotBar(card: WeekCard, climate: string, stored, days: number[],
   const d = days[0];
   const segs = dayOn(card._hass, climate, stored); // an air conditioner's slots heat or cool
   const editable = card._mayEdit(climate); // read-only: no handle, no slot to move
-  const sel = card._sel;
+  const sel = card._draft.selection;
   const seg = (s, i) => {
     const end = i < segs.length - 1 ? segs[i + 1].start : DAY_MIN;
     const off = isOff(s);
