@@ -97,7 +97,6 @@ from ..const import (
     PRESET_NAMES,
     SLOT_HVAC_MODES,
 )
-from ..domain.override import Override
 from ..domain.preset import Preset
 from ..domain.slot import Day, Slot, Week
 from ..domain.target import Target
@@ -276,7 +275,9 @@ def week(raw: Any) -> Week:
     return Week(tuple(day(d) for d in raw))
 
 
-def override(raw: Any) -> Override:
+def override(raw: Any) -> dict[str, Any]:
+    """An override as it is stored: a target, a start and an end (ISO datetimes), and the
+    Chauffage preset picked and the rule that chose the end, when known."""
     if not isinstance(raw, dict):
         raise InvalidData("an override must be a dictionary")
     # An override sets no fan and no vanes: they stay as the thermostat has them (an override
@@ -287,10 +288,12 @@ def override(raw: Any) -> Override:
     start, end = raw.get("start"), raw.get("end")
     if not isinstance(start, str) or not isinstance(end, str):
         raise InvalidData("start and end must be ISO datetimes")
-    override_preset, end_rule = raw.get("preset"), raw.get("end_rule")
-    return Override(override_target, start, end,
-                    override_preset if isinstance(override_preset, str) and override_preset else None,
-                    end_rule if end_rule in OVERRIDE_ENDS else None)
+    out: dict[str, Any] = {"target": dict(override_target), "start": start, "end": end}
+    if isinstance(override_preset := raw.get("preset"), str) and override_preset:
+        out["preset"] = override_preset
+    if (end_rule := raw.get("end_rule")) in OVERRIDE_ENDS:
+        out["end_rule"] = end_rule
+    return out
 
 
 def make_schedules(names: list[str]) -> list[dict[str, str]]:

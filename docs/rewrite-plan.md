@@ -91,7 +91,6 @@ custom_components/chauffage/
     preset.py                Preset, PresetValue (heat, cool, range, air), Mapping
     target.py                Target: satisfied_by(), fitted_to(), completed_for()
     thermostat.py            ThermostatState, Capabilities
-    override.py              Override, OverrideEndPolicy
     timeline.py              slots_after, summer time (next_change is a method of Plan)
     manual_change.py         classify() -> NoChange | Resume | NewOverride
     pending.py               PendingCommands

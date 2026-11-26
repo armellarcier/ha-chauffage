@@ -200,11 +200,11 @@ async def test_invalid_requests_are_refused(bench: Bench, ws_client, command):
     (lambda v: schema.mapping(v, {"eco"}), {"eco": {}}),
     (lambda v: schema.normalize_weeks(v, {"normal"}), ["not a dict"]),
     (lambda v: schema.normalize_weeks(v, {"normal"}), {"climate.salon": "not a dict"}),
-    (lambda v: schema.override(v).to_stored(), "not a dict"),
-    (lambda v: schema.override(v).to_stored(), {"target": {"temperature": "warm"}, "start": "a", "end": "b"}),
-    (lambda v: schema.override(v).to_stored(), {"target": {}, "start": "a", "end": "b"}),
-    (lambda v: schema.override(v).to_stored(), {"target": {"preset_mode": "eco", "fan": "high"}, "start": "a", "end": "b"}),
-    (lambda v: schema.override(v).to_stored(), {"target": {"preset_mode": "boost"}, "start": 1, "end": None}),
+    (lambda v: schema.override(v), "not a dict"),
+    (lambda v: schema.override(v), {"target": {"temperature": "warm"}, "start": "a", "end": "b"}),
+    (lambda v: schema.override(v), {"target": {}, "start": "a", "end": "b"}),
+    (lambda v: schema.override(v), {"target": {"preset_mode": "eco", "fan": "high"}, "start": "a", "end": "b"}),
+    (lambda v: schema.override(v), {"target": {"preset_mode": "boost"}, "start": 1, "end": None}),
 ])
 def test_invalid_data_is_refused(function, value):
     with pytest.raises(InvalidData):

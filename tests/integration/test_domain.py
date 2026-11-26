@@ -236,17 +236,17 @@ def test_schedule_ids_are_unique_slugs_of_their_names():
 
 
 def test_overrides_are_validated():
-    o = schema.override({"target": {"temperature": "21.5"}, "start": "a", "end": "b"}).to_stored()
+    o = schema.override({"target": {"temperature": "21.5"}, "start": "a", "end": "b"})
     assert o["target"] == {"temperature": 21.5}
     with pytest.raises(InvalidData):
-        schema.override({"target": {"temp": 21}, "start": "a", "end": "b"}).to_stored()
+        schema.override({"target": {"temp": 21}, "start": "a", "end": "b"})
 
 
 def test_an_override_keeps_why_it_ends_if_the_reason_is_known():
     base = {"target": {"temperature": 21}, "start": "a", "end": "b"}
-    assert schema.override({**base, "end_rule": "next_slot"}).to_stored()["end_rule"] == "next_slot"
-    assert schema.override({**base, "end_rule": "no_next_slot"}).to_stored()["end_rule"] == "no_next_slot"
-    assert "end_rule" not in schema.override({**base, "end_rule": "whenever"}).to_stored()
+    assert schema.override({**base, "end_rule": "next_slot"})["end_rule"] == "next_slot"
+    assert schema.override({**base, "end_rule": "no_next_slot"})["end_rule"] == "no_next_slot"
+    assert "end_rule" not in schema.override({**base, "end_rule": "whenever"})
 
 
 # ----- presets → climate presets or temperatures -----

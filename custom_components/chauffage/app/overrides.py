@@ -91,7 +91,7 @@ class OverrideService:
             runtime.installation.changed()
             await runtime.scheduler.apply(Resumed(entity_id, f"override ended ({source})"))
             return
-        override = schema.override(override).to_stored()
+        override = schema.override(override)
         current = read(runtime.hass, runtime.hass.states.get(entity_id))
         target = override["target"] = dict(Target(override["target"]).fitted_to(current))
         before = self._overrides.get(entity_id)
@@ -146,7 +146,7 @@ class OverrideService:
     def record(self, entity_id: str, override: dict[str, Any], context: Context | None = None) -> None:
         """The override of a change by hand, only recorded: the thermostat set it itself, and
         sending it back could undo a second change made meanwhile."""
-        self.keep(entity_id, schema.override(override).to_stored(), "thermostat", context)
+        self.keep(entity_id, schema.override(override), "thermostat", context)
         self._runtime.installation.changed()
 
     def info(self, entity_id: str) -> dict[str, Any]:
