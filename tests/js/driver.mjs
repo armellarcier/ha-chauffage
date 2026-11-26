@@ -178,18 +178,6 @@ export const rows = (card) => $$(card, '.dgroup .day').map((el) => el.textConten
 /** A thermostat's whole week, as the card would save it: its 7 days (see `day()`). */
 export const wholeWeek = (card, climate, schedule) => [0, 1, 2, 3, 4, 5, 6].map((d) => day(card, climate, d, schedule));
 
-/**
- * Gives the slot whose popover is open a preset: a tap on the preset in the popover.
- * Internal: the popover of an air conditioner's off or fan-only slot shows no presets, and the
- * card still gives such a slot a preset, in the HVAC mode of the slot before it.
- */
-export async function slotPreset(card, preset) {
-  const chip = $(card, `.editor [data-act="preset"][data-preset="${preset}"]`);
-  if (chip) chip.click();
-  else card._action('preset', { preset });
-  await settle();
-}
-
 /** Pastes the day copied (see `copyDay`) on a row, from the row's menu. */
 export async function pasteDay(card, climate, d) {
   openMenu(card, climate, d);

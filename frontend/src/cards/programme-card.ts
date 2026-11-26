@@ -1535,23 +1535,6 @@ export class ChauffageProgrammeCard extends LitElement {
     this._commit(climate, day, m);
   }
 
-  // The HVAC mode a new slot on a preset takes in an off slot or in a fan-only slot: the one of
-  // the slot on a preset before it in the day. Null without one: the thermostat's default (heat)
-  _modeBefore(climate, segs, idx) {
-    for (let i = idx - 1; i >= 0; i -= 1) if (!hasNoPreset(segs[i])) return slotModeOn(this._hass, climate, segs[i]);
-    return null;
-  }
-
-  // The settings a piece cut out of a slot keeps: all of them, its heat or cool too. Out of an
-  // off slot or of a fan-only slot, the piece is on a preset: it keeps the fan and the vanes of
-  // a fan-only slot, and takes the HVAC mode of the slot on a preset before it
-  _pieceSettings(climate, segs, idx) {
-    const s = segs[idx];
-    if (!hasNoPreset(s)) return s.settings;
-    const mode = this._modeBefore(climate, segs, idx);
-    return { ...pieceSettings(s), ...(mode ? { hvac_mode: mode } : {}) };
-  }
-
   // Every heating or cooling slot of a thermostat's week, in the schedule shown, set to heat or
   // to cool (the week's menu): an edit like the others, saved with Save. The other slots stay
   // as they are: heat/cool, dry, auto, fan only and off
@@ -1869,9 +1852,9 @@ export class ChauffageProgrammeCard extends LitElement {
       this._draft.selection = null;
       this._render();
     } else if (act === 'preset') {
-      // A preset: the slot keeps its fan and vanes, and its heat or cool. An off slot or a
-      // fan-only slot takes the HVAC mode of the slot on a preset before it
-      this._changeSlot(climate, day, idx, (slot) => slotOf(slot.start, ds.preset, this._pieceSettings(climate, segs, idx)));
+      // A preset: the slot keeps its fan and vanes, and its heat or cool. The popover of an
+      // air conditioner's off or fan-only slot offers no preset: such a slot never has one
+      this._changeSlot(climate, day, idx, (slot) => slotOf(slot.start, ds.preset, pieceSettings(slot)));
     } else if (act === 'slot-off' || act === 'slot-mode') {
       this._setSlotMode(climate, day, idx, act === 'slot-off' ? 'off' : ds.mode);
     } else if (act === 'insert') {

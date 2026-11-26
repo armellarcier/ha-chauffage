@@ -234,9 +234,13 @@ future contributor might question.
     upgraded installation**: a reversible air conditioner that cools is switched to heat by a
     week that says nothing. The changelog says so under "Upgrading".
   - **A new slot takes the HVAC mode of the slot it comes from**: a slot inserted or cut in a
-    slot keeps its HVAC mode. In an off slot or a fan-only slot, it takes the HVAC mode of the
-    slot on a preset before it in the day, else heat. A new slot that heated in the middle of a
-    summer day would be a surprise.
+    slot keeps its HVAC mode. A slot inserted or cut in an off slot is off, and one inserted or
+    cut in a fan-only slot is fan only. A new slot that heated in the middle of a summer day
+    would be a surprise.
+  - **An off or fan-only slot of an air conditioner never has a preset** (the owner). Such a
+    slot sends no setpoint, so a preset there means nothing to the user. Its popover offers no
+    preset: the user chooses Heat or Cool first. A former version of the card still gave such
+    a slot a preset, in the HVAC mode of the slot before it, through a path no button reached.
   - **Each slot is independent**: a slot does not inherit the HVAC mode of the slot before it
     when it runs. It says its own.
   - **A target without an HVAC mode turns on a thermostat that is off or in fan only, as the

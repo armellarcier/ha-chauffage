@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { WEEKEND, cleanup, typeTime } from './helpers.mjs';
 import { joined, parseDay, serializeDay } from '../../frontend/src/index.ts';
 import { $, $$, click, copyDay, day, doubleTap, icons, openMenu, rgb, save, selected, settle, text, unsaved } from './driver.mjs';
-import { pasteDay, rows, slotPreset, weekHvac } from './driver.mjs';
+import { pasteDay, rows, weekHvac } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 import * as weeksBefore91 from './houses/weeks-before-91.mjs';
 import * as suiteAndValve from './houses/suite-and-valve.mjs';
@@ -61,22 +61,6 @@ afterEach(() => cleanup());
       await save(card);
       const sent = hass.events.find((e) => e.type === 'chauffage/weeks/save');
       assert.deepEqual(sent.weeks['climate.salon'].normal[0], [['00:00', 'eco'], ['06:30', 'boost'], ['08:30', 'eco'], ['17:30', 'comfort'], ['21:00', null, OFF]]);
-    });
-
-    test('a piece cut out of a slot is like it; given a preset, a piece cut out of an off slot or of a fan-only slot takes the HVAC mode of the slot before it', async () => {
-      const card = await cardOf(setup({ atelier: SUMMER }));
-      await doubleTap(card, 'climate.salon', 23 * 60); // in 21:00, off
-      assert.deepEqual(day(card, 'climate.salon', 0).slice(4), [`21:00${OFF_SLOT}`, `23:00${OFF_SLOT}`]);
-      click(card, '.editor [data-act="preset"][data-preset="comfort"]'); await settle();
-      assert.deepEqual(day(card, 'climate.salon', 0).slice(4), [`21:00${OFF_SLOT}`, '23:00 comfort']);
-      await doubleTap(card, 'climate.atelier', 16 * 60); // in 14:00 comfort, cool
-      assert.deepEqual(day(card, 'climate.atelier', 0).slice(1, 3), ['14:00 comfort {"hvac_mode":"cool"}', '16:00 comfort {"hvac_mode":"cool"}']);
-      click(card, '.editor [data-act="preset"][data-preset="eco"]'); await settle();
-      await doubleTap(card, 'climate.atelier', 21 * 60); // in 20:00 fan only, fan 3
-      assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 - {"hvac_mode":"fan_only","fan_mode":"3"}']);
-      await slotPreset(card, 'comfort');
-      assert.deepEqual(day(card, 'climate.atelier', 0).slice(3, 5), ['20:00 - {"hvac_mode":"fan_only","fan_mode":"3"}', '21:00 comfort {"hvac_mode":"cool","fan_mode":"3"}'],
-        'on a preset, in the HVAC mode of the slot before it');
     });
 
     test('a day copied to a thermostat that cannot be turned off loses its off slot, and the message says so', async () => {
@@ -197,24 +181,6 @@ afterEach(() => cleanup());
       const card = await cardOf(setup({ atelier: SUMMER }));
       await doubleTap(card, ATELIER, 15 * 60);
       assert.deepEqual(day(card, ATELIER).slice(1, 3), ['12:00 comfort {"hvac_mode":"cool"}', '15:00 comfort {"hvac_mode":"cool"}']);
-    });
-
-    test('a slot inserted in an off slot is off; given a preset, it takes the HVAC mode of the slot before it', async () => {
-      const card = await cardOf(setup({ atelier: SUMMER }));
-      await select(card, ATELIER, 2);
-      click(card, '.editor [data-act="insert"]'); await settle();
-      assert.equal(day(card, ATELIER)[3], '21:15 - {"hvac_mode":"off"}');
-      await slotPreset(card, 'comfort');
-      assert.equal(day(card, ATELIER)[3], '21:15 comfort {"hvac_mode":"cool"}');
-    });
-
-    test('without a slot on a preset before it, the new slot given a preset heats', async () => {
-      const card = await cardOf(setup({ atelier: [['00:00', null, OFF], ['12:00', null, FAN]] }));
-      await select(card, ATELIER, 0);
-      click(card, '.editor [data-act="insert"]'); await settle();
-      await slotPreset(card, 'eco');
-      assert.equal(day(card, ATELIER)[1], '04:00 eco');
-      assert.deepEqual(icons(seg(card, ATELIER, 1)), ['mdi:fire']);
     });
 
     test('Clim tapped on an off slot gives it a preset: not the one of the slot before it, which would take it in', async () => {
