@@ -214,7 +214,7 @@ export async function openSlot(page, climate, day = 'today', time = 'now') {
   await c.waitFor({ timeout: 30000 });
   const where = await c.evaluate((el, [climate, d, at]) => {
     el._shown = [climate]; el._overrideSel = null; el._draft.selection = null; el._lastClick = null;
-    el._render();
+    el.requestUpdate();
     const row = el._rowOf(d)[0]; // the day that draws the row
     const minute = at == null ? new Date().getHours() * 60 + new Date().getMinutes() : at;
     let idx = 0;
@@ -229,7 +229,7 @@ export async function openSlot(page, climate, day = 'today', time = 'now') {
   // the card then opens the slot itself, without a second tap
   const opened = await c.evaluate((el) => (el._draft.selection ? `${el._draft.selection.day}/${el._draft.selection.idx}` : null));
   if (opened !== `${where.row}/${where.idx}`) {
-    await c.evaluate((el, sel) => { el._draft.selection = sel; el._overrideSel = null; el._render(); }, { climate, day: where.row, idx: where.idx });
+    await c.evaluate((el, sel) => { el._draft.selection = sel; el._overrideSel = null; el.requestUpdate(); }, { climate, day: where.row, idx: where.idx });
   }
   await c.evaluate((el) => { el._lastClick = null; });
   await editor.waitFor({ timeout: 15000 });
@@ -250,9 +250,9 @@ export async function openOverride(page, climate, where = 'card') {
     // As the "New override…" entry of the row's menu does: the days stay grouped as the user has them
     await c.evaluate((el, climate) => {
       el._shown = [climate]; el._draft.selection = null;
-      el._schedule = el._activeSchedule();
+      el._schedule = el._source().activeSchedule();
       el._overrideSel = { climate, create: true };
-      el._render();
+      el.requestUpdate();
     }, climate);
     const editor = c.locator('.override-ed');
     await editor.waitFor({ timeout: 5000 });
@@ -343,12 +343,12 @@ export async function openExistingOverride(page, climate, where = 'card') {
   const c = card(page);
   await c.evaluate((el, [climate, d]) => {
     el._shown = [climate]; el._draft.selection = null; el._overrideSel = null;
-    el._schedule = el._activeSchedule();
-    el._render();
+    el._schedule = el._source().activeSchedule();
+    el.requestUpdate();
     // The override is drawn on the row of today: opened there, as a tap on it does
     const drawn = el.shadowRoot.querySelector(`.override[data-climate="${climate}"]`);
     el._overrideSel = { climate, day: drawn ? Number(drawn.dataset.day) : el._rowOf(d)[0] };
-    el._render();
+    el.requestUpdate();
   }, [climate, d]);
   const editor = c.locator('.override-ed');
   await editor.waitFor({ timeout: 15000 });
@@ -367,8 +367,8 @@ export async function openOverrideMenu(page, climate) {
   const row = await c.evaluate((el, [climate, d]) => {
     el._draft.selection = null; el._overrideSel = null; el._menu = null;
     if (!el._shown.includes(climate)) el._shown = [climate];
-    el._schedule = el._activeSchedule();
-    el._render();
+    el._schedule = el._source().activeSchedule();
+    el.requestUpdate();
     return el._rowOf(d)[0];
   }, [climate, d]);
   await tap(page, c.locator(`[data-act="menu"][data-climate="${climate}"][data-day="${row}"]`).first());

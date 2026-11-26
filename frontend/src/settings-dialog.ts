@@ -449,11 +449,6 @@ export class ChauffageSettingsDialog extends LitElement {
     clearTimeout(this._savedTimer);
   }
 
-  // Drawn again: a field typed in, once left (timeFieldDone), and the "saved" mark taken away
-  _render() {
-    this.requestUpdate();
-  }
-
   // The duration field left, on Enter or moved by its arrows
   _durationDone(el) {
     timeFieldDone(this, el, (minutes) => this._setSettings({ override_duration: minutes }), () => {

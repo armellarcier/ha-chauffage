@@ -15,7 +15,7 @@ export function dayRow(card: ChauffageProgrammeCard, days: number[], showNow: bo
   const loc = card._loc;
   const multi = card._shown.length > 1;
   const subs = card._shown.map((climate) => {
-    const segs = card._week(climate)[d];
+    const segs = card.week(climate)[d];
     const m = card._menu;
     const open = m && m.climate === climate && m.day === d;
     return html`<div class="sub">
@@ -28,7 +28,7 @@ export function dayRow(card: ChauffageProgrammeCard, days: number[], showNow: bo
   });
   // Today stands out, except in a week of an inactive schedule stacked under the active one's
   // (a thermostat's page, sheet 'thermostat'): the active week marks it already
-  const today = days.includes(todayIdx()) && (card.sheet !== 'thermostat' || card._schedule === card._activeSchedule());
+  const today = days.includes(todayIdx()) && (card.sheet !== 'thermostat' || card._schedule === card._source().activeSchedule());
   return html`<div class=${`dgroup${today ? ' today' : ''}`}>
     <div class="day" data-day=${d}>${loc.daysLabel(days)}</div>
     <div class="subs">${subs}</div>

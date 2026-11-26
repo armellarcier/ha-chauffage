@@ -267,7 +267,6 @@ export const en = {
   stale: 'These schedules were changed elsewhere in the meantime: cancel to reload them, then redo your changes.',
   presetHint: '(its preset)',
   setPresets: 'Set the presets',
-  presetFor: '{preset} · {name}',
   ownPreset: 'Device preset',
   presetTemperature: 'Temperature',
   presetAuto: 'Default ({value})',

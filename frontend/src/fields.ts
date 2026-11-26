@@ -189,7 +189,7 @@ export function timeFieldDone(host, el, apply, refuse = null) {
   }
   if (!host._redrawLater) return;
   host._redrawLater = false;
-  host._render();
+  host.requestUpdate();
 }
 
 // The end of an override typed in its field: moved by the arrows, the end moves by as much (it
