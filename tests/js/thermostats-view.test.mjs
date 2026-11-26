@@ -1,7 +1,7 @@
 // The Chauffage panel's "Thermostats" page (#57): every thermostat the integration schedules,
 // whether Chauffage controls it, where the dashboards show it; pause, resume, forget, schedule
 // another one (docs/decisions.md, "Scheduled thermostats" and "Chauffage panel and devices").
-import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, createView, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { settle } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,7 +50,7 @@ function setup(more = {}) {
 
 // The page of the panel: the card shows its Thermostats view alone
 async function open(hass) {
-  const card = createCard(hass, { view: 'thermostats', panel: true }); await settle();
+  const card = createView(hass, 'thermostats'); await settle();
   await settle();
   return card;
 }

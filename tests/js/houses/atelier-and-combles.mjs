@@ -1,6 +1,6 @@
 // The salon, a heater, the atelier, which heats and cools, and the combles, which only cool, with
 // values of their own when cooling. The card shows the atelier.
-import { createCard, fakeHass, integrationData } from '../helpers.mjs';
+import { createCard, createView, fakeHass, integrationData } from '../helpers.mjs';
 import { openSlot, settle } from '../driver.mjs';
 import { $, week } from './dom.mjs';
 
@@ -36,7 +36,7 @@ export function setup({ atelier = PLAIN, combles = PLAIN, salon = PLAIN } = {}) 
 }
 export const ALL = [SALON, ATELIER, COMBLES];
 export const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: ALL, show: [ATELIER], group_days: false, ...config }); await settle(); return card; };
-export const presetsTab = async (hass) => { const card = createCard(hass, { thermostats: ALL, view: 'presets' }); await settle(); return card; };
+export const presetsTab = async (hass) => { const card = createView(hass, 'presets', { thermostats: ALL }); await settle(); return card; };
 export const cell = (card, preset, climate) => $(card, `[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`);
 export const select = async (card, climate, idx, d = 0) => openSlot(card, climate, idx, d);
 

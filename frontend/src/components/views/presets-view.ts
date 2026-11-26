@@ -148,7 +148,7 @@ export class ChauffagePresetsView extends ChauffageView {
     const definitions = this.definitions !== false;
     // Its temperature when heating, then when cooling with an air conditioner: "20° by default
     // · ❄ 25°". Either can be empty
-    const anyCools = thermostats.some(({ entity }) => listsMode(this.hass, entity, 'cool'));
+    const anyCools = thermostats.some((entity) => listsMode(this.hass, entity, 'cool'));
     const headDefaults = (l) => joined([l.temperature != null ? t('defaultTemperature', { value: this._loc.number(l.temperature) }) : null,
       anyCools && l.cool_temperature != null ? html`${mark('cool')}${`${this._loc.number(l.cool_temperature)}°`}` : null].filter(Boolean), ' · ');
     const headInner = (l) => html`<span class="pv-pname"><i style="background:${l.color}"></i>${l.name}</span>
@@ -207,7 +207,7 @@ export class ChauffagePresetsView extends ChauffageView {
     let body;
     const wanted = new URLSearchParams(window.location.search).get('thermostat');
     if (definitions) {
-      const rows = thermostats.map(({ entity }) => {
+      const rows = thermostats.map((entity) => {
         const cells = presets.map((l) => {
           const w = what(entity, l);
           return html`<td>${cell('thermostat', l.id, entity, html`<span class="pv-val">${w.value}</span> <span class="pv-how">${w.how}</span>`, w.cls)}</td>`;
@@ -222,7 +222,7 @@ export class ChauffagePresetsView extends ChauffageView {
     } else {
       // One thermostat (its sheet in the panel): a list, one item per preset, not a table of one
       // row; an item opens the same editor as a cell of the table
-      const entity = thermostats[0].entity;
+      const entity = thermostats[0];
       const items = presets.map((l) => {
         const w = what(entity, l);
         return cell('thermostat', l.id, entity, html`<span class="pv-pname"><i style="background:${l.color}"></i>${l.name}</span>
@@ -334,7 +334,7 @@ export class ChauffagePresetsView extends ChauffageView {
     }
     // With an air conditioner: its color when heating and its color when cooling, each on a
     // row with its label. Without one: its color, beside its name
-    const cools = (this.thermostats || []).some(({ entity }) => listsMode(this.hass, entity, 'cool'));
+    const cools = (this.thermostats || []).some((entity) => listsMode(this.hass, entity, 'cool'));
     const color = html`<input type="color" data-cell-color value=${isNew ? '#9e9e9e' : preset.color} title=${t(cools ? 'presetHeatColor' : 'presetColor')}>`;
     const body = html`<div class="pv-fields">
         <span>${t('presetName')}</span>

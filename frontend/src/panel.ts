@@ -377,9 +377,9 @@ export class ChauffagePanel extends LitElement {
     };
     // A view of the page, in its frame. Not the thermostats renamed in Home Assistant: the
     // integration follows them, and the page is built again then
-    const thermostats = this._thermostats(src).filter((e) => !renamedTo(this.hass, src, e)).map((entity) => ({ entity }));
+    const thermostats = this._thermostats(src).filter((e) => !renamedTo(this.hass, src, e));
     const view = (tag, props = {}, flat = false) => {
-      const el: any = Object.assign(document.createElement(tag), { hass: this.hass, thermostats, panel: true }, props);
+      const el: any = Object.assign(document.createElement(tag), { hass: this.hass, thermostats }, props);
       page.cards.push(el);
       const frame: any = document.createElement('chauffage-view-frame');
       frame.view = el;
@@ -391,7 +391,7 @@ export class ChauffagePanel extends LitElement {
     } else if (route.sheet === 'thermostat') {
       this._loadTile(page, route.id);
       // Its presets first: what each one means for this thermostat is the legend of its weeks
-      page.views.push(view('chauffage-presets-view', { thermostats: [{ entity: route.id }], definitions: false }, true));
+      page.views.push(view('chauffage-presets-view', { thermostats: [route.id], definitions: false }, true));
       for (const id of page.schedules) {
         // One week alone: no chips, tabs, hint, paused note, legend or save bar (the page has its own),
         // today marked in the active schedule only
@@ -591,7 +591,8 @@ export class ChauffagePanel extends LitElement {
     const revisions = { [climate]: sent[0][2].revision };
     try {
       const result = await commands(this.hass).saveWeeks(weeks, revisions);
-      for (const card of weekCards) card.saved(result, sent.some(([, c]) => c === card));
+      for (const card of weekCards) card.recordRevisions(result);
+      for (const [, card] of sent) card.saved();
       this._saveError = null;
     } catch (err) {
       this._saveError = err && err.code === 'stale' ? t('stale') : errorText(t, err);

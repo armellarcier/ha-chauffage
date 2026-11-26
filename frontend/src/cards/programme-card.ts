@@ -129,11 +129,13 @@ export class ChauffageProgrammeCard extends LitElement {
     return { week: this._week(climate).map(serializeDay), revision: this._draft.revisions[climate] ?? null };
   }
 
-  // The integration saved weeks, of this card (`sent`) or of another card: their new revisions.
-  // The week sent has nothing left to save
-  saved(result, sent) {
+  // The integration saved weeks, of this card or of another card: their new revisions
+  recordRevisions(result) {
     this._draft.recordRevisions(result);
-    if (!sent) return;
+  }
+
+  // The integration saved the week this card sent: it has nothing left to save
+  saved() {
     this._draft.saved();
     this._msg = this._loc.t('saved');
     this._render();

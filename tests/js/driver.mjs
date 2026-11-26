@@ -158,13 +158,11 @@ export async function save(card) {
 // ----- the card and the clock -----
 
 /**
- * Draws the card again, as its timer does every 30 seconds. A view of the panel, in its frame:
- * the view draws again.
+ * Draws the card again, as its timer does every 30 seconds.
  * Internal: the timer runs on the real clock.
  */
 export async function redraw(card) {
-  if (card.view) card.view.requestUpdate();
-  else card._render();
+  card._render();
   await settle();
 }
 

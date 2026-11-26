@@ -200,7 +200,6 @@ export function hassWithoutIntegration({ locale = FRENCH } = {}) {
 
 /** Configured card fed with hass; detach it at the end of the test (stops its timer). */
 export function createCard(hass, config = {}) {
-  if (config.view) return createView(hass, config);
   // As the panel does for a sheet: `sheet` and `schedule` are the card's properties, not options
   const { sheet = null, schedule, ...options } = config;
   const card = document.createElement('chauffage-programme-card');
@@ -214,11 +213,12 @@ export function createCard(hass, config = {}) {
 
 /**
  * A view of the panel (`view`: presets, schedules, thermostats or rules), in its frame, as the
- * panel shows it. Read it through the frame, as a card: `$(frame, …)`.
+ * panel shows it. Read it through the frame, as a card: `$(frame, …)`. To draw the view again,
+ * `frame.view.requestUpdate()`.
  */
-function createView(hass, { view, thermostats = ['climate.salon', 'climate.bureau'], panel = false }) {
+export function createView(hass, view, { thermostats = ['climate.salon', 'climate.bureau'] } = {}) {
   const el = document.createElement(`chauffage-${view}-view`);
-  Object.assign(el, { thermostats: thermostats.map((t) => (typeof t === 'string' ? { entity: t } : t)), panel });
+  el.thermostats = thermostats;
   const frame = document.createElement('chauffage-view-frame');
   frame.view = el;
   document.body.appendChild(frame);

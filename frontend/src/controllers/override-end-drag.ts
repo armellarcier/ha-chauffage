@@ -74,6 +74,7 @@ export class OverrideEndDrag implements ReactiveController {
     this.drag = null;
     this.endedAt = Date.now(); // prevents the following "click" from opening the popover
     this.restore(dd);
+    this.card.requestUpdate(); // what came during the drag is drawn now
     if (dd.moved) this.card._setOverrideEnd(dd.climate, atMinutes(dd.piece.d0, dd.end, new Date()));
     return true;
   }

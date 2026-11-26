@@ -8,8 +8,6 @@ import { makeLocale } from '../../i18n/locale.ts';
 import { inRowActions, navigate, openDevice, openMoreInfo } from '../../links.ts';
 import { entityLink } from '../shared/entity-link.ts';
 
-export type Thermostat = { entity: string; name?: string };
-
 // A view of the Chauffage panel: the presets, the schedules, the thermostats or the rules. It
 // draws in the light DOM of the element that shows it, with that element's stylesheet: the panel
 // puts it in a frame (ChauffageViewFrame). It closes its own menus, follows its own links and does
@@ -17,18 +15,12 @@ export type Thermostat = { entity: string; name?: string };
 export class ChauffageView extends LitElement {
   static properties = {
     hass: { attribute: false },
-    loc: { attribute: false },
     thermostats: { attribute: false },
-    panel: { attribute: false },
   };
 
   declare hass: any;
-  // The user's language, time and number formats (makeLocale); Home Assistant's by default
-  declare loc: any;
-  // The thermostats the view lists, with the names a configuration may give them
-  declare thermostats: Thermostat[];
-  // Shown in the Chauffage panel: its changes are logged as the panel's
-  declare panel: boolean;
+  // The entity ids of the thermostats the view lists
+  declare thermostats: string[];
   // Drawn again when the integration pushes new data
   _snapshot = new SnapshotController(this);
   // What the last action did, or its error, under the view
@@ -44,7 +36,7 @@ export class ChauffageView extends LitElement {
   }
 
   get _loc() {
-    return this.loc || makeLocale(this.hass);
+    return makeLocale(this.hass);
   }
 
   _source(): Snapshot {
@@ -56,8 +48,7 @@ export class ChauffageView extends LitElement {
   }
 
   _name(entity: string) {
-    const t = (this.thermostats || []).find((x) => x.entity === entity);
-    return thermostatName(this.hass, entity, t && t.name);
+    return thermostatName(this.hass, entity);
   }
 
   _moreInfoLink(climate: string) {

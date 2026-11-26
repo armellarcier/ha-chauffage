@@ -66,7 +66,7 @@ export class ChauffageSchedulesView extends ChauffageView {
       hass: this.hass,
       loc: this._loc,
       src,
-      panel: !!this.panel,
+      panel: true,
       list: true,
       oneTab: false,
       get menu() { return view._menu; },

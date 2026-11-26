@@ -1,7 +1,7 @@
 // Pointer and form interactions of the card and of the more-info block: dragging slots and
 // override ends, row menu, copying a week, time fields, popovers, injection into the dialog,
 // error messages.
-import { fakeHass, fakeIntegrationHass, createCard, cleanup, integrationData, typeTime, pressKey, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { fakeHass, fakeIntegrationHass, createCard, createView, cleanup, integrationData, typeTime, pressKey, WEEKDAY, WEEKEND } from './helpers.mjs';
 import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,6 +14,11 @@ const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 const geometry = (el) => { el.getBoundingClientRect = () => ({ left: 0, width: 1440, top: 0, right: 1440, bottom: 40, height: 40 }); return el; };
 const pointer = (el, type, clientX = 0) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX }));
 const override = { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' };
+// The schedule tab that carries the active-schedule dot
+const activeTab = (card) => {
+  const dot = $(card, '.tab .dot');
+  return dot ? dot.closest('.tab').dataset.schedule : null;
+};
 // The integration answers what a preset is worth on a thermostat: the card draws again
 const answerAboutAPreset = async (hass) => { client.preview(hass, 'climate.salon', { id: 'other', name: 'Other', color: '#000', temperature: 18 }); await settle(); };
 
@@ -122,6 +127,32 @@ describe('scrolling the week with a finger (#67)', () => {
     await finger(seg, 'pointerup', 480, 300);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
+
+  test('a schedule activated while a finger scrolls the week is shown when the finger lifts', async () => {
+    const hass = fakeHass();
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
+    assert.equal(activeTab(card), 'normal');
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    await finger(handle, 'pointerdown', 390, 100);
+    hass.push(integrationData({ schedule: 'Absent' })); await settle();
+    await finger(handle, 'pointermove', 392, 160); // a vertical swipe: a scroll, the drag is dropped
+    await finger(handle, 'pointerup', 392, 160);
+    assert.equal(activeTab(card), 'away');
+  });
+
+  test('an override set while a finger scrolls the week is shown when the finger lifts', async () => {
+    const hass = fakeHass();
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
+    assert.equal($(card, '.override'), null);
+    const handle = salonMonday(card).querySelector('.handle[data-idx="1"]');
+    await finger(handle, 'pointerdown', 390, 100);
+    const start = new Date(Date.now() - 10 * 60000).toISOString();
+    const end = new Date(Date.now() + 60 * 60000).toISOString();
+    hass.push(integrationData({ overrides: { 'climate.salon': { target: { temperature: 21.5 }, start, end } } })); await settle();
+    await finger(handle, 'pointermove', 392, 160);
+    await finger(handle, 'pointerup', 392, 160);
+    assert.ok($(card, '.override-handle'), 'the override is drawn');
+  });
 });
 
 describe('dragging a whole slot', () => {
@@ -208,6 +239,17 @@ describe('dragging the end of an override', () => {
     assert.equal(new Date(hass.events.at(-1).override.end).toISOString(), '2026-10-12T10:45:00.000Z'); // 12:45 in Paris
     const drawn = $(card, '.bar[data-climate="climate.salon"][data-day="0"] .override-handle').parentElement;
     assert.equal(drawn.style.width, `${(((12 * 60 + 45 - 570) / 1440) * 100).toFixed(3)}%`);
+  });
+
+  test('in the card, a schedule activated while the end is held without moving is shown when it is released', async () => {
+    const hass = fakeHass({ overrides: { 'climate.salon': override } });
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
+    assert.equal(activeTab(card), 'normal');
+    const handle = geometry($(card, '.bar[data-climate="climate.salon"][data-day="0"]')).querySelector('.override-handle');
+    pointer(handle, 'pointerdown', 690);
+    hass.push(integrationData({ schedule: 'Absent', overrides: { 'climate.salon': override } })); await settle();
+    pointer(handle, 'pointerup'); await settle();
+    assert.equal(activeTab(card), 'away');
   });
 
   test('in the more-info block: sets the new end', async () => {
@@ -856,7 +898,7 @@ describe('error messages', () => {
 
   test('a preset change refused by the integration', async () => {
     const hass = failing(fakeIntegrationHass());
-    const card = createCard(hass, { view: 'presets' }); await settle();
+    const card = createView(hass, 'presets'); await settle();
     $(card, '[data-kind="preset"][data-preset="eco"]').click(); await settle();
     act(card, 'cell-apply'); await settle();
     await settle();
@@ -998,7 +1040,7 @@ describe('presets without the thermostats\' own presets (option off)', () => {
     };
     const hass = fakeIntegrationHass({ data });
     hass.states['climate.salon'].attributes.preset_modes = ['comfort'];
-    const card = createCard(hass, { view: 'presets' }); await settle();
+    const card = createView(hass, 'presets'); await settle();
     const cell = $(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
     assert.equal(cell.querySelector('.pv-val').textContent, '20°'); // the preset's default, not the thermostat's own preset
     assert.equal(cell.querySelector('.pv-how').textContent, 'par défaut');

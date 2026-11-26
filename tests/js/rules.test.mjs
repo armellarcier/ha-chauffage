@@ -1,9 +1,9 @@
 // The "Rules" view: activation rules "template → schedule", the first true one wins, a default
 // schedule otherwise (#1, docs/decisions.md "Activation rules").
-import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
+import { fakeHass, integrationData, createView, cleanup } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { redraw, settle } from './driver.mjs';
+import { settle } from './driver.mjs';
 import { saveRules, tryRulesAtOnce } from './driver.mjs';
 
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
@@ -16,7 +16,7 @@ function withRules({ rules = [RED, WHITE], results = [false, true], def = 'norma
 }
 
 async function openRules(hass) {
-  const card = createCard(hass, { view: 'rules' }); await settle(); // the page of the Chauffage panel
+  const card = createView(hass, 'rules'); await settle(); // the page of the Chauffage panel
   tryRulesAtOnce(card); // rules being typed are tried at once
   await settle();
   return card;
@@ -311,7 +311,7 @@ describe('in Home Assistant, where ha-card shows its content asynchronously', ()
       const area = $$(card, '.rule textarea')[1];
       area.focus();
       area.setSelectionRange(4, 4);
-      await redraw(card);
+      card.view.requestUpdate(); await settle();
       await new Promise((resolve) => setTimeout(resolve, 5));
       const now = card.shadowRoot.activeElement;
       assert.equal(now && now.dataset.ruleTemplate, '1');
