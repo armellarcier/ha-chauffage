@@ -1,6 +1,6 @@
 // Fake hass (with the Chauffage integration) and card factory for the tests.
 import './setup.mjs';
-import { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard, INTEGRATION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard, resetClient } from '../../frontend/src/index.ts';
 
 export const WEEKDAY = ['00:00 eco', '06:30 comfort', '08:30 eco', '17:30 comfort', '22:30 eco'];
 export const WEEKEND = ['00:00 eco', '08:00 comfort', '23:00 eco'];
@@ -68,22 +68,56 @@ export function integrationData({ weeks = SALON, overrides = {}, schedule = 'Nor
 export const INTEGRATION_DATA = () => integrationData();
 
 /**
+ * What a preset is worth on a thermostat, as the fake integration answers
+ * `chauffage/preset/preview`: the integration's rule (domain.Preset.value_on), as the card
+ * computed it before it asked the integration. When heating: preset_mode or temperature. When
+ * cooling, on a thermostat that cools: cool_preset_mode or cool_temperature. In heat/cool, on a
+ * thermostat that takes a range: target_temp_low and target_temp_high. `cell`: the value set by
+ * hand on the thermostat.
+ */
+export function valueOn(preset, cell, hass, climate, usePresets = true) {
+  const set = cell || {};
+  const st = hass.states[climate];
+  const attributes = (st && st.attributes) || {};
+  const listed = Array.isArray(attributes.hvac_modes) ? attributes.hvac_modes.map(String) : [];
+  const own = usePresets && st && (attributes.preset_modes || []).map(String).includes(preset.id) ? preset.id : null;
+  const heat = preset.temperature ?? null;
+  const cool = preset.cool_temperature ?? null;
+  const out = {};
+  if ('preset_mode' in set) out.preset_mode = set.preset_mode;
+  else if ('temperature' in set) out.temperature = set.temperature;
+  else if (heat != null) Object.assign(out, own ? { preset_mode: own } : { temperature: heat });
+  if (listed.includes('cool')) {
+    if ('cool_temperature' in set) out.cool_temperature = set.cool_temperature;
+    else if ('preset_mode' in set) out.cool_preset_mode = set.preset_mode;
+    else if (cool != null) Object.assign(out, own ? { cool_preset_mode: own } : { cool_temperature: cool });
+  }
+  const low = 'temperature' in set ? set.temperature : heat;
+  const high = 'cool_temperature' in set ? set.cool_temperature : cool;
+  const range = listed.includes('heat_cool') && (Number(attributes.supported_features) & 2) !== 0;
+  if (range && low != null && high != null && low < high) {
+    out.target_temp_low = low;
+    out.target_temp_high = high;
+  }
+  for (const attr of ['fan_mode', 'swing_mode', 'swing_horizontal_mode']) if (attr in set) out[attr] = set[attr];
+  return out;
+}
+
+// The answer of the fake integration to `chauffage/preset/preview`: the value
+function presetPreview(hass, data, { entity_id: climate, preset, value }) {
+  return { value: valueOn(preset, value, hass, climate, !data || data.use_presets !== false) };
+}
+
+/**
  * Home Assistant with the integration set up: two thermostats, and the integration's data.
  * `hass.events` records the websocket commands; `hass.push(data)` sends an update to the card;
  * `reply(msg)` answers (or throws for) a command.
  */
 export function fakeHass({ data, weeks, overrides, schedule, paused, planned, locale = FRENCH, reply } = {}) {
-  INTEGRATION.connection = null; // one subscription per page: reset between tests
-  INTEGRATION.subscribed = null;
-  INTEGRATION.watched = null;
-  INTEGRATION.retryIn = 5000;
-  clearTimeout(INTEGRATION.timer);
-  INTEGRATION.timer = null;
-  INTEGRATION.data = null;
-  INTEGRATION.missing = false;
-  INTEGRATION.listeners.clear();
+  resetClient(); // one subscription per page: a new one for each test
   if (data === undefined) data = integrationData({ weeks, overrides, schedule, paused, planned, language: locale.language });
   const events = [];
+  const held = []; // the questions about presets not answered yet (presetPreviewAnswers 'hold')
   let globalRevision = data ? data.revision : 4;
   let listener = null;
   const hass = {
@@ -114,7 +148,20 @@ export function fakeHass({ data, weeks, overrides, schedule, paused, planned, lo
         return Promise.resolve(() => {});
       },
     },
+    // What the cards asked about presets (chauffage/preset/preview): a question, not a change, kept
+    // out of `events`
+    presetPreviews: [],
+    // How the fake integration answers these questions: 'answer' at once, 'hold' until
+    // `hass.answerPresetPreviews()`, or 'fail'
+    presetPreviewAnswers: 'answer',
+    answerPresetPreviews: () => { for (const answer of held.splice(0)) answer(); },
     callWS: async (msg) => {
+      if (msg.type === 'chauffage/preset/preview') {
+        hass.presetPreviews.push(msg);
+        if (hass.presetPreviewAnswers === 'fail') throw { code: 'unknown_error', message: 'No answer' };
+        if (hass.presetPreviewAnswers === 'hold') await new Promise((resolve) => { held.push(resolve); });
+        return presetPreview(hass, data, msg);
+      }
       events.push(msg);
       if (reply) return reply(msg);
       if (msg.type === 'chauffage/weeks/save') {
@@ -147,27 +194,32 @@ export function hassWithoutIntegration({ locale = FRENCH } = {}) {
 
 /** Configured card fed with hass; detach it at the end of the test (stops its timer). */
 export function createCard(hass, config = {}) {
+  // As the panel does for a sheet: `sheet` and `schedule` are the card's properties, not options
+  const { sheet = null, schedule, ...options } = config;
   const card = document.createElement('chauffage-programme-card');
-  // As the panel does: a test may set the options of the panel's pages too (see PANEL_OPTIONS)
-  card._setPanelConfig({ thermostats: ['climate.salon', 'climate.bureau'], show: 'all', ...config });
+  card.setConfig({ thermostats: ['climate.salon', 'climate.bureau'], show: 'all', ...options });
+  card.sheet = sheet;
+  if (schedule) card.schedule = schedule;
   document.body.appendChild(card);
   card.hass = hass;
   return card;
 }
 
 /**
- * An edit of a week, as a double tap then a tap on a preset make it: a piece cut at a time of
- * day, set to `preset` (by default a preset that neither the slot nor the next one has).
+ * A view of the panel (`view`: presets, schedules, thermostats or rules), in its frame, as the
+ * panel shows it. Read it through the frame, as a card: `$(frame, …)`. To draw the view again,
+ * `frame.view.requestUpdate()`.
  */
-export function cutSlot(card, climate, day, minute, preset) {
-  card._split(climate, day, minute);
-  const sel = card._sel;
-  if (!sel || sel.climate !== climate) return;
-  const segs = card._week(climate)[sel.day];
-  const taken = [segs[sel.idx].preset, segs[sel.idx + 1] && segs[sel.idx + 1].preset];
-  const other = preset || ['comfort', 'eco', 'boost', 'frost'].find((id) => !taken.includes(id));
-  card._changeSlot(climate, sel.day, sel.idx, (slot) => ({ ...slot, preset: other }));
+export function createView(hass, view, { thermostats = ['climate.salon', 'climate.bureau'] } = {}) {
+  const el = document.createElement(`chauffage-${view}-view`);
+  el.thermostats = thermostats;
+  const frame = document.createElement('chauffage-view-frame');
+  frame.view = el;
+  document.body.appendChild(frame);
+  el.hass = hass;
+  return frame;
 }
+
 
 /** Types a time in one of the cards' time fields, then leaves the field: the time is applied then. */
 export function typeTime(field, value) {
@@ -230,6 +282,7 @@ export function cleanup() {
   window.__dialogManagers = [];
   document.body.innerHTML = '';
   try { localStorage.clear(); } catch (e) { /* ignore */ }
+  delete window.caches; // watchReloads()
 }
 
 export { ChauffageProgrammeCard, ChauffageMoreInfo, ChauffageThermostatCard };

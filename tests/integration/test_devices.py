@@ -74,7 +74,7 @@ async def test_a_thermostat_gone_from_the_data_while_home_assistant_was_stopped_
             data[name].pop("climate.salon", None)
     assert await bench.hass.config_entries.async_setup(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
-    assert "climate.salon" not in bench.runtime.scheduled
+    assert "climate.salon" not in bench.scheduled()
     assert dr.async_get(bench.hass).async_get(device_id) is None
     assert entity_ids(bench) == [None, None, None]
 
@@ -155,7 +155,7 @@ async def test_a_forgotten_thermostat_s_device_goes_with_its_entities(bench: Ben
     bench.thermostat("climate.salon", "eco", friendly_name="Salon")
     await start(bench)
     device = device_of(bench)
-    await bench.runtime.forget("climate.salon")
+    await bench.runtime.registry.forget("climate.salon")
     await bench.hass.async_block_till_done()
     assert dr.async_get(bench.hass).async_get(device.id) is None
     assert er.async_get(bench.hass).async_get("switch.salon_control") is None

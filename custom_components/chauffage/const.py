@@ -67,7 +67,7 @@ AIR_KEYS = ("fan_mode", "swing_mode", "swing_horizontal_mode")
 
 # Default presets: (id, color, default temperature when heating, when cooling). Their ids are
 # Versatile Thermostat's preset names, so a thermostat with those climate presets uses them (see
-# engine.value_on). Frost protection has no temperature when cooling: it never cools (#91).
+# Preset.value_on). Frost protection has no temperature when cooling: it never cools (#91).
 DEFAULT_PRESETS = (
     ("comfort", "#f57c00", 20.0, 25.0),
     ("eco", "#43a047", 17.0, 27.0),
@@ -108,13 +108,6 @@ EVENT_SCHEDULE_ACTIVATED = f"{DOMAIN}_schedule_activated"
 # The active-schedule select entity (same id whatever the language: automations refer to it)
 SCHEDULE_ENTITY = "select.chauffage_schedule"
 
-# The package (packages/chauffage/, v0.1): entities read by the import
-PACKAGE_SCHEDULES = "sensor.programmes_chauffage"
-PACKAGE_OVERRIDES = "sensor.derogations_chauffage"
-PACKAGE_MODE = "input_select.mode_chauffage"
-PACKAGE_AUTOMATIONS = ("chauffage_programmes_hebdo", "chauffage_derogation_manuelle")  # unique ids
-PACKAGE_DATA_VERSION = 1  # newest package data version the import understands
-
 # Keys of the entities of each scheduled thermostat, and their platforms. The planned preset
 # sensor keeps its former key, "schedule": its unique id, so existing entity ids do not change
 PLANNED_PRESET_KEY, OVERRIDE_KEY, OVERRIDE_END_KEY, CONTROL_KEY = "schedule", "override", "override_end", "control"
@@ -133,3 +126,10 @@ def thermostat_unique_id(entry_id: str, climate: str, key: str) -> str:
 def schedule_unique_id(entry_id: str, schedule_id: str) -> str:
     """The unique id of a schedule's switch."""
     return f"{entry_id}_schedule_{schedule_id}"
+
+
+# Listener reasons: "data" (schedules, weeks, presets, overrides changed) or "tick" (every minute)
+DATA, TICK = "data", "tick"
+# The ids of the entities the cards open changed: the cards are told, nothing else is redone (the
+# entities must not be added or removed during a thermostat's rename, which moves them)
+ENTITIES = "entities"

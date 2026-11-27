@@ -15,7 +15,9 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, SCHEDULED_THERMOSTAT_MODEL, TITLE, thermostat_unique_id
-from .runtime import DATA, ChauffageRuntime, device_by_identifier
+from .app.read_model import device_by_identifier
+from .const import DATA
+from .app.runtime import ChauffageRuntime
 
 # From Home Assistant 2026.10, a device names its parent by the parent's id (`via_device` by
 # identifiers is deprecated, it stops working in 2027.8)
@@ -50,7 +52,7 @@ class ChauffageEntity(Entity):
         self.runtime = runtime
 
     async def async_added_to_hass(self) -> None:
-        self.async_on_remove(self.runtime.async_add_listener(self._runtime_changed))
+        self.async_on_remove(self.runtime.installation.add_listener(self._runtime_changed))
 
     def _runtime_changed(self, reason: str) -> None:
         if reason == DATA or self.update_on_tick:
@@ -121,7 +123,7 @@ class ThermostatSensorEntity(ThermostatEntity):
 
     @property
     def available(self) -> bool:
-        return not self.runtime.is_paused(self.climate)
+        return not self.runtime.installation.is_paused(self.climate)
 
 
 @callback
@@ -155,7 +157,7 @@ def async_follow(
                 gone(runtime, key)
 
     sync()
-    entry.async_on_unload(runtime.async_add_listener(sync))
+    entry.async_on_unload(runtime.installation.add_listener(sync))
 
 
 @callback
@@ -164,7 +166,7 @@ def async_follow_thermostats(
     make: Callable[[ChauffageRuntime, str], list[ThermostatEntity]],
 ) -> None:
     """Entities made by `make` for each scheduled thermostat, removed when it is forgotten."""
-    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.scheduled, make, _remove_device)
+    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.installation.scheduled, make, _remove_device)
 
 
 @callback
@@ -177,7 +179,7 @@ def async_clean_devices(runtime: ChauffageRuntime) -> None:
     that still holds an entity of Chauffage is left as it is."""
     hass, entry_id = runtime.hass, runtime.entry.entry_id
     devices, entities = dr.async_get(hass), er.async_get(hass)
-    keep = {(DOMAIN, entry_id)} | {scheduled_thermostat_identifier(runtime, c) for c in runtime.scheduled}
+    keep = {(DOMAIN, entry_id)} | {scheduled_thermostat_identifier(runtime, c) for c in runtime.installation.scheduled}
     for device in dr.async_entries_for_config_entry(devices, entry_id):
         if device.identifiers & keep:
             continue

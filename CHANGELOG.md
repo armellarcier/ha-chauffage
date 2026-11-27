@@ -9,6 +9,53 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+## [0.11.0-alpha.1] - 2026-11-27
+
+**An alpha: install it only to try it.** The code of the integration and of the card is
+rewritten, to make Chauffage easier to maintain. Chauffage should behave as 0.10.0 does. The
+automated tests and two test campaigns on test Home Assistants pass, but no real installation
+has run it yet.
+
+No stored data is migrated: the data stays in version 7, as in 0.10.0. To go back, reinstall
+0.10.0 from HACS. You need no backup.
+
+### Upgrading
+
+**From 0.10.0:**
+
+1. **Update Versatile Thermostat to 10.5 or later first**, if you use it. Chauffage now
+   requires Versatile Thermostat 10.5. An older Versatile Thermostat turned off by itself would
+   be taken for one turned off by hand.
+2. Update from HACS, with beta versions enabled, then restart Home Assistant and reload the
+   page.
+3. Watch your thermostats for a day. If one does something you don't expect, its logbook says
+   what Chauffage sent and why. Please report it in an issue.
+
+Also check these points:
+
+- **From the v0.1 package, install 0.10.0 first.** Chauffage no longer imports the data of the
+  v0.1 package. Version 0.10.0 is the last release that imports it. Install 0.10.0, follow its
+  upgrade steps, then update to this release.
+- **Read the target of an override in your automations.** The override events and the override
+  sensors no longer carry `kind` and `value`, the format before 0.10. Read `target` instead, for
+  example `{"temperature": 21.5}`.
+- **Installed without HACS? Unzip `ha-chauffage.zip` into `custom_components/chauffage/`.** The
+  ZIP of a release now holds the files of the integration at its root, with the card built.
+  HACS installs this ZIP by itself.
+
+### Changed
+
+- **The more-info dialog follows your Home Assistant profile.** Its week uses the language of
+  your profile and groups identical days, whatever the options of your dashboard cards.
+- **An override from the card says when it ends.** After the card's *Off*, or "until the next
+  slot", the card shows that the override ends at the next slot, as for a change by hand.
+
+### Removed
+
+- **The import of the v0.1 package.** The setup no longer offers to import the package, and the
+  repair that explains how to remove the package is gone.
+- **The support of Versatile Thermostat before 10.5.**
+
 ## [0.10.0] - 2026-11-25
 
 **A slot says what the device does, not only how warm.** A slot can turn a thermostat off, and on

@@ -1,6 +1,7 @@
 // The card in Home Assistant's "Add card" dialog: the list of cards (by card) and the
 // suggestions for an entity (by entity, from Home Assistant 2026.6).
 import { fakeHass, hassWithoutIntegration, integrationData, cleanup, ChauffageProgrammeCard, WEEKDAY } from './helpers.mjs';
+import { settle } from './driver.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -12,13 +13,13 @@ afterEach(() => {
 });
 
 describe('the card in the "Add card" dialog', () => {
-  test('it is listed once, with a live preview and a link to its documentation', () => {
+  test('it is listed once, with a live preview and a link to its documentation', async () => {
     assert.equal(window.customCards.filter((c) => c.type === 'chauffage-programme-card').length, 1);
     assert.equal(entry().preview, true);
     assert.equal(entry().documentationURL, 'https://github.com/armellarcier/ha-chauffage#readme');
   });
 
-  test('its name and description are in the language of Home Assistant\'s interface', () => {
+  test('its name and description are in the language of Home Assistant\'s interface', async () => {
     document.documentElement.lang = 'en';
     assert.equal(entry().name, 'Heating schedules');
     assert.match(entry().description, /Weekly heating schedules/);
@@ -58,40 +59,40 @@ describe('the card in the "Add card" dialog', () => {
     const hass = fakeHass({ weeks: {} });
     // As HA does: the card made from the default config, given hass, then put in the list
     const card = document.createElement('chauffage-programme-card');
-    card.setConfig({ type: 'custom:chauffage-programme-card', ...(await ChauffageProgrammeCard.getStubConfig(hass)) });
-    card.hass = hass;
-    picker.shadowRoot.appendChild(card);
+    card.setConfig({ type: 'custom:chauffage-programme-card', ...(await ChauffageProgrammeCard.getStubConfig(hass)) }); await settle();
+    card.hass = hass; await settle();
+    picker.shadowRoot.appendChild(card); await settle();
     assert.equal(chips(card), 2);
     assert.deepEqual(shown(card), ['climate.salon']);
   });
 
-  test('a card previewed by HA (suggestions, card editor) shows what its config says, not the selection of this device', () => {
+  test('a card previewed by HA (suggestions, card editor) shows what its config says, not the selection of this device', async () => {
     allChosenOnThisDevice();
     const hass = fakeHass();
     const card = document.createElement('chauffage-programme-card');
-    card.setConfig({ type: 'custom:chauffage-programme-card', thermostats: ['climate.salon', 'climate.bureau'] });
+    card.setConfig({ type: 'custom:chauffage-programme-card', thermostats: ['climate.salon', 'climate.bureau'] }); await settle();
     card.preview = true; // set by HA's hui-card after the config
-    document.body.appendChild(card);
-    card.hass = hass;
+    document.body.appendChild(card); await settle();
+    card.hass = hass; await settle();
     assert.deepEqual(shown(card), ['climate.salon']);
     // The card editor: "show every thermostat at first" is seen in the preview
-    card.setConfig({ type: 'custom:chauffage-programme-card', thermostats: ['climate.salon', 'climate.bureau'], show: 'all' });
+    card.setConfig({ type: 'custom:chauffage-programme-card', thermostats: ['climate.salon', 'climate.bureau'], show: 'all' }); await settle();
     assert.deepEqual(shown(card), ['climate.salon', 'climate.bureau']);
   });
 
-  test('thermostats chosen in a preview are not kept for the cards of the dashboards', () => {
+  test('thermostats chosen in a preview are not kept for the cards of the dashboards', async () => {
     allChosenOnThisDevice();
     const card = document.createElement('chauffage-programme-card');
-    card.setConfig({ type: 'custom:chauffage-programme-card', thermostats: ['climate.salon', 'climate.bureau'] });
+    card.setConfig({ type: 'custom:chauffage-programme-card', thermostats: ['climate.salon', 'climate.bureau'] }); await settle();
     card.preview = true;
-    document.body.appendChild(card);
-    card.hass = fakeHass();
-    card.shadowRoot.querySelector('.chip[data-climate="climate.bureau"]').click();
+    document.body.appendChild(card); await settle();
+    card.hass = fakeHass(); await settle();
+    card.shadowRoot.querySelector('.chip[data-climate="climate.bureau"]').click(); await settle();
     assert.deepEqual(shown(card), ['climate.bureau']);
     assert.deepEqual(JSON.parse(localStorage.getItem('chauffage-programme-card:shown')), ['climate.salon', 'climate.bureau']);
   });
 
-  test('a thermostat chosen in the "By entity" tab suggests the card with that thermostat; other entities do not', () => {
+  test('a thermostat chosen in the "By entity" tab suggests the card with that thermostat; other entities do not', async () => {
     const hass = fakeHass();
     assert.deepEqual(entry().getEntitySuggestion(hass, 'climate.salon'), {
       config: { type: 'custom:chauffage-programme-card', thermostats: ['climate.salon'] },

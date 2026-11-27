@@ -11,13 +11,13 @@ from homeassistant.core import HomeAssistant
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     runtime = entry.runtime_data
-    states = {entity_id: hass.states.get(entity_id) for entity_id in runtime.scheduled}
+    states = {entity_id: hass.states.get(entity_id) for entity_id in runtime.installation.scheduled}
     return {
         "version": runtime.version,
         "options": dict(entry.options),
-        "data": runtime.data,
-        "retry": sorted(runtime.retrying),
-        "rule_results": runtime.rule_results,
+        "data": runtime.installation.stored,
+        "retry": sorted(runtime.scheduler.retry),
+        "rule_results": runtime.rules.results,
         "states": {
             entity_id: {"state": state.state, "attributes": dict(state.attributes),
                         "last_changed": state.last_changed.isoformat(), "last_updated": state.last_updated.isoformat()}

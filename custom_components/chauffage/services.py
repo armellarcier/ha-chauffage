@@ -35,12 +35,15 @@ from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
 
-from . import engine
-from .const import DOMAIN
-from .runtime import ThermostatFailed, ThermostatPaused
+from .domain.preset_value import PresetValue
+from .domain.slot import Slot, Week
+from .domain.target import RANGE_KEYS
+from .const import DOMAIN, HEAT_COOL, NO_PRESET_MODES, SETPOINT_MODES
+from .app.overrides import ThermostatFailed, ThermostatPaused
+from .thermostats.reader import read
 
 if TYPE_CHECKING:
-    from .runtime import ChauffageRuntime
+    from .app.runtime import ChauffageRuntime
 
 SET_OVERRIDE_SCHEMA = vol.All(
     vol.Schema({
@@ -74,7 +77,7 @@ def loaded_runtime(hass: HomeAssistant) -> ChauffageRuntime:
 
 def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
     runtime = loaded_runtime(hass)
-    if entity_id not in runtime.scheduled:
+    if entity_id not in runtime.installation.scheduled:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="not_scheduled", translation_placeholders={"entity_id": entity_id}
         )
@@ -82,7 +85,7 @@ def runtime_for(hass: HomeAssistant, entity_id: str) -> ChauffageRuntime:
 
 
 def known_schedule(runtime: ChauffageRuntime, schedule: str) -> str:
-    if schedule not in runtime.schedule_ids:
+    if schedule not in runtime.installation.schedule_ids:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="unknown_schedule", translation_placeholders={"schedule": schedule}
         )
@@ -104,30 +107,30 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
     if "end" in data and _aware(data["end"]) <= dt_util.now():
         refuse("end_in_the_past")
     # Off, fan only, dry and auto take no setpoint
-    if mode in engine.NO_PRESET_MODES and ("temperature" in data or "preset" in data or has_range):
+    if mode in NO_PRESET_MODES and ("temperature" in data or "preset" in data or has_range):
         refuse("no_setpoint_in_hvac_mode", hvac_mode=mode)
     # Heat/cool takes a range or a preset, and nothing else takes a range
-    if has_range and not all(key in data for key in engine.RANGE_KEYS):
+    if has_range and not all(key in data for key in RANGE_KEYS):
         refuse("range_incomplete")
-    if has_range and (mode != engine.HEAT_COOL or "preset" in data):
+    if has_range and (mode != HEAT_COOL or "preset" in data):
         refuse("range_in_heat_cool")
     if has_range and data["target_temp_low"] >= data["target_temp_high"]:
         refuse("range_inverted")
-    if mode == engine.HEAT_COOL and "temperature" in data:
+    if mode == HEAT_COOL and "temperature" in data:
         refuse("heat_cool_takes_a_range")
-    current = runtime.current(hass.states.get(entity_id))
+    current = read(hass, hass.states.get(entity_id))
     listed = current.hvac_modes if current is not None else ()
     if mode is not None and listed and mode not in listed:
         refuse("hvac_mode_not_listed", hvac_mode=mode, hvac_modes=", ".join(listed))
-    if mode == engine.HEAT_COOL and current is not None and not current.supports_range:
+    if mode == HEAT_COOL and current is not None and not current.supports_range:
         refuse("no_range")
     # A single temperature, while the thermostat runs heat/cool on a range: it would refuse it
     if (mode is None and "temperature" in data and current is not None and current.supports_range
-            and current.state == engine.HEAT_COOL):
+            and current.state == HEAT_COOL):
         refuse("temperature_in_heat_cool")
     # A Chauffage preset that has no value in that HVAC mode: frost protection when cooling
-    meaning = runtime.targets_of(entity_id).get(data.get("preset"))
-    if meaning is not None and mode in engine.SETPOINT_MODES and mode not in engine.offered_modes(meaning):
+    meaning = runtime.read_model.targets_of(entity_id).get(data.get("preset"))
+    if meaning is not None and mode in SETPOINT_MODES and mode not in PresetValue.from_target(meaning).offered_modes():
         refuse("preset_not_in_hvac_mode", hvac_mode=mode, preset=data["preset"])
 
 
@@ -163,22 +166,22 @@ def async_register(hass: HomeAssistant) -> None:
         if "temperature" in call.data:
             target["temperature"] = call.data["temperature"]
         elif "target_temp_low" in call.data:
-            target = {key: call.data[key] for key in engine.RANGE_KEYS}
+            target = {key: call.data[key] for key in RANGE_KEYS}
         elif "preset" in call.data:  # a Chauffage preset (what it means on this thermostat), else a climate preset of its own
             preset = call.data["preset"]
-            meaning = runtime.targets_of(entity_id).get(preset)
+            meaning = runtime.read_model.targets_of(entity_id).get(preset)
             target, preset_id = (dict(meaning), preset) if meaning else ({"preset_mode": preset}, None)
         if "hvac_mode" in call.data:  # off, or a mode to turn the thermostat on in (#91)
             target["hvac_mode"] = call.data["hvac_mode"]
         if target == {"hvac_mode": "off"} and minutes is None and end is None:
             # Off without an end: as a thermostat turned off by hand (the setting *Turned off*)
-            override = runtime.manual_override(entity_id, target, runtime.current(hass.states.get(entity_id)))
+            override = runtime.overrides.manual(entity_id, target, read(hass, hass.states.get(entity_id)))
         else:
-            override = runtime.new_override(target, minutes, end)
+            override = runtime.overrides.new(target, minutes, end)
         if preset_id:
             override["preset"] = preset_id
         try:
-            await runtime.set_override(entity_id, override, source="service", resend=True, context=call.context)
+            await runtime.overrides.set(entity_id, override, source="service", resend=True, context=call.context)
         except ThermostatPaused as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="paused", translation_placeholders={"entity_id": entity_id}
@@ -191,32 +194,32 @@ def async_register(hass: HomeAssistant) -> None:
     async def clear_override(call: ServiceCall) -> None:
         entity_id = call.data[ATTR_ENTITY_ID]
         await may_control(hass, call, entity_id)
-        await runtime_for(hass, entity_id).set_override(entity_id, None, source="service", context=call.context)
+        await runtime_for(hass, entity_id).overrides.set(entity_id, None, source="service", context=call.context)
 
     async def activate_schedule(call: ServiceCall) -> None:
         runtime = loaded_runtime(hass)
-        await runtime.activate_schedule(known_schedule(runtime, call.data["schedule"]), source="service",
+        await runtime.schedules.activate(known_schedule(runtime, call.data["schedule"]), source="service",
                                        context=call.context)
 
     async def get_schedules(call: ServiceCall) -> ServiceResponse:
         runtime = loaded_runtime(hass)
-        entities = runtime.schedule_entities()
+        entities = runtime.read_model.schedule_entities()
         return {
             "schedules": [{"id": s["id"], "name": s["name"], "entity_id": entities.get(s["id"])}
-                          for s in runtime.data["schedules"]],
-            **{key: runtime.data[key] for key in ("active_schedule", "rules_choice", "default_schedule")},
+                          for s in runtime.installation.schedules],
+            **{key: getattr(runtime.installation, key) for key in ("active_schedule", "rules_choice", "default_schedule")},
         }
 
     async def get_week(call: ServiceCall) -> ServiceResponse:
         runtime = loaded_runtime(hass)
-        schedule = known_schedule(runtime, call.data.get("schedule", runtime.data["active_schedule"]))
+        schedule = known_schedule(runtime, call.data.get("schedule", runtime.installation.active_schedule))
         response = {}
         for entity_id in call.data[ATTR_ENTITY_ID]:
             # The slots as they run on the thermostat: on an air conditioner, heat or cool
-            week = engine.week_on(runtime_for(hass, entity_id).weeks[entity_id][schedule],
-                                  runtime.current(hass.states.get(entity_id)))
+            week = Week.from_stored(runtime_for(hass, entity_id).installation.weeks[entity_id][schedule]).on(
+                read(hass, hass.states.get(entity_id))).to_stored()
             response[entity_id] = {"schedule": schedule} | {
-                name: [{"start": slot[0], "end": next_start, "preset": slot[1], **engine.slot_of(slot).settings}
+                name: [{"start": slot[0], "end": next_start, "preset": slot[1], **Slot.from_stored(slot).settings}
                        for slot, next_start in zip(day, [s[0] for s in day[1:]] + ["24:00"])]
                 for name, day in zip(DAYS, week)
             }

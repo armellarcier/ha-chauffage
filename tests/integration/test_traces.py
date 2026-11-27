@@ -12,7 +12,7 @@ from homeassistant.core import Context, Event, callback
 from conftest import CTX_USER, KINDS, WEEKDAY, Bench, every_day
 from custom_components.chauffage import diagnostics, logbook, websocket
 
-LOGGER = "custom_components.chauffage.runtime"
+LOGGER = "custom_components.chauffage"  # the runtime and the gateway
 COMPONENT = Path(__file__).parents[2] / "custom_components" / "chauffage"
 WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": every_day(("00:00", "frost"))}}
 
@@ -28,7 +28,7 @@ def log(caplog):
     caplog.set_level(logging.INFO, logger=LOGGER)
 
     def read() -> list[str]:
-        messages = [r.getMessage() for r in caplog.records if r.name == LOGGER and r.levelno == logging.INFO]
+        messages = [r.getMessage() for r in caplog.records if r.name.startswith(LOGGER) and r.levelno == logging.INFO]
         caplog.clear()
         return messages
     return read
@@ -89,7 +89,7 @@ async def test_an_override_on_a_vtherm_logs_the_setpoint_it_was_asked_for(bench:
     bench.needs("vtherm")
     bench.versatile_thermostat("climate.salon")
     await start(bench, "10:00")
-    await bench.runtime.set_mapping("climate.salon", {"eco": {"temperature": 17.5}, "comfort": {"temperature": 19.0}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"eco": {"temperature": 17.5}, "comfort": {"temperature": 19.0}})
     await bench.hass.async_block_till_done()
 
     def window_open(asked: float) -> None:
@@ -444,9 +444,9 @@ async def test_the_logbook_names_the_panel_when_a_change_comes_from_it(bench: Be
 def test_every_source_and_reason_in_the_code_has_a_logbook_text_in_every_language():
     """A new source of overrides or schedules, or a new reason for an override to end, is told
     in the logbook (CONTRIBUTING.md, "Conventions")."""
-    code = "\n".join(p.read_text(encoding="utf-8") for p in COMPONENT.glob("*.py"))
+    code = "\n".join(p.read_text(encoding="utf-8") for p in COMPONENT.rglob("*.py"))
     sources = set(re.findall(r'source="(\w+)"', code)) | set(websocket.SOURCES)  # sent by the card or the panel
-    reasons = set(re.findall(r'_drop_override\([^,()]+, "(\w+)"\)', code)) | {"service", "thermostat"} | set(websocket.SOURCES)
+    reasons = set(re.findall(r'overrides\.drop\([^,()]+, "(\w+)"\)', code)) | {"service", "thermostat"} | set(websocket.SOURCES)
     assert {"card", "service", "entity", "rules", "thermostat"} <= sources  # the scan finds them
     assert {"paused", "forgotten", "expired"} <= reasons
     for language, texts in logbook.TEXTS.items():

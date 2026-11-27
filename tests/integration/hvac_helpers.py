@@ -3,7 +3,8 @@ conditioner next to a heater, and an air conditioner that lists every HVAC mode.
 
 from conftest import CTX_USER, MANUAL_PRESET, WEEKDAY, Bench
 
-from custom_components.chauffage import engine, model
+from custom_components.chauffage.storage import schema
+from custom_components.chauffage.domain.thermostat import Thermostat
 
 
 OFF = {"hvac_mode": "off"}
@@ -27,7 +28,7 @@ NIGHT_OFF = [["00:00", None, OFF], ["06:30", "comfort"], ["08:30", "eco"], ["17:
 
 # The same day, in cooling slots
 COOL_WEEKDAY = [[*slot, {"hvac_mode": "cool"}] for slot in WEEKDAY]
-PRESETS = {p["id"]: p for p in model.default_presets("en")}
+PRESETS = {p["id"]: p for p in schema.default_presets("en")}
 COOLING_ONLY = ["off", "cool", "fan_only"]
 COOLING = {"preset": "comfort", "state": "cool", "hvac_modes": AC_MODES}
 
@@ -111,12 +112,12 @@ def sent_to(bench: Bench, entity_id: str = SALON) -> list[float]:
     return [temperature for entity, temperature in bench.temperature_calls if entity == entity_id]
 
 
-def ac(state: str = "cool", modes: tuple = tuple(AC_MODES)) -> engine.Thermostat:
-    return engine.Thermostat(state, "comfort", 20.0, ("eco", "comfort"), 16.0, 30.0, 0.5, hvac_modes=modes)
+def ac(state: str = "cool", modes: tuple = tuple(AC_MODES)) -> Thermostat:
+    return Thermostat(state, "comfort", 20.0, ("eco", "comfort"), 16.0, 30.0, 0.5, hvac_modes=modes)
 
 
-def unit(state: str = "heat", modes: list[str] | None = None, presets: tuple[str, ...] = (), **more) -> engine.Thermostat:
-    return engine.Thermostat(state, None, 20.0, presets=presets, hvac_modes=tuple(modes or REVERSIBLE),
+def unit(state: str = "heat", modes: list[str] | None = None, presets: tuple[str, ...] = (), **more) -> Thermostat:
+    return Thermostat(state, None, 20.0, presets=presets, hvac_modes=tuple(modes or REVERSIBLE),
                              supports_range=True, **more)
 
 

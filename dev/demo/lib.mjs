@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 export const HA = process.env.HA_URL || 'http://homeassistant:8123';
 export const DASHBOARD = `${HA}/chauffage-dev/planning`;
 export const CARD = 'chauffage-programme-card';
-export const PANEL = 'chauffage-panel chauffage-programme-card';
+export const PANEL = 'chauffage-panel chauffage-presets-view';
 const OUT = '/demo/out';
 
 // The bar of a thermostat's day on the schedule card

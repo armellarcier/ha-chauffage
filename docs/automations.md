@@ -46,7 +46,6 @@ The sensors are unavailable while the thermostat is paused.
   `{"preset_mode": "boost"}`.
 - `preset`: the Chauffage preset asked for, if any.
 - `end`.
-- `kind` and `value`: the format before 0.10, kept for older automations.
 
 **Installed before 0.6?** The planned preset sensor keeps its former id,
 `sensor.<thermostat>_schedule` in English.
@@ -151,15 +150,15 @@ The three override events carry `entity_id`, `start` and `end`.
 `chauffage_override_started` and `chauffage_override_end_changed` also carry:
 
 - `target`, for example `{"temperature": 21.5}`, and `preset`;
-- `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`;
-- `kind` and `value`, the format before 0.10.
+- `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`.
 
 `chauffage_override_ended` also carries `reason`, for example `expired`, `thermostat` (set back
 to its schedule by hand) or `card`. The other reasons are `panel`, `service`, `paused` and
 `forgotten`.
 
-When Chauffage knows why the override ends at that time, the events carry `ends_at`: `duration`,
-`next_slot` or `no_next_slot`.
+When Chauffage chose the end of the override, `ends_at` says which rule chose it: `duration`,
+`next_slot` or `no_next_slot`. For example, a change by hand that lasts until the next slot
+carries `next_slot`. When you pick the end yourself, the events carry no `ends_at`.
 
 ### Schedule event
 

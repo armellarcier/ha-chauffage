@@ -9,14 +9,16 @@ future contributor might question.
 
 - **An integration, not a YAML package** (v0.2). The v0.1 package (template sensors holding the
   data, automations, events from the card) hit its limits: attribute size, no real services, no
-  configuration UI, no HACS, YAML to edit by hand. Its data is still imported when the
-  integration is added (`importer.py`).
+  configuration UI, no HACS, YAML to edit by hand.
+  **Amended by the rewrite**: the integration no longer imports the package's data. A v0.1 user
+  upgrades through 0.10.0, the last release that imports.
 - **Domain `chauffage`, a single config entry.** One installation per Home Assistant; entity
   ids do not depend on the language (`select.chauffage_schedule`), their names are translated.
 - **Data in a versioned `Store`** (`.storage/chauffage`), migrated automatically, each migration
   tested with a fixture of the former format. Going back to an older version is not supported.
 - **A first setup waits for Home Assistant to be running** (retried automatically): during
   startup, the package's restored states and automations may not exist yet.
+  **Removed by the rewrite**, with the import of the package: a first setup no longer waits.
 - **Settings in the card, not in the options flow.** HA's option forms (generated fields, no
   layout, no preview) proved impractical for setting temperatures room by room. The options
   keep a single form of defaults (override duration, use of the thermostats' own presets).
@@ -123,10 +125,20 @@ future contributor might question.
     (`manual_override_end_of`). Some users will want a setting per room, for example 30 minutes
     for the bathroom. A setting per thermostat can then come without changing the rule. Not
     before a request: a choice per thermostat is one more thing to understand.
-  - **The override says why it ends then**, in an optional `ends_at` key: `duration`,
-    `next_slot` or `no_next_slot`. The key is optional, so the stored format needs no migration:
-    an override stored before #83 simply shows no reason. An end changed on the card drops the
-    key, because the end is then the user's choice. A new value keeps it, with the same end.
+    **Amended by the rewrite**: the function that takes the thermostat is gone. A setting per
+    thermostat would add it back.
+  - **The override says which rule chose its end**, in an optional `ends_at` key: `duration`,
+    `next_slot` or `no_next_slot`. The key is optional, so an override stored before #83 simply
+    shows no reason. Chauffage sets the key every time it computes the end itself: after a change
+    by hand, with the card's *Off*, and with the card's "until the next slot" button. An end
+    changed on the card drops the key, because the end is then the user's choice. A new value
+    keeps it, with the same end. The first step of the rewrite kept the key for a change by hand
+    only. The owner reversed it on 2026-11-26: the card's *Off* then said nothing of the next
+    slot, while the integration had computed it.
+  - **The key stays `ends_at`.** The owner renamed it `end_rule` on 2026-11-26, because `ends_at`
+    reads like a date, then reversed the rename on 2026-11-27. The rename needed storage version
+    8, and 0.10 refuses a newer storage version: a user could no longer go back to 0.10 without
+    a backup. A clearer name was not worth it.
   - **The reason is part of the end, in words**: "today, at the next slot", "today, 2 h after the
     change", "in a week, no slot ahead". A first version listed "today · after 2 h · 2 h 00 left":
     three fragments, and the duration twice. "then Eco (schedule)" keeps one form, with or
@@ -168,7 +180,7 @@ future contributor might question.
   from the schedule. The card sends what the preset means on that thermostat (its climate
   preset, or a temperature), so the stored format of overrides does not change; on a thermostat
   without presets, "Comfort" picked in the card shows as its temperature.
-- **One way to set an override's value on the thermostat** (`runtime.set_override`), which
+- **One way to set an override's value on the thermostat** (`OverrideService.set`), which
   fits a temperature to the thermostat (limits, step) as for the slots, and never sends what the
   thermostat already has. The caller says what to send: the card, a new override or a new value
   (a new end alone is not sent, so it works on an unreachable thermostat); the `set_override`
@@ -200,11 +212,11 @@ future contributor might question.
     without an HVAC mode leaves the thermostat in the one it has". With that rule a slot had
     three states, *Heat*, *Cool* and "unchanged", and the third one could not be read in the
     week: what the room got depended on what the thermostat did before. The owner chose that
-    every slot says. The rule lives in one place on each side: `engine.slot_hvac_mode` in the
+    every slot says. The rule lives in one place on each side: `slot.slot_hvac_mode` in the
     integration, `slotModeOn` in the card. Both read a slot the same way:
     - off, fan only, dry and auto are the slot's own, on any thermostat;
     - heat, cool and heat/cool are kept when the thermostat can follow them
-      (`engine.setpoint_modes`: the ones it lists, heat/cool only when it takes a range of
+      (`thermostat.setpoint_modes`: the ones it lists, heat/cool only when it takes a range of
       temperatures);
     - otherwise, on a thermostat that cools, the slot heats, and it cools when the thermostat
       does not heat: a week stored before #91 says no HVAC mode, and a day pasted from another
@@ -226,9 +238,13 @@ future contributor might question.
     upgraded installation**: a reversible air conditioner that cools is switched to heat by a
     week that says nothing. The changelog says so under "Upgrading".
   - **A new slot takes the HVAC mode of the slot it comes from**: a slot inserted or cut in a
-    slot keeps its HVAC mode. In an off slot or a fan-only slot, it takes the HVAC mode of the
-    slot on a preset before it in the day, else heat. A new slot that heated in the middle of a
-    summer day would be a surprise.
+    slot keeps its HVAC mode. A slot inserted or cut in an off slot is off, and one inserted or
+    cut in a fan-only slot is fan only. A new slot that heated in the middle of a summer day
+    would be a surprise.
+  - **An off or fan-only slot of an air conditioner never has a preset** (the owner). Such a
+    slot sends no setpoint, so a preset there means nothing to the user. Its popover offers no
+    preset: the user chooses Heat or Cool first. A former version of the card still gave such
+    a slot a preset, in the HVAC mode of the slot before it, through a path no button reached.
   - **Each slot is independent**: a slot does not inherit the HVAC mode of the slot before it
     when it runs. It says its own.
   - **A target without an HVAC mode turns on a thermostat that is off or in fan only, as the
@@ -246,7 +262,7 @@ future contributor might question.
     takes no setpoint on a device. Auto often takes one, but the device decides what to do
     with it, and the owner chose one rule for both. So `dry` or `auto` chosen by hand is an
     override to that HVAC mode, and nothing is sent. A target that holds a setpoint and says
-    no HVAC mode turns a thermostat on from off, from fan only and from dry (`engine.IDLE`),
+    no HVAC mode turns a thermostat on from off, from fan only and from dry (`thermostat.IDLE`),
     not from auto: a valve in auto takes its setpoint and keeps auto, as before #91.
   - **Heat/cool sends a range, made of the preset's two temperatures.** `target_temp_low` is
     the temperature when heating, `target_temp_high` the one when cooling, each from the
@@ -267,7 +283,7 @@ future contributor might question.
     in heat there: its setpoint changed by hand is an override. A range is checked once fitted
     to the thermostat: two temperatures above its maximum are not a range.
   - **Scripts and the sensor read the slots as they run.** `chauffage.get_week` and the
-    planned-preset sensor give each slot's HVAC mode on the thermostat (`engine.week_on`), not
+    planned-preset sensor give each slot's HVAC mode on the thermostat (`Week.on`), not
     the stored one: a script must not have to know the rule. The sensor's `temperatures` are
     the cooling ones during a slot that cools.
   - **A thermostat without fan only is left as it is by a fan-only slot**: the slot has no
@@ -333,11 +349,11 @@ future contributor might question.
     holds only what was changed, the rest following the schedule. It is a change of what an
     override is, so it comes after #91 (#110). Until then, overrides keep what Chauffage handled
     before #91, plus the HVAC mode: a preset, a setpoint, a range. The fan and the vanes are
-    dropped from every override target (`model.normalize_override`, the card's
+    dropped from every override target (`storage.schema.override`, the card's
     `withoutAir`), an override gives no fan back, and a fan changed by hand during an
     override changes nothing.
   - **A thermostat leaves its preset before it gets a setpoint**, when it lists the preset
-    `none` and shows another one (`engine.preset_to_leave`). A Daikin keeps its preset when it
+    `none` and shows another one (`Target.preset_to_leave`). A Daikin keeps its preset when it
     gets a temperature: left on `eco`, it saved energy against the setpoint the slot asked
     for. The preset is left first, in a call of its own: a thermostat such as Home Assistant's
     `generic_thermostat` gives back an older setpoint when it leaves a preset, so the setpoint
@@ -351,7 +367,7 @@ future contributor might question.
   - **A thermostat at the slot's temperature still leaves its device preset** (the third
     review). A Daikin on `eco` that already showed the slot's 21 °C was left alone, and went
     on saving energy against the setpoint. Chauffage now sends such a thermostat its slot
-    (`engine.targets`, `Runtime.needs`): the preset is left, then the setpoint is sent again,
+    (`plan.due_targets`, `Runtime.needs`): the preset is left, then the setpoint is sent again,
     as a thermostat may change it when it leaves a preset. Nothing is pending then: the
     thermostat already shows the target.
   - **All or nothing, as a scene** (the owner, #112). A thermostat that shows the whole target
@@ -368,7 +384,7 @@ future contributor might question.
   - **A window that sets the frost setpoint teaches no preset temperature** (the third review).
     A Versatile Thermostat whose window action is *frost* keeps its preset and shows 7 °C:
     `_learn` took 7 °C for the temperature of *Eco*. It now learns nothing while the
-    thermostat says its window is open (`engine.cause`).
+    thermostat says its window is open (the `cause` of its reader, `thermostats/`).
   - **The card cannot set a single temperature in heat/cool** on a thermostat that takes a
     range there: the websocket API refuses it, as `chauffage.set_override` does. The override
     was recorded and did nothing. An override that already has this value keeps it: its end
@@ -382,7 +398,7 @@ future contributor might question.
   - **The device validates the values, not Chauffage.** Chauffage keeps no rule such as "this
     thermostat has no cool": the card offers only the values the thermostat lists, and the
     thermostat decides. Chauffage only checks the shape of its own data: what each layer may
-    hold (`model.py`).
+    hold (`storage/schema.py`).
   - **A preset has a temperature when heating and one when cooling, and either can be empty.**
     A reversible air conditioner wants Comfort at 20 °C in winter and at 25 °C in summer, and
     the user panel refused a second *Comfort* preset for that. A first version put the cooling
@@ -391,7 +407,7 @@ future contributor might question.
     default for each, and a cell still sets each for one thermostat. An empty temperature
     means "this preset is not for that HVAC mode": frost protection has none when cooling.
   - **A preset is offered in the HVAC modes it has a value for.** The rule lives in one place
-    on each side: `engine.value_on` and `engine.offered_modes` in the integration, `valueOn`
+    on each side: `Preset.value_on` and `PresetValue.offered_modes` in the integration, `valueOn`
     and `presetModes` in the card, which reads what the integration computed and uses its own
     copy only for a thermostat the integration does not know yet. The value of a preset on a
     thermostat, for each HVAC mode:
@@ -408,7 +424,7 @@ future contributor might question.
     The slot popover and the override block list the presets with this rule, an HVAC mode no
     preset has a value for cannot be chosen, and `chauffage.set_override` refuses a preset in
     an HVAC mode it has no value for.
-  - **Never a heating temperature in cool.** `engine.complete()` keeps, from a preset's
+  - **Never a heating temperature in cool.** `Target.completed_for()` keeps, from a preset's
     target, the value of the HVAC mode the target is sent in, also when the target says none
     and the air conditioner cools by itself. Without a value for that HVAC mode, no setpoint
     is sent, and the unit keeps its own: a slot stored with frost protection in cool, or an
@@ -560,13 +576,18 @@ future contributor might question.
   - **A VTherm without `requested_state` keeps the behavior before #91** (#74): off, it is read
     as on. It gets its slots and its override while off, stays off, and starts again on them.
     Chauffage neither turns it on nor takes it for turned off by hand. An off slot is still
-    satisfied by it: `engine.Thermostat` keeps the HVAC mode shown (`shown`) next to the one
+    satisfied by it: `domain.thermostat.Thermostat` keeps the HVAC mode shown (`shown`) next to the one
     read, and an off target accepts either, so the off command is not waited for and a
     realignment does not send off again. Before #91, a first fix
     (0.7.1) only counted the reason `hvac_off_auto_start_stop`; that reason moved once, from a
     top-level attribute to `specific_states` (VTherm 10.5), and VTherm publishes no reason right
     after being turned off, so Chauffage leaves the decision to VTherm. Older versions are not
     checked; they are rare, and the risk is accepted.
+    **Removed by the rewrite**: Versatile Thermostat 10.5 is the minimum supported version, and
+    every supported VTherm publishes `requested_state`. The `shown` field, the top-level
+    `hvac_off_reason` and the top-level `eco_temp` keys are no longer read. The top-level
+    `window_manager` stays: VTherm 10.5.0 still publishes it there, not in `specific_states`
+    (phase I2 of the rewrite found it in a development HA).
 - **A thermostat that shows neither a setpoint nor a preset is left alone, like an unavailable
   thermostat** (#93). At a restart, VTherm writes a first state before it has restored its own:
   `off`, no setpoint, no preset, no `is_ready` (VTherm 10.5 and 8.6.2 alike). It builds its
@@ -623,8 +644,8 @@ future contributor might question.
   - **What Chauffage reads.** For a VTherm with `requested_state`, Chauffage reads the preset
     from `requested_state`. On the manual preset (`none`), it also reads the setpoint from
     `requested_state`. On another preset, `requested_state` keeps the last manual setpoint, not
-    the preset's: Chauffage reads the setpoint VTherm shows. Without `requested_state`, for
-    example a VTherm older than version 8, Chauffage reads the attributes as before.
+    the preset's: Chauffage reads the setpoint VTherm shows. For a state without
+    `requested_state`, Chauffage reads the attributes as they are.
   - **What Chauffage learns.** A VTherm can show another preset than the one asked, for example
     *frost* while its central mode is in frost protection. Chauffage then learns no preset
     temperature: the setpoint shown is not the asked preset's.
@@ -660,6 +681,8 @@ future contributor might question.
   applied the same way. The events and the sensors keep `kind` and `value` next to the target,
   read from its first attribute, so existing automations keep working. An override that sets
   none of them (the fan, a cooling setpoint) has no kind and no value.
+  **Amended by the rewrite**: the events and the sensors no longer carry `kind` and `value`.
+  Automations read the target.
 - **A preset's value on a thermostat is a climate preset or a temperature, not both, and never
   an HVAC mode.** A first version stored any mix, as a scene does, and let the device decide
   what to do with a preset and a temperature together. The user could not tell what the room
@@ -687,7 +710,7 @@ future contributor might question.
   itself: sending it would cool to a heating setpoint. An override without a Chauffage preset is
   another matter: its temperature comes from the card's field, from `chauffage.set_override
   temperature`, or from a change by hand, so the user chose it for the HVAC mode the thermostat
-  runs in, and Chauffage sends it in `cool` too. `engine.complete()` tells the two apart
+  runs in, and Chauffage sends it in `cool` too. `Target.completed_for()` tells the two apart
   (`by_user`).
 - **A preset keeps a temperature that the weeks use.** A preset whose temperature when
   cooling is emptied while a week cools on it left a slot with nothing to send. Chauffage
@@ -845,6 +868,9 @@ future contributor might question.
   renamed): the cards open in the page follow the new runtime and get its data at once.
 - **Saves send the weeks of the thermostats edited**, each with its own revision: two cards
   showing the same thermostat cannot overwrite each other, and do not block the others.
+  **Amended by the rewrite**: the weeks are saved against these revisions only. The global
+  revision of `chauffage/weeks/save`, kept for older cards, is gone. The global revision stays
+  for the list of schedules.
 - **Stored per thermostat** (`thermostats: {climate: {paused, weeks, mapping,
   preset_temperatures, revision}}`). The overrides stay apart: short-lived, a release may drop
   them. Migrated from the current keys, nothing changing on upgrade: a thermostat with weeks is
@@ -974,6 +1000,8 @@ dashboards, automations, scripts and by voice without the card
 
 - **No build step**: one JavaScript file, served by the integration and loaded on every page
   (card and more-info block). Bundling comes with the translations as files (roadmap).
+  **Replaced by the rewrite** (phase C0): the card is written in TypeScript in `frontend/src/`,
+  and esbuild bundles it into the one file that the integration serves.
 - **Loaded with `add_extra_js_url`, registered twice if needed**, not as a Lovelace resource
   (nothing to configure, and the more-info block needs it on every page). The module is loaded
   in parallel with HA's frontend, which replaces `customElements` with a scoped registry
@@ -1080,6 +1108,9 @@ dashboards, automations, scripts and by voice without the card
 - **`language` is only set in YAML**: the card follows the user's profile (language and
   formats), like every HA card, none of which offers that option. It also forces the more-info
   block of every card. It stays readable for the configurations that use it.
+  **Amended by the rewrite**: the more-info block uses its defaults, the language of the Home
+  Assistant profile and identical days grouped. It no longer takes the options of the last
+  configured card.
 - **A preview shows what its config says**, not the thermostats last chosen on the device
   (kept for the next visit, shared by the cards): in the *Add card* dialog every thermostat is
   there but only the first is shown, and in the card editor the *show every thermostat* switch
@@ -1246,8 +1277,8 @@ dashboards, automations, scripts and by voice without the card
     validate with the owner.* The slots merged when the popover closed and when the weeks were
     saved: a tester set the evening to the preset of the afternoon, and the cut at 20:00 was
     gone. The user cut the slot on purpose, and a silent merge surprises. So neither the card
-    nor the integration merges two slots any more: `normalize` and `model.normalize_day` keep
-    them, and the second slot sends nothing (`engine.targets`). What still joins two slots:
+    nor the integration merges two slots any more: `normalize` and `storage.schema.day` keep
+    them, and the second slot sends nothing (`plan.due_targets`). What still joins two slots:
     - a slot deleted, or a time typed over a slot, joins the two slots it brings together;
     - a day copied to a thermostat that cannot follow its slots, and *All heat* or *All cool*,
       join the slots they made the same (`joined`).
@@ -1278,7 +1309,7 @@ dashboards, automations, scripts and by voice without the card
     override block of the card, the thermostat cards and the more-info dialog (`CHIP_STYLE`).
   - **A thermostat that only heats says no HVAC mode in an override from the card.** The card
     wrote `heat` in every override of a valve that lists heat and auto, and the valve stayed
-    in heat afterwards. The card now follows the rule of the slots (`engine.slot_hvac_mode`):
+    in heat afterwards. The card now follows the rule of the slots (`slot.slot_hvac_mode`):
     no HVAC mode unless the user taps one. The first row then shows the HVAC mode the valve
     runs in.
   - **The fan speed in sight in fan only and in dry.** It is the one thing to set there. The
@@ -1292,7 +1323,7 @@ dashboards, automations, scripts and by voice without the card
   - **A preset can have a value when cooling on one thermostat only.** *Frost protection* has
     no temperature when cooling, and the cell of a cooling-only air conditioner still takes
     one. The reviewers asked whether this was a mistake. It is the model: a preset is offered
-    in an HVAC mode on a thermostat when it has a value for it there (`engine.value_on`, the
+    in an HVAC mode on a thermostat when it has a value for it there (`Preset.value_on`, the
     card's `valueOn`). The slot popover, the override block and the integration agree, and a
     test says so. The cell stays as it is.
   - **The second review of the layout** (#91):
@@ -1959,6 +1990,8 @@ A review of every surface, before the merge into `main`, settled these choices.
   The weeks stacked on a thermostat's page take one of them, `week_only`: the week alone, without
   chips, tabs, hint, paused note, legend or save bar, today marked in the active schedule only.
   Eight options always set together used to do it.
+  **Amended in phase C6**: the panel sets the card's `sheet` and `schedule` properties instead,
+  and shows its views without the card.
 
 ### Open questions
 
@@ -2071,3 +2104,160 @@ behind the back of HACS. The docs present the script as a hack, to undo or relea
   in it.
 - **The backup does not hold `.storage/core.config_entries`.** That file belongs to every
   integration.
+
+### The rewrite (2026-11)
+
+The owner wants a clean and maintainable codebase, and considers the procedural code of the
+runtime and the card unmaintainable. [rewrite-plan.md](rewrite-plan.md) plans a rewrite in
+phases. The owner decided these points on 2026-11-25:
+
+- **Step by step, not in one go.** Each phase ships with the tests green.
+- **The rewrite happens on the `rewrite` branch.** Claude merges each phase into `rewrite` once
+  the CI is green and an independent agent has reviewed it. Nothing goes into `main` before the
+  end, and `main` only gets fixes meanwhile.
+- **One alpha at the end.** The alpha is published from `rewrite` and installed on a real Home
+  Assistant. The owner decides when `rewrite` goes into `main`.
+- **A review of the rewrite only reports three things**: a behavior that differs from `main`,
+  proved by a test, a breach of a design decision, and code more complex than needed. A fix
+  restores the behavior of `main` or removes code. A fix that would add a rule, a flag or a
+  stored state goes to the owner. Agent reviews tend to ask for more cases, and the coding agent
+  then adds complexity, while the goal is simple rules and simple code.
+- **The rewrite changes the structure, not the behavior.** The behavior rules the owner chose
+  to simplify are applied in the first step, on the current code:
+  - weeks are saved against the revision of each thermostat only;
+  - the legacy `kind` and `value` fields of the override events go with the release of the
+    rewrite, and the *Planned preset* sensor still goes in 0.12;
+  - the more-info block uses its defaults, not the options of the last configured card;
+  - the integration alone computes what a preset is worth on a thermostat, and the card asks
+    for it (phases I6 and C5).
+  The owner reversed one of these rules on 2026-11-26: Chauffage again says which rule chose the
+  end of an override, in `ends_at` (see *The user chooses how a change by hand ends*).
+- **The card is built now, in TypeScript, with Lit and esbuild.** The tests run on the
+  TypeScript sources through Node's type stripping, so the sources use erasable syntax only.
+- **HACS installs a ZIP built by the CI** (`zip_release`). The repository holds no built file.
+- **The week editor gets no new feature while it is rewritten** (phase C5).
+- **Versatile Thermostat 10.5 is the minimum supported version.** Every supported VTherm then
+  publishes `requested_state`, so the code for older versions goes.
+- **The rewrite removes the v0.1 import, in its first step.** A v0.1 user first installs a
+  release that still imports.
+
+#### Phase C0: the build of the card
+
+Claude made these choices while splitting the card. The owner confirmed them on 2026-11-27:
+
+- **The sources live in `frontend/src/`, at the root of the repository.** The integration's
+  folder holds only what Home Assistant runs, so the release ZIP needs no filtering.
+- **The card takes its version from `manifest.json`.** The card imports the manifest, and
+  esbuild puts the version in the bundle. A release sets one version, in the manifest.
+- **The types stay loose until the card is rewritten.** `tsc` checks the modules with
+  `strict` off. The fields of the elements, the event parameters and the queried elements are
+  `any`. Each later phase types the code it rewrites.
+- **The bundle keeps the code as written**: no minification, no syntax lowering (`esnext`), as
+  the file the integration served before.
+- **The integration's `frontend/` folder stays in git**, with a `.gitignore` for the built card.
+  Home Assistant registers this folder when the integration starts, so the folder must exist
+  before the first build.
+- **The release ZIP holds the integration's files at its root**, as HACS expects with
+  `zip_release`. Without HACS, a user unzips it into `custom_components/chauffage/`.
+- **`scripts/deploy.sh` builds the card of the commit it deploys**, with Node or Docker.
+
+#### Where the integration's rewrite put the tests and the store (phase I7)
+
+Claude proposed these two choices. The owner confirmed them on 2026-11-27.
+
+- **The tests of the domain stay in `tests/integration/test_domain.py`**, not in
+  `tests/unit/domain/` as the plan says. `scripts/test.sh` and the CI run them as before, with no
+  second suite to set up. The cases and their names are those of `test_engine.py`.
+- **`store.py` stays at the root**, with its frozen migrations, not in `storage/store.py` and
+  `storage/migrations.py`. The plan also says to keep `test_store.py` as it is, and this test
+  imports `custom_components.chauffage.store`.
+
+#### The end of phase I7 (2026-11)
+
+The owner decided these points on 2026-11-26, after a review of the whole rewrite:
+
+- **`Installation` stays a thin wrapper around the stored dictionaries.** Each stored key is a
+  property over the live dictionary, and the services change these dictionaries in place.
+  Making `Installation` own real objects would add code: each object would need its own
+  conversion to and from the stored format, for no change of behavior.
+- **`Installation` answers the queries on the stored data**, for example `scheduled`,
+  `presets_by_id` and `weeks`. These queries only read the dictionaries, so they need no
+  service of their own.
+- **`storage/schema.py` holds the stored format, its validation and its defaults.** `model.py`
+  is gone: the input is validated in one module.
+- **A service gets its collaborators, not the runtime, when it needs only a few.** `Settings`
+  takes Home Assistant and the config entry. `Learner` and `ThermostatGateway` take Home
+  Assistant and the installation. The services
+  that coordinate several others, such as the scheduler and the overrides, still reach them
+  through the runtime, but only through public members.
+
+#### The week editor in Lit (phase C5)
+
+Claude made these choices while rewriting the week editor. The owner confirmed them on
+2026-11-27.
+
+- **The card asks the integration what a preset is worth only for what its data lacks.** The
+  data of `chauffage/subscribe` gives `targets` for every thermostat Chauffage schedules. The
+  card asks `chauffage/preset/preview` for a thermostat it doesn't schedule yet, and for the
+  defaults of a cell of the presets tab. The page's client keeps each answer while the
+  thermostat lists the same modes and presets, and the cards draw again when an answer comes.
+- **While an answer is on its way, the card shows nothing for it.** The popover of a slot of a
+  thermostat not scheduled yet offers no preset for a moment, the first time. The legend asks
+  first, so the answer is usually there when the user opens a popover.
+- **An answer not known is not "no value".** The card never says "Not used when heating" for an
+  answer on its way, and never greys out an HVAC mode for it. An answer that fails reads the
+  same way. The card asks again only after a page reload, or when the thermostat lists other
+  modes or presets. A cell saved before the
+  answer waits for it: one of the thermostat's own presets that turns out to be the default is
+  not stored.
+- **The parts of the week editor are elements only where they have a life of their own.** Only
+  the two popovers are elements, drawn again with the card. The week grid, the legend, a row of
+  days and a bar are templates: the card holds their state, and the drags change the bars in
+  place.
+- **The temperature of an override follows the thermostat, except while it is typed in.** The
+  field stays, and nothing puts back what was typed: a redraw doesn't touch a field being typed
+  in.
+
+#### The clean-up of the card (phase C6)
+
+Claude made these choices while cleaning up the card. The owner confirmed them on 2026-11-27.
+
+- **The panel puts each view in a frame.** The frame, `chauffage-view-frame`, is a card around
+  the view, with the cards' stylesheet in its own shadow root. The panel's stylesheet can't hold
+  the views: both style `.head`, `.menu`, `.btn` or `.sep`, differently. The panel creates the
+  views and sets their properties itself. The programme card no longer draws a view. The frame
+  takes the place of the programme card that hosted a view before, so the nesting under the
+  panel stays the same.
+- **A view takes the entity ids of its thermostats**, and nothing else from the panel. A view
+  only exists in the panel, so it needs no `panel` property, and no thermostat name from a
+  configuration.
+- **A sheet of the panel sets two properties of the programme card**, `sheet` and `schedule`,
+  not options. `sheet` is `schedule` (every thermostat's week in one schedule, without tabs) or
+  `thermostat` (one week alone). A dashboard's YAML can't set them. Eight panel-only options
+  did this, behind a private method.
+- **The panel uses a small public surface of the card**: `dirty`, `week()`, `toSave()`,
+  `recordRevisions()`, `saved()`, `discard()`, `receiveWeek()`, `setWeekHvac()`,
+  `setWeekView()` and `openScheduleMenu()`. It no longer reads the card's draft.
+- **Every push of the integration draws the card again.** A new hass draws it again only when
+  what the card shows from hass changed: the states of its thermostats, the registry, the user,
+  the language and formats, the integration's services. The card compares these parts by
+  identity, as Home Assistant's own cards do. Home Assistant sends a new hass for every state of
+  the house: drawing every card each time would cost too much on a phone.
+- **No redraw while a slot or the end of an override is dragged**, in one place:
+  `shouldUpdate`, next to the rule for a time being typed. The card draws again when the drag
+  ends, whether the finger commits it or drops it. So a push that came during the drag is drawn
+  at once.
+- **No stamps of the integration's data.** The cards compare the parts of the data by identity.
+  The page's client keeps the former `overrides` and `thermostats` of a push when the new ones
+  are equal, so a push that changes something else keeps them. The weeks shown reload when the
+  revision changes, unless a draft is being edited. The more-info block draws again on every
+  push.
+- **Each control takes its tap with Lit's `@click`**, bound to the method that does its action.
+  No code reads a `data-act` string to find what to do. `data-act` stays on the controls as
+  their name, because the tests, `dev/review/` and `dev/demo/` select on it.
+- **One listener does what a tap does before any control**, in the card and in each view of the
+  panel. A menu open: a tap elsewhere only closes it. Then a link is followed. Then a popover open
+  closes, and a tap on a button does what the button does too. The gestures on the week (a tap
+  or a double tap on a slot, a drag, a long press) stay listeners of the card.
+- **A control is drawn only when the user may use it.** The access level is not checked again
+  when the control is tapped: the card draws again as soon as the access level changes.

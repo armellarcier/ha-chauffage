@@ -5,7 +5,7 @@ default schedule otherwise. A schedule chosen by hand stays until the outcome of
 import pytest
 
 from conftest import WEEKDAY, Bench
-from custom_components.chauffage.model import InvalidData
+from custom_components.chauffage.storage.schema import InvalidData
 
 WEEKS = {"climate.salon": {"normal": [WEEKDAY] * 7, "away": [[["00:00", "frost"]]] * 7,
                            "holiday": [[["00:00", "eco"]]] * 7}}
@@ -25,7 +25,7 @@ async def start(bench: Bench, color: str = "blue") -> None:
 
 async def set_rules(bench: Bench, rules: list, default: str | None = None) -> None:
     """What the card sends when the user saves the rules."""
-    await bench.runtime.set_rules(rules, default)
+    await bench.runtime.rules.set(rules, default)
     await bench.hass.async_block_till_done()
 
 
@@ -35,7 +35,7 @@ async def tempo(bench: Bench, color: str) -> None:
 
 
 def active(bench: Bench) -> str:
-    return bench.runtime.data["active_schedule"]
+    return bench.active_schedule()
 
 
 async def restart(bench: Bench) -> None:
@@ -95,7 +95,7 @@ async def test_a_template_that_fails_counts_as_false(bench: Bench):
     failing = {"template": "{{ states('sensor.missing') | float / 0 }}", "schedule": "away"}
     await set_rules(bench, [failing, WHITE], "normal")
     assert active(bench) == "normal"
-    assert bench.runtime.snapshot()["rule_results"] == [None, False]
+    assert bench.runtime.read_model.snapshot()["rule_results"] == [None, False]
 
 
 # ----- a schedule chosen by hand -----
@@ -185,8 +185,8 @@ async def test_without_rules_the_schedule_is_only_chosen_by_hand(bench: Bench):
 async def test_invalid_rules_are_refused(bench: Bench, rules, default):
     await start(bench)
     with pytest.raises(InvalidData):
-        await bench.runtime.set_rules(rules, default)
-    assert bench.runtime.data["rules"] == []
+        await bench.runtime.rules.set(rules, default)
+    assert bench.rules() == []
 
 
 async def test_a_schedule_used_by_the_rules_cannot_be_deleted(bench: Bench):
@@ -251,10 +251,10 @@ async def test_a_template_giving_no_known_schedule_lets_the_next_rule_decide(ben
     await start(bench, "blue")
     await set_rules(bench, [{"template": COLORS, "schedule": None}, {"template": "{{ true }}", "schedule": "holiday"}])
     assert active(bench) == "holiday"
-    assert bench.runtime.snapshot()["rule_results"] == [False, True]
+    assert bench.runtime.read_model.snapshot()["rule_results"] == [False, True]
     await tempo(bench, "red")
     assert active(bench) == "away"
-    assert bench.runtime.snapshot()["rule_results"] == ["away", True]
+    assert bench.runtime.read_model.snapshot()["rule_results"] == ["away", True]
 
 
 async def test_a_schedule_named_only_inside_a_template_can_be_deleted(bench: Bench):
@@ -282,7 +282,7 @@ async def test_rules_being_typed_are_tried_as_the_integration_would(bench: Bench
     assert event["results"] == [False, True, "holiday", False, None]
     assert event["texts"] == ["False", "True", "Holiday", "white", None]
     assert event["errors"] == [None] * 5
-    assert bench.runtime.data["rules"] == [], "nothing is saved"
+    assert bench.rules() == [], "nothing is saved"
 
 
 async def test_a_rule_being_typed_is_tried_again_when_its_entities_change(bench: Bench, ws_client):

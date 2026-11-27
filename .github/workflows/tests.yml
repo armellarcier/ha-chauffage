@@ -13,9 +13,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          # 22.18 at least: the tests run the TypeScript sources without a build
+          node-version: 24
           cache: npm
       - run: npm ci
+      # The types of the card (tsconfig.json)
+      - run: npm run typecheck
       # Tests with coverage; fails below 95 % of the lines (package.json, "coverage")
       - run: npm run coverage
       - name: Coverage percentage

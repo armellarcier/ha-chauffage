@@ -5,7 +5,7 @@ import pytest
 from homeassistant.exceptions import ServiceValidationError
 
 from conftest import WEEKDAY, WEEKEND, Bench
-from custom_components.chauffage.model import InvalidData
+from custom_components.chauffage.storage.schema import InvalidData
 
 SALON_WEEK = [WEEKDAY] * 5 + [WEEKEND] * 2
 WEEKS = {
@@ -30,7 +30,7 @@ def kept(*ids: str) -> list[dict]:
 
 
 def weeks_of(bench: Bench, schedule_id: str) -> dict:
-    return {entity: weeks[schedule_id] for entity, weeks in bench.runtime.weeks.items() if schedule_id in weeks}
+    return {entity: weeks[schedule_id] for entity, weeks in bench.weeks().items() if schedule_id in weeks}
 
 
 # ----- a new installation, an existing one -----
@@ -73,8 +73,8 @@ async def test_an_empty_schedule_puts_every_scheduled_thermostat_in_eco_all_week
 
 async def test_an_empty_schedule_uses_the_first_preset_when_there_is_no_eco(bench: Bench):
     await start(bench)
-    presets = [p for p in bench.runtime.data["presets"] if p["id"] != "eco"]
-    await bench.runtime.set_presets(presets, {"eco": "frost"})
+    presets = [p for p in bench.presets() if p["id"] != "eco"]
+    await bench.runtime.schedules.set_presets(presets, {"eco": "frost"})
     await bench.set_schedules(kept("normal", "away", "holiday") + [{"name": "Guests"}])
     assert weeks_of(bench, "guests")["climate.salon"] == [[["00:00", "comfort"]]] * 7
 
@@ -83,7 +83,7 @@ async def test_creating_a_schedule_does_not_touch_the_thermostats(bench: Bench):
     await start(bench)
     await bench.set_schedules(kept("normal", "away", "holiday") + [{"name": "Guests"}])
     assert bench.applied() == {}
-    assert bench.runtime.data["active_schedule"] == "normal"
+    assert bench.active_schedule() == "normal"
 
 
 async def test_a_new_schedule_gets_a_unique_id_from_its_name(bench: Bench):

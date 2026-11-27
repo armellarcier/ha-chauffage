@@ -11,7 +11,8 @@
 # .env: PROD_HA_CONFIG = the configuration folder, local (/config) or over SSH
 # (home-assistant:/docker/homeassistant/config). PROD_HA_CONTAINER = the container, on that host.
 #
-# The script deploys a commit, with `git archive`, never the working tree. The installed version
+# The script deploys a commit, with `git archive`, never the working tree. It builds the card of
+# that commit with scripts/build.sh, which needs Node or Docker on this machine. The installed version
 # is the repository version with a dev suffix made of the commit's date and sha, for example
 # 0.9.0-beta.4.dev.20261118153000.g5b20a33, or 0.9.1-dev.… for release 0.9.0.
 #
@@ -99,14 +100,16 @@ fi
 
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
-git archive --format=tar "$commit:$integration" | tar -C "$stage" -xf -
+git archive --format=tar "$commit" | tar -C "$stage" -xf -
 # -i.orig: the same on GNU and BSD (macOS) sed
-sed -i.orig "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$stage/manifest.json"
-sed -i.orig "s/^const VERSION = '[^']*';/const VERSION = '$version';/" "$stage/frontend/chauffage-programme-card.js"
-rm "$stage/manifest.json.orig" "$stage/frontend/chauffage-programme-card.js.orig"
-files=$(find "$stage" -type f | wc -l | tr -d ' ')
+sed -i.orig "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$stage/$integration/manifest.json"
+rm "$stage/$integration/manifest.json.orig"
+# The card takes its version from the manifest: built once the version is set
+echo "Building the card"
+scripts/build.sh "$stage"
+files=$(find "$stage/$integration" -type f | wc -l | tr -d ' ')
 
 echo "Deploying $version to $target"
 # COPYFILE_DISABLE: no ._* files from macOS tar
-COPYFILE_DISABLE=1 tar -C "$stage" -cf - . | on_target install "$folder" "$container" "$files" "$version"
+COPYFILE_DISABLE=1 tar -C "$stage/$integration" -cf - . | on_target install "$folder" "$container" "$files" "$version"
 echo "Done. Roll back with: scripts/deploy.sh --rollback"

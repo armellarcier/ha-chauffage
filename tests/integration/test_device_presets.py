@@ -10,7 +10,8 @@ from hvac_helpers import (
     AC_MODES, BUREAU, COOL, COOLING, ECO_IN_COOL, REVERSIBLE, SALON, ac, clear, start_ac, start_salon,
 )
 
-from custom_components.chauffage import engine
+from custom_components.chauffage.domain.target import Target
+from custom_components.chauffage.domain.thermostat import Thermostat
 
 
 @pytest.fixture(params=KINDS)
@@ -21,8 +22,8 @@ def thermostat_kind(request) -> str:
 DAIKIN_PRESETS = ["none", "away", "eco", "boost"]
 
 
-def daikin(preset: str | None = "eco", **more) -> engine.Thermostat:
-    return engine.Thermostat("heat", preset, 24.0, presets=tuple(DAIKIN_PRESETS), hvac_modes=tuple(REVERSIBLE), **more)
+def daikin(preset: str | None = "eco", **more) -> Thermostat:
+    return Thermostat("heat", preset, 24.0, presets=tuple(DAIKIN_PRESETS), hvac_modes=tuple(REVERSIBLE), **more)
 
 
 async def daikin_on_eco(bench: Bench, temperature: float | None = None) -> None:
@@ -31,7 +32,7 @@ async def daikin_on_eco(bench: Bench, temperature: float | None = None) -> None:
     await bench.go_to("13:00")
     bench.thermostat(SALON, "eco", preset_modes=DAIKIN_PRESETS)
     await bench.setup()
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 21}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"temperature": 21}})
     await bench.save_weeks({SALON: {"normal": [[["00:00", "eco"], ["14:00", "comfort"]]] * 7}})
     bench.thermostat(SALON, "eco", temperature, preset_modes=DAIKIN_PRESETS)
     await bench.hass.async_block_till_done()
@@ -60,18 +61,18 @@ def refuse_presets(bench: Bench) -> None:
 
 def test_in_cool_the_device_preset_is_sent_and_the_heating_temperature_is_not():
     own = {"preset_mode": "eco", "cool_preset_mode": "eco"}
-    assert engine.complete(own, ac("cool")) == {"preset_mode": "eco"}
-    assert engine.complete({**own, "hvac_mode": "cool"}, ac("heat")) == {"preset_mode": "eco", "hvac_mode": "cool"}
-    assert engine.complete({"preset_mode": "frost"}, ac("cool")) == {}  # no value when cooling
-    assert engine.complete({"temperature": 21.0}, ac("cool")) == {}
-    assert engine.complete({"temperature": 21.0, "cool_temperature": 26.0}, ac("cool")) == {"temperature": 26.0}
-    assert engine.complete({"temperature": 24.0}, ac("cool"), by_user=True) == {"temperature": 24.0}
+    assert Target(own).completed_for(ac("cool")) == {"preset_mode": "eco"}
+    assert Target({**own, "hvac_mode": "cool"}).completed_for(ac("heat")) == {"preset_mode": "eco", "hvac_mode": "cool"}
+    assert Target({"preset_mode": "frost"}).completed_for(ac("cool")) == {}  # no value when cooling
+    assert Target({"temperature": 21.0}).completed_for(ac("cool")) == {}
+    assert Target({"temperature": 21.0, "cool_temperature": 26.0}).completed_for(ac("cool")) == {"temperature": 26.0}
+    assert Target({"temperature": 24.0}).completed_for(ac("cool"), by_user=True) == {"temperature": 24.0}
 
 
 async def test_in_cool_a_device_preset_stored_by_the_user_is_still_sent(bench: Bench):
     bench.needs("vtherm", "standard")
     await start_salon(bench, "13:00", ECO_IN_COOL, **COOLING)
-    await bench.runtime.set_mapping("climate.salon", {"eco": {"preset_mode": "eco"}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"eco": {"preset_mode": "eco"}})
     await bench.hass.async_block_till_done()
     bench.applied()
     await bench.go_to("14:00")
@@ -88,7 +89,7 @@ async def test_the_card_sees_what_a_thermostat_s_own_preset_gives_when_cooling(b
     published = {"preset_temperatures": {"comfort_temp": 20.0, "comfort_cool_temp": 25.0}} if bench.kind == "vtherm" else {}
     bench.thermostat(SALON, "comfort", 25.0, state="cool", hvac_modes=AC_MODES, context=CTX_AUTOMATION, **published)
     await bench.hass.async_block_till_done()
-    snapshot = bench.runtime.snapshot()
+    snapshot = bench.runtime.read_model.snapshot()
     assert snapshot["cool_preset_temperatures"][SALON]["comfort"] == 25.0
     assert snapshot["preset_temperatures"][SALON]["comfort"] == 20.0
     assert SALON not in snapshot["cool_preset_temperatures"].get(BUREAU, {})
@@ -99,21 +100,21 @@ async def test_the_card_sees_what_a_thermostat_s_own_preset_gives_when_cooling(b
 def test_a_thermostat_leaves_its_preset_before_a_setpoint():
     """A Daikin keeps its preset when it gets a setpoint: left on eco, it would go on saving
     energy against the temperature the slot asks for."""
-    assert engine.preset_to_leave({"temperature": 21.0}, daikin()) == "none"
-    assert engine.preset_to_leave({"target_temp_low": 20.0, "target_temp_high": 25.0}, daikin("boost")) == "none"
+    assert Target({"temperature": 21.0}).preset_to_leave(daikin()) == "none"
+    assert Target({"target_temp_low": 20.0, "target_temp_high": 25.0}).preset_to_leave(daikin("boost")) == "none"
 
 
 def test_a_thermostat_keeps_its_preset_without_a_setpoint_or_without_the_preset_none():
-    assert engine.preset_to_leave({"preset_mode": "eco", "temperature": 21.0}, daikin("away")) is None
-    assert engine.preset_to_leave({"fan_mode": "auto"}, daikin()) is None
-    assert engine.preset_to_leave({"temperature": 21.0}, daikin("none")) is None
-    assert engine.preset_to_leave({"temperature": 21.0}, daikin(None)) is None
-    assert engine.preset_to_leave({"temperature": 21.0}, None) is None
-    plain = engine.Thermostat("heat", "eco", 17.0, presets=("eco", "comfort"), hvac_modes=("off", "heat"))
-    assert engine.preset_to_leave({"temperature": 21.0}, plain) is None
+    assert Target({"preset_mode": "eco", "temperature": 21.0}).preset_to_leave(daikin("away")) is None
+    assert Target({"fan_mode": "auto"}).preset_to_leave(daikin()) is None
+    assert Target({"temperature": 21.0}).preset_to_leave(daikin("none")) is None
+    assert Target({"temperature": 21.0}).preset_to_leave(daikin(None)) is None
+    assert Target({"temperature": 21.0}).preset_to_leave(None) is None
+    plain = Thermostat("heat", "eco", 17.0, presets=("eco", "comfort"), hvac_modes=("off", "heat"))
+    assert Target({"temperature": 21.0}).preset_to_leave(plain) is None
     # A Versatile Thermostat goes to its manual preset by itself when it gets a setpoint
-    vtherm = engine.Thermostat("heat", "eco", 17.0, presets=("none", "eco"), hvac_modes=("off", "heat"), vtherm=True)
-    assert engine.preset_to_leave({"temperature": 21.0}, vtherm) is None
+    vtherm = Thermostat("heat", "eco", 17.0, presets=("none", "eco"), hvac_modes=("off", "heat"), leaves_preset_itself=True)
+    assert Target({"temperature": 21.0}).preset_to_leave(vtherm) is None
 
 
 async def test_a_slot_on_a_temperature_takes_a_daikin_off_its_preset(bench: Bench):
@@ -123,7 +124,7 @@ async def test_a_slot_on_a_temperature_takes_a_daikin_off_its_preset(bench: Benc
     await bench.go_to("13:00")
     bench.thermostat(SALON, "eco", preset_modes=DAIKIN_PRESETS)
     await bench.setup()
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 21}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"temperature": 21}})
     await bench.save_weeks({SALON: {"normal": [[["00:00", "eco"], ["14:00", "comfort"]]] * 7}})
     bench.thermostat(SALON, "eco", preset_modes=DAIKIN_PRESETS)
     await bench.hass.async_block_till_done()
@@ -132,7 +133,7 @@ async def test_a_slot_on_a_temperature_takes_a_daikin_off_its_preset(bench: Benc
     assert bench.calls == [(SALON, "none"), (SALON, "21.0")]
     assert bench.overrides() == {}
     await bench.advance(3)
-    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.pending(SALON) == []
+    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.gateway.pending(SALON) == []
 
 
 async def test_a_daikin_that_refuses_to_leave_its_preset_gets_the_setpoint_anyway(bench: Bench, caplog):
@@ -142,8 +143,8 @@ async def test_a_daikin_that_refuses_to_leave_its_preset_gets_the_setpoint_anywa
     await daikin_on_eco(bench)
     refuse_presets(bench)
     await bench.go_to("14:00")
-    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.pending(SALON) == []
-    assert SALON not in bench.runtime.retrying
+    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.gateway.pending(SALON) == []
+    assert SALON not in bench.runtime.scheduler.retry
     assert "could not leave its preset eco" in caplog.text
     # The Daikin keeps eco at 21 °C: nothing more is sent
     state = bench.hass.states.get(SALON)
@@ -158,7 +159,7 @@ async def test_an_unreachable_daikin_is_sent_its_slot_again(bench: Bench):
     await daikin_on_eco(bench)
     bench.unreachable.add(SALON)
     await bench.go_to("14:00")
-    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and SALON in bench.runtime.retrying
+    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and SALON in bench.runtime.scheduler.retry
 
 
 async def test_a_daikin_already_at_the_slot_temperature_leaves_its_preset(bench: Bench):
@@ -166,7 +167,7 @@ async def test_a_daikin_already_at_the_slot_temperature_leaves_its_preset(bench:
     is left, then the setpoint is sent, as a thermostat may change it when it leaves a preset."""
     await daikin_on_eco(bench, 21.0)
     await bench.go_to("14:00")
-    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.pending(SALON) == []
+    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.gateway.pending(SALON) == []
     assert bench.overrides() == {}
     await bench.advance(3)
-    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.pending(SALON) == []
+    assert bench.calls == [(SALON, "none"), (SALON, "21.0")] and bench.runtime.gateway.pending(SALON) == []

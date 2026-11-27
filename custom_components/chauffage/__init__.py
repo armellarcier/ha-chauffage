@@ -1,6 +1,6 @@
 """Chauffage: weekly heating schedules for Home Assistant thermostats.
 
-The config entry owns the stored data (.storage/chauffage) and the scheduler (runtime.py);
+The config entry owns the stored data (.storage/chauffage) and the services (app/runtime.py);
 the select entity changes the active schedule, sensors show each thermostat's schedule and
 override, a switch per thermostat pauses it; the card talks to the integration through the websocket API (websocket.py) and is
 served by the integration (frontend.py).
@@ -10,16 +10,16 @@ from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import CoreState, HomeAssistant
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from . import entity, frontend, importer, model, services, websocket
+from . import entity, frontend, services, websocket
 from .const import DEFAULT_SCHEDULES, DOMAIN, PLANNED_PRESET_KEY, SCHEDULE_ENTITY
-from .runtime import ChauffageRuntime
+from .app.runtime import ChauffageRuntime
 from .store import ChauffageStore
+from .storage import schema
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -38,22 +38,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     store = ChauffageStore(hass)
     data = await store.async_load()
     if data is None:
-        if hass.state is not CoreState.running:
-            # First setup during startup: the package's restored states and its automations
-            # may not be there yet, so the import decision waits (retried automatically)
-            raise ConfigEntryNotReady("waiting for Home Assistant to finish starting")
-        if importer.package_installed(hass):
-            try:
-                data = importer.from_package(hass)
-            except importer.PackageTooNew as err:
-                raise ConfigEntryError("the package data is newer than this integration") from err
-        else:
-            language = (hass.config.language or "en").split("-")[0]
-            data = model.default_data(DEFAULT_SCHEDULES.get(language, DEFAULT_SCHEDULES["en"]), language)
+        language = (hass.config.language or "en").split("-")[0]
+        data = schema.default_data(DEFAULT_SCHEDULES.get(language, DEFAULT_SCHEDULES["en"]), language)
         await store.async_save(data)
-        if importer.package_installed(hass):
-            # Two schedulers must never drive the valves: the package's automations stop here
-            await importer.async_turn_off_package(hass)
 
     _rename_schedule_entity(hass, entry)
     integration = await async_get_integration(hass, DOMAIN)
@@ -67,8 +54,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) ->
     entry.async_on_unload(entry.add_update_listener(frontend.sidebar_listener(entry)))
     entry.async_on_unload(entry.add_update_listener(_options_changed))
 
-    schedule_entity = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_schedule")
-    importer.async_update_package_issue(hass, schedule_entity)
     return True
 
 
@@ -104,7 +89,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ChauffageConfigEntry) -
     runtime = entry.runtime_data
     runtime.async_stop()
     frontend.async_remove_chauffage_panel(hass)
-    await runtime.store.async_save(runtime.data)  # pending delayed save
+    await runtime.installation.save_now()  # pending delayed save
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
@@ -116,4 +101,4 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def _options_changed(hass: HomeAssistant, entry: ChauffageConfigEntry) -> None:
     """The options changed (options flow, configuration entities, panel): the entities and the
     cards show them again."""
-    entry.runtime_data.options_changed()
+    entry.runtime_data.installation.notify()

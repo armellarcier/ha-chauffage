@@ -1,0 +1,26 @@
+{
+  "fit_temperature": {
+    "about": "A temperature the thermostat accepts: on its step (target_temp_step, half a degree by default), within min_temp and max_temp. domain.thermostat.fit_temperature in Python, fitTemperature in the card.",
+    "cases": [
+      { "name": "on the default step of half a degree", "attributes": {}, "value": 19.26, "expected": 19.5 },
+      { "name": "on a step of a tenth", "attributes": { "target_temp_step": 0.1 }, "value": 19.04, "expected": 19.0 },
+      { "name": "on a step of one degree", "attributes": { "target_temp_step": 1 }, "value": 19.3, "expected": 19 },
+      { "name": "a step of zero is the default step", "attributes": { "target_temp_step": 0 }, "value": 19.2, "expected": 19.0 },
+      { "name": "raised to the minimum", "attributes": { "min_temp": 7, "max_temp": 30 }, "value": 5, "expected": 7 },
+      { "name": "lowered to the maximum", "attributes": { "min_temp": 7, "max_temp": 30 }, "value": 31.2, "expected": 30 },
+      { "name": "on the step, then within the limits", "attributes": { "min_temp": 7.2, "target_temp_step": 0.5 }, "value": 7.1, "expected": 7.2 }
+    ]
+  },
+  "normalize_day": {
+    "about": "A day's slots as the integration stores them: sorted, the first one at 00:00, one slot per start time (the last one wins), two slots alike in a row kept apart, an empty day is eco all day. storage.schema.day in Python, parseDay then slotToArray in the card.",
+    "cases": [
+      { "name": "sorted, and the first one starts at midnight", "slots": [["06:30", "comfort"], ["01:00", "eco"]], "expected": [["00:00", "eco"], ["06:30", "comfort"]] },
+      { "name": "one slot per start time, the last one wins", "slots": [["00:00", "eco"], ["08:00", "comfort"], ["08:00", "boost"]], "expected": [["00:00", "eco"], ["08:00", "boost"]] },
+      { "name": "two slots alike in a row stay two", "slots": [["00:00", "eco"], ["14:00", "eco"]], "expected": [["00:00", "eco"], ["14:00", "eco"]] },
+      { "name": "an off slot has no preset", "slots": [["00:00", "eco"], ["22:30", "eco", { "hvac_mode": "off" }]], "expected": [["00:00", "eco"], ["22:30", null, { "hvac_mode": "off" }]] },
+      { "name": "a slot keeps its settings", "slots": [["00:00", "comfort", { "hvac_mode": "cool", "fan_mode": "low" }]], "expected": [["00:00", "comfort", { "hvac_mode": "cool", "fan_mode": "low" }]] },
+      { "name": "a fan-only slot has no preset", "slots": [["00:00", null, { "hvac_mode": "fan_only", "fan_mode": "2" }]], "expected": [["00:00", null, { "hvac_mode": "fan_only", "fan_mode": "2" }]] },
+      { "name": "an empty day is eco all day", "slots": [], "expected": [["00:00", "eco"]] }
+    ]
+  }
+}

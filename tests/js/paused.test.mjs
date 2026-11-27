@@ -1,8 +1,10 @@
 // A paused thermostat in the card and its more-info block: shown as paused, Chauffage does not
 // drive it, its weeks stay editable (docs/decisions.md, "Scheduled thermostats").
-import { fakeHass, createCard, cleanup, integrationData, WEEKDAY, WEEKEND, cutSlot } from './helpers.mjs';
+import { fakeHass, createCard, createView, cleanup, integrationData, WEEKDAY, WEEKEND } from './helpers.mjs';
+import { cutSlot , settle, openOverride, placePopover } from './driver.mjs';
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { save } from './driver.mjs';
 
 const WEEK = [WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKEND, WEEKEND];
 const WEEKS = { 'climate.salon': { Normal: WEEK }, 'climate.bureau': { Normal: WEEK } };
@@ -11,8 +13,8 @@ const lastCall = (hass) => hass.events.at(-1);
 const text = (root) => root.textContent.replace(/\s+/g, ' ');
 const q = (card, selector) => card.shadowRoot.querySelector(selector);
 
-function openMenu(card, climate, day) {
-  q(card, `.ibtn[data-act="menu"][data-climate="${climate}"][data-day="${day}"]`).click();
+async function openMenu(card, climate, day) {
+  q(card, `.ibtn[data-act="menu"][data-climate="${climate}"][data-day="${day}"]`).click(); await settle();
   return q(card, '.menu');
 }
 
@@ -20,34 +22,51 @@ describe('a paused thermostat in the card', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') })); // Monday
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  test('its chip says it is paused, instead of what it does now', () => {
-    const card = createCard(pausedSalon());
+  test('its chip says it is paused, instead of what it does now', async () => {
+    const card = createCard(pausedSalon()); await settle();
     const chip = q(card, '.chip[data-climate="climate.salon"]');
     assert.ok(chip.classList.contains('paused'));
     assert.match(chip.querySelector('.live').textContent, /Pilotage suspendu/);
     assert.doesNotMatch(q(card, '.chip[data-climate="climate.bureau"] .live').textContent, /pause/);
   });
 
-  test('a notice says Chauffage does not control it, with a button to resume it', () => {
+  test('a notice says Chauffage does not control it, with a button to resume it', async () => {
     const hass = pausedSalon();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     const notes = [...card.shadowRoot.querySelectorAll('.paused-note')];
     assert.equal(notes.length, 1);
     assert.match(text(notes[0]), /Salon : pilotage suspendu\. Chauffage n'y touche plus\./);
-    notes[0].querySelector('[data-act="resume"]').click();
+    notes[0].querySelector('[data-act="resume"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
   });
 
-  test('once resumed elsewhere (switch, another card), the notice and the paused rows go away', () => {
+  test('once resumed elsewhere (switch, another card), the notice and the paused rows go away', async () => {
     const hass = pausedSalon();
-    const card = createCard(hass);
-    hass.push(integrationData({ weeks: WEEKS }));
+    const card = createCard(hass); await settle();
+    hass.push(integrationData({ weeks: WEEKS })); await settle();
     assert.equal(q(card, '.paused-note'), null);
     assert.ok(!q(card, '.bar[data-climate="climate.salon"]').classList.contains('paused'));
   });
 
-  test('its rows are marked paused, without the current time', () => {
-    const card = createCard(pausedSalon());
+  test('a new override being set disappears when the thermostat is paused elsewhere', async () => {
+    const hass = fakeHass({ weeks: WEEKS });
+    const card = createCard(hass); await settle();
+    await openOverride(card, 'climate.salon');
+    const rect = () => ({ left: 0, right: 360, width: 360, top: 100, bottom: 138, height: 38 });
+    q(card, 'ha-card').getBoundingClientRect = rect;
+    const now = q(card, '.dgroup.today .bar[data-climate="climate.salon"] .now');
+    now.getBoundingClientRect = rect;
+    now.parentElement.getBoundingClientRect = rect;
+    placePopover(card);
+    assert.ok(q(card, '.editor').classList.contains('placed'));
+    hass.push(integrationData({ weeks: WEEKS, paused: ['climate.salon'] })); await settle(); // an automation
+    placePopover(card);
+    const editor = q(card, '.editor');
+    assert.ok(!editor || !editor.classList.contains('placed'), 'no popover left where "now" was');
+  });
+
+  test('its rows are marked paused, without the current time', async () => {
+    const card = createCard(pausedSalon()); await settle();
     const salon = q(card, '.dgroup.today .bar[data-climate="climate.salon"]');
     const bureau = q(card, '.dgroup.today .bar[data-climate="climate.bureau"]');
     assert.ok(salon.classList.contains('paused'));
@@ -56,40 +75,40 @@ describe('a paused thermostat in the card', () => {
     assert.ok(bureau.querySelector('.now'));
   });
 
-  test('today\'s row menu offers no temporary setpoint on it, and no pausing on any (#39)', () => {
-    const card = createCard(pausedSalon());
-    const salon = openMenu(card, 'climate.salon', 0);
+  test('today\'s row menu offers no temporary setpoint on it, and no pausing on any (#39)', async () => {
+    const card = createCard(pausedSalon()); await settle();
+    const salon = await openMenu(card, 'climate.salon', 0); await settle();
     assert.equal(salon.querySelector('[data-act="override-new"], [data-act="pause"], [data-act="resume"]'), null);
-    openMenu(card, 'climate.salon', 0); // closes it
-    const bureau = openMenu(card, 'climate.bureau', 0);
+    await openMenu(card, 'climate.salon', 0); await settle(); // closes it
+    const bureau = await openMenu(card, 'climate.bureau', 0); await settle();
     assert.ok(bureau.querySelector('[data-act="override-new"]'));
     assert.equal(bureau.querySelector('[data-act="pause"]'), null); // in the "Thermostats" view
   });
 
   test('its weeks can still be edited and saved, which does not resume it', async () => {
     const hass = pausedSalon();
-    const card = createCard(hass);
-    cutSlot(card, 'climate.salon', 0, 12 * 60);
-    await card._save();
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.salon', 0, 12 * 60);
+    await save(card);
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/weeks/save');
     assert.deepEqual(msg.weeks['climate.salon'].normal[0].at(-1), ['22:30', 'eco']);
     assert.equal(hass.events.filter((m) => m.type === 'chauffage/thermostat/set').length, 0);
   });
 
-  test('a user who is not an admin resumes it too, as with its Control switch', () => {
+  test('a user who is not an admin resumes it too, as with its Control switch', async () => {
     const hass = pausedSalon();
     hass.user = { is_admin: false };
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.ok(q(card, '.paused-note'));
-    q(card, '[data-act="resume"]').click();
+    q(card, '[data-act="resume"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
-    const page = createCard(hass, { view: 'thermostats' }); // the panel's Thermostats page
+    const page = createView(hass, 'thermostats'); await settle(); // the panel's Thermostats page
     assert.equal(q(page, '[data-act="pause"], [data-act="resume"]'), null);
   });
 
-  test('in English', () => {
-    const card = createCard(pausedSalon({ locale: { language: 'en' } }));
+  test('in English', async () => {
+    const card = createCard(pausedSalon({ locale: { language: 'en' } })); await settle();
     assert.match(q(card, '.chip[data-climate="climate.salon"] .live').textContent, /Control paused/);
     assert.match(text(q(card, '.paused-note')), /Salon: control paused\. Chauffage leaves it alone\. Resume/);
   });
@@ -99,62 +118,62 @@ describe('the more-info block of a paused thermostat', () => {
   beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-12T10:00:00+02:00') }));
   afterEach(() => { mock.timers.reset(); cleanup(); });
 
-  function block(hass, entity) {
+  async function block(hass, entity) {
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
-    el.entity = entity;
-    el.hass = hass;
+    el.entity = entity; await settle();
+    el.hass = hass; await settle();
     return el;
   }
 
-  test('says it is paused, offers to resume it, and no temporary setpoint', () => {
+  test('says it is paused, offers to resume it, and no temporary setpoint', async () => {
     const hass = pausedSalon();
-    const el = block(hass, 'climate.salon');
+    const el = await block(hass, 'climate.salon');
     assert.match(text(el.shadowRoot), /Pilotage suspendu\. Chauffage n'y touche plus\./);
     assert.equal(el.shadowRoot.querySelector('[data-new-override]'), null);
     // At the foot, in place of "Pause" (#39)
     assert.equal(el.shadowRoot.querySelector('[data-pause]'), null);
     assert.equal(el.shadowRoot.querySelector('.status [data-resume]'), null);
     assert.equal(text(el.shadowRoot.querySelector('.foot [data-resume]')), 'Reprendre le pilotage');
-    el.shadowRoot.querySelector('[data-resume]').click();
+    el.shadowRoot.querySelector('[data-resume]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.salon', paused: false });
   });
 
-  test('an active thermostat is paused from the foot of the block', () => {
+  test('an active thermostat is paused from the foot of the block', async () => {
     const hass = pausedSalon();
-    const el = block(hass, 'climate.bureau');
+    const el = await block(hass, 'climate.bureau');
     assert.equal(text(el.shadowRoot.querySelector('.foot [data-pause]')), 'Suspendre le pilotage');
-    el.shadowRoot.querySelector('[data-pause]').click();
+    el.shadowRoot.querySelector('[data-pause]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/thermostat/set', entity_id: 'climate.bureau', paused: true });
     hass.user = { is_admin: false };
-    el.hass = { ...hass }; // a user who is not an admin pauses too, as with the Control switch
+    el.hass = { ...hass }; await settle(); // a user who is not an admin pauses too, as with the Control switch
     assert.ok(el.shadowRoot.querySelector('.foot [data-pause]'));
     assert.equal(el.shadowRoot.querySelector('.foot [data-navigate^="/chauffage/thermostats/"]'), null, 'the panel is for admins');
   });
 
   test('a resume refused by the integration says why', async () => {
     const hass = pausedSalon({ reply: () => { throw { code: 'invalid_format', message: 'boom' }; } });
-    const el = block(hass, 'climate.salon');
-    el.shadowRoot.querySelector('[data-resume]').click();
+    const el = await block(hass, 'climate.salon');
+    el.shadowRoot.querySelector('[data-resume]').click(); await settle();
     await new Promise((resolve) => setImmediate(resolve));
     assert.match(text(el.shadowRoot), /Erreur : boom/);
     assert.ok(el.shadowRoot.querySelector('[data-resume]'), 'still paused: it can be tried again');
-    hass.push(integrationData({ weeks: WEEKS })); // resumed elsewhere (its switch)
-    el.hass = hass;
+    hass.push(integrationData({ weeks: WEEKS })); await settle(); // resumed elsewhere (its switch)
+    el.hass = hass; await settle();
     assert.match(text(el.shadowRoot), /Suit le planning/);
     assert.doesNotMatch(text(el.shadowRoot), /Erreur/);
   });
 
-  test('once resumed elsewhere, it follows its schedule again', () => {
+  test('once resumed elsewhere, it follows its schedule again', async () => {
     const hass = pausedSalon();
-    const el = block(hass, 'climate.salon');
-    hass.push(integrationData({ weeks: WEEKS }));
-    el.hass = hass;
+    const el = await block(hass, 'climate.salon');
+    hass.push(integrationData({ weeks: WEEKS })); await settle();
+    el.hass = hass; await settle();
     assert.match(text(el.shadowRoot), /Suit le planning/);
   });
 
-  test('an active thermostat still follows its schedule', () => {
-    const el = block(pausedSalon(), 'climate.bureau');
+  test('an active thermostat still follows its schedule', async () => {
+    const el = await block(pausedSalon(), 'climate.bureau');
     assert.match(text(el.shadowRoot), /Suit le planning/);
     assert.equal(el.shadowRoot.querySelector('[data-resume]'), null);
   });

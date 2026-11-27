@@ -3,7 +3,8 @@
 // Chauffage is set up. Home Assistant's websocket library then replays the subscription once,
 // gets "not_loaded", and never tries again.
 import { fakeHass, createCard, cleanup, integrationData } from './helpers.mjs';
-import { INTEGRATION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { client } from '../../frontend/src/index.ts';
+import { settle } from './driver.mjs';
 import { test, describe, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -44,7 +45,7 @@ describe('the subscription to the integration', () => {
     const hass = fakeHass({ data: null });
     let data = integrationData({ schedule: 'Normal' });
     const conn = connection(hass, () => data);
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await flush();
     assert.equal(active(card), 'normal');
     // Not replayed by Home Assistant's library: the card subscribes again itself
@@ -62,7 +63,7 @@ describe('the subscription to the integration', () => {
   test('after a reconnection, the former subscription is not unsubscribed: the server dropped it', async () => {
     const hass = fakeHass({ data: null });
     const conn = connection(hass, () => integrationData());
-    createCard(hass);
+    createCard(hass); await settle();
     await flush();
     conn.reconnect();
     await flush();
@@ -77,11 +78,11 @@ describe('the subscription to the integration', () => {
     const conn = connection(hass, () => answer);
     conn.subscribeMessage = ((subscribe) => (cb, msg, options) => (answer && answer.code === 'unknown_command'
       ? (conn.subscriptions.push({ cb, options }), Promise.reject(answer)) : subscribe(cb, msg, options)))(conn.subscribeMessage);
-    createCard(hass);
+    createCard(hass); await settle();
     await flush();
     cleanup(); // every card leaves the page: no more tries
     answer = integrationData({ schedule: 'Absent' });
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await flush();
     assert.equal(active(card), 'away');
   });
@@ -91,7 +92,7 @@ describe('the subscription to the integration', () => {
     const hass = fakeHass({ data: null });
     let answer = integrationData();
     const conn = connection(hass, () => answer);
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await flush();
 
     answer = NOT_LOADED; // Home Assistant answers, Chauffage is not set up yet
@@ -109,7 +110,7 @@ describe('the subscription to the integration', () => {
     const hass = fakeHass({ data: null });
     let answer = null; // subscribed, but nothing comes
     const conn = connection(hass, () => answer);
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await flush();
     assert.ok(card.shadowRoot.querySelector('.loading'));
 
@@ -125,12 +126,12 @@ describe('the subscription to the integration', () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const hass = fakeHass({ data: null });
     const conn = connection(hass, () => NOT_LOADED);
-    createCard(hass);
+    createCard(hass); await settle();
     await flush();
     cleanup();
     mock.timers.tick(120000);
     await flush();
     assert.equal(conn.subscriptions.length, 1);
-    assert.equal(INTEGRATION.listeners.size, 0);
+    assert.equal(client.listeners.size, 0);
   });
 });

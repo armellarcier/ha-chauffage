@@ -15,7 +15,7 @@ from homeassistant.util import slugify
 from . import ChauffageConfigEntry
 from .const import CONTROL_KEY, DOMAIN, schedule_unique_id
 from .entity import ChauffageEntity, ThermostatEntity, async_follow, async_follow_thermostats, service_device
-from .runtime import ChauffageRuntime
+from .app.runtime import ChauffageRuntime
 
 
 async def async_setup_entry(
@@ -23,7 +23,7 @@ async def async_setup_entry(
 ) -> None:
     async_follow_thermostats(hass, entry, async_add_entities,
                              lambda runtime, climate: [ControlSwitch(runtime, climate)])
-    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.schedule_ids,
+    async_follow(hass, entry, async_add_entities, lambda runtime: runtime.installation.schedule_ids,
                  lambda runtime, schedule_id: [ScheduleSwitch(runtime, schedule_id)])
 
 
@@ -32,13 +32,13 @@ class ControlSwitch(ThermostatEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return not self.runtime.is_paused(self.climate)
+        return not self.runtime.installation.is_paused(self.climate)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.runtime.set_paused(self.climate, False)
+        await self.runtime.registry.set_paused(self.climate, False)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.runtime.set_paused(self.climate, True)
+        await self.runtime.registry.set_paused(self.climate, True)
 
 
 class ScheduleSwitch(ChauffageEntity, SwitchEntity):
@@ -55,7 +55,7 @@ class ScheduleSwitch(ChauffageEntity, SwitchEntity):
     @property
     def translation_placeholders(self) -> dict[str, str]:
         """The schedule's name in Chauffage (a name given in Home Assistant wins)."""
-        return {"schedule": self.runtime.schedule_name(self.schedule_id) or self.schedule_id}
+        return {"schedule": self.runtime.installation.schedule_name(self.schedule_id) or self.schedule_id}
 
     def _runtime_changed(self, reason: str) -> None:
         # The schedule may have been renamed: HA caches the name, cleared as its own setters do
@@ -64,10 +64,10 @@ class ScheduleSwitch(ChauffageEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return self.runtime.data["active_schedule"] == self.schedule_id
+        return self.runtime.installation.active_schedule == self.schedule_id
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.runtime.activate_schedule(self.schedule_id, source="entity", context=self._context)
+        await self.runtime.schedules.activate(self.schedule_id, source="entity", context=self._context)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         if self.is_on:

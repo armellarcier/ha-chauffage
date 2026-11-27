@@ -1,49 +1,52 @@
 // The card's exchanges with the Chauffage integration (websocket API): subscription, saves,
 // overrides, schedules, presets; and the card without the integration.
-import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, cleanup, WEEKDAY, cutSlot } from './helpers.mjs';
+import { fakeIntegrationHass, hassWithoutIntegration, INTEGRATION_DATA, integrationData, createCard, createView, cleanup, WEEKDAY } from './helpers.mjs';
+import { cutSlot } from './driver.mjs';
 import { test, describe, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeDay, compareVersions, VERSION } from '../../custom_components/chauffage/frontend/chauffage-programme-card.js';
+import { compareVersions, VERSION } from '../../frontend/src/index.ts';
+import { $, act, day, openOverride, save, selected, settle, tapAt, unsaved } from './driver.mjs';
+import { scheduleShown, watchReloads } from './driver.mjs';
+import { typeTime } from './helpers.mjs';
 
-const day = (card, climate, d, schedule) => serializeDay(card._week(climate, schedule)[d]);
 const lastCall = (hass) => hass.events.at(-1);
 
 afterEach(() => cleanup());
 
 describe('loading from the integration', () => {
-  test('the card subscribes once and shows the schedules with their names', () => {
+  test('the card subscribes once and shows the schedules with their names', async () => {
     const hass = fakeIntegrationHass();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.deepEqual(hass.subscriptions, [{ type: 'chauffage/subscribe' }]);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
     const tabs = [...card.shadowRoot.querySelectorAll('.tab')].map((t) => t.textContent.trim());
     assert.deepEqual(tabs, ['Normal', 'Absent', 'Vacances']);
-    assert.equal(card._schedule, 'normal');
+    assert.equal(scheduleShown(card), 'normal');
   });
 
-  test('a schedule shows the icon chosen for its switch in Home Assistant, none otherwise', () => {
+  test('a schedule shows the icon chosen for its switch in Home Assistant, none otherwise', async () => {
     const hass = fakeIntegrationHass();
     hass.entities = {
       'switch.chauffage_schedule_normal': { entity_id: 'switch.chauffage_schedule_normal' },
       'switch.chauffage_schedule_away': { entity_id: 'switch.chauffage_schedule_away', icon: 'mdi:beach' },
     };
-    const card = createCard(hass);
-    hass.push({ ...INTEGRATION_DATA(), schedule_entities: { normal: 'switch.chauffage_schedule_normal', away: 'switch.chauffage_schedule_away' } });
+    const card = createCard(hass); await settle();
+    hass.push({ ...INTEGRATION_DATA(), schedule_entities: { normal: 'switch.chauffage_schedule_normal', away: 'switch.chauffage_schedule_away' } }); await settle();
     const icon = (id) => card.shadowRoot.querySelector(`.tab[data-schedule="${id}"] ha-icon`);
     assert.equal(icon('away').getAttribute('icon'), 'mdi:beach');
     assert.equal(icon('normal'), null);
     assert.equal(icon('holiday'), null, 'no switch known yet');
     assert.equal(card.shadowRoot.querySelector('.tab[data-schedule="away"]').textContent.trim(), 'Absent');
     // An icon chosen later, in Home Assistant
-    card.hass = { ...hass, entities: { ...hass.entities, 'switch.chauffage_schedule_normal': { icon: 'mdi:home' } } };
+    card.hass = { ...hass, entities: { ...hass.entities, 'switch.chauffage_schedule_normal': { icon: 'mdi:home' } } }; await settle();
     assert.equal(icon('normal').getAttribute('icon'), 'mdi:home');
   });
 
-  test('a placeholder is shown until the first data arrives', () => {
+  test('a placeholder is shown until the first data arrives', async () => {
     const hass = fakeIntegrationHass({ data: null });
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.ok(card.shadowRoot.querySelector('.loading'));
-    hass.push(INTEGRATION_DATA());
+    hass.push(INTEGRATION_DATA()); await settle();
     assert.equal(card.shadowRoot.querySelector('.loading'), null);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
@@ -51,7 +54,7 @@ describe('loading from the integration', () => {
   test('the integration deleted or disabled (its services stay until a restart): the card says so, not "…" forever', async () => {
     const hass = fakeIntegrationHass({ data: null });
     hass.connection.subscribeMessage = () => Promise.reject({ code: 'not_loaded', message: 'The Chauffage integration is not set up' });
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(card.shadowRoot.querySelector('.loading'), null);
     assert.match(card.shadowRoot.querySelector('.missing').textContent, /L’intégration Chauffage n’est pas configurée/);
@@ -64,23 +67,23 @@ describe('loading from the integration', () => {
     let loaded = false;
     hass.connection.subscribeMessage = (cb, msg) => (loaded ? subscribe(cb, msg)
       : Promise.reject({ code: 'not_loaded', message: 'The Chauffage integration is not set up' }));
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.ok(card.shadowRoot.querySelector('.missing'));
-    card.hass = { ...hass, states: { ...hass.states } }; // an update that does not bring it back: no new try
+    card.hass = { ...hass, states: { ...hass.states } }; await settle(); // an update that does not bring it back: no new try
     loaded = true;
     // Set up again: Home Assistant shows its panel again
-    card.hass = { ...hass, panels: { ...hass.panels, chauffage: { url_path: 'chauffage' } } };
-    hass.push(INTEGRATION_DATA());
+    card.hass = { ...hass, panels: { ...hass.panels, chauffage: { url_path: 'chauffage' } } }; await settle();
+    hass.push(INTEGRATION_DATA()); await settle();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(card.shadowRoot.querySelector('.missing'), null);
     assert.deepEqual(day(card, 'climate.salon', 0), WEEKDAY);
   });
 
-  test('changes pushed by the integration are shown (schedule activated elsewhere)', () => {
+  test('changes pushed by the integration are shown (schedule activated elsewhere)', async () => {
     const hass = fakeIntegrationHass();
-    const card = createCard(hass);
-    hass.push({ ...INTEGRATION_DATA(), active_schedule: 'away' });
+    const card = createCard(hass); await settle();
+    hass.push({ ...INTEGRATION_DATA(), active_schedule: 'away' }); await settle();
     const active = card.shadowRoot.querySelector('.tab[data-schedule="away"] .dot');
     assert.ok(active, 'active-schedule marker on "Absent"');
   });
@@ -89,107 +92,97 @@ describe('loading from the integration', () => {
 describe('writing to the integration', () => {
   test('saving one thermostat does not schedule a thermostat of the card that nobody edited', async () => {
     const hass = fakeIntegrationHass(); // the salon is scheduled, the bureau is not
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]'), 'the bureau is shown');
-    cutSlot(card, 'climate.salon', 0, 12 * 60);
-    await card._save();
+    await cutSlot(card, 'climate.salon', 0, 12 * 60);
+    await save(card);
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.salon']);
   });
 
   test('editing the week of a thermostat of the card that Chauffage does not schedule yet schedules it', async () => {
     const hass = fakeIntegrationHass();
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60);
+    await save(card);
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
   });
 
   test('Save sends the weeks of the thermostats changed, by schedule id, with the revision of each', async () => {
     const both = { 'climate.salon': { Normal: Array(7).fill(WEEKDAY) }, 'climate.bureau': { Normal: Array(7).fill(WEEKDAY) } };
     const hass = fakeIntegrationHass({ weeks: both });
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60);
+    await save(card);
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/weeks/save');
     assert.deepEqual(Object.keys(msg.weeks), ['climate.bureau'], 'the salon was not changed');
     assert.ok(msg.weeks['climate.bureau'].normal[0].some(([start]) => start === '12:00'));
     assert.deepEqual(msg.revisions, { 'climate.bureau': 7 });
     assert.equal(msg.revision, undefined);
-    assert.equal(card._dirty, false);
+    assert.equal(unsaved(card), false);
   });
 
-  test('a thermostat of the card that Chauffage does not schedule yet says so, and how to schedule it', () => {
-    const card = createCard(fakeIntegrationHass());
+  test('a thermostat of the card that Chauffage does not schedule yet says so, and how to schedule it', async () => {
+    const card = createCard(fakeIntegrationHass()); await settle();
     const notes = [...card.shadowRoot.querySelectorAll('.unscheduled-note')].map((n) => n.textContent.replace(/\s+/g, ' ').trim());
     assert.deepEqual(notes, ['Chauffage ne programme pas encore Bureau : modifiez sa semaine pour le programmer.']);
     assert.ok(card.shadowRoot.querySelector('.bar[data-climate="climate.bureau"]').classList.contains('unscheduled'));
     const hass = fakeIntegrationHass();
     hass.user = { is_admin: false };
-    assert.match(createCard(hass).shadowRoot.querySelector('.unscheduled-note').textContent, /Chauffage ne programme pas Bureau\./);
+    const readOnly = createCard(hass); await settle();
+    assert.match(readOnly.shadowRoot.querySelector('.unscheduled-note').textContent, /Chauffage ne programme pas Bureau\./);
   });
 
   test('the next save uses the revision the integration gave back', async () => {
     const hass = fakeIntegrationHass();
-    const card = createCard(hass);
-    cutSlot(card, 'climate.salon', 0, 12 * 60);
-    await card._save();
-    cutSlot(card, 'climate.salon', 0, 13 * 60);
-    await card._save();
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.salon', 0, 12 * 60);
+    await save(card);
+    await cutSlot(card, 'climate.salon', 0, 13 * 60);
+    await save(card);
     assert.deepEqual(lastCall(hass).revisions, { 'climate.salon': 8 });
   });
 
   test('an edit undone before saving sends nothing', async () => {
     const hass = fakeIntegrationHass();
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60); // the bureau gets its default week, so is changed
-    await card._save();
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60); // the bureau gets its default week, so is changed
+    await save(card);
     const sent = hass.events.length;
-    const before = structuredClone(card._week('climate.salon'));
-    cutSlot(card, 'climate.salon', 0, 12 * 60);
-    card._data['climate.salon'][card._schedule] = before;
-    await card._save();
+    const before = day(card, 'climate.salon', 0);
+    await cutSlot(card, 'climate.salon', 0, 12 * 60);
+    act(card, 'delete'); await settle(); // the new slot deleted: the day is as before
+    assert.deepEqual(day(card, 'climate.salon', 0), before);
+    await save(card);
     assert.equal(hass.events.length, sent);
-    assert.equal(card._dirty, false);
+    assert.equal(unsaved(card), false);
   });
 
   test('a thermostat new to the integration is sent with no revision', async () => {
     const hass = fakeIntegrationHass(); // only the salon is scheduled
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60);
+    await save(card);
     assert.deepEqual(lastCall(hass).revisions, { 'climate.bureau': null });
-  });
-
-  test('an integration without revisions per thermostat gets every week and the global revision', async () => {
-    const data = INTEGRATION_DATA();
-    delete data.thermostats;
-    const hass = fakeIntegrationHass({ data });
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
-    const msg = lastCall(hass);
-    assert.equal(msg.revision, 4);
-    assert.equal(msg.revisions, undefined);
-    assert.deepEqual(Object.keys(msg.weeks).sort(), ['climate.bureau', 'climate.salon']);
   });
 
   test('a save refused because the schedules changed elsewhere says so', async () => {
     const hass = fakeIntegrationHass({
       reply: (msg) => { if (msg.type === 'chauffage/weeks/save') throw { code: 'stale', message: 'stale' }; },
     });
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
-    assert.equal(card._dirty, true);
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60);
+    await save(card);
+    assert.equal(unsaved(card), true);
     assert.match(card.shadowRoot.querySelector('.msg').textContent, /modifiés ailleurs/);
   });
 
   test('activating a schedule sends its id', async () => {
     const hass = fakeIntegrationHass();
-    const card = createCard(hass);
-    card.shadowRoot.querySelector('.tab[data-schedule="holiday"]').click();
-    await card._action('activate-schedule', {});
+    const card = createCard(hass); await settle();
+    card.shadowRoot.querySelector('.tab[data-schedule="holiday"]').click(); await settle();
+    act(card, 'activate-schedule'); await settle();
+    await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/schedule/activate', schedule: 'holiday' });
   });
 });
@@ -203,11 +196,12 @@ describe('overrides with the integration', () => {
     overrides: { 'climate.salon': { target: { temperature: 21.5 }, start: '2026-10-12T09:30:00+02:00', end: '2026-10-12T11:30:00+02:00' } },
   });
 
-  test('the override is shown and can be extended (English keys sent)', () => {
+  test('the override is shown and can be extended (English keys sent)', async () => {
     const hass = fakeIntegrationHass({ data: withOverride() });
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.ok(card.shadowRoot.querySelector('.override[data-climate="climate.salon"]'));
-    card._setOverrideEnd('climate.salon', new Date('2026-10-12T12:00:00+02:00'));
+    await openOverride(card, 'climate.salon');
+    typeTime($(card, '.override-ed input.time[data-override-end]'), '12:00'); await settle();
     const msg = lastCall(hass);
     assert.equal(msg.type, 'chauffage/override/set');
     assert.equal(msg.entity_id, 'climate.salon');
@@ -216,23 +210,23 @@ describe('overrides with the integration', () => {
     });
   });
 
-  test('"Reprendre le planning" removes the override', () => {
+  test('"Reprendre le planning" removes the override', async () => {
     const hass = fakeIntegrationHass({ data: withOverride() });
-    const card = createCard(hass);
-    card._overrideSel = { climate: 'climate.salon', day: 0 };
-    card._action('override-del', {});
+    const card = createCard(hass); await settle();
+    await openOverride(card, 'climate.salon');
+    act(card, 'override-del'); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 
-  test('the more-info block reads the integration too', () => {
+  test('the more-info block reads the integration too', async () => {
     const hass = fakeIntegrationHass({ data: withOverride() });
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
-    el.entity = 'climate.salon';
-    el.hass = hass;
+    el.entity = 'climate.salon'; await settle();
+    el.hass = hass; await settle();
     const text = el.shadowRoot.textContent.replace(/\s+/g, ' ');
     assert.match(text, /21,5 °C/);
-    el.shadowRoot.querySelector('button[data-act="override-del"]').click();
+    el.shadowRoot.querySelector('button[data-act="override-del"]').click(); await settle();
     assert.deepEqual(lastCall(hass), { type: 'chauffage/override/set', entity_id: 'climate.salon', override: null });
   });
 });
@@ -248,29 +242,29 @@ describe('presets from the integration', () => {
     targets: { 'climate.salon': { comfort: { temperature: 20.5 }, eco: { preset_mode: 'eco' }, nuit: { temperature: 18 } } },
   });
 
-  test('the legend shows the presets and what they mean for the thermostat', () => {
+  test('the legend shows the presets and what they mean for the thermostat', async () => {
     const hass = fakeIntegrationHass({ data: { ...withPresets(), preset_temperatures: { 'climate.salon': { eco: 16 } } } });
-    const card = createCard(hass, { show: ['climate.salon'] });
+    const card = createCard(hass, { show: ['climate.salon'] }); await settle();
     const legend = card.shadowRoot.querySelector('.legend').textContent.replace(/\s+/g, ' ');
     assert.match(legend, /Confort 20,5°/);
     assert.match(legend, /Éco 16°/);
     assert.match(legend, /Nuit 18°/);
   });
 
-  test('the slot editor offers the presets, with their colors', () => {
-    const card = createCard(fakeIntegrationHass({ data: withPresets() }), { show: ['climate.salon'] });
-    card._sel = { climate: 'climate.salon', day: 0, idx: 1 };
-    card._render();
+  test('the slot editor offers the presets, with their colors', async () => {
+    const card = createCard(fakeIntegrationHass({ data: withPresets() }), { show: ['climate.salon'] }); await settle();
+    tapAt(card, 'climate.salon', 7 * 60); await settle(); // the slot 06:30 → 08:30
+    assert.deepEqual(selected(card), { climate: 'climate.salon', day: 0, idx: 1 });
     const buttons = [...card.shadowRoot.querySelectorAll('.editor [data-act="preset"]')];
     assert.deepEqual(buttons.map((b) => b.textContent), ['Éco', 'Nuit', 'Confort']); // from the coldest to the warmest
     assert.equal(buttons[1].style.background, 'rgb(63, 81, 181)');
   });
 
-  test('a new slot in a custom preset gets another preset', () => {
+  test('a new slot in a custom preset gets another preset', async () => {
     const data = withPresets();
     data.weeks['climate.salon'].normal[0] = [['00:00', 'nuit']];
-    const card = createCard(fakeIntegrationHass({ data }), { show: ['climate.salon'] });
-    cutSlot(card, 'climate.salon', 0, 12 * 60);
+    const card = createCard(fakeIntegrationHass({ data }), { show: ['climate.salon'] }); await settle();
+    await cutSlot(card, 'climate.salon', 0, 12 * 60);
     assert.deepEqual(day(card, 'climate.salon', 0), ['00:00 nuit', '12:00 comfort']);
   });
 });
@@ -288,9 +282,10 @@ describe('the "Presets" view', () => {
     preset_temperatures: { 'climate.salon': { comfort: 20.5 } },
     use_presets: true,
   });
-  const open = (hass) => {
+  const open = async (hass) => {
     hass.states['climate.salon'].attributes.preset_modes = ['eco', 'comfort', 'away', 'boost'];
-    const card = createCard(hass, { view: 'presets' }); // salon and bureau (bureau: no schedule, no presets)
+    const card = createView(hass, 'presets'); await settle(); // salon and bureau (bureau: no schedule, no presets)
+    await settle();
     return card;
   };
   const squash = (el) => el.textContent.replace(/\s+/g, ' ').trim();
@@ -298,8 +293,8 @@ describe('the "Presets" view', () => {
     .querySelector(`[data-act="cell"][data-kind="thermostat"][data-preset="${preset}"][data-climate="${climate}"]`));
   const click = (card, selector) => card.shadowRoot.querySelector(selector).click();
 
-  test('a table of what each thermostat does with each preset, each cell saying what it is (#39)', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
+  test('a table of what each thermostat does with each preset, each cell saying what it is (#39)', async () => {
+    const card = await open(fakeIntegrationHass({ data: data() }));
     const heads = [...card.shadowRoot.querySelectorAll('[data-kind="preset"]')].map(squash);
     // From the coldest to the warmest; a preset's header holds its default temperature
     assert.deepEqual(heads, ['Hors-gel 7° par défaut', 'Éco 17° par défaut', 'Confort 20° par défaut']);
@@ -313,8 +308,8 @@ describe('the "Presets" view', () => {
     assert.equal(card.shadowRoot.querySelector('[data-kind="default"]'), null); // in the headers now
   });
 
-  test('many presets stay on one line: the table scrolls sideways, the thermostats\' names stay in place', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
+  test('many presets stay on one line: the table scrolls sideways, the thermostats\' names stay in place', async () => {
+    const card = await open(fakeIntegrationHass({ data: data() }));
     assert.ok(card.shadowRoot.querySelector('.table-wrap > table.pv-table'));
     const css = card.shadowRoot.querySelector('style').textContent;
     assert.match(css, /\.table-wrap \{ overflow-x:auto;/);
@@ -322,31 +317,31 @@ describe('the "Presets" view', () => {
     assert.doesNotMatch(css, /@container presets/, 'no wrapping into rows on a phone');
   });
 
-  test('a thermostat\'s name opens it; in a cell, its device, where its own presets are set (#39)', () => {
+  test('a thermostat\'s name opens it; in a cell, its device, where its own presets are set (#39)', async () => {
     const opened = [];
     const intercept = (e) => { opened.push(e.detail.entityId); e.stopPropagation(); };
     document.addEventListener('hass-more-info', intercept);
     try {
-      const card = open(fakeIntegrationHass({ data: data() }));
-      click(card, '.pv-table th.name [data-more-info="climate.salon"]');
+      const card = await open(fakeIntegrationHass({ data: data() }));
+      click(card, '.pv-table th.name [data-more-info="climate.salon"]'); await settle();
       assert.deepEqual(opened, ['climate.salon']);
-      click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
-      click(card, '[data-panel="cell"] [data-device="salon-device"]');
+      click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
+      click(card, '[data-panel="cell"] [data-device="salon-device"]'); await settle();
       assert.equal(window.location.pathname, '/config/devices/device/salon-device');
     } finally {
       document.removeEventListener('hass-more-info', intercept);
     }
   });
 
-  test('a cell is edited in a popover, closed by a click elsewhere or Escape', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+  test('a cell is edited in a popover, closed by a click elsewhere or Escape', async () => {
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
     assert.ok(card.shadowRoot.querySelector('.editor[data-panel="cell"]'), 'a popover, like the slots\' one');
-    click(card, '.pv-intro');
+    click(card, '.pv-intro'); await settle();
     assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
-    click(card, '[data-kind="preset"][data-preset="eco"]');
+    click(card, '[data-kind="preset"][data-preset="eco"]'); await settle();
     assert.ok(card.shadowRoot.querySelector('[data-panel="cell"]'));
-    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })); await settle();
     assert.equal(card.shadowRoot.querySelector('[data-panel="cell"]'), null);
   });
 
@@ -359,48 +354,50 @@ describe('the "Presets" view', () => {
 
   test('the default is the thermostat\'s preset of the same name, with its temperature (#91)', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    const card = await open(hass);
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
     assert.equal(chosen(card), 'default');
     assert.equal(squash(rowOf(card, 'default')), 'Par défaut (son préréglage Confort, 20,5°)');
     assert.deepEqual(presetOptions(card), ['comfort:Confort ✓', 'eco:Éco', 'away:away', 'boost:Boost']); // its own, the same name first
-    await card._action('cell-apply', {}); // the default: nothing stored
+    act(card, 'cell-apply'); await settle(); // the default: nothing stored
+    await settle();
     assert.equal(hass.events.some((e) => e.type === 'chauffage/mapping/set'), false);
   });
 
-  test('each row holds its own field; using the field chooses the row', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // set to 8°
+  test('each row holds its own field; using the field chooses the row', async () => {
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); await settle(); // set to 8°
     assert.ok(rowOf(card, 'temperature').querySelector('[data-cell-temp]'), 'the temperature next to "Temperature"');
     assert.ok(rowOf(card, 'own').querySelector('[data-cell-preset]'), 'the list next to "Its preset"');
     assert.equal(chosen(card), 'temperature');
     const select = card.shadowRoot.querySelector('[data-cell-preset]');
     select.value = 'eco';
-    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    select.dispatchEvent(new window.Event('change', { bubbles: true })); await settle();
     assert.equal(chosen(card), 'own', 'one answer: a preset or a temperature, not both');
   });
 
-  test('a preset the thermostat has no own preset for: its default temperature in the default row', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); // no frost preset of its own
+  test('a preset the thermostat has no own preset for: its default temperature in the default row', async () => {
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); await settle(); // no frost preset of its own
     assert.deepEqual(presetOptions(card).map((o) => o.split(':')[0]), ['eco', 'comfort', 'away', 'boost']); // its own order
     assert.equal(squash(rowOf(card, 'default')), 'Par défaut (7°)');
   });
 
-  test('a thermostat without presets of its own: the default or a temperature', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.bureau"]');
+  test('a thermostat without presets of its own: the default or a temperature', async () => {
+    const card = await open(fakeIntegrationHass({ data: data() }));
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.bureau"]'); await settle();
     assert.deepEqual([...card.shadowRoot.querySelectorAll('.cell-ed input[name="cell-choice"]')].map((r) => r.value), ['default', 'temperature']);
     assert.equal(squash(rowOf(card, 'default')), 'Par défaut (20°)');
   });
 
   test('a thermostat set to a temperature for one preset', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]');
+    const card = await open(hass);
+    click(card, '[data-kind="thermostat"][data-preset="comfort"][data-climate="climate.salon"]'); await settle();
     assert.match(card.shadowRoot.querySelector('[data-panel="cell"]').textContent, /Confort · Salon/);
-    click(card, '[data-act="cell-step"][data-delta="0.5"]'); // 20.5 → 21, "Temperature" chosen
-    await card._action('cell-apply', {});
+    click(card, '[data-act="cell-step"][data-delta="0.5"]'); await settle(); // 20.5 → 21, "Temperature" chosen
+    act(card, 'cell-apply'); await settle();
+    await settle();
     assert.deepEqual(lastCall(hass), {
       type: 'chauffage/mapping/set', entity_id: 'climate.salon',
       mapping: { frost: { temperature: 8 }, comfort: { temperature: 21 } },
@@ -409,78 +406,82 @@ describe('the "Presets" view', () => {
 
   test('a thermostat set to another of its presets, or back to the default', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]');
+    const card = await open(hass);
+    click(card, '[data-kind="thermostat"][data-preset="eco"][data-climate="climate.salon"]'); await settle();
     card.shadowRoot.querySelector('[data-cell-preset]').value = 'away';
     choose(card, 'own');
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply'); await settle();
+    await settle();
     assert.deepEqual(lastCall(hass).mapping, { frost: { temperature: 8 }, eco: { preset_mode: 'away' } });
 
-    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]');
+    click(card, '[data-kind="thermostat"][data-preset="frost"][data-climate="climate.salon"]'); await settle();
     choose(card, 'default'); // back to the default: OK drops the stored value
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply'); await settle();
+    await settle();
     assert.deepEqual(lastCall(hass).mapping, {});
     assert.equal(card.shadowRoot.querySelector('.cell-ed'), null);
   });
 
   test('a preset\'s name, color and default temperature, in one popover (#39)', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="preset"][data-preset="eco"]');
+    const card = await open(hass);
+    click(card, '[data-kind="preset"][data-preset="eco"]'); await settle();
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Économique';
     card.shadowRoot.querySelector('[data-cell-temp]').value = '16.5';
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply'); await settle();
+    await settle();
     assert.equal(lastCall(hass).type, 'chauffage/presets/set');
     assert.deepEqual(lastCall(hass).presets[1], { id: 'eco', name: 'Économique', color: '#43a047', temperature: 16.5 });
   });
 
   test('a preset is added from a button under the table', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
+    const card = await open(hass);
     assert.match(squash(card.shadowRoot.querySelector('.pv-add')), /Ajouter un préréglage/);
-    click(card, '.pv-add');
+    click(card, '.pv-add'); await settle();
     card.shadowRoot.querySelector('[data-cell-name]').value = 'Nuit';
-    await card._action('cell-apply', {});
+    act(card, 'cell-apply'); await settle();
+    await settle();
     assert.deepEqual(lastCall(hass).presets.at(-1), { name: 'Nuit', color: '#9e9e9e', temperature: 19 });
   });
 
   test('deleting a preset is a button of its own, then what replaces it where it is used', async () => {
     const hass = fakeIntegrationHass({ data: data() });
-    const card = open(hass);
-    click(card, '[data-kind="preset"][data-preset="comfort"]'); // used in the schedules
+    const card = await open(hass);
+    click(card, '[data-kind="preset"][data-preset="comfort"]'); await settle(); // used in the schedules
     assert.equal(card.shadowRoot.querySelector('[data-cell-replacement]'), null);
-    click(card, '[data-act="cell-delete"]');
+    click(card, '[data-act="cell-delete"]'); await settle();
     assert.match(squash(card.shadowRoot.querySelector('[data-panel="cell"]')), /Supprimer « Confort » \?/);
     card.shadowRoot.querySelector('[data-cell-replacement]').value = 'eco';
-    await card._action('cell-delete-confirm', {});
+    act(card, 'cell-delete-confirm'); await settle();
+    await settle();
     assert.deepEqual(lastCall(hass).presets.map((l) => l.id), ['eco', 'frost']);
     assert.deepEqual(lastCall(hass).replacements, { comfort: 'eco' });
   });
 
-  test('a preset\'s temperature on a thermostat is the one the integration compares setpoints with', () => {
+  test('a preset\'s temperature on a thermostat is the one the integration compares setpoints with', async () => {
     const hass = fakeIntegrationHass({ data: { ...data(), preset_temperatures: { 'climate.salon': { eco: 16.5, comfort: 19 } } } });
     // The card does not read the thermostat's attributes itself
     hass.states['climate.salon'].attributes.preset_temperatures = { eco_temp: 15, comfort_temp: 18 };
-    const card = open(hass);
+    const card = await open(hass);
     assert.equal(cellText(card, 'eco', 'climate.salon'), '16,5° son préréglage Éco');
     assert.equal(cellText(card, 'comfort', 'climate.salon'), '19° son préréglage Confort');
   });
 
-  test('the page shows the presets alone: no views to switch, the panel tabs do it (#57)', () => {
-    const card = open(fakeIntegrationHass({ data: data() }));
+  test('the page shows the presets alone: no views to switch, the panel tabs do it (#57)', async () => {
+    const card = await open(fakeIntegrationHass({ data: data() }));
     assert.equal(card.shadowRoot.querySelector('[data-act="view"]'), null);
     assert.equal(card.shadowRoot.querySelector('.chips'), null);
   });
 
-  test('read only for non-admins', () => {
+  test('read only for non-admins', async () => {
     const hass = fakeIntegrationHass({ data: data() });
     hass.user = { is_admin: false };
-    const card = open(hass);
+    const card = await open(hass);
     assert.equal(card.shadowRoot.querySelector('[data-act="cell"]'), null);
     assert.ok(card.shadowRoot.querySelector('.pv-table'));
   });
 });
-
 describe('a thermostat renamed in Home Assistant', () => {
   // climate.salon renamed climate.sejour: the card's configuration still holds the former id;
   // like HA's own cards, the card does not change it by itself
@@ -497,8 +498,8 @@ describe('a thermostat renamed in Home Assistant', () => {
 
   const chips = (card) => [...card.shadowRoot.querySelectorAll('.chip[data-climate]')].map((c) => c.dataset.climate);
 
-  test('is set aside, with a notice giving its new id and asking to edit the card', () => {
-    const card = createCard(hassOf());
+  test('is set aside, with a notice giving its new id and asking to edit the card', async () => {
+    const card = createCard(hassOf()); await settle();
     assert.deepEqual(chips(card), ['climate.bureau']);
     const note = card.shadowRoot.querySelector('.renamed-note').textContent;
     assert.match(note, /climate\.salon/);
@@ -506,43 +507,43 @@ describe('a thermostat renamed in Home Assistant', () => {
     assert.match(note, /modifiez la carte/);
   });
 
-  test('a card holding only renamed thermostats shows the notice alone', () => {
-    const card = createCard(hassOf(), { thermostats: ['climate.salon'] });
+  test('a card holding only renamed thermostats shows the notice alone', async () => {
+    const card = createCard(hassOf(), { thermostats: ['climate.salon'] }); await settle();
     assert.ok(card.shadowRoot.querySelector('.renamed-note'));
     assert.deepEqual(chips(card), []);
   });
 
   test('nothing is saved under the former id', async () => {
     const hass = hassOf();
-    const card = createCard(hass);
-    cutSlot(card, 'climate.bureau', 0, 12 * 60);
-    await card._save();
+    const card = createCard(hass); await settle();
+    await cutSlot(card, 'climate.bureau', 0, 12 * 60);
+    await save(card);
     assert.deepEqual(Object.keys(lastCall(hass).weeks), ['climate.bureau']);
   });
 
-  test('an id given again to another thermostat is that thermostat, not the renamed one', () => {
+  test('an id given again to another thermostat is that thermostat, not the renamed one', async () => {
     const hass = hassOf();
     hass.states['climate.salon'] = { state: 'heat', attributes: { friendly_name: 'Chambre' }, last_updated: '1' };
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.deepEqual(chips(card), ['climate.salon', 'climate.bureau']);
     assert.equal(card.shadowRoot.querySelector('.renamed-note'), null);
   });
 
-  test('shown again once an entity has its former id again', () => {
+  test('shown again once an entity has its former id again', async () => {
     const hass = hassOf();
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     const bars = () => [...new Set([...card.shadowRoot.querySelectorAll('.bar[data-climate]')].map((b) => b.dataset.climate))];
     assert.deepEqual(bars(), ['climate.bureau']);
-    card.hass = { ...hass, states: { ...hass.states, 'climate.salon': { state: 'heat', attributes: { friendly_name: 'Chambre' }, last_updated: '2' } } };
+    card.hass = { ...hass, states: { ...hass.states, 'climate.salon': { state: 'heat', attributes: { friendly_name: 'Chambre' }, last_updated: '2' } } }; await settle();
     assert.deepEqual(chips(card), ['climate.salon', 'climate.bureau']);
     assert.deepEqual(bars(), ['climate.salon', 'climate.bureau']);
   });
 
-  test('the notice goes once the card is edited with the new id', () => {
+  test('the notice goes once the card is edited with the new id', async () => {
     const hass = hassOf();
-    const card = createCard(hass);
-    card.setConfig({ thermostats: ['climate.sejour', 'climate.bureau'], show: 'all' });
-    card.hass = hass;
+    const card = createCard(hass); await settle();
+    card.setConfig({ thermostats: ['climate.sejour', 'climate.bureau'], show: 'all' }); await settle();
+    card.hass = hass; await settle();
     assert.deepEqual(chips(card), ['climate.sejour', 'climate.bureau']);
     assert.deepEqual(day(card, 'climate.sejour', 0), WEEKDAY);
     assert.equal(card.shadowRoot.querySelector('.renamed-note'), null);
@@ -555,17 +556,17 @@ describe('an integration older than the card', () => {
   const former = () => ({ modes: [{ id: 'normal', name: 'Normal' }], active_mode: 'normal', levels: [],
     schedules: { 'climate.salon': { normal: Array(7).fill([['00:00', 'eco']]) } }, overrides: {}, revision: 1 });
 
-  test('the card asks to restart Home Assistant instead of breaking', () => {
-    const card = createCard(fakeIntegrationHass({ data: former() }));
+  test('the card asks to restart Home Assistant instead of breaking', async () => {
+    const card = createCard(fakeIntegrationHass({ data: former() })); await settle();
     assert.match(card.shadowRoot.querySelector('.missing').textContent, /redémarrez Home Assistant/);
   });
 
-  test('the more-info block stays hidden', () => {
+  test('the more-info block stays hidden', async () => {
     const hass = fakeIntegrationHass({ data: former() });
     const el = document.createElement('chauffage-moreinfo');
     document.body.appendChild(el);
-    el.entity = 'climate.salon';
-    el.hass = hass;
+    el.entity = 'climate.salon'; await settle();
+    el.hass = hass; await settle();
     assert.equal(el.style.display, 'none');
   });
 });
@@ -573,34 +574,34 @@ describe('an integration older than the card', () => {
 describe('a card left open across an update', () => {
   // HACS updates the integration and Home Assistant restarts: the frontend reconnects without
   // reloading the page, so the former card keeps running against the new integration (#36)
-  test('the card asks to reload the page when the integration is newer', () => {
+  test('the card asks to reload the page when the integration is newer', async () => {
     const hass = fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '99.0.0' } });
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.match(card.shadowRoot.querySelector('.missing').textContent, /rechargez la page/);
     assert.equal(card.shadowRoot.querySelector('.chips'), null);
   });
 
-  test('the update is noticed while the card is shown', () => {
+  test('the update is noticed while the card is shown', async () => {
     const hass = fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: VERSION } });
-    const card = createCard(hass);
+    const card = createCard(hass); await settle();
     assert.equal(card.shadowRoot.querySelector('.missing'), null);
-    hass.push({ ...INTEGRATION_DATA(), version: '99.0.0' });
+    hass.push({ ...INTEGRATION_DATA(), version: '99.0.0' }); await settle();
     assert.match(card.shadowRoot.querySelector('.missing').textContent, /rechargez la page/);
   });
 
-  test('a button reloads the page', () => {
-    const card = createCard(fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '99.0.0' } }));
-    const reload = mock.method(card, '_reloadPage', () => {});
-    card.shadowRoot.querySelector('.missing button').click();
-    assert.equal(reload.mock.callCount(), 1);
+  test('a button reloads the page', async () => {
+    const card = createCard(fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '99.0.0' } })); await settle();
+    const reloads = watchReloads(card);
+    card.shadowRoot.querySelector('.missing button').click(); await settle();
+    assert.equal(reloads(), 1);
   });
 
-  test('a card newer than the integration still asks to restart Home Assistant', () => {
-    const card = createCard(fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '0.0.1' } }));
+  test('a card newer than the integration still asks to restart Home Assistant', async () => {
+    const card = createCard(fakeIntegrationHass({ data: { ...INTEGRATION_DATA(), version: '0.0.1' } })); await settle();
     assert.match(card.shadowRoot.querySelector('.missing').textContent, /redémarrez Home Assistant/);
   });
 
-  test('versions are compared as releases: a beta comes before its release', () => {
+  test('versions are compared as releases: a beta comes before its release', async () => {
     assert.ok(compareVersions('0.6.0-beta.4', '0.6.0-beta.10') < 0);
     assert.ok(compareVersions('0.6.0-beta.10', '0.6.0') < 0);
     assert.ok(compareVersions('0.6.0', '0.10.0') < 0);
@@ -610,15 +611,15 @@ describe('a card left open across an update', () => {
 });
 
 describe('without the integration', () => {
-  test('the card says the Chauffage integration must be added', () => {
-    const card = createCard(hassWithoutIntegration());
+  test('the card says the Chauffage integration must be added', async () => {
+    const card = createCard(hassWithoutIntegration()); await settle();
     const text = card.shadowRoot.querySelector('.missing').textContent;
     assert.match(text, /intégration Chauffage/);
     assert.equal(card.shadowRoot.querySelector('.chips'), null);
   });
 
-  test('in English too', () => {
-    const card = createCard(hassWithoutIntegration({ locale: { language: 'en' } }));
+  test('in English too', async () => {
+    const card = createCard(hassWithoutIntegration({ locale: { language: 'en' } })); await settle();
     assert.match(card.shadowRoot.querySelector('.missing').textContent, /Chauffage integration/);
   });
 });

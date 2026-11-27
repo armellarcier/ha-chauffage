@@ -6,7 +6,8 @@ Chauffage fonctionne avec toute entité `climate` qui a une température de cons
 couvrent trois types de thermostats :
 
 - **Versatile Thermostat.** Chauffage utilise ses préréglages, par exemple `comfort` ou `eco`.
-  Vous réglez leurs températures dans Versatile Thermostat.
+  Vous réglez leurs températures dans Versatile Thermostat. Chauffage nécessite Versatile
+  Thermostat 10.5 ou plus récent.
 - **Les thermostats à préréglages standard**, par exemple `eco` ou `comfort`. Chauffage utilise
   le préréglage du thermostat qui porte le même nom, et règle une température pour les autres.
 - **Les thermostats sans préréglages**, par exemple `generic_thermostat`. Chauffage règle des

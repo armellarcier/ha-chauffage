@@ -6,6 +6,7 @@ Run with `scripts/test.sh integration`. The bench: simulated `climate.*` states,
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -15,15 +16,16 @@ from unittest.mock import PropertyMock, patch
 import pytest
 from homeassistant.auth import models as auth_models
 from homeassistant.auth.const import GROUP_ID_USER
+from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE
 from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser, async_fire_time_changed
 
-from custom_components.chauffage import model
+from custom_components.chauffage.storage import schema
 from custom_components.chauffage.const import DOMAIN
-from custom_components.chauffage.runtime import ChauffageRuntime
+from custom_components.chauffage.app.runtime import ChauffageRuntime
 from custom_components.chauffage.store import STORAGE_MINOR_VERSION, STORAGE_VERSION
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -121,10 +123,10 @@ class Bench:
     async def setup(self, options: dict | None = None, schedules: tuple[str, ...] | None = EXISTING_SCHEDULES,
                     entry: MockConfigEntry | None = None) -> None:
         """Set the integration up; by default as an existing installation with three schedules
-        (`schedules=None`: a new installation, or one importing the package)."""
+        (`schedules=None`: a new installation)."""
         if schedules and DOMAIN not in self.storage:
             self.storage[DOMAIN] = {"version": STORAGE_VERSION, "minor_version": STORAGE_MINOR_VERSION, "key": DOMAIN,
-                                    "data": model.default_data(list(schedules))}
+                                    "data": schema.default_data(list(schedules))}
         self.entry = entry or MockConfigEntry(domain=DOMAIN, title="Chauffage", options=options or {})
         if entry is None:
             self.entry.add_to_hass(self.hass)
@@ -193,10 +195,10 @@ class Bench:
         if presets:
             values |= {"preset_mode": climate_preset, "preset_modes": presets}
         entry = er.async_get(self.hass).async_get(entity_id)
-        if entry is not None and entry.platform == "versatile_thermostat" and state != "off":
-            # A VTherm publishes what it was asked for since its version 8 (#92): here what it
-            # shows, unless a test says otherwise. Off, it may have turned itself off (its
-            # window, its auto start/stop): a test says what it was asked for (#91)
+        if entry is not None and entry.platform == "versatile_thermostat":
+            # A VTherm publishes what it was asked for (#92): here what it shows, unless a test
+            # says otherwise. A test says when it turned itself off, by its window or its auto
+            # start/stop (#91)
             values["requested_state"] = {
                 "hvac_mode": state, "preset": climate_preset,
                 "target_temperature": temperature if climate_preset == "none" else None,
@@ -229,7 +231,7 @@ class Bench:
 
     async def save_weeks(self, weeks: dict) -> None:
         """What the card sends when the user clicks Save."""
-        await self.runtime.save_weeks(weeks)
+        await self.runtime.schedules.save_weeks(weeks)
         await self.hass.async_block_till_done()
 
     async def activate_schedule(self, name: str) -> None:
@@ -241,17 +243,76 @@ class Bench:
 
     async def set_schedules(self, schedules: list[dict], revision: int | None = None) -> list[dict]:
         """What the card sends to create, rename, move or delete schedules."""
-        result = await self.runtime.set_schedules(schedules, revision)
+        result = await self.runtime.schedules.set_schedules(schedules, revision)
         await self.hass.async_block_till_done()
         return result
 
     def schedule_list(self) -> list[tuple[str, str]]:
         """(id, name) of the schedules, in order."""
-        return [(s["id"], s["name"]) for s in self.runtime.data["schedules"]]
+        return [(s["id"], s["name"]) for s in self.snapshot()["schedules"]]
+
+    # ----- what the integration shows and saves -----
+
+    def snapshot(self) -> dict[str, Any]:
+        """What the card receives from `chauffage/subscribe`."""
+        return self.runtime.read_model.snapshot()
+
+    def presets(self) -> list[dict]:
+        return self.snapshot()["presets"]
+
+    def preset(self, preset_id: str) -> dict:
+        return next(preset for preset in self.presets() if preset["id"] == preset_id)
+
+    def weeks(self) -> dict[str, dict[str, Any]]:
+        """{thermostat: {schedule id: week}} of the scheduled thermostats."""
+        return self.snapshot()["weeks"]
+
+    def mappings(self) -> dict[str, dict[str, Any]]:
+        """{thermostat: {preset id: value}}, the values of the presets set by hand."""
+        return self.snapshot()["mappings"]
+
+    def scheduled(self) -> dict[str, dict[str, Any]]:
+        """The scheduled thermostats, paused ones included."""
+        return self.snapshot()["thermostats"]
+
+    def paused(self, entity_id: str) -> bool:
+        return self.scheduled().get(entity_id, {}).get("paused", False)
+
+    async def known(self) -> set[str]:
+        """The thermostats Chauffage keeps, as saved: the scheduled ones, and those with only
+        values of the presets."""
+        return set((await self.stored())["thermostats"])
+
+    def active_schedule(self) -> str | None:
+        return self.snapshot()["active_schedule"]
+
+    def revision(self) -> int:
+        """The revision of the presets and the list of schedules."""
+        return self.snapshot()["revision"]
+
+    def rules(self) -> list[dict]:
+        return self.snapshot()["rules"]
+
+    async def stored(self) -> dict[str, Any]:
+        """The data saved in `.storage/chauffage`, once the delayed save is written."""
+        self.hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
+        await self.hass.async_block_till_done()
+        return self.storage[DOMAIN]["data"]
+
+    async def learned_temperatures(self) -> dict[str, dict[str, float]]:
+        """{thermostat: {own preset: temperature}} learned while it heated, as saved."""
+        thermostats = (await self.stored())["thermostats"]
+        return {entity_id: t["preset_temperatures"] for entity_id, t in thermostats.items() if t["preset_temperatures"]}
+
+    async def edit_stored_data(self, change: Callable[[dict[str, Any]], None]) -> None:
+        """Change the data in memory as an older version stored it, or in a state that no API
+        reaches. The only place where the tests touch the integration's data."""
+        change(self.runtime.installation.stored)
+        await self.hass.async_block_till_done()
 
     async def set_override(self, entity_id: str, override: dict | None) -> None:
         """What the card sends to extend (+30 min…) or remove an override."""
-        await self.runtime.set_override(entity_id, override, source="card")
+        await self.runtime.overrides.set(entity_id, override, source="card")
         await self.hass.async_block_till_done()
 
     @property
@@ -259,7 +320,7 @@ class Bench:
         return self.hass.states.async_entity_ids("select")[0]
 
     def overrides(self) -> dict:
-        return self.runtime.data["overrides"]
+        return self.snapshot()["overrides"]
 
     def settings(self) -> dict[tuple[str, str], str]:
         """Last fan or swing mode requested per thermostat and attribute, then reset the call log."""

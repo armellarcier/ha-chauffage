@@ -1,0 +1,4 @@
+# The card, built from frontend/src (npm run build). The folder stays in git: the integration
+# serves it.
+*
+!.gitignore

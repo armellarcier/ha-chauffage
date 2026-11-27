@@ -10,7 +10,7 @@ from typing import Any
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
-from . import engine
+from .domain.timeline import parse_datetime
 from .const import DOMAIN, EVENT_OVERRIDE_END_CHANGED, EVENT_OVERRIDE_ENDED, EVENT_OVERRIDE_STARTED, EVENT_SCHEDULE_ACTIVATED
 
 # Home Assistant does not translate logbook descriptions: in its language, English otherwise
@@ -108,7 +108,7 @@ def async_describe_events(
         """The override's value: its HVAC mode if it sets one, then the Chauffage preset's name,
         else what its target holds (a setpoint, a cooling setpoint), then the fan and the vanes.
         An event recorded before #91 holds a kind and a value instead of a target."""
-        preset = (runtime().presets_by_id if runtime() else {}).get(data.get("preset"))
+        preset = (runtime().installation.presets_by_id if runtime() else {}).get(data.get("preset"))
         target = data.get("target")
         if not isinstance(target, dict):
             key = "temperature" if data.get("kind") == "temperature" else "preset_mode"
@@ -139,7 +139,7 @@ def async_describe_events(
 
     def duration(data: dict[str, Any]) -> str:
         """How long the override lasts: "2 h", "1 h 30", "45 min"."""
-        start, end = (engine.parse_datetime(data.get(key)) for key in ("start", "end"))
+        start, end = (parse_datetime(data.get(key)) for key in ("start", "end"))
         minutes = round((end - start).total_seconds() / 60) if start and end else 0
         t = texts()
         if minutes < 60:
@@ -151,9 +151,9 @@ def async_describe_events(
     @callback
     def started(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
-        end = engine.parse_datetime(data.get("end"))
+        end = parse_datetime(data.get("end"))
         source = t["sources"].get(data.get("source"), data.get("source"))
-        # A change by hand says why it ends then (#83)
+        # The rule that chose the end, when Chauffage computed it (#83)
         why = t["ends"].get(data.get("ends_at"))
         message = (t["started_why"].format(value=value(data), end=until(end), source=source,
                                            why=why.format(duration=duration(data)))
@@ -172,7 +172,7 @@ def async_describe_events(
     @callback
     def end_changed(event: Event) -> dict[str, Any]:
         data, t = event.data, texts()
-        message = t["end_changed"].format(end=until(engine.parse_datetime(data.get("end"))),
+        message = t["end_changed"].format(end=until(parse_datetime(data.get("end"))),
                                           source=t["sources"].get(data.get("source"), data.get("source")))
         return {"name": name(data["entity_id"], data["entity_id"]), "entity_id": data["entity_id"], "message": message}
 

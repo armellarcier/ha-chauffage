@@ -10,7 +10,7 @@ from homeassistant.exceptions import ServiceValidationError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from conftest import Bench, every_day, KINDS
-from custom_components.chauffage import model
+from custom_components.chauffage.storage.schema import InvalidData
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -37,7 +37,7 @@ async def start(bench: Bench) -> None:
 
 
 async def pause(bench: Bench, entity_id: str, paused: bool = True) -> None:
-    await bench.runtime.set_paused(entity_id, paused)
+    await bench.runtime.registry.set_paused(entity_id, paused)
     await bench.hass.async_block_till_done()
 
 
@@ -53,14 +53,14 @@ async def test_a_thermostat_paused_during_a_realignment_is_sent_nothing_more(ben
     is skipped, and not retried if its command would have failed."""
     await start(bench)
     bench.unreachable.add("climate.bureau")
-    send = bench.runtime.reproduce
+    send = bench.runtime.gateway.reproduce
 
     async def pause_bureau_first(entity_id, hvac_mode, attributes):
         if entity_id == "climate.salon":
-            await bench.runtime.set_paused("climate.bureau", True)
+            await bench.runtime.registry.set_paused("climate.bureau", True)
         return await send(entity_id, hvac_mode, attributes)
 
-    bench.runtime.reproduce = pause_bureau_first
+    bench.runtime.gateway.reproduce = pause_bureau_first
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.salon": "comfort"}
     await bench.advance(1)
@@ -69,10 +69,10 @@ async def test_a_thermostat_paused_during_a_realignment_is_sent_nothing_more(ben
 
 async def test_a_paused_thermostat_keeps_its_weeks_and_its_values(bench: Bench):
     await start(bench)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"temperature": 19.5}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"temperature": 19.5}})
     await pause(bench, "climate.salon")
-    assert bench.runtime.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
-    assert bench.runtime.mappings["climate.salon"] == {"comfort": {"temperature": 19.5}}
+    assert bench.weeks()["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
+    assert bench.mappings()["climate.salon"] == {"comfort": {"temperature": 19.5}}
 
 
 async def test_a_paused_thermostat_stays_paused_after_a_restart(bench: Bench):
@@ -81,7 +81,7 @@ async def test_a_paused_thermostat_stays_paused_after_a_restart(bench: Bench):
     await bench.advance(1)  # delayed save
     assert await bench.hass.config_entries.async_reload(bench.entry.entry_id)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.is_paused("climate.salon")
+    assert bench.paused("climate.salon")
     await bench.go_to("17:30")
     assert bench.applied() == {"climate.bureau": "comfort"}
 
@@ -103,7 +103,7 @@ async def test_a_thermostat_paused_before_an_upgrade_stays_paused(bench: Bench, 
     bench.hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     await bench.hass.async_block_till_done()
     assert entry.minor_version == 2
-    assert bench.runtime.is_paused("climate.salon")
+    assert bench.paused("climate.salon")
     assert bench.hass.states.get("switch.salon_control").state == "off"
     assert bench.applied() == {}
 
@@ -138,8 +138,8 @@ async def test_resuming_realigns_the_thermostat_at_once(bench: Bench):
 async def test_no_override_can_be_set_on_a_paused_thermostat(bench: Bench):
     await start(bench)
     await pause(bench, "climate.salon")
-    with pytest.raises(model.InvalidData):
-        await bench.set_override("climate.salon", bench.runtime.new_override({"temperature": 22}))
+    with pytest.raises(InvalidData):
+        await bench.set_override("climate.salon", bench.runtime.overrides.new({"temperature": 22}))
     with pytest.raises(ServiceValidationError) as err:
         await bench.hass.services.async_call(
             "chauffage", "set_override", {"entity_id": "climate.salon", "temperature": 22}, blocking=True
@@ -153,14 +153,14 @@ async def test_the_weeks_of_a_paused_thermostat_can_be_saved_without_resuming_it
     await pause(bench, "climate.salon")
     weeks = {**SCHEDULES, "climate.salon": {"normal": every_day(("00:00", "comfort"))}}
     await bench.save_weeks(weeks)
-    assert bench.runtime.weeks["climate.salon"]["normal"] == weeks["climate.salon"]["normal"]
-    assert bench.runtime.is_paused("climate.salon")
+    assert bench.weeks()["climate.salon"]["normal"] == weeks["climate.salon"]["normal"]
+    assert bench.paused("climate.salon")
     assert bench.applied() == {}
 
 
 async def test_only_a_scheduled_thermostat_can_be_paused(bench: Bench):
     await start(bench)
-    with pytest.raises(model.InvalidData):
+    with pytest.raises(InvalidData):
         await pause(bench, "climate.cuisine")
 
 
@@ -174,7 +174,7 @@ async def test_the_card_pauses_and_resumes_a_thermostat(bench: Bench, ws_client)
     await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": True})
     assert (await client.receive_json())["event"]["thermostats"]["climate.salon"]["paused"] is True
     assert (await client.receive_json())["success"]
-    assert bench.runtime.is_paused("climate.salon")
+    assert bench.paused("climate.salon")
 
     await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.cuisine", "paused": True})
     response = await client.receive_json()

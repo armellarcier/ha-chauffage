@@ -29,7 +29,7 @@ async def test_the_active_schedule_select_lists_the_schedules_and_shows_the_acti
     assert state.state == "Normal"
     await bench.activate_schedule("Away")
     assert bench.hass.states.get("select.chauffage_schedule").state == "Away"
-    assert bench.runtime.data["active_schedule"] == "away"
+    assert bench.active_schedule() == "away"
 
 
 async def test_the_select_of_an_older_version_becomes_select_chauffage_schedule(bench: Bench):
@@ -111,7 +111,7 @@ async def test_the_override_sensor_is_on_while_the_thermostat_has_an_override(be
     state = bench.hass.states.get("binary_sensor.salon_override")
     assert state.state == "on"
     assert state.attributes["target"] == {"temperature": 21.5}
-    assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)  # as before #91
+    assert "kind" not in state.attributes and "value" not in state.attributes  # the fields of before #91 are gone
     assert state.attributes["end"] == "2026-10-12T12:00:00+02:00"
     await bench.go_to("12:00")
     assert bench.hass.states.get("binary_sensor.salon_override").state == "off"
@@ -138,7 +138,8 @@ async def test_the_override_end_sensor(bench: Bench, entity_registry_enabled_by_
     await bench.manual_setpoint("climate.salon", 21.5)
     state = bench.hass.states.get("sensor.salon_override_end")
     assert state.state == "2026-10-12T10:00:00+00:00"  # 12:00 in Paris
-    assert (state.attributes["kind"], state.attributes["value"]) == ("temperature", 21.5)
+    assert state.attributes["target"] == {"temperature": 21.5}
+    assert "kind" not in state.attributes and "value" not in state.attributes
 
 
 async def test_the_planned_preset_sensor_of_an_existing_installation_keeps_its_id_and_is_enabled(bench: Bench):
@@ -169,7 +170,7 @@ async def test_entities_follow_the_scheduled_thermostats(bench: Bench):
     await bench.save_weeks({**WEEKS, "climate.bureau": {"normal": every_day(("00:00", "eco"))}})
     assert bench.hass.states.get("sensor.bureau_planned_preset").state == "eco"
     assert bench.hass.states.get("binary_sensor.bureau_override").state == "off"
-    await bench.runtime.forget("climate.salon")
+    await bench.runtime.registry.forget("climate.salon")
     await bench.hass.async_block_till_done()
     registry = er.async_get(bench.hass)
     assert registry.async_get("sensor.salon_planned_preset") is None
@@ -183,7 +184,7 @@ async def test_a_forgotten_thermostat_s_disabled_sensors_leave_the_registry(benc
     await start(bench)
     registry = er.async_get(bench.hass)
     assert registry.async_get("sensor.salon_override_end").disabled_by is er.RegistryEntryDisabler.INTEGRATION
-    await bench.runtime.forget("climate.salon")
+    await bench.runtime.registry.forget("climate.salon")
     await bench.hass.async_block_till_done()
     assert registry.async_get("sensor.salon_override_end") is None
 
@@ -204,28 +205,28 @@ async def test_turning_the_control_switch_off_pauses_the_thermostat(bench: Bench
     await start(bench)
     await bench.hass.services.async_call("switch", "turn_off", {"entity_id": "switch.salon_control"}, blocking=True)
     await bench.hass.async_block_till_done()
-    assert bench.runtime.is_paused("climate.salon")
+    assert bench.paused("climate.salon")
     assert bench.hass.states.get("switch.salon_control").state == "off"
     await bench.hass.services.async_call("switch", "turn_on", {"entity_id": "switch.salon_control"}, blocking=True)
     await bench.hass.async_block_till_done()
-    assert not bench.runtime.is_paused("climate.salon")
+    assert not bench.paused("climate.salon")
 
 
 async def test_the_control_switch_shows_a_pause_made_from_the_card(bench: Bench):
     await start(bench)
-    await bench.runtime.set_paused("climate.salon", True)
+    await bench.runtime.registry.set_paused("climate.salon", True)
     await bench.hass.async_block_till_done()
     assert bench.hass.states.get("switch.salon_control").state == "off"
 
 
 async def test_the_sensors_of_a_paused_thermostat_are_unavailable(bench: Bench, entity_registry_enabled_by_default):
     await start(bench)
-    await bench.runtime.set_paused("climate.salon", True)
+    await bench.runtime.registry.set_paused("climate.salon", True)
     await bench.hass.async_block_till_done()
     for entity_id in ("sensor.salon_planned_preset", "binary_sensor.salon_override", "sensor.salon_override_end"):
         assert bench.hass.states.get(entity_id).state == "unavailable"
     assert bench.hass.states.get("switch.salon_control").state == "off"  # the switch stays usable
-    await bench.runtime.set_paused("climate.salon", False)
+    await bench.runtime.registry.set_paused("climate.salon", False)
     await bench.hass.async_block_till_done()
     assert bench.hass.states.get("sensor.salon_planned_preset").state == "eco"
 
@@ -236,7 +237,7 @@ async def test_the_card_is_told_the_entities_of_each_thermostat_and_of_chauffage
     """The cards open the entities and devices they mention; a thermostat without a device has no
     other way to find its own entities (they are named after it, not attached to it)."""
     await start(bench)
-    snapshot = bench.runtime.snapshot()
+    snapshot = bench.runtime.read_model.snapshot()
     assert snapshot["thermostat_entities"]["climate.salon"] == {
         "control": "switch.salon_control", "override": "binary_sensor.salon_override",
         "planned_preset": "sensor.salon_planned_preset", "override_end": "sensor.salon_override_end",
@@ -250,14 +251,14 @@ async def test_the_chauffage_device_is_found_without_a_deprecated_call(bench: Be
     """Home Assistant 2026.10 deprecates looking a device up by identifiers alone."""
     await start(bench)
     caplog.clear()
-    assert bench.runtime.device_id() is not None
+    assert bench.runtime.read_model.device_id() is not None
     assert "deprecated" not in caplog.text
 
 
 async def test_the_card_is_told_an_entity_renamed_by_the_user(bench: Bench):
     await start(bench)
     sent = []
-    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.snapshot()["thermostat_entities"]))
+    bench.runtime.installation.add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["thermostat_entities"]))
     er.async_get(bench.hass).async_update_entity("switch.salon_control", new_entity_id="switch.salon_pilotage")
     await bench.hass.async_block_till_done()
     assert sent and sent[-1]["climate.salon"]["control"] == "switch.salon_pilotage"
@@ -266,7 +267,7 @@ async def test_the_card_is_told_an_entity_renamed_by_the_user(bench: Bench):
 async def test_the_card_is_told_the_active_schedule_select_renamed_by_the_user(bench: Bench):
     await start(bench)
     sent = []
-    bench.runtime.async_add_listener(lambda reason: sent.append(bench.runtime.snapshot()["schedule_select"]))
+    bench.runtime.installation.add_listener(lambda reason: sent.append(bench.runtime.read_model.snapshot()["schedule_select"]))
     er.async_get(bench.hass).async_update_entity("select.chauffage_schedule", new_entity_id="select.planning_actif")
     await bench.hass.async_block_till_done()
     assert sent and sent[-1] == "select.planning_actif"

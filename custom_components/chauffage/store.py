@@ -13,8 +13,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from . import model
-from .const import DEFAULT_PRESETS, DOMAIN
+from .const import DOMAIN
 
 STORAGE_VERSION = 7
 STORAGE_MINOR_VERSION = 1
@@ -29,6 +28,31 @@ V2_PRESET_NAMES = {
     "fr": {"comfort": "Confort", "eco": "Éco", "boost": "Boost", "frost": "Hors-gel"},
 }
 V2_EXTRA_PRESET = {"color": "#9e9e9e", "temperature": 19.0}
+# The temperatures when cooling that version 7 gives the default presets, by their id (#91)
+V7_COOL_TEMPERATURES = {"comfort": 25.0, "eco": 27.0, "boost": 23.0}
+
+
+# The helpers of the migrations, frozen as they were when each migration was written: a change to
+# the live code (storage/schema.py, domain/) must never change how an old format is migrated
+
+def _used_presets_v2(weeks: dict[str, Any]) -> list[str]:
+    """Preset ids used in the weeks of version 1, in order of appearance."""
+    seen: list[str] = []
+    for by_schedule in weeks.values():
+        for week in by_schedule.values():
+            for day in week:
+                for slot in day:
+                    if slot[1] is not None and slot[1] not in seen:
+                        seen.append(slot[1])
+    return seen
+
+
+def _complete_weeks_v5(weeks: dict[str, Any], schedule_ids: list[str], preset_ids: list[str]) -> dict[str, Any]:
+    """A thermostat's weeks of version 5, one per schedule: a schedule it has none in gets the
+    week of a new schedule, eco all week (or the first preset, without eco)."""
+    fill = "eco" if "eco" in preset_ids else preset_ids[0]
+    return {schedule_id: weeks[schedule_id] if schedule_id in weeks else [[["00:00", fill]] for _ in range(7)]
+            for schedule_id in schedule_ids}
 
 
 def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
@@ -37,7 +61,7 @@ def _v1_to_v2(data: dict[str, Any], language: str) -> dict[str, Any]:
     four default levels named in `language`, then the other ids found in the weeks."""
     names = V2_PRESET_NAMES.get((language or "en").split("-")[0], V2_PRESET_NAMES["en"])
     levels = [{"id": i, "name": names[i], "color": color, "temperature": t} for i, color, t in V2_PRESETS]
-    for preset_id in model.used_presets(data.get("schedules", {})):
+    for preset_id in _used_presets_v2(data.get("schedules", {})):
         if not any(level["id"] == preset_id for level in levels):
             levels.append({"id": preset_id, "name": preset_id, **V2_EXTRA_PRESET})
     return {**data, "levels": levels, "mappings": {}}
@@ -71,7 +95,7 @@ def _v4_to_v5(data: dict[str, Any], language: str) -> dict[str, Any]:
         # A scheduled thermostat of version 5, active
         data["thermostats"][entity_id] = {
             "paused": False,
-            "weeks": model.complete_weeks(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else {},
+            "weeks": _complete_weeks_v5(weeks[entity_id], schedule_ids, preset_ids) if weeks.get(entity_id) else {},
             "mapping": mappings.get(entity_id) or {},
             "preset_temperatures": temperatures.get(entity_id) or {},
             "revision": 0,
@@ -94,7 +118,7 @@ def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
     """A slot sets more than a preset (#91): what a preset means for a thermostat, an override
     and a command not applied yet are partial states of the thermostat, as a scene holds them.
     The values do not change. The weeks do not change either: a slot without settings says
-    no HVAC mode, and is read as engine.slot_hvac_mode says.
+    no HVAC mode, and is read as slot.slot_hvac_mode says.
 
     A preset has a temperature when cooling too. The default presets get theirs, by their id:
     eco, comfort and boost. Frost protection and the presets the user created get none: they
@@ -103,7 +127,7 @@ def _v6_to_v7(data: dict[str, Any], language: str) -> dict[str, Any]:
     def without(command: dict[str, Any]) -> dict[str, Any]:
         return {key: value for key, value in command.items() if key not in ("kind", "value")}
 
-    cooling = {preset_id: cool for preset_id, _, _, cool in DEFAULT_PRESETS if cool is not None}
+    cooling = V7_COOL_TEMPERATURES
     return {
         **data,
         "presets": [{**preset, "cool_temperature": cooling[preset["id"]]} if preset["id"] in cooling else preset

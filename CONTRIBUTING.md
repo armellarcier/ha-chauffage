@@ -12,14 +12,21 @@ Assistant.
 - [Docker](https://docs.docker.com/get-docker/) for the development HA. On Windows and macOS,
   use Docker Desktop.
 
-The card is a JavaScript file served as is, so there is no build step. Node and Python are only
-used by the automated tests. If Node or Python is not installed, the tests run in Docker.
+The card is written in TypeScript, in `frontend/src/`. esbuild bundles it into one file, which
+the integration serves. Node builds the card and runs the card tests, and Python runs the
+integration tests. If Node or Python is not installed, the scripts run them in Docker.
 
 ## Repository layout
 
 ```
 custom_components/chauffage/        the integration (scheduler, entities, services, websocket API)
-custom_components/chauffage/frontend/  Lovelace card + block injected into the more-info dialog
+custom_components/chauffage/domain/ the rules of Chauffage as value objects, without Home Assistant
+custom_components/chauffage/storage/ the stored data: its format and the validation of what the card and the services send (schema.py), and its owner (Installation)
+custom_components/chauffage/thermostats/  how Chauffage reads a thermostat, and commands it (ThermostatGateway)
+custom_components/chauffage/app/    the services: scheduler, overrides, changes by hand, schedules, settings, rules, learner, read model, and the runtime that builds them
+frontend/src/                       the card, in TypeScript: Lovelace cards, panel, block injected into
+                                    the more-info dialog
+custom_components/chauffage/frontend/  the built card, served by the integration (not in git)
 dev/compose.yaml, dev/hass/         disposable development HA (Versatile Thermostat + simulated rooms)
 dev/sim_rooms/, dev/sim_climate/    dev only: thermal model of the rooms (and a simulated week of
                                     history for a new dev HA), a climate with standard presets
@@ -27,7 +34,7 @@ tests/integration/, tests/js/       automated tests (pytest + in-memory HA, node
 docs/                               the user guide (one page per topic, in English and French), and
                                     the glossary, design decisions, use cases and writing style
 tests/fixtures/                     stored data in each past format (migration tests)
-scripts/                            test.sh, logs.sh, demo.sh
+scripts/                            build.mjs, build.sh, test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, HACS checks and releases
 ```
 
@@ -117,7 +124,7 @@ change one evening. So the card's *History* shows realistic curves at once. The 
 
 | You edit… | To apply your change |
 |---|---|
-| `custom_components/chauffage/frontend/*.js` (the card) | Reload the browser page. |
+| `frontend/src/*.ts` (the card) | Reload the browser page. The `card` service of the development HA builds the card again. |
 | `custom_components/chauffage/*.py`, `*.json` | `docker compose -f dev/compose.yaml restart homeassistant` |
 | `dev/hass/configuration.yaml`, `dev/sim_rooms/*.py`, `dev/sim_climate/*.py` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
@@ -161,7 +168,7 @@ pull request (`.github/workflows/tests.yml`).
 
 | Suite | Tool | What it covers |
 |---|---|---|
-| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, schedules, thermostats turned off or unreachable, manual-change detection, overrides and their end, activation rules, the pure logic (`engine.py`), storage and migrations, entities, services, websocket API, the history read from the recorder, config / options flows, import from the v0.1 package |
+| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component): a real in-memory Home Assistant with a frozen clock, `custom_components/` loaded | slots applied at the right time, schedules, thermostats turned off or unreachable, manual-change detection, overrides and their end, activation rules, the pure logic (`domain/`), storage and migrations, entities, services, websocket API, the history read from the recorder, config / options flows |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (simulated browser), with a fake HA and integration (`tests/js/helpers.mjs`) | the card: calculations, editing the weeks, copy / paste, saving, schedules, presets, activation rules, overrides, history and a day shown larger, more-info |
 
 ### The integration tests
@@ -173,6 +180,58 @@ a manual change or the thermostat's response, and saves schedules as the card do
 The behavior tests run on **the three kinds of thermostats**, through the `thermostat_kind`
 fixture: `vtherm`, `standard` and `plain`. If a test only makes sense for some kinds, call
 `bench.needs(...)` in the test.
+
+Read what Chauffage holds through the bench: `bench.presets()`, `bench.overrides()` or
+`bench.snapshot()`, the message the card receives. To read what Chauffage saved, call
+`await bench.stored()`. Never read `runtime.installation`. To simulate data stored by an older version,
+call `bench.edit_stored_data(...)`.
+
+### The safety nets of the rewrite
+
+These tests keep the behavior while the code is rewritten (see
+[docs/rewrite-plan.md](docs/rewrite-plan.md)):
+
+| Test | What it checks |
+|---|---|
+| `test_subscribe_golden.py` | The card receives exactly the message of `tests/integration/golden/subscribe.json`. |
+| `test_store.py` | Chauffage saves the stored data back as it read it, from every past format. |
+| `test_pure_domain.py` | The domain imports nothing from Home Assistant. |
+| `tests/shared/cases.json` | The integration (`test_shared_cases.py`) and the card (`shared-cases.test.mjs`) give the same results. |
+
+To change the message of `chauffage/subscribe` on purpose, delete `golden/subscribe.json`, run
+the test once, and review the new file in the diff.
+
+### The card tests
+
+Drive the card through `tests/js/driver.mjs`, never through its private members. For example,
+click a control with `act(card, 'save')`, and check `unsaved(card)` rather than `card._dirty`.
+If the driver lacks a function, add it to the driver. Reach into the card only when no user
+action can do it, and say why in an `Internal:` comment.
+
+Test a draft of `frontend/src/state/` directly, without the card, as `week-draft.test.mjs` does.
+Each test gets a new subscription to the integration: `fakeHass` calls `resetClient()`.
+
+A Lit element draws after the current task, not at once. After an action, `await settle()` before you
+read the element.
+
+The card asks the integration what a preset is worth on a thermostat it does not schedule yet
+(`chauffage/preset/preview`). The fake integration answers with `valueOn`, in
+`tests/js/helpers.mjs`, and keeps these questions in `hass.presetPreviews`, not in `hass.events`.
+The answer comes after the current task too: `await settle()` waits for it.
+
+To test the card while an answer is on its way, set `hass.presetPreviewAnswers = 'hold'`. The
+fake integration then answers only when you call `hass.answerPresetPreviews()`. To test an
+integration that gives no answer, set `hass.presetPreviewAnswers = 'fail'`.
+
+### The card's TypeScript
+
+The card tests run the TypeScript sources without a build: Node removes the types. So:
+
+- Write only syntax that Node can remove, for example no `enum` and no parameter properties.
+- Import a module with its `.ts` extension.
+- Declare the properties of a Lit element in `static properties`, with `declare` fields. Node
+  can't remove decorators.
+- Check the types with `npm run typecheck`. `scripts/test.sh js` and the CI run it too.
 
 ## Supported Home Assistant versions
 
@@ -418,12 +477,6 @@ migrating them. The thermostats then go back to their schedule. Say so in the ch
 The card only sees the websocket API. The format of the websocket API changes with the
 integration, so the card needs no migration.
 
-### The data of the v0.1 package
-
-The integration imports the data of the v0.1 package (`sensor.programmes_chauffage`) when it is
-set up. The import lives in `importer.py`, and `tests/fixtures/schedules-v1.json` holds the
-package's format.
-
 ## Releasing
 
 Versions follow [semantic versioning](https://semver.org/). Before 1.0, a minor version may
@@ -441,13 +494,9 @@ add a demo. Don't record anything again when the changes cannot be seen.
 
 ### 3. Set the version
 
-Set the new version in these files:
-
-- `custom_components/chauffage/frontend/chauffage-programme-card.js` (`VERSION`);
-- `package.json`;
-- `custom_components/chauffage/manifest.json`.
-
-`tests/js/release.test.mjs` checks that these versions match.
+Set the new version in `custom_components/chauffage/manifest.json`. The card takes its version
+from the manifest when it is built. `tests/js/release.test.mjs` checks that the changelog has
+the same version.
 
 In `CHANGELOG.md`, move the "Unreleased" entries under the new version, with the date and the
 upgrade steps.
@@ -462,9 +511,12 @@ git push origin main v0.3.0
 ```
 
 The `Release` workflow (`.github/workflows/release.yml`) runs the tests and checks the version.
-Then it publishes the GitHub release, with the changelog entry and `ha-chauffage-v0.3.0.zip`.
-The ZIP holds `custom_components/chauffage/`, to unzip into the Home Assistant configuration
-folder without HACS.
+Then it builds the card and publishes the GitHub release, with the changelog entry and
+`ha-chauffage.zip`.
+
+The ZIP holds the files of `custom_components/chauffage/`, built card included. HACS installs
+this ZIP (`zip_release` in `hacs.json`). Without HACS, unzip it into the
+`custom_components/chauffage/` folder of the Home Assistant configuration.
 
 ### Pre-releases
 
@@ -489,9 +541,8 @@ The card's `language` option can force a language.
 
 ### The card's texts
 
-- Write the texts in the `I18N` object of
-  `custom_components/chauffage/frontend/chauffage-programme-card.js`. `I18N` holds one object per
-  language, with English keys and `{placeholder}` variables.
+- Write the texts in `frontend/src/i18n/`, one file per language, for example `en.ts`. Each
+  file holds one object, with English keys and `{placeholder}` variables.
 - Give every language exactly the same keys and placeholders. `tests/js/i18n.test.mjs` checks
   it.
 - Never write a format by hand. Times, day names and numbers come from the browser's `Intl` APIs,
@@ -508,12 +559,10 @@ such texts: the config flow, the entities, the services, the repairs and the err
 
 ### Add a language
 
-1. Add an object to `I18N`, with the same keys as `en`.
-2. Extend `resolveLanguage`.
-3. Run `scripts/test.sh js`.
-
-Once the card is bundled (see the roadmap), the translations will move to one JSON file per
-language, with ICU MessageFormat for plurals, as in most Home Assistant cards.
+1. Copy `frontend/src/i18n/en.ts` to a file named after the language, and translate its texts.
+2. Add the language to `I18N`, in `frontend/src/i18n/index.ts`.
+3. Extend `resolveLanguage`, in `frontend/src/i18n/locale.ts`.
+4. Run `scripts/test.sh js`.
 
 ## Tests first
 
@@ -581,10 +630,11 @@ point here.
 - **Convert Enums to plain values.** Data read from thermostats may hold Enums, for example a ZHA
   `preset_mode`. Convert them with `.value` before you store them or put them in an attribute.
 - **Say why Chauffage does something to a thermostat** (#49):
-  - Send every command through `send()`, with its reason. `send()` logs the command at INFO.
-  - Start and end every override through `_keep_override()` and `_drop_override()`, with its
-    source or its reason. These functions log the override, fire the event, and describe it in
-    the logbook.
+  - Send every command through `gateway.send()` (`thermostats/gateway.py`), with its reason.
+    `gateway.send()` logs the command at INFO.
+  - Start and end every override through `overrides.keep()` and `overrides.drop()`
+    (`app/overrides.py`), with its source or its reason. These functions log the override, fire
+    the event, and describe it in the logbook.
   - Give a new source or reason its text in every language of `logbook.py`. `test_traces.py`
     checks it.
   - Give a new trace its test in `test_traces.py`.

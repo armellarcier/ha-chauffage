@@ -1,8 +1,10 @@
 // The "Rules" view: activation rules "template → schedule", the first true one wins, a default
 // schedule otherwise (#1, docs/decisions.md "Activation rules").
-import { fakeHass, integrationData, createCard, cleanup } from './helpers.mjs';
+import { fakeHass, integrationData, createView, cleanup } from './helpers.mjs';
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { settle } from './driver.mjs';
+import { saveRules, tryRulesAtOnce } from './driver.mjs';
 
 const $ = (card, selector) => card.shadowRoot.querySelector(selector);
 const $$ = (card, selector) => [...card.shadowRoot.querySelectorAll(selector)];
@@ -13,23 +15,22 @@ function withRules({ rules = [RED, WHITE], results = [false, true], def = 'norma
   return { ...integrationData({ schedule, language }), rules, default_schedule: def, rule_results: results };
 }
 
-function openRules(hass) {
-  const card = createCard(hass, { view: 'rules' }); // the page of the Chauffage panel
-  card._previewDelay = 0; // rules being typed are tried at once
-  card._previewKey = null; // the first try again, without its delay
-  card._render();
+async function openRules(hass) {
+  const card = createView(hass, 'rules'); await settle(); // the page of the Chauffage panel
+  tryRulesAtOnce(card); // rules being typed are tried at once
+  await settle();
   return card;
 }
 
-const type = (el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); };
-const pick = (el, value) => { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); };
+const type = async (el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); await settle(); };
+const pick = async (el, value) => { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); await settle(); };
 const sent = (hass) => hass.events.filter((m) => m.type === 'chauffage/rules/set');
 
 afterEach(() => cleanup());
 
 describe('the Rules view', () => {
-  test('lists the rules in order, the schedule each one activates and whether it is true now', () => {
-    const card = openRules(fakeHass({ data: withRules() }));
+  test('lists the rules in order, the schedule each one activates and whether it is true now', async () => {
+    const card = await openRules(fakeHass({ data: withRules() }));
     const rules = $$(card, '.rule');
     assert.equal(rules.length, 2);
     assert.equal(rules[0].querySelector('textarea').value, RED.template);
@@ -39,39 +40,39 @@ describe('the Rules view', () => {
     assert.equal($(card, 'select[data-rules-default]').value, 'normal');
   });
 
-  test('says which schedule the rules give now', () => {
-    const card = openRules(fakeHass({ data: withRules() }));
+  test('says which schedule the rules give now', async () => {
+    const card = await openRules(fakeHass({ data: withRules() }));
     assert.match($(card, '.rules-outcome').textContent, /Vacances/);
   });
 
-  test('a schedule chosen by hand is shown as such, until the rules change', () => {
-    const card = openRules(fakeHass({ data: withRules({ results: [false, false], schedule: 'Absent' }) }));
+  test('a schedule chosen by hand is shown as such, until the rules change', async () => {
+    const card = await openRules(fakeHass({ data: withRules({ results: [false, false], schedule: 'Absent' }) }));
     const text = $(card, '.rules-outcome').textContent;
     assert.match(text, /Normal/);
     assert.match(text, /Absent/);
     assert.match(text, /main/i);
   });
 
-  test('a template that fails says so', () => {
-    const card = openRules(fakeHass({ data: withRules({ results: [null, true] }) }));
+  test('a template that fails says so', async () => {
+    const card = await openRules(fakeHass({ data: withRules({ results: [null, true] }) }));
     assert.match($$(card, '.rule-state')[0].textContent, /erreur/i);
   });
 
-  test('without rules, says that the schedule is only chosen by hand and offers to add one', () => {
-    const card = openRules(fakeHass({ data: withRules({ rules: [], results: [], def: null }) }));
+  test('without rules, says that the schedule is only chosen by hand and offers to add one', async () => {
+    const card = await openRules(fakeHass({ data: withRules({ rules: [], results: [], def: null }) }));
     assert.equal($$(card, '.rule').length, 0);
     assert.ok($(card, '[data-act="rule-add"]'));
     assert.ok($(card, '.rules-empty'));
   });
 
-  test('links to the template editor of the developer tools, to try a template', () => {
-    const card = openRules(fakeHass({ data: withRules() }));
+  test('links to the template editor of the developer tools, to try a template', async () => {
+    const card = await openRules(fakeHass({ data: withRules() }));
     assert.equal($(card, 'a.rules-try').getAttribute('href'), '/developer-tools/template');
   });
 
-  test('speaks English', () => {
+  test('speaks English', async () => {
     const hass = fakeHass({ data: withRules({ language: 'en' }), locale: { language: 'en' } });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     assert.match($$(card, '.rule-state')[1].textContent, /true/i);
   });
 });
@@ -79,105 +80,105 @@ describe('the Rules view', () => {
 describe('editing the rules', () => {
   test('adding a rule and saving sends the rules and the default schedule', async () => {
     const hass = fakeHass({ data: withRules({ rules: [], results: [], def: null }) });
-    const card = openRules(hass);
-    $(card, '[data-act="rule-add"]').click();
-    type($(card, '.rule textarea'), RED.template);
-    pick($(card, '.rule select[data-rule-schedule]'), 'away');
-    pick($(card, 'select[data-rules-default]'), 'normal');
-    await card._action('rules-save', {});
+    const card = await openRules(hass);
+    $(card, '[data-act="rule-add"]').click(); await settle();
+    await type($(card, '.rule textarea'), RED.template);
+    await pick($(card, '.rule select[data-rule-schedule]'), 'away');
+    await pick($(card, 'select[data-rules-default]'), 'normal');
+    await saveRules(card);
     assert.deepEqual(sent(hass), [{ type: 'chauffage/rules/set', rules: [RED], default_schedule: 'normal' }]);
   });
 
   test('no default schedule keeps the active one: sent as null', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
-    pick($(card, 'select[data-rules-default]'), '');
-    await card._action('rules-save', {});
+    const card = await openRules(hass);
+    await pick($(card, 'select[data-rules-default]'), '');
+    await saveRules(card);
     assert.equal(sent(hass)[0].default_schedule, null);
   });
 
   test('rules are moved and removed before saving', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
-    $$(card, '[data-act="rule-up"]')[1].click();
+    const card = await openRules(hass);
+    $$(card, '[data-act="rule-up"]')[1].click(); await settle();
     assert.equal($$(card, '.rule textarea')[0].value, WHITE.template);
-    $$(card, '[data-act="rule-delete"]')[1].click();
-    await card._action('rules-save', {});
+    $$(card, '[data-act="rule-delete"]')[1].click(); await settle();
+    await saveRules(card);
     assert.deepEqual(sent(hass)[0].rules, [WHITE]);
   });
 
   test('an empty rule is not sent', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
-    $(card, '[data-act="rule-add"]').click();
-    await card._action('rules-save', {});
+    const card = await openRules(hass);
+    $(card, '[data-act="rule-add"]').click(); await settle();
+    await saveRules(card);
     assert.deepEqual(sent(hass)[0].rules, [RED, WHITE]);
   });
 
-  test('a template being typed survives an update from Home Assistant', () => {
+  test('a template being typed survives an update from Home Assistant', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
-    type($$(card, '.rule textarea')[0], '{{ true }}');
-    hass.push(withRules({ results: [true, false] }));
+    const card = await openRules(hass);
+    await type($$(card, '.rule textarea')[0], '{{ true }}');
+    hass.push(withRules({ results: [true, false] })); await settle();
     assert.equal($$(card, '.rule textarea')[0].value, '{{ true }}');
     assert.match($(card, '.msg').textContent, /enregistr/i);
   });
 
-  test('cancel goes back to the saved rules', () => {
-    const card = openRules(fakeHass({ data: withRules() }));
-    type($$(card, '.rule textarea')[0], '{{ true }}');
-    $(card, '[data-act="rules-cancel"]').click();
+  test('cancel goes back to the saved rules', async () => {
+    const card = await openRules(fakeHass({ data: withRules() }));
+    await type($$(card, '.rule textarea')[0], '{{ true }}');
+    $(card, '[data-act="rules-cancel"]').click(); await settle();
     assert.equal($$(card, '.rule textarea')[0].value, RED.template);
   });
 
   test('a rule refused by the integration shows why and keeps the edits', async () => {
     const hass = fakeHass({ data: withRules(), reply: () => { throw { message: 'invalid template: oops' }; } });
-    const card = openRules(hass);
-    type($$(card, '.rule textarea')[0], '{{ oops');
-    await card._action('rules-save', {});
+    const card = await openRules(hass);
+    await type($$(card, '.rule textarea')[0], '{{ oops');
+    await saveRules(card);
     assert.match($(card, '.msg').textContent, /oops/);
     assert.equal($$(card, '.rule textarea')[0].value, '{{ oops');
   });
 
   test('once saved, the view follows the rules of the integration again', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
-    type($$(card, '.rule textarea')[0], '{{ true }}');
-    await card._action('rules-save', {});
-    hass.push(withRules({ rules: [{ template: '{{ true }}', schedule: 'away' }, WHITE], results: [true, true] }));
+    const card = await openRules(hass);
+    await type($$(card, '.rule textarea')[0], '{{ true }}');
+    await saveRules(card);
+    hass.push(withRules({ rules: [{ template: '{{ true }}', schedule: 'away' }, WHITE], results: [true, true] })); await settle();
     assert.match($$(card, '.rule-state')[0].textContent, /vrai/i);
     assert.ok(!$(card, '[data-act="rules-cancel"]'), 'nothing left to cancel');
   });
 
-  test('nothing to save while the rules are not changed (#16)', () => {
-    const card = openRules(fakeHass({ data: withRules() }));
+  test('nothing to save while the rules are not changed (#16)', async () => {
+    const card = await openRules(fakeHass({ data: withRules() }));
     assert.ok($(card, '[data-act="rules-save"]').disabled);
-    type($$(card, '.rule textarea')[0], '{{ true }}');
+    await type($$(card, '.rule textarea')[0], '{{ true }}');
     assert.ok(!$(card, '[data-act="rules-save"]').disabled);
   });
 
-  test('a change undone by hand leaves nothing to save', () => {
-    const card = openRules(fakeHass({ data: withRules() }));
+  test('a change undone by hand leaves nothing to save', async () => {
+    const card = await openRules(fakeHass({ data: withRules() }));
     const area = $$(card, '.rule textarea')[0];
-    type(area, '{{ true }}');
-    type($$(card, '.rule textarea')[0], RED.template);
+    await type(area, '{{ true }}');
+    await type($$(card, '.rule textarea')[0], RED.template);
     assert.ok($(card, '[data-act="rules-save"]').disabled);
     assert.ok(!$(card, '[data-act="rules-cancel"]'));
     assert.doesNotMatch($(card, '.msg').textContent, /non enregistr/i);
   });
 
   test('once saved, the save button says there is nothing left to save (#16)', async () => {
-    const card = openRules(fakeHass({ data: withRules() }));
-    type($$(card, '.rule textarea')[0], '{{ true }}');
-    await card._action('rules-save', {});
+    const card = await openRules(fakeHass({ data: withRules() }));
+    await type($$(card, '.rule textarea')[0], '{{ true }}');
+    await saveRules(card);
     assert.ok($(card, '[data-act="rules-save"]').disabled);
     assert.match($(card, '.msg').textContent, /Enregistré/);
   });
 
-  test('users who are not admins see the rules without editing them', () => {
+  test('users who are not admins see the rules without editing them', async () => {
     const hass = fakeHass({ data: withRules() });
     hass.user = { is_admin: false };
-    const card = openRules(hass);
+    const card = await openRules(hass);
     assert.ok($(card, '.rule textarea').readOnly);
     assert.ok(!$(card, '[data-act="rule-add"]'));
     assert.ok(!$(card, '[data-act="rules-save"]'));
@@ -190,10 +191,10 @@ describe('trying the rules while typing them', () => {
 
   test('the rules shown are tried by the integration, then again as they are typed', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     await tick();
     assert.deepEqual(open(hass).map((p) => p.msg.rules), [[RED, WHITE]]);
-    type($$(card, '.rule textarea')[0], '{{ true }}');
+    await type($$(card, '.rule textarea')[0], '{{ true }}');
     await tick();
     assert.deepEqual(open(hass).map((p) => p.msg.rules), [[{ template: '{{ true }}', schedule: 'away' }, WHITE]]);
     assert.equal(hass.previews.length, 2, 'the previous try is closed');
@@ -201,11 +202,11 @@ describe('trying the rules while typing them', () => {
 
   test('each rule says what its template gives now, before saving', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     await tick();
-    type($$(card, '.rule textarea')[0], '{{ true }}');
+    await type($$(card, '.rule textarea')[0], '{{ true }}');
     await tick();
-    open(hass)[0].send({ results: [true, false], texts: ['True', 'False'], errors: [null, null] });
+    open(hass)[0].send({ results: [true, false], texts: ['True', 'False'], errors: [null, null] }); await settle();
     assert.match($$(card, '.rule-state')[0].textContent, /vrai/i);
     assert.match($$(card, '.rule-result')[0].textContent, /True/);
     assert.equal($$(card, '.rule textarea')[0].value, '{{ true }}');
@@ -213,25 +214,25 @@ describe('trying the rules while typing them', () => {
 
   test('a template that gives neither true nor false says that it counts as false', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     await tick();
-    open(hass)[0].send({ results: [false, false], texts: ['red', 'False'], errors: [null, null] });
+    open(hass)[0].send({ results: [false, false], texts: ['red', 'False'], errors: [null, null] }); await settle();
     assert.match($$(card, '.rule-result')[0].textContent, /« red ».*ni vrai ni faux/);
     assert.doesNotMatch($$(card, '.rule-result')[1].textContent, /ni vrai ni faux/);
   });
 
   test('a template error is shown with its message', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     await tick();
-    open(hass)[0].send({ results: [null, false], texts: [null, 'False'], errors: ["unexpected '}'", null] });
+    open(hass)[0].send({ results: [null, false], texts: [null, 'False'], errors: ["unexpected '}'", null] }); await settle();
     assert.match($$(card, '.rule-state')[0].textContent, /erreur/i);
     assert.match($$(card, '.rule-result')[0].textContent, /unexpected '}'/);
   });
 
   test('the try stops when leaving the page', async () => {
     const hass = fakeHass({ data: withRules() });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     await tick();
     card.remove();
     await tick();
@@ -241,7 +242,7 @@ describe('trying the rules while typing them', () => {
   test('users who are not admins do not try rules', async () => {
     const hass = fakeHass({ data: withRules() });
     hass.user = { is_admin: false };
-    openRules(hass);
+    await openRules(hass);
     await tick();
     assert.deepEqual(hass.previews, []);
   });
@@ -252,39 +253,39 @@ describe('a template that gives the schedule', () => {
 
   test('a rule can let its template give the schedule, by its id or its name', async () => {
     const hass = fakeHass({ data: withRules({ rules: [], results: [], def: null }) });
-    const card = openRules(hass);
-    $(card, '[data-act="rule-add"]').click();
-    type($(card, '.rule textarea'), TEMPO);
+    const card = await openRules(hass);
+    $(card, '[data-act="rule-add"]').click(); await settle();
+    await type($(card, '.rule textarea'), TEMPO);
     const select = $(card, '.rule select[data-rule-schedule]');
     assert.match(select.options[0].textContent, /donné par le template/);
-    pick(select, '');
-    await card._action('rules-save', {});
+    await pick(select, '');
+    await saveRules(card);
     assert.deepEqual(sent(hass)[0].rules, [{ template: TEMPO, schedule: null }]);
   });
 
   test('the schedule given now is shown, or that none matches', async () => {
     const rules = [{ template: TEMPO, schedule: null }, RED];
-    const card = openRules(fakeHass({ data: withRules({ rules, results: ['away', false], schedule: 'Absent' }) }));
+    const card = await openRules(fakeHass({ data: withRules({ rules, results: ['away', false], schedule: 'Absent' }) }));
     assert.match($$(card, '.rule-state')[0].textContent, /Absent/);
     assert.match($(card, '.rules-outcome').textContent, /Les règles donnent Absent/);
     assert.equal($(card, '.rule select[data-rule-schedule]').value, '');
-    const none = openRules(fakeHass({ data: withRules({ rules, results: [false, false] }) }));
+    const none = await openRules(fakeHass({ data: withRules({ rules, results: [false, false] }) }));
     assert.match($$(none, '.rule-state')[0].textContent, /aucun planning/i);
   });
 
   test('a true or false template set to give the schedule says to choose the schedule it activates', async () => {
     const hass = fakeHass({ data: withRules({ rules: [{ template: RED.template, schedule: null }], results: [false] }) });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     await new Promise((resolve) => setTimeout(resolve, 5));
-    hass.previews[0].send({ results: [false], texts: ['False'], errors: [null] });
+    hass.previews[0].send({ results: [false], texts: ['False'], errors: [null] }); await settle();
     assert.match($(card, '.rule-result').textContent, /« False ».*choisissez le planning qu.il active/);
   });
 
   test('a text that names no schedule is explained while typing', async () => {
     const hass = fakeHass({ data: withRules({ rules: [{ template: TEMPO, schedule: null }], results: [false] }) });
-    const card = openRules(hass);
+    const card = await openRules(hass);
     await new Promise((resolve) => setTimeout(resolve, 5));
-    hass.previews[0].send({ results: [false], texts: ['none'], errors: [null] });
+    hass.previews[0].send({ results: [false], texts: ['none'], errors: [null] }); await settle();
     assert.match($(card, '.rule-result').textContent, /« none ».*aucun planning/);
   });
 });
@@ -305,12 +306,12 @@ describe('in Home Assistant, where ha-card shows its content asynchronously', ()
     };
     try {
       const hass = fakeHass({ data: withRules() });
-      const card = openRules(hass);
+      const card = await openRules(hass);
       await new Promise((resolve) => setTimeout(resolve, 5));
       const area = $$(card, '.rule textarea')[1];
       area.focus();
       area.setSelectionRange(4, 4);
-      card._render();
+      card.view.requestUpdate(); await settle();
       await new Promise((resolve) => setTimeout(resolve, 5));
       const now = card.shadowRoot.activeElement;
       assert.equal(now && now.dataset.ruleTemplate, '1');

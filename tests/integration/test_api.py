@@ -78,24 +78,18 @@ async def test_the_card_is_told_when_the_planned_preset_changes_not_every_minute
     assert [(p["preset"], p["next_preset"]) for p in card.sent] == [("eco", "comfort"), ("comfort", "eco")]
 
 
-async def test_saving_schedules_with_the_current_revision(bench: Bench, ws_client):
+async def test_the_weeks_are_no_longer_saved_against_the_global_revision(bench: Bench, ws_client):
+    """The weeks are saved against the revision of each thermostat only (see
+    test_thermostats.py, "revisions per thermostat"). The global revision is for the list of
+    schedules."""
     await start(bench)
     client = await ws_client(bench.hass)
     week = [[["00:00", "comfort"]]] * 7
-    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}}, "revision": 1})
+    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.salon": {"normal": week}},
+                                    "revision": bench.revision()})
     reply = await client.receive_json()
-    assert reply["success"] and reply["result"]["revision"] == 2
-    await bench.hass.async_block_till_done()
-    assert bench.applied() == {"climate.salon": "comfort"}
-
-
-async def test_saving_from_an_outdated_copy_is_refused(bench: Bench, ws_client):
-    await start(bench)
-    client = await ws_client(bench.hass)
-    await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {}, "revision": 0})
-    reply = await client.receive_json()
-    assert not reply["success"] and reply["error"]["code"] == "stale"
-    assert bench.runtime.weeks["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
+    assert not reply["success"] and reply["error"]["code"] == "invalid_format"
+    assert bench.weeks()["climate.salon"]["normal"] == SCHEDULES["climate.salon"]["normal"]
 
 
 async def test_invalid_schedules_are_refused(bench: Bench, ws_client):
@@ -115,7 +109,7 @@ async def test_a_card_cannot_schedule_a_thermostat_that_does_not_exist(bench: Be
     await client.send_json_auto_id({"type": "chauffage/weeks/save", "weeks": {"climate.ghost": {"normal": week}}})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "invalid_format"
-    assert "climate.ghost" not in bench.runtime.scheduled
+    assert "climate.ghost" not in bench.scheduled()
 
 
 async def test_overrides_and_active_schedule_from_the_card(bench: Bench, ws_client):
@@ -163,7 +157,7 @@ async def test_an_override_s_new_value_on_a_thermostat_that_does_not_answer(benc
 
     await client.send_json_auto_id({"type": "chauffage/schedule/activate", "schedule": "away"})
     assert (await client.receive_json())["success"]
-    assert bench.runtime.data["active_schedule"] == "away"
+    assert bench.active_schedule() == "away"
 
 
 async def test_writes_need_an_admin(bench: Bench, ws_client):
@@ -223,7 +217,7 @@ async def test_anyone_at_home_pauses_and_resumes_a_thermostat_from_a_card(bench:
     for paused in (True, False):
         await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": paused})
         assert (await client.receive_json())["success"]
-        assert bench.runtime.is_paused("climate.salon") is paused
+        assert bench.paused("climate.salon") is paused
 
 
 async def test_a_read_only_user_cannot_pause_a_thermostat(bench: Bench, ws_client):
@@ -232,7 +226,7 @@ async def test_a_read_only_user_cannot_pause_a_thermostat(bench: Bench, ws_clien
     await client.send_json_auto_id({"type": "chauffage/thermostat/set", "entity_id": "climate.salon", "paused": True})
     reply = await client.receive_json()
     assert not reply["success"] and reply["error"]["code"] == "unauthorized"
-    assert not bench.runtime.is_paused("climate.salon")
+    assert not bench.paused("climate.salon")
 
 
 # ----- services -----
@@ -298,7 +292,7 @@ async def respond(bench: Bench, service: str, **data) -> dict:
 
 async def test_a_script_reads_the_schedules(bench: Bench):
     await start(bench)
-    await bench.runtime.set_rules([{"template": "{{ false }}", "schedule": "away"}], "holiday")
+    await bench.runtime.rules.set([{"template": "{{ false }}", "schedule": "away"}], "holiday")
     await bench.activate_schedule("Normal")  # chosen by hand over the rules
     assert await respond(bench, "get_schedules") == {
         "schedules": [

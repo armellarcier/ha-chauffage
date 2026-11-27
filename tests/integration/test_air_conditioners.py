@@ -11,7 +11,11 @@ from hvac_helpers import (
     override, presets_without, salon, sent_to, start_ac, start_ac_with_range, start_salon, state,
 )
 
-from custom_components.chauffage import engine, model
+from custom_components.chauffage.domain.slot import target_of
+from custom_components.chauffage.domain.target import Target
+from custom_components.chauffage.domain.thermostat import Thermostat, on_mode
+from custom_components.chauffage.storage import schema
+from custom_components.chauffage.storage.schema import InvalidData
 
 
 @pytest.fixture(params=KINDS)
@@ -64,11 +68,11 @@ async def test_a_cooling_air_conditioner_keeps_cooling(bench: Bench):
 
 
 def test_the_slot_s_hvac_mode_is_the_target_s_when_the_thermostat_lists_it():
-    assert engine.resolve("comfort", PRESETS, {}, ac("heat"), settings=COOL) == {
+    assert target_of("comfort", PRESETS, {}, ac("heat"), settings=COOL) == {
         "preset_mode": "comfort", "cool_preset_mode": "comfort", "hvac_mode": "cool"}
-    heater = engine.Thermostat("heat", "eco", 17.0, ("eco", "comfort"), hvac_modes=("off", "heat"))
-    assert engine.resolve("comfort", PRESETS, {}, heater, settings=COOL) == {"preset_mode": "comfort"}
-    assert engine.resolve("comfort", PRESETS, {}, None, settings=COOL) == {"temperature": 20.0}  # a thermostat not seen yet
+    heater = Thermostat("heat", "eco", 17.0, ("eco", "comfort"), hvac_modes=("off", "heat"))
+    assert target_of("comfort", PRESETS, {}, heater, settings=COOL) == {"preset_mode": "comfort"}
+    assert target_of("comfort", PRESETS, {}, None, settings=COOL) == {"temperature": 20.0}  # a thermostat not seen yet
 
 
 # ----- a stored slot without an HVAC mode -----
@@ -76,7 +80,7 @@ def test_the_slot_s_hvac_mode_is_the_target_s_when_the_thermostat_lists_it():
 async def test_a_slot_without_an_hvac_mode_heats_on_an_air_conditioner_that_heats_and_cools(bench: Bench):
     """A week stored before #91: its slots say no HVAC mode. They are read as heat."""
     await start_ac(bench, "17:00", state="cool")
-    assert bench.runtime.planned_targets(SALON)["hvac_mode"] == "heat"
+    assert bench.runtime.read_model.planned_targets(SALON)["hvac_mode"] == "heat"
     assert state(bench) == "heat"  # saving the weeks applied the slot
     bench.thermostat(SALON, "eco", state="cool", hvac_modes=AC_MODES, context=CTX_AUTOMATION)
     await bench.go_to("17:30")
@@ -86,7 +90,7 @@ async def test_a_slot_without_an_hvac_mode_heats_on_an_air_conditioner_that_heat
 
 async def test_a_slot_without_an_hvac_mode_cools_on_an_air_conditioner_that_only_cools(bench: Bench):
     await start_ac(bench, "17:00", state="cool", modes=COOLING_ONLY)
-    planned = bench.runtime.planned_targets(SALON)
+    planned = bench.runtime.read_model.planned_targets(SALON)
     assert (planned["hvac_mode"], planned["next_hvac_mode"]) == ("cool", "cool")
     await bench.go_to("17:30")
     assert bench.powered() == {} and state(bench) == "cool"
@@ -98,13 +102,13 @@ async def test_a_heating_slot_cools_on_an_air_conditioner_that_only_cools(bench:
     bench.thermostat(SALON, "eco", state="off", hvac_modes=COOLING_ONLY, context=CTX_AUTOMATION)
     await bench.go_to("14:00")
     assert bench.powered() == {SALON: "cool"}
-    assert bench.runtime.planned_targets(SALON)["hvac_mode"] == "cool"
+    assert bench.runtime.read_model.planned_targets(SALON)["hvac_mode"] == "cool"
 
 
 async def test_a_heater_never_carries_an_hvac_mode(bench: Bench):
     """The bureau only heats: a slot that says heat or cool says nothing to it."""
     await start_ac(bench, "13:00", [["00:00", "eco", HEAT], ["14:00", "comfort", COOL]])
-    planned = bench.runtime.planned_targets(BUREAU)
+    planned = bench.runtime.read_model.planned_targets(BUREAU)
     assert (planned["hvac_mode"], planned["next_hvac_mode"]) == (None, None)
     assert "hvac_mode" not in planned["target"]
     await bench.go_to("14:00")
@@ -121,7 +125,7 @@ async def test_a_slot_that_says_heat_aloud_is_not_a_new_slot_after_one_that_says
     bench.thermostat(SALON, "eco", hvac_modes=AC_MODES)
     await bench.setup()
     await bench.save_weeks({SALON: {"normal": [edited, *[stored] * 6]}})
-    planned = bench.runtime.planned_targets(SALON)
+    planned = bench.runtime.read_model.planned_targets(SALON)
     assert (planned["preset"], planned["next_preset"]) == ("eco", "comfort")
     assert planned["next_start"] == "2026-10-13T06:30:00+02:00"
 
@@ -159,12 +163,12 @@ async def test_a_preset_override_turns_on_an_air_conditioner_in_the_hvac_mode_of
 def test_a_thermostat_is_turned_on_in_the_hvac_mode_of_its_slot_else_heat():
     """As the card chooses the HVAC mode of an override: the one of the slot planned now, among
     those that take a setpoint, else heat. Chauffage learns no HVAC mode."""
-    unit = engine.Thermostat("off", None, 20.0, hvac_modes=tuple(AC_MODES))
-    assert engine.on_mode(unit, "cool") == "cool"
-    assert engine.on_mode(unit) == "heat"
-    assert engine.on_mode(unit, "fan_only") == "heat"  # fan only takes no setpoint
-    heater = engine.Thermostat("off", None, 20.0, hvac_modes=("off", "heat"))
-    assert engine.on_mode(heater, "cool") == "heat"
+    unit = Thermostat("off", None, 20.0, hvac_modes=tuple(AC_MODES))
+    assert on_mode(unit, "cool") == "cool"
+    assert on_mode(unit) == "heat"
+    assert on_mode(unit, "fan_only") == "heat"  # fan only takes no setpoint
+    heater = Thermostat("off", None, 20.0, hvac_modes=("off", "heat"))
+    assert on_mode(heater, "cool") == "heat"
 
 
 async def test_a_valve_that_ran_in_auto_is_turned_on_in_heat(bench: Bench):
@@ -193,19 +197,19 @@ async def test_an_air_conditioner_seen_in_dry_is_not_turned_on_in_dry(bench: Ben
 def test_dry_and_auto_are_not_hvac_modes_to_turn_on_in_before_heat():
     modes = ("off", "heat", "cool", "dry", "auto")
     for planned in ("dry", "auto", None):
-        assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=modes), planned) == "heat"
-    assert engine.on_mode(engine.Thermostat("off", None, 20.0, hvac_modes=("off", "dry", "auto"))) == "auto"
+        assert on_mode(Thermostat("off", None, 20.0, hvac_modes=modes), planned) == "heat"
+    assert on_mode(Thermostat("off", None, 20.0, hvac_modes=("off", "dry", "auto"))) == "auto"
 
 
 def test_a_thermostat_off_or_in_fan_only_is_turned_on_for_a_preset():
     target = {"preset_mode": "comfort", "cool_preset_mode": "comfort"}
-    assert engine.complete(target, ac("fan_only")) == {"preset_mode": "comfort", "hvac_mode": "heat"}
+    assert Target(target).completed_for(ac("fan_only")) == {"preset_mode": "comfort", "hvac_mode": "heat"}
     cooler = ("off", "fan_only", "cool")
-    assert engine.complete(target, ac("fan_only", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "cool"}
+    assert Target(target).completed_for(ac("fan_only", modes=cooler)) == {"preset_mode": "comfort", "hvac_mode": "cool"}
     # Off and fan only alone: fan only takes no setpoint, so nothing turns it on
-    assert engine.complete(target, ac("off", modes=("off", "fan_only"))) == {"preset_mode": "comfort"}
-    assert not engine.satisfied(target, ac("fan_only"))
-    assert engine.satisfied(FAN, ac("fan_only"))
+    assert Target(target).completed_for(ac("off", modes=("off", "fan_only"))) == {"preset_mode": "comfort"}
+    assert not Target(target).satisfied_by(ac("fan_only"))
+    assert Target(FAN).satisfied_by(ac("fan_only"))
 
 
 async def test_a_preset_override_turns_on_an_air_conditioner_left_in_dry(bench: Bench):
@@ -219,19 +223,20 @@ async def test_a_heater_that_is_off_is_not_turned_on_by_a_slot_without_a_value(b
     """Data stored before the refusal: a heater's slot on a preset without a temperature when
     heating. The slot has nothing to send, so it turns nothing on."""
     await start_ac_with_range(bench, [["00:00", "eco"], ["12:00", "comfort"]])
-    bench.runtime.data["presets"] = presets_without("comfort", "temperature")
+    without = presets_without("comfort", "temperature")
+    await bench.edit_stored_data(lambda data: data.update(presets=without))
     bench.thermostat(BUREAU, "eco", state="off", context=CTX_USER)
     await bench.hass.async_block_till_done()
-    bench.runtime.data["overrides"].clear()
+    await bench.edit_stored_data(lambda data: data["overrides"].clear())
     clear(bench)
     await bench.go_to("12:00")
     assert BUREAU not in bench.powered() and BUREAU not in bench.applied()
 
 
 def test_an_empty_target_turns_nothing_on():
-    off = engine.Thermostat("off", None, 20.0, hvac_modes=("off", "heat"))
-    assert engine.complete({}, off) == {}
-    assert engine.complete({"temperature": 19.0}, off) == {"temperature": 19.0, "hvac_mode": "heat"}
+    off = Thermostat("off", None, 20.0, hvac_modes=("off", "heat"))
+    assert Target({}).completed_for(off) == {}
+    assert Target({"temperature": 19.0}).completed_for(off) == {"temperature": 19.0, "hvac_mode": "heat"}
 
 
 # ----- the HVAC mode switched by hand -----
@@ -267,7 +272,7 @@ async def test_switching_to_cool_by_hand_sends_nothing(bench: Bench):
     """The slot heats on comfort. Switched to cool in Home Assistant's dialog, the unit keeps
     what it shows: Chauffage sends nothing, not even comfort's cooling value."""
     await start_ac(bench, "10:00", [["00:00", "comfort", HEAT]], preset="comfort")
-    await bench.runtime.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"cool_temperature": 24}})
     clear(bench)
     bench.thermostat(SALON, "comfort", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
     await bench.hass.async_block_till_done(wait_background_tasks=True)
@@ -282,7 +287,7 @@ async def test_an_override_to_a_preset_keeps_its_preset_when_the_hvac_mode_is_sw
     HVAC mode to boost, and its end is computed again. Chauffage sends nothing: a Versatile
     Thermostat goes to its own boost in cool (25 °C), the others keep their setpoint."""
     await start_ac(bench, "10:00", [["00:00", "eco", HEAT]])
-    await bench.runtime.set_mapping(SALON, {"boost": {"cool_temperature": 24}})
+    await bench.runtime.schedules.set_mapping(SALON, {"boost": {"cool_temperature": 24}})
     await override(bench, preset="boost", duration=180)
     bench.thermostat(SALON, "boost", hvac_modes=AC_MODES, context=CTX_AUTOMATION)  # it applies the override
     await bench.hass.async_block_till_done()
@@ -372,7 +377,7 @@ async def test_a_fan_only_slot_holds_no_preset_and_keeps_its_fan(bench: Bench):
     quiet = {"hvac_mode": "fan_only", "fan_mode": "1"}
     day = [["00:00", "eco", FAN], ["08:00", None, FAN], ["12:00", None, quiet], ["13:00", "comfort", quiet], ["14:00", None, FAN]]
     await bench.save_weeks({SALON: {"normal": [day] * 7}})
-    assert bench.runtime.weeks[SALON]["normal"][0] == [
+    assert bench.weeks()[SALON]["normal"][0] == [
         ["00:00", None, FAN], ["08:00", None, FAN], ["12:00", None, quiet], ["13:00", None, quiet], ["14:00", None, FAN]]
 
 
@@ -400,16 +405,16 @@ async def test_a_new_hvac_mode_gets_its_setpoint_even_when_the_thermostat_alread
 # ----- dry and auto -----
 
 def test_a_dry_slot_and_an_auto_slot_have_no_preset():
-    day = model.normalize_day([["00:00", "eco", {"hvac_mode": "dry"}], ["08:00", "comfort", {"hvac_mode": "dry"}],
+    day = schema.day([["00:00", "eco", {"hvac_mode": "dry"}], ["08:00", "comfort", {"hvac_mode": "dry"}],
                                ["12:00", None, {"hvac_mode": "auto", "fan_mode": "low"}],
                                ["14:00", None, {"hvac_mode": "auto", "fan_mode": "high"}],
-                               ["18:00", "comfort", {"hvac_mode": "heat_cool"}]])
+                               ["18:00", "comfort", {"hvac_mode": "heat_cool"}]]).to_stored()
     assert day == [["00:00", None, {"hvac_mode": "dry"}], ["08:00", None, {"hvac_mode": "dry"}],
                    ["12:00", None, {"hvac_mode": "auto", "fan_mode": "low"}],
                    ["14:00", None, {"hvac_mode": "auto", "fan_mode": "high"}],
                    ["18:00", "comfort", {"hvac_mode": "heat_cool"}]]
-    with pytest.raises(model.InvalidData):
-        model.normalize_day([["00:00", "eco", {"hvac_mode": "defrost"}]])
+    with pytest.raises(InvalidData):
+        schema.day([["00:00", "eco", {"hvac_mode": "defrost"}]]).to_stored()
 
 
 @pytest.mark.parametrize("mode", ["dry", "auto"])
@@ -420,7 +425,7 @@ async def test_a_dry_or_an_auto_slot_sends_the_hvac_mode_and_no_setpoint(bench: 
     assert bench.powered() == {SALON: mode}
     assert SALON not in bench.applied() and sent_to(bench) == []
     assert bench.settings() == {(SALON, "fan_mode"): "low"}
-    planned = bench.runtime.planned_targets(SALON)
+    planned = bench.runtime.read_model.planned_targets(SALON)
     assert (planned["preset"], planned["hvac_mode"], planned["next_preset"]) == (None, mode, "comfort")
     await bench.go_to("16:00")
     assert bench.powered() == {SALON: "cool"}

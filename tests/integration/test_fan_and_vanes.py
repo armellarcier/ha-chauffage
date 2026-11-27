@@ -7,7 +7,8 @@ from homeassistant.core import Context
 from conftest import CTX_USER, KINDS, Bench
 from hvac_helpers import AC_MODES, SALON, clear, start_ac_alone, start_salon
 
-from custom_components.chauffage import engine
+from custom_components.chauffage.domain.plan import Plan
+from custom_components.chauffage.domain.target import Target
 
 
 @pytest.fixture(params=KINDS)
@@ -39,9 +40,9 @@ async def test_a_slot_can_set_the_fan_and_the_vanes(bench: Bench):
 
 async def test_a_preset_s_value_on_a_thermostat_can_set_the_fan(bench: Bench):
     await start_salon(bench, "17:00", **AC_ATTRS)
-    await bench.runtime.set_mapping("climate.salon", {"comfort": {"preset_mode": "comfort", "fan_mode": "2"}})
+    await bench.runtime.schedules.set_mapping("climate.salon", {"comfort": {"preset_mode": "comfort", "fan_mode": "2"}})
     await bench.hass.async_block_till_done()
-    assert bench.runtime.targets_of("climate.salon")["comfort"] == {
+    assert bench.runtime.read_model.targets_of("climate.salon")["comfort"] == {
         "preset_mode": "comfort", "cool_preset_mode": "comfort", "fan_mode": "2"}
     bench.settings()
     await bench.go_to("17:30")
@@ -59,11 +60,10 @@ async def test_a_slot_sends_its_fan_with_the_rest_as_a_scene_does(bench: Bench):
 
 
 async def test_an_override_that_only_sets_the_cooling_setpoint_is_recorded(bench: Bench):
-    """A target without preset, temperature or HVAC mode (the websocket API accepts it): no
-    crash, and no kind or value for the automations of before #91."""
+    """A target without preset, temperature or HVAC mode (the websocket API accepts it)."""
     await start_salon(bench, "10:00", **AC_ATTRS)
-    await bench.set_override("climate.salon", bench.runtime.new_override({"cool_temperature": 24}))
-    assert bench.runtime.override_info("climate.salon")["kind"] is None
+    await bench.set_override("climate.salon", bench.runtime.overrides.new({"cool_temperature": 24}))
+    assert bench.runtime.overrides.info("climate.salon")["target"] == {"cool_temperature": 24}
 
 
 async def test_a_script_reads_the_fan_of_the_slots(bench: Bench):
@@ -107,7 +107,7 @@ async def test_an_override_leaves_the_fan_as_it_is(bench: Bench):
     await start_ac_alone(bench, FAN_DAY, "13:00", **FANS)
     await bench.go_to("14:10")
     clear(bench)
-    await bench.set_override(SALON, bench.runtime.new_override({"temperature": 23.0}, 30))
+    await bench.set_override(SALON, bench.runtime.overrides.new({"temperature": 23.0}, 30))
     assert fan(bench) == {}
     await bench.advance(31)
     assert bench.overrides() == {} and fan(bench) == {"fan_mode": "3"}
@@ -140,9 +140,9 @@ async def test_a_fan_the_thermostat_no_longer_lists_is_not_given_back(bench: Ben
 
 def test_the_fan_given_back_never_replaces_the_one_a_target_chooses():
     own = {"fan_mode": "auto", "swing_mode": "off"}
-    assert engine.restored({"temperature": 20.0, "fan_mode": "3"}, own) == {"temperature": 20.0, "fan_mode": "3", "swing_mode": "off"}
-    assert engine.restored({"hvac_mode": "off"}, own) == {"hvac_mode": "off"}
-    assert engine.restored(None, own) is None
+    assert Target({"temperature": 20.0, "fan_mode": "3"}).with_own_settings(own) == {"temperature": 20.0, "fan_mode": "3", "swing_mode": "off"}
+    assert Target({"hvac_mode": "off"}).with_own_settings(own) == {"hvac_mode": "off"}
+    assert Plan({}, "normal", {}, {}, {}, own_settings={"climate.salon": own}).sent_target_of("climate.salon", None, None) is None
 
 
 async def test_a_thermostat_back_online_still_gets_its_fan_back(bench: Bench):
@@ -163,9 +163,9 @@ async def test_a_thermostat_back_online_still_gets_its_fan_back(bench: Bench):
 async def test_the_card_is_told_the_fan_a_thermostat_gets_back(bench: Bench):
     """The card names it in the choice that sets no fan: "Thermostat's own (auto)"."""
     await start_ac_alone(bench, FAN_DAY, "13:00", **FANS)
-    assert bench.runtime.snapshot()["thermostats"][SALON]["own_settings"] == {}
+    assert bench.runtime.read_model.snapshot()["thermostats"][SALON]["own_settings"] == {}
     await bench.go_to("14:00")
-    assert bench.runtime.snapshot()["thermostats"][SALON]["own_settings"] == {"fan_mode": "auto"}
+    assert bench.runtime.read_model.snapshot()["thermostats"][SALON]["own_settings"] == {"fan_mode": "auto"}
 
 
 # ----- an override never holds the fan or the vanes -----
@@ -174,7 +174,7 @@ async def test_an_override_never_holds_the_fan_or_the_vanes(bench: Bench):
     """The fan and the vanes of an override come later (an override that holds only what was
     changed). Sent by the card or by an older card, they are dropped, and nothing is sent."""
     await start_ac_alone(bench, [["00:00", "eco"]], "10:00", **FANS)
-    await bench.set_override(SALON, bench.runtime.new_override(
+    await bench.set_override(SALON, bench.runtime.overrides.new(
         {"hvac_mode": "fan_only", "fan_mode": "3", "swing_mode": "vertical"}))
     assert bench.overrides()[SALON]["target"] == {"hvac_mode": "fan_only"}
     assert fan(bench) == {}
@@ -184,7 +184,7 @@ async def test_an_override_to_a_preset_does_not_take_the_fan_of_its_value(bench:
     """The preset's value on the thermostat sets the fan: a slot on that preset sends it, an
     override to that preset does not."""
     await start_ac_alone(bench, [["00:00", "eco"]], "10:00", **FANS)
-    await bench.runtime.set_mapping(SALON, {"comfort": {"temperature": 21, "fan_mode": "1"}})
+    await bench.runtime.schedules.set_mapping(SALON, {"comfort": {"temperature": 21, "fan_mode": "1"}})
     clear(bench)
     await bench.hass.services.async_call("chauffage", "set_override", {"entity_id": SALON, "preset": "comfort"},
                                          blocking=True)
@@ -198,7 +198,7 @@ async def test_a_fan_changed_by_hand_during_an_override_is_left_as_it_is(bench: 
     """An override in dry or in fan only. The fan set to 3 on the thermostat changes nothing in
     the override, and Chauffage does not set another fan back."""
     await start_ac_alone(bench, [["00:00", "eco"]], "10:00", **FANS)
-    await bench.set_override(SALON, bench.runtime.new_override({"hvac_mode": mode}))
+    await bench.set_override(SALON, bench.runtime.overrides.new({"hvac_mode": mode}))
     before = dict(bench.overrides()[SALON])
     current = bench.hass.states.get(SALON)
     bench.hass.states.async_set(SALON, current.state, {**current.attributes, "fan_mode": "3"}, context=CTX_USER)

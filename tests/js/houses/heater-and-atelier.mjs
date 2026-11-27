@@ -1,6 +1,7 @@
 // The salon, a heater (off and heat), and the atelier, a reversible air conditioner with a fan. The
 // salon is off at night, and the atelier has a slot that sets the fan and the vanes.
 import { WEEKEND, createCard, fakeHass, integrationData } from '../helpers.mjs';
+import { openSlot, settle } from '../driver.mjs';
 import { $$, text } from './dom.mjs';
 
 export const OFF = { hvac_mode: 'off' };
@@ -44,19 +45,23 @@ export function setup({ weeks, targets, overrides, planned, thermostats, atelier
   hass.entities['climate.atelier'] = { entity_id: 'climate.atelier' };
   return hass;
 }
-export const cardOf = (hass, config = {}) => createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config });
-export const select = (card, climate, d, idx) => { card._sel = { climate, day: d, idx }; card._render(); };
-export const thermostatCard = (hass, entity = 'climate.salon') => {
+export const cardOf = async (hass, config = {}) => { const card = createCard(hass, { thermostats: ['climate.salon', 'climate.atelier'], show: 'all', ...config }); await settle(); return card; };
+export const select = async (card, climate, d, idx) => openSlot(card, climate, idx, d);
+// A thermostat card, once drawn
+export const thermostatCard = async (hass, entity = 'climate.salon') => {
   const tc = document.createElement('chauffage-thermostat-card');
   tc.setConfig({ type: 'custom:chauffage-thermostat-card', entity });
   document.body.appendChild(tc);
   tc.hass = hass;
+  await settle();
   return tc;
 };
-export const moreInfo = (hass, entity = 'climate.salon') => {
+// A more-info block, once drawn
+export const moreInfo = async (hass, entity = 'climate.salon') => {
   const el = document.createElement('chauffage-moreinfo');
   document.body.appendChild(el);
   el.entity = entity;
   el.hass = hass;
+  await settle();
   return el;
 };

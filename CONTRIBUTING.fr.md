@@ -12,15 +12,21 @@ version sur un vrai Home Assistant.
 - [Docker](https://docs.docker.com/get-docker/) pour le HA de développement. Sous Windows et
   macOS, utilisez Docker Desktop.
 
-La carte est un fichier JavaScript servi tel quel : il n'y a rien à compiler. Node et Python ne
-servent qu'aux tests automatisés. Si Node ou Python n'est pas installé, les tests tournent dans
-Docker.
+La carte est écrite en TypeScript, dans `frontend/src/`. esbuild la regroupe en un seul fichier,
+que l'intégration sert. Node construit la carte et lance ses tests, Python lance les tests de
+l'intégration. Si Node ou Python n'est pas installé, les scripts les lancent dans Docker.
 
 ## Structure du dépôt
 
 ```
 custom_components/chauffage/        l'intégration (programmateur, entités, services, API websocket)
-custom_components/chauffage/frontend/  carte Lovelace + bloc injecté dans la fenêtre de détail
+custom_components/chauffage/domain/ les règles de Chauffage en objets valeur, sans Home Assistant
+custom_components/chauffage/storage/ les données stockées : leur format et la validation de ce qu'envoient la carte et les services (schema.py), et leur propriétaire (Installation)
+custom_components/chauffage/thermostats/  comment Chauffage lit un thermostat, et le commande (ThermostatGateway)
+custom_components/chauffage/app/    les services : programmateur, dérogations, changements à la main, plannings, réglages, règles, apprentissage, modèle de lecture, et le runtime qui les construit
+frontend/src/                       la carte, en TypeScript : cartes Lovelace, panneau, bloc injecté
+                                    dans la fenêtre de détail
+custom_components/chauffage/frontend/  la carte construite, servie par l'intégration (hors de git)
 dev/compose.yaml, dev/hass/         HA de développement jetable (VTherm + pièces simulées)
 dev/sim_rooms/, dev/sim_climate/    dev uniquement : modèle thermique des pièces (et une semaine
                                     d'historique simulée pour un HA de dev neuf), un climate à
@@ -30,7 +36,7 @@ docs/                               le guide utilisateur (une page par sujet, en
                                     français), et le glossaire, les décisions, les cas d'usage et
                                     le style d'écriture (en anglais)
 tests/fixtures/                     données stockées dans chaque ancien format (tests des migrations)
-scripts/                            test.sh, logs.sh, demo.sh
+scripts/                            build.mjs, build.sh, test.sh, logs.sh, demo.sh
 .github/workflows/                  tests (CI), hassfest, vérifications HACS et publication
 ```
 
@@ -125,7 +131,7 @@ tout de suite des courbes réalistes. Le recorder garde 10 jours.
 
 | Vous modifiez… | Pour appliquer la modification |
 |---|---|
-| `custom_components/chauffage/frontend/*.js` (la carte) | Rechargez la page du navigateur. |
+| `frontend/src/*.ts` (la carte) | Rechargez la page du navigateur. Le service `card` du HA de développement reconstruit la carte. |
 | `custom_components/chauffage/*.py`, `*.json` | `docker compose -f dev/compose.yaml restart homeassistant` |
 | `dev/hass/configuration.yaml`, `dev/sim_rooms/*.py`, `dev/sim_climate/*.py` | `docker compose -f dev/compose.yaml restart homeassistant` |
 
@@ -172,7 +178,7 @@ et à chaque pull request (`.github/workflows/tests.yml`).
 
 | Suite | Outil | Ce qui est couvert |
 |---|---|---|
-| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée, `custom_components/` chargé | créneaux appliqués au bon moment, plannings, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin, les règles d'activation, la logique pure (`engine.py`), le stockage et ses migrations, les entités, les services, l'API websocket, l'historique lu dans le recorder, les flux de configuration et d'options, l'import depuis le package v0.1 |
+| `tests/integration/` | pytest + [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) : un vrai Home Assistant en mémoire, horloge figée, `custom_components/` chargé | créneaux appliqués au bon moment, plannings, thermostats éteints ou injoignables, détection des changements manuels, dérogations et leur fin, les règles d'activation, la logique pure (`domain/`), le stockage et ses migrations, les entités, les services, l'API websocket, l'historique lu dans le recorder, les flux de configuration et d'options |
 | `tests/js/` | `node --test` + [jsdom](https://github.com/jsdom/jsdom) (navigateur simulé), avec un faux HA et une fausse intégration (`tests/js/helpers.mjs`) | la carte : calculs, édition des semaines, copier / coller, enregistrement, plannings, préréglages, règles d'activation, dérogations, historique et journée en grand, fenêtre de détail |
 
 ### Les tests de l'intégration
@@ -185,6 +191,62 @@ comme le fait la carte.
 Les tests de comportement tournent sur **les trois types de thermostats**, grâce à la fixture
 `thermostat_kind` : `vtherm`, `standard` et `plain`. Si un test n'a de sens que pour certains
 types, appelez `bench.needs(...)` dans le test.
+
+Lisez ce que Chauffage garde à travers le banc : `bench.presets()`, `bench.overrides()` ou
+`bench.snapshot()`, le message que reçoit la carte. Pour lire ce que Chauffage a enregistré,
+appelez `await bench.stored()`. Ne lisez jamais `runtime.installation`. Pour simuler des données
+enregistrées par une ancienne version, appelez `bench.edit_stored_data(...)`.
+
+### Les filets de sécurité de la réécriture
+
+Ces tests gardent le comportement pendant la réécriture du code (voir
+[docs/rewrite-plan.md](docs/rewrite-plan.md)) :
+
+| Test | Ce qu'il vérifie |
+|---|---|
+| `test_subscribe_golden.py` | La carte reçoit exactement le message de `tests/integration/golden/subscribe.json`. |
+| `test_store.py` | Chauffage réenregistre les données stockées telles qu'il les a lues, depuis chaque ancien format. |
+| `test_pure_domain.py` | Le domaine n'importe rien de Home Assistant. |
+| `tests/shared/cases.json` | L'intégration (`test_shared_cases.py`) et la carte (`shared-cases.test.mjs`) donnent les mêmes résultats. |
+
+Pour changer exprès le message de `chauffage/subscribe`, supprimez `golden/subscribe.json`,
+lancez le test une fois, et relisez le nouveau fichier dans le diff.
+
+### Les tests de la carte
+
+Pilotez la carte avec `tests/js/driver.mjs`, jamais avec ses membres privés. Par exemple,
+cliquez sur un contrôle avec `act(card, 'save')`, et vérifiez `unsaved(card)` plutôt que
+`card._dirty`. S'il manque une fonction au driver, ajoutez-la au driver. N'allez dans la carte
+que si aucune action d'un utilisateur ne peut le faire, et dites pourquoi dans un commentaire
+`Internal:`.
+
+Testez un brouillon de `frontend/src/state/` directement, sans la carte, comme le fait
+`week-draft.test.mjs`. Chaque test a un nouvel abonnement à l'intégration : `fakeHass` appelle
+`resetClient()`.
+
+Un élément Lit se dessine après la tâche en cours, pas tout de suite. Après une action, attendez
+`await settle()` avant de lire l'élément.
+
+La carte demande à l'intégration ce que vaut un préréglage sur un thermostat qu'elle ne programme
+pas encore (`chauffage/preset/preview`). La fausse intégration répond avec `valueOn`, dans
+`tests/js/helpers.mjs`, et range ces questions dans `hass.presetPreviews`, pas dans `hass.events`.
+La réponse arrive elle aussi après la tâche en cours : `await settle()` l'attend.
+
+Pour tester la carte pendant qu'une réponse est en route, mettez
+`hass.presetPreviewAnswers = 'hold'`. La fausse intégration ne répond alors que quand vous appelez
+`hass.answerPresetPreviews()`. Pour tester une intégration qui ne répond pas, mettez
+`hass.presetPreviewAnswers = 'fail'`.
+
+### Le TypeScript de la carte
+
+Les tests de la carte lancent les sources TypeScript sans build : Node retire les types. Donc :
+
+- N'écrivez que de la syntaxe que Node sait retirer, par exemple ni `enum` ni propriétés de
+  paramètre.
+- Importez un module avec son extension `.ts`.
+- Déclarez les propriétés d'un élément Lit dans `static properties`, avec des champs `declare`.
+  Node ne sait pas retirer les décorateurs.
+- Vérifiez les types avec `npm run typecheck`. `scripts/test.sh js` et la CI le lancent aussi.
 
 ## Versions de Home Assistant prises en charge
 
@@ -451,12 +513,6 @@ de les migrer. Les thermostats reprennent alors leur planning. Indiquez-le dans 
 La carte ne voit que l'API websocket. Le format de l'API websocket évolue avec l'intégration :
 la carte n'a donc besoin d'aucune migration.
 
-### Les données du package v0.1
-
-L'intégration importe les données du package v0.1 (`sensor.programmes_chauffage`) quand on
-l'ajoute. L'import se trouve dans `importer.py`, et `tests/fixtures/schedules-v1.json` contient
-le format du package.
-
 ## Publier une version
 
 Les versions suivent la [numérotation sémantique](https://semver.org/lang/fr/). Avant la 1.0, une
@@ -476,13 +532,9 @@ changements ne se voient pas.
 
 ### 3. Changer la version
 
-Indiquez la nouvelle version dans ces fichiers :
-
-- `custom_components/chauffage/frontend/chauffage-programme-card.js` (`VERSION`) ;
-- `package.json` ;
-- `custom_components/chauffage/manifest.json`.
-
-`tests/js/release.test.mjs` vérifie que ces versions concordent.
+Indiquez la nouvelle version dans `custom_components/chauffage/manifest.json`. La carte prend sa
+version dans le manifeste quand elle est construite. `tests/js/release.test.mjs` vérifie que le
+changelog a la même version.
 
 Dans `CHANGELOG.md`, déplacez les entrées « Unreleased » sous la nouvelle version, avec la date
 et les étapes de mise à jour.
@@ -497,9 +549,12 @@ git push origin main v0.3.0
 ```
 
 Le workflow `Release` (`.github/workflows/release.yml`) lance les tests et vérifie la version. Il
-publie ensuite la release GitHub, avec l'entrée du changelog et `ha-chauffage-v0.3.0.zip`. Le ZIP
-contient `custom_components/chauffage/`, à décompresser dans le dossier de configuration de Home
-Assistant, sans HACS.
+construit ensuite la carte et publie la release GitHub, avec l'entrée du changelog et
+`ha-chauffage.zip`.
+
+Le ZIP contient les fichiers de `custom_components/chauffage/`, carte construite comprise. HACS
+installe ce ZIP (`zip_release` dans `hacs.json`). Sans HACS, décompressez-le dans le dossier
+`custom_components/chauffage/` de la configuration de Home Assistant.
 
 ### Préversions
 
@@ -524,9 +579,8 @@ L'option `language` de la carte permet d'imposer une langue.
 
 ### Les textes de la carte
 
-- Écrivez les textes dans l'objet `I18N` de
-  `custom_components/chauffage/frontend/chauffage-programme-card.js`. `I18N` contient un objet par
-  langue, avec des clés en anglais et des variables `{placeholder}`.
+- Écrivez les textes dans `frontend/src/i18n/`, un fichier par langue, par exemple `fr.ts`.
+  Chaque fichier contient un objet, avec des clés en anglais et des variables `{placeholder}`.
 - Donnez à chaque langue exactement les mêmes clés et les mêmes variables.
   `tests/js/i18n.test.mjs` le vérifie.
 - N'écrivez jamais un format à la main. Les heures, les noms des jours et les nombres viennent
@@ -544,13 +598,10 @@ les services, les réparations et les erreurs.
 
 ### Ajouter une langue
 
-1. Ajoutez un objet à `I18N`, avec les mêmes clés que `en`.
-2. Complétez `resolveLanguage`.
-3. Lancez `scripts/test.sh js`.
-
-Quand la carte sera compilée (voir la feuille de route), les traductions passeront à un fichier
-JSON par langue, avec ICU MessageFormat pour les pluriels, comme dans la plupart des cartes Home
-Assistant.
+1. Copiez `frontend/src/i18n/en.ts` dans un fichier au nom de la langue, et traduisez ses textes.
+2. Ajoutez la langue à `I18N`, dans `frontend/src/i18n/index.ts`.
+3. Complétez `resolveLanguage`, dans `frontend/src/i18n/locale.ts`.
+4. Lancez `scripts/test.sh js`.
 
 ## Les tests d'abord
 
@@ -626,11 +677,11 @@ et `CLAUDE.md` renvoient ici.
   contenir des Enum, par exemple un `preset_mode` ZHA. Convertissez-les avec `.value` avant de
   les stocker ou de les mettre dans un attribut.
 - **Dites pourquoi Chauffage agit sur un thermostat** (#49) :
-  - Envoyez chaque commande par `send()`, avec sa raison. `send()` journalise la commande au
-    niveau INFO.
-  - Commencez et terminez chaque dérogation par `_keep_override()` et `_drop_override()`, avec sa
-    source ou sa raison. Ces fonctions journalisent la dérogation, émettent l'événement, et la
-    décrivent dans le journal de bord.
+  - Envoyez chaque commande par `gateway.send()` (`thermostats/gateway.py`), avec sa raison.
+    `gateway.send()` journalise la commande au niveau INFO.
+  - Commencez et terminez chaque dérogation par `overrides.keep()` et `overrides.drop()`
+    (`app/overrides.py`), avec sa source ou sa raison. Ces fonctions journalisent la dérogation,
+    émettent l'événement, et la décrivent dans le journal de bord.
   - Donnez à une nouvelle source ou raison son texte dans chaque langue de `logbook.py`.
     `test_traces.py` le vérifie.
   - Donnez à une nouvelle trace son test dans `test_traces.py`.

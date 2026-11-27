@@ -87,7 +87,7 @@ async def test_a_schedule_the_card_sent_no_week_in_is_eco_all_week(bench: Bench)
     await start(bench, "10:00")
     bench.applied()
     await bench.activate_schedule("Holiday")  # no holiday week sent for the office
-    assert bench.runtime.planned("climate.bureau")[0].preset == "eco"
+    assert bench.runtime.read_model.planned("climate.bureau")[0].preset == "eco"
     assert bench.applied()["climate.salon"] == "frost"
 
 

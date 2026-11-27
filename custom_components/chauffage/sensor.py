@@ -19,7 +19,8 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import ChauffageConfigEntry, engine
+from . import ChauffageConfigEntry
+from .domain.timeline import parse_datetime
 from .const import NEXT_CHANGE_KEY, OVERRIDE_END_KEY, PLANNED_PRESET_KEY
 from .entity import ThermostatSensorEntity, async_follow_thermostats
 
@@ -44,19 +45,19 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
 
     @property
     def options(self) -> list[str]:
-        return [preset["id"] for preset in self.runtime.data["presets"]]
+        return [preset["id"] for preset in self.runtime.installation.presets]
 
     def _name(self, preset_id: str | None) -> str | None:
-        return next((p["name"] for p in self.runtime.data["presets"] if p["id"] == preset_id), None)
+        return next((p["name"] for p in self.runtime.installation.presets if p["id"] == preset_id), None)
 
     @property
     def native_value(self) -> str | None:
-        current, _, _ = self.runtime.planned(self.climate)
+        current, _, _ = self.runtime.read_model.planned(self.climate)
         return current.preset if current and current.preset in self.options else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        planned = self.runtime.planned_targets(self.climate)
+        planned = self.runtime.read_model.planned_targets(self.climate)
         return {
             "preset_name": self._name(planned["preset"]),
             # The HVAC mode the slot chooses, as it runs on the thermostat (#91): none on a heater
@@ -67,7 +68,7 @@ class PlannedPresetSensor(ThermostatSensorEntity, SensorEntity):
             "next_hvac_mode": planned["next_hvac_mode"],
             "next_start": planned["next_start"],
             # What each preset gives in the slot's HVAC mode: the cooling values while it cools
-            "temperatures": self.runtime.preset_temperatures_of(self.climate, planned["hvac_mode"] == "cool"),
+            "temperatures": self.runtime.read_model.preset_temperatures_of(self.climate, planned["hvac_mode"] == "cool"),
         }
 
 
@@ -78,13 +79,13 @@ class OverrideEndSensor(ThermostatSensorEntity, SensorEntity):
 
     @property
     def native_value(self) -> datetime | None:
-        end = self.runtime.override_info(self.climate)["end"]
-        return engine.parse_datetime(end) if end else None
+        end = self.runtime.overrides.info(self.climate)["end"]
+        return parse_datetime(end) if end else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        info = self.runtime.override_info(self.climate)
-        return {key: info[key] for key in ("target", "kind", "value", "preset")}
+        info = self.runtime.overrides.info(self.climate)
+        return {key: info[key] for key in ("target", "preset")}
 
 
 class NextChangeSensor(ThermostatSensorEntity, SensorEntity):
@@ -97,12 +98,12 @@ class NextChangeSensor(ThermostatSensorEntity, SensorEntity):
 
     @property
     def native_value(self) -> datetime | None:
-        return self.runtime.next_change_info(self.climate)["start"]
+        return self.runtime.read_model.next_change_info(self.climate)["start"]
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        info = self.runtime.next_change_info(self.climate)
-        name = next((p["name"] for p in self.runtime.data["presets"] if p["id"] == info["preset"]), None)
+        info = self.runtime.read_model.next_change_info(self.climate)
+        name = next((p["name"] for p in self.runtime.installation.presets if p["id"] == info["preset"]), None)
         # Named like a climate entity's attributes, to apply with the climate services as they are
         return {"preset": info["preset"], "preset_name": name,
                 **{key: value for key, value in info.items() if key not in ("start", "preset")}}
