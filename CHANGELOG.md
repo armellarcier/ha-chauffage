@@ -9,6 +9,20 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
+The stored data does not change format.
+
+### Added
+
+- **Turn rooms on and off yourself** (#159). Turn off the new setting *Control the HVAC mode*,
+  and Chauffage leaves the HVAC mode to you, as before 0.10. Turning a thermostat off or on by
+  hand is then not an override, and a thermostat that you turned off stays off. A Versatile
+  Thermostat keeps getting its slots while it is off.
+  - Set it for the house in the ⚙ of the Chauffage panel, or for one thermostat on its page in
+    the panel.
+  - Before the setting turns off, the panel lists the slots that change. A slot without a
+    preset, such as *Off*, is removed. A *Heat* or *Cool* slot loses its HVAC mode.
+  - The setting is on by default: nothing changes when you upgrade.
+
 ## [0.11.0-alpha.1] - 2026-11-27
 
 **An alpha: install it only to try it.** The code of the integration and of the card is

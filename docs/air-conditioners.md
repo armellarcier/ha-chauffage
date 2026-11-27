@@ -43,6 +43,11 @@ heats. This change is an [override](overrides.md). The air conditioner keeps its
 To cool at the slot's preset, tap *Cool* on the card instead. The air conditioner then takes the
 preset's temperature when cooling.
 
+**Choose the HVAC mode yourself.** If you prefer to switch heat and cool yourself, turn off the
+setting *Control the HVAC mode*. The slots then choose no HVAC mode, and a slot's preset gives
+its temperature for the HVAC mode that you chose. See
+[Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself).
+
 ## Fan only, dry and auto
 
 On a thermostat that offers them, **Fan only**, **Dry** and **Auto** are HVAC modes of a slot.

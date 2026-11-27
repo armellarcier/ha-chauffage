@@ -153,8 +153,9 @@ The three override events carry `entity_id`, `start` and `end`.
 - `source`: `thermostat` (changed by hand), `card`, `panel` (the Chauffage panel) or `service`.
 
 `chauffage_override_ended` also carries `reason`, for example `expired`, `thermostat` (set back
-to its schedule by hand) or `card`. The other reasons are `panel`, `service`, `paused` and
-`forgotten`.
+to its schedule by hand) or `card`. The other reasons are `panel`, `service`, `paused`,
+`forgotten` and `hvac_mode_not_controlled`. The last one ends an off override when Chauffage
+stops controlling the HVAC mode.
 
 When Chauffage chose the end of the override, `ends_at` says which rule chose it: `duration`,
 `next_slot` or `no_next_slot`. For example, a change by hand that lasts until the next slot

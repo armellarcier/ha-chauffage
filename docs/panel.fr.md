@@ -19,8 +19,9 @@ Le panneau a trois onglets :
   [Préréglages](presets.fr.md).
 
 **Réglages.** Ouvrez le bouton ⚙, en haut à droite du panneau, pour régler la durée des
-dérogations, la fin des dérogations, combien de temps un thermostat éteint le reste, et le
-niveau d'accès. Voir [Dérogations](overrides.fr.md). Pour changer les autres
+dérogations, la fin des dérogations, combien de temps un thermostat éteint le reste, si
+Chauffage contrôle le mode HVAC, et le niveau d'accès. Voir [Dérogations](overrides.fr.md) et
+[Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même). Pour changer les autres
 [options](#options), cliquez sur *Autres options de Chauffage*, en bas des réglages. Le lien
 ouvre la page de l'intégration, où vous cliquez sur *Configurer*. Seuls les administrateurs
 voient ce lien.
@@ -37,6 +38,9 @@ vous pouvez copier une semaine vers un autre planning, et afficher l'*Historique
 
 Avec le niveau d'accès *Programmer*, *Modifier sa semaine* ouvre le tableau de bord qui contient
 la carte des plannings du thermostat, et non le panneau.
+
+En haut de la page, *Contrôler le mode HVAC* dit si Chauffage allume et éteint ce thermostat.
+Voir [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même).
 
 Chaque page a sa propre adresse, par exemple `/chauffage/thermostats/climate.salon`. Vous pouvez
 mettre un lien vers une page dans un tableau de bord ou une notification.
