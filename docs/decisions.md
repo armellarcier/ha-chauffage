@@ -544,6 +544,36 @@ future contributor might question.
   - **This is a behavior change for upgrading users**: a thermostat turned off by hand in the
     past comes back on at the next slot, and at the restart that follows the upgrade. The
     changelog says so under "Upgrading". A thermostat to leave alone is paused.
+- **The user chooses whether Chauffage controls the HVAC mode** (#159, the owner's decision of
+  2026-11-27). Since #91, turning a thermostat off by hand is an override, so Chauffage turns it
+  back on. A user who turns bedrooms on and off by hand, as people come and go, lost the
+  behavior of 0.9: the thermostat stayed off, and a VTherm kept getting its slots, so it started
+  again at the right temperature. Pausing does not help: a paused thermostat gets nothing, and
+  resuming turns it on. The author of VTherm asked for every HVAC-mode override to be optional,
+  not only off.
+  - **The setting *Control the HVAC mode* is on by default**, so nothing changes on upgrade. It
+    is set for the house in the settings dialog of the panel, and each thermostat can follow the
+    house or say on or off, in its sheet of the panel.
+  - **Off, the thermostat is scheduled as a thermostat with a single HVAC mode, as in 0.9.**
+    Chauffage never sends it an HVAC mode. Its slots and its overrides choose no HVAC mode, and
+    the card offers none. A change of HVAC mode by hand is never an override. A thermostat
+    turned off is left alone, except a VTherm, which gets its slots and its override while it is
+    off (#74). The setting *Turned off* does not apply to it. `chauffage.set_override` with an
+    `hvac_mode` is refused on it.
+  - **The HVAC mode the thermostat shows picks the temperature of a preset**: its cooling value
+    when the thermostat cools. A preset sent as the thermostat's own preset already does this.
+  - **Turning the setting off converts the weeks, after the user has seen what changes.** The
+    panel lists the slots that change, and the user confirms or cancels. A slot without a preset
+    (off, fan only, dry, auto) is removed, and the slot before it continues. A heat, cool or
+    heat/cool slot keeps its preset and loses its HVAC mode. Turning the setting on again
+    converts nothing.
+  - **A slot pasted on such a thermostat is converted the same way**, as an edited slot already
+    loses an HVAC mode its thermostat cannot follow. The integration refuses a week that gives
+    such a thermostat an HVAC mode.
+  - **The panel holds the setting, not an entity.** A change from an entity or an automation
+    could not show the user what the conversion changes.
+  - *Claude's proposal, to confirm:* a converted slot keeps its fan and its vanes, which are not
+    an HVAC mode.
 - **A Versatile Thermostat is read as it was asked, not as it protects itself** (#91, #92).
   VTherm turns itself off for an open window or with its auto start/stop, and refuses heat
   until the cause ends. VTherm 10.5 keeps what it was asked for in `requested_state`
