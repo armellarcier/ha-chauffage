@@ -222,6 +222,7 @@
     "temperature_in_heat_cool": { "message": "{entity_id} est en mode HVAC heat_cool, qui prend une plage de températures. Envoyez target_temp_low et target_temp_high avec hvac_mode heat_cool, ou une température avec un autre mode HVAC." },
     "preset_not_in_hvac_mode": { "message": "Le préréglage {preset} n'a pas de valeur pour le mode HVAC {hvac_mode} sur {entity_id}." },
     "hvac_mode_not_listed": { "message": "{entity_id} n'a pas le mode HVAC {hvac_mode}. Ses modes HVAC : {hvac_modes}." },
+    "hvac_mode_not_controlled": { "message": "Chauffage ne contrôle pas le mode HVAC de {entity_id} : envoyez un préréglage ou une température." },
     "range_incomplete": { "message": "Envoyez target_temp_low et target_temp_high ensemble." },
     "range_inverted": { "message": "target_temp_low doit être sous target_temp_high." },
     "heat_cool_takes_a_range": { "message": "Le mode HVAC heat_cool prend un préréglage, ou target_temp_low et target_temp_high, pas une température." },

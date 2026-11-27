@@ -51,6 +51,10 @@ class Thermostat:
     supports_range: bool = False
     target_temp_low: float | None = None
     target_temp_high: float | None = None
+    # The setting *Control the HVAC mode* (#159). Off, the thermostat is scheduled as a thermostat
+    # with a single HVAC mode, as in 0.9: Chauffage sends it no HVAC mode, a change of HVAC mode by
+    # hand is not an override, and it is left alone while off, except a VTherm (#74)
+    hvac_control: bool = True
 
 
 # The attributes of a target compared as they are, with the thermostat's field of the same name
@@ -114,7 +118,11 @@ def ready(attributes: Mapping[str, Any], vtherm: bool = False) -> bool:
 
 def ignored(thermostat: Thermostat) -> bool:
     """A thermostat left alone: unavailable or unknown, or not ready yet. Not one turned off:
-    the schedule decides whether a thermostat is off (#91)."""
+    the schedule decides whether a thermostat is off (#91). Unless Chauffage does not control its
+    HVAC mode (#159): then a thermostat turned off is left alone, as in 0.9, except a VTherm,
+    which keeps the setpoint asked while off and starts again on it (#74)."""
+    if not thermostat.hvac_control and thermostat.state == OFF and not thermostat.vtherm:
+        return True
     return not thermostat.ready or thermostat.state in IGNORED_STATES
 
 
@@ -149,8 +157,10 @@ def slot_hvac_mode(settings: Mapping[str, Any], thermostat: Thermostat | None) -
     may say one this thermostat does not list. A thermostat that only heats carries no HVAC
     mode: a heater with one HVAC mode never does, and a valve that also lists auto is left in
     the HVAC mode it has by a slot that says none. A thermostat whose HVAC modes are not known:
-    as stored."""
+    as stored. A thermostat whose HVAC mode Chauffage does not control (#159): none."""
     mode = settings.get("hvac_mode")
+    if thermostat is not None and not thermostat.hvac_control:
+        return None
     if mode in NO_PRESET_MODES or thermostat is None or not thermostat.hvac_modes:
         return mode
     choices = setpoint_modes(thermostat)
@@ -204,8 +214,8 @@ def needs_turning_on(target: Target, thermostat: Thermostat | None, planned: str
     fan only or dry, while the target holds a setpoint (fan only and dry take none). A target
     without a setpoint turns nothing on: the slot of a preset that has no value on this
     thermostat has nothing to send. Not when the thermostat has no HVAC mode to be turned on
-    in, nor when its state is not known yet."""
-    if thermostat is None or not any(key in target for key in (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)):
+    in, nor when its state is not known yet, nor when Chauffage does not control its HVAC mode."""
+    if thermostat is None or not thermostat.hvac_control or not any(key in target for key in (*SETPOINT_KEYS, *COOL_KEYS, *RANGE_KEYS)):
         return False
     return thermostat.state in IDLE and on_mode(thermostat, planned) not in (None, thermostat.state)
 
@@ -405,7 +415,10 @@ def fit(target: Target, thermostat: Thermostat | None) -> Target:
 def hvac_satisfied(target: Target, thermostat: Thermostat) -> bool:
     """The thermostat is in the target's HVAC mode (as read, or as shown: a VTherm read as on
     while it shows off satisfies an off target), or on when the target gives none: not off, and
-    not in fan only or dry when the target holds a setpoint."""
+    not in fan only or dry when the target holds a setpoint. Any HVAC mode when Chauffage does not
+    control it."""
+    if not thermostat.hvac_control:
+        return True
     if "hvac_mode" in target:
         return target["hvac_mode"] in (thermostat.state, thermostat.shown)
     return thermostat.state != OFF and not needs_turning_on(target, thermostat)
@@ -738,20 +751,28 @@ def manual_change(
     thermostat doing what the slot asks (`back_to`; `preset_temperature`: what the expected
     preset gives on this thermostat), the schedule resumes (RESUME).
     Chauffage sends nothing for a change by hand.
+
+    When Chauffage does not control the HVAC mode (#159), as in 0.9: the HVAC mode is not part
+    of the change, and the setpoint counts in any HVAC mode (a VTherm off gets its setpoints).
     """
     if ignored(after) or before.state in IGNORED_STATES:
         return None
-    mode_changed = after.state != before.state
+    control = after.hvac_control
+    mode_changed = control and after.state != before.state
+
+    def takes_setpoint(state: str) -> bool:
+        return state in SETPOINT_MODES or not control
+
     slot_sets_one = expected is None or any(key in expected for key in SETPOINT_TARGET_KEYS)
     change = None
-    if after.state in SETPOINT_MODES and slot_sets_one:
-        change = setpoint_changed(before, after, by_user) if before.state in SETPOINT_MODES else shown_setpoint(after)
+    if takes_setpoint(after.state) and slot_sets_one:
+        change = setpoint_changed(before, after, by_user) if takes_setpoint(before.state) else shown_setpoint(after)
     if not mode_changed and change is None:
         return None
     target = dict(override or {})
     if mode_changed:
         target["hvac_mode"] = after.state
-    if after.state not in SETPOINT_MODES or change is not None:
+    if not takes_setpoint(after.state) or change is not None:
         target = {key: value for key, value in target.items() if key not in SETPOINT_TARGET_KEYS} | (change or {})
     if override is not None and same_target(target, override, after):
         return None
