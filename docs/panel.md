@@ -17,8 +17,9 @@ The panel has three tabs:
 - **Presets.** Set what each preset does on each thermostat. See [Presets](presets.md).
 
 **Settings.** Open the ⚙ at the top right of the panel to set the override duration, the end of
-overrides, how long a thermostat turned off stays off, and the access level. See
-[Overrides](overrides.md). To change the other [options](#options), click *Other Chauffage
+overrides, how long a thermostat turned off stays off, whether Chauffage controls the HVAC mode,
+and the access level. See [Overrides](overrides.md) and
+[Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself). To change the other [options](#options), click *Other Chauffage
 options* at the foot of the settings. The link opens the integration's page, where you click
 *Configure*. Only administrators see the link.
 
@@ -34,6 +35,9 @@ week to another schedule, and show the thermostat's *History*.
 
 With the access level *Plan*, *Edit its week* opens the dashboard that holds the thermostat's
 schedule card, not the panel.
+
+At the top of the page, *Control the HVAC mode* says whether Chauffage turns this thermostat on
+and off. See [Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself).
 
 Each page has its own address, for example `/chauffage/thermostats/climate.living_room`. You can
 link to a page from a dashboard or a notification.

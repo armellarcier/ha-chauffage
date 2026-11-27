@@ -79,6 +79,9 @@ lointain. Chauffage rallume alors le thermostat.
 Sur un Versatile Thermostat, l'extinction à la main devient une dérogation à partir de
 Versatile Thermostat 10.5.
 
+Pour allumer et éteindre les pièces vous-même, sans dérogation, voir
+[Allumer et éteindre les pièces vous-même](#allumer-et-éteindre-les-pièces-vous-même).
+
 **Combien de temps un thermostat reste éteint.** Dans les réglages, sous *Dérogations*, le
 réglage *Thermostat éteint* offre les trois mêmes choix que la fin des autres dérogations. Le
 choix par défaut est *Jusqu'au prochain créneau*. Le réglage vaut aussi quand vous touchez
@@ -95,3 +98,31 @@ donnez au thermostat un planning dont les créneaux sont *Éteint*.
 
 **Un Versatile Thermostat qui s'éteint de lui-même**, par exemple pour une fenêtre ouverte, n'a
 pas de dérogation. Le Versatile Thermostat se rallume tout seul quand la fenêtre se ferme.
+
+## Allumer et éteindre les pièces vous-même
+
+Vous allumez et éteignez les pièces à la main, selon qui est là ? Désactivez le réglage
+*Contrôler le mode HVAC*. Chauffage vous laisse alors le mode HVAC, comme avant la version 0.10.
+
+**Ce qui change.**
+
+- Chauffage n'allume ni n'éteint jamais un thermostat, et ne le fait jamais passer du chauffage
+  à la clim.
+- Éteindre ou allumer un thermostat à la main ne crée pas de dérogation.
+- Un thermostat que vous avez éteint ne reçoit rien jusqu'à ce que vous le rallumiez. Chauffage
+  le met alors sur son créneau.
+- Un Versatile Thermostat continue de recevoir ses créneaux pendant qu'il est éteint. Il
+  redémarre donc sur le bon préréglage.
+- Sur un climatiseur, le mode HVAC que vous avez choisi décide de la température du préréglage.
+  Par exemple, *Confort* donne 25 °C quand le climatiseur refroidit.
+
+Une consigne changée à la main reste une dérogation.
+
+**Où le régler.** Pour toute la maison, ouvrez le bouton ⚙ du panneau Chauffage. Pour un seul
+thermostat, ouvrez sa page dans le panneau, puis choisissez *Comme la maison*, *Activé* ou
+*Désactivé*.
+
+**Vos semaines changent.** Avant que le réglage se désactive, le panneau liste les créneaux qui
+changent. Vous confirmez ou vous annulez. Un créneau sans préréglage, par exemple *Éteint* ou
+*Ventilation*, est supprimé, et le créneau d'avant continue. Un créneau *Chauffe* ou *Clim*
+garde son préréglage et perd son mode HVAC. Réactiver le réglage ne change rien aux semaines.

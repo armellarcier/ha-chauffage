@@ -45,6 +45,11 @@ créneau qui chauffe. Ce changement est une [dérogation](overrides.fr.md). La c
 sa propre consigne. Pour climatiser sur le préréglage du créneau, touchez plutôt *Clim* sur la
 carte. La climatisation prend alors la température du préréglage en clim.
 
+**Choisir le mode HVAC vous-même.** Si vous préférez passer vous-même du chauffage à la clim,
+désactivez le réglage *Contrôler le mode HVAC*. Les créneaux ne choisissent alors plus de mode
+HVAC, et le préréglage d'un créneau donne sa température pour le mode HVAC que vous avez choisi.
+Voir [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même).
+
 ## Ventilation, déshumidification et auto
 
 Sur un thermostat qui les propose, **Ventilation**, **Déshum.** et **Auto** sont des modes HVAC

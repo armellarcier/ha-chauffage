@@ -174,6 +174,17 @@ const I18N = {
     offEndNextSlot: 'Until the next slot (default)',
     offEndDuration: 'For {duration}',
     overrideNextSlotMeans: "A slot that starts in less than 15 min doesn't count.",
+    hvacControlTitle: 'Control the HVAC mode',
+    hvacControlOn: 'On (default)',
+    hvacControlOff: 'Off',
+    hvacControlHelp: 'Off: Chauffage never turns a thermostat on or off, and never switches it between heat and cool.',
+    hvacControlHouse: 'As the house ({value})',
+    hvacControlHouseOn: 'on',
+    hvacControlHouseOff: 'off',
+    hvacControlThermostatOn: 'On',
+    hvacControlAsk: 'These slots change:',
+    hvacSlotRemoved: 'removed',
+    hvacControlConfirm: 'Turn off',
     overrideDurationTitle: 'Duration',
     overrideDurationInvalid: 'Choose a duration from {min} to {max}, in hours and minutes: 2:45.',
     nextClose: 'Close',
@@ -515,6 +526,17 @@ const I18N = {
     offEndNextSlot: "Jusqu'au prochain créneau (par défaut)",
     offEndDuration: 'Pendant {duration}',
     overrideNextSlotMeans: 'Un créneau qui commence dans moins de 15 min ne compte pas.',
+    hvacControlTitle: 'Contrôler le mode HVAC',
+    hvacControlOn: 'Activé (par défaut)',
+    hvacControlOff: 'Désactivé',
+    hvacControlHelp: "Désactivé : Chauffage n'allume ni n'éteint jamais un thermostat, et ne le fait jamais passer du chauffage à la clim.",
+    hvacControlHouse: 'Comme la maison ({value})',
+    hvacControlHouseOn: 'activé',
+    hvacControlHouseOff: 'désactivé',
+    hvacControlThermostatOn: 'Activé',
+    hvacControlAsk: 'Ces créneaux changent :',
+    hvacSlotRemoved: 'supprimé',
+    hvacControlConfirm: 'Désactiver',
     overrideDurationTitle: 'Durée',
     overrideDurationInvalid: 'Choisissez une durée de {min} à {max}, en heures et minutes : 2:45.',
     nextClose: 'Fermer',
@@ -1191,6 +1213,14 @@ const hvacModesOf = (hass, climate) => {
   const modes = st && Array.isArray(st.attributes.hvac_modes) ? st.attributes.hvac_modes.map(String) : null;
   return { modes, on: (modes || []).filter((m) => m !== 'off') };
 };
+// Whether Chauffage controls a thermostat's HVAC mode (#159): its own setting, else the house's,
+// on by default. Without control, its slots and its overrides choose no HVAC mode, and the card
+// offers none. `data`: the integration's data, else the data received last
+function controlsHvac(climate, data = INTEGRATION.data) {
+  const t = data && data.thermostats && data.thermostats[climate];
+  if (t && typeof t.controls_hvac_mode === 'boolean') return t.controls_hvac_mode;
+  return !data || data.hvac_mode_control !== false;
+}
 // A thermostat that heats and cools: a preset's value on it has a cooling setpoint
 const isReversible = (hass, climate) => {
   const { on } = hvacModesOf(hass, climate);
@@ -1201,8 +1231,9 @@ const coolsOnly = (hass, climate) => {
   const { on } = hvacModesOf(hass, climate);
   return on.includes('cool') && !on.includes('heat');
 };
-// The whole week to heat or to cool (the week's menu): on a thermostat that lists both
-const slotModesOf = (hass, climate) => (isReversible(hass, climate) ? ['heat', 'cool'] : []);
+// The whole week to heat or to cool (the week's menu): on a thermostat that lists both, and
+// whose HVAC mode Chauffage controls
+const slotModesOf = (hass, climate) => (isReversible(hass, climate) && controlsHvac(climate) ? ['heat', 'cool'] : []);
 const listsMode = (hass, climate, mode) => hvacModesOf(hass, climate).on.includes(mode);
 // Whether a thermostat takes a range of temperatures (Home Assistant's TARGET_TEMPERATURE_RANGE):
 // heat/cool needs it
@@ -1217,8 +1248,9 @@ const setpointModesOf = (hass, climate) => {
   return SETPOINT_MODES.filter((m) => (modes || []).includes(m) && (m !== 'heat_cool' || supportsRange(hass, climate)));
 };
 // The HVAC modes of the first row of a slot or of an override, in order: the ones the
-// thermostat lists
+// thermostat lists. None when Chauffage does not control its HVAC mode
 const rowModesOf = (hass, climate) => {
+  if (!controlsHvac(climate)) return [];
   const { modes } = hvacModesOf(hass, climate);
   const set = setpointModesOf(hass, climate);
   return HVAC_ORDER.filter((m) => (modes || []).includes(m) && (!SETPOINT_MODES.includes(m) || set.includes(m)));
@@ -1231,8 +1263,10 @@ const hasModeRow = (hass, climate) => rowModesOf(hass, climate).filter((m) => m 
 // the thermostat can follow it. Otherwise, on a thermostat that cools, the slot heats, or cools
 // when the thermostat does not heat. A thermostat that only heats carries no HVAC mode, unless
 // the slot says heat and the thermostat lists another "on" HVAC mode. A thermostat whose HVAC
-// modes are not known (unavailable): as stored
+// modes are not known (unavailable): as stored. A thermostat whose HVAC mode Chauffage does not
+// control: none
 function slotModeOn(hass, climate, seg) {
+  if (!controlsHvac(climate)) return null;
   const mode = slotMode(seg);
   if (NO_PRESET_MODES.includes(mode)) return mode;
   const { modes, on } = hvacModesOf(hass, climate);
@@ -2168,6 +2202,17 @@ function makeDataSource(hass, available) {
     // The fan and the vanes the thermostat gets back from a slot or an override that sets none
     ownSettings: (climate) => (d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].own_settings) || {},
     setPaused: (climate, paused) => hass.callWS({ type: 'chauffage/thermostat/set', entity_id: climate, paused }),
+    // The setting Control the HVAC mode (#159): the house's (on by default), a thermostat's own
+    // (true, false, or null: it follows the house), and whether Chauffage controls a thermostat's
+    hvacModeControl: () => !d || d.hvac_mode_control !== false,
+    ownHvacModeControl: (climate) => {
+      const own = d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].hvac_mode_control;
+      return typeof own === 'boolean' ? own : null;
+    },
+    controlsHvacMode: (climate) => controlsHvac(climate, d),
+    // `preview`: only the slots that would change, { changes }; `climate` null: the house
+    setHvacModeControl: (value, climate, preview) => hass.callWS({ type: 'chauffage/hvac_mode_control/set', value,
+      ...(climate ? { entity_id: climate } : {}), ...(preview ? { preview: true } : {}) }),
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     forget: (climate) => hass.callWS({ type: 'chauffage/thermostat/forget', entity_id: climate }),
     renamed: () => (d && d.renamed) || {},
@@ -2454,6 +2499,7 @@ const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => presetWar
 // mode (#91): Off, first, on a thermostat that lists it; another one only when it is set on a
 // thermostat that does not list it: it stays, marked
 function modeChipHtml(hass, climate, loc, mode, act, on) {
+  if (!controlsHvac(climate)) return ''; // #159: Chauffage does not choose its HVAC mode
   const { modes } = hvacModesOf(hass, climate);
   const listed = !!modes && modes.includes(mode);
   if (!listed && !on) return '';
@@ -2530,7 +2576,9 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   const state = stateOf(hass, climate);
   const cools = mode ? mode === 'cool' : overrideHvac(d) === 'cool' || (!overrideHvac(d) && !!state && state.state === 'cool');
   const rows = hasModeRow(hass, climate);
-  const inMode = mode || defaultSetpointMode(hass, climate);
+  // Without control of its HVAC mode (#159), the HVAC mode the thermostat shows picks the presets
+  const shown = !controlsHvac(climate) && state && setpointModesOf(hass, climate).includes(state.state) ? state.state : null;
+  const inMode = mode || shown || defaultSetpointMode(hass, climate);
   const none = off || !!idle;
   // Without an HVAC mode of its own (a valve that lists heat and auto): the one it runs in
   const running = state && rowModesOf(hass, climate).includes(state.state) ? state.state : defaultSetpointMode(hass, climate);
@@ -2928,8 +2976,10 @@ function slotAt(week, date) {
 // setpoint; else the one the thermostat runs in; else the first one it lists. Null on a
 // thermostat that only heats, as its slots say none (engine.slot_hvac_mode, slotModeOn): a
 // heater, and a valve that lists heat and auto. A valve in auto takes its setpoint and keeps
-// auto, during the override and after it. Heat tapped in the first row says heat
+// auto, during the override and after it. Heat tapped in the first row says heat. Null when
+// Chauffage does not control the thermostat's HVAC mode (#159)
 function defaultOverrideHvac(hass, src, climate) {
+  if (!controlsHvac(climate)) return null;
   const choices = setpointModesOf(hass, climate);
   if (!choices.some((mode) => mode !== 'heat')) return null;
   const planned = (src.planned(climate) || {}).hvac_mode;
@@ -6180,7 +6230,8 @@ class ChauffageProgrammeCard extends HTMLElement {
     const out = [];
     for (const { cut: _, ...s } of segs) {
       const mode = slotMode(s);
-      if (hasNoPreset(s) && modes && !modes.includes(mode)) { left.add(MODE_LABELS[mode]); continue; }
+      // An HVAC mode the thermostat does not list, or any when Chauffage does not control it (#159)
+      if (hasNoPreset(s) && ((modes && !modes.includes(mode)) || !controlsHvac(climate))) { left.add(MODE_LABELS[mode]); continue; }
       const settings = { ...(s.settings || {}) };
       for (const attr of SETTING_ATTRS) {
         if (attr in settings && !(options[attr] || []).includes(settings[attr])) { delete settings[attr]; left.add(SETTING_LABELS[attr]); }
@@ -8667,6 +8718,105 @@ const seenNewSetting = (hass) => {
   } catch (e) { /* ignore */ }
 };
 
+// ---------- the setting Control the HVAC mode (#159) ----------
+// Set for the house in the settings dialog, and for one thermostat in its sheet of the panel.
+// Before a thermostat loses the control, the slots that change are listed, and the user turns it
+// off or cancels. The host (the dialog, the panel) keeps `_hvacAsk`, `_hvacBusy` and
+// `_hvacError`, and draws them again in `_update`.
+
+// The slots that change, by thermostat and schedule, a slot's days together:
+// "Lun–Ven · 22:30 · Éteint → supprimé", "Lun–Dim · 06:30 · Confort, Clim → Confort"
+function hvacChangesHtml(hass, src, changes) {
+  const loc = makeLocale(hass);
+  const groups = [];
+  for (const c of changes) {
+    const key = `${c.entity_id}|${c.schedule}`;
+    let group = groups.find((g) => g.key === key);
+    if (!group) groups.push(group = { key, climate: c.entity_id, schedule: c.schedule, rows: [] });
+    const slot = `${c.start}|${c.preset}|${c.hvac_mode}|${c.change}`;
+    let row = group.rows.find((r) => r.slot === slot);
+    if (!row) group.rows.push(row = { slot, ...c, days: [] });
+    row.days.push(c.day);
+  }
+  const preset = (id) => presetOf(src.presets(), id, loc).name;
+  const line = (r) => {
+    const before = [r.preset ? preset(r.preset) : null, r.hvac_mode ? modeName(loc, r.hvac_mode) : null].filter(Boolean).join(', ');
+    const after = r.change === 'removed' ? loc.t('hvacSlotRemoved') : preset(r.preset);
+    return `${loc.daysLabel(r.days)} · ${loc.time(toMin(r.start))} · ${before} → ${after}`;
+  };
+  return `<ul class="hvac-changes">${groups.map((g) => `<li><strong>${esc(thermostatName(hass, g.climate))}</strong> · ${esc(src.scheduleName(g.schedule))}
+      <ul>${g.rows.sort((a, b) => toMin(a.start) - toMin(b.start)).map((r) => `<li>${esc(line(r))}</li>`).join('')}</ul></li>`).join('')}</ul>`;
+}
+
+// The question, in the settings dialog and in the panel: the slots, then two buttons a finger
+// can reach
+const HVAC_ASK_STYLE = `
+  .hvac-ask { margin:8px 0; padding:12px; border:1px solid var(--warning-color, #ffa600); border-radius:12px; }
+  .hvac-ask-title { margin:0 0 4px; font-weight:500; }
+  .hvac-changes { margin:0; padding-left:18px; font-size:14px; line-height:1.5; max-height:40vh; overflow:auto; }
+  .hvac-changes ul { margin:0 0 6px; padding-left:16px; }
+  .hvac-ask-btns { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:8px; }
+  .hvac-ask .btn { min-height:40px; padding:0 16px; border:1px solid var(--divider-color); border-radius:20px;
+    background:transparent; color:var(--primary-color); font:inherit; font-weight:500; cursor:pointer; }
+  .hvac-ask .btn.primary { border-color:var(--primary-color); background:var(--primary-color); color:var(--text-primary-color, #fff); }
+  .hvac-ask .btn:disabled { opacity:.5; cursor:default; }
+`;
+
+// The question before the control is lost, or the error of the last change
+function hvacAskHtml(host, src) {
+  const t = makeLocale(host._hass).t;
+  const error = host._hvacError ? `<div class="error" role="alert">${esc(host._hvacError)}</div>` : '';
+  if (!host._hvacAsk) return error;
+  return `<div class="hvac-ask" role="group" aria-label="${esc(t('hvacControlTitle'))}">
+      <p class="hvac-ask-title">${esc(t('hvacControlAsk'))}</p>${hvacChangesHtml(host._hass, src, host._hvacAsk.changes)}
+      <div class="hvac-ask-btns"><button class="btn" data-hvac-cancel${host._hvacBusy ? ' disabled' : ''}>${esc(t('cancel'))}</button>
+      <button class="btn primary" data-hvac-confirm${host._hvacBusy ? ' disabled' : ''}>${esc(t('hvacControlConfirm'))}</button></div></div>${error}`;
+}
+
+// A choice made (`climate` null: the house). The integration says first which slots would
+// change: none, the choice is saved at once; some, the user is asked (hvacAskHtml)
+async function chooseHvacControl(host, value, climate) {
+  const src = dataSource(host._hass);
+  host._hvacError = null;
+  host._hvacAsk = null;
+  host._hvacBusy = true;
+  host._update();
+  try {
+    const preview = await src.setHvacModeControl(value, climate, true);
+    const changes = (preview && preview.changes) || [];
+    if (changes.length) host._hvacAsk = { value, climate, changes };
+    else await src.setHvacModeControl(value, climate);
+  } catch (err) {
+    host._hvacError = errorText(makeLocale(host._hass).t, err);
+  }
+  host._hvacBusy = false;
+  host._update();
+}
+
+// The question answered: the weeks are converted (confirmed), or nothing changes (cancelled)
+async function answerHvacControl(host, confirmed) {
+  const ask = host._hvacAsk;
+  if (!ask || host._hvacBusy) return;
+  if (!confirmed) {
+    host._hvacAsk = null;
+    host._update();
+    return;
+  }
+  host._hvacBusy = true;
+  host._update();
+  try {
+    await dataSource(host._hass).setHvacModeControl(ask.value, ask.climate);
+    host._hvacAsk = null;
+  } catch (err) {
+    host._hvacError = errorText(makeLocale(host._hass).t, err);
+  }
+  host._hvacBusy = false;
+  host._update();
+}
+
+// The choice shown: the one asked about, else the setting
+const hvacChoiceOf = (host, setting) => (host._hvacAsk ? host._hvacAsk.value : setting);
+
 // Opens the settings dialog on top of the current view. In Home Assistant, its dialog manager
 // (`show-dialog`) puts the dialog on top of the dialogs already open, the more-info dialog for
 // example, and gives it a history entry: Back closes it, and only it. Without Home Assistant's
@@ -8741,6 +8891,10 @@ const SETTINGS_CSS = `
   .section-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
   .access-settings .saved { color:var(--success-color, #43a047); font-size:14px; }
   .off-end-title { margin:14px 0 4px; font-size:14px; font-weight:500; }
+  .hvac-settings { margin-top:16px; }
+  .hvac-settings h3 { margin:12px 0 4px; font-size:16px; font-weight:500; }
+  .hvac-settings .note { margin:4px 0 8px; font-size:13px; line-height:1.4; color:var(--secondary-text-color); }
+  ${HVAC_ASK_STYLE}
   /* The duration: a stepped field, the same as the end of an override */
   .duration-field { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   input.time { ${FIELD_BOX} }
@@ -8760,9 +8914,15 @@ class ChauffageSettingsDialog extends HTMLElement {
       if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
       if (e.target.matches('[data-off-override-end]')) this._setSettings({ off_override_end: e.target.value });
       if (e.target.matches('[data-access-level]')) this._setSettings({ access_level: e.target.value });
+      if (e.target.matches('[data-hvac-control]')) chooseHvacControl(this, e.target.value === 'on', null);
     });
     // Its ✕, and a tap outside the browser's dialog (on its backdrop: the dialog element itself)
     this.shadowRoot.addEventListener('click', (e) => {
+      const answer = e.target.closest('[data-hvac-confirm], [data-hvac-cancel]');
+      if (answer) {
+        answerHvacControl(this, 'hvacConfirm' in answer.dataset);
+        return;
+      }
       const other = e.target.closest('[data-other-options]');
       if (other) {
         e.preventDefault();
@@ -8859,7 +9019,10 @@ class ChauffageSettingsDialog extends HTMLElement {
     const body = `<div class="body"><section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
         <p class="intro">${esc(t('overrideEndIntro'))}</p>
         <div class="duration-row"><div class="duration-field"></div><span data-fill="settings-saved"></span></div>
-        <div data-fill="settings"></div></section>${this._accessHtml()}${this._footHtml()}</div>`;
+        <div data-fill="settings"></div></section>
+        <section class="hvac-settings"><h3>${esc(t('hvacControlTitle'))}</h3>
+        <div data-fill="hvac"></div><p class="note">${esc(t('hvacControlHelp'))}</p><div data-fill="hvac-ask"></div></section>
+        ${this._accessHtml()}${this._footHtml()}</div>`;
     this.shadowRoot.innerHTML = `<style>${SETTINGS_CSS}</style>`;
     const HaDialog = customElements.get('ha-dialog');
     let frame;
@@ -8939,6 +9102,23 @@ class ChauffageSettingsDialog extends HTMLElement {
       ? `<div class="error">${esc(this._settingsError)}</div>` : '');
   }
 
+  // The section *Control the HVAC mode* of the house (#159): on or off. Drawn once, then updated
+  // in place, as the ends of an override
+  _fillHvac(src) {
+    const host = this.shadowRoot.querySelector('[data-fill="hvac"]');
+    if (!host) return;
+    const t = this._t;
+    const choices = [['on', 'hvacControlOn'], ['off', 'hvacControlOff']];
+    setHtml(host, `<div class="choices" role="radiogroup" aria-label="${esc(t('hvacControlTitle'))}">${choices.map(([value, label]) => `<label class="choice">
+        <input type="radio" name="hvac-control" value="${value}" data-hvac-control><span class="choice-label">${esc(t(label))}</span></label>`).join('')}</div>`);
+    const current = hvacChoiceOf(this, src.hvacModeControl()) ? 'on' : 'off';
+    for (const input of host.querySelectorAll('input')) {
+      input.checked = input.value === current;
+      input.disabled = !src.editable || !!this._hvacBusy || !!this._hvacAsk;
+    }
+    setHtml(this.shadowRoot.querySelector('[data-fill="hvac-ask"]'), hvacAskHtml(this, src));
+  }
+
   // The foot: the other options of the integration (the options flow), on its page in Home
   // Assistant, where *Configure* opens them. Admins only, as that page.
   _footHtml() {
@@ -8992,6 +9172,7 @@ class ChauffageSettingsDialog extends HTMLElement {
     const settings = this.shadowRoot.querySelector('[data-fill="settings"]');
     if (settings) this._fillSettings(settings, src);
     this._fillAccess(src, this._settingsBusy || {});
+    this._fillHvac(src);
     // Scrolled once its content is drawn: earlier, the sections above it are not their height yet
     const section = this._scrollTo && this.shadowRoot.querySelector(this._scrollTo);
     this._scrollTo = null;
@@ -9174,9 +9355,22 @@ class ChauffagePanel extends HTMLElement {
       this._historyOn = localStorage.getItem(LS_HISTORY) === '1';
     } catch (e) { /* ignore */ }
     this._picked = new Set(); // the welcome: the thermostats ticked
-    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
+    this.shadowRoot.addEventListener('click', (e) => {
+      const answer = e.target.closest('[data-hvac-confirm], [data-hvac-cancel]');
+      if (answer) {
+        answerHvacControl(this, 'hvacConfirm' in answer.dataset);
+        return;
+      }
+      this._onClick(e);
+    });
     this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
     this.shadowRoot.addEventListener('change', (e) => {
+      const hvac = e.target.closest('[data-hvac-control]');
+      if (hvac) {
+        const route = panelRoute(this._route && this._route.path, dataSource(this._hass), this._hass);
+        chooseHvacControl(this, { house: null, on: true, off: false }[hvac.value], route.id);
+        return;
+      }
       const box = e.target.closest('[data-pick]');
       if (!box) return;
       if (box.checked) this._picked.add(box.dataset.pick);
@@ -9452,7 +9646,7 @@ class ChauffagePanel extends HTMLElement {
     // A week's heading: its schedule (a link to its sheet), and its ⋮ menu: to copy it to another
     // schedule, as the card's menus, and on an air conditioner that heats and cools, to set
     // every slot of the week to heat or to cool
-    const reversible = route.sheet === 'thermostat' && isReversible(this._hass, route.id) && src.plannable;
+    const reversible = route.sheet === 'thermostat' && slotModesOf(this._hass, route.id).length > 0 && src.plannable;
     for (const h of this.shadowRoot.querySelectorAll('[data-fill-schedule]')) {
       const id = h.dataset.fillSchedule;
       const others = src.schedules().filter((m) => m !== id);
@@ -9580,7 +9774,24 @@ class ChauffagePanel extends HTMLElement {
         <button class="btn${paused ? ' primary' : ''}" data-pause="${paused ? '0' : '1'}">${esc(t(paused ? 'resumeShort' : 'pauseShort'))}</button>
         ${paused ? `<span class="badge paused">${esc(t('paused'))}</span>` : ''}
       </div>
+      ${this._hvacControlHtml(climate, src)}
       ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
+  }
+
+  // Control the HVAC mode, for this thermostat (#159): as the house, on or off
+  _hvacControlHtml(climate, src) {
+    const t = this._t;
+    const own = src.ownHvacModeControl(climate);
+    const choice = (value) => (value === null ? 'house' : value ? 'on' : 'off');
+    const chosen = choice(hvacChoiceOf(this, own));
+    const options = [
+      ['house', t('hvacControlHouse', { value: t(src.hvacModeControl() ? 'hvacControlHouseOn' : 'hvacControlHouseOff') })],
+      ['on', t('hvacControlThermostatOn')], ['off', t('hvacControlOff')],
+    ];
+    const disabled = !src.editable || this._hvacBusy || this._hvacAsk;
+    return `<label class="hvac-control"><span>${esc(t('hvacControlTitle'))}</span>
+        <select data-hvac-control${disabled ? ' disabled' : ''}>${options.map(([value, label]) => `<option value="${value}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></label>
+      ${hvacAskHtml(this, src)}`;
   }
 
   // How long a setpoint changed by hand lasts, as the settings of overrides say (#83)
@@ -9852,6 +10063,10 @@ const PANEL_CSS = `
   .head .tile { order:-1; min-width:0; }
   .control { display:flex; align-items:center; gap:8px; margin-top:8px; }
   .about { font-size:14px; color:var(--secondary-text-color); }
+  .hvac-control { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin-top:12px; font-size:14px; }
+  .hvac-control select { min-height:40px; max-width:100%; padding:0 8px; border:1px solid var(--divider-color);
+    border-radius:8px; background:var(--card-background-color, #fff); color:var(--primary-text-color); font:inherit; }
+  ${HVAC_ASK_STYLE}
   .about > div { padding:2px 0; }
   @media (min-width:600px) {
     .head { grid-template-columns:minmax(0, 1fr) minmax(240px, 320px); align-items:start; }

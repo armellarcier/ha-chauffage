@@ -574,6 +574,31 @@ future contributor might question.
     could not show the user what the conversion changes.
   - *Claude's proposal, to confirm:* a converted slot keeps its fan and its vanes, which are not
     an HVAC mode.
+  - *Claude's proposals, made while implementing, to confirm:*
+    - **Stored as an optional key**, `hvac_mode_control` on the scheduled thermostat (absent: it
+      follows the house), as `own_settings` was added: no new storage version. The house's
+      value is an option of the config entry.
+    - **Without control, a change by hand is read as in 0.9**: its HVAC mode is not part of the
+      change, and a setpoint changed counts in any HVAC mode, so a preset picked on a VTherm
+      that is off is an override (#74). A thermostat other than a VTherm turned back on by hand
+      gets its slot at once, as in 0.9 ("back from off").
+    - **A VTherm that is off gets its slots' heating value**: off is not cool. Its own presets
+      are sent as they are, and VTherm picks their temperature.
+    - **Turning the control off**: an override loses its HVAC mode. An off override has nothing
+      left, so it ends, with the reason `hvac_mode_not_controlled` in the events and the
+      logbook. A week whose slots all have no preset becomes the week of a new schedule (eco
+      all week): nothing comes before its first slot.
+    - **Any change of the setting realigns the thermostats**, as saving the weeks does. Turning
+      it on again turns on a thermostat that the schedule wants on.
+    - **The list of the slots that change** has the slots removed, and the slots that run in an
+      HVAC mode on the thermostat. On an air conditioner, a slot stored without an HVAC mode
+      runs in heat, so it is listed. The card groups a slot's days on one line.
+    - **A day pasted** follows the card's rule for a slot its thermostat cannot follow: a slot
+      without a preset is dropped, and the slot before it goes on. At midnight, the day has no
+      slot before: the next slot starts at midnight, where the conversion of the weeks takes
+      the last slot of the day before.
+    - **The panel shows the setting** as two choices in the settings dialog, and as a list *As
+      the house (on)*, *On*, *Off* at the top of a thermostat's sheet.
 - **A Versatile Thermostat is read as it was asked, not as it protects itself** (#91, #92).
   VTherm turns itself off for an open window or with its auto start/stop, and refuses heat
   until the cause ends. VTherm 10.5 keeps what it was asked for in `requested_state`
