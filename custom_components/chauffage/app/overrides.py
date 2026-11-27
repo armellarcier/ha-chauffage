@@ -31,7 +31,6 @@ from ..const import (
 )
 from ..domain.plan import Resumed
 from ..thermostats.gateway import describe
-from ..thermostats.reader import read
 
 if TYPE_CHECKING:
     from .runtime import ChauffageRuntime
@@ -92,7 +91,9 @@ class OverrideService:
             await runtime.scheduler.apply(Resumed(entity_id, f"override ended ({source})"))
             return
         override = schema.override(override)
-        current = read(runtime.hass, runtime.hass.states.get(entity_id))
+        if "hvac_mode" in override["target"] and not runtime.settings.controls_hvac_mode(entity_id):
+            raise schema.InvalidData(f"{entity_id}: Chauffage does not control its HVAC mode")
+        current = runtime.gateway.read(runtime.hass.states.get(entity_id))
         target = override["target"] = dict(Target(override["target"]).fitted_to(current))
         before = self._overrides.get(entity_id)
         # Why the override ends then: kept with its end, dropped once a person picks the end.
@@ -127,7 +128,7 @@ class OverrideService:
                 or any(key in target for key in RANGE_KEYS)):
             return
         before = self._overrides.get(entity_id)
-        current = read(self._runtime.hass, self._runtime.hass.states.get(entity_id))
+        current = self._runtime.gateway.read(self._runtime.hass.states.get(entity_id))
         if current is None or not current.supports_range or (before and before["target"] == Target(target).fitted_to(current)):
             return
         if (target.get("hvac_mode") or current.state) == HEAT_COOL:

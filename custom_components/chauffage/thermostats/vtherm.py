@@ -17,6 +17,8 @@ class VThermReader(GenericReader):
 
     # VTherm goes to its manual preset by itself when it gets a setpoint
     leaves_preset_itself = True
+    # VTherm keeps the setpoint asked while off, and starts again on it (#74)
+    keeps_setpoint_while_off = True
 
     def asked(self, attributes: Mapping[str, Any]) -> tuple[str | None, str | None, float | None]:
         """VTherm's target_temperature in requested_state is the last manual setpoint, so it

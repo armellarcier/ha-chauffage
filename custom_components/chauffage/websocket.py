@@ -44,6 +44,11 @@ chauffage/thermostat/forget  {entity_id}: no longer scheduled, its data dropped
 chauffage/settings/set       {manual_override_end?, off_override_end?, override_duration?, access_level?}: the settings
                              of overrides, in the integration's options (as the options flow and
                              the entities), and the access level (admins only)
+chauffage/hvac_mode_control/set {entity_id?, value, preview?}: whether Chauffage controls the
+                             HVAC mode (#159), for the house (value true or false) or one thermostat
+                             (null: it follows the house). Answers {changes}: the slots that change
+                             in the weeks of the thermostats that lose the control; with preview,
+                             nothing changes
 chauffage/preset/preview     {entity_id, preset, value?}: what a preset (as the card holds it, saved
                              or not) is worth on a thermostat, with an optional value set by hand:
                              {value}, as `targets` gives it
@@ -78,7 +83,8 @@ from .app.schedules import StaleRevision
 def async_register(hass: HomeAssistant) -> None:
     for command in (ws_subscribe, ws_save_weeks, ws_set_override, ws_activate_schedule, ws_set_schedules,
                     ws_set_presets, ws_set_mapping, ws_set_thermostat, ws_forget_thermostat,
-                    ws_set_rules, ws_preview_rules, ws_preview_preset, ws_history, ws_set_settings):
+                    ws_set_rules, ws_preview_rules, ws_preview_preset, ws_history, ws_set_settings,
+                    ws_set_hvac_mode_control):
         websocket_api.async_register_command(hass, command)
 
 
@@ -442,3 +448,27 @@ async def ws_set_settings(hass: HomeAssistant, connection: websocket_api.ActiveC
             runtime.settings.set_access_level(msg[CONF_ACCESS_LEVEL])
 
     await _run(hass, connection, msg, set_settings)
+
+
+def _hvac_mode_control_needs(runtime: ChauffageRuntime, msg: dict[str, Any]) -> tuple[str, Iterable[str]]:
+    """Setting up, for the house or for one thermostat."""
+    return SET_UP, ((msg["entity_id"],) if "entity_id" in msg else runtime.installation.scheduled)
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chauffage/hvac_mode_control/set",
+    vol.Optional("entity_id"): str,
+    vol.Required("value"): vol.Any(None, bool),
+    vol.Optional("preview", default=False): bool,
+})
+@require_access(_hvac_mode_control_needs)
+@websocket_api.async_response
+async def ws_set_hvac_mode_control(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                                   msg: dict[str, Any]) -> None:
+    """The setting Control the HVAC mode (#159), and the slots it changes."""
+    async def set_control(runtime: ChauffageRuntime) -> dict[str, Any]:
+        changes = await runtime.schedules.set_hvac_mode_control(msg["value"], msg.get("entity_id"),
+                                                                preview=msg["preview"])
+        return {"changes": changes}
+
+    await _run(hass, connection, msg, set_control)

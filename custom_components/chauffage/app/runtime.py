@@ -54,8 +54,8 @@ class ChauffageRuntime:
         self.reloading = False
 
         self.installation = Installation(store, data)
-        self.settings = Settings(hass, entry)
-        self.gateway = ThermostatGateway(hass, self.installation)
+        self.settings = Settings(hass, entry, self.installation)
+        self.gateway = ThermostatGateway(hass, self.installation, self.settings.controls_hvac_mode)
         self.learner = Learner(hass, self.installation)
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
         self.overrides = OverrideService(self)

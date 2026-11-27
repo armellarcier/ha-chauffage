@@ -1,5 +1,6 @@
 """The settings of Chauffage: the options of the config entry. The options flow, the
-configuration entities and the panel change them."""
+configuration entities and the panel change them. And whether Chauffage controls a thermostat's
+HVAC mode (#159): its own setting, stored with it, else the house's, an option."""
 
 from __future__ import annotations
 
@@ -11,11 +12,13 @@ from homeassistant.core import HomeAssistant, callback
 from ..const import (
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
+    CONF_HVAC_MODE_CONTROL,
     CONF_MANUAL_OVERRIDE_END,
     CONF_OFF_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
     DEFAULT_ACCESS_LEVEL,
+    DEFAULT_HVAC_MODE_CONTROL,
     DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OFF_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
@@ -25,13 +28,15 @@ from ..const import (
     OVERRIDE_DURATION_MIN,
     OVERRIDE_DURATION_STEP,
 )
+from ..storage.installation import Installation
 from ..storage.schema import InvalidData
 
 
 class Settings:
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, installation: Installation) -> None:
         self._hass = hass
         self._entry = entry
+        self._installation = installation
 
     @property
     def override_duration(self) -> int:
@@ -54,6 +59,31 @@ class Settings:
     @property
     def use_presets(self) -> bool:
         return bool(self._entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
+
+    @property
+    def hvac_mode_control(self) -> bool:
+        """The setting *Control the HVAC mode* of the house (#159): on by default."""
+        return bool(self._entry.options.get(CONF_HVAC_MODE_CONTROL, DEFAULT_HVAC_MODE_CONTROL))
+
+    def own_hvac_mode_control(self, entity_id: str) -> bool | None:
+        """A thermostat's own setting *Control the HVAC mode*: None, it follows the house."""
+        return self._installation.thermostats.get(entity_id, {}).get(CONF_HVAC_MODE_CONTROL)
+
+    def controls_hvac_mode(self, entity_id: str) -> bool:
+        """Whether Chauffage controls a thermostat's HVAC mode: its own setting, else the house's."""
+        own = self.own_hvac_mode_control(entity_id)
+        return self.hvac_mode_control if own is None else own
+
+    @callback
+    def set_hvac_mode_control(self, value: bool | None, entity_id: str | None = None) -> None:
+        """Sets *Control the HVAC mode* for the house (`entity_id` None) or one thermostat (None:
+        it follows the house). Converts nothing: see Schedules.set_hvac_mode_control."""
+        if entity_id is None:
+            self._update({CONF_HVAC_MODE_CONTROL: value})
+        elif value is None:
+            self._installation.thermostats[entity_id].pop(CONF_HVAC_MODE_CONTROL, None)
+        else:
+            self._installation.thermostats[entity_id][CONF_HVAC_MODE_CONTROL] = value
 
     @property
     def access_level(self) -> str:

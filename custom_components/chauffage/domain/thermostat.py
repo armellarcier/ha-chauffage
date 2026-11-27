@@ -42,11 +42,22 @@ class Thermostat:
     supports_range: bool = False
     target_temp_low: float | None = None
     target_temp_high: float | None = None
+    # The setting *Control the HVAC mode* (#159). Off, the thermostat is scheduled as a thermostat
+    # with a single HVAC mode, as in 0.9: Chauffage sends it no HVAC mode, a change of HVAC mode by
+    # hand is not an override, and it is left alone while off, unless it keeps the setpoint asked
+    # while off
+    hvac_control: bool = True
+    # It keeps the setpoint asked while off, and starts again on it (Versatile Thermostat, #74)
+    keeps_setpoint_while_off: bool = False
 
 
 def ignored(thermostat: Thermostat) -> bool:
     """A thermostat left alone: unavailable or unknown, or not ready yet. Not one turned off:
-    the schedule decides whether a thermostat is off (#91)."""
+    the schedule decides whether a thermostat is off (#91). Unless Chauffage does not control its
+    HVAC mode (#159): then a thermostat turned off is left alone, as in 0.9, except one that keeps
+    the setpoint asked while off."""
+    if not thermostat.hvac_control and thermostat.state == OFF and not thermostat.keeps_setpoint_while_off:
+        return True
     return not thermostat.ready or thermostat.state in IGNORED_STATES
 
 

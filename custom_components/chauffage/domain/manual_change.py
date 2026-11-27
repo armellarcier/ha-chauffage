@@ -96,20 +96,28 @@ def classify(
     thermostat doing what the slot asks (`back_to`; `preset_temperature`: what the expected
     preset gives on this thermostat), the schedule resumes (Resume).
     Chauffage sends nothing for a change by hand.
+
+    When Chauffage does not control the HVAC mode (#159), as in 0.9: the HVAC mode is not part
+    of the change, and the setpoint counts in any HVAC mode (a VTherm off gets its setpoints).
     """
     if ignored(after) or before.state in IGNORED_STATES:
         return NoChange()
-    mode_changed = after.state != before.state
+    control = after.hvac_control
+    mode_changed = control and after.state != before.state
+
+    def takes_setpoint(state: str) -> bool:
+        return state in SETPOINT_MODES or not control
+
     slot_sets_one = expected is None or any(key in expected for key in SETPOINT_TARGET_KEYS)
     change = None
-    if after.state in SETPOINT_MODES and slot_sets_one:
-        change = setpoint_changed(before, after, by_user) if before.state in SETPOINT_MODES else shown_setpoint(after)
+    if takes_setpoint(after.state) and slot_sets_one:
+        change = setpoint_changed(before, after, by_user) if takes_setpoint(before.state) else shown_setpoint(after)
     if not mode_changed and change is None:
         return NoChange()
     target = dict(override or {})
     if mode_changed:
         target["hvac_mode"] = after.state
-    if after.state not in SETPOINT_MODES or change is not None:
+    if not takes_setpoint(after.state) or change is not None:
         target = {key: value for key, value in target.items() if key not in SETPOINT_TARGET_KEYS} | (change or {})
     if override is not None and Target(target).same_as(override, after):
         return NoChange()

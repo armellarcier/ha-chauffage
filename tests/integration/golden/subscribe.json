@@ -8,6 +8,7 @@
   },
   "default_schedule": "normal",
   "device_id": "<device id>",
+  "hvac_mode_control": true,
   "manual_override_end": "duration",
   "mappings": {},
   "off_override_end": "next_slot",
@@ -278,6 +279,7 @@
   "thermostats": {
     "climate.atelier": {
       "cause": null,
+      "hvac_mode_control": null,
       "own_settings": {
         "fan_mode": "auto"
       },
@@ -286,24 +288,28 @@
     },
     "climate.bureau": {
       "cause": null,
+      "hvac_mode_control": null,
       "own_settings": {},
       "paused": true,
       "revision": 1
     },
     "climate.chambre": {
       "cause": null,
+      "hvac_mode_control": null,
       "own_settings": {},
       "paused": false,
       "revision": 1
     },
     "climate.cuisine": {
       "cause": null,
+      "hvac_mode_control": null,
       "own_settings": {},
       "paused": false,
       "revision": 1
     },
     "climate.salon": {
       "cause": null,
+      "hvac_mode_control": null,
       "own_settings": {},
       "paused": false,
       "revision": 1

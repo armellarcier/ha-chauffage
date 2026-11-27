@@ -117,6 +117,19 @@ async def test_an_override_from_a_service_and_its_removal_are_logged(bench: Benc
     assert sent([command]) == ["override ended (service), eco of schedule normal"]
 
 
+async def test_an_off_override_ended_by_the_hvac_mode_control_is_logged(bench: Bench, log):
+    """Turning *Control the HVAC mode* off ends an off override (#159): it has nothing left."""
+    await start(bench, "10:00")
+    await service(bench, "set_override", entity_id="climate.salon", hvac_mode="off")
+    log()
+    await bench.runtime.schedules.set_hvac_mode_control(False)
+    await bench.hass.async_block_till_done()
+    assert log()[0].startswith("climate.salon: override ended (hvac_mode_not_controlled): ")
+    assert described(bench, "chauffage_override_ended", entity_id="climate.salon",
+                     reason="hvac_mode_not_controlled")["message"] \
+        == "override ended (HVAC mode no longer controlled)"
+
+
 async def test_an_override_extended_is_logged(bench: Bench, log):
     await start(bench, "10:00")
     await bench.manual_setpoint("climate.salon", 21.5)

@@ -213,6 +213,7 @@
     "temperature_in_heat_cool": { "message": "{entity_id} runs in the HVAC mode heat_cool, which takes a range of temperatures. Send target_temp_low and target_temp_high with hvac_mode heat_cool, or a temperature with another HVAC mode." },
     "preset_not_in_hvac_mode": { "message": "The preset {preset} has no value for the HVAC mode {hvac_mode} on {entity_id}." },
     "hvac_mode_not_listed": { "message": "{entity_id} has no HVAC mode {hvac_mode}. It has: {hvac_modes}." },
+    "hvac_mode_not_controlled": { "message": "Chauffage does not control the HVAC mode of {entity_id}: send a preset or a temperature." },
     "range_incomplete": { "message": "Send target_temp_low and target_temp_high together." },
     "range_inverted": { "message": "target_temp_low must be under target_temp_high." },
     "heat_cool_takes_a_range": { "message": "The HVAC mode heat_cool takes a preset, or target_temp_low and target_temp_high, not a temperature." },

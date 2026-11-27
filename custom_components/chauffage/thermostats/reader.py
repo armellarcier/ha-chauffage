@@ -15,8 +15,9 @@ VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
 
 
 class ThermostatReader(Protocol):
-    def read(self, state: State) -> Thermostat:
-        """What the scheduler needs to know about the thermostat."""
+    def read(self, state: State, hvac_control: bool = True) -> Thermostat:
+        """What the scheduler needs to know about the thermostat, and whether Chauffage controls
+        its HVAC mode (#159)."""
 
     def cause(self, state: State) -> str | None:
         """Why the thermostat protects itself: "window", "auto_start_stop", or None."""
@@ -32,9 +33,10 @@ def _reader(hass: HomeAssistant, entity_id: str) -> ThermostatReader:
     return VTHERM_READER if entry is not None and entry.platform == VTHERM else GENERIC
 
 
-def read(hass: HomeAssistant, state: State | None) -> Thermostat | None:
-    """What the scheduler needs to know about a thermostat."""
-    return _reader(hass, state.entity_id).read(state) if state is not None else None
+def read(hass: HomeAssistant, state: State | None, hvac_control: bool = True) -> Thermostat | None:
+    """What the scheduler needs to know about a thermostat. `hvac_control`: whether Chauffage
+    controls its HVAC mode (#159, Settings.controls_hvac_mode)."""
+    return _reader(hass, state.entity_id).read(state, hvac_control) if state is not None else None
 
 
 def cause(hass: HomeAssistant, state: State | None) -> str | None:
