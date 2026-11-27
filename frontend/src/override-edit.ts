@@ -3,7 +3,7 @@ import { chipStyle } from './colors.ts';
 import { DAY_MIN, NO_PRESET_MODES, SETPOINT_MODES, SETTING_ATTRS, hasNoPreset, minutesOf, parseDate, rangeText, slotMode } from './common.ts';
 import { durationText, endReasonText, roundDurationText, timeField } from './fields.ts';
 import { temperatureOf } from './history.ts';
-import { defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf } from './hvac.ts';
+import { controlsHvac, defaultSetpointMode, hasModeRow, hvacModesOf, isReversible, modeName, ownPresetName, parseDecimal, presetModes, rowModesOf, setpointModesOf, slotModeOn, stateOf } from './hvac.ts';
 import { client } from './client/chauffage-client.ts';
 import { isOffOverride, overrideHvac, overrideLabel, setpointHvac, targetKind } from './override.ts';
 import { fitTemperature, modeChip, modeRow, offChip, presetOf, presetsOf, sortedPresets, stepOf, stepper } from './presets.ts';
@@ -30,7 +30,9 @@ function overrideValue(d, src, climate, attrs, loc, hass, edit) {
   const state = stateOf(hass, climate);
   const cools = mode ? mode === 'cool' : overrideHvac(d) === 'cool' || (!overrideHvac(d) && !!state && state.state === 'cool');
   const rows = hasModeRow(hass, climate);
-  const inMode = mode || defaultSetpointMode(hass, climate);
+  // Without control of its HVAC mode (#159), the HVAC mode the thermostat shows picks the presets
+  const shown = !controlsHvac(hass, climate) && state && setpointModesOf(hass, climate).includes(state.state) ? state.state : null;
+  const inMode = mode || shown || defaultSetpointMode(hass, climate);
   const none = off || !!idle;
   // Without an HVAC mode of its own (a valve that lists heat and auto): the one it runs in
   const running = state && rowModesOf(hass, climate).includes(state.state) ? state.state : defaultSetpointMode(hass, climate);
@@ -334,11 +336,11 @@ function newOverrideEndText(src, climate, hass, loc) {
   return off ? `${end} · ${off}` : end;
 }
 // What Off tapped would end at, "Off: until 17:30", when Off would end at another time than
-// `end`; '' when the thermostat cannot be turned off, when it is off already, or when Off
-// would resume the schedule (an off slot)
+// `end`; '' when the thermostat cannot be turned off, when it is off already, when Off would
+// resume the schedule (an off slot), or when the card offers no Off (#159)
 function offEndText(d, src, climate, hass, loc, end) {
   const { modes } = hvacModesOf(hass, climate);
-  if ((modes && !modes.includes('off')) || isOffOverride(d)) return '';
+  if ((modes && !modes.includes('off')) || isOffOverride(d) || !controlsHvac(hass, climate)) return '';
   const off = overrideOff(d, src, climate, hass);
   // Compared to the minute: the two ends are computed a few milliseconds apart
   if (!off || off === RESUME || Math.round(+parseDate(off.end) / 60000) === Math.round(+parseDate(end) / 60000)) return '';
@@ -407,8 +409,10 @@ function slotAt(week, date) {
 // setpoint; else the one the thermostat runs in; else the first one it lists. Null on a
 // thermostat that only heats, as its slots say none (engine.slot_hvac_mode, slotModeOn): a
 // heater, and a valve that lists heat and auto. A valve in auto takes its setpoint and keeps
-// auto, during the override and after it. Heat tapped in the first row says heat
+// auto, during the override and after it. Heat tapped in the first row says heat. Null when
+// Chauffage does not control the thermostat's HVAC mode (#159)
 function defaultOverrideHvac(hass, src, climate) {
+  if (!controlsHvac(hass, climate)) return null;
   const choices = setpointModesOf(hass, climate);
   if (!choices.some((mode) => mode !== 'heat')) return null;
   const planned = (src.planned(climate) || {}).hvac_mode;

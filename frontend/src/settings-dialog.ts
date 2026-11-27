@@ -8,6 +8,7 @@ import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, e
 import { MDI } from './editors.ts';
 import { durationField, linksByKeyboard, listenTimeFields, roundDurationText, timeFieldDone } from './fields.ts';
 import { FIELD_BOX } from './hvac.ts';
+import { HVAC_ASK_STYLE, chooseHvacControl, hvacAskTemplate, hvacChoiceOf } from './hvac-control.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { afterHistoryBack, leaveMoreInfo, navigate } from './links.ts';
 import { TIME_FIELD_STYLE } from './styles.ts';
@@ -116,6 +117,10 @@ const SETTINGS_CSS = `
   .section-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
   .access-settings .saved { color:var(--success-color, #43a047); font-size:14px; }
   .off-end-title { margin:14px 0 4px; font-size:14px; font-weight:500; }
+  .hvac-settings { margin-top:16px; }
+  .hvac-settings h3 { margin:12px 0 4px; font-size:16px; font-weight:500; }
+  .hvac-settings .note { margin:4px 0 8px; font-size:13px; line-height:1.4; color:var(--secondary-text-color); }
+  ${HVAC_ASK_STYLE}
   /* The duration: a stepped field, the same as the end of an override */
   .duration-field { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   input.time { ${FIELD_BOX} }
@@ -150,6 +155,10 @@ export class ChauffageSettingsDialog extends LitElement {
   _settingsPending: any;
   _settingsSaved = false;
   _settingsSent: Promise<unknown> | null = null;
+  // The setting Control the HVAC mode (#159): the question asked before it turns off (hvac-control.ts)
+  _hvacAsk: any = null;
+  _hvacBusy = false;
+  _hvacError: string | null = null;
   _stopLeave: (() => void) | null = null;
   _unlisten: (() => void) | null = null;
   // Its own history entry (without Home Assistant's dialog manager): Back closes it
@@ -321,7 +330,7 @@ export class ChauffageSettingsDialog extends LitElement {
 
   _body() {
     const src = dataSource(this.hass);
-    return html`<div class="body">${this._overrideSettings(src)}${this._accessSettings(src)}${this._foot()}</div>`;
+    return html`<div class="body">${this._overrideSettings(src)}${this._hvacSettings(src)}${this._accessSettings(src)}${this._foot()}</div>`;
   }
 
   // The section *Overrides* (#83). The duration first, then the three ends of an override, each
@@ -377,6 +386,21 @@ export class ChauffageSettingsDialog extends LitElement {
     return html`<label for="override-duration">${loc.t('overrideDurationTitle')}</label>
       ${durationField({ id: 'override-duration', 'data-override-duration': true }, minutes, loc,
         { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`;
+  }
+
+  // The section *Control the HVAC mode* of the house (#159): on or off, and the question asked
+  // before it turns off
+  _hvacSettings(src) {
+    const t = this._t;
+    const current = hvacChoiceOf(this, src.hvacModeControl()) ? 'on' : 'off';
+    const disabled = !src.editable || this._hvacBusy || !!this._hvacAsk;
+    const choices = [['on', 'hvacControlOn'], ['off', 'hvacControlOff']];
+    return html`<section class="hvac-settings"><h3>${t('hvacControlTitle')}</h3>
+        <div class="choices" role="radiogroup" aria-label=${t('hvacControlTitle')}>${choices.map(([value, label]) => html`<label class="choice">
+          <input type="radio" name="hvac-control" value=${value} data-hvac-control .checked=${live(value === current)} .disabled=${disabled}
+            @change=${() => chooseHvacControl(this, value === 'on', null)}>
+          <span class="choice-label">${t(label)}</span></label>`)}</div>
+        <p class="note">${t('hvacControlHelp')}</p>${hvacAskTemplate(this)}</section>`;
   }
 
   // The section *Access level* (#99): what users who are not admins may change. Admins only: a

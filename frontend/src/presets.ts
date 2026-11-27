@@ -2,7 +2,7 @@ import { html, nothing } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { HVAC_ORDER } from './common.ts';
 import { attributes, followed } from './components/shared/attributes.ts';
-import { hvacIconTemplate, hvacModesOf, hvacStyle, modeColor, modeName, rowModesOf, stateOf } from './hvac.ts';
+import { controlsHvac, hvacIconTemplate, hvacModesOf, hvacStyle, modeColor, modeName, rowModesOf, stateOf } from './hvac.ts';
 
 // Presets [{ id, name, color, temperature, cool_temperature?, cool_color? }]: its temperature
 // when heating (null: none) and when cooling (absent: none)
@@ -20,6 +20,7 @@ export const sortedPresets = (src, loc) => presetsOf(src, loc).sort((a, b) => pr
 // mode (#91): Off, first, on a thermostat that lists it; another one only when it is set on a
 // thermostat that does not list it: it stays, marked. `pick(mode)`: what a tap on it does
 export function modeChip(hass, climate, loc, mode, act, on, pick) {
+  if (!controlsHvac(hass, climate)) return nothing; // #159: Chauffage does not choose its HVAC mode
   const { modes } = hvacModesOf(hass, climate);
   const listed = !!modes && modes.includes(mode);
   if (!listed && !on) return nothing;
