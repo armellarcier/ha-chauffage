@@ -35,7 +35,7 @@ def _reader(hass: HomeAssistant, entity_id: str) -> ThermostatReader:
 
 def read(hass: HomeAssistant, state: State | None, hvac_control: bool = True) -> Thermostat | None:
     """What the scheduler needs to know about a thermostat. `hvac_control`: whether Chauffage
-    controls its HVAC mode (#159, Settings.controls_hvac_mode)."""
+    controls its HVAC mode (#159, ChauffageRuntime.controls_hvac_mode)."""
     return _reader(hass, state.entity_id).read(state, hvac_control) if state is not None else None
 
 

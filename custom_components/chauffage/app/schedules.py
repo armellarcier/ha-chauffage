@@ -58,7 +58,7 @@ class Schedules:
                     raise StaleRevision
         # A thermostat whose HVAC mode Chauffage does not control: its slots choose none (#159)
         for entity_id, by_schedule in normalized.items():
-            if not runtime.settings.controls_hvac_mode(entity_id) and any(
+            if not runtime.controls_hvac_mode(entity_id) and any(
                     len(slot) > 2 and "hvac_mode" in slot[2]
                     for week in by_schedule.values() for day in week for slot in day):
                 raise InvalidData(f"{entity_id}: Chauffage does not control its HVAC mode")
@@ -158,14 +158,13 @@ class Schedules:
         thermostat loses it ("hvac_mode_removed")."""
         runtime = self._runtime
         installation = runtime.installation
-        settings = runtime.settings
-        house = value if entity_id is None else settings.hvac_mode_control
+        house = value if entity_id is None else runtime.settings.hvac_mode_control
         losing = []
         for e in installation.scheduled:
             if entity_id is not None and e != entity_id:
                 continue
-            own = value if e == entity_id else settings.own_hvac_mode_control(e)
-            if settings.controls_hvac_mode(e) and not (house if own is None else own):
+            own = value if e == entity_id else installation.own_hvac_mode_control(e)
+            if runtime.controls_hvac_mode(e) and not (house if own is None else own):
                 losing.append(e)
         changes = []
         for e in losing:
@@ -213,7 +212,10 @@ class Schedules:
         if losing:
             installation.weeks_changed(losing)
             installation.revision += 1
-        runtime.settings.set_hvac_mode_control(value, entity_id)
+        if entity_id is None:
+            runtime.settings.set_hvac_mode_control(value)
+        else:
+            installation.set_own_hvac_mode_control(entity_id, value)
         installation.changed()
         await runtime.scheduler.apply(Forced("HVAC mode control changed"))
         return changes

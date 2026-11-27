@@ -91,7 +91,7 @@ class OverrideService:
             await runtime.scheduler.apply(Resumed(entity_id, f"override ended ({source})"))
             return
         override = schema.override(override)
-        if "hvac_mode" in override["target"] and not runtime.settings.controls_hvac_mode(entity_id):
+        if "hvac_mode" in override["target"] and not runtime.controls_hvac_mode(entity_id):
             raise schema.InvalidData(f"{entity_id}: Chauffage does not control its HVAC mode")
         current = runtime.gateway.read(runtime.hass.states.get(entity_id))
         target = override["target"] = dict(Target(override["target"]).fitted_to(current))

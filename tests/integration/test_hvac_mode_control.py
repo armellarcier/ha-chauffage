@@ -7,6 +7,7 @@ panel has shown what changes."""
 import dataclasses
 
 import pytest
+from homeassistant.core import Context
 from homeassistant.exceptions import ServiceValidationError
 
 from conftest import CTX_USER, KINDS, WEEKDAY, Bench
@@ -52,7 +53,7 @@ async def set_control(bench: Bench, value: bool | None, entity_id: str | None = 
 
 
 def controls(bench: Bench, entity_id: str) -> bool:
-    return bench.runtime.settings.controls_hvac_mode(entity_id)
+    return bench.runtime.controls_hvac_mode(entity_id)
 
 
 # ----- the setting -----
@@ -202,6 +203,18 @@ async def test_without_control_an_hvac_mode_changed_by_hand_waits_for_the_next_s
         assert sent_to(bench) == [27.0]
     else:
         assert bench.applied() == {SALON: "eco"}
+
+
+async def test_without_control_a_thermostat_turned_off_teaches_no_preset_temperature(bench: Bench):
+    """Left alone while off, as in 0.9: a setpoint shown on its preset then is not the preset's
+    temperature."""
+    bench.needs("standard")
+    await start(bench)
+    learned = (await bench.learned_temperatures()).get(SALON, {}).get("eco")
+    await turn_off_by_hand(bench)
+    bench.thermostat(SALON, "eco", 19.0, state="off", context=Context())
+    await bench.hass.async_block_till_done()
+    assert (await bench.learned_temperatures()).get(SALON, {}).get("eco") == learned
 
 
 async def test_without_control_a_setpoint_changed_by_hand_is_still_an_override(bench: Bench):

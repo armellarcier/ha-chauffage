@@ -118,7 +118,7 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
     if mode == HEAT_COOL and "temperature" in data:
         refuse("heat_cool_takes_a_range")
     # The setting Control the HVAC mode is off for this thermostat (#159)
-    if mode is not None and not runtime.settings.controls_hvac_mode(entity_id):
+    if mode is not None and not runtime.controls_hvac_mode(entity_id):
         refuse("hvac_mode_not_controlled")
     current = runtime.gateway.read(hass.states.get(entity_id))
     listed = current.hvac_modes if current is not None else ()

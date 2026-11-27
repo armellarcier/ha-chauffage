@@ -93,7 +93,7 @@ class SnapshotBuilder:
             # hvac_mode_control: its own setting (None: it follows the house, #159)
             "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": cause(hass, hass.states.get(e)),
                                 "own_settings": self._runtime.gateway.own_settings(e),
-                                "hvac_mode_control": self._runtime.settings.own_hvac_mode_control(e)}
+                                "hvac_mode_control": self._runtime.installation.own_hvac_mode_control(e)}
                             for e, t in self._runtime.installation.scheduled.items()},
             "hvac_mode_control": self._runtime.settings.hvac_mode_control,
             "mappings": self._runtime.installation.mappings,

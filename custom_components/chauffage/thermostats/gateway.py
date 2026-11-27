@@ -45,7 +45,7 @@ def local_time(iso: str) -> str:
 class ThermostatGateway:
     """`installation`: the stored data (storage/schema.py), for its "pending" commands and each
     thermostat's "own_settings". `controls_hvac_mode`: whether Chauffage controls a thermostat's
-    HVAC mode (#159, Settings.controls_hvac_mode)."""
+    HVAC mode (#159, ChauffageRuntime.controls_hvac_mode)."""
 
     def __init__(self, hass: HomeAssistant, installation: Installation,
                  controls_hvac_mode: Callable[[str], bool]) -> None:

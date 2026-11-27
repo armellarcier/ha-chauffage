@@ -620,9 +620,11 @@ future contributor might question.
     - **The panel shows the setting** as two choices in the settings dialog, and as a list *As
       the house (on)*, *On*, *Off* at the top of a thermostat's sheet.
   - *Claude's proposals, made while porting to the rewrite (0.11), to confirm:*
-    - **The reader takes the setting**: `ThermostatGateway.read` reads a thermostat with
-      whether Chauffage controls its HVAC mode. `Settings` holds the house's setting and a
-      thermostat's own, so it takes the installation too. `Schedules` converts the weeks.
+    - **The reader takes the setting**: `ThermostatGateway.read` and the learner read a
+      thermostat with whether Chauffage controls its HVAC mode. `Settings` holds the house's
+      setting, and `Installation` a thermostat's own. The runtime combines the two in
+      `controls_hvac_mode`, and gives this one function to the gateway and the learner: they
+      still take no other service. `Schedules` converts the weeks.
     - **A thermostat that keeps the setpoint asked while off** replaces the `vtherm` flag of
       0.10 in this rule. The Versatile Thermostat reader sets it, as it sets
       `leaves_preset_itself`: the domain still knows no VTherm.
