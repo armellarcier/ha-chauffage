@@ -2143,7 +2143,7 @@ phases. The owner decided these points on 2026-11-25:
 
 #### Phase C0: the build of the card
 
-Claude made these choices while splitting the card (proposals, for the owner to confirm):
+Claude made these choices while splitting the card. The owner confirmed them on 2026-11-27:
 
 - **The sources live in `frontend/src/`, at the root of the repository.** The integration's
   folder holds only what Home Assistant runs, so the release ZIP needs no filtering.
@@ -2161,9 +2161,9 @@ Claude made these choices while splitting the card (proposals, for the owner to 
   `zip_release`. Without HACS, a user unzips it into `custom_components/chauffage/`.
 - **`scripts/deploy.sh` builds the card of the commit it deploys**, with Node or Docker.
 
-#### Where the integration's rewrite put the tests and the store (phase I7, a proposal)
+#### Where the integration's rewrite put the tests and the store (phase I7)
 
-Claude proposes these two choices. The owner hasn't confirmed them yet.
+Claude proposed these two choices. The owner confirmed them on 2026-11-27.
 
 - **The tests of the domain stay in `tests/integration/test_domain.py`**, not in
   `tests/unit/domain/` as the plan says. `scripts/test.sh` and the CI run them as before, with no
@@ -2191,9 +2191,10 @@ The owner decided these points on 2026-11-26, after a review of the whole rewrit
   that coordinate several others, such as the scheduler and the overrides, still reach them
   through the runtime, but only through public members.
 
-#### The week editor in Lit (phase C5, a proposal)
+#### The week editor in Lit (phase C5)
 
-Claude made these choices while rewriting the week editor. The owner hasn't confirmed them yet.
+Claude made these choices while rewriting the week editor. The owner confirmed them on
+2026-11-27.
 
 - **The card asks the integration what a preset is worth only for what its data lacks.** The
   data of `chauffage/subscribe` gives `targets` for every thermostat Chauffage schedules. The
@@ -2217,9 +2218,9 @@ Claude made these choices while rewriting the week editor. The owner hasn't conf
   field stays, and nothing puts back what was typed: a redraw doesn't touch a field being typed
   in.
 
-#### The clean-up of the card (phase C6, a proposal)
+#### The clean-up of the card (phase C6)
 
-Claude made these choices while cleaning up the card. The owner hasn't confirmed them yet.
+Claude made these choices while cleaning up the card. The owner confirmed them on 2026-11-27.
 
 - **The panel puts each view in a frame.** The frame, `chauffage-view-frame`, is a card around
   the view, with the cards' stylesheet in its own shadow root. The panel's stylesheet can't hold
