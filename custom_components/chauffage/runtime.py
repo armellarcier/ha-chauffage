@@ -612,12 +612,10 @@ class ChauffageRuntime:
             "presets": self.data["presets"],
             # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
             # own_settings: the fan and the vanes it gets back from a slot that sets none
-            # hvac_mode_control: its own setting (None: follows the house, #159);
-            # controls_hvac_mode: whether Chauffage controls its HVAC mode
+            # hvac_mode_control: its own setting (None: follows the house, #159)
             "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e),
                                 "own_settings": self.own_settings(e),
-                                "hvac_mode_control": t.get(CONF_HVAC_MODE_CONTROL),
-                                "controls_hvac_mode": self.controls_hvac_mode(e)}
+                                "hvac_mode_control": t.get(CONF_HVAC_MODE_CONTROL)}
                             for e, t in self.scheduled.items()},
             "hvac_mode_control": self.hvac_mode_control,
             "mappings": self.mappings,

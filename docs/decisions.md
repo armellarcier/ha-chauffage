@@ -562,6 +562,10 @@ future contributor might question.
     `hvac_mode` is refused on it.
   - **The HVAC mode the thermostat shows picks the temperature of a preset**: its cooling value
     when the thermostat cools. A preset sent as the thermostat's own preset already does this.
+  - **A change of HVAC mode by hand waits for the next slot**, as in 0.9 (the owner's decision
+    of 2026-11-27). Chauffage does not realign the thermostat. An air conditioner switched from
+    heat to cool during comfort keeps its heating setpoint until the next slot, which gives it
+    its cooling value.
   - **Turning the setting off converts the weeks, after the user has seen what changes.** The
     panel lists the slots that change, and the user confirms or cancels. A slot without a preset
     (off, fan only, dry, auto) is removed, and the slot before it continues. A heat, cool or

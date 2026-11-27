@@ -1218,7 +1218,7 @@ const hvacModesOf = (hass, climate) => {
 // offers none. `data`: the integration's data, else the data received last
 function controlsHvac(climate, data = INTEGRATION.data) {
   const t = data && data.thermostats && data.thermostats[climate];
-  if (t && typeof t.controls_hvac_mode === 'boolean') return t.controls_hvac_mode;
+  if (t && typeof t.hvac_mode_control === 'boolean') return t.hvac_mode_control;
   return !data || data.hvac_mode_control !== false;
 }
 // A thermostat that heats and cools: a preset's value on it has a cooling setpoint

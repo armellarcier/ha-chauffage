@@ -70,8 +70,6 @@ async def test_a_thermostat_follows_the_house_or_says_on_or_off(bench: Bench):
     assert snapshot["hvac_mode_control"] is False
     assert snapshot["thermostats"][SALON]["hvac_mode_control"] is True
     assert snapshot["thermostats"][BUREAU]["hvac_mode_control"] is None
-    assert snapshot["thermostats"][SALON]["controls_hvac_mode"] is True
-    assert snapshot["thermostats"][BUREAU]["controls_hvac_mode"] is False
     await turn_off_by_hand(bench, SALON)
     await turn_off_by_hand(bench, BUREAU)
     assert list(bench.overrides()) == [SALON]
@@ -181,12 +179,21 @@ async def test_without_control_an_air_conditioner_gets_the_value_of_the_hvac_mod
         assert bench.applied() == {SALON: "comfort"}
 
 
-async def test_without_control_a_change_of_hvac_mode_by_hand_is_not_an_override(bench: Bench):
-    await start(bench, hvac_modes=AC_MODES)
-    bench.thermostat(SALON, "eco", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
+async def test_without_control_an_hvac_mode_changed_by_hand_waits_for_the_next_slot(bench: Bench):
+    """Owner's decision: switched from heat to cool by hand during comfort, the air conditioner is
+    no override and gets nothing until the next slot, as in 0.9. The next slot gives it the
+    cooling value."""
+    await start(bench, "18:00", preset="comfort", hvac_modes=AC_MODES)
+    bench.thermostat(SALON, "comfort", state="cool", hvac_modes=AC_MODES, context=CTX_USER)
     await bench.hass.async_block_till_done()
     assert bench.overrides() == {}
+    assert bench.powered() == {} and bench.applied() == {} and sent_to(bench) == []
+    await bench.go_to("22:30")  # eco
     assert bench.powered() == {}
+    if bench.kind == "plain":
+        assert sent_to(bench) == [27.0]
+    else:
+        assert bench.applied() == {SALON: "eco"}
 
 
 async def test_without_control_a_setpoint_changed_by_hand_is_still_an_override(bench: Bench):

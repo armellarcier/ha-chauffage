@@ -15,7 +15,7 @@ const hvacCalls = (hass) => hass.events.filter((m) => m.type === 'chauffage/hvac
 const ATELIER = 'climate.atelier';
 const SALON = 'climate.salon';
 // The thermostats whose HVAC mode Chauffage does not control
-const without = (...climates) => Object.fromEntries(climates.map((c) => [c, { paused: false, revision: 7, controls_hvac_mode: false }]));
+const without = (...climates) => Object.fromEntries(climates.map((c) => [c, { paused: false, revision: 7, hvac_mode_control: false }]));
 
 describe('without control of the HVAC mode, the card offers none', () => {
   test('the slot popover of an air conditioner has no row of HVAC modes, and no Éteint', () => {
@@ -29,6 +29,16 @@ describe('without control of the HVAC mode, the card offers none', () => {
     const card = cardOf(setup({ thermostats: without(SALON) }), { show: [SALON] });
     select(card, SALON, 0, 1); // 06:30 comfort
     assert.deepEqual(chips(card, '.editor'), ['Hors-gel', 'Éco', 'Confort ✓', 'Boost']);
+  });
+
+  test('a thermostat that says on keeps its HVAC modes when the house says off', () => {
+    const hass = setup({ thermostats: { [ATELIER]: { paused: false, revision: 7, hvac_mode_control: true } } });
+    hass.data.hvac_mode_control = false;
+    const card = cardOf(hass, { show: [ATELIER, SALON] });
+    select(card, ATELIER, 0, 1); // 14:00 comfort
+    assert.ok($(card, '.editor .mode-row'));
+    select(card, SALON, 0, 1); // follows the house
+    assert.ok(!chips(card, '.editor').includes('Éteint'));
   });
 
   test('a preset tapped in the slot popover sets no HVAC mode, even on a slot that had one', () => {
