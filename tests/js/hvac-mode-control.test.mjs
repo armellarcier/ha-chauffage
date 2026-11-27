@@ -52,6 +52,13 @@ describe('without control of the HVAC mode, the card offers none', () => {
       assert.deepEqual(lastCall(hass).override.target, OWN('boost'));
     });
 
+    test('a new override does not say when Éteint would end: there is no Éteint', () => {
+      const hass = setup({ thermostats: without(SALON), planned: { [SALON]: { preset: 'eco', hvac_mode: null, next_slot_end: '2026-10-12T17:30:00+02:00' } } });
+      const card = cardOf(hass);
+      card._action('override-new', { climate: SALON });
+      assert.doesNotMatch(text($(card, '.override-ed .end-new')), /Éteint/);
+    });
+
     test('offers the presets of the HVAC mode the thermostat shows: in cool, not Hors-gel', () => {
       const hass = setup({ thermostats: without(ATELIER) });
       hass.states[ATELIER].state = 'cool';

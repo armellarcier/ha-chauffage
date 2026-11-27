@@ -2889,11 +2889,11 @@ function newOverrideEndText(src, climate, hass, loc) {
   return off ? `${end} · ${off}` : end;
 }
 // What Off tapped would end at, "Off: until 17:30", when Off would end at another time than
-// `end`; '' when the thermostat cannot be turned off, when it is off already, or when Off
-// would resume the schedule (an off slot)
+// `end`; '' when the thermostat cannot be turned off, when it is off already, when Off would
+// resume the schedule (an off slot), or when the card offers no Off (#159)
 function offEndText(d, src, climate, hass, loc, end) {
   const { modes } = hvacModesOf(hass, climate);
-  if ((modes && !modes.includes('off')) || isOffOverride(d)) return '';
+  if ((modes && !modes.includes('off')) || isOffOverride(d) || !controlsHvac(climate)) return '';
   const off = overrideOff(d, src, climate, hass);
   // Compared to the minute: the two ends are computed a few milliseconds apart
   if (!off || off === RESUME || Math.round(parseDate(off.end) / 60000) === Math.round(parseDate(end) / 60000)) return '';
